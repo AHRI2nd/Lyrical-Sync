@@ -23,8 +23,7 @@ lerna-debug.log*
 Thumbs.db
 
 # Editor
-.vscode/*
-!.vscode/extensions.json
+.vscode
 .idea
 *.suo
 *.ntvs*
