@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lyrical Sync</title>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script>
+      window.addEventListener('error', function(e) {
+        document.getElementById('root').innerHTML =
+          '<div style="padding:24px;font-family:monospace;background:#1c1c1e;color:#ff453a;height:100vh">' +
+          '<h2>JS 에러 (모듈 로드 실패)</h2>' +
+          '<pre style="margin-top:12px;white-space:pre-wrap;font-size:12px">' +
+          (e.message || '') + '\n' + (e.filename || '') + ':' + (e.lineno || '') + '\n\n' +
+          (e.error && e.error.stack ? e.error.stack : '') +
+          '</pre></div>';
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        document.getElementById('root').innerHTML =
+          '<div style="padding:24px;font-family:monospace;background:#1c1c1e;color:#ff453a;height:100vh">' +
+          '<h2>Promise 에러 (비동기 실패)</h2>' +
+          '<pre style="margin-top:12px;white-space:pre-wrap;font-size:12px">' +
+          (e.reason ? (e.reason.stack || String(e.reason)) : '(unknown)') +
+          '</pre></div>';
+      });
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
