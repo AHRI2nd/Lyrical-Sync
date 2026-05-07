@@ -91,35 +91,3 @@ Binaries are output to `src-tauri/target/release/bundle/`.
 ```bash
 npx tsc --noEmit
 ```
-
-## Project Structure
-
-```
-src/
-├── main.tsx                          # Entry point
-├── App.tsx                           # Toolbar + 2-panel layout, global keyboard handler
-├── ErrorBoundary.tsx
-├── index.css                         # Tailwind v4
-├── types/lrc.ts                      # LrcDocument, LrcLine, LrcMetadata types
-├── utils/
-│   ├── lrcParser.ts                  # LRC parse/serialize, time format helpers
-│   └── audioControls.ts             # Global audio control interface (singleton)
-├── stores/
-│   ├── useLrcStore.ts               # Global app state (Zustand)
-│   └── useI18nStore.ts              # Language state (persists lang key only)
-├── i18n/translations.ts             # Korean / English / Japanese strings
-└── components/
-    ├── AudioPlayer/AudioPlayer.tsx  # Wavesurfer waveform + playback controls
-    ├── LrcEditor/LrcEditor.tsx      # Lyric line editor + timestamp stamping
-    ├── MetaEditor/MetaEditor.tsx    # Song metadata + raw LRC editor popup
-    └── Preview/PreviewModal.tsx     # Full-screen karaoke preview
-
-src-tauri/
-├── src/lib.rs                       # Tauri commands: read_lrc_file, write_lrc_file, read_audio_file
-├── tauri.conf.json                  # App config (productName, window size)
-└── capabilities/default.json       # File system permissions
-```
-
-## License
-
-MIT
