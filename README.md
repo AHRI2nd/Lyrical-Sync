@@ -23,9 +23,13 @@ A desktop application for creating and editing `.lrc` (LRC) lyric files
 - **Raw LRC editor** — view and edit the full LRC file as plain text via the "View All" popup
 - **Song metadata** — edit title, artist, album, author, offset, and any additional LRC tags (preserved on load/save)
 - **Multi-language UI** — Korean, English, Japanese
-- **Supported audio formats** — MP3, FLAC, WAV, M4A/AAC (macOS WKWebView)
+- **Supported audio formats** — MP3, FLAC, WAV, M4A/AAC, AIFF/AIF
+  - macOS (WKWebView): all formats natively supported
+  - Windows (WebView2): AIFF/AIF files are automatically transcoded to WAV via the Rust backend
 
 ## Installation
+
+### macOS
 
 Download the latest `.dmg` installer from the [Releases](../../releases) page and open it to drag Lyrical Sync into your Applications folder.
 
@@ -38,6 +42,14 @@ Download the latest `.dmg` installer from the [Releases](../../releases) page an
 > ```
 >
 > Then open the app normally.
+
+### Windows
+
+Download the latest `.msi` or `_x64-setup.exe` installer from the [Releases](../../releases) page and run it.
+
+> **Windows — security prompt**
+>
+> If Windows Defender SmartScreen shows an "Unknown publisher" warning, click **More info** → **Run anyway** to proceed with the installation.
 
 ## Keyboard Shortcuts
 
