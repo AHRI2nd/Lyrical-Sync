@@ -110,6 +110,7 @@ export function AudioPlayer() {
       const mime: Record<string, string> = {
         mp3: "audio/mpeg", flac: "audio/flac", wav: "audio/wav",
         ogg: "audio/ogg", m4a: "audio/mp4", aac: "audio/aac", opus: "audio/ogg",
+        aiff: "audio/aiff", aif: "audio/aiff",
       };
       const blob = new Blob([bytes], { type: mime[ext] ?? "audio/*" });
       const url = URL.createObjectURL(blob);
