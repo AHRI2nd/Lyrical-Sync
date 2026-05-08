@@ -1,6 +1,9 @@
 # Dependencies
 node_modules
 
+# Source icon (generated into src-tauri/icons/ by tauri icon command)
+icon.png
+
 # Build outputs
 dist
 dist-ssr
