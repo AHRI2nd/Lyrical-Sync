@@ -1,10 +1,17 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import WaveSurfer from "wavesurfer.js";
 import { readFile } from "@tauri-apps/plugin-fs";
+import { invoke } from "@tauri-apps/api/core";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { audioControls } from "../../utils/audioControls";
 import { formatDisplayTime } from "../../utils/lrcParser";
+
+const AUDIO_MIME: Record<string, string> = {
+  mp3: "audio/mpeg", flac: "audio/flac", wav: "audio/wav",
+  ogg: "audio/ogg", m4a: "audio/mp4", aac: "audio/aac", opus: "audio/ogg",
+  aiff: "audio/aiff", aif: "audio/aiff",
+};
 
 const SPEED_STEPS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
 
@@ -35,6 +42,8 @@ export function AudioPlayer() {
       normalize: true,
       interact: true,
     });
+    // Windows의 가로 스크롤바가 파형 하단을 가리는 문제 방지
+    ws.getWrapper().classList.add("ws-scroll");
 
     ws.on("ready", () => {
       const d = ws.getDuration();
@@ -101,18 +110,25 @@ export function AudioPlayer() {
 
     setIsAudioReady(false);
 
-    readFile(audioPath).then((bytes) => {
+    const ext = audioPath.split(".").pop()?.toLowerCase() ?? "";
+    const isAiff = ext === "aiff" || ext === "aif";
+
+    // AIFF는 WebView2(Windows)에서 지원 안 됨 → Rust에서 WAV로 트랜스코딩
+    const getBytes = (): Promise<Uint8Array> => {
+      if (isAiff) {
+        return invoke<string>("decode_audio_to_wav", { path: audioPath })
+          .then((wavPath) => readFile(wavPath));
+      }
+      return readFile(audioPath);
+    };
+
+    getBytes().then((bytes) => {
       if (cancelled || !wsRef.current) return;
 
       if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
 
-      const ext = audioPath.split(".").pop()?.toLowerCase() ?? "";
-      const mime: Record<string, string> = {
-        mp3: "audio/mpeg", flac: "audio/flac", wav: "audio/wav",
-        ogg: "audio/ogg", m4a: "audio/mp4", aac: "audio/aac", opus: "audio/ogg",
-        aiff: "audio/aiff", aif: "audio/aiff",
-      };
-      const blob = new Blob([bytes], { type: mime[ext] ?? "audio/*" });
+      const mimeType = isAiff ? "audio/wav" : (AUDIO_MIME[ext] ?? "audio/*");
+      const blob = new Blob([bytes], { type: mimeType });
       const url = URL.createObjectURL(blob);
       blobUrlRef.current = url;
       wsRef.current.load(url);
