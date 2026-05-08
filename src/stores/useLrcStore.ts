@@ -180,7 +180,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   openAudio: async () => {
     const selected = await open({
       multiple: false,
-      filters: [{ name: "Audio", extensions: ["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus"] }],
+      filters: [{ name: "Audio", extensions: ["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff", "aif"] }],
     });
     if (typeof selected === "string") {
       set({ audioPath: selected });
