@@ -150,7 +150,7 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
               <p className="text-zinc-700 text-sm text-center mb-2">{t.previewNoTimestamps}</p>
             )}
             {doc.lines.map((line, i) => {
-              const dist = activeIdx === -1 ? i : Math.abs(i - activeIdx);
+              const dist = activeIdx === -1 ? 999 : Math.abs(i - activeIdx);
               const isActive = i === activeIdx;
 
               const dimClass = isActive
