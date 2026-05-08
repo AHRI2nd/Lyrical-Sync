@@ -23,9 +23,13 @@
 - **Raw LRC 편집기** — "전체보기" 팝업으로 전체 LRC 파일을 텍스트로 확인하고 편집
 - **곡 메타데이터** — 제목, 아티스트, 앨범, 작성자, 오프셋, 추가 LRC 태그 편집 (불러오기/저장 시 보존)
 - **다국어 UI** — 한국어, 영어, 일본어
-- **지원 오디오 포맷** — MP3, FLAC, WAV, M4A/AAC (macOS WKWebView)
+- **지원 오디오 포맷** — MP3, FLAC, WAV, M4A/AAC, AIFF/AIF
+  - macOS (WKWebView): 모든 포맷 네이티브 지원
+  - Windows (WebView2): AIFF/AIF 파일은 Rust 백엔드에서 자동으로 WAV로 트랜스코딩하여 재생
 
 ## 설치
+
+### macOS
 
 [Releases](../../releases) 페이지에서 최신 `.dmg` 파일을 다운로드한 후, 열어서 Lyrical Sync를 응용 프로그램 폴더로 드래그하세요.
 
@@ -38,6 +42,14 @@
 > ```
 >
 > 이후 앱을 정상적으로 실행하면 됩니다.
+
+### Windows
+
+[Releases](../../releases) 페이지에서 최신 `.msi` 또는 `_x64-setup.exe` 설치 파일을 다운로드한 후 실행하세요.
+
+> **Windows — 보안 경고**
+>
+> Windows Defender SmartScreen에서 "알 수 없는 게시자" 경고가 표시되면 **추가 정보** → **실행**을 클릭하여 설치를 진행하세요.
 
 ## 키보드 단축키
 
