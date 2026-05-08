@@ -1,6 +1,10 @@
 # Lyrical Sync
 
-A desktop application for creating and editing `.lrc` (LRC) lyric files. Load an audio file, stamp timestamps in real time, and export a synchronized lyric file.
+A desktop application for creating and editing `.lrc` (LRC) lyric files
+
+[한국어](README.ko.md) | [日本語](README.ja.md)
+
+![main](img/main_en.png)
 
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
 ![Tauri](https://img.shields.io/badge/Tauri-v2-24C8D8)
@@ -21,6 +25,20 @@ A desktop application for creating and editing `.lrc` (LRC) lyric files. Load an
 - **Multi-language UI** — Korean, English, Japanese
 - **Supported audio formats** — MP3, FLAC, WAV, M4A/AAC (macOS WKWebView)
 
+## Installation
+
+Download the latest `.dmg` installer from the [Releases](../../releases) page and open it to drag Lyrical Sync into your Applications folder.
+
+> **macOS — unsigned app warning**
+>
+> Run the following command in Terminal after installation:
+>
+> ```bash
+> xattr -cr /Applications/Lyrical\ Sync.app
+> ```
+>
+> Then open the app normally.
+
 ## Keyboard Shortcuts
 
 | Key | Action |
@@ -35,21 +53,6 @@ A desktop application for creating and editing `.lrc` (LRC) lyric files. Load an
 | `Backspace` | Move to previous line |
 
 > Shortcuts are disabled while an input field is focused.
-
-## LRC Format
-
-```
-[ti:Title]
-[ar:Artist]
-[al:Album]
-[by:Author]
-[offset:0]
-
-[00:12.34]First lyric line
-[00:16.78]Second lyric line
-```
-
-Timestamps are stored as `[MM:SS.xx]`. Lines with a timestamp but no text are treated as paragraph dividers and are preserved on load/save.
 
 ## Tech Stack
 
