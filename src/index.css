@@ -29,3 +29,11 @@ body,
 ::-webkit-scrollbar-thumb:hover {
   background: #52525b;
 }
+
+.ws-scroll::-webkit-scrollbar {
+  display: none;
+}
+.ws-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
