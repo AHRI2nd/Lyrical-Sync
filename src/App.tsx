@@ -69,8 +69,17 @@ function App() {
 
   const [showHelp, setShowHelp] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [showNewConfirm, setShowNewConfirm] = useState(false);
   const { lrcPath, isDirty, openLrc, saveLrc, saveLrcAs, newLrc } = useLrcStore();
   const { lang, setLang, t } = useI18nStore();
+
+  const handleNewLrc = () => {
+    if (isDirty) {
+      setShowNewConfirm(true);
+    } else {
+      newLrc();
+    }
+  };
 
   const title = lrcPath
     ? lrcPath.split(/[\\/]/).pop()
@@ -101,7 +110,7 @@ function App() {
           ))}
         </div>
         <div className="flex gap-2 shrink-0">
-          <ToolBtn onClick={newLrc} className="w-24">{t.newFileBtn}</ToolBtn>
+          <ToolBtn onClick={handleNewLrc} className="w-24">{t.newFileBtn}</ToolBtn>
           <ToolBtn onClick={openLrc} className="w-24">{t.openLrc}</ToolBtn>
           <ToolBtn onClick={saveLrc} accent className="w-16">{t.save}</ToolBtn>
           <ToolBtn onClick={saveLrcAs} className="w-40">{t.saveAs}</ToolBtn>
@@ -110,6 +119,16 @@ function App() {
 
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
       {showPreview && <PreviewModal onClose={() => setShowPreview(false)} />}
+      {showNewConfirm && (
+        <ConfirmModal
+          title={t.confirmNewTitle}
+          message={t.confirmNewMessage}
+          okLabel={t.confirmNewOk}
+          cancelLabel={t.confirmNewCancel}
+          onOk={() => { setShowNewConfirm(false); newLrc(); }}
+          onCancel={() => setShowNewConfirm(false)}
+        />
+      )}
 
       <div className="flex flex-1 min-h-0 gap-0">
         <div className="flex flex-col gap-3 p-3 w-80 shrink-0 overflow-y-auto border-r border-zinc-800">
@@ -182,6 +201,58 @@ function HelpModal({ onClose }: { onClose: () => void }) {
             </div>
           ))}
           <p className="mt-3 text-xs text-zinc-500">{t.shortcutNote}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfirmModal({
+  title, message, okLabel, cancelLabel, onOk, onCancel,
+}: {
+  title: string;
+  message: string;
+  okLabel: string;
+  cancelLabel: string;
+  onOk: () => void;
+  onCancel: () => void;
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onCancel]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onCancel}
+    >
+      <div
+        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 py-4 border-b border-zinc-800">
+          <span className="font-semibold text-zinc-100">{title}</span>
+        </div>
+        <div className="px-5 py-4">
+          <p className="text-sm text-zinc-300">{message}</p>
+        </div>
+        <div className="flex justify-end gap-2 px-5 pb-4">
+          <button
+            onClick={onCancel}
+            className="px-4 py-1.5 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100 transition-colors"
+          >
+            {cancelLabel}
+          </button>
+          <button
+            onClick={onOk}
+            className="px-4 py-1.5 text-sm rounded-lg bg-rose-600 hover:bg-rose-500 text-white transition-colors"
+          >
+            {okLabel}
+          </button>
         </div>
       </div>
     </div>
