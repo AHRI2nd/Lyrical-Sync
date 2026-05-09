@@ -53,6 +53,11 @@ export interface Translations {
   previewUntitled: string;
   previewNoLyrics: string;
   previewNoTimestamps: string;
+  // Confirm new file dialog
+  confirmNewTitle: string;
+  confirmNewMessage: string;
+  confirmNewOk: string;
+  confirmNewCancel: string;
 }
 
 const ko: Translations = {
@@ -109,6 +114,10 @@ const ko: Translations = {
   previewUntitled: "제목 없음",
   previewNoLyrics: "가사가 없습니다",
   previewNoTimestamps: "타임스탬프가 설정된 줄이 없습니다",
+  confirmNewTitle: "새 파일 만들기",
+  confirmNewMessage: "저장되지 않은 변경 사항이 있습니다. 계속하면 현재 내용이 삭제됩니다.",
+  confirmNewOk: "새로 만들기",
+  confirmNewCancel: "취소",
 };
 
 const en: Translations = {
@@ -165,6 +174,10 @@ const en: Translations = {
   previewUntitled: "Untitled",
   previewNoLyrics: "No lyrics added",
   previewNoTimestamps: "No timestamps have been set",
+  confirmNewTitle: "New File",
+  confirmNewMessage: "You have unsaved changes. Continuing will discard the current content.",
+  confirmNewOk: "New File",
+  confirmNewCancel: "Cancel",
 };
 
 const ja: Translations = {
@@ -221,6 +234,10 @@ const ja: Translations = {
   previewUntitled: "タイトルなし",
   previewNoLyrics: "歌詞がありません",
   previewNoTimestamps: "タイムスタンプが設定されていません",
+  confirmNewTitle: "新規ファイル",
+  confirmNewMessage: "保存されていない変更があります。続行すると現在の内容が削除されます。",
+  confirmNewOk: "新規作成",
+  confirmNewCancel: "キャンセル",
 };
 
 export const translations: Record<Lang, Translations> = { ko, en, ja };
