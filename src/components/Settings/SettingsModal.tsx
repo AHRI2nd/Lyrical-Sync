@@ -121,7 +121,7 @@ export function SettingsModal({
             <input
               type="range"
               min={0.7}
-              max={1.4}
+              max={1.3}
               step={0.05}
               value={uiScale}
               onChange={(e) => setUiScale(Number(e.target.value))}
@@ -130,7 +130,7 @@ export function SettingsModal({
             <div className="flex justify-between text-xs text-zinc-500 select-none">
               <span>70%</span>
               <span>100%</span>
-              <span>140%</span>
+              <span>130%</span>
             </div>
           </div>
         </div>
