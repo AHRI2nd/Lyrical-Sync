@@ -1,12 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AudioPlayer } from "./components/AudioPlayer/AudioPlayer";
 import { MetaEditor } from "./components/MetaEditor/MetaEditor";
 import { LrcEditor } from "./components/LrcEditor/LrcEditor";
 import { PreviewModal } from "./components/Preview/PreviewModal";
+import { SettingsModal } from "./components/Settings/SettingsModal";
 import { useLrcStore } from "./stores/useLrcStore";
 import { useI18nStore } from "./stores/useI18nStore";
+import { useSettingsStore } from "./stores/useSettingsStore";
 import { audioControls } from "./utils/audioControls";
 import { type Lang } from "./i18n/translations";
+import { checkForUpdate, RELEASES_URL } from "./utils/updateCheck";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 function useGlobalKeys() {
   const { stampAndAdvance, goToPreviousLine } = useLrcStore();
@@ -58,6 +62,25 @@ function useGlobalKeys() {
   }, [stampAndAdvance, goToPreviousLine]);
 }
 
+function useAutoUpdateCheck(onUpdateAvailable: (version: string) => void, enabled: boolean) {
+  const cbRef = useRef(onUpdateAvailable);
+  cbRef.current = onUpdateAvailable;
+
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const version = await checkForUpdate();
+        if (version && !cancelled) cbRef.current(version);
+      } catch {
+        // silently ignore network errors
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [enabled]);
+}
+
 const LANG_LABELS: { lang: Lang; label: string }[] = [
   { lang: "ko", label: "한국어" },
   { lang: "en", label: "English" },
@@ -69,9 +92,18 @@ function App() {
 
   const [showHelp, setShowHelp] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [showNewConfirm, setShowNewConfirm] = useState(false);
+  const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const { lrcPath, isDirty, openLrc, saveLrc, saveLrcAs, newLrc } = useLrcStore();
   const { lang, setLang, t } = useI18nStore();
+  const { autoCheckUpdate, uiScale } = useSettingsStore();
+
+  useAutoUpdateCheck((v) => setUpdateVersion(v), autoCheckUpdate);
+
+  useEffect(() => {
+    document.documentElement.style.zoom = String(uiScale);
+  }, [uiScale]);
 
   const handleNewLrc = () => {
     if (isDirty) {
@@ -119,6 +151,22 @@ function App() {
 
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
       {showPreview && <PreviewModal onClose={() => setShowPreview(false)} />}
+      {showSettings && (
+        <SettingsModal
+          onClose={() => setShowSettings(false)}
+          onUpdateFound={(v) => { setShowSettings(false); setUpdateVersion(v); }}
+        />
+      )}
+      {updateVersion && (
+        <ConfirmModal
+          title={t.updateTitle}
+          message={`${t.updateNewVersion} ${updateVersion} ${t.updatePrompt}`}
+          okLabel={t.updateYes}
+          cancelLabel={t.updateLater}
+          onOk={() => { setUpdateVersion(null); openUrl(RELEASES_URL); }}
+          onCancel={() => setUpdateVersion(null)}
+        />
+      )}
       {showNewConfirm && (
         <ConfirmModal
           title={t.confirmNewTitle}
@@ -140,13 +188,22 @@ function App() {
         </div>
       </div>
 
-      <button
-        onClick={() => setShowHelp(true)}
-        title={t.shortcutsTitle}
-        className="fixed bottom-4 left-4 w-8 h-8 rounded-full bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white text-sm font-bold transition-colors flex items-center justify-center shadow-lg z-10"
-      >
-        ?
-      </button>
+      <div className="fixed bottom-4 left-4 flex gap-2 z-10">
+        <button
+          onClick={() => setShowSettings(true)}
+          title={t.settingsTitle}
+          className="w-8 h-8 rounded-full bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white transition-colors flex items-center justify-center shadow-lg"
+        >
+          <GearIcon />
+        </button>
+        <button
+          onClick={() => setShowHelp(true)}
+          title={t.shortcutsTitle}
+          className="w-8 h-8 rounded-full bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white text-sm font-bold transition-colors flex items-center justify-center shadow-lg"
+        >
+          ?
+        </button>
+      </div>
     </div>
   );
 }
@@ -278,6 +335,15 @@ function ToolBtn({
     >
       {children}
     </button>
+  );
+}
+
+function GearIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
   );
 }
 

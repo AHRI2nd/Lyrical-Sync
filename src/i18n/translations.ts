@@ -58,6 +58,21 @@ export interface Translations {
   confirmNewMessage: string;
   confirmNewOk: string;
   confirmNewCancel: string;
+  // Update notification
+  updateTitle: string;
+  updateNewVersion: string;
+  updatePrompt: string;
+  updateYes: string;
+  updateLater: string;
+  // Settings modal
+  settingsTitle: string;
+  settingsAutoUpdate: string;
+  settingsAutoUpdateDesc: string;
+  settingsCheckNow: string;
+  settingsChecking: string;
+  settingsUpToDate: string;
+  settingsUiScale: string;
+  settingsUiScaleReset: string;
 }
 
 const ko: Translations = {
@@ -118,6 +133,19 @@ const ko: Translations = {
   confirmNewMessage: "저장되지 않은 변경 사항이 있습니다. 계속하면 현재 내용이 삭제됩니다.",
   confirmNewOk: "새로 만들기",
   confirmNewCancel: "취소",
+  updateTitle: "업데이트 알림",
+  updateNewVersion: "새 버전",
+  updatePrompt: "이 출시되었습니다. 릴리즈 페이지로 이동하시겠습니까?",
+  updateYes: "이동",
+  updateLater: "나중에",
+  settingsTitle: "설정",
+  settingsAutoUpdate: "자동 업데이트 확인",
+  settingsAutoUpdateDesc: "앱 시작 시 최신 버전을 자동으로 확인합니다.",
+  settingsCheckNow: "지금 확인",
+  settingsChecking: "확인 중...",
+  settingsUpToDate: "최신 버전입니다.",
+  settingsUiScale: "UI 크기",
+  settingsUiScaleReset: "초기화",
 };
 
 const en: Translations = {
@@ -178,6 +206,19 @@ const en: Translations = {
   confirmNewMessage: "You have unsaved changes. Continuing will discard the current content.",
   confirmNewOk: "New File",
   confirmNewCancel: "Cancel",
+  updateTitle: "Update Available",
+  updateNewVersion: "New version",
+  updatePrompt: "is available. Go to the release page?",
+  updateYes: "Go",
+  updateLater: "Later",
+  settingsTitle: "Settings",
+  settingsAutoUpdate: "Auto-check for updates",
+  settingsAutoUpdateDesc: "Automatically check for new versions on startup.",
+  settingsCheckNow: "Check Now",
+  settingsChecking: "Checking...",
+  settingsUpToDate: "You're up to date.",
+  settingsUiScale: "UI Scale",
+  settingsUiScaleReset: "Reset",
 };
 
 const ja: Translations = {
@@ -238,6 +279,19 @@ const ja: Translations = {
   confirmNewMessage: "保存されていない変更があります。続行すると現在の内容が削除されます。",
   confirmNewOk: "新規作成",
   confirmNewCancel: "キャンセル",
+  updateTitle: "アップデート通知",
+  updateNewVersion: "新バージョン",
+  updatePrompt: "がリリースされました。リリースページに移動しますか？",
+  updateYes: "移動",
+  updateLater: "あとで",
+  settingsTitle: "設定",
+  settingsAutoUpdate: "自動更新確認",
+  settingsAutoUpdateDesc: "アプリ起動時に最新バージョンを自動で確認します。",
+  settingsCheckNow: "今すぐ確認",
+  settingsChecking: "確認中...",
+  settingsUpToDate: "最新バージョンです。",
+  settingsUiScale: "UIサイズ",
+  settingsUiScaleReset: "リセット",
 };
 
 export const translations: Record<Lang, Translations> = { ko, en, ja };
