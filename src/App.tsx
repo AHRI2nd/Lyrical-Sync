@@ -101,9 +101,8 @@ function App() {
 
   useAutoUpdateCheck((v) => setUpdateVersion(v), autoCheckUpdate);
 
-  useEffect(() => {
-    document.documentElement.style.zoom = String(uiScale);
-  }, [uiScale]);
+  // Clear any zoom set by a previous version of the app
+  useEffect(() => { document.documentElement.style.zoom = ""; }, []);
 
   const handleNewLrc = () => {
     if (isDirty) {
@@ -118,7 +117,15 @@ function App() {
     : t.newFileTitle;
 
   return (
-    <div className="flex flex-col h-screen bg-zinc-950 text-white overflow-hidden">
+    <div
+      className="flex flex-col bg-zinc-950 text-white overflow-hidden"
+      style={{
+        transform: `scale(${uiScale})`,
+        transformOrigin: "top left",
+        width: `${(100 / uiScale).toFixed(4)}vw`,
+        height: `${(100 / uiScale).toFixed(4)}vh`,
+      }}
+    >
       <header className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border-b border-zinc-800 shrink-0">
         <span className="font-semibold text-indigo-400 mr-2">Lyrical Sync</span>
         <span className="text-zinc-400 text-sm flex-1 truncate">
