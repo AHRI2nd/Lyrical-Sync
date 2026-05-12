@@ -17,6 +17,17 @@ impl Default for DownloadState {
     }
 }
 
+/// 사용자가 지정한 커스텀 모델 저장 경로. None이면 앱 기본 경로를 사용합니다.
+pub struct ModelsDirState {
+    custom_path: Mutex<Option<PathBuf>>,
+}
+
+impl Default for ModelsDirState {
+    fn default() -> Self {
+        Self { custom_path: Mutex::new(None) }
+    }
+}
+
 #[derive(Deserialize)]
 struct FileSpec {
     url: String,
@@ -35,7 +46,11 @@ struct DownloadProgressEvent {
     error: Option<String>,
 }
 
-fn models_dir(app: &AppHandle) -> Result<PathBuf, String> {
+fn models_dir(app: &AppHandle, dir_state: &ModelsDirState) -> Result<PathBuf, String> {
+    let custom = dir_state.custom_path.lock().unwrap();
+    if let Some(ref p) = *custom {
+        return Ok(p.clone());
+    }
     app.path()
         .app_data_dir()
         .map(|d| d.join("models"))
@@ -136,17 +151,35 @@ async fn decode_audio_to_wav(path: String) -> Result<String, String> {
 
 // ─── Model management commands ────────────────────────────────────────────────
 
+/// 커스텀 모델 저장 경로를 설정합니다. None이면 앱 기본 경로로 초기화합니다.
 #[tauri::command]
-async fn get_models_dir(app: AppHandle) -> Result<String, String> {
-    let dir = models_dir(&app)?;
+fn set_models_dir_override(
+    dir_state: tauri::State<'_, ModelsDirState>,
+    path: Option<String>,
+) -> Result<(), String> {
+    let mut custom = dir_state.custom_path.lock().unwrap();
+    *custom = path.filter(|p| !p.is_empty()).map(PathBuf::from);
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_models_dir(
+    app: AppHandle,
+    dir_state: tauri::State<'_, ModelsDirState>,
+) -> Result<String, String> {
+    let dir = models_dir(&app, &dir_state)?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir.to_string_lossy().into_owned())
 }
 
 /// 각 파일이 models 디렉터리에 존재하는지 확인합니다.
 #[tauri::command]
-async fn check_model_files(app: AppHandle, filenames: Vec<String>) -> Result<Vec<bool>, String> {
-    let base = models_dir(&app)?;
+async fn check_model_files(
+    app: AppHandle,
+    dir_state: tauri::State<'_, ModelsDirState>,
+    filenames: Vec<String>,
+) -> Result<Vec<bool>, String> {
+    let base = models_dir(&app, &dir_state)?;
     Ok(filenames.iter().map(|f| base.join(f).exists()).collect())
 }
 
@@ -154,20 +187,21 @@ async fn check_model_files(app: AppHandle, filenames: Vec<String>) -> Result<Vec
 #[tauri::command]
 async fn download_model(
     app: AppHandle,
-    state: tauri::State<'_, DownloadState>,
+    dir_state: tauri::State<'_, ModelsDirState>,
+    dl_state: tauri::State<'_, DownloadState>,
     model_id: String,
     files: Vec<FileSpec>,
 ) -> Result<(), String> {
     let cancel = Arc::new(AtomicBool::new(false));
-    state.cancels.lock().unwrap().insert(model_id.clone(), cancel.clone());
+    dl_state.cancels.lock().unwrap().insert(model_id.clone(), cancel.clone());
 
-    let base = models_dir(&app)?;
+    let base = models_dir(&app, &dir_state)?;
     let file_count = files.len();
     let client = reqwest::Client::new();
 
     for (i, spec) in files.iter().enumerate() {
         if cancel.load(Ordering::Relaxed) {
-            state.cancels.lock().unwrap().remove(&model_id);
+            dl_state.cancels.lock().unwrap().remove(&model_id);
             return Err("cancelled".into());
         }
 
@@ -184,7 +218,7 @@ async fn download_model(
 
         if !resp.status().is_success() {
             let status = resp.status();
-            state.cancels.lock().unwrap().remove(&model_id);
+            dl_state.cancels.lock().unwrap().remove(&model_id);
             return Err(format!("HTTP {status}"));
         }
 
@@ -198,7 +232,7 @@ async fn download_model(
             if cancel.load(Ordering::Relaxed) {
                 drop(file);
                 let _ = tokio::fs::remove_file(&dest).await;
-                state.cancels.lock().unwrap().remove(&model_id);
+                dl_state.cancels.lock().unwrap().remove(&model_id);
                 return Err("cancelled".into());
             }
 
@@ -238,7 +272,7 @@ async fn download_model(
                             error: Some(e.to_string()),
                         },
                     );
-                    state.cancels.lock().unwrap().remove(&model_id);
+                    dl_state.cancels.lock().unwrap().remove(&model_id);
                     return Err(e.to_string());
                 }
             }
@@ -258,13 +292,13 @@ async fn download_model(
         },
     );
 
-    state.cancels.lock().unwrap().remove(&model_id);
+    dl_state.cancels.lock().unwrap().remove(&model_id);
     Ok(())
 }
 
 #[tauri::command]
-fn cancel_model_download(state: tauri::State<'_, DownloadState>, model_id: String) {
-    if let Ok(cancels) = state.cancels.lock() {
+fn cancel_model_download(dl_state: tauri::State<'_, DownloadState>, model_id: String) {
+    if let Ok(cancels) = dl_state.cancels.lock() {
         if let Some(flag) = cancels.get(&model_id) {
             flag.store(true, Ordering::Relaxed);
         }
@@ -272,8 +306,12 @@ fn cancel_model_download(state: tauri::State<'_, DownloadState>, model_id: Strin
 }
 
 #[tauri::command]
-async fn delete_model_files(app: AppHandle, filenames: Vec<String>) -> Result<(), String> {
-    let base = models_dir(&app)?;
+async fn delete_model_files(
+    app: AppHandle,
+    dir_state: tauri::State<'_, ModelsDirState>,
+    filenames: Vec<String>,
+) -> Result<(), String> {
+    let base = models_dir(&app, &dir_state)?;
     for f in &filenames {
         let path = base.join(f);
         if path.exists() {
@@ -289,6 +327,7 @@ async fn delete_model_files(app: AppHandle, filenames: Vec<String>) -> Result<()
 pub fn run() {
     tauri::Builder::default()
         .manage(DownloadState::default())
+        .manage(ModelsDirState::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
@@ -297,6 +336,7 @@ pub fn run() {
             write_lrc_file,
             read_audio_file,
             decode_audio_to_wav,
+            set_models_dir_override,
             get_models_dir,
             check_model_files,
             download_model,
