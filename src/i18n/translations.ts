@@ -77,7 +77,6 @@ export interface Translations {
   settingsUiScaleReset: string;
   // Model download
   modelCategoryDemucs: string;
-  modelCategoryWhisper: string;
   modelCategoryWav2vec2: string;
   modelInstall: string;
   modelInstalling: string;
@@ -87,6 +86,13 @@ export interface Translations {
   modelStoragePath: string;
   modelMb: string;
   modelErrorPrefix: string;
+  modelRequired: string;
+  modelOptional: string;
+  modelChangeDir: string;
+  modelResetDir: string;
+  modelCopyPath: string;
+  modelInstalledVariants: string;
+  modelNoneInstalled: string;
 }
 
 const ko: Translations = {
@@ -163,7 +169,6 @@ const ko: Translations = {
   settingsUiScale: "UI 크기",
   settingsUiScaleReset: "초기화",
   modelCategoryDemucs: "음성 분리",
-  modelCategoryWhisper: "음성 인식",
   modelCategoryWav2vec2: "타임스탬프 정렬",
   modelInstall: "설치",
   modelInstalling: "설치 중...",
@@ -173,6 +178,13 @@ const ko: Translations = {
   modelStoragePath: "저장 위치",
   modelMb: "MB",
   modelErrorPrefix: "오류",
+  modelRequired: "필수",
+  modelOptional: "선택",
+  modelChangeDir: "위치 변경",
+  modelResetDir: "기본으로",
+  modelCopyPath: "복사",
+  modelInstalledVariants: "설치됨",
+  modelNoneInstalled: "없음",
 };
 
 const en: Translations = {
@@ -249,7 +261,6 @@ const en: Translations = {
   settingsUiScale: "UI Scale",
   settingsUiScaleReset: "Reset",
   modelCategoryDemucs: "Source Separation",
-  modelCategoryWhisper: "Speech Recognition",
   modelCategoryWav2vec2: "Timestamp Alignment",
   modelInstall: "Install",
   modelInstalling: "Installing...",
@@ -259,6 +270,13 @@ const en: Translations = {
   modelStoragePath: "Storage path",
   modelMb: "MB",
   modelErrorPrefix: "Error",
+  modelRequired: "Required",
+  modelOptional: "Optional",
+  modelChangeDir: "Change location",
+  modelResetDir: "Reset to default",
+  modelCopyPath: "Copy",
+  modelInstalledVariants: "Installed",
+  modelNoneInstalled: "None",
 };
 
 const ja: Translations = {
@@ -335,7 +353,6 @@ const ja: Translations = {
   settingsUiScale: "UIサイズ",
   settingsUiScaleReset: "リセット",
   modelCategoryDemucs: "音源分離",
-  modelCategoryWhisper: "音声認識",
   modelCategoryWav2vec2: "タイムスタンプ整列",
   modelInstall: "インストール",
   modelInstalling: "インストール中...",
@@ -345,6 +362,13 @@ const ja: Translations = {
   modelStoragePath: "保存場所",
   modelMb: "MB",
   modelErrorPrefix: "エラー",
+  modelRequired: "必須",
+  modelOptional: "任意",
+  modelChangeDir: "場所を変更",
+  modelResetDir: "デフォルトに戻す",
+  modelCopyPath: "コピー",
+  modelInstalledVariants: "インストール済み",
+  modelNoneInstalled: "なし",
 };
 
 export const translations: Record<Lang, Translations> = { ko, en, ja };
