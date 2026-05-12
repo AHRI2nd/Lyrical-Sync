@@ -37,6 +37,7 @@ interface ModelState {
 
 const CATEGORY_LABEL_KEY: Record<ModelCategory, keyof Translations> = {
   demucs: "modelCategoryDemucs",
+  ctc: "modelCategoryCTC",
   wav2vec2: "modelCategoryWav2vec2",
 };
 
