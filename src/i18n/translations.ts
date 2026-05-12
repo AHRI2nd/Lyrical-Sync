@@ -66,6 +66,8 @@ export interface Translations {
   updateLater: string;
   // Settings modal
   settingsTitle: string;
+  settingsTabGeneral: string;
+  settingsTabModels: string;
   settingsAutoUpdate: string;
   settingsAutoUpdateDesc: string;
   settingsCheckNow: string;
@@ -73,6 +75,18 @@ export interface Translations {
   settingsUpToDate: string;
   settingsUiScale: string;
   settingsUiScaleReset: string;
+  // Model download
+  modelCategoryDemucs: string;
+  modelCategoryWhisper: string;
+  modelCategoryWav2vec2: string;
+  modelInstall: string;
+  modelInstalling: string;
+  modelInstalled: string;
+  modelDelete: string;
+  modelCancel: string;
+  modelStoragePath: string;
+  modelMb: string;
+  modelErrorPrefix: string;
 }
 
 const ko: Translations = {
@@ -139,6 +153,8 @@ const ko: Translations = {
   updateYes: "이동",
   updateLater: "나중에",
   settingsTitle: "설정",
+  settingsTabGeneral: "일반",
+  settingsTabModels: "AI 모델",
   settingsAutoUpdate: "자동 업데이트 확인",
   settingsAutoUpdateDesc: "앱 시작 시 최신 버전을 자동으로 확인합니다.",
   settingsCheckNow: "지금 확인",
@@ -146,6 +162,17 @@ const ko: Translations = {
   settingsUpToDate: "최신 버전입니다.",
   settingsUiScale: "UI 크기",
   settingsUiScaleReset: "초기화",
+  modelCategoryDemucs: "음성 분리",
+  modelCategoryWhisper: "음성 인식",
+  modelCategoryWav2vec2: "타임스탬프 정렬",
+  modelInstall: "설치",
+  modelInstalling: "설치 중...",
+  modelInstalled: "설치됨",
+  modelDelete: "삭제",
+  modelCancel: "취소",
+  modelStoragePath: "저장 위치",
+  modelMb: "MB",
+  modelErrorPrefix: "오류",
 };
 
 const en: Translations = {
@@ -212,6 +239,8 @@ const en: Translations = {
   updateYes: "Go",
   updateLater: "Later",
   settingsTitle: "Settings",
+  settingsTabGeneral: "General",
+  settingsTabModels: "AI Models",
   settingsAutoUpdate: "Auto-check for updates",
   settingsAutoUpdateDesc: "Automatically check for new versions on startup.",
   settingsCheckNow: "Check Now",
@@ -219,6 +248,17 @@ const en: Translations = {
   settingsUpToDate: "You're up to date.",
   settingsUiScale: "UI Scale",
   settingsUiScaleReset: "Reset",
+  modelCategoryDemucs: "Source Separation",
+  modelCategoryWhisper: "Speech Recognition",
+  modelCategoryWav2vec2: "Timestamp Alignment",
+  modelInstall: "Install",
+  modelInstalling: "Installing...",
+  modelInstalled: "Installed",
+  modelDelete: "Delete",
+  modelCancel: "Cancel",
+  modelStoragePath: "Storage path",
+  modelMb: "MB",
+  modelErrorPrefix: "Error",
 };
 
 const ja: Translations = {
@@ -285,6 +325,8 @@ const ja: Translations = {
   updateYes: "移動",
   updateLater: "あとで",
   settingsTitle: "設定",
+  settingsTabGeneral: "一般",
+  settingsTabModels: "AIモデル",
   settingsAutoUpdate: "自動更新確認",
   settingsAutoUpdateDesc: "アプリ起動時に最新バージョンを自動で確認します。",
   settingsCheckNow: "今すぐ確認",
@@ -292,6 +334,17 @@ const ja: Translations = {
   settingsUpToDate: "最新バージョンです。",
   settingsUiScale: "UIサイズ",
   settingsUiScaleReset: "リセット",
+  modelCategoryDemucs: "音源分離",
+  modelCategoryWhisper: "音声認識",
+  modelCategoryWav2vec2: "タイムスタンプ整列",
+  modelInstall: "インストール",
+  modelInstalling: "インストール中...",
+  modelInstalled: "インストール済み",
+  modelDelete: "削除",
+  modelCancel: "キャンセル",
+  modelStoragePath: "保存場所",
+  modelMb: "MB",
+  modelErrorPrefix: "エラー",
 };
 
 export const translations: Record<Lang, Translations> = { ko, en, ja };
