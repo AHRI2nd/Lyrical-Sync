@@ -1,4 +1,4 @@
-export type ModelCategory = "demucs" | "wav2vec2";
+export type ModelCategory = "demucs" | "wav2vec2" | "ctc";
 
 export interface ModelFile {
   filename: string; // models 디렉터리 내 상대 경로
@@ -36,6 +36,28 @@ export const MODEL_DEFS: ModelDef[] = [
     required: false,
   },
 
+  // ── CTC Forced Aligner ───────────────────────────────────────────────────────
+  {
+    id: "ctc-mms-300m",
+    category: "ctc",
+    name: "MMS-300M (1130 languages)",
+    description: {
+      ko: "1130개 언어를 지원하는 다국어 강제 정렬 모델 — 한국어·영어·일본어 포함",
+      en: "Multilingual forced alignment model supporting 1130 languages — incl. Korean, English, Japanese",
+      ja: "1130言語対応の多言語強制アライメントモデル — 日本語・英語・韓国語含む",
+    },
+    files: [
+      { filename: "ctc-forced-aligner/config.json", url: "https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner/resolve/main/config.json" },
+      { filename: "ctc-forced-aligner/preprocessor_config.json", url: "https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner/resolve/main/preprocessor_config.json" },
+      { filename: "ctc-forced-aligner/tokenizer_config.json", url: "https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner/resolve/main/tokenizer_config.json" },
+      { filename: "ctc-forced-aligner/vocab.json", url: "https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner/resolve/main/vocab.json" },
+      { filename: "ctc-forced-aligner/special_tokens_map.json", url: "https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner/resolve/main/special_tokens_map.json" },
+      { filename: "ctc-forced-aligner/model.safetensors", url: "https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner/resolve/main/model.safetensors" },
+    ],
+    totalSizeMb: 1204,
+    required: false,
+  },
+
   // ── wav2vec2 ─────────────────────────────────────────────────────────────────
   {
     id: "wav2vec2-base-960h",
@@ -59,7 +81,7 @@ export const MODEL_DEFS: ModelDef[] = [
   },
 ];
 
-export const CATEGORY_ORDER: ModelCategory[] = ["demucs", "wav2vec2"];
+export const CATEGORY_ORDER: ModelCategory[] = ["demucs", "ctc", "wav2vec2"];
 
 export function formatSize(mb: number): string {
   if (mb >= 1000) return `${(mb / 1000).toFixed(1)} GB`;

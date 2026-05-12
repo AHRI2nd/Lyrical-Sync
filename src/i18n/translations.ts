@@ -77,6 +77,7 @@ export interface Translations {
   settingsUiScaleReset: string;
   // Model download
   modelCategoryDemucs: string;
+  modelCategoryCTC: string;
   modelCategoryWav2vec2: string;
   modelInstall: string;
   modelInstalling: string;
@@ -169,6 +170,7 @@ const ko: Translations = {
   settingsUiScale: "UI 크기",
   settingsUiScaleReset: "초기화",
   modelCategoryDemucs: "음성 분리",
+  modelCategoryCTC: "강제 정렬 (CTC)",
   modelCategoryWav2vec2: "타임스탬프 정렬",
   modelInstall: "설치",
   modelInstalling: "설치 중...",
@@ -261,6 +263,7 @@ const en: Translations = {
   settingsUiScale: "UI Scale",
   settingsUiScaleReset: "Reset",
   modelCategoryDemucs: "Source Separation",
+  modelCategoryCTC: "Forced Alignment (CTC)",
   modelCategoryWav2vec2: "Timestamp Alignment",
   modelInstall: "Install",
   modelInstalling: "Installing...",
@@ -353,6 +356,7 @@ const ja: Translations = {
   settingsUiScale: "UIサイズ",
   settingsUiScaleReset: "リセット",
   modelCategoryDemucs: "音源分離",
+  modelCategoryCTC: "強制アライメント (CTC)",
   modelCategoryWav2vec2: "タイムスタンプ整列",
   modelInstall: "インストール",
   modelInstalling: "インストール中...",
