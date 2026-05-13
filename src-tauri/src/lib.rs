@@ -5,6 +5,9 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager};
 use serde::{Deserialize, Serialize};
 
+// Python alignment script embedded at compile time
+const ALIGN_SCRIPT: &str = include_str!("align.py");
+
 // ─── Download state ───────────────────────────────────────────────────────────
 
 pub struct DownloadState {
@@ -20,6 +23,25 @@ impl Default for DownloadState {
 /// 사용자가 지정한 커스텀 모델 저장 경로. None이면 앱 기본 경로를 사용합니다.
 pub struct ModelsDirState {
     custom_path: Mutex<Option<PathBuf>>,
+}
+
+/// Cancel flag for the currently running alignment process.
+pub struct AlignmentState {
+    cancel_flag: Mutex<Arc<AtomicBool>>,
+}
+
+impl Default for AlignmentState {
+    fn default() -> Self {
+        Self { cancel_flag: Mutex::new(Arc::new(AtomicBool::new(false))) }
+    }
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct AlignmentProgressEvent {
+    status: String,
+    message: String,
+    percent: f32,
 }
 
 impl Default for ModelsDirState {
@@ -321,6 +343,113 @@ async fn delete_model_files(
     Ok(())
 }
 
+// ─── Alignment commands ───────────────────────────────────────────────────────
+
+/// Run the Python ctc-forced-aligner sidecar script.
+/// `lines_json`: JSON array of `{"index": number, "text": string}` (non-empty lines only).
+/// `language`:   ISO 639-3 code, e.g. "eng" / "kor" / "jpn".
+/// Returns JSON array of `{"index", "start", "end", "confidence"}`.
+/// Progress events are emitted as `alignment-progress`.
+#[tauri::command]
+async fn run_alignment(
+    app: AppHandle,
+    dir_state: tauri::State<'_, ModelsDirState>,
+    al_state: tauri::State<'_, AlignmentState>,
+    audio_path: String,
+    lines_json: String,
+    language: String,
+) -> Result<String, String> {
+    // Fresh cancel flag for this run
+    let cancel = {
+        let new_flag = Arc::new(AtomicBool::new(false));
+        *al_state.cancel_flag.lock().unwrap() = new_flag.clone();
+        new_flag
+    };
+
+    // Write the embedded Python script to a temp file
+    let script_path = std::env::temp_dir().join("lyrical_sync_align.py");
+    tokio::fs::write(&script_path, ALIGN_SCRIPT)
+        .await
+        .map_err(|e| format!("스크립트 쓰기 실패: {e}"))?;
+
+    let models_dir_str = models_dir(&app, &dir_state)?.to_string_lossy().into_owned();
+
+    let python_cmd = if cfg!(target_os = "windows") { "python" } else { "python3" };
+
+    use tokio::process::Command as Cmd;
+    use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader as ABufReader};
+
+    let mut child = Cmd::new(python_cmd)
+        .args([
+            script_path.to_str().unwrap(),
+            "--models-dir", &models_dir_str,
+            "--audio",      &audio_path,
+            "--lines",      &lines_json,
+            "--language",   &language,
+        ])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("python3 실행 실패 (python3가 설치되어 있는지 확인하세요): {e}"))?;
+
+    let stderr = child.stderr.take().unwrap();
+    let stdout = child.stdout.take().unwrap();
+
+    // Stream stderr line by line for progress events
+    let mut stderr_reader = ABufReader::new(stderr).lines();
+    let mut last_error: Option<String> = None;
+
+    while let Ok(Some(line)) = stderr_reader.next_line().await {
+        if cancel.load(Ordering::Relaxed) {
+            let _ = child.kill().await;
+            return Err("cancelled".into());
+        }
+        if let Ok(val) = serde_json::from_str::<serde_json::Value>(&line) {
+            let status = val["status"].as_str().unwrap_or("").to_string();
+            let message = val["message"].as_str().unwrap_or("").to_string();
+            let percent = val["percent"].as_f64().unwrap_or(0.0) as f32;
+
+            let _ = app.emit("alignment-progress", AlignmentProgressEvent {
+                status: status.clone(),
+                message: message.clone(),
+                percent,
+            });
+
+            if status == "error" {
+                last_error = Some(message);
+                let _ = child.kill().await;
+                break;
+            }
+        }
+    }
+
+    if let Some(err) = last_error {
+        return Err(err);
+    }
+
+    // Collect stdout (final JSON result)
+    let mut stdout_data = String::new();
+    ABufReader::new(stdout)
+        .read_to_string(&mut stdout_data)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let status = child.wait().await.map_err(|e| e.to_string())?;
+    if !status.success() {
+        return Err(format!(
+            "정렬 스크립트 오류 (exit {})",
+            status.code().unwrap_or(-1)
+        ));
+    }
+
+    Ok(stdout_data.trim().to_string())
+}
+
+#[tauri::command]
+fn cancel_alignment(al_state: tauri::State<'_, AlignmentState>) {
+    al_state.cancel_flag.lock().unwrap().store(true, Ordering::Relaxed);
+}
+
 // ─── Entry point ──────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -328,6 +457,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(DownloadState::default())
         .manage(ModelsDirState::default())
+        .manage(AlignmentState::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
@@ -342,6 +472,8 @@ pub fn run() {
             download_model,
             cancel_model_download,
             delete_model_files,
+            run_alignment,
+            cancel_alignment,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
