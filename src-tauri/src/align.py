@@ -7,6 +7,7 @@ Stdout:     JSON result          [{"index":int,"start":float,"end":float,"confid
 import sys
 import json
 import argparse
+import math
 import os
 
 
@@ -39,76 +40,88 @@ def main():
     progress("loading_model", "Loading dependencies...", 0.0)
 
     try:
-        import torch
-    except ImportError:
-        progress("error", "torch not installed. Run: pip install torch")
-        sys.exit(1)
-
-    try:
+        import onnxruntime  # noqa: F401
         from ctc_forced_aligner import (
             load_audio,
-            load_alignment_model,
             generate_emissions,
             preprocess_text,
             get_alignments,
             get_spans,
             postprocess_results,
+            ensure_onnx_model,
+            MODEL_URL,
+            Tokenizer,
         )
-    except ImportError:
-        progress("error", "ctc-forced-aligner not installed. Run: pip install ctc-forced-aligner")
+    except ImportError as e:
+        progress("error", f"패키지 임포트 실패: {e}. 설정 > AI 모델에서 패키지를 다시 설치하세요.")
         sys.exit(1)
 
-    # ── Device selection (CUDA → MPS → CPU) ─────────────────────────────────
+    # ── Load / auto-download ONNX model ─────────────────────────────────────
 
-    device = "cpu"
-    if torch.cuda.is_available():
-        device = "cuda"
-    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-        device = "mps"
+    os.makedirs(args.models_dir, exist_ok=True)
+    onnx_path = os.path.join(args.models_dir, "ctc-forced-aligner.onnx")
 
-    # ── Load model ───────────────────────────────────────────────────────────
-
-    model_path = os.path.join(args.models_dir, "ctc-forced-aligner")
-    if not os.path.isdir(model_path):
-        progress("error", f"Model not found at: {model_path}")
-        sys.exit(1)
-
-    progress("loading_model", f"Loading model ({device})…", 0.05)
+    progress("loading_model", "Loading model...", 0.05)
     try:
-        model, tokenizer = load_alignment_model(model_path, device=device)
+        ensure_onnx_model(onnx_path, MODEL_URL)
+        import onnxruntime as ort
+        session = ort.InferenceSession(onnx_path)
+        tokenizer = Tokenizer()
     except Exception as e:
-        progress("error", f"Failed to load model: {e}")
+        progress("error", f"모델 로드 실패: {e}")
         sys.exit(1)
 
     # ── Load audio ───────────────────────────────────────────────────────────
 
     progress("loading_audio", "Loading audio…", 0.10)
     try:
-        audio_waveform = load_audio(args.audio, model.dtype, model.device)
+        # load_audio returns 1D numpy float32 array in v1.x
+        audio_waveform = load_audio(args.audio, ret_type='np')
     except Exception as e:
-        progress("error", f"Failed to load audio: {e}")
+        progress("error", f"오디오 로드 실패: {e}")
         sys.exit(1)
 
     # ── Generate emissions ───────────────────────────────────────────────────
 
     progress("analyzing", "Generating emissions…", 0.20)
     try:
-        emissions, stride = generate_emissions(model, audio_waveform, batch_size=1)
+        emissions, stride = generate_emissions(session, audio_waveform, batch_size=1)
     except Exception as e:
-        progress("error", f"Failed to generate emissions: {e}")
+        progress("error", f"emissions 생성 실패: {e}")
         sys.exit(1)
 
-    # ── Preprocess text ──────────────────────────────────────────────────────
+    # ── Preprocess text (word-level) ─────────────────────────────────────────
+    #
+    # split_size="word" so that we can map word timestamps back to lyric lines.
+    # split_size="sentence" uses nltk.PunktTokenizer and doesn't split on \n.
 
     progress("aligning", "Preprocessing text…", 0.50)
-    combined_text = "\n".join(line["text"] for line in lines)
+
+    # Languages whose scripts are not in the model vocab → romanize via uroman.
+    NON_LATIN = {"jpn", "kor", "chi", "zho", "cmn", "ara", "hin", "ben", "rus",
+                 "tha", "heb", "ell", "bul", "ukr", "kat", "kan", "tel", "tam",
+                 "mal", "sin", "mya", "khm", "lao", "mon", "tib"}
+    romanize = args.language in NON_LATIN
+
+    # For CJK languages preprocess_text internally overrides split_size to "char".
+    # Join without separator and count characters so the mapping is exact.
+    # For other languages join with " " and count space-split words.
+    CHAR_SPLIT_LANGS = {"jpn", "chi", "zho", "cmn"}
+    use_char_split = args.language in CHAR_SPLIT_LANGS
+
+    if use_char_split:
+        combined_text = "".join(line["text"] for line in lines)
+        tokens_per_line = [len(line["text"]) for line in lines]
+    else:
+        combined_text = " ".join(line["text"] for line in lines)
+        tokens_per_line = [len(line["text"].split()) for line in lines]
 
     try:
         tokens_starred, text_starred = preprocess_text(
             combined_text,
-            romanize=False,
+            romanize=romanize,
             language=args.language,
-            split_size="sentence",
+            split_size="word",
         )
         segments, scores, blank_token = get_alignments(
             emissions,
@@ -118,27 +131,33 @@ def main():
         spans = get_spans(tokens_starred, segments, blank_token)
         word_timestamps = postprocess_results(text_starred, spans, stride, scores)
     except Exception as e:
-        progress("error", f"Alignment failed: {e}")
+        progress("error", f"정렬 실패: {e}")
         sys.exit(1)
 
-    # ── Build per-line results ────────────────────────────────────────────────
+    # ── Map word/char timestamps → lyric-line timestamps ─────────────────────
 
     progress("postprocessing", "Processing results…", 0.90)
 
     results = []
-    for i, sentence_words in enumerate(word_timestamps):
-        if i >= len(lines):
-            break
-        if not sentence_words:
+    tok_idx = 0
+    for i, line in enumerate(lines):
+        n = tokens_per_line[i]
+        if n == 0:
             continue
-        start = sentence_words[0]["start"]
-        end = sentence_words[-1]["end"]
-        avg_score = sum(w.get("score", 1.0) for w in sentence_words) / len(sentence_words)
+        line_toks = word_timestamps[tok_idx:tok_idx + n]
+        tok_idx += n
+        if not line_toks:
+            continue
+        start = line_toks[0]["start"]
+        end = line_toks[-1]["end"]
+        char_count = max(1, sum(len(w.get("text", "x")) for w in line_toks))
+        raw_score = sum(w.get("score", 0) for w in line_toks)
+        confidence = max(0.0, min(1.0, math.exp(raw_score / char_count)))
         results.append({
-            "index": lines[i]["index"],
+            "index": line["index"],
             "start": round(start, 3),
             "end": round(end, 3),
-            "confidence": round(float(avg_score), 4),
+            "confidence": round(confidence, 4),
         })
 
     progress("done", "Alignment complete", 1.0)
