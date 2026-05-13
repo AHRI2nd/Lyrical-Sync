@@ -31,6 +31,12 @@ interface ModelState {
   status: ModelStatus;
   progress: number;
   error?: string;
+  // Internal byte-level progress tracking for accurate weighted display
+  _completedBytes?: number;
+  _curFileIndex?: number;
+  _curFileTotal?: number;
+  /** Actual total bytes measured from Content-Length headers (set when download completes) */
+  _actualTotalBytes?: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -97,7 +103,12 @@ export function ModelDownloadSection() {
   const { modelsDir, setModelsDir } = useSettingsStore();
 
   const [states, setStates] = useState<Record<string, ModelState>>(() =>
-    Object.fromEntries(MODEL_DEFS.map((m) => [m.id, { status: "checking", progress: 0 }]))
+    Object.fromEntries(
+      MODEL_DEFS.map((m) => [
+        m.id,
+        { status: "checking", progress: 0, _completedBytes: 0, _curFileIndex: -1, _curFileTotal: 0 },
+      ])
+    )
   );
   const [modelsPath, setModelsPath] = useState<string>("");
   const [copied, setCopied] = useState(false);
@@ -138,18 +149,54 @@ export function ModelDownloadSection() {
     listen<ProgressPayload>("model-download-progress", (event) => {
       const p = event.payload;
       setStates((prev) => {
-        if (p.error) return { ...prev, [p.modelId]: { status: "error", progress: 0, error: p.error } };
-        if (p.done) return { ...prev, [p.modelId]: { status: "installed", progress: 100 } };
-        const filePct = p.total > 0 ? p.downloaded / p.total : 0;
-        const overall = ((p.fileIndex + filePct) / p.fileCount) * 100;
-        return { ...prev, [p.modelId]: { status: "downloading", progress: Math.min(overall, 99) } };
+        const s = prev[p.modelId] ?? {
+          status: "checking", progress: 0,
+          _completedBytes: 0, _curFileIndex: -1, _curFileTotal: 0,
+        };
+        if (p.error) return { ...prev, [p.modelId]: { ...s, status: "error", progress: 0, error: p.error } };
+        if (p.done) {
+          // Finalize: add the last file's Content-Length to get the real total
+          const actualTotal = (s._completedBytes ?? 0) + (s._curFileTotal ?? 0);
+          return { ...prev, [p.modelId]: { ...s, status: "installed", progress: 100, _actualTotalBytes: actualTotal || undefined } };
+        }
+
+        // Accumulate bytes from files that just finished (fileIndex advanced)
+        const prevFileIndex = s._curFileIndex ?? -1;
+        const prevFileTotal = s._curFileTotal ?? 0;
+        let completedBytes = s._completedBytes ?? 0;
+        if (p.fileIndex > prevFileIndex && prevFileTotal > 0) {
+          completedBytes += prevFileTotal;
+        }
+
+        // Denominator: use real Content-Length (completedBytes + this file's total) when
+        // available; fall back to static estimate only when server omits Content-Length.
+        const staticEstimate = MODEL_DEFS.find((m) => m.id === p.modelId)!.totalSizeMb * 1024 * 1024;
+        const denominator = p.total > 0
+          ? Math.max(completedBytes + p.total, completedBytes + p.downloaded)
+          : staticEstimate;
+        const overall = Math.min((completedBytes + p.downloaded) / denominator * 100, 99);
+
+        return {
+          ...prev,
+          [p.modelId]: {
+            ...s,
+            status: "downloading",
+            progress: overall,
+            _completedBytes: completedBytes,
+            _curFileIndex: p.fileIndex,
+            _curFileTotal: p.total,
+          },
+        };
       });
     }).then((fn) => { unlistenRef.current = fn; });
     return () => { unlistenRef.current?.(); };
   }, []);
 
   const handleInstall = async (model: ModelDef) => {
-    setStates((prev) => ({ ...prev, [model.id]: { status: "downloading", progress: 0 } }));
+    setStates((prev) => ({
+      ...prev,
+      [model.id]: { status: "downloading", progress: 0, _completedBytes: 0, _curFileIndex: -1, _curFileTotal: 0 },
+    }));
     try {
       await invoke("download_model", {
         modelId: model.id,
@@ -157,7 +204,10 @@ export function ModelDownloadSection() {
       });
     } catch (e) {
       if (String(e) === "cancelled") {
-        setStates((prev) => ({ ...prev, [model.id]: { status: "not-installed", progress: 0 } }));
+        setStates((prev) => ({
+          ...prev,
+          [model.id]: { status: "not-installed", progress: 0, _completedBytes: 0, _curFileIndex: -1, _curFileTotal: 0 },
+        }));
       }
     }
   };
@@ -304,6 +354,11 @@ function ModelRow({
   const desc = model.description[lang as "ko" | "en" | "ja"] ?? model.description.en;
   const { status, progress, error } = state;
 
+  // Prefer actual measured size over static estimate
+  const displaySizeMb = state._actualTotalBytes
+    ? state._actualTotalBytes / (1024 * 1024)
+    : model.totalSizeMb;
+
   const statusIcon =
     status === "installed" ? "✓"
     : status === "downloading" ? "↓"
@@ -330,8 +385,11 @@ function ModelRow({
             {t.modelOptional}
           </span>
         )}
-        <span className="text-xs text-zinc-500 tabular-nums shrink-0">
-          {formatSize(model.totalSizeMb)}
+        <span
+          className={`text-xs tabular-nums shrink-0 ${state._actualTotalBytes ? "text-zinc-400" : "text-zinc-500"}`}
+          title={state._actualTotalBytes ? undefined : "Estimated size"}
+        >
+          {state._actualTotalBytes ? formatSize(displaySizeMb) : `~${formatSize(displaySizeMb)}`}
         </span>
         <ActionButton
           status={status}
@@ -348,7 +406,7 @@ function ModelRow({
         <div className="pl-4 flex items-center gap-2">
           <div className="flex-1 h-1.5 bg-zinc-700 rounded-full overflow-hidden">
             <div
-              className="h-full bg-indigo-500 rounded-full transition-all duration-200"
+              className="h-full bg-indigo-500 rounded-full"
               style={{ width: `${progress.toFixed(1)}%` }}
             />
           </div>
