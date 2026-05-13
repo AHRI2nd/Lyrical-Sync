@@ -112,10 +112,13 @@ export function AudioPlayer() {
 
     const ext = audioPath.split(".").pop()?.toLowerCase() ?? "";
     const isAiff = ext === "aiff" || ext === "aif";
+    // AIFF transcoding is only needed for Windows WebView2 (macOS supports AIFF natively).
+    // Also, on macOS the temp dir (/var/folders/…) is outside $HOME so readFile would fail.
+    const isWindows = navigator.platform.startsWith("Win");
+    const needsTranscode = isAiff && isWindows;
 
-    // AIFF는 WebView2(Windows)에서 지원 안 됨 → Rust에서 WAV로 트랜스코딩
     const getBytes = (): Promise<Uint8Array> => {
-      if (isAiff) {
+      if (needsTranscode) {
         return invoke<string>("decode_audio_to_wav", { path: audioPath })
           .then((wavPath) => readFile(wavPath));
       }
@@ -127,7 +130,7 @@ export function AudioPlayer() {
 
       if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
 
-      const mimeType = isAiff ? "audio/wav" : (AUDIO_MIME[ext] ?? "audio/*");
+      const mimeType = needsTranscode ? "audio/wav" : (AUDIO_MIME[ext] ?? "audio/*");
       const blob = new Blob([bytes], { type: mimeType });
       const url = URL.createObjectURL(blob);
       blobUrlRef.current = url;

@@ -343,9 +343,224 @@ async fn delete_model_files(
     Ok(())
 }
 
+// ─── Embedded Python (python-build-standalone) ────────────────────────────────
+// A self-contained Python 3.11 is downloaded once into the app data directory.
+// This removes any dependency on the user's system Python / conda / pyenv.
+
+fn embedded_python_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_data_dir()
+        .map(|d| d.join("embedded_python"))
+        .map_err(|e| e.to_string())
+}
+
+fn embedded_python_exe(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = embedded_python_dir(app)?;
+    Ok(if cfg!(target_os = "windows") {
+        dir.join("python").join("python.exe")
+    } else {
+        dir.join("python").join("bin").join("python3")
+    })
+}
+
+
+fn python_standalone_url() -> &'static str {
+    if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        "https://github.com/indygreg/python-build-standalone/releases/download/20241016/cpython-3.11.10+20241016-aarch64-apple-darwin-install_only.tar.gz"
+    } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
+        "https://github.com/indygreg/python-build-standalone/releases/download/20241016/cpython-3.11.10+20241016-x86_64-apple-darwin-install_only.tar.gz"
+    } else if cfg!(target_os = "windows") {
+        "https://github.com/indygreg/python-build-standalone/releases/download/20241016/cpython-3.11.10+20241016-x86_64-pc-windows-msvc-install_only.tar.gz"
+    } else {
+        "unsupported"
+    }
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct PythonDownloadProgress {
+    percent: u32,
+    done: bool,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct PipInstallProgress {
+    line: String,
+    done: bool,
+    success: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PythonEnvInfo {
+    python_ready: bool,
+    packages_ready: bool,
+    pip_install_cmd: String,
+    python_path: String,
+}
+
+#[tauri::command]
+async fn get_python_env_info(app: AppHandle) -> Result<PythonEnvInfo, String> {
+    let python = embedded_python_exe(&app)?;
+
+    let python_ready = python.exists();
+    let packages_ready = if python_ready {
+        tokio::process::Command::new(&python)
+            .args(["-c", "import onnxruntime, unidecode; from ctc_forced_aligner import load_audio, generate_emissions, preprocess_text, get_alignments, get_spans, postprocess_results, ensure_onnx_model, Tokenizer"])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .await
+            .map(|s| s.success())
+            .unwrap_or(false)
+    } else {
+        false
+    };
+
+    Ok(PythonEnvInfo {
+        python_ready,
+        packages_ready,
+        pip_install_cmd: format!("\"{}\" -m pip install torch \"ctc-forced-aligner<2\"", python.to_string_lossy()),
+        python_path: python.to_string_lossy().into_owned(),
+    })
+}
+
+/// Downloads python-build-standalone (~20 MB) and extracts it into the app data directory.
+/// Emits `python-download-progress` events while downloading.
+#[tauri::command]
+async fn download_embedded_python(app: AppHandle) -> Result<(), String> {
+    let python_exe = embedded_python_exe(&app)?;
+    if python_exe.exists() {
+        return Ok(());
+    }
+
+    let dir = embedded_python_dir(&app)?;
+    tokio::fs::create_dir_all(&dir).await.map_err(|e| e.to_string())?;
+
+    let url = python_standalone_url();
+    if url == "unsupported" {
+        return Err("이 플랫폼은 지원되지 않습니다.".to_string());
+    }
+
+    // Stream download with progress events
+    let tarball_path = dir.join("python.tar.gz");
+    let client = reqwest::Client::new();
+    let mut resp = client.get(url).send().await.map_err(|e| format!("다운로드 실패: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    let total = resp.content_length().unwrap_or(0);
+    let mut downloaded: u64 = 0;
+
+    use tokio::io::AsyncWriteExt;
+    let mut file = tokio::fs::File::create(&tarball_path).await.map_err(|e| e.to_string())?;
+    while let Some(chunk) = resp.chunk().await.map_err(|e| e.to_string())? {
+        file.write_all(&chunk).await.map_err(|e| e.to_string())?;
+        downloaded += chunk.len() as u64;
+        if total > 0 {
+            let _ = app.emit("python-download-progress", PythonDownloadProgress {
+                percent: (downloaded * 100 / total) as u32,
+                done: false,
+            });
+        }
+    }
+    file.flush().await.map_err(|e| e.to_string())?;
+    drop(file);
+
+    // Extract tarball
+    let status = tokio::process::Command::new("tar")
+        .args(["-xzf", tarball_path.to_str().unwrap(), "-C", dir.to_str().unwrap()])
+        .status()
+        .await
+        .map_err(|e| e.to_string())?;
+    let _ = tokio::fs::remove_file(&tarball_path).await;
+
+    if !status.success() {
+        return Err("압축 해제 실패".to_string());
+    }
+
+    // Remove macOS quarantine so the binary runs without Gatekeeper prompts
+    #[cfg(target_os = "macos")]
+    {
+        let _ = tokio::process::Command::new("xattr")
+            .args(["-rd", "com.apple.quarantine", dir.to_str().unwrap()])
+            .status()
+            .await;
+    }
+
+    let _ = app.emit("python-download-progress", PythonDownloadProgress { percent: 100, done: true });
+    Ok(())
+}
+
+/// Installs torch and ctc-forced-aligner into the embedded Python.
+/// Streams pip output lines via `pip-install-progress` events.
+#[tauri::command]
+async fn install_python_packages(app: AppHandle) -> Result<(), String> {
+    let python = embedded_python_exe(&app)?;
+    if !python.exists() {
+        return Err("Python이 설치되지 않았습니다.".to_string());
+    }
+
+    use tokio::io::{AsyncBufReadExt, BufReader};
+
+    // Use `python -m pip` instead of the pip3 script to avoid shebang path-with-spaces issues.
+    let mut child = tokio::process::Command::new(&python)
+        .args(["-m", "pip", "install", "torch", "ctc-forced-aligner<2", "unidecode"])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("pip 실행 실패: {e}"))?;
+
+    let stdout = child.stdout.take().unwrap();
+    let stderr = child.stderr.take().unwrap();
+
+    let app2 = app.clone();
+    let stdout_handle = tokio::spawn(async move {
+        let mut lines = BufReader::new(stdout).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            let _ = app2.emit("pip-install-progress", PipInstallProgress {
+                line,
+                done: false,
+                success: false,
+            });
+        }
+    });
+
+    let app3 = app.clone();
+    let stderr_handle = tokio::spawn(async move {
+        let mut lines = BufReader::new(stderr).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            let _ = app3.emit("pip-install-progress", PipInstallProgress {
+                line,
+                done: false,
+                success: false,
+            });
+        }
+    });
+
+    let status = child.wait().await.map_err(|e| e.to_string())?;
+    let _ = stdout_handle.await;
+    let _ = stderr_handle.await;
+
+    let success = status.success();
+    let _ = app.emit("pip-install-progress", PipInstallProgress {
+        line: String::new(),
+        done: true,
+        success,
+    });
+
+    if success {
+        Ok(())
+    } else {
+        Err("패키지 설치에 실패했습니다.".to_string())
+    }
+}
+
 // ─── Alignment commands ───────────────────────────────────────────────────────
 
-/// Run the Python ctc-forced-aligner sidecar script.
+/// Run the Python ctc-forced-aligner sidecar script using the app-managed venv.
 /// `lines_json`: JSON array of `{"index": number, "text": string}` (non-empty lines only).
 /// `language`:   ISO 639-3 code, e.g. "eng" / "kor" / "jpn".
 /// Returns JSON array of `{"index", "start", "end", "confidence"}`.
@@ -359,6 +574,15 @@ async fn run_alignment(
     lines_json: String,
     language: String,
 ) -> Result<String, String> {
+    // Use the app-embedded Python (downloaded once via Settings > AI Models)
+    let python_exe = embedded_python_exe(&app)?;
+    if !python_exe.exists() {
+        return Err(
+            "Python이 설정되지 않았습니다. 설정 > AI 모델 탭에서 Python을 다운로드하세요.".to_string()
+        );
+    }
+    let python_str = python_exe.to_string_lossy().into_owned();
+
     // Fresh cancel flag for this run
     let cancel = {
         let new_flag = Arc::new(AtomicBool::new(false));
@@ -374,14 +598,13 @@ async fn run_alignment(
 
     let models_dir_str = models_dir(&app, &dir_state)?.to_string_lossy().into_owned();
 
-    let python_cmd = if cfg!(target_os = "windows") { "python" } else { "python3" };
-
     use tokio::process::Command as Cmd;
     use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader as ABufReader};
 
-    let mut child = Cmd::new(python_cmd)
+    let script_str = script_path.to_str().unwrap();
+    let mut child = Cmd::new(&python_str)
         .args([
-            script_path.to_str().unwrap(),
+            script_str,
             "--models-dir", &models_dir_str,
             "--audio",      &audio_path,
             "--lines",      &lines_json,
@@ -390,7 +613,7 @@ async fn run_alignment(
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
-        .map_err(|e| format!("python3 실행 실패 (python3가 설치되어 있는지 확인하세요): {e}"))?;
+        .map_err(|e| format!("Python 실행 실패: {e}"))?;
 
     let stderr = child.stderr.take().unwrap();
     let stdout = child.stdout.take().unwrap();
@@ -472,6 +695,9 @@ pub fn run() {
             download_model,
             cancel_model_download,
             delete_model_files,
+            get_python_env_info,
+            download_embedded_python,
+            install_python_packages,
             run_alignment,
             cancel_alignment,
         ])
