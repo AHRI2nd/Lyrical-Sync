@@ -55,7 +55,7 @@ export const MODEL_DEFS: ModelDef[] = [
       { filename: "ctc-forced-aligner/model.safetensors", url: "https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner/resolve/main/model.safetensors" },
     ],
     totalSizeMb: 1204,
-    required: false,
+    required: true,
   },
 
   // ── wav2vec2 ─────────────────────────────────────────────────────────────────
@@ -64,9 +64,9 @@ export const MODEL_DEFS: ModelDef[] = [
     category: "wav2vec2",
     name: "wav2vec2-base-960h",
     description: {
-      ko: "단어 단위 타임스탬프 정렬 — LRC 싱크의 핵심",
-      en: "Word-level timestamp alignment — core of LRC sync",
-      ja: "単語レベルのタイムスタンプ整列 — LRCシンクの核心",
+      ko: "영어 전용 ASR 모델 — 영어 가사의 정렬 정확도를 높입니다 (선택)",
+      en: "English-only ASR model — improves alignment accuracy for English lyrics (optional)",
+      ja: "英語専用ASRモデル — 英語歌詞のアライメント精度を向上させます（任意）",
     },
     files: [
       { filename: "wav2vec2/config.json", url: "https://huggingface.co/facebook/wav2vec2-base-960h/resolve/main/config.json" },
@@ -84,6 +84,6 @@ export const MODEL_DEFS: ModelDef[] = [
 export const CATEGORY_ORDER: ModelCategory[] = ["demucs", "ctc", "wav2vec2"];
 
 export function formatSize(mb: number): string {
-  if (mb >= 1000) return `${(mb / 1000).toFixed(1)} GB`;
-  return `${mb} MB`;
+  if (mb >= 1000) return `${(mb / 1000).toFixed(2)} GB`;
+  return `${mb.toFixed(1)} MB`;
 }
