@@ -94,6 +94,24 @@ export interface Translations {
   modelCopyPath: string;
   modelInstalledVariants: string;
   modelNoneInstalled: string;
+  // AI Auto Sync
+  aiAutoSync: string;
+  aiSyncRunning: string;
+  aiSyncCancel: string;
+  aiSyncClear: string;
+  aiSyncNoModel: string;
+  aiSyncNoAudio: string;
+  aiSyncDone: string;
+  aiSyncError: string;
+  aiSyncStatusLoadingModel: string;
+  aiSyncStatusLoadingAudio: string;
+  aiSyncStatusAnalyzing: string;
+  aiSyncStatusAligning: string;
+  aiSyncStatusDone: string;
+  aiSyncConfidenceHigh: string;
+  aiSyncConfidenceLow: string;
+  aiSyncBlankOffset: string;
+  aiSyncBlankOffsetDesc: string;
 }
 
 const ko: Translations = {
@@ -187,6 +205,23 @@ const ko: Translations = {
   modelCopyPath: "복사",
   modelInstalledVariants: "설치됨",
   modelNoneInstalled: "없음",
+  aiAutoSync: "AI 자동 싱크",
+  aiSyncRunning: "분석 중...",
+  aiSyncCancel: "취소",
+  aiSyncClear: "초안 지우기",
+  aiSyncNoModel: "설정 > AI 모델에서 ctc-forced-aligner 모델을 먼저 설치하세요",
+  aiSyncNoAudio: "오디오 파일을 먼저 열어주세요",
+  aiSyncDone: "AI 싱크 완료",
+  aiSyncError: "AI 싱크 오류",
+  aiSyncStatusLoadingModel: "모델 로딩 중...",
+  aiSyncStatusLoadingAudio: "오디오 로딩 중...",
+  aiSyncStatusAnalyzing: "오디오 분석 중...",
+  aiSyncStatusAligning: "가사 정렬 중...",
+  aiSyncStatusDone: "정렬 완료",
+  aiSyncConfidenceHigh: "높음",
+  aiSyncConfidenceLow: "낮음",
+  aiSyncBlankOffset: "빈 줄 오프셋 (초)",
+  aiSyncBlankOffsetDesc: "빈 줄의 타임스탬프를 앞 가사 끝 시점에서 얼마나 뒤로 설정할지 지정합니다.",
 };
 
 const en: Translations = {
@@ -280,6 +315,23 @@ const en: Translations = {
   modelCopyPath: "Copy",
   modelInstalledVariants: "Installed",
   modelNoneInstalled: "None",
+  aiAutoSync: "AI Auto Sync",
+  aiSyncRunning: "Analyzing...",
+  aiSyncCancel: "Cancel",
+  aiSyncClear: "Clear Draft",
+  aiSyncNoModel: "Install the ctc-forced-aligner model in Settings > AI Models first",
+  aiSyncNoAudio: "Please open an audio file first",
+  aiSyncDone: "AI Sync complete",
+  aiSyncError: "AI Sync error",
+  aiSyncStatusLoadingModel: "Loading model...",
+  aiSyncStatusLoadingAudio: "Loading audio...",
+  aiSyncStatusAnalyzing: "Analyzing audio...",
+  aiSyncStatusAligning: "Aligning lyrics...",
+  aiSyncStatusDone: "Alignment complete",
+  aiSyncConfidenceHigh: "High",
+  aiSyncConfidenceLow: "Low",
+  aiSyncBlankOffset: "Blank line offset (s)",
+  aiSyncBlankOffsetDesc: "How many seconds after the previous lyric's end to set blank line timestamps.",
 };
 
 const ja: Translations = {
@@ -373,6 +425,23 @@ const ja: Translations = {
   modelCopyPath: "コピー",
   modelInstalledVariants: "インストール済み",
   modelNoneInstalled: "なし",
+  aiAutoSync: "AI自動シンク",
+  aiSyncRunning: "解析中...",
+  aiSyncCancel: "キャンセル",
+  aiSyncClear: "下書きを消去",
+  aiSyncNoModel: "設定 > AIモデルからctc-forced-alignerモデルをインストールしてください",
+  aiSyncNoAudio: "先に音声ファイルを開いてください",
+  aiSyncDone: "AI同期完了",
+  aiSyncError: "AI同期エラー",
+  aiSyncStatusLoadingModel: "モデル読み込み中...",
+  aiSyncStatusLoadingAudio: "音声読み込み中...",
+  aiSyncStatusAnalyzing: "音声解析中...",
+  aiSyncStatusAligning: "歌詞アライメント中...",
+  aiSyncStatusDone: "アライメント完了",
+  aiSyncConfidenceHigh: "高",
+  aiSyncConfidenceLow: "低",
+  aiSyncBlankOffset: "空白行オフセット（秒）",
+  aiSyncBlankOffsetDesc: "空白行のタイムスタンプを前の歌詞の終了時点から何秒後に設定するかを指定します。",
 };
 
 export const translations: Record<Lang, Translations> = { ko, en, ja };

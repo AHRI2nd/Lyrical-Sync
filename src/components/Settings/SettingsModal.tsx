@@ -15,7 +15,10 @@ export function SettingsModal({
   onUpdateFound: (version: string) => void;
 }) {
   const { t } = useI18nStore();
-  const { autoCheckUpdate, uiScale, setAutoCheckUpdate, setUiScale } = useSettingsStore();
+  const {
+    autoCheckUpdate, uiScale, blankLineOffset,
+    setAutoCheckUpdate, setUiScale, setBlankLineOffset,
+  } = useSettingsStore();
   const [checkState, setCheckState] = useState<CheckState>("idle");
   const [tab, setTab] = useState<Tab>("general");
 
@@ -113,6 +116,28 @@ export function SettingsModal({
                     <span className="text-xs text-emerald-400">{t.settingsUpToDate}</span>
                   )}
                 </div>
+              </div>
+
+              <div className="border-t border-zinc-800" />
+
+              {/* Blank line offset */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-zinc-200">{t.aiSyncBlankOffset}</span>
+                  <span className="text-sm tabular-nums text-zinc-300 w-12 text-right">
+                    {blankLineOffset.toFixed(1)}s
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={5}
+                  step={0.1}
+                  value={blankLineOffset}
+                  onChange={(e) => setBlankLineOffset(Number(e.target.value))}
+                  className="w-full accent-indigo-500"
+                />
+                <p className="text-xs text-zinc-500">{t.aiSyncBlankOffsetDesc}</p>
               </div>
 
               <div className="border-t border-zinc-800" />
