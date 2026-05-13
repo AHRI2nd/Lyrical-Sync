@@ -5,8 +5,9 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager};
 use serde::{Deserialize, Serialize};
 
-// Python alignment script embedded at compile time
+// Python scripts embedded at compile time
 const ALIGN_SCRIPT: &str = include_str!("align.py");
+const SEPARATE_SCRIPT: &str = include_str!("separate.py");
 
 // ─── Download state ───────────────────────────────────────────────────────────
 
@@ -407,7 +408,7 @@ async fn get_python_env_info(app: AppHandle) -> Result<PythonEnvInfo, String> {
     let python_ready = python.exists();
     let packages_ready = if python_ready {
         tokio::process::Command::new(&python)
-            .args(["-c", "import onnxruntime, unidecode; from ctc_forced_aligner import load_audio, generate_emissions, preprocess_text, get_alignments, get_spans, postprocess_results, ensure_onnx_model, Tokenizer"])
+            .args(["-c", "import onnxruntime, unidecode, demucs; from ctc_forced_aligner import load_audio, generate_emissions, preprocess_text, get_alignments, get_spans, postprocess_results, ensure_onnx_model, Tokenizer"])
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
@@ -507,7 +508,7 @@ async fn install_python_packages(app: AppHandle) -> Result<(), String> {
 
     // Use `python -m pip` instead of the pip3 script to avoid shebang path-with-spaces issues.
     let mut child = tokio::process::Command::new(&python)
-        .args(["-m", "pip", "install", "torch", "ctc-forced-aligner<2", "unidecode"])
+        .args(["-m", "pip", "install", "torch", "ctc-forced-aligner<2", "unidecode", "demucs"])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
@@ -590,23 +591,80 @@ async fn run_alignment(
         new_flag
     };
 
-    // Write the embedded Python script to a temp file
-    let script_path = std::env::temp_dir().join("lyrical_sync_align.py");
-    tokio::fs::write(&script_path, ALIGN_SCRIPT)
+    // Write the embedded Python scripts to temp files
+    let align_script_path = std::env::temp_dir().join("lyrical_sync_align.py");
+    tokio::fs::write(&align_script_path, ALIGN_SCRIPT)
         .await
         .map_err(|e| format!("스크립트 쓰기 실패: {e}"))?;
 
-    let models_dir_str = models_dir(&app, &dir_state)?.to_string_lossy().into_owned();
+    let models_dir_path = models_dir(&app, &dir_state)?;
+    let models_dir_str = models_dir_path.to_string_lossy().into_owned();
 
     use tokio::process::Command as Cmd;
     use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader as ABufReader};
 
-    let script_str = script_path.to_str().unwrap();
+    // ── Vocal separation (Demucs) if model is available ──────────────────────
+    let demucs_model = models_dir_path.join("demucs").join("htdemucs.th");
+    let vocals_tmp_path = std::env::temp_dir().join("lyrical_sync_vocals.wav");
+    let audio_for_align: String;
+
+    if demucs_model.exists() {
+        let sep_script_path = std::env::temp_dir().join("lyrical_sync_separate.py");
+        tokio::fs::write(&sep_script_path, SEPARATE_SCRIPT)
+            .await
+            .map_err(|e| format!("스크립트 쓰기 실패: {e}"))?;
+
+        let mut sep_child = Cmd::new(&python_str)
+            .args([
+                sep_script_path.to_str().unwrap(),
+                "--model-path", &demucs_model.to_string_lossy(),
+                "--audio",      &audio_path,
+                "--output",     &vocals_tmp_path.to_string_lossy().as_ref(),
+            ])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Python 실행 실패: {e}"))?;
+
+        let sep_stderr = sep_child.stderr.take().unwrap();
+        let mut sep_reader = ABufReader::new(sep_stderr).lines();
+        let mut sep_error: Option<String> = None;
+
+        while let Ok(Some(line)) = sep_reader.next_line().await {
+            if cancel.load(Ordering::Relaxed) {
+                let _ = sep_child.kill().await;
+                return Err("cancelled".into());
+            }
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&line) {
+                let status  = val["status"].as_str().unwrap_or("").to_string();
+                let message = val["message"].as_str().unwrap_or("").to_string();
+                let percent = val["percent"].as_f64().unwrap_or(0.0) as f32;
+                let _ = app.emit("alignment-progress", AlignmentProgressEvent {
+                    status: status.clone(), message: message.clone(), percent,
+                });
+                if status == "error" {
+                    sep_error = Some(message);
+                    let _ = sep_child.kill().await;
+                    break;
+                }
+            }
+        }
+
+        if let Some(err) = sep_error {
+            return Err(err);
+        }
+        let _ = sep_child.wait().await;
+        audio_for_align = vocals_tmp_path.to_string_lossy().into_owned();
+    } else {
+        audio_for_align = audio_path.clone();
+    }
+
+    let script_str = align_script_path.to_str().unwrap();
     let mut child = Cmd::new(&python_str)
         .args([
             script_str,
             "--models-dir", &models_dir_str,
-            "--audio",      &audio_path,
+            "--audio",      &audio_for_align,
             "--lines",      &lines_json,
             "--language",   &language,
         ])
@@ -658,6 +716,12 @@ async fn run_alignment(
         .map_err(|e| e.to_string())?;
 
     let status = child.wait().await.map_err(|e| e.to_string())?;
+
+    // Clean up temp vocals file
+    if audio_for_align != audio_path {
+        let _ = tokio::fs::remove_file(&vocals_tmp_path).await;
+    }
+
     if !status.success() {
         return Err(format!(
             "정렬 스크립트 오류 (exit {})",
