@@ -2,7 +2,23 @@ import { create } from "zustand";
 import { LrcDocument, LrcLine, LrcMetadata, defaultDocument } from "../types/lrc";
 import { parseLrc, serializeLrc } from "../utils/lrcParser";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
+
+type AiSyncStatus = "idle" | "running" | "done" | "error";
+
+interface AlignmentResult {
+  index: number;
+  start: number;
+  end: number;
+  confidence: number;
+}
+
+interface AlignmentProgressEvent {
+  status: string;
+  message: string;
+  percent: number;
+}
 
 interface LrcStore {
   doc: LrcDocument;
@@ -36,6 +52,15 @@ interface LrcStore {
   saveLrc: () => Promise<void>;
   saveLrcAs: () => Promise<void>;
   newLrc: () => void;
+
+  // AI Auto Sync
+  aiSyncStatus: AiSyncStatus;
+  aiSyncMessage: string;
+  /** lineId → confidence (0–1). null = no AI draft active */
+  aiDraftConfidence: Record<string, number> | null;
+  runAiSync: (language: string, blankLineOffset: number) => Promise<void>;
+  cancelAiSync: () => void;
+  clearAiDraft: () => void;
 }
 
 let nextId = 1;
@@ -51,6 +76,10 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   isPlaying: false,
   duration: 0,
 
+  aiSyncStatus: "idle",
+  aiSyncMessage: "",
+  aiDraftConfidence: null,
+
   setIsPlaying: (v) => set({ isPlaying: v }),
   setDuration: (d) => set({ duration: d }),
   setCurrentTime: (t) => set({ currentTime: t }),
@@ -58,7 +87,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   setActiveLineId: (id) => set({ activeLineId: id }),
 
   stampAndAdvance: () => {
-    const { activeLineId, currentTime, doc } = get();
+    const { activeLineId, currentTime, doc, aiDraftConfidence } = get();
     const lines = doc.lines;
     if (lines.length === 0) return;
 
@@ -72,9 +101,18 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
       l.id === activeLineId ? { ...l, timestamp: currentTime } : l
     );
     const next = stamped[idx + 1];
+
+    // Remove AI confidence for manually stamped line
+    let newConfidence = aiDraftConfidence;
+    if (newConfidence && activeLineId in newConfidence) {
+      newConfidence = { ...newConfidence };
+      delete newConfidence[activeLineId];
+    }
+
     set({
       doc: { ...doc, lines: stamped },
       activeLineId: next ? next.id : activeLineId,
+      aiDraftConfidence: newConfidence,
       isDirty: true,
     });
   },
@@ -137,7 +175,12 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     }),
 
   stampCurrentLine: (id) => {
-    const { currentTime, doc } = get();
+    const { currentTime, doc, aiDraftConfidence } = get();
+    let newConfidence = aiDraftConfidence;
+    if (newConfidence && id in newConfidence) {
+      newConfidence = { ...newConfidence };
+      delete newConfidence[id];
+    }
     set({
       doc: {
         ...doc,
@@ -145,6 +188,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
           l.id === id ? { ...l, timestamp: currentTime } : l
         ),
       },
+      aiDraftConfidence: newConfidence,
       isDirty: true,
     });
   },
@@ -224,4 +268,80 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
 
   newLrc: () =>
     set({ doc: defaultDocument(), lrcPath: null, isDirty: false, activeLineId: null }),
+
+  runAiSync: async (language, blankLineOffset) => {
+    const { audioPath, doc } = get();
+    if (!audioPath) return;
+
+    set({ aiSyncStatus: "running", aiSyncMessage: "" });
+
+    const unlisten = await listen<AlignmentProgressEvent>("alignment-progress", (e) => {
+      set({ aiSyncMessage: e.payload.message });
+    });
+
+    try {
+      // Only pass non-empty lines to Python; track their original indices
+      const nonBlank = doc.lines
+        .map((line, idx) => ({ line, idx }))
+        .filter(({ line }) => line.text.trim() !== "");
+
+      const linesInput = nonBlank.map(({ line, idx }) => ({
+        index: idx,
+        text: line.text,
+      }));
+
+      const resultJson = await invoke<string>("run_alignment", {
+        audioPath,
+        linesJson: JSON.stringify(linesInput),
+        language,
+      });
+
+      const results: AlignmentResult[] = JSON.parse(resultJson);
+      const byIndex = new Map(results.map((r) => [r.index, r]));
+
+      const confidence: Record<string, number> = {};
+      const newLines = doc.lines.map((line, idx) => {
+        const r = byIndex.get(idx);
+        if (r) {
+          confidence[line.id] = r.confidence;
+          return { ...line, timestamp: r.start };
+        }
+        return line;
+      });
+
+      // Set blank-line timestamps = previous non-blank end + offset
+      for (let i = 0; i < newLines.length; i++) {
+        if (doc.lines[i].text.trim() !== "") continue;
+        let prevEnd = 0;
+        for (let j = i - 1; j >= 0; j--) {
+          const r = byIndex.get(j);
+          if (r) { prevEnd = r.end; break; }
+        }
+        newLines[i] = { ...newLines[i], timestamp: prevEnd + blankLineOffset };
+        confidence[doc.lines[i].id] = 1.0;
+      }
+
+      set({
+        doc: { ...doc, lines: newLines },
+        aiSyncStatus: "done",
+        aiDraftConfidence: confidence,
+        isDirty: true,
+      });
+    } catch (err) {
+      const msg = String(err);
+      if (msg === "cancelled") {
+        set({ aiSyncStatus: "idle", aiSyncMessage: "" });
+      } else {
+        set({ aiSyncStatus: "error", aiSyncMessage: msg });
+      }
+    } finally {
+      unlisten();
+    }
+  },
+
+  cancelAiSync: () => {
+    invoke("cancel_alignment").catch(() => {});
+  },
+
+  clearAiDraft: () => set({ aiDraftConfidence: null }),
 }));

@@ -24,6 +24,7 @@ export function AudioPlayer() {
   const [duration, setDurationLocal] = useState(0);
   const [currentTime, setCurrentTimeLocal] = useState(0);
   const [zoom, setZoom] = useState(50);
+  const [volume, setVolume] = useState(1.0);
   const [isLooping, setIsLooping] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1.0);
 
@@ -112,10 +113,13 @@ export function AudioPlayer() {
 
     const ext = audioPath.split(".").pop()?.toLowerCase() ?? "";
     const isAiff = ext === "aiff" || ext === "aif";
+    // AIFF transcoding is only needed for Windows WebView2 (macOS supports AIFF natively).
+    // Also, on macOS the temp dir (/var/folders/…) is outside $HOME so readFile would fail.
+    const isWindows = navigator.platform.startsWith("Win");
+    const needsTranscode = isAiff && isWindows;
 
-    // AIFF는 WebView2(Windows)에서 지원 안 됨 → Rust에서 WAV로 트랜스코딩
     const getBytes = (): Promise<Uint8Array> => {
-      if (isAiff) {
+      if (needsTranscode) {
         return invoke<string>("decode_audio_to_wav", { path: audioPath })
           .then((wavPath) => readFile(wavPath));
       }
@@ -127,7 +131,7 @@ export function AudioPlayer() {
 
       if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
 
-      const mimeType = isAiff ? "audio/wav" : (AUDIO_MIME[ext] ?? "audio/*");
+      const mimeType = needsTranscode ? "audio/wav" : (AUDIO_MIME[ext] ?? "audio/*");
       const blob = new Blob([bytes], { type: mimeType });
       const url = URL.createObjectURL(blob);
       blobUrlRef.current = url;
@@ -145,6 +149,10 @@ export function AudioPlayer() {
   useEffect(() => {
     wsRef.current?.setPlaybackRate(playbackRate);
   }, [playbackRate]);
+
+  useEffect(() => {
+    wsRef.current?.setVolume(volume);
+  }, [volume]);
 
   const togglePlay = useCallback(() => wsRef.current?.playPause(), []);
 
@@ -253,20 +261,36 @@ export function AudioPlayer() {
         </div>
       </div>
 
-      {/* 줌 + 열기 */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={openAudio}
-          className="w-28 shrink-0 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm transition-colors text-center truncate"
-        >
-          {t.openAudio}
-        </button>
-        <label className="w-10 shrink-0 text-xs text-zinc-400 text-right">{t.zoom}</label>
-        <input
-          type="range" min={10} max={500} value={zoom}
-          onChange={(e) => setZoom(Number(e.target.value))}
-          className="flex-1 min-w-0 accent-indigo-500"
-        />
+      {/* 열기 버튼 */}
+      <button
+        onClick={openAudio}
+        className="w-full py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm transition-colors text-center truncate"
+      >
+        {t.openAudio}
+      </button>
+
+      {/* 볼륨 + 줌 슬라이더 */}
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center gap-2">
+          <span className="w-20 shrink-0 text-xs text-zinc-400 text-right">
+            {t.volume} <span className="tabular-nums">{Math.round(volume * 100)}%</span>
+          </span>
+          <input
+            type="range" min={0} max={1} step={0.01} value={volume}
+            onChange={(e) => setVolume(parseFloat(Number(e.target.value).toFixed(2)))}
+            className="flex-1 min-w-0 accent-indigo-500"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-20 shrink-0 text-xs text-zinc-400 text-right">
+            {t.zoom}
+          </span>
+          <input
+            type="range" min={10} max={500} value={zoom}
+            onChange={(e) => setZoom(Number(e.target.value))}
+            className="flex-1 min-w-0 accent-indigo-500"
+          />
+        </div>
       </div>
 
       {!audioPath && (
