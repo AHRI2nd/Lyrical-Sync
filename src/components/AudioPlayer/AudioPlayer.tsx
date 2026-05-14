@@ -272,12 +272,12 @@ export function AudioPlayer() {
       {/* 볼륨 + 줌 슬라이더 */}
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2">
-          <span className="w-20 shrink-0 text-xs text-zinc-400 text-right tabular-nums">
-            {t.volume} {Math.round(volume * 100)}%
+          <span className="w-20 shrink-0 text-xs text-zinc-400 text-right">
+            {t.volume} <span className="tabular-nums">{Math.round(volume * 100)}%</span>
           </span>
           <input
             type="range" min={0} max={1} step={0.01} value={volume}
-            onChange={(e) => setVolume(Number(e.target.value))}
+            onChange={(e) => setVolume(parseFloat(Number(e.target.value).toFixed(2)))}
             className="flex-1 min-w-0 accent-indigo-500"
           />
         </div>
