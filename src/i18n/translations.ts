@@ -67,6 +67,8 @@ export interface Translations {
   updateLater: string;
   // Settings modal
   settingsTitle: string;
+  settingsTabGeneral: string;
+  settingsTabModels: string;
   settingsAutoUpdate: string;
   settingsAutoUpdateDesc: string;
   settingsCheckNow: string;
@@ -74,6 +76,54 @@ export interface Translations {
   settingsUpToDate: string;
   settingsUiScale: string;
   settingsUiScaleReset: string;
+  // Model download
+  modelCategoryDemucs: string;
+  modelCategoryCTC: string;
+  modelCategoryWav2vec2: string;
+  modelInstall: string;
+  modelInstalling: string;
+  modelInstalled: string;
+  modelDelete: string;
+  modelCancel: string;
+  modelStoragePath: string;
+  modelMb: string;
+  modelErrorPrefix: string;
+  modelRequired: string;
+  modelOptional: string;
+  modelChangeDir: string;
+  modelResetDir: string;
+  modelCopyPath: string;
+  modelInstalledVariants: string;
+  modelNoneInstalled: string;
+  // AI Auto Sync
+  aiAutoSync: string;
+  aiSyncRunning: string;
+  aiSyncCancel: string;
+  aiSyncClear: string;
+  aiSyncNoModel: string;
+  aiSyncNoAudio: string;
+  aiSyncDone: string;
+  aiSyncError: string;
+  aiSyncStatusLoadingModel: string;
+  aiSyncStatusLoadingAudio: string;
+  aiSyncStatusAnalyzing: string;
+  aiSyncStatusAligning: string;
+  aiSyncStatusDone: string;
+  aiSyncConfidenceHigh: string;
+  aiSyncConfidenceLow: string;
+  aiSyncBlankOffset: string;
+  aiSyncBlankOffsetDesc: string;
+  settingsVenvTitle: string;
+  settingsVenvReady: string;
+  settingsVenvNoPackages: string;
+  settingsVenvNotCreated: string;
+  settingsVenvCreate: string;
+  settingsVenvCreating: string;
+  settingsVenvInstallTitle: string;
+  settingsVenvRefresh: string;
+  settingsVenvChecking: string;
+  settingsVenvInstallBtn: string;
+  settingsVenvInstalling: string;
 }
 
 const ko: Translations = {
@@ -141,6 +191,8 @@ const ko: Translations = {
   updateYes: "이동",
   updateLater: "나중에",
   settingsTitle: "설정",
+  settingsTabGeneral: "일반",
+  settingsTabModels: "AI 모델",
   settingsAutoUpdate: "자동 업데이트 확인",
   settingsAutoUpdateDesc: "앱 시작 시 최신 버전을 자동으로 확인합니다.",
   settingsCheckNow: "지금 확인",
@@ -148,6 +200,52 @@ const ko: Translations = {
   settingsUpToDate: "최신 버전입니다.",
   settingsUiScale: "UI 크기",
   settingsUiScaleReset: "초기화",
+  modelCategoryDemucs: "음성 분리",
+  modelCategoryCTC: "강제 정렬 (CTC)",
+  modelCategoryWav2vec2: "타임스탬프 정렬",
+  modelInstall: "설치",
+  modelInstalling: "설치 중...",
+  modelInstalled: "설치됨",
+  modelDelete: "삭제",
+  modelCancel: "취소",
+  modelStoragePath: "저장 위치",
+  modelMb: "MB",
+  modelErrorPrefix: "오류",
+  modelRequired: "필수",
+  modelOptional: "선택",
+  modelChangeDir: "위치 변경",
+  modelResetDir: "기본으로",
+  modelCopyPath: "복사",
+  modelInstalledVariants: "설치됨",
+  modelNoneInstalled: "없음",
+  aiAutoSync: "AI 자동 싱크",
+  aiSyncRunning: "분석 중...",
+  aiSyncCancel: "취소",
+  aiSyncClear: "초안 지우기",
+  aiSyncNoModel: "설정 > AI 모델에서 ctc-forced-aligner 모델을 먼저 설치하세요",
+  aiSyncNoAudio: "오디오 파일을 먼저 열어주세요",
+  aiSyncDone: "AI 싱크 완료",
+  aiSyncError: "AI 싱크 오류",
+  aiSyncStatusLoadingModel: "모델 로딩 중...",
+  aiSyncStatusLoadingAudio: "오디오 로딩 중...",
+  aiSyncStatusAnalyzing: "오디오 분석 중...",
+  aiSyncStatusAligning: "가사 정렬 중...",
+  aiSyncStatusDone: "정렬 완료",
+  aiSyncConfidenceHigh: "높음",
+  aiSyncConfidenceLow: "낮음",
+  aiSyncBlankOffset: "빈 줄 오프셋 (초)",
+  aiSyncBlankOffsetDesc: "빈 줄의 타임스탬프를 앞 가사 끝 시점에서 얼마나 뒤로 설정할지 지정합니다.",
+  settingsVenvTitle: "AI Python 환경",
+  settingsVenvReady: "준비됨",
+  settingsVenvNoPackages: "패키지 미설치",
+  settingsVenvNotCreated: "Python 미설치",
+  settingsVenvCreate: "Python 다운로드 (~20 MB)",
+  settingsVenvCreating: "다운로드 중...",
+  settingsVenvInstallTitle: "패키지 설치 명령 (터미널에서 실행)",
+  settingsVenvRefresh: "새로고침",
+  settingsVenvChecking: "확인 중...",
+  settingsVenvInstallBtn: "패키지 자동 설치",
+  settingsVenvInstalling: "설치 중...",
 };
 
 const en: Translations = {
@@ -215,6 +313,8 @@ const en: Translations = {
   updateYes: "Go",
   updateLater: "Later",
   settingsTitle: "Settings",
+  settingsTabGeneral: "General",
+  settingsTabModels: "AI Models",
   settingsAutoUpdate: "Auto-check for updates",
   settingsAutoUpdateDesc: "Automatically check for new versions on startup.",
   settingsCheckNow: "Check Now",
@@ -222,6 +322,52 @@ const en: Translations = {
   settingsUpToDate: "You're up to date.",
   settingsUiScale: "UI Scale",
   settingsUiScaleReset: "Reset",
+  modelCategoryDemucs: "Source Separation",
+  modelCategoryCTC: "Forced Alignment (CTC)",
+  modelCategoryWav2vec2: "Timestamp Alignment",
+  modelInstall: "Install",
+  modelInstalling: "Installing...",
+  modelInstalled: "Installed",
+  modelDelete: "Delete",
+  modelCancel: "Cancel",
+  modelStoragePath: "Storage path",
+  modelMb: "MB",
+  modelErrorPrefix: "Error",
+  modelRequired: "Required",
+  modelOptional: "Optional",
+  modelChangeDir: "Change location",
+  modelResetDir: "Reset to default",
+  modelCopyPath: "Copy",
+  modelInstalledVariants: "Installed",
+  modelNoneInstalled: "None",
+  aiAutoSync: "AI Auto Sync",
+  aiSyncRunning: "Analyzing...",
+  aiSyncCancel: "Cancel",
+  aiSyncClear: "Clear Draft",
+  aiSyncNoModel: "Install the ctc-forced-aligner model in Settings > AI Models first",
+  aiSyncNoAudio: "Please open an audio file first",
+  aiSyncDone: "AI Sync complete",
+  aiSyncError: "AI Sync error",
+  aiSyncStatusLoadingModel: "Loading model...",
+  aiSyncStatusLoadingAudio: "Loading audio...",
+  aiSyncStatusAnalyzing: "Analyzing audio...",
+  aiSyncStatusAligning: "Aligning lyrics...",
+  aiSyncStatusDone: "Alignment complete",
+  aiSyncConfidenceHigh: "High",
+  aiSyncConfidenceLow: "Low",
+  aiSyncBlankOffset: "Blank line offset (s)",
+  aiSyncBlankOffsetDesc: "How many seconds after the previous lyric's end to set blank line timestamps.",
+  settingsVenvTitle: "AI Python Environment",
+  settingsVenvReady: "Ready",
+  settingsVenvNoPackages: "Packages missing",
+  settingsVenvNotCreated: "Python not downloaded",
+  settingsVenvCreate: "Download Python (~20 MB)",
+  settingsVenvCreating: "Downloading...",
+  settingsVenvInstallTitle: "Install packages (run in terminal)",
+  settingsVenvRefresh: "Refresh",
+  settingsVenvChecking: "Checking...",
+  settingsVenvInstallBtn: "Auto-install packages",
+  settingsVenvInstalling: "Installing...",
 };
 
 const ja: Translations = {
@@ -289,6 +435,8 @@ const ja: Translations = {
   updateYes: "移動",
   updateLater: "あとで",
   settingsTitle: "設定",
+  settingsTabGeneral: "一般",
+  settingsTabModels: "AIモデル",
   settingsAutoUpdate: "自動更新確認",
   settingsAutoUpdateDesc: "アプリ起動時に最新バージョンを自動で確認します。",
   settingsCheckNow: "今すぐ確認",
@@ -296,6 +444,52 @@ const ja: Translations = {
   settingsUpToDate: "最新バージョンです。",
   settingsUiScale: "UIサイズ",
   settingsUiScaleReset: "リセット",
+  modelCategoryDemucs: "音源分離",
+  modelCategoryCTC: "強制アライメント (CTC)",
+  modelCategoryWav2vec2: "タイムスタンプ整列",
+  modelInstall: "インストール",
+  modelInstalling: "インストール中...",
+  modelInstalled: "インストール済み",
+  modelDelete: "削除",
+  modelCancel: "キャンセル",
+  modelStoragePath: "保存場所",
+  modelMb: "MB",
+  modelErrorPrefix: "エラー",
+  modelRequired: "必須",
+  modelOptional: "任意",
+  modelChangeDir: "場所を変更",
+  modelResetDir: "デフォルトに戻す",
+  modelCopyPath: "コピー",
+  modelInstalledVariants: "インストール済み",
+  modelNoneInstalled: "なし",
+  aiAutoSync: "AI自動シンク",
+  aiSyncRunning: "解析中...",
+  aiSyncCancel: "キャンセル",
+  aiSyncClear: "下書きを消去",
+  aiSyncNoModel: "設定 > AIモデルからctc-forced-alignerモデルをインストールしてください",
+  aiSyncNoAudio: "先に音声ファイルを開いてください",
+  aiSyncDone: "AI同期完了",
+  aiSyncError: "AI同期エラー",
+  aiSyncStatusLoadingModel: "モデル読み込み中...",
+  aiSyncStatusLoadingAudio: "音声読み込み中...",
+  aiSyncStatusAnalyzing: "音声解析中...",
+  aiSyncStatusAligning: "歌詞アライメント中...",
+  aiSyncStatusDone: "アライメント完了",
+  aiSyncConfidenceHigh: "高",
+  aiSyncConfidenceLow: "低",
+  aiSyncBlankOffset: "空白行オフセット（秒）",
+  aiSyncBlankOffsetDesc: "空白行のタイムスタンプを前の歌詞の終了時点から何秒後に設定するかを指定します。",
+  settingsVenvTitle: "AI Python環境",
+  settingsVenvReady: "準備完了",
+  settingsVenvNoPackages: "パッケージ未インストール",
+  settingsVenvNotCreated: "Python未ダウンロード",
+  settingsVenvCreate: "Pythonをダウンロード (約20MB)",
+  settingsVenvCreating: "ダウンロード中...",
+  settingsVenvInstallTitle: "パッケージインストールコマンド（ターミナルで実行）",
+  settingsVenvRefresh: "更新",
+  settingsVenvChecking: "確認中...",
+  settingsVenvInstallBtn: "パッケージ自動インストール",
+  settingsVenvInstalling: "インストール中...",
 };
 
 export const translations: Record<Lang, Translations> = { ko, en, ja };
