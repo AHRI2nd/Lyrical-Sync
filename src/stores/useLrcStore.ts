@@ -309,15 +309,23 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
         return line;
       });
 
-      // Set blank-line timestamps = previous non-blank end + offset
+      // Set blank-line timestamps = previous non-blank end + offset,
+      // clamped to not exceed the next non-blank line's start time.
       for (let i = 0; i < newLines.length; i++) {
         if (doc.lines[i].text.trim() !== "") continue;
         let prevEnd = 0;
+        let nextStart: number | null = null;
         for (let j = i - 1; j >= 0; j--) {
           const r = byIndex.get(j);
           if (r) { prevEnd = r.end; break; }
         }
-        newLines[i] = { ...newLines[i], timestamp: prevEnd + blankLineOffset };
+        for (let j = i + 1; j < newLines.length; j++) {
+          const r = byIndex.get(j);
+          if (r) { nextStart = r.start; break; }
+        }
+        const desired = prevEnd + blankLineOffset;
+        const ts = nextStart !== null ? Math.min(desired, nextStart) : desired;
+        newLines[i] = { ...newLines[i], timestamp: Math.round(ts * 1000) / 1000 };
         confidence[doc.lines[i].id] = 1.0;
       }
 
