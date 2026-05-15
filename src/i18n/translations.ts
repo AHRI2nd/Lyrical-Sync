@@ -111,6 +111,8 @@ export interface Translations {
   aiSyncStatusDone: string;
   aiSyncConfidenceHigh: string;
   aiSyncConfidenceLow: string;
+  aiSyncConfidenceLabel: string;
+  aiSyncStatusPostprocessing: string;
   aiSyncBlankOffset: string;
   aiSyncBlankOffsetDesc: string;
   settingsVenvTitle: string;
@@ -233,6 +235,8 @@ const ko: Translations = {
   aiSyncStatusDone: "정렬 완료",
   aiSyncConfidenceHigh: "높음",
   aiSyncConfidenceLow: "낮음",
+  aiSyncConfidenceLabel: "신뢰도",
+  aiSyncStatusPostprocessing: "결과 처리 중...",
   aiSyncBlankOffset: "빈 줄 오프셋 (초)",
   aiSyncBlankOffsetDesc: "빈 줄의 타임스탬프를 앞 가사 끝 시점에서 얼마나 뒤로 설정할지 지정합니다.",
   settingsVenvTitle: "AI Python 환경",
@@ -355,6 +359,8 @@ const en: Translations = {
   aiSyncStatusDone: "Alignment complete",
   aiSyncConfidenceHigh: "High",
   aiSyncConfidenceLow: "Low",
+  aiSyncConfidenceLabel: "confidence",
+  aiSyncStatusPostprocessing: "Processing results...",
   aiSyncBlankOffset: "Blank line offset (s)",
   aiSyncBlankOffsetDesc: "How many seconds after the previous lyric's end to set blank line timestamps.",
   settingsVenvTitle: "AI Python Environment",
@@ -477,6 +483,8 @@ const ja: Translations = {
   aiSyncStatusDone: "アライメント完了",
   aiSyncConfidenceHigh: "高",
   aiSyncConfidenceLow: "低",
+  aiSyncConfidenceLabel: "信頼度",
+  aiSyncStatusPostprocessing: "結果処理中...",
   aiSyncBlankOffset: "空白行オフセット（秒）",
   aiSyncBlankOffsetDesc: "空白行のタイムスタンプを前の歌詞の終了時点から何秒後に設定するかを指定します。",
   settingsVenvTitle: "AI Python環境",

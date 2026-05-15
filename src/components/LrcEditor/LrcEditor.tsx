@@ -17,7 +17,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     doc, currentTime, activeLineId,
     addLine, insertLinesAfter, updateLine, deleteLine,
     stampCurrentLine, setActiveLineId,
-    aiSyncStatus, aiSyncMessage, aiDraftConfidence,
+    aiSyncStatus, aiSyncMessage, aiSyncProgressStatus, aiDraftConfidence,
     runAiSync, cancelAiSync, clearAiDraft,
     audioPath,
   } = useLrcStore();
@@ -103,6 +103,20 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
 
   const isRunning = aiSyncStatus === "running";
 
+  const PROGRESS_STATUS_MAP: Record<string, string> = {
+    loading_model: t.aiSyncStatusLoadingModel,
+    loading_audio: t.aiSyncStatusLoadingAudio,
+    analyzing: t.aiSyncStatusAnalyzing,
+    aligning: t.aiSyncStatusAligning,
+    postprocessing: t.aiSyncStatusPostprocessing,
+    separating: t.aiSyncStatusAnalyzing,
+    done: t.aiSyncStatusDone,
+  };
+
+  const displayMessage = aiSyncStatus === "error"
+    ? aiSyncMessage
+    : (PROGRESS_STATUS_MAP[aiSyncProgressStatus] ?? aiSyncMessage);
+
   // Tooltip for disabled AI button
   const aiDisabledReason = !modelInstalled
     ? t.aiSyncNoModel
@@ -183,14 +197,14 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
       </div>
 
       {/* AI progress message */}
-      {(isRunning || aiSyncStatus === "error") && aiSyncMessage && (
+      {(isRunning || aiSyncStatus === "error") && displayMessage && (
         <div className={[
           "text-xs px-2 py-1 rounded",
           aiSyncStatus === "error"
             ? "text-red-300 bg-red-900/30"
             : "text-indigo-300 bg-indigo-900/30",
         ].join(" ")}>
-          {aiSyncMessage}
+          {displayMessage}
         </div>
       )}
 
@@ -212,7 +226,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
             : "bg-zinc-800 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300";
 
           const tsTitle = confidence !== undefined
-            ? `${t.stampTooltip} · confidence ${(confidence * 100).toFixed(0)}%`
+            ? `${t.stampTooltip} · ${t.aiSyncConfidenceLabel} ${(confidence * 100).toFixed(0)}%`
             : t.stampTooltip;
 
           return (
