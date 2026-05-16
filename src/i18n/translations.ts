@@ -17,6 +17,7 @@ export interface Translations {
   // AudioPlayer
   openAudio: string;
   zoom: string;
+  volume: string;
   noAudio: string;
   tooltipSkipBack5: string;
   tooltipSkipBack1: string;
@@ -145,6 +146,7 @@ const ko: Translations = {
   },
   openAudio: "오디오 열기",
   zoom: "줌",
+  volume: "볼륨",
   noAudio: "오디오 파일을 열어 파형을 표시합니다",
   tooltipSkipBack5: "[1] −5초",
   tooltipSkipBack1: "[2] −1초",
@@ -266,6 +268,7 @@ const en: Translations = {
   },
   openAudio: "Open Audio",
   zoom: "Zoom",
+  volume: "Volume",
   noAudio: "Open an audio file to display the waveform",
   tooltipSkipBack5: "[1] −5s",
   tooltipSkipBack1: "[2] −1s",
@@ -387,6 +390,7 @@ const ja: Translations = {
   },
   openAudio: "音声を開く",
   zoom: "ズーム",
+  volume: "音量",
   noAudio: "音声ファイルを開いて波形を表示します",
   tooltipSkipBack5: "[1] −5秒",
   tooltipSkipBack1: "[2] −1秒",
