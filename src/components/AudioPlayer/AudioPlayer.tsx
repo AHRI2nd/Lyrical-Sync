@@ -21,6 +21,8 @@ export function AudioPlayer() {
   const isLoopingRef = useRef(false);
   const playbackRateRef = useRef(1.0);
   const zoomDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seekBarRef = useRef<HTMLDivElement>(null);
+  const isSeeking = useRef(false);
   const [isPlaying, setIsPlayingLocal] = useState(false);
   const [isAudioReady, setIsAudioReady] = useState(false);
   const [duration, setDurationLocal] = useState(0);
@@ -29,6 +31,9 @@ export function AudioPlayer() {
   const [volume, setVolume] = useState(1.0);
   const [isLooping, setIsLooping] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1.0);
+  const [viewMode, setViewMode] = useState<"waveform" | "bar">("waveform");
+  const [hoverRatio, setHoverRatio] = useState<number | null>(null);
+  const [showRemaining, setShowRemaining] = useState(false);
 
   const { audioPath, setCurrentTime, setIsPlaying, setDuration, openAudio } = useLrcStore();
   const { t } = useI18nStore();
@@ -157,6 +162,26 @@ export function AudioPlayer() {
     wsRef.current?.setVolume(volume);
   }, [volume]);
 
+  const progress = duration > 0 ? currentTime / duration : 0;
+
+  const seekToRatio = useCallback((clientX: number) => {
+    if (!seekBarRef.current || !duration) return;
+    const rect = seekBarRef.current.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    audioControls.seekTo(ratio * duration);
+  }, [duration]);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => { if (isSeeking.current) seekToRatio(e.clientX); };
+    const onUp = () => { isSeeking.current = false; };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [seekToRatio]);
+
   const togglePlay = useCallback(() => wsRef.current?.playPause(), []);
 
   const skip = useCallback((delta: number) => {
@@ -203,14 +228,99 @@ export function AudioPlayer() {
       <div
         ref={containerRef}
         className="w-full rounded-lg overflow-hidden bg-zinc-800 cursor-pointer"
-        style={{ minHeight: 80 }}
+        style={{ minHeight: 80, display: viewMode === "bar" ? "none" : "" }}
       />
 
-      {/* 시간 표시 */}
-      <div className="flex justify-between text-xs text-zinc-400 font-mono px-1">
-        <span>{formatDisplayTime(currentTime)}</span>
-        <span>{formatDisplayTime(duration)}</span>
-      </div>
+      {viewMode === "bar" && (
+        <div
+          className="w-full rounded-xl bg-zinc-800 select-none flex flex-col justify-center px-5"
+          style={{ minHeight: 80, paddingTop: 14, paddingBottom: 14, gap: 10 }}
+        >
+          {/* 트랙 영역 */}
+          <div
+            ref={seekBarRef}
+            className="relative group cursor-pointer"
+            style={{ paddingTop: 6, paddingBottom: 6 }}
+            onMouseMove={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              setHoverRatio(Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)));
+            }}
+            onMouseLeave={() => setHoverRatio(null)}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              isSeeking.current = true;
+              seekToRatio(e.clientX);
+            }}
+          >
+            {/* 호버 시간 툴팁 */}
+            {hoverRatio !== null && duration > 0 && (
+              <div
+                className="absolute font-mono text-[10px] bg-zinc-700 text-zinc-200 px-1.5 py-0.5 rounded pointer-events-none -translate-x-1/2 whitespace-nowrap z-10"
+                style={{
+                  bottom: "calc(100% - 2px)",
+                  left: `${Math.max(8, Math.min(92, hoverRatio * 100))}%`,
+                }}
+              >
+                {formatDisplayTime(hoverRatio * duration)}
+              </div>
+            )}
+
+            {/* 트랙 */}
+            <div
+              className="rounded-full relative transition-all duration-150 bg-zinc-700"
+              style={{ height: hoverRatio !== null ? 6 : 4, overflow: "visible" }}
+            >
+              {/* 호버 위치 미리보기 */}
+              {hoverRatio !== null && (
+                <div
+                  className="absolute inset-y-0 left-0 bg-zinc-500 rounded-full"
+                  style={{ width: `${hoverRatio * 100}%` }}
+                />
+              )}
+              {/* 재생 진행 */}
+              <div
+                className="absolute inset-y-0 left-0 bg-indigo-500 rounded-full"
+                style={{ width: `${progress * 100}%` }}
+              />
+              {/* 썸 */}
+              <div
+                className="absolute top-1/2 -translate-y-1/2 rounded-full bg-white shadow-lg border-2 border-indigo-400 transition-all duration-150"
+                style={{
+                  width: hoverRatio !== null ? 14 : 10,
+                  height: hoverRatio !== null ? 14 : 10,
+                  left: `calc(${progress * 100}% - ${hoverRatio !== null ? 7 : 5}px)`,
+                  opacity: hoverRatio !== null ? 1 : 0.7,
+                }}
+              />
+            </div>
+          </div>
+
+          {/* 시간 표시 */}
+          <div className="flex justify-between items-center">
+            <span className="text-xs font-mono text-zinc-300 tabular-nums">
+              {formatDisplayTime(currentTime)}
+            </span>
+            <button
+              onClick={() => setShowRemaining((p) => !p)}
+              className="text-xs font-mono text-zinc-500 hover:text-zinc-300 transition-colors tabular-nums"
+            >
+              {duration > 0
+                ? showRemaining
+                  ? `−${formatDisplayTime(Math.max(0, duration - currentTime))}`
+                  : formatDisplayTime(duration)
+                : "—"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 시간 표시 (파형 모드에서만) */}
+      {viewMode === "waveform" && (
+        <div className="flex justify-between text-xs text-zinc-400 font-mono px-1">
+          <span>{formatDisplayTime(currentTime)}</span>
+          <span>{formatDisplayTime(duration)}</span>
+        </div>
+      )}
 
       {/* Row 1: 스킵 + 재생 */}
       <div className="flex items-center justify-center gap-1.5">
@@ -276,22 +386,36 @@ export function AudioPlayer() {
         {t.openAudio}
       </button>
 
-      {/* 볼륨 + 줌 슬라이더 */}
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-center gap-2">
-          <span className="w-20 shrink-0 text-xs text-zinc-400 text-right">
-            {t.volume} <span className="tabular-nums">{Math.round(volume * 100)}%</span>
-          </span>
-          <input
-            type="range" min={0} max={1} step={0.01} value={volume}
-            onChange={(e) => setVolume(parseFloat(Number(e.target.value).toFixed(2)))}
-            className="flex-1 min-w-0 accent-indigo-500"
-          />
+      {/* 볼륨 + 줌 슬라이더: grid로 왼쪽 열 너비 자동 통일 */}
+      <div className="grid gap-1.5" style={{ gridTemplateColumns: "auto 1fr" }}>
+        <span className="text-xs text-zinc-400 text-right self-center pr-2">
+          {t.volume} <span className="tabular-nums">{Math.round(volume * 100)}%</span>
+        </span>
+        <input
+          type="range" min={0} max={1} step={0.01} value={volume}
+          onChange={(e) => setVolume(parseFloat(Number(e.target.value).toFixed(2)))}
+          className="min-w-0 accent-indigo-500"
+        />
+
+        <div className="flex shrink-0 bg-zinc-800 rounded-lg p-0.5 self-center">
+          <button
+            onClick={() => setViewMode("waveform")}
+            className={`px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors ${
+              viewMode === "waveform" ? "bg-zinc-600 text-white" : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            {t.tooltipViewWaveform}
+          </button>
+          <button
+            onClick={() => setViewMode("bar")}
+            className={`px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors ${
+              viewMode === "bar" ? "bg-zinc-600 text-white" : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            {t.tooltipViewSeekBar}
+          </button>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="w-20 shrink-0 text-xs text-zinc-400 text-right">
-            {t.zoom}
-          </span>
+        {viewMode === "waveform" ? (
           <input
             type="range" min={10} max={500} value={zoom}
             onChange={(e) => {
@@ -302,9 +426,11 @@ export function AudioPlayer() {
                 if (wsRef.current && isAudioReady) wsRef.current.zoom(v);
               }, 80);
             }}
-            className="flex-1 min-w-0 accent-indigo-500"
+            className="min-w-0 accent-indigo-500"
           />
-        </div>
+        ) : (
+          <div />
+        )}
       </div>
 
       {!audioPath && (
@@ -391,3 +517,4 @@ function LoopIcon() {
     </svg>
   );
 }
+

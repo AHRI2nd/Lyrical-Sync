@@ -28,6 +28,8 @@ export interface Translations {
   tooltipLoop: string;
   tooltipSpeedDown: string;
   tooltipSpeedUp: string;
+  tooltipViewWaveform: string;
+  tooltipViewSeekBar: string;
   // LrcEditor
   lyricsEditor: string;
   addLine: string;
@@ -159,6 +161,8 @@ const ko: Translations = {
   tooltipLoop: "반복재생",
   tooltipSpeedDown: "배속 감소",
   tooltipSpeedUp: "배속 증가",
+  tooltipViewWaveform: "파형",
+  tooltipViewSeekBar: "재생바",
   lyricsEditor: "가사 편집",
   addLine: "+ 줄 추가",
   noLines: "「+ 줄 추가」 버튼으로 가사를 입력하세요",
@@ -283,6 +287,9 @@ const en: Translations = {
   tooltipLoop: "Loop",
   tooltipSpeedDown: "Slower",
   tooltipSpeedUp: "Faster",
+  tooltipViewWaveform: "Waveform",
+  tooltipViewSeekBar: "Seek bar",
+
   lyricsEditor: "Lyrics Editor",
   addLine: "+ Add Line",
   noLines: "Press \"+ Add Line\" to start entering lyrics",
@@ -407,6 +414,8 @@ const ja: Translations = {
   tooltipLoop: "リピート",
   tooltipSpeedDown: "遅くする",
   tooltipSpeedUp: "速くする",
+  tooltipViewWaveform: "波形",
+  tooltipViewSeekBar: "シーク",
   lyricsEditor: "歌詞編集",
   addLine: "+ 行を追加",
   noLines: "「+ 行を追加」ボタンで歌詞を入力してください",
