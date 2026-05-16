@@ -253,8 +253,12 @@ export function ModelDownloadSection() {
 
   const grouped = CATEGORY_ORDER.map((cat) => ({
     cat,
-    models: MODEL_DEFS.filter((m) => m.category === cat),
-  }));
+    models: MODEL_DEFS.filter((m) => m.category === cat).sort((a, b) => Number(b.required) - Number(a.required)),
+  })).sort((a, b) => {
+    const aReq = a.models.some((m) => m.required) ? 1 : 0;
+    const bReq = b.models.some((m) => m.required) ? 1 : 0;
+    return bReq - aReq;
+  });
 
   return (
     <div className="flex flex-col gap-4">
