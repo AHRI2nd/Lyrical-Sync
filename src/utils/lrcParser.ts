@@ -33,18 +33,23 @@ export function parseTimestampInput(input: string): number | null {
 
 // LRC 파일 직렬화용 [MM:SS.xx]
 export function formatTimestamp(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  const cs = Math.round((seconds % 1) * 100);
+  const totalCs = Math.round(seconds * 100);
+  const cs = totalCs % 100;
+  const totalSecs = Math.floor(totalCs / 100);
+  const mins = Math.floor(totalSecs / 60);
+  const secs = totalSecs % 60;
   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
 }
 
 // UI 표시용 H:MM:SS.mmm
 export function formatDisplayTime(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  const ms = Math.round((seconds % 1) * 1000);
+  const totalMs = Math.round(seconds * 1000);
+  const ms = totalMs % 1000;
+  const totalSecs = Math.floor(totalMs / 1000);
+  const s = totalSecs % 60;
+  const totalMins = Math.floor(totalSecs / 60);
+  const m = totalMins % 60;
+  const h = Math.floor(totalMins / 60);
   return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
 }
 
