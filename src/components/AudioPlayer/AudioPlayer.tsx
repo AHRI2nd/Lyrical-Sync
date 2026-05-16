@@ -19,6 +19,8 @@ export function AudioPlayer() {
   const containerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
   const isLoopingRef = useRef(false);
+  const playbackRateRef = useRef(1.0);
+  const zoomDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isPlaying, setIsPlayingLocal] = useState(false);
   const [isAudioReady, setIsAudioReady] = useState(false);
   const [duration, setDurationLocal] = useState(0);
@@ -51,6 +53,10 @@ export function AudioPlayer() {
       setDurationLocal(d);
       setDuration(d);
       setIsAudioReady(true);
+      // 새 오디오 로드 시 미디어 엘리먼트가 배속을 1.0으로 초기화하므로 재적용
+      if (playbackRateRef.current !== 1.0) {
+        ws.setPlaybackRate(playbackRateRef.current);
+      }
     });
     ws.on("audioprocess", (t) => {
       setCurrentTimeLocal(t);
@@ -141,14 +147,11 @@ export function AudioPlayer() {
     return () => { cancelled = true; };
   }, [audioPath]);
 
+  // 오디오 로드 완료 시 현재 zoom 값 적용 (슬라이더 조작 중 zoom은 debounce로 직접 처리)
   useEffect(() => {
     if (!wsRef.current || !isAudioReady) return;
     wsRef.current.zoom(zoom);
-  }, [zoom, isAudioReady]);
-
-  useEffect(() => {
-    wsRef.current?.setPlaybackRate(playbackRate);
-  }, [playbackRate]);
+  }, [isAudioReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     wsRef.current?.setVolume(volume);
@@ -187,6 +190,10 @@ export function AudioPlayer() {
       const next = idx === -1
         ? 1.0
         : SPEED_STEPS[Math.max(0, Math.min(SPEED_STEPS.length - 1, idx + dir))];
+      if (next !== prev) {
+        playbackRateRef.current = next;
+        wsRef.current?.setPlaybackRate(next);
+      }
       return next;
     });
   }, []);
@@ -287,7 +294,14 @@ export function AudioPlayer() {
           </span>
           <input
             type="range" min={10} max={500} value={zoom}
-            onChange={(e) => setZoom(Number(e.target.value))}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              setZoom(v);
+              if (zoomDebounceRef.current) clearTimeout(zoomDebounceRef.current);
+              zoomDebounceRef.current = setTimeout(() => {
+                if (wsRef.current && isAudioReady) wsRef.current.zoom(v);
+              }, 80);
+            }}
             className="flex-1 min-w-0 accent-indigo-500"
           />
         </div>
