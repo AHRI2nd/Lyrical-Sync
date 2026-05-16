@@ -24,6 +24,7 @@ export function AudioPlayer() {
   const [duration, setDurationLocal] = useState(0);
   const [currentTime, setCurrentTimeLocal] = useState(0);
   const [zoom, setZoom] = useState(50);
+  const [volume, setVolume] = useState(1.0);
   const [isLooping, setIsLooping] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1.0);
 
@@ -149,6 +150,10 @@ export function AudioPlayer() {
     wsRef.current?.setPlaybackRate(playbackRate);
   }, [playbackRate]);
 
+  useEffect(() => {
+    wsRef.current?.setVolume(volume);
+  }, [volume]);
+
   const togglePlay = useCallback(() => wsRef.current?.playPause(), []);
 
   const skip = useCallback((delta: number) => {
@@ -256,20 +261,36 @@ export function AudioPlayer() {
         </div>
       </div>
 
-      {/* 줌 + 열기 */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={openAudio}
-          className="w-28 shrink-0 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm transition-colors text-center truncate"
-        >
-          {t.openAudio}
-        </button>
-        <label className="w-10 shrink-0 text-xs text-zinc-400 text-right">{t.zoom}</label>
-        <input
-          type="range" min={10} max={500} value={zoom}
-          onChange={(e) => setZoom(Number(e.target.value))}
-          className="flex-1 min-w-0 accent-indigo-500"
-        />
+      {/* 열기 버튼 */}
+      <button
+        onClick={openAudio}
+        className="w-full py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm transition-colors text-center truncate"
+      >
+        {t.openAudio}
+      </button>
+
+      {/* 볼륨 + 줌 슬라이더 */}
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center gap-2">
+          <span className="w-20 shrink-0 text-xs text-zinc-400 text-right">
+            {t.volume} <span className="tabular-nums">{Math.round(volume * 100)}%</span>
+          </span>
+          <input
+            type="range" min={0} max={1} step={0.01} value={volume}
+            onChange={(e) => setVolume(parseFloat(Number(e.target.value).toFixed(2)))}
+            className="flex-1 min-w-0 accent-indigo-500"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-20 shrink-0 text-xs text-zinc-400 text-right">
+            {t.zoom}
+          </span>
+          <input
+            type="range" min={10} max={500} value={zoom}
+            onChange={(e) => setZoom(Number(e.target.value))}
+            className="flex-1 min-w-0 accent-indigo-500"
+          />
+        </div>
       </div>
 
       {!audioPath && (
