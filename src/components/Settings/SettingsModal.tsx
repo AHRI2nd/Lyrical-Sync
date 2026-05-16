@@ -209,8 +209,6 @@ function PythonEnvSection() {
   const [installing, setInstalling] = useState(false);
   const [installLog, setInstallLog] = useState<string[]>([]);
   const [installError, setInstallError] = useState<string | null>(null);
-  const [cmdWarningAction, setCmdWarningAction] = useState<"download" | "install" | null>(null);
-  const isWindows = navigator.userAgent.includes("Windows");
   const logRef = useRef<HTMLDivElement>(null);
 
   const refresh = async () => {
@@ -317,7 +315,7 @@ function PythonEnvSection() {
         <span className="text-xs text-zinc-300">{statusText}</span>
         {!loading && !info?.pythonReady && !downloading && (
           <button
-            onClick={() => isWindows ? setCmdWarningAction("download") : handleDownload()}
+            onClick={handleDownload}
             className="ml-auto px-2.5 py-1 text-xs rounded-md bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
           >
             {t.settingsVenvCreate}
@@ -346,12 +344,15 @@ function PythonEnvSection() {
       {info?.pythonReady && !info.packagesReady && (
         <div className="flex flex-col gap-2">
           <button
-            onClick={() => isWindows ? setCmdWarningAction("install") : handleInstall()}
+            onClick={handleInstall}
             disabled={installing}
             className="self-start px-3 py-1.5 text-xs rounded-md bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors"
           >
             {installing ? t.settingsVenvInstalling : t.settingsVenvInstallBtn}
           </button>
+          {installing && (
+            <p className="text-xs text-amber-400/80">{t.settingsVenvCmdWarning}</p>
+          )}
           {installError && (
             <span className="text-xs text-red-400 break-all">{installError}</span>
           )}
@@ -365,31 +366,6 @@ function PythonEnvSection() {
               ))}
             </div>
           )}
-        </div>
-      )}
-      {/* CMD warning — Windows only, shown for both download and install */}
-      {cmdWarningAction !== null && (
-        <div className="flex flex-col gap-2 p-3 bg-amber-950/40 border border-amber-700/50 rounded-lg">
-          <p className="text-xs text-amber-300">{t.settingsVenvCmdWarning}</p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => {
-                const action = cmdWarningAction;
-                setCmdWarningAction(null);
-                if (action === "download") handleDownload();
-                else handleInstall();
-              }}
-              className="px-3 py-1 text-xs rounded-md bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
-            >
-              {cmdWarningAction === "download" ? t.settingsVenvCreate : t.settingsVenvInstallBtn}
-            </button>
-            <button
-              onClick={() => setCmdWarningAction(null)}
-              className="px-3 py-1 text-xs rounded-md bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
-            >
-              {t.aiSyncCancel}
-            </button>
-          </div>
         </div>
       )}
     </div>

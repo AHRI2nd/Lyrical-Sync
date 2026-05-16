@@ -255,7 +255,7 @@ const ko: Translations = {
   settingsVenvChecking: "확인 중...",
   settingsVenvInstallBtn: "패키지 자동 설치",
   settingsVenvInstalling: "설치 중...",
-  settingsVenvCmdWarning: "Windows에서 CMD 창이 열릴 수 있습니다. 설치가 완료될 때까지 닫지 마세요.",
+  settingsVenvCmdWarning: "설치에 수 분이 소요될 수 있습니다. 완료될 때까지 창을 닫지 마세요.",
 };
 
 const en: Translations = {
@@ -383,7 +383,7 @@ const en: Translations = {
   settingsVenvChecking: "Checking...",
   settingsVenvInstallBtn: "Auto-install packages",
   settingsVenvInstalling: "Installing...",
-  settingsVenvCmdWarning: "A CMD window may appear on Windows. Do not close it until installation is complete.",
+  settingsVenvCmdWarning: "Installation may take several minutes. Please do not close this window.",
 };
 
 const ja: Translations = {
@@ -510,7 +510,7 @@ const ja: Translations = {
   settingsVenvChecking: "確認中...",
   settingsVenvInstallBtn: "パッケージ自動インストール",
   settingsVenvInstalling: "インストール中...",
-  settingsVenvCmdWarning: "WindowsではCMDウィンドウが開くことがあります。インストールが完了するまで閉じないでください。",
+  settingsVenvCmdWarning: "インストールには数分かかる場合があります。完了するまでウィンドウを閉じないでください。",
 };
 
 export const translations: Record<Lang, Translations> = { ko, en, ja };
