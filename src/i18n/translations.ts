@@ -128,6 +128,7 @@ export interface Translations {
   settingsVenvChecking: string;
   settingsVenvInstallBtn: string;
   settingsVenvInstalling: string;
+  settingsVenvCmdWarning: string;
 }
 
 const ko: Translations = {
@@ -228,7 +229,7 @@ const ko: Translations = {
   aiSyncRunning: "분석 중...",
   aiSyncCancel: "취소",
   aiSyncClear: "초안 지우기",
-  aiSyncNoModel: "설정 > AI 모델에서 ctc-forced-aligner 모델을 먼저 설치하세요",
+  aiSyncNoModel: "다음 필수 항목이 설치되지 않았습니다:",
   aiSyncNoAudio: "오디오 파일을 먼저 열어주세요",
   aiSyncDone: "AI 싱크 완료",
   aiSyncError: "AI 싱크 오류",
@@ -254,6 +255,7 @@ const ko: Translations = {
   settingsVenvChecking: "확인 중...",
   settingsVenvInstallBtn: "패키지 자동 설치",
   settingsVenvInstalling: "설치 중...",
+  settingsVenvCmdWarning: "Windows에서 CMD 창이 열릴 수 있습니다. 설치가 완료될 때까지 닫지 마세요.",
 };
 
 const en: Translations = {
@@ -355,7 +357,7 @@ const en: Translations = {
   aiSyncRunning: "Analyzing...",
   aiSyncCancel: "Cancel",
   aiSyncClear: "Clear Draft",
-  aiSyncNoModel: "Install the ctc-forced-aligner model in Settings > AI Models first",
+  aiSyncNoModel: "Required items not installed:",
   aiSyncNoAudio: "Please open an audio file first",
   aiSyncDone: "AI Sync complete",
   aiSyncError: "AI Sync error",
@@ -381,6 +383,7 @@ const en: Translations = {
   settingsVenvChecking: "Checking...",
   settingsVenvInstallBtn: "Auto-install packages",
   settingsVenvInstalling: "Installing...",
+  settingsVenvCmdWarning: "A CMD window may appear on Windows. Do not close it until installation is complete.",
 };
 
 const ja: Translations = {
@@ -481,7 +484,7 @@ const ja: Translations = {
   aiSyncRunning: "解析中...",
   aiSyncCancel: "キャンセル",
   aiSyncClear: "下書きを消去",
-  aiSyncNoModel: "設定 > AIモデルからctc-forced-alignerモデルをインストールしてください",
+  aiSyncNoModel: "以下の必須項目がインストールされていません:",
   aiSyncNoAudio: "先に音声ファイルを開いてください",
   aiSyncDone: "AI同期完了",
   aiSyncError: "AI同期エラー",
@@ -507,6 +510,7 @@ const ja: Translations = {
   settingsVenvChecking: "確認中...",
   settingsVenvInstallBtn: "パッケージ自動インストール",
   settingsVenvInstalling: "インストール中...",
+  settingsVenvCmdWarning: "WindowsではCMDウィンドウが開くことがあります。インストールが完了するまで閉じないでください。",
 };
 
 export const translations: Record<Lang, Translations> = { ko, en, ja };
