@@ -222,6 +222,14 @@ function PythonEnvSection() {
 
   useEffect(() => { refresh(); }, []);
 
+  // Clear stale install error once packages are confirmed ready (handles the
+  // case where pip exits with non-zero on Windows but packages are installed).
+  useEffect(() => {
+    if (info?.packagesReady) {
+      setInstallError(null);
+    }
+  }, [info]);
+
   useEffect(() => {
     let unlisten: (() => void) | null = null;
     import("@tauri-apps/api/event").then(({ listen }) => {
