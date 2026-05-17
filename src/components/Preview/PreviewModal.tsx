@@ -202,7 +202,15 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
                   </div>
 
                   {/* 가사 텍스트 */}
-                  <div className={`flex-1 leading-snug select-none ${textSizeClass}`}>
+                  <div
+                    className={`flex-1 leading-snug ${textSizeClass} ${line.timestamp !== null ? "cursor-pointer" : "select-none"}`}
+                    onClick={() => {
+                      if (line.timestamp !== null) {
+                        audioControls.seekTo(line.timestamp);
+                        if (!isPlaying) audioControls.togglePlay();
+                      }
+                    }}
+                  >
                     {isActive ? (
                       <span className="relative inline-block">
                         {line.text || " "}

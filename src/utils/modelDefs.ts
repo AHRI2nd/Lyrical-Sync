@@ -77,7 +77,7 @@ export const MODEL_DEFS: ModelDef[] = [
       { filename: "wav2vec2/model.safetensors", url: "https://huggingface.co/facebook/wav2vec2-base-960h/resolve/main/model.safetensors" },
     ],
     totalSizeMb: 380,
-    required: true,
+    required: false,
   },
 ];
 
