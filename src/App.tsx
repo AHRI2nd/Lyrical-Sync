@@ -4,18 +4,28 @@ import { MetaEditor } from "./components/MetaEditor/MetaEditor";
 import { LrcEditor } from "./components/LrcEditor/LrcEditor";
 import { PreviewModal } from "./components/Preview/PreviewModal";
 import { SettingsModal } from "./components/Settings/SettingsModal";
+import { SpotifyButton } from "./components/Service/SpotifyButton";
+import { SpotifySearchModal } from "./components/Service/SpotifySearchModal";
 import { useLrcStore } from "./stores/useLrcStore";
 import { useI18nStore } from "./stores/useI18nStore";
 import { useSettingsStore } from "./stores/useSettingsStore";
+import { useServiceStore, type SpotifyTrack } from "./stores/useServiceStore";
 import { audioControls } from "./utils/audioControls";
+import { serviceControls } from "./utils/serviceControls";
+import { initSpotifyPlayer } from "./utils/spotifyPlayer";
 import { type Lang } from "./i18n/translations";
 import { checkForUpdate, RELEASES_URL } from "./utils/updateCheck";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { listen } from "@tauri-apps/api/event";
 
 function useGlobalKeys() {
   const { stampAndAdvance, goToPreviousLine } = useLrcStore();
+  const isLoggedInForKeys = useServiceStore((s) => s.isLoggedIn);
+  const spotifyModeForKeys = useSettingsStore((s) => s.spotifyMode);
+  const isServiceMode = isLoggedInForKeys && spotifyModeForKeys;
 
   useEffect(() => {
+    const controls = isServiceMode ? serviceControls : audioControls;
     const handler = (e: KeyboardEvent) => {
       const inInput =
         e.target instanceof HTMLInputElement ||
@@ -35,12 +45,12 @@ function useGlobalKeys() {
 
       if (digit && !inInput) {
         e.preventDefault();
-        if (digit === 1) audioControls.skip(-5);
-        else if (digit === 2) audioControls.skip(-1);
-        else if (digit === 3) audioControls.togglePlay();
-        else if (digit === 4) audioControls.skip(1);
-        else if (digit === 5) audioControls.skip(5);
-        else if (digit === 6) audioControls.stopAndReset();
+        if (digit === 1) controls.skip(-5);
+        else if (digit === 2) controls.skip(-1);
+        else if (digit === 3) controls.togglePlay();
+        else if (digit === 4) controls.skip(1);
+        else if (digit === 5) controls.skip(5);
+        else if (digit === 6) controls.stopAndReset();
         return;
       }
 
@@ -59,7 +69,7 @@ function useGlobalKeys() {
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [stampAndAdvance, goToPreviousLine]);
+  }, [stampAndAdvance, goToPreviousLine, isServiceMode]);
 }
 
 function useAutoUpdateCheck(onUpdateAvailable: (version: string) => void, enabled: boolean) {
@@ -95,11 +105,67 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showNewConfirm, setShowNewConfirm] = useState(false);
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
+  const [spotifyCurrentTrack, setSpotifyCurrentTrack] = useState<SpotifyTrack | null>(null);
+  const [showSpotifySearch, setShowSpotifySearch] = useState(false);
   const { lrcPath, isDirty, openLrc, saveLrc, saveLrcAs, newLrc } = useLrcStore();
   const { lang, setLang, t } = useI18nStore();
   const { autoCheckUpdate, uiScale } = useSettingsStore();
+  const {
+    isLoggedIn, handleCallback, tryRestoreSession,
+    transferPlaybackToApp, fetchCurrentlyPlaying,
+  } = useServiceStore();
 
   useAutoUpdateCheck((v) => setUpdateVersion(v), autoCheckUpdate);
+
+  // Restore saved Spotify session on mount
+  useEffect(() => {
+    tryRestoreSession();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Listen for OAuth callback from local HTTP listener
+  useEffect(() => {
+    let cancelled = false;
+    let unlistenFn: (() => void) | null = null;
+    listen<string>("spotify-callback", async (e) => {
+      try {
+        await handleCallback(e.payload);
+        initSpotifyPlayer();
+      } catch {
+        // OAuth failed — user can retry from settings
+      }
+    }).then((fn) => {
+      if (cancelled) fn();
+      else unlistenFn = fn;
+    });
+    return () => {
+      cancelled = true;
+      unlistenFn?.();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // When session is restored on startup, init polling after refreshing token
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    useServiceStore.getState().ensureToken()
+      .then(() => initSpotifyPlayer())
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn]);
+
+  const handleSpotifyConnected = async () => {
+    try {
+      const track = await fetchCurrentlyPlaying();
+      if (track) {
+        setSpotifyCurrentTrack(track);
+      } else {
+        setShowSpotifySearch(true);
+      }
+    } catch {
+      setShowSpotifySearch(true);
+    }
+  };
 
   // Clear any zoom set by a previous version of the app
   useEffect(() => { document.documentElement.style.zoom = ""; }, []);
@@ -151,6 +217,10 @@ function App() {
         <div className="flex gap-2 shrink-0">
           <ToolBtn onClick={handleNewLrc} className="w-24">{t.newFileBtn}</ToolBtn>
           <ToolBtn onClick={openLrc} className="w-24">{t.openLrc}</ToolBtn>
+          <SpotifyButton
+            onNoClientId={() => { setShowSettings(true); }}
+            onConnected={handleSpotifyConnected}
+          />
           <ToolBtn onClick={saveLrc} accent className="w-16">{t.save}</ToolBtn>
           <ToolBtn onClick={saveLrcAs} className="w-40">{t.saveAs}</ToolBtn>
         </div>
@@ -183,6 +253,25 @@ function App() {
           onOk={() => { setShowNewConfirm(false); newLrc(); }}
           onCancel={() => setShowNewConfirm(false)}
         />
+      )}
+      {spotifyCurrentTrack && (
+        <ConfirmModal
+          title={t.spotifyCurrentlyPlaying}
+          message={`${t.spotifyLoadThisTrack}\n\n${spotifyCurrentTrack.name} — ${spotifyCurrentTrack.artistName}`}
+          okLabel={t.spotifyLoadYes}
+          cancelLabel={t.spotifyLoadNo}
+          onOk={async () => {
+            setSpotifyCurrentTrack(null);
+            await transferPlaybackToApp();
+          }}
+          onCancel={() => {
+            setSpotifyCurrentTrack(null);
+            setShowSpotifySearch(true);
+          }}
+        />
+      )}
+      {showSpotifySearch && (
+        <SpotifySearchModal onClose={() => setShowSpotifySearch(false)} />
       )}
 
       <div className="flex flex-1 min-h-0 gap-0">
