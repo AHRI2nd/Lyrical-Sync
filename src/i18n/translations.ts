@@ -129,6 +129,29 @@ export interface Translations {
   settingsVenvInstallBtn: string;
   settingsVenvInstalling: string;
   settingsVenvCmdWarning: string;
+  // Spotify
+  settingsTabSpotify: string;
+  spotifyClientId: string;
+  spotifyClientIdDesc: string;
+  spotifyClientIdPlaceholder: string;
+  spotifyClientIdSave: string;
+  spotifyClientIdSaved: string;
+  spotifyConnect: string;
+  spotifyConnecting: string;
+  spotifyConnected: string;
+  spotifyLogout: string;
+  spotifyNoClientId: string;
+  spotifyNoClientIdDesc: string;
+  spotifyPremiumRequired: string;
+  spotifyCurrentlyPlaying: string;
+  spotifyLoadThisTrack: string;
+  spotifyLoadYes: string;
+  spotifyLoadNo: string;
+  spotifySearchTitle: string;
+  spotifySearchPlaceholder: string;
+  spotifyMyPlaylists: string;
+  spotifyNoResults: string;
+  spotifyServiceModeInfo: string;
 }
 
 const ko: Translations = {
@@ -256,6 +279,28 @@ const ko: Translations = {
   settingsVenvInstallBtn: "패키지 자동 설치",
   settingsVenvInstalling: "설치 중...",
   settingsVenvCmdWarning: "설치에 수 분이 소요될 수 있습니다. 완료될 때까지 창을 닫지 마세요.",
+  settingsTabSpotify: "Spotify",
+  spotifyClientId: "Client ID",
+  spotifyClientIdDesc: "Spotify Developer 대시보드에서 앱을 만들고 Client ID를 입력하세요. Redirect URI에 lyricsync://callback 을 추가해야 합니다.",
+  spotifyClientIdPlaceholder: "Spotify Client ID를 입력하세요",
+  spotifyClientIdSave: "저장",
+  spotifyClientIdSaved: "저장됨",
+  spotifyConnect: "Spotify 연결",
+  spotifyConnecting: "연결 중...",
+  spotifyConnected: "연결됨",
+  spotifyLogout: "로그아웃",
+  spotifyNoClientId: "Client ID가 입력되지 않았습니다",
+  spotifyNoClientIdDesc: "아래에 Spotify Client ID를 입력한 후 연결하세요.",
+  spotifyPremiumRequired: "Spotify Premium 계정이 필요합니다",
+  spotifyCurrentlyPlaying: "현재 재생 중인 곡",
+  spotifyLoadThisTrack: "이 곡으로 작업하시겠습니까?",
+  spotifyLoadYes: "불러오기",
+  spotifyLoadNo: "다른 곡 선택",
+  spotifySearchTitle: "Spotify에서 곡 선택",
+  spotifySearchPlaceholder: "곡, 아티스트 검색...",
+  spotifyMyPlaylists: "내 플레이리스트",
+  spotifyNoResults: "검색 결과가 없습니다",
+  spotifyServiceModeInfo: "Spotify 모드에서는 파형 시각화, 배속 조절, AI Sync를 사용할 수 없습니다.",
 };
 
 const en: Translations = {
@@ -384,6 +429,28 @@ const en: Translations = {
   settingsVenvInstallBtn: "Auto-install packages",
   settingsVenvInstalling: "Installing...",
   settingsVenvCmdWarning: "Installation may take several minutes. Please do not close this window.",
+  settingsTabSpotify: "Spotify",
+  spotifyClientId: "Client ID",
+  spotifyClientIdDesc: "Create an app on the Spotify Developer Dashboard and enter your Client ID. Add lyricsync://callback as a Redirect URI.",
+  spotifyClientIdPlaceholder: "Enter your Spotify Client ID",
+  spotifyClientIdSave: "Save",
+  spotifyClientIdSaved: "Saved",
+  spotifyConnect: "Connect Spotify",
+  spotifyConnecting: "Connecting...",
+  spotifyConnected: "Connected",
+  spotifyLogout: "Log out",
+  spotifyNoClientId: "No Client ID entered",
+  spotifyNoClientIdDesc: "Enter your Spotify Client ID below to connect.",
+  spotifyPremiumRequired: "Spotify Premium account required",
+  spotifyCurrentlyPlaying: "Currently playing",
+  spotifyLoadThisTrack: "Work on this track?",
+  spotifyLoadYes: "Load",
+  spotifyLoadNo: "Choose another",
+  spotifySearchTitle: "Select a track from Spotify",
+  spotifySearchPlaceholder: "Search tracks, artists...",
+  spotifyMyPlaylists: "My Playlists",
+  spotifyNoResults: "No results found",
+  spotifyServiceModeInfo: "Waveform, speed control, and AI Sync are not available in Spotify mode.",
 };
 
 const ja: Translations = {
@@ -511,6 +578,28 @@ const ja: Translations = {
   settingsVenvInstallBtn: "パッケージ自動インストール",
   settingsVenvInstalling: "インストール中...",
   settingsVenvCmdWarning: "インストールには数分かかる場合があります。完了するまでウィンドウを閉じないでください。",
+  settingsTabSpotify: "Spotify",
+  spotifyClientId: "クライアントID",
+  spotifyClientIdDesc: "Spotify Developerダッシュボードでアプリを作成し、クライアントIDを入力してください。リダイレクトURIにlyricsync://callbackを追加する必要があります。",
+  spotifyClientIdPlaceholder: "Spotify クライアントIDを入力",
+  spotifyClientIdSave: "保存",
+  spotifyClientIdSaved: "保存済み",
+  spotifyConnect: "Spotify に接続",
+  spotifyConnecting: "接続中...",
+  spotifyConnected: "接続済み",
+  spotifyLogout: "ログアウト",
+  spotifyNoClientId: "クライアントIDが未入力です",
+  spotifyNoClientIdDesc: "下のフィールドにSpotifyクライアントIDを入力して接続してください。",
+  spotifyPremiumRequired: "Spotify Premiumアカウントが必要です",
+  spotifyCurrentlyPlaying: "再生中の曲",
+  spotifyLoadThisTrack: "この曲で作業しますか？",
+  spotifyLoadYes: "読み込む",
+  spotifyLoadNo: "別の曲を選択",
+  spotifySearchTitle: "Spotifyから曲を選択",
+  spotifySearchPlaceholder: "曲名、アーティストを検索...",
+  spotifyMyPlaylists: "マイプレイリスト",
+  spotifyNoResults: "検索結果がありません",
+  spotifyServiceModeInfo: "Spotifyモードでは波形表示・速度調整・AI Syncは利用できません。",
 };
 
 export const translations: Record<Lang, Translations> = { ko, en, ja };
