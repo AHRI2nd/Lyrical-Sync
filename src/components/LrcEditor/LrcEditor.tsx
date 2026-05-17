@@ -9,15 +9,12 @@ import { MODEL_DEFS } from "../../utils/modelDefs";
 // ISO 639-3 codes used by ctc-forced-aligner / MMS model
 const LANG_CODE: Record<string, string> = { ko: "kor", en: "eng", ja: "jpn" };
 
-// Filenames required for the CTC aligner model
-const CTC_MODEL = MODEL_DEFS.find((m) => m.id === "ctc-mms-300m")!;
-
 export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   const {
     doc, currentTime, activeLineId,
     addLine, insertLinesAfter, updateLine, deleteLine,
     stampCurrentLine, setActiveLineId,
-    aiSyncStatus, aiSyncMessage, aiDraftConfidence,
+    aiSyncStatus, aiSyncMessage, aiSyncProgressStatus, aiDraftConfidence,
     runAiSync, cancelAiSync, clearAiDraft,
     audioPath,
   } = useLrcStore();
@@ -29,20 +26,45 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const pendingFocusId = useRef<string | null>(null);
 
-  // Track whether the CTC model is installed
-  const [modelInstalled, setModelInstalled] = useState(false);
-  useEffect(() => {
-    const check = async () => {
+  const [pythonReady, setPythonReady] = useState(false);
+  const [missingModels, setMissingModels] = useState<string[]>([]);
+
+  const checkAiRequirements = useCallback(async () => {
+    try {
+      const v = await invoke<{ packagesReady: boolean }>("get_python_env_info");
+      setPythonReady(v.packagesReady);
+    } catch {
+      setPythonReady(false);
+    }
+    const missing: string[] = [];
+    for (const model of MODEL_DEFS.filter((m) => m.required)) {
       try {
-        const filenames = CTC_MODEL.files.map((f) => f.filename);
-        const results = await invoke<boolean[]>("check_model_files", { filenames });
-        setModelInstalled(results.every(Boolean));
+        const results = await invoke<boolean[]>("check_model_files", { filenames: model.files.map((f) => f.filename) });
+        if (!results.every(Boolean)) missing.push(model.name);
       } catch {
-        setModelInstalled(false);
+        missing.push(model.name);
       }
-    };
-    check();
+    }
+    setMissingModels(missing);
   }, []);
+
+  useEffect(() => { checkAiRequirements(); }, [checkAiRequirements]);
+
+  useEffect(() => {
+    let unlistenModel: (() => void) | null = null;
+    let unlistenPip: (() => void) | null = null;
+    import("@tauri-apps/api/event").then(({ listen }) => {
+      listen<{ done: boolean }>("model-download-progress", (e) => {
+        if (e.payload.done) checkAiRequirements();
+      }).then((fn) => { unlistenModel = fn; });
+      listen<{ done: boolean }>("pip-install-progress", (e) => {
+        if (e.payload.done) checkAiRequirements();
+      }).then((fn) => { unlistenPip = fn; });
+    });
+    return () => { unlistenModel?.(); unlistenPip?.(); };
+  }, [checkAiRequirements]);
+
+  const canRunAi = pythonReady && missingModels.length === 0;
 
   useEffect(() => {
     if (!activeLineId) return;
@@ -103,12 +125,20 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
 
   const isRunning = aiSyncStatus === "running";
 
-  // Tooltip for disabled AI button
-  const aiDisabledReason = !modelInstalled
-    ? t.aiSyncNoModel
-    : !audioPath
-    ? t.aiSyncNoAudio
-    : undefined;
+  const PROGRESS_STATUS_MAP: Record<string, string> = {
+    loading_model: t.aiSyncStatusLoadingModel,
+    loading_audio: t.aiSyncStatusLoadingAudio,
+    analyzing: t.aiSyncStatusAnalyzing,
+    aligning: t.aiSyncStatusAligning,
+    postprocessing: t.aiSyncStatusPostprocessing,
+    separating: t.aiSyncStatusAnalyzing,
+    done: t.aiSyncStatusDone,
+  };
+
+  const displayMessage = aiSyncStatus === "error"
+    ? aiSyncMessage
+    : (PROGRESS_STATUS_MAP[aiSyncProgressStatus] ?? aiSyncMessage);
+
 
   return (
     <div className="flex flex-col gap-2 p-4 bg-zinc-900 rounded-xl border border-zinc-700 flex-1 min-h-0">
@@ -120,21 +150,31 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           <div className="relative group">
             <button
               onClick={isRunning ? undefined : handleAiSync}
-              disabled={isRunning || !modelInstalled || !audioPath}
+              disabled={isRunning || !canRunAi || !audioPath}
               className={[
                 "px-3 py-1 text-xs rounded-lg transition-colors",
                 isRunning
                   ? "bg-indigo-800 text-indigo-300 cursor-not-allowed"
-                  : modelInstalled && audioPath
+                  : canRunAi && audioPath
                   ? "bg-indigo-600 hover:bg-indigo-500 text-white"
                   : "bg-zinc-700 text-zinc-500 cursor-not-allowed",
               ].join(" ")}
             >
               {isRunning ? t.aiSyncRunning : t.aiAutoSync}
             </button>
-            {aiDisabledReason && (
-              <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:block z-20 w-56 bg-zinc-800 border border-zinc-600 text-xs text-zinc-300 rounded-lg px-3 py-2 shadow-xl pointer-events-none">
-                {aiDisabledReason}
+            {!isRunning && (!canRunAi || !audioPath) && (
+              <div className="absolute top-full right-0 mt-1.5 hidden group-hover:block z-20 w-60 bg-zinc-800 border border-zinc-600 text-xs text-zinc-300 rounded-lg px-3 py-2 shadow-xl pointer-events-none">
+                {!canRunAi ? (
+                  <>
+                    <p className="font-medium text-zinc-200 mb-1">{t.aiSyncNoModel}</p>
+                    <ul className="flex flex-col gap-0.5 text-zinc-400">
+                      {!pythonReady && <li>· {t.settingsVenvTitle}</li>}
+                      {missingModels.map((name) => <li key={name}>· {name}</li>)}
+                    </ul>
+                  </>
+                ) : (
+                  t.aiSyncNoAudio
+                )}
               </div>
             )}
           </div>
@@ -183,14 +223,14 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
       </div>
 
       {/* AI progress message */}
-      {(isRunning || aiSyncStatus === "error") && aiSyncMessage && (
+      {(isRunning || aiSyncStatus === "error") && displayMessage && (
         <div className={[
           "text-xs px-2 py-1 rounded",
           aiSyncStatus === "error"
             ? "text-red-300 bg-red-900/30"
             : "text-indigo-300 bg-indigo-900/30",
         ].join(" ")}>
-          {aiSyncMessage}
+          {displayMessage}
         </div>
       )}
 
@@ -212,7 +252,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
             : "bg-zinc-800 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300";
 
           const tsTitle = confidence !== undefined
-            ? `${t.stampTooltip} · confidence ${(confidence * 100).toFixed(0)}%`
+            ? `${t.stampTooltip} · ${t.aiSyncConfidenceLabel} ${(confidence * 100).toFixed(0)}%`
             : t.stampTooltip;
 
           return (

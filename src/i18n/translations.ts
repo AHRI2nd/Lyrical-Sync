@@ -28,6 +28,8 @@ export interface Translations {
   tooltipLoop: string;
   tooltipSpeedDown: string;
   tooltipSpeedUp: string;
+  tooltipViewWaveform: string;
+  tooltipViewSeekBar: string;
   // LrcEditor
   lyricsEditor: string;
   addLine: string;
@@ -111,6 +113,8 @@ export interface Translations {
   aiSyncStatusDone: string;
   aiSyncConfidenceHigh: string;
   aiSyncConfidenceLow: string;
+  aiSyncConfidenceLabel: string;
+  aiSyncStatusPostprocessing: string;
   aiSyncBlankOffset: string;
   aiSyncBlankOffsetDesc: string;
   settingsVenvTitle: string;
@@ -124,6 +128,7 @@ export interface Translations {
   settingsVenvChecking: string;
   settingsVenvInstallBtn: string;
   settingsVenvInstalling: string;
+  settingsVenvCmdWarning: string;
 }
 
 const ko: Translations = {
@@ -157,6 +162,8 @@ const ko: Translations = {
   tooltipLoop: "반복재생",
   tooltipSpeedDown: "배속 감소",
   tooltipSpeedUp: "배속 증가",
+  tooltipViewWaveform: "파형",
+  tooltipViewSeekBar: "재생바",
   lyricsEditor: "가사 편집",
   addLine: "+ 줄 추가",
   noLines: "「+ 줄 추가」 버튼으로 가사를 입력하세요",
@@ -222,7 +229,7 @@ const ko: Translations = {
   aiSyncRunning: "분석 중...",
   aiSyncCancel: "취소",
   aiSyncClear: "초안 지우기",
-  aiSyncNoModel: "설정 > AI 모델에서 ctc-forced-aligner 모델을 먼저 설치하세요",
+  aiSyncNoModel: "다음 필수 항목이 설치되지 않았습니다:",
   aiSyncNoAudio: "오디오 파일을 먼저 열어주세요",
   aiSyncDone: "AI 싱크 완료",
   aiSyncError: "AI 싱크 오류",
@@ -233,6 +240,8 @@ const ko: Translations = {
   aiSyncStatusDone: "정렬 완료",
   aiSyncConfidenceHigh: "높음",
   aiSyncConfidenceLow: "낮음",
+  aiSyncConfidenceLabel: "신뢰도",
+  aiSyncStatusPostprocessing: "결과 처리 중...",
   aiSyncBlankOffset: "빈 줄 오프셋 (초)",
   aiSyncBlankOffsetDesc: "빈 줄의 타임스탬프를 앞 가사 끝 시점에서 얼마나 뒤로 설정할지 지정합니다.",
   settingsVenvTitle: "AI Python 환경",
@@ -246,6 +255,7 @@ const ko: Translations = {
   settingsVenvChecking: "확인 중...",
   settingsVenvInstallBtn: "패키지 자동 설치",
   settingsVenvInstalling: "설치 중...",
+  settingsVenvCmdWarning: "설치에 수 분이 소요될 수 있습니다. 완료될 때까지 창을 닫지 마세요.",
 };
 
 const en: Translations = {
@@ -279,6 +289,9 @@ const en: Translations = {
   tooltipLoop: "Loop",
   tooltipSpeedDown: "Slower",
   tooltipSpeedUp: "Faster",
+  tooltipViewWaveform: "Waveform",
+  tooltipViewSeekBar: "Seek bar",
+
   lyricsEditor: "Lyrics Editor",
   addLine: "+ Add Line",
   noLines: "Press \"+ Add Line\" to start entering lyrics",
@@ -344,7 +357,7 @@ const en: Translations = {
   aiSyncRunning: "Analyzing...",
   aiSyncCancel: "Cancel",
   aiSyncClear: "Clear Draft",
-  aiSyncNoModel: "Install the ctc-forced-aligner model in Settings > AI Models first",
+  aiSyncNoModel: "Required items not installed:",
   aiSyncNoAudio: "Please open an audio file first",
   aiSyncDone: "AI Sync complete",
   aiSyncError: "AI Sync error",
@@ -355,6 +368,8 @@ const en: Translations = {
   aiSyncStatusDone: "Alignment complete",
   aiSyncConfidenceHigh: "High",
   aiSyncConfidenceLow: "Low",
+  aiSyncConfidenceLabel: "confidence",
+  aiSyncStatusPostprocessing: "Processing results...",
   aiSyncBlankOffset: "Blank line offset (s)",
   aiSyncBlankOffsetDesc: "How many seconds after the previous lyric's end to set blank line timestamps.",
   settingsVenvTitle: "AI Python Environment",
@@ -368,6 +383,7 @@ const en: Translations = {
   settingsVenvChecking: "Checking...",
   settingsVenvInstallBtn: "Auto-install packages",
   settingsVenvInstalling: "Installing...",
+  settingsVenvCmdWarning: "Installation may take several minutes. Please do not close this window.",
 };
 
 const ja: Translations = {
@@ -401,6 +417,8 @@ const ja: Translations = {
   tooltipLoop: "リピート",
   tooltipSpeedDown: "遅くする",
   tooltipSpeedUp: "速くする",
+  tooltipViewWaveform: "波形",
+  tooltipViewSeekBar: "シーク",
   lyricsEditor: "歌詞編集",
   addLine: "+ 行を追加",
   noLines: "「+ 行を追加」ボタンで歌詞を入力してください",
@@ -466,7 +484,7 @@ const ja: Translations = {
   aiSyncRunning: "解析中...",
   aiSyncCancel: "キャンセル",
   aiSyncClear: "下書きを消去",
-  aiSyncNoModel: "設定 > AIモデルからctc-forced-alignerモデルをインストールしてください",
+  aiSyncNoModel: "以下の必須項目がインストールされていません:",
   aiSyncNoAudio: "先に音声ファイルを開いてください",
   aiSyncDone: "AI同期完了",
   aiSyncError: "AI同期エラー",
@@ -477,6 +495,8 @@ const ja: Translations = {
   aiSyncStatusDone: "アライメント完了",
   aiSyncConfidenceHigh: "高",
   aiSyncConfidenceLow: "低",
+  aiSyncConfidenceLabel: "信頼度",
+  aiSyncStatusPostprocessing: "結果処理中...",
   aiSyncBlankOffset: "空白行オフセット（秒）",
   aiSyncBlankOffsetDesc: "空白行のタイムスタンプを前の歌詞の終了時点から何秒後に設定するかを指定します。",
   settingsVenvTitle: "AI Python環境",
@@ -490,6 +510,7 @@ const ja: Translations = {
   settingsVenvChecking: "確認中...",
   settingsVenvInstallBtn: "パッケージ自動インストール",
   settingsVenvInstalling: "インストール中...",
+  settingsVenvCmdWarning: "インストールには数分かかる場合があります。完了するまでウィンドウを閉じないでください。",
 };
 
 export const translations: Record<Lang, Translations> = { ko, en, ja };

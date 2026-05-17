@@ -222,6 +222,14 @@ function PythonEnvSection() {
 
   useEffect(() => { refresh(); }, []);
 
+  // Clear stale install error once packages are confirmed ready (handles the
+  // case where pip exits with non-zero on Windows but packages are installed).
+  useEffect(() => {
+    if (info?.packagesReady) {
+      setInstallError(null);
+    }
+  }, [info]);
+
   useEffect(() => {
     let unlisten: (() => void) | null = null;
     import("@tauri-apps/api/event").then(({ listen }) => {
@@ -294,7 +302,12 @@ function PythonEnvSection() {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-zinc-200">{t.settingsVenvTitle}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-zinc-200">{t.settingsVenvTitle}</span>
+          <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded text-amber-300 bg-amber-900/40">
+            {t.modelRequired}
+          </span>
+        </div>
         <button
           onClick={refresh}
           disabled={loading || downloading || installing}
@@ -345,6 +358,9 @@ function PythonEnvSection() {
           >
             {installing ? t.settingsVenvInstalling : t.settingsVenvInstallBtn}
           </button>
+          {installing && (
+            <p className="text-xs text-amber-400/80">{t.settingsVenvCmdWarning}</p>
+          )}
           {installError && (
             <span className="text-xs text-red-400 break-all">{installError}</span>
           )}

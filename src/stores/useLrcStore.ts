@@ -56,6 +56,8 @@ interface LrcStore {
   // AI Auto Sync
   aiSyncStatus: AiSyncStatus;
   aiSyncMessage: string;
+  /** Python progress status code (e.g. "loading_model", "analyzing", "error") */
+  aiSyncProgressStatus: string;
   /** lineId → confidence (0–1). null = no AI draft active */
   aiDraftConfidence: Record<string, number> | null;
   runAiSync: (language: string, blankLineOffset: number) => Promise<void>;
@@ -78,6 +80,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
 
   aiSyncStatus: "idle",
   aiSyncMessage: "",
+  aiSyncProgressStatus: "",
   aiDraftConfidence: null,
 
   setIsPlaying: (v) => set({ isPlaying: v }),
@@ -276,7 +279,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     set({ aiSyncStatus: "running", aiSyncMessage: "" });
 
     const unlisten = await listen<AlignmentProgressEvent>("alignment-progress", (e) => {
-      set({ aiSyncMessage: e.payload.message });
+      set({ aiSyncProgressStatus: e.payload.status, aiSyncMessage: e.payload.message });
     });
 
     try {
@@ -324,15 +327,16 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
       set({
         doc: { ...doc, lines: newLines },
         aiSyncStatus: "done",
+        aiSyncProgressStatus: "done",
         aiDraftConfidence: confidence,
         isDirty: true,
       });
     } catch (err) {
       const msg = String(err);
       if (msg === "cancelled") {
-        set({ aiSyncStatus: "idle", aiSyncMessage: "" });
+        set({ aiSyncStatus: "idle", aiSyncMessage: "", aiSyncProgressStatus: "" });
       } else {
-        set({ aiSyncStatus: "error", aiSyncMessage: msg });
+        set({ aiSyncStatus: "error", aiSyncProgressStatus: "error", aiSyncMessage: msg });
       }
     } finally {
       unlisten();
