@@ -15,6 +15,17 @@ const AUDIO_MIME: Record<string, string> = {
 
 const SPEED_STEPS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
 
+// Zoom slider uses a logarithmic scale so that equal slider movements produce
+// equal *ratios* of zoom change (better UX) and the default sits exactly at
+// the visual center (level 50 out of 0–100).
+//   level=0   → 10 px/s  (zoomed out)
+//   level=50  → ~71 px/s (default, center)
+//   level=100 → 500 px/s (zoomed in)
+const ZOOM_PX_MIN = 10;
+const ZOOM_PX_MAX = 500;
+const zoomLevelToPixels = (level: number) =>
+  Math.round(ZOOM_PX_MIN * Math.pow(ZOOM_PX_MAX / ZOOM_PX_MIN, level / 100));
+
 export function AudioPlayer() {
   const containerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
@@ -27,7 +38,7 @@ export function AudioPlayer() {
   const [isAudioReady, setIsAudioReady] = useState(false);
   const [duration, setDurationLocal] = useState(0);
   const [currentTime, setCurrentTimeLocal] = useState(0);
-  const [zoom, setZoom] = useState(50);
+  const [zoomLevel, setZoomLevel] = useState(50); // 0–100, center=50
   const [volume, setVolume] = useState(1.0);
   const [isLooping, setIsLooping] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1.0);
@@ -155,7 +166,7 @@ export function AudioPlayer() {
   // 오디오 로드 완료 시 현재 zoom 값 적용 (슬라이더 조작 중 zoom은 debounce로 직접 처리)
   useEffect(() => {
     if (!wsRef.current || !isAudioReady) return;
-    wsRef.current.zoom(zoom);
+    wsRef.current.zoom(zoomLevelToPixels(zoomLevel));
   }, [isAudioReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -417,13 +428,13 @@ export function AudioPlayer() {
         </div>
         {viewMode === "waveform" ? (
           <input
-            type="range" min={10} max={500} value={zoom}
+            type="range" min={0} max={100} value={zoomLevel}
             onChange={(e) => {
               const v = Number(e.target.value);
-              setZoom(v);
+              setZoomLevel(v);
               if (zoomDebounceRef.current) clearTimeout(zoomDebounceRef.current);
               zoomDebounceRef.current = setTimeout(() => {
-                if (wsRef.current && isAudioReady) wsRef.current.zoom(v);
+                if (wsRef.current && isAudioReady) wsRef.current.zoom(zoomLevelToPixels(v));
               }, 80);
             }}
             className="min-w-0 accent-indigo-500"
