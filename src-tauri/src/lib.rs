@@ -376,6 +376,20 @@ fn python_cmd(python: impl AsRef<std::ffi::OsStr>) -> tokio::process::Command {
     cmd
 }
 
+/// Like `python_cmd`, but additionally sets ABOVE_NORMAL_PRIORITY_CLASS on Windows.
+/// On Intel hybrid CPUs (Alder Lake+), the Windows 11 scheduler and Intel Thread Director
+/// use priority class as a hint: ABOVE_NORMAL causes P-cores to be preferred over E-cores,
+/// preventing ML inference from being silently throttled to efficiency cores.
+fn python_cmd_inference(python: impl AsRef<std::ffi::OsStr>) -> tokio::process::Command {
+    let mut cmd = tokio::process::Command::new(python);
+    #[cfg(target_os = "windows")]
+    {
+        // CREATE_NO_WINDOW (0x08000000) | ABOVE_NORMAL_PRIORITY_CLASS (0x00008000)
+        cmd.creation_flags(0x08008000);
+    }
+    cmd
+}
+
 fn python_standalone_url() -> &'static str {
     if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
         "https://github.com/indygreg/python-build-standalone/releases/download/20241016/cpython-3.11.10+20241016-aarch64-apple-darwin-install_only.tar.gz"
@@ -723,6 +737,24 @@ async fn install_python_packages(app: AppHandle) -> Result<(), String> {
     let ok2 = true;
 
     let success = ok1 && ok2;
+
+    // On Windows, pip may return a non-zero exit code due to post-install hook
+    // failures or transient file-system locks even when all package files were
+    // written successfully.  Verify by actually importing the packages so we
+    // don't show a false-positive error to the user.
+    #[cfg(target_os = "windows")]
+    let success = if success { true } else {
+        python_cmd(&python)
+            .args(["-c", "import onnxruntime, unidecode, demucs; from ctc_forced_aligner import load_audio, generate_emissions, preprocess_text, get_alignments, get_spans, postprocess_results, ensure_onnx_model, Tokenizer"])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .await
+            .map(|s| s.success())
+            .unwrap_or(false)
+    };
+
     let _ = app.emit("pip-install-progress", PipInstallProgress {
         line: String::new(),
         done: true,
@@ -786,7 +818,7 @@ async fn run_alignment(
             .await
             .map_err(|e| format!("스크립트 쓰기 실패: {e}"))?;
 
-        let mut sep_child = python_cmd(&python_str)
+        let mut sep_child = python_cmd_inference(&python_str)
             .args([
                 sep_script_path.to_str().unwrap(),
                 "--model-path", &demucs_model.to_string_lossy(),
@@ -832,7 +864,7 @@ async fn run_alignment(
     }
 
     let script_str = align_script_path.to_str().unwrap();
-    let mut child = python_cmd(&python_str)
+    let mut child = python_cmd_inference(&python_str)
         .args([
             script_str,
             "--models-dir", &models_dir_str,
