@@ -1,18 +1,21 @@
 import { useState } from "react";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { serviceControls } from "../../utils/serviceControls";
+import { setSpotifyVolume } from "../../utils/spotifyPlayer";
 import { formatDisplayTime } from "../../utils/lrcParser";
 import { useI18nStore } from "../../stores/useI18nStore";
 
 export function ServicePlayerPanel() {
   const { t } = useI18nStore();
   const {
-    isPlaying, positionMs, durationMs,
+    isPlaying, isLooping, positionMs, durationMs,
     trackName, artistName, albumName, albumArtUrl,
+    toggleLoop,
   } = useServiceStore();
 
   const [hoverRatio, setHoverRatio] = useState<number | null>(null);
   const [showRemaining, setShowRemaining] = useState(false);
+  const [volume, setVolume] = useState(1.0);
 
   const positionSec = positionMs / 1000;
   const durationSec = durationMs / 1000;
@@ -140,11 +143,30 @@ export function ServicePlayerPanel() {
         </CtrlBtn>
       </div>
 
-      {/* Row 2: stop */}
+      {/* Row 2: stop + loop */}
       <div className="flex items-center justify-center gap-1.5">
         <CtrlBtn onClick={() => serviceControls.stopAndReset()} title={t.tooltipStop}>
           <StopIcon />
         </CtrlBtn>
+        <CtrlBtn onClick={() => toggleLoop().catch(() => {})} title={t.tooltipLoop} active={isLooping}>
+          <LoopIcon />
+        </CtrlBtn>
+      </div>
+
+      {/* Volume */}
+      <div className="grid gap-1.5" style={{ gridTemplateColumns: "auto 1fr" }}>
+        <span className="text-xs text-zinc-400 text-right self-center pr-2">
+          {t.volume} <span className="tabular-nums">{Math.round(volume * 100)}%</span>
+        </span>
+        <input
+          type="range" min={0} max={1} step={0.01} value={volume}
+          onChange={(e) => {
+            const v = parseFloat(Number(e.target.value).toFixed(2));
+            setVolume(v);
+            setSpotifyVolume(v).catch(() => {});
+          }}
+          className="min-w-0 accent-green-500"
+        />
       </div>
 
     </div>
@@ -152,12 +174,13 @@ export function ServicePlayerPanel() {
 }
 
 function CtrlBtn({
-  onClick, title, children, accent,
+  onClick, title, children, accent, active,
 }: {
   onClick: () => void;
   title?: string;
   children: React.ReactNode;
   accent?: boolean;
+  active?: boolean;
 }) {
   return (
     <button
@@ -167,7 +190,9 @@ function CtrlBtn({
         "h-9 px-3 rounded-lg flex items-center justify-center text-sm transition-colors",
         accent
           ? "bg-green-600 hover:bg-green-500 active:bg-green-700 text-white px-5 shadow-md"
-          : "bg-zinc-700 hover:bg-zinc-600 text-zinc-200",
+          : active
+            ? "bg-zinc-600 text-green-400 hover:bg-zinc-500"
+            : "bg-zinc-700 hover:bg-zinc-600 text-zinc-200",
       ].join(" ")}
     >
       {children}
@@ -189,4 +214,7 @@ function SkipBackIcon() {
 }
 function SkipFwdIcon() {
   return <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" /></svg>;
+}
+function LoopIcon() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" /></svg>;
 }
