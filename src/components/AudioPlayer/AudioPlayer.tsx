@@ -4,8 +4,11 @@ import { readFile } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { useServiceStore } from "../../stores/useServiceStore";
+import { useSettingsStore } from "../../stores/useSettingsStore";
 import { audioControls } from "../../utils/audioControls";
 import { formatDisplayTime } from "../../utils/lrcParser";
+import { ServicePlayerPanel } from "../Service/ServicePlayerPanel";
 
 const AUDIO_MIME: Record<string, string> = {
   mp3: "audio/mpeg", flac: "audio/flac", wav: "audio/wav",
@@ -48,6 +51,9 @@ export function AudioPlayer() {
 
   const { audioPath, setCurrentTime, setIsPlaying, setDuration, openAudio } = useLrcStore();
   const { t } = useI18nStore();
+  const isLoggedIn = useServiceStore((s) => s.isLoggedIn);
+  const spotifyMode = useSettingsStore((s) => s.spotifyMode);
+  const isServiceMode = isLoggedIn && spotifyMode;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -233,6 +239,14 @@ export function AudioPlayer() {
       return next;
     });
   }, []);
+
+  if (isServiceMode) {
+    return (
+      <div className="flex flex-col gap-3 p-4 bg-zinc-900 rounded-xl border border-zinc-700">
+        <ServicePlayerPanel />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-3 p-4 bg-zinc-900 rounded-xl border border-zinc-700">

@@ -8,12 +8,19 @@ export interface Translations {
   save: string;
   saveAs: string;
   // Help modal
+  helpTitle: string;
+  helpTabShortcuts: string;
+  helpTabAi: string;
+  helpTabSpotify: string;
   shortcutsTitle: string;
   shortcutNote: string;
   shortcutDescs: {
     s1: string; s2: string; s3: string; s4: string; s5: string; s6: string;
     space: string; backspace: string;
   };
+  helpAiSteps: { title: string; desc: string }[];
+  helpSpotifySteps: { title: string; desc: string }[];
+  helpViewGuide: string;
   // AudioPlayer
   openAudio: string;
   zoom: string;
@@ -129,6 +136,33 @@ export interface Translations {
   settingsVenvInstallBtn: string;
   settingsVenvInstalling: string;
   settingsVenvCmdWarning: string;
+  // Spotify
+  settingsTabSpotify: string;
+  spotifyClientId: string;
+  spotifyClientIdDesc: string;
+  spotifyClientIdPlaceholder: string;
+  spotifyClientIdSave: string;
+  spotifyClientIdSaved: string;
+  spotifyConnect: string;
+  spotifyConnecting: string;
+  spotifyConnected: string;
+  spotifyLogout: string;
+  spotifyNoClientId: string;
+  spotifyNoClientIdDesc: string;
+  spotifyPremiumRequired: string;
+  spotifyCurrentlyPlaying: string;
+  spotifyLoadThisTrack: string;
+  spotifyLoadYes: string;
+  spotifyLoadNo: string;
+  spotifySearchTitle: string;
+  spotifySearchPlaceholder: string;
+  spotifyMyPlaylists: string;
+  spotifyNoResults: string;
+  spotifyServiceModeInfo: string;
+  spotifyBackToFileMode: string;
+  spotifyNoTrackTitle: string;
+  spotifyNoTrackMessage: string;
+  spotifySearchTrack: string;
 }
 
 const ko: Translations = {
@@ -137,6 +171,10 @@ const ko: Translations = {
   openLrc: "LRC 열기",
   save: "저장",
   saveAs: "다른 이름으로 저장",
+  helpTitle: "도움말",
+  helpTabShortcuts: "단축키",
+  helpTabAi: "AI 사용법",
+  helpTabSpotify: "Spotify",
   shortcutsTitle: "단축키 안내",
   shortcutNote: "* 인풋 포커스 중일 때는 단축키가 동작하지 않습니다.",
   shortcutDescs: {
@@ -149,6 +187,19 @@ const ko: Translations = {
     space: "현재 줄에 타임스탬프 찍기 + 다음 줄로 이동",
     backspace: "이전 줄로 이동",
   },
+  helpAiSteps: [
+    { title: "Python 환경 설치", desc: "설정(⚙) → AI 환경 탭에서 내장 Python을 다운로드하고 패키지를 설치합니다." },
+    { title: "모델 다운로드", desc: "설정 → AI 모델 탭에서 필수 모델 ctc-mms-300m(1.2 GB)을 다운로드합니다." },
+    { title: "AI 자동 싱크 실행", desc: "가사를 입력한 후 LRC 에디터 상단의 'AI 자동 싱크' 버튼을 클릭합니다. 언어를 선택하면 자동으로 타임스탬프가 생성됩니다." },
+    { title: "결과 확인 및 보정", desc: "신뢰도 배지가 낮은 줄은 수동으로 타임스탬프를 찍어 보정하세요. Space 키로 재생 중 실시간 스탬핑도 가능합니다." },
+  ],
+  helpSpotifySteps: [
+    { title: "Client ID 준비", desc: "Spotify Developer Dashboard(developer.spotify.com)에서 앱을 만들고 Redirect URI에 http://127.0.0.1:54321/callback 을 추가합니다." },
+    { title: "Client ID 입력", desc: "설정(⚙) → Spotify 탭에서 발급받은 Client ID를 입력하고 저장합니다." },
+    { title: "연결 및 곡 선택", desc: "상단 Spotify 버튼을 클릭해 로그인합니다. 현재 재생 중인 곡을 불러오거나 검색으로 곡을 선택하면 자동으로 Spotify 모드로 전환됩니다." },
+    { title: "제한 사항", desc: "Spotify 모드에서는 파형 시각화, 배속 조절, AI Sync를 사용할 수 없습니다. Spotify Premium 계정이 필요합니다." },
+  ],
+  helpViewGuide: "자세한 가이드 보기 →",
   openAudio: "오디오 열기",
   zoom: "줌",
   volume: "볼륨",
@@ -256,6 +307,32 @@ const ko: Translations = {
   settingsVenvInstallBtn: "패키지 자동 설치",
   settingsVenvInstalling: "설치 중...",
   settingsVenvCmdWarning: "설치에 수 분이 소요될 수 있습니다. 완료될 때까지 창을 닫지 마세요.",
+  settingsTabSpotify: "Spotify",
+  spotifyClientId: "Client ID",
+  spotifyClientIdDesc: "Spotify Developer 대시보드에서 앱을 만들고 Client ID를 입력하세요. Redirect URI에 lyricsync://callback 을 추가해야 합니다.",
+  spotifyClientIdPlaceholder: "Spotify Client ID를 입력하세요",
+  spotifyClientIdSave: "저장",
+  spotifyClientIdSaved: "저장됨",
+  spotifyConnect: "Spotify 연결",
+  spotifyConnecting: "연결 중...",
+  spotifyConnected: "연결됨",
+  spotifyLogout: "로그아웃",
+  spotifyNoClientId: "Client ID가 입력되지 않았습니다",
+  spotifyNoClientIdDesc: "아래에 Spotify Client ID를 입력한 후 연결하세요.",
+  spotifyPremiumRequired: "Spotify Premium 계정이 필요합니다",
+  spotifyCurrentlyPlaying: "현재 재생 중인 곡",
+  spotifyLoadThisTrack: "이 곡으로 작업하시겠습니까?",
+  spotifyLoadYes: "불러오기",
+  spotifyLoadNo: "다른 곡 선택",
+  spotifySearchTitle: "Spotify에서 곡 선택",
+  spotifySearchPlaceholder: "곡, 아티스트 검색...",
+  spotifyMyPlaylists: "내 플레이리스트",
+  spotifyNoResults: "검색 결과가 없습니다",
+  spotifyServiceModeInfo: "Spotify 모드에서는 파형 시각화, 배속 조절, AI Sync를 사용할 수 없습니다.",
+  spotifyBackToFileMode: "파일 모드로 돌아가기",
+  spotifyNoTrackTitle: "재생 중인 곡 없음",
+  spotifyNoTrackMessage: "Spotify에서 곡을 검색하거나 파일 모드로 돌아가세요.",
+  spotifySearchTrack: "Spotify에서 찾기",
 };
 
 const en: Translations = {
@@ -264,6 +341,10 @@ const en: Translations = {
   openLrc: "Open LRC",
   save: "Save",
   saveAs: "Save As",
+  helpTitle: "Help",
+  helpTabShortcuts: "Shortcuts",
+  helpTabAi: "AI Guide",
+  helpTabSpotify: "Spotify",
   shortcutsTitle: "Keyboard Shortcuts",
   shortcutNote: "* Shortcuts are disabled while an input is focused.",
   shortcutDescs: {
@@ -276,6 +357,19 @@ const en: Translations = {
     space: "Stamp current line + move to next",
     backspace: "Move to previous line",
   },
+  helpAiSteps: [
+    { title: "Install Python Environment", desc: "Go to Settings(⚙) → AI Environment tab to download the bundled Python and install packages." },
+    { title: "Download Model", desc: "Go to Settings → AI Models tab and download the required model ctc-mms-300m (1.2 GB)." },
+    { title: "Run AI Auto Sync", desc: "After entering lyrics, click the 'AI Auto Sync' button at the top of the LRC editor. Select a language and timestamps will be generated automatically." },
+    { title: "Review & Correct", desc: "Manually stamp lines with low confidence badges. You can also stamp in real time with the Space key during playback." },
+  ],
+  helpSpotifySteps: [
+    { title: "Get a Client ID", desc: "Create an app on the Spotify Developer Dashboard (developer.spotify.com) and add http://127.0.0.1:54321/callback as a Redirect URI." },
+    { title: "Enter Client ID", desc: "Go to Settings(⚙) → Spotify tab, enter your Client ID and save." },
+    { title: "Connect & Select a Track", desc: "Click the Spotify button in the header to log in. Load the currently playing track or search for one — the app will switch to Spotify mode automatically." },
+    { title: "Limitations", desc: "Waveform, speed control, and AI Sync are unavailable in Spotify mode. Spotify Premium is required." },
+  ],
+  helpViewGuide: "View full guide →",
   openAudio: "Open Audio",
   zoom: "Zoom",
   volume: "Volume",
@@ -384,6 +478,32 @@ const en: Translations = {
   settingsVenvInstallBtn: "Auto-install packages",
   settingsVenvInstalling: "Installing...",
   settingsVenvCmdWarning: "Installation may take several minutes. Please do not close this window.",
+  settingsTabSpotify: "Spotify",
+  spotifyClientId: "Client ID",
+  spotifyClientIdDesc: "Create an app on the Spotify Developer Dashboard and enter your Client ID. Add lyricsync://callback as a Redirect URI.",
+  spotifyClientIdPlaceholder: "Enter your Spotify Client ID",
+  spotifyClientIdSave: "Save",
+  spotifyClientIdSaved: "Saved",
+  spotifyConnect: "Connect Spotify",
+  spotifyConnecting: "Connecting...",
+  spotifyConnected: "Connected",
+  spotifyLogout: "Log out",
+  spotifyNoClientId: "No Client ID entered",
+  spotifyNoClientIdDesc: "Enter your Spotify Client ID below to connect.",
+  spotifyPremiumRequired: "Spotify Premium account required",
+  spotifyCurrentlyPlaying: "Currently playing",
+  spotifyLoadThisTrack: "Work on this track?",
+  spotifyLoadYes: "Load",
+  spotifyLoadNo: "Choose another",
+  spotifySearchTitle: "Select a track from Spotify",
+  spotifySearchPlaceholder: "Search tracks, artists...",
+  spotifyMyPlaylists: "My Playlists",
+  spotifyNoResults: "No results found",
+  spotifyServiceModeInfo: "Waveform, speed control, and AI Sync are not available in Spotify mode.",
+  spotifyBackToFileMode: "Back to File Mode",
+  spotifyNoTrackTitle: "No track playing",
+  spotifyNoTrackMessage: "Search for a track on Spotify or go back to file mode.",
+  spotifySearchTrack: "Find on Spotify",
 };
 
 const ja: Translations = {
@@ -392,6 +512,10 @@ const ja: Translations = {
   openLrc: "LRCを開く",
   save: "保存",
   saveAs: "名前を付けて保存",
+  helpTitle: "ヘルプ",
+  helpTabShortcuts: "ショートカット",
+  helpTabAi: "AI使い方",
+  helpTabSpotify: "Spotify",
   shortcutsTitle: "キーボードショートカット",
   shortcutNote: "* 入力欄にフォーカス中はショートカットが無効になります。",
   shortcutDescs: {
@@ -404,6 +528,19 @@ const ja: Translations = {
     space: "現在行にタイムスタンプ + 次の行へ移動",
     backspace: "前の行へ移動",
   },
+  helpAiSteps: [
+    { title: "Python環境のインストール", desc: "設定(⚙) → AI環境タブで内蔵Pythonをダウンロードし、パッケージをインストールします。" },
+    { title: "モデルのダウンロード", desc: "設定 → AIモデルタブで必須モデル ctc-mms-300m（1.2 GB）をダウンロードします。" },
+    { title: "AI自動シンク実行", desc: "歌詞を入力後、LRCエディタ上部の「AI自動シンク」ボタンをクリックします。言語を選択するとタイムスタンプが自動生成されます。" },
+    { title: "結果の確認と修正", desc: "信頼度バッジが低い行は手動でスタンプして修正してください。再生中にSpaceキーでリアルタイムスタンプも可能です。" },
+  ],
+  helpSpotifySteps: [
+    { title: "Client IDの準備", desc: "Spotify Developer Dashboard（developer.spotify.com）でアプリを作成し、Redirect URIに http://127.0.0.1:54321/callback を追加します。" },
+    { title: "Client IDの入力", desc: "設定(⚙) → SpotifyタブでClient IDを入力して保存します。" },
+    { title: "接続と曲の選択", desc: "ヘッダーのSpotifyボタンをクリックしてログインします。再生中の曲を読み込むか検索で選択すると、自動的にSpotifyモードに切り替わります。" },
+    { title: "制限事項", desc: "Spotifyモードでは波形表示・速度調整・AI Syncは利用できません。Spotify Premiumが必要です。" },
+  ],
+  helpViewGuide: "詳細ガイドを見る →",
   openAudio: "音声を開く",
   zoom: "ズーム",
   volume: "音量",
@@ -511,6 +648,32 @@ const ja: Translations = {
   settingsVenvInstallBtn: "パッケージ自動インストール",
   settingsVenvInstalling: "インストール中...",
   settingsVenvCmdWarning: "インストールには数分かかる場合があります。完了するまでウィンドウを閉じないでください。",
+  settingsTabSpotify: "Spotify",
+  spotifyClientId: "クライアントID",
+  spotifyClientIdDesc: "Spotify Developerダッシュボードでアプリを作成し、クライアントIDを入力してください。リダイレクトURIにlyricsync://callbackを追加する必要があります。",
+  spotifyClientIdPlaceholder: "Spotify クライアントIDを入力",
+  spotifyClientIdSave: "保存",
+  spotifyClientIdSaved: "保存済み",
+  spotifyConnect: "Spotify に接続",
+  spotifyConnecting: "接続中...",
+  spotifyConnected: "接続済み",
+  spotifyLogout: "ログアウト",
+  spotifyNoClientId: "クライアントIDが未入力です",
+  spotifyNoClientIdDesc: "下のフィールドにSpotifyクライアントIDを入力して接続してください。",
+  spotifyPremiumRequired: "Spotify Premiumアカウントが必要です",
+  spotifyCurrentlyPlaying: "再生中の曲",
+  spotifyLoadThisTrack: "この曲で作業しますか？",
+  spotifyLoadYes: "読み込む",
+  spotifyLoadNo: "別の曲を選択",
+  spotifySearchTitle: "Spotifyから曲を選択",
+  spotifySearchPlaceholder: "曲名、アーティストを検索...",
+  spotifyMyPlaylists: "マイプレイリスト",
+  spotifyNoResults: "検索結果がありません",
+  spotifyServiceModeInfo: "Spotifyモードでは波形表示・速度調整・AI Syncは利用できません。",
+  spotifyBackToFileMode: "ファイルモードに戻る",
+  spotifyNoTrackTitle: "再生中の曲なし",
+  spotifyNoTrackMessage: "Spotifyで曲を検索するか、ファイルモードに戻ってください。",
+  spotifySearchTrack: "Spotifyで探す",
 };
 
 export const translations: Record<Lang, Translations> = { ko, en, ja };

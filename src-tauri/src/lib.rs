@@ -1,3 +1,6 @@
+mod service_auth;
+use service_auth::*;
+
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -952,6 +955,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
             read_lrc_file,
             write_lrc_file,
@@ -968,6 +972,12 @@ pub fn run() {
             install_python_packages,
             run_alignment,
             cancel_alignment,
+            start_oauth_listener,
+            exchange_spotify_token,
+            refresh_spotify_token,
+            save_refresh_token,
+            load_refresh_token,
+            clear_refresh_token,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

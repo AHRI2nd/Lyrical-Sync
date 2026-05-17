@@ -4,18 +4,28 @@ import { MetaEditor } from "./components/MetaEditor/MetaEditor";
 import { LrcEditor } from "./components/LrcEditor/LrcEditor";
 import { PreviewModal } from "./components/Preview/PreviewModal";
 import { SettingsModal } from "./components/Settings/SettingsModal";
+import { SpotifyButton } from "./components/Service/SpotifyButton";
+import { SpotifySearchModal } from "./components/Service/SpotifySearchModal";
 import { useLrcStore } from "./stores/useLrcStore";
 import { useI18nStore } from "./stores/useI18nStore";
 import { useSettingsStore } from "./stores/useSettingsStore";
+import { useServiceStore, type SpotifyTrack } from "./stores/useServiceStore";
 import { audioControls } from "./utils/audioControls";
+import { serviceControls } from "./utils/serviceControls";
+import { initSpotifyPlayer } from "./utils/spotifyPlayer";
 import { type Lang } from "./i18n/translations";
-import { checkForUpdate, RELEASES_URL } from "./utils/updateCheck";
+import { checkForUpdate, RELEASES_URL, GITHUB_REPO } from "./utils/updateCheck";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { listen } from "@tauri-apps/api/event";
 
 function useGlobalKeys() {
   const { stampAndAdvance, goToPreviousLine } = useLrcStore();
+  const isLoggedInForKeys = useServiceStore((s) => s.isLoggedIn);
+  const spotifyModeForKeys = useSettingsStore((s) => s.spotifyMode);
+  const isServiceMode = isLoggedInForKeys && spotifyModeForKeys;
 
   useEffect(() => {
+    const controls = isServiceMode ? serviceControls : audioControls;
     const handler = (e: KeyboardEvent) => {
       const inInput =
         e.target instanceof HTMLInputElement ||
@@ -35,12 +45,12 @@ function useGlobalKeys() {
 
       if (digit && !inInput) {
         e.preventDefault();
-        if (digit === 1) audioControls.skip(-5);
-        else if (digit === 2) audioControls.skip(-1);
-        else if (digit === 3) audioControls.togglePlay();
-        else if (digit === 4) audioControls.skip(1);
-        else if (digit === 5) audioControls.skip(5);
-        else if (digit === 6) audioControls.stopAndReset();
+        if (digit === 1) controls.skip(-5);
+        else if (digit === 2) controls.skip(-1);
+        else if (digit === 3) controls.togglePlay();
+        else if (digit === 4) controls.skip(1);
+        else if (digit === 5) controls.skip(5);
+        else if (digit === 6) controls.stopAndReset();
         return;
       }
 
@@ -59,7 +69,7 @@ function useGlobalKeys() {
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [stampAndAdvance, goToPreviousLine]);
+  }, [stampAndAdvance, goToPreviousLine, isServiceMode]);
 }
 
 function useAutoUpdateCheck(onUpdateAvailable: (version: string) => void, enabled: boolean) {
@@ -95,11 +105,68 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showNewConfirm, setShowNewConfirm] = useState(false);
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
+  const [spotifyCurrentTrack, setSpotifyCurrentTrack] = useState<SpotifyTrack | null>(null);
+  const [showSpotifyOptions, setShowSpotifyOptions] = useState(false);
+  const [showSpotifySearch, setShowSpotifySearch] = useState(false);
   const { lrcPath, isDirty, openLrc, saveLrc, saveLrcAs, newLrc } = useLrcStore();
   const { lang, setLang, t } = useI18nStore();
-  const { autoCheckUpdate, uiScale } = useSettingsStore();
+  const { autoCheckUpdate, uiScale, setSpotifyMode } = useSettingsStore();
+  const {
+    isLoggedIn, handleCallback, tryRestoreSession,
+    transferPlaybackToApp, fetchCurrentlyPlaying,
+  } = useServiceStore();
 
   useAutoUpdateCheck((v) => setUpdateVersion(v), autoCheckUpdate);
+
+  // Restore saved Spotify session on mount
+  useEffect(() => {
+    tryRestoreSession();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Listen for OAuth callback from local HTTP listener
+  useEffect(() => {
+    let cancelled = false;
+    let unlistenFn: (() => void) | null = null;
+    listen<string>("spotify-callback", async (e) => {
+      try {
+        await handleCallback(e.payload);
+        initSpotifyPlayer();
+      } catch {
+        // OAuth failed — user can retry from settings
+      }
+    }).then((fn) => {
+      if (cancelled) fn();
+      else unlistenFn = fn;
+    });
+    return () => {
+      cancelled = true;
+      unlistenFn?.();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // When session is restored on startup, init polling after refreshing token
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    useServiceStore.getState().ensureToken()
+      .then(() => initSpotifyPlayer())
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn]);
+
+  const handleSpotifyConnected = async () => {
+    try {
+      const track = await fetchCurrentlyPlaying();
+      if (track) {
+        setSpotifyCurrentTrack(track);
+      } else {
+        setShowSpotifyOptions(true);
+      }
+    } catch {
+      setShowSpotifyOptions(true);
+    }
+  };
 
   // Clear any zoom set by a previous version of the app
   useEffect(() => { document.documentElement.style.zoom = ""; }, []);
@@ -151,6 +218,10 @@ function App() {
         <div className="flex gap-2 shrink-0">
           <ToolBtn onClick={handleNewLrc} className="w-24">{t.newFileBtn}</ToolBtn>
           <ToolBtn onClick={openLrc} className="w-24">{t.openLrc}</ToolBtn>
+          <SpotifyButton
+            onNoClientId={() => { setShowSettings(true); }}
+            onConnected={handleSpotifyConnected}
+          />
           <ToolBtn onClick={saveLrc} accent className="w-16">{t.save}</ToolBtn>
           <ToolBtn onClick={saveLrcAs} className="w-40">{t.saveAs}</ToolBtn>
         </div>
@@ -183,6 +254,41 @@ function App() {
           onOk={() => { setShowNewConfirm(false); newLrc(); }}
           onCancel={() => setShowNewConfirm(false)}
         />
+      )}
+      {spotifyCurrentTrack && (
+        <ConfirmModal
+          title={t.spotifyCurrentlyPlaying}
+          message={`${t.spotifyLoadThisTrack}\n\n${spotifyCurrentTrack.name} — ${spotifyCurrentTrack.artistName}`}
+          leftLabel={t.spotifyBackToFileMode}
+          onLeft={() => { setSpotifyCurrentTrack(null); setSpotifyMode(false); }}
+          okLabel={t.spotifyLoadYes}
+          cancelLabel={t.spotifyLoadNo}
+          onOk={async () => {
+            setSpotifyCurrentTrack(null);
+            setSpotifyMode(true);
+            await transferPlaybackToApp();
+          }}
+          onCancel={() => {
+            setSpotifyCurrentTrack(null);
+            setShowSpotifySearch(true);
+          }}
+        />
+      )}
+      {showSpotifyOptions && (
+        <ConfirmModal
+          title={t.spotifyNoTrackTitle}
+          message={t.spotifyNoTrackMessage}
+          leftLabel={t.spotifyBackToFileMode}
+          onLeft={() => { setShowSpotifyOptions(false); setSpotifyMode(false); }}
+          okLabel={t.spotifySearchTrack}
+          cancelLabel=""
+          onOk={() => { setShowSpotifyOptions(false); setShowSpotifySearch(true); }}
+          onCancel={() => setShowSpotifyOptions(false)}
+          okGreen
+        />
+      )}
+      {showSpotifySearch && (
+        <SpotifySearchModal onClose={() => setShowSpotifySearch(false)} />
       )}
 
       <div className="flex flex-1 min-h-0 gap-0">
@@ -217,6 +323,7 @@ function App() {
 
 function HelpModal({ onClose }: { onClose: () => void }) {
   const { t } = useI18nStore();
+  const [tab, setTab] = useState<"shortcuts" | "ai" | "spotify">("shortcuts");
 
   const shortcuts = [
     { key: "1", desc: t.shortcutDescs.s1 },
@@ -237,17 +344,24 @@ function HelpModal({ onClose }: { onClose: () => void }) {
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
+  const tabs = [
+    { id: "shortcuts" as const, label: t.helpTabShortcuts },
+    { id: "ai" as const, label: t.helpTabAi },
+    { id: "spotify" as const, label: t.helpTabSpotify },
+  ];
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
+        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
-          <span className="font-semibold text-zinc-100">{t.shortcutsTitle}</span>
+          <span className="font-semibold text-zinc-100">{t.helpTitle}</span>
           <button
             onClick={onClose}
             className="text-zinc-500 hover:text-white transition-colors text-lg leading-none"
@@ -255,16 +369,84 @@ function HelpModal({ onClose }: { onClose: () => void }) {
             ✕
           </button>
         </div>
-        <div className="p-4 flex flex-col gap-1.5">
-          {shortcuts.map(({ key, desc }) => (
-            <div key={key} className="flex items-center gap-3">
-              <kbd className="shrink-0 min-w-[2.5rem] text-center px-2 py-0.5 rounded bg-zinc-800 border border-zinc-600 text-xs font-mono text-zinc-200">
-                {key}
-              </kbd>
-              <span className="text-sm text-zinc-300">{desc}</span>
-            </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-zinc-800">
+          {tabs.map(({ id, label }) => (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              className={[
+                "flex-1 py-2 text-xs font-medium transition-colors",
+                tab === id
+                  ? "text-indigo-400 border-b-2 border-indigo-500"
+                  : "text-zinc-500 hover:text-zinc-300",
+              ].join(" ")}
+            >
+              {label}
+            </button>
           ))}
-          <p className="mt-3 text-xs text-zinc-500">{t.shortcutNote}</p>
+        </div>
+
+        {/* Content */}
+        <div className="p-4 max-h-80 overflow-y-auto">
+          {tab === "shortcuts" && (
+            <div className="flex flex-col gap-1.5">
+              {shortcuts.map(({ key, desc }) => (
+                <div key={key} className="flex items-center gap-3">
+                  <kbd className="shrink-0 min-w-[2.5rem] text-center px-2 py-0.5 rounded bg-zinc-800 border border-zinc-600 text-xs font-mono text-zinc-200">
+                    {key}
+                  </kbd>
+                  <span className="text-sm text-zinc-300">{desc}</span>
+                </div>
+              ))}
+              <p className="mt-3 text-xs text-zinc-500">{t.shortcutNote}</p>
+            </div>
+          )}
+
+          {tab === "ai" && (
+            <div className="flex flex-col gap-4">
+              <button
+                onClick={() => openUrl(`https://github.com/${GITHUB_REPO}/blob/main/etc/AI_Installation_guide.md`)}
+                className="self-start text-xs text-indigo-400 hover:text-indigo-300 transition-colors underline underline-offset-2"
+              >
+                {t.helpViewGuide}
+              </button>
+              {t.helpAiSteps.map(({ title, desc }, i) => (
+                <div key={i} className="flex gap-3">
+                  <span className="shrink-0 w-5 h-5 rounded-full bg-indigo-600 text-white text-xs flex items-center justify-center font-bold mt-0.5">
+                    {i + 1}
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium text-zinc-100 mb-0.5">{title}</p>
+                    <p className="text-xs text-zinc-400 leading-relaxed">{desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {tab === "spotify" && (
+            <div className="flex flex-col gap-4">
+              <button
+                onClick={() => openUrl(`https://github.com/${GITHUB_REPO}/blob/main/etc/Spotify_Connection_guide.md`)}
+                className="self-start text-xs text-green-500 hover:text-green-400 transition-colors underline underline-offset-2"
+              >
+                {t.helpViewGuide}
+              </button>
+              {t.helpSpotifySteps.map(({ title, desc }, i) => (
+                <div key={i} className="flex gap-3">
+                  <span className="shrink-0 w-5 h-5 rounded-full bg-green-700 text-white text-xs flex items-center justify-center font-bold mt-0.5">
+                    {i + 1}
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium text-zinc-100 mb-0.5">{title}</p>
+                    <p className="text-xs text-zinc-400 leading-relaxed">{desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -272,7 +454,7 @@ function HelpModal({ onClose }: { onClose: () => void }) {
 }
 
 function ConfirmModal({
-  title, message, okLabel, cancelLabel, onOk, onCancel,
+  title, message, okLabel, cancelLabel, onOk, onCancel, leftLabel, onLeft, okGreen,
 }: {
   title: string;
   message: string;
@@ -280,6 +462,9 @@ function ConfirmModal({
   cancelLabel: string;
   onOk: () => void;
   onCancel: () => void;
+  leftLabel?: string;
+  onLeft?: () => void;
+  okGreen?: boolean;
 }) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -295,25 +480,39 @@ function ConfirmModal({
       onClick={onCancel}
     >
       <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
+        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-5 py-4 border-b border-zinc-800">
           <span className="font-semibold text-zinc-100">{title}</span>
         </div>
         <div className="px-5 py-4">
-          <p className="text-sm text-zinc-300">{message}</p>
+          <p className="text-sm text-zinc-300 whitespace-pre-line">{message}</p>
         </div>
-        <div className="flex justify-end gap-2 px-5 pb-4">
-          <button
-            onClick={onCancel}
-            className="px-4 py-1.5 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100 transition-colors"
-          >
-            {cancelLabel}
-          </button>
+        <div className="flex items-center gap-2 px-5 pb-4">
+          {leftLabel && onLeft && (
+            <button
+              onClick={onLeft}
+              className="px-4 py-1.5 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors whitespace-nowrap"
+            >
+              {leftLabel}
+            </button>
+          )}
+          <div className="flex-1" />
+          {cancelLabel && (
+            <button
+              onClick={onCancel}
+              className="px-4 py-1.5 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100 transition-colors whitespace-nowrap"
+            >
+              {cancelLabel}
+            </button>
+          )}
           <button
             onClick={onOk}
-            className="px-4 py-1.5 text-sm rounded-lg bg-rose-600 hover:bg-rose-500 text-white transition-colors"
+            className={[
+              "px-4 py-1.5 text-sm rounded-lg text-white transition-colors whitespace-nowrap",
+              okGreen ? "bg-green-600 hover:bg-green-500" : "bg-rose-600 hover:bg-rose-500",
+            ].join(" ")}
           >
             {okLabel}
           </button>
