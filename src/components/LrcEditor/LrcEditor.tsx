@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
+import { useServiceStore } from "../../stores/useServiceStore";
 import { formatDisplayTime } from "../../utils/lrcParser";
 import { MODEL_DEFS } from "../../utils/modelDefs";
 
@@ -20,6 +21,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   } = useLrcStore();
   const { t, lang } = useI18nStore();
   const { blankLineOffset } = useSettingsStore();
+  const isServiceMode = useServiceStore((s) => s.isReady);
   const { lines } = doc;
 
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
@@ -150,21 +152,23 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           <div className="relative group">
             <button
               onClick={isRunning ? undefined : handleAiSync}
-              disabled={isRunning || !canRunAi || !audioPath}
+              disabled={isRunning || !canRunAi || !audioPath || isServiceMode}
               className={[
                 "px-3 py-1 text-xs rounded-lg transition-colors",
                 isRunning
                   ? "bg-indigo-800 text-indigo-300 cursor-not-allowed"
-                  : canRunAi && audioPath
+                  : canRunAi && audioPath && !isServiceMode
                   ? "bg-indigo-600 hover:bg-indigo-500 text-white"
                   : "bg-zinc-700 text-zinc-500 cursor-not-allowed",
               ].join(" ")}
             >
               {isRunning ? t.aiSyncRunning : t.aiAutoSync}
             </button>
-            {!isRunning && (!canRunAi || !audioPath) && (
+            {!isRunning && (isServiceMode || !canRunAi || !audioPath) && (
               <div className="absolute top-full right-0 mt-1.5 hidden group-hover:block z-20 w-60 bg-zinc-800 border border-zinc-600 text-xs text-zinc-300 rounded-lg px-3 py-2 shadow-xl pointer-events-none">
-                {!canRunAi ? (
+                {isServiceMode ? (
+                  t.spotifyServiceModeInfo
+                ) : !canRunAi ? (
                   <>
                     <p className="font-medium text-zinc-200 mb-1">{t.aiSyncNoModel}</p>
                     <ul className="flex flex-col gap-0.5 text-zinc-400">
