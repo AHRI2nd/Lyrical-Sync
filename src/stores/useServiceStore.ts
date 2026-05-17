@@ -35,6 +35,7 @@ interface ServiceState {
   deviceId: string | null;
   isReady: boolean;
   isPlaying: boolean;
+  isLooping: boolean;
   positionMs: number;
   durationMs: number;
   trackUri: string | null;
@@ -52,6 +53,8 @@ interface ServiceState {
   refreshAccessToken: () => Promise<void>;
   logout: () => void;
   ensureToken: () => Promise<string>;
+
+  toggleLoop: () => Promise<void>;
 
   // SDK callbacks (called from spotifyPlayer.ts)
   onPlayerReady: (deviceId: string) => void;
@@ -75,6 +78,7 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
   deviceId: null,
   isReady: false,
   isPlaying: false,
+  isLooping: false,
   positionMs: 0,
   durationMs: 0,
   trackUri: null,
@@ -166,6 +170,17 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
     });
   },
 
+  toggleLoop: async () => {
+    const { isLooping, ensureToken } = get();
+    const next = !isLooping;
+    const token = await ensureToken();
+    await fetch(`https://api.spotify.com/v1/me/player/repeat?state=${next ? "track" : "off"}`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    set({ isLooping: next });
+  },
+
   logout: () => {
     get()._stopInterpolation();
     invoke("clear_refresh_token").catch(() => {});
@@ -176,6 +191,7 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
       deviceId: null,
       isReady: false,
       isPlaying: false,
+      isLooping: false,
       positionMs: 0,
       durationMs: 0,
       trackUri: null,

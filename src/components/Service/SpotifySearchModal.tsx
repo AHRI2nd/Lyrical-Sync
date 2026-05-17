@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useServiceStore, type SpotifyTrack } from "../../stores/useServiceStore";
 import { activateSpotifyPlayer } from "../../utils/spotifyPlayer";
+import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 
 interface Playlist {
@@ -17,6 +18,7 @@ interface Props {
 export function SpotifySearchModal({ onClose }: Props) {
   const { t } = useI18nStore();
   const { ensureToken, playTrack } = useServiceStore();
+  const setSpotifyMode = useSettingsStore((s) => s.setSpotifyMode);
   const [tab, setTab] = useState<"search" | "playlists">("search");
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SpotifyTrack[]>([]);
@@ -142,6 +144,7 @@ export function SpotifySearchModal({ onClose }: Props) {
     try {
       await activateSpotifyPlayer(); // unlock audio context on user gesture
       await playTrack(track.uri);
+      setSpotifyMode(true);
       onClose();
     } catch (e) {
       const msg = String(e);

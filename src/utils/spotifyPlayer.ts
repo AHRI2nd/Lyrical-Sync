@@ -44,6 +44,12 @@ export function getSpotifyDeviceId(): string | null {
   return useServiceStore.getState().deviceId;
 }
 
+export async function setSpotifyVolume(volume: number): Promise<void> {
+  if (player) {
+    await player.setVolume(volume);
+  }
+}
+
 function createPlayer(accessToken: string): void {
   if (player) {
     player.disconnect();

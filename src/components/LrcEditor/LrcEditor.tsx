@@ -153,7 +153,6 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
             <button
               onClick={isRunning ? undefined : handleAiSync}
               disabled={isRunning || !canRunAi || !audioPath || isServiceMode}
-              title={isServiceMode ? t.spotifyServiceModeInfo : undefined}
               className={[
                 "px-3 py-1 text-xs rounded-lg transition-colors",
                 isRunning
@@ -165,9 +164,11 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
             >
               {isRunning ? t.aiSyncRunning : t.aiAutoSync}
             </button>
-            {!isRunning && (!canRunAi || !audioPath) && (
+            {!isRunning && (isServiceMode || !canRunAi || !audioPath) && (
               <div className="absolute top-full right-0 mt-1.5 hidden group-hover:block z-20 w-60 bg-zinc-800 border border-zinc-600 text-xs text-zinc-300 rounded-lg px-3 py-2 shadow-xl pointer-events-none">
-                {!canRunAi ? (
+                {isServiceMode ? (
+                  t.spotifyServiceModeInfo
+                ) : !canRunAi ? (
                   <>
                     <p className="font-medium text-zinc-200 mb-1">{t.aiSyncNoModel}</p>
                     <ul className="flex flex-col gap-0.5 text-zinc-400">
