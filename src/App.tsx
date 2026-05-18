@@ -103,6 +103,7 @@ function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<"general" | "models" | "spotify" | "youtube">("general");
   const [showNewConfirm, setShowNewConfirm] = useState(false);
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const [showSpotifySearch, setShowSpotifySearch] = useState(false);
@@ -212,6 +213,7 @@ function App() {
         <SettingsModal
           onClose={() => setShowSettings(false)}
           onUpdateFound={(v) => { setShowSettings(false); setUpdateVersion(v); }}
+          initialTab={settingsInitialTab}
         />
       )}
       {updateVersion && (
@@ -242,7 +244,7 @@ function App() {
         <div className="flex flex-col gap-3 p-3 w-80 shrink-0 overflow-y-auto border-r border-zinc-800">
           <AudioPlayer
             onSpotifySearch={() => setShowSpotifySearch(true)}
-            onSpotifyNoClientId={() => setShowSettings(true)}
+            onSpotifyNoClientId={() => { setSettingsInitialTab("spotify"); setShowSettings(true); }}
           />
           <MetaEditor />
         </div>
@@ -253,7 +255,7 @@ function App() {
 
       <div className="fixed bottom-4 left-4 flex gap-2 z-10">
         <button
-          onClick={() => setShowSettings(true)}
+          onClick={() => { setSettingsInitialTab("general"); setShowSettings(true); }}
           title={t.settingsTitle}
           className="w-8 h-8 rounded-full bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white transition-colors flex items-center justify-center shadow-lg"
         >
