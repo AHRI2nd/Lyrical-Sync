@@ -47,6 +47,7 @@ interface LrcStore {
   applyOffset: () => void;
   loadFromRawText: (raw: string) => void;
 
+  setAudioPath: (path: string | null) => void;
   openAudio: () => Promise<void>;
   openLrc: () => Promise<void>;
   saveLrc: () => Promise<void>;
@@ -223,6 +224,8 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
       isDirty: true,
     });
   },
+
+  setAudioPath: (path) => set({ audioPath: path }),
 
   openAudio: async () => {
     const selected = await open({

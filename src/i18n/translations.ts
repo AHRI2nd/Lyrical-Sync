@@ -20,7 +20,10 @@ export interface Translations {
   };
   helpAiSteps: { title: string; desc: string }[];
   helpSpotifySteps: { title: string; desc: string }[];
+  helpYoutubeSteps: { title: string; desc: string }[];
   helpViewGuide: string;
+  helpTabYouTube: string;
+  settingsViewGuide: string;
   // AudioPlayer
   openAudio: string;
   zoom: string;
@@ -163,6 +166,45 @@ export interface Translations {
   spotifyNoTrackTitle: string;
   spotifyNoTrackMessage: string;
   spotifySearchTrack: string;
+  modeSelect: string;
+  modeFile: string;
+  modeYouTube: string;
+  modeComingSoon: string;
+  spotifyLoadCurrent: string;
+  spotifyNoTrackAlertTitle: string;
+  spotifyNoTrackAlertMessage: string;
+  spotifyNoTrackAlertOk: string;
+  settingsTabYouTube: string;
+  ytdlpTitle: string;
+  ytdlpInstalled: string;
+  ytdlpNotInstalled: string;
+  ytdlpVersion: string;
+  ytdlpDownload: string;
+  ytdlpUpdate: string;
+  ytdlpDownloading: string;
+  ytdlpRefresh: string;
+  ytdlpAudioQuality: string;
+  ytdlpQualityBest: string;
+  ytdlpQuality192: string;
+  ytdlpQuality128: string;
+  ytdlpCookiesFile: string;
+  ytdlpCookiesFileDesc: string;
+  ytdlpCookiesSelect: string;
+  ytdlpCookiesClear: string;
+  ytdlpProxy: string;
+  ytdlpProxyPlaceholder: string;
+  ytdlpProxySave: string;
+  ytdlpInfoText: string;
+  youtubeUrlPlaceholder: string;
+  youtubeLoad: string;
+  youtubeLoading: string;
+  youtubeCancel: string;
+  youtubeNotInstalled: string;
+  youtubeOpenLink: string;
+  youtubeModalTitle: string;
+  youtubeModeLabel: string;
+  youtubeModeOn: string;
+  youtubeModeOff: string;
 }
 
 const ko: Translations = {
@@ -199,7 +241,15 @@ const ko: Translations = {
     { title: "연결 및 곡 선택", desc: "상단 Spotify 버튼을 클릭해 로그인합니다. 현재 재생 중인 곡을 불러오거나 검색으로 곡을 선택하면 자동으로 Spotify 모드로 전환됩니다." },
     { title: "제한 사항", desc: "Spotify 모드에서는 파형 시각화, 배속 조절, AI Sync를 사용할 수 없습니다. Spotify Premium 계정이 필요합니다." },
   ],
+  helpYoutubeSteps: [
+    { title: "yt-dlp 설치", desc: "설정(⚙) → YouTube 탭에서 yt-dlp를 다운로드합니다. Python 없이 독립 실행됩니다." },
+    { title: "YouTube 모드 활성화", desc: "설정 → YouTube 탭의 모드 토글을 켜거나, 상단 모드 선택 버튼에서 YouTube를 선택합니다." },
+    { title: "URL 입력 및 오디오 로드", desc: "파형 영역 하단의 'YouTube 링크' 버튼을 클릭해 URL을 입력합니다. 다운로드 완료 후 파형이 자동 표시됩니다." },
+    { title: "타임스탬프 작업", desc: "파일 모드와 동일하게 파형 시각화, 배속 조절, AI 자동 싱크를 모두 사용할 수 있습니다." },
+  ],
   helpViewGuide: "자세한 가이드 보기 →",
+  helpTabYouTube: "YouTube",
+  settingsViewGuide: "설치 가이드 →",
   openAudio: "오디오 열기",
   zoom: "줌",
   volume: "볼륨",
@@ -333,6 +383,45 @@ const ko: Translations = {
   spotifyNoTrackTitle: "재생 중인 곡 없음",
   spotifyNoTrackMessage: "Spotify에서 곡을 검색하거나 파일 모드로 돌아가세요.",
   spotifySearchTrack: "Spotify에서 찾기",
+  modeSelect: "모드",
+  modeFile: "파일",
+  modeYouTube: "YouTube",
+  modeComingSoon: "(미설치)",
+  spotifyLoadCurrent: "재생 중인 곡",
+  spotifyNoTrackAlertTitle: "재생 중인 곡 없음",
+  spotifyNoTrackAlertMessage: "현재 Spotify에서 재생 중인 곡이 없습니다.\nSpotify 앱에서 곡을 재생한 후 다시 시도하거나, 직접 검색하세요.",
+  spotifyNoTrackAlertOk: "확인",
+  settingsTabYouTube: "YouTube",
+  ytdlpTitle: "yt-dlp",
+  ytdlpInstalled: "설치됨",
+  ytdlpNotInstalled: "미설치",
+  ytdlpVersion: "버전",
+  ytdlpDownload: "yt-dlp 다운로드",
+  ytdlpUpdate: "업데이트",
+  ytdlpDownloading: "다운로드 중...",
+  ytdlpRefresh: "새로고침",
+  ytdlpAudioQuality: "오디오 품질",
+  ytdlpQualityBest: "최고 품질 (bestaudio)",
+  ytdlpQuality192: "192 kbps",
+  ytdlpQuality128: "128 kbps",
+  ytdlpCookiesFile: "쿠키 파일 (선택)",
+  ytdlpCookiesFileDesc: "로그인이 필요한 영상(연령 제한 등)에 사용할 브라우저 쿠키 파일",
+  ytdlpCookiesSelect: "파일 선택",
+  ytdlpCookiesClear: "지우기",
+  ytdlpProxy: "프록시 (선택)",
+  ytdlpProxyPlaceholder: "http://host:port",
+  ytdlpProxySave: "저장",
+  ytdlpInfoText: "YouTube 영상의 오디오를 임시 파일로 불러와 파형 시각화 및 타임스탬프 작업에 사용합니다.",
+  youtubeUrlPlaceholder: "YouTube URL 입력...",
+  youtubeLoad: "불러오기",
+  youtubeLoading: "불러오는 중...",
+  youtubeCancel: "취소",
+  youtubeNotInstalled: "yt-dlp 설치 필요 (설정 → YouTube)",
+  youtubeOpenLink: "YouTube 링크",
+  youtubeModalTitle: "YouTube 오디오 불러오기",
+  youtubeModeLabel: "YouTube 모드",
+  youtubeModeOn: "YouTube 플레이어 사용 중",
+  youtubeModeOff: "일반 오디오 파일 모드",
 };
 
 const en: Translations = {
@@ -369,7 +458,15 @@ const en: Translations = {
     { title: "Connect & Select a Track", desc: "Click the Spotify button in the header to log in. Load the currently playing track or search for one — the app will switch to Spotify mode automatically." },
     { title: "Limitations", desc: "Waveform, speed control, and AI Sync are unavailable in Spotify mode. Spotify Premium is required." },
   ],
+  helpYoutubeSteps: [
+    { title: "Install yt-dlp", desc: "Go to Settings(⚙) → YouTube tab and download yt-dlp. No Python required — it runs as a standalone binary." },
+    { title: "Enable YouTube Mode", desc: "Turn on the mode toggle in Settings → YouTube tab, or select YouTube from the mode selector button in the header." },
+    { title: "Enter URL & Load Audio", desc: "Click the 'YouTube Link' button below the waveform and enter a URL. The waveform will appear automatically after download." },
+    { title: "Timestamp Editing", desc: "All features work the same as file mode: waveform, speed control, and AI Auto Sync are all available." },
+  ],
   helpViewGuide: "View full guide →",
+  helpTabYouTube: "YouTube",
+  settingsViewGuide: "Installation Guide →",
   openAudio: "Open Audio",
   zoom: "Zoom",
   volume: "Volume",
@@ -504,6 +601,45 @@ const en: Translations = {
   spotifyNoTrackTitle: "No track playing",
   spotifyNoTrackMessage: "Search for a track on Spotify or go back to file mode.",
   spotifySearchTrack: "Find on Spotify",
+  modeSelect: "Mode",
+  modeFile: "File",
+  modeYouTube: "YouTube",
+  modeComingSoon: "(Not installed)",
+  spotifyLoadCurrent: "Current track",
+  spotifyNoTrackAlertTitle: "No track playing",
+  spotifyNoTrackAlertMessage: "No track is currently playing on Spotify.\nPlay a track in the Spotify app and try again, or search directly.",
+  spotifyNoTrackAlertOk: "OK",
+  settingsTabYouTube: "YouTube",
+  ytdlpTitle: "yt-dlp",
+  ytdlpInstalled: "Installed",
+  ytdlpNotInstalled: "Not installed",
+  ytdlpVersion: "Version",
+  ytdlpDownload: "Download yt-dlp",
+  ytdlpUpdate: "Update",
+  ytdlpDownloading: "Downloading...",
+  ytdlpRefresh: "Refresh",
+  ytdlpAudioQuality: "Audio quality",
+  ytdlpQualityBest: "Best quality (bestaudio)",
+  ytdlpQuality192: "192 kbps",
+  ytdlpQuality128: "128 kbps",
+  ytdlpCookiesFile: "Cookies file (Optional)",
+  ytdlpCookiesFileDesc: "Cookies file for age-restricted or login-required content",
+  ytdlpCookiesSelect: "Select file",
+  ytdlpCookiesClear: "Clear",
+  ytdlpProxy: "Proxy (Optional)",
+  ytdlpProxyPlaceholder: "http://host:port",
+  ytdlpProxySave: "Save",
+  ytdlpInfoText: "Downloads audio from YouTube videos to a temporary file for waveform visualization and timestamp editing.",
+  youtubeUrlPlaceholder: "Enter YouTube URL...",
+  youtubeLoad: "Load",
+  youtubeLoading: "Loading...",
+  youtubeCancel: "Cancel",
+  youtubeNotInstalled: "yt-dlp required (Settings → YouTube)",
+  youtubeOpenLink: "YouTube Link",
+  youtubeModalTitle: "Load YouTube Audio",
+  youtubeModeLabel: "YouTube Mode",
+  youtubeModeOn: "YouTube player active",
+  youtubeModeOff: "Normal audio file mode",
 };
 
 const ja: Translations = {
@@ -540,7 +676,15 @@ const ja: Translations = {
     { title: "接続と曲の選択", desc: "ヘッダーのSpotifyボタンをクリックしてログインします。再生中の曲を読み込むか検索で選択すると、自動的にSpotifyモードに切り替わります。" },
     { title: "制限事項", desc: "Spotifyモードでは波形表示・速度調整・AI Syncは利用できません。Spotify Premiumが必要です。" },
   ],
+  helpYoutubeSteps: [
+    { title: "yt-dlp のインストール", desc: "設定(⚙) → YouTubeタブで yt-dlp をダウンロードします。Python 不要のスタンドアロンバイナリです。" },
+    { title: "YouTubeモードの有効化", desc: "設定 → YouTubeタブのモードトグルをオンにするか、ヘッダーのモード選択ボタンから YouTube を選択します。" },
+    { title: "URLの入力と読み込み", desc: "波形エリア下部の「YouTubeリンク」ボタンをクリックしてURLを入力します。ダウンロード完了後、波形が自動表示されます。" },
+    { title: "タイムスタンプ編集", desc: "ファイルモードと同様に、波形表示・速度調整・AI自動シンクがすべて利用できます。" },
+  ],
   helpViewGuide: "詳細ガイドを見る →",
+  helpTabYouTube: "YouTube",
+  settingsViewGuide: "インストールガイド →",
   openAudio: "音声を開く",
   zoom: "ズーム",
   volume: "音量",
@@ -674,6 +818,45 @@ const ja: Translations = {
   spotifyNoTrackTitle: "再生中の曲なし",
   spotifyNoTrackMessage: "Spotifyで曲を検索するか、ファイルモードに戻ってください。",
   spotifySearchTrack: "Spotifyで探す",
+  modeSelect: "モード",
+  modeFile: "ファイル",
+  modeYouTube: "YouTube",
+  modeComingSoon: "(未インストール)",
+  spotifyLoadCurrent: "再生中の曲",
+  spotifyNoTrackAlertTitle: "再生中の曲なし",
+  spotifyNoTrackAlertMessage: "現在Spotifyで再生中の曲がありません。\nSpotifyアプリで曲を再生してから再試行するか、直接検索してください。",
+  spotifyNoTrackAlertOk: "OK",
+  settingsTabYouTube: "YouTube",
+  ytdlpTitle: "yt-dlp",
+  ytdlpInstalled: "インストール済み",
+  ytdlpNotInstalled: "未インストール",
+  ytdlpVersion: "バージョン",
+  ytdlpDownload: "yt-dlpをダウンロード",
+  ytdlpUpdate: "アップデート",
+  ytdlpDownloading: "ダウンロード中...",
+  ytdlpRefresh: "更新",
+  ytdlpAudioQuality: "音声品質",
+  ytdlpQualityBest: "最高品質 (bestaudio)",
+  ytdlpQuality192: "192 kbps",
+  ytdlpQuality128: "128 kbps",
+  ytdlpCookiesFile: "クッキーファイル (オプション)",
+  ytdlpCookiesFileDesc: "年齢制限やログインが必要な動画に使用するブラウザのクッキーファイル",
+  ytdlpCookiesSelect: "ファイルを選択",
+  ytdlpCookiesClear: "クリア",
+  ytdlpProxy: "プロキシ (オプション)",
+  ytdlpProxyPlaceholder: "http://host:port",
+  ytdlpProxySave: "保存",
+  ytdlpInfoText: "YouTube動画の音声を一時ファイルとして読み込み、波形表示とタイムスタンプ編集に使用します。",
+  youtubeUrlPlaceholder: "YouTube URLを入力...",
+  youtubeLoad: "読み込む",
+  youtubeLoading: "読み込み中...",
+  youtubeCancel: "キャンセル",
+  youtubeNotInstalled: "yt-dlpが必要です（設定 → YouTube）",
+  youtubeOpenLink: "YouTubeリンク",
+  youtubeModalTitle: "YouTubeオーディオを読み込む",
+  youtubeModeLabel: "YouTubeモード",
+  youtubeModeOn: "YouTubeプレイヤー使用中",
+  youtubeModeOff: "通常のオーディオファイルモード",
 };
 
 export const translations: Record<Lang, Translations> = { ko, en, ja };
