@@ -4,7 +4,7 @@ Lyrical Sync uses yt-dlp to download audio from YouTube videos to a temporary fi
 
 ---
 
-## Requirements
+## System Requirements
 
 - Internet connection
 - yt-dlp (installable within the app)
@@ -20,7 +20,7 @@ Lyrical Sync uses yt-dlp to download audio from YouTube videos to a temporary fi
 3. Click the **"Download yt-dlp"** button.
 4. Once the download is complete, the status badge will change to **"Installed"**.
 
-> On macOS, a universal binary supporting both arm64 and x86_64 is installed.
+> On macOS, the latest universal binary (arm64 + x86_64) is installed.
 
 ---
 
@@ -60,7 +60,7 @@ The following options are available in Settings → YouTube tab:
 | **Cookies File** | Path to a `.txt` cookies file for accessing private or age-restricted videos |
 | **Proxy** | Proxy server address for bypassing regional restrictions |
 
-### Exporting a Cookies File
+### Exporting a Cookies File (Optional)
 
 Use a browser extension such as _Get cookies.txt LOCALLY_ to export your YouTube login cookies in Netscape `cookies.txt` format.
 
