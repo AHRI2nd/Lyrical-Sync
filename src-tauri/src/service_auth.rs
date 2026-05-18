@@ -4,12 +4,15 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Manager, Emitter};
 
 static OAUTH_LISTENING: AtomicBool = AtomicBool::new(false);
 
-const KEYRING_SERVICE: &str = "lyrical-sync";
-const KEYRING_USERNAME: &str = "spotify-refresh-token";
+fn token_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    app.path().app_data_dir()
+        .map(|d| d.join("spotify_token.dat"))
+        .map_err(|e| e.to_string())
+}
 
 /// Returned to TypeScript via Tauri (camelCase)
 #[derive(Serialize, Debug)]
@@ -101,23 +104,30 @@ pub async fn refresh_spotify_token(
 }
 
 #[tauri::command]
-pub fn save_refresh_token(token: String) -> Result<(), String> {
-    keyring::Entry::new(KEYRING_SERVICE, KEYRING_USERNAME)
-        .map_err(|e| format!("keyring 접근 실패: {e}"))?
-        .set_password(&token)
-        .map_err(|e| format!("토큰 저장 실패: {e}"))
+pub fn save_refresh_token(token: String, app: AppHandle) -> Result<(), String> {
+    let path = token_path(&app)?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&path, token.as_bytes()).map_err(|e| format!("토큰 저장 실패: {e}"))?;
+    // owner-only read/write
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+    }
+    Ok(())
 }
 
 #[tauri::command]
-pub fn load_refresh_token() -> Result<Option<String>, String> {
-    match keyring::Entry::new(KEYRING_SERVICE, KEYRING_USERNAME)
-        .map_err(|e| format!("keyring 접근 실패: {e}"))?
-        .get_password()
-    {
-        Ok(token) => Ok(Some(token)),
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(e) => Err(format!("토큰 읽기 실패: {e}")),
+pub fn load_refresh_token(app: AppHandle) -> Result<Option<String>, String> {
+    let path = token_path(&app)?;
+    if !path.exists() {
+        return Ok(None);
     }
+    let token = std::fs::read_to_string(&path).map_err(|e| format!("토큰 읽기 실패: {e}"))?;
+    let trimmed = token.trim().to_string();
+    Ok(if trimmed.is_empty() { None } else { Some(trimmed) })
 }
 
 /// Binds a one-shot HTTP server on port 8888 and waits for the Spotify OAuth callback.
@@ -166,12 +176,10 @@ pub async fn start_oauth_listener(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn clear_refresh_token() -> Result<(), String> {
-    match keyring::Entry::new(KEYRING_SERVICE, KEYRING_USERNAME)
-        .map_err(|e| format!("keyring 접근 실패: {e}"))?
-        .delete_credential()
-    {
-        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(format!("토큰 삭제 실패: {e}")),
+pub fn clear_refresh_token(app: AppHandle) -> Result<(), String> {
+    let path = token_path(&app)?;
+    if path.exists() {
+        std::fs::remove_file(&path).map_err(|e| format!("토큰 삭제 실패: {e}"))?;
     }
+    Ok(())
 }

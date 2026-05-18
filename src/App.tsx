@@ -4,12 +4,12 @@ import { MetaEditor } from "./components/MetaEditor/MetaEditor";
 import { LrcEditor } from "./components/LrcEditor/LrcEditor";
 import { PreviewModal } from "./components/Preview/PreviewModal";
 import { SettingsModal } from "./components/Settings/SettingsModal";
-import { SpotifyButton } from "./components/Service/SpotifyButton";
+import { ModeSelectButton } from "./components/Service/ModeSelectButton";
 import { SpotifySearchModal } from "./components/Service/SpotifySearchModal";
 import { useLrcStore } from "./stores/useLrcStore";
 import { useI18nStore } from "./stores/useI18nStore";
 import { useSettingsStore } from "./stores/useSettingsStore";
-import { useServiceStore, type SpotifyTrack } from "./stores/useServiceStore";
+import { useServiceStore } from "./stores/useServiceStore";
 import { audioControls } from "./utils/audioControls";
 import { serviceControls } from "./utils/serviceControls";
 import { initSpotifyPlayer } from "./utils/spotifyPlayer";
@@ -105,16 +105,11 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showNewConfirm, setShowNewConfirm] = useState(false);
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
-  const [spotifyCurrentTrack, setSpotifyCurrentTrack] = useState<SpotifyTrack | null>(null);
-  const [showSpotifyOptions, setShowSpotifyOptions] = useState(false);
   const [showSpotifySearch, setShowSpotifySearch] = useState(false);
   const { lrcPath, isDirty, openLrc, saveLrc, saveLrcAs, newLrc } = useLrcStore();
   const { lang, setLang, t } = useI18nStore();
-  const { autoCheckUpdate, uiScale, setSpotifyMode } = useSettingsStore();
-  const {
-    isLoggedIn, handleCallback, tryRestoreSession,
-    transferPlaybackToApp, fetchCurrentlyPlaying,
-  } = useServiceStore();
+  const { autoCheckUpdate, uiScale } = useSettingsStore();
+  const { isLoggedIn, handleCallback, tryRestoreSession } = useServiceStore();
 
   useAutoUpdateCheck((v) => setUpdateVersion(v), autoCheckUpdate);
 
@@ -154,19 +149,6 @@ function App() {
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn]);
-
-  const handleSpotifyConnected = async () => {
-    try {
-      const track = await fetchCurrentlyPlaying();
-      if (track) {
-        setSpotifyCurrentTrack(track);
-      } else {
-        setShowSpotifyOptions(true);
-      }
-    } catch {
-      setShowSpotifyOptions(true);
-    }
-  };
 
   // Clear any zoom set by a previous version of the app
   useEffect(() => { document.documentElement.style.zoom = ""; }, []);
@@ -218,10 +200,7 @@ function App() {
         <div className="flex gap-2 shrink-0">
           <ToolBtn onClick={handleNewLrc} className="w-24">{t.newFileBtn}</ToolBtn>
           <ToolBtn onClick={openLrc} className="w-24">{t.openLrc}</ToolBtn>
-          <SpotifyButton
-            onNoClientId={() => { setShowSettings(true); }}
-            onConnected={handleSpotifyConnected}
-          />
+          <ModeSelectButton />
           <ToolBtn onClick={saveLrc} accent className="w-16">{t.save}</ToolBtn>
           <ToolBtn onClick={saveLrcAs} className="w-40">{t.saveAs}</ToolBtn>
         </div>
@@ -255,45 +234,16 @@ function App() {
           onCancel={() => setShowNewConfirm(false)}
         />
       )}
-      {spotifyCurrentTrack && (
-        <ConfirmModal
-          title={t.spotifyCurrentlyPlaying}
-          message={`${t.spotifyLoadThisTrack}\n\n${spotifyCurrentTrack.name} — ${spotifyCurrentTrack.artistName}`}
-          leftLabel={t.spotifyBackToFileMode}
-          onLeft={() => { setSpotifyCurrentTrack(null); setSpotifyMode(false); }}
-          okLabel={t.spotifyLoadYes}
-          cancelLabel={t.spotifyLoadNo}
-          onOk={async () => {
-            setSpotifyCurrentTrack(null);
-            setSpotifyMode(true);
-            await transferPlaybackToApp();
-          }}
-          onCancel={() => {
-            setSpotifyCurrentTrack(null);
-            setShowSpotifySearch(true);
-          }}
-        />
-      )}
-      {showSpotifyOptions && (
-        <ConfirmModal
-          title={t.spotifyNoTrackTitle}
-          message={t.spotifyNoTrackMessage}
-          leftLabel={t.spotifyBackToFileMode}
-          onLeft={() => { setShowSpotifyOptions(false); setSpotifyMode(false); }}
-          okLabel={t.spotifySearchTrack}
-          cancelLabel=""
-          onOk={() => { setShowSpotifyOptions(false); setShowSpotifySearch(true); }}
-          onCancel={() => setShowSpotifyOptions(false)}
-          okGreen
-        />
-      )}
       {showSpotifySearch && (
         <SpotifySearchModal onClose={() => setShowSpotifySearch(false)} />
       )}
 
       <div className="flex flex-1 min-h-0 gap-0">
         <div className="flex flex-col gap-3 p-3 w-80 shrink-0 overflow-y-auto border-r border-zinc-800">
-          <AudioPlayer />
+          <AudioPlayer
+            onSpotifySearch={() => setShowSpotifySearch(true)}
+            onSpotifyNoClientId={() => setShowSettings(true)}
+          />
           <MetaEditor />
         </div>
         <div className="flex flex-col flex-1 p-3 min-h-0">
@@ -322,8 +272,13 @@ function App() {
 }
 
 function HelpModal({ onClose }: { onClose: () => void }) {
-  const { t } = useI18nStore();
-  const [tab, setTab] = useState<"shortcuts" | "ai" | "spotify">("shortcuts");
+  const { t, lang } = useI18nStore();
+
+  const guideFileSuffix = lang === "ko" ? "ko" : lang === "ja" ? "ja" : "en";
+  const aiGuideUrl = `https://github.com/${GITHUB_REPO}/blob/main/etc/AI_Installation_guide.${guideFileSuffix}.md`;
+  const spotifyGuideUrl = `https://github.com/${GITHUB_REPO}/blob/main/etc/Spotify_Connection_guide.${guideFileSuffix}.md`;
+  const youtubeGuideUrl = `https://github.com/${GITHUB_REPO}/blob/main/etc/YouTube_guide.${guideFileSuffix}.md`;
+  const [tab, setTab] = useState<"shortcuts" | "ai" | "spotify" | "youtube">("shortcuts");
 
   const shortcuts = [
     { key: "1", desc: t.shortcutDescs.s1 },
@@ -348,6 +303,7 @@ function HelpModal({ onClose }: { onClose: () => void }) {
     { id: "shortcuts" as const, label: t.helpTabShortcuts },
     { id: "ai" as const, label: t.helpTabAi },
     { id: "spotify" as const, label: t.helpTabSpotify },
+    { id: "youtube" as const, label: t.helpTabYouTube },
   ];
 
   return (
@@ -407,7 +363,7 @@ function HelpModal({ onClose }: { onClose: () => void }) {
           {tab === "ai" && (
             <div className="flex flex-col gap-4">
               <button
-                onClick={() => openUrl(`https://github.com/${GITHUB_REPO}/blob/main/etc/AI_Installation_guide.md`)}
+                onClick={() => openUrl(aiGuideUrl)}
                 className="self-start text-xs text-indigo-400 hover:text-indigo-300 transition-colors underline underline-offset-2"
               >
                 {t.helpViewGuide}
@@ -429,7 +385,7 @@ function HelpModal({ onClose }: { onClose: () => void }) {
           {tab === "spotify" && (
             <div className="flex flex-col gap-4">
               <button
-                onClick={() => openUrl(`https://github.com/${GITHUB_REPO}/blob/main/etc/Spotify_Connection_guide.md`)}
+                onClick={() => openUrl(spotifyGuideUrl)}
                 className="self-start text-xs text-green-500 hover:text-green-400 transition-colors underline underline-offset-2"
               >
                 {t.helpViewGuide}
@@ -437,6 +393,28 @@ function HelpModal({ onClose }: { onClose: () => void }) {
               {t.helpSpotifySteps.map(({ title, desc }, i) => (
                 <div key={i} className="flex gap-3">
                   <span className="shrink-0 w-5 h-5 rounded-full bg-green-700 text-white text-xs flex items-center justify-center font-bold mt-0.5">
+                    {i + 1}
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium text-zinc-100 mb-0.5">{title}</p>
+                    <p className="text-xs text-zinc-400 leading-relaxed">{desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {tab === "youtube" && (
+            <div className="flex flex-col gap-4">
+              <button
+                onClick={() => openUrl(youtubeGuideUrl)}
+                className="self-start text-xs text-red-400 hover:text-red-300 transition-colors underline underline-offset-2"
+              >
+                {t.helpViewGuide}
+              </button>
+              {t.helpYoutubeSteps.map(({ title, desc }, i) => (
+                <div key={i} className="flex gap-3">
+                  <span className="shrink-0 w-5 h-5 rounded-full bg-red-700 text-white text-xs flex items-center justify-center font-bold mt-0.5">
                     {i + 1}
                   </span>
                   <div>

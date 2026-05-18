@@ -63,6 +63,7 @@ interface ServiceState {
   // Playback API
   transferPlaybackToApp: () => Promise<void>;
   playTrack: (uri: string) => Promise<void>;
+  pausePlayback: () => Promise<void>;
   fetchCurrentlyPlaying: () => Promise<SpotifyTrack | null>;
 
   _startInterpolation: () => void;
@@ -262,6 +263,18 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
       },
       body: JSON.stringify({ device_ids: [deviceId], play: true }),
     });
+  },
+
+  pausePlayback: async () => {
+    const { isPlaying, ensureToken } = get();
+    if (!isPlaying) return;
+    try {
+      const token = await ensureToken();
+      await fetch("https://api.spotify.com/v1/me/player/pause", {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch { /* ignore */ }
   },
 
   playTrack: async (uri: string) => {

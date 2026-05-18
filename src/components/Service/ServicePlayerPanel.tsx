@@ -5,7 +5,12 @@ import { setSpotifyVolume } from "../../utils/spotifyPlayer";
 import { formatDisplayTime } from "../../utils/lrcParser";
 import { useI18nStore } from "../../stores/useI18nStore";
 
-export function ServicePlayerPanel() {
+interface ServicePlayerPanelProps {
+  onSpotifySearch?: () => void;
+  onLoadCurrent?: () => void;
+}
+
+export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePlayerPanelProps = {}) {
   const { t } = useI18nStore();
   const {
     isPlaying, isLooping, positionMs, durationMs,
@@ -167,6 +172,22 @@ export function ServicePlayerPanel() {
           }}
           className="min-w-0 accent-green-500"
         />
+      </div>
+
+      {/* 곡 검색/열기 버튼 */}
+      <div className="flex gap-2">
+        <button
+          onClick={onLoadCurrent}
+          className="flex-1 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm transition-colors text-center truncate"
+        >
+          {t.spotifyLoadCurrent}
+        </button>
+        <button
+          onClick={onSpotifySearch}
+          className="flex-1 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm transition-colors text-center truncate"
+        >
+          {t.spotifySearchTrack}
+        </button>
       </div>
 
     </div>
