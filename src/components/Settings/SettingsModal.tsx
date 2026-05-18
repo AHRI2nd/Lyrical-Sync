@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { checkForUpdate } from "../../utils/updateCheck";
 import { ModelDownloadSection } from "./ModelDownloadSection";
+import { YtdlpSection } from "./YtdlpSection";
 
 type CheckState = "idle" | "checking" | "upToDate";
-type Tab = "general" | "models" | "spotify";
+type Tab = "general" | "models" | "spotify" | "youtube";
 
 export function SettingsModal({
   onClose,
@@ -16,11 +18,17 @@ export function SettingsModal({
   onClose: () => void;
   onUpdateFound: (version: string) => void;
 }) {
-  const { t } = useI18nStore();
+  const { t, lang } = useI18nStore();
   const {
     autoCheckUpdate, uiScale, blankLineOffset, spotifyClientId, spotifyMode,
     setAutoCheckUpdate, setUiScale, setBlankLineOffset, setSpotifyClientId, setSpotifyMode,
   } = useSettingsStore();
+
+  const GITHUB_REPO = "AHRI2nd/Lyrical-Sync";
+  const guideSuffix = lang === "ko" ? "ko" : lang === "ja" ? "ja" : "en";
+  const aiGuideUrl = `https://github.com/${GITHUB_REPO}/blob/main/etc/AI_Installation_guide.${guideSuffix}.md`;
+  const spotifyGuideUrl = `https://github.com/${GITHUB_REPO}/blob/main/etc/Spotify_Connection_guide.${guideSuffix}.md`;
+  const youtubeGuideUrl = `https://github.com/${GITHUB_REPO}/blob/main/etc/YouTube_guide.${guideSuffix}.md`;
   const [checkState, setCheckState] = useState<CheckState>("idle");
   const [tab, setTab] = useState<Tab>("general");
 
@@ -79,6 +87,9 @@ export function SettingsModal({
           </TabBtn>
           <TabBtn active={tab === "spotify"} onClick={() => setTab("spotify")}>
             {t.settingsTabSpotify}
+          </TabBtn>
+          <TabBtn active={tab === "youtube"} onClick={() => setTab("youtube")}>
+            {t.settingsTabYouTube}
           </TabBtn>
         </div>
 
@@ -184,6 +195,7 @@ export function SettingsModal({
 
           {tab === "models" && (
             <div className="p-5 flex flex-col gap-5">
+              <GuideBanner color="indigo" url={aiGuideUrl} label={t.settingsViewGuide} />
               <PythonEnvSection />
               <div className="border-t border-zinc-800" />
               <ModelDownloadSection />
@@ -191,12 +203,26 @@ export function SettingsModal({
           )}
 
           {tab === "spotify" && (
-            <SpotifySection
-              clientId={spotifyClientId}
-              onSaveClientId={setSpotifyClientId}
-              spotifyMode={spotifyMode}
-              onToggleMode={setSpotifyMode}
-            />
+            <>
+              <div className="px-5 pt-4">
+                <GuideBanner color="green" url={spotifyGuideUrl} label={t.settingsViewGuide} />
+              </div>
+              <SpotifySection
+                clientId={spotifyClientId}
+                onSaveClientId={setSpotifyClientId}
+                spotifyMode={spotifyMode}
+                onToggleMode={setSpotifyMode}
+              />
+            </>
+          )}
+
+          {tab === "youtube" && (
+            <>
+              <div className="px-5 pt-4">
+                <GuideBanner color="red" url={youtubeGuideUrl} label={t.settingsViewGuide} />
+              </div>
+              <YtdlpSection />
+            </>
           )}
         </div>
       </div>
@@ -530,6 +556,23 @@ function SpotifySection({
 
       <p className="text-xs text-zinc-600 leading-relaxed">{t.spotifyServiceModeInfo}</p>
     </div>
+  );
+}
+
+function GuideBanner({ color, url, label }: { color: "indigo" | "green" | "red"; url: string; label: string }) {
+  const colorMap = {
+    indigo: "bg-indigo-950/60 border-indigo-800/50 text-indigo-400 hover:text-indigo-300",
+    green:  "bg-green-950/60 border-green-800/50 text-green-400 hover:text-green-300",
+    red:    "bg-red-950/60 border-red-800/50 text-red-400 hover:text-red-300",
+  };
+  return (
+    <button
+      onClick={() => openUrl(url)}
+      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-xs transition-colors ${colorMap[color]}`}
+    >
+      <span>{label}</span>
+      <span className="opacity-70">↗</span>
+    </button>
   );
 }
 

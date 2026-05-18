@@ -12,12 +12,24 @@ interface SettingsState {
   spotifyClientId: string;
   /** Spotify 모드 활성화 여부 (로그인 상태와 독립적으로 UI 전환) */
   spotifyMode: boolean;
+  /** YouTube 모드 활성화 여부 */
+  youtubeMode: boolean;
+  /** yt-dlp 오디오 품질 */
+  ytdlpAudioQuality: "best" | "192" | "128";
+  /** yt-dlp 쿠키 파일 경로 (로그인 필요 콘텐츠용) */
+  ytdlpCookiesFile: string;
+  /** yt-dlp 프록시 설정 */
+  ytdlpProxy: string;
   setAutoCheckUpdate: (v: boolean) => void;
   setUiScale: (v: number) => void;
   setModelsDir: (v: string) => void;
   setBlankLineOffset: (v: number) => void;
   setSpotifyClientId: (v: string) => void;
   setSpotifyMode: (v: boolean) => void;
+  setYoutubeMode: (v: boolean) => void;
+  setYtdlpAudioQuality: (v: "best" | "192" | "128") => void;
+  setYtdlpCookiesFile: (v: string) => void;
+  setYtdlpProxy: (v: string) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -29,12 +41,20 @@ export const useSettingsStore = create<SettingsState>()(
       blankLineOffset: 1.0,
       spotifyClientId: "",
       spotifyMode: false,
+      youtubeMode: false,
+      ytdlpAudioQuality: "best",
+      ytdlpCookiesFile: "",
+      ytdlpProxy: "",
       setAutoCheckUpdate: (v) => set({ autoCheckUpdate: v }),
       setUiScale: (v) => set({ uiScale: v }),
       setModelsDir: (v) => set({ modelsDir: v }),
       setBlankLineOffset: (v) => set({ blankLineOffset: v }),
       setSpotifyClientId: (v) => set({ spotifyClientId: v }),
       setSpotifyMode: (v) => set({ spotifyMode: v }),
+      setYoutubeMode: (v) => set({ youtubeMode: v }),
+      setYtdlpAudioQuality: (v) => set({ ytdlpAudioQuality: v }),
+      setYtdlpCookiesFile: (v) => set({ ytdlpCookiesFile: v }),
+      setYtdlpProxy: (v) => set({ ytdlpProxy: v }),
     }),
     { name: "lyrical-sync-settings" }
   )

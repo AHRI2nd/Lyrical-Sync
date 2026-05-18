@@ -2,8 +2,10 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import WaveSurfer from "wavesurfer.js";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { type Translations } from "../../i18n/translations";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { audioControls } from "../../utils/audioControls";
@@ -29,7 +31,12 @@ const ZOOM_PX_MAX = 500;
 const zoomLevelToPixels = (level: number) =>
   Math.round(ZOOM_PX_MIN * Math.pow(ZOOM_PX_MAX / ZOOM_PX_MIN, level / 100));
 
-export function AudioPlayer() {
+interface AudioPlayerProps {
+  onSpotifySearch?: () => void;
+  onSpotifyNoClientId?: () => void;
+}
+
+export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlayerProps = {}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
   const isLoopingRef = useRef(false);
@@ -48,12 +55,62 @@ export function AudioPlayer() {
   const [viewMode, setViewMode] = useState<"waveform" | "bar">("waveform");
   const [hoverRatio, setHoverRatio] = useState<number | null>(null);
   const [showRemaining, setShowRemaining] = useState(false);
+  const [showNoTrackAlert, setShowNoTrackAlert] = useState(false);
 
-  const { audioPath, setCurrentTime, setIsPlaying, setDuration, openAudio } = useLrcStore();
+  const { audioPath, setCurrentTime, setIsPlaying, setDuration, openAudio, setAudioPath } = useLrcStore();
   const { t } = useI18nStore();
-  const isLoggedIn = useServiceStore((s) => s.isLoggedIn);
-  const spotifyMode = useSettingsStore((s) => s.spotifyMode);
+  const { isLoggedIn, startLogin, fetchCurrentlyPlaying, transferPlaybackToApp } = useServiceStore();
+  const { spotifyMode, spotifyClientId, youtubeMode, ytdlpAudioQuality, ytdlpCookiesFile, ytdlpProxy } = useSettingsStore();
   const isServiceMode = isLoggedIn && spotifyMode;
+
+  const [ytUrl, setYtUrl] = useState("");
+  const [ytLoading, setYtLoading] = useState(false);
+  const [ytError, setYtError] = useState<string | null>(null);
+  const [ytModalOpen, setYtModalOpen] = useState(false);
+
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    listen<{ percent: number; speed: string; eta: string; done: boolean }>(
+      "ytdlp-audio-progress",
+      (e) => {
+        if (e.payload.done) setYtLoading(false);
+      }
+    ).then((fn) => { unlisten = fn; });
+    return () => { unlisten?.(); };
+  }, []);
+
+  const handleYtLoad = async () => {
+    const url = ytUrl.trim();
+    if (!url) return;
+    setYtLoading(true);
+    setYtError(null);
+    try {
+      const path = await invoke<string>("ytdlp_load_audio", {
+        url,
+        quality: ytdlpAudioQuality,
+        cookiesFile: ytdlpCookiesFile,
+        proxy: ytdlpProxy,
+      });
+      setAudioPath(path);
+      setYtModalOpen(false);
+      setYtUrl("");
+    } catch (e) {
+      setYtError(String(e));
+    } finally {
+      setYtLoading(false);
+    }
+  };
+
+  const handleYtCancel = () => {
+    invoke("cancel_ytdlp_load").catch(() => {});
+    setYtLoading(false);
+  };
+
+  const handleYtModalClose = () => {
+    if (ytLoading) return;
+    setYtModalOpen(false);
+    setYtError(null);
+  };
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -106,6 +163,7 @@ export function AudioPlayer() {
 
   useEffect(() => {
     audioControls.togglePlay = () => wsRef.current?.playPause();
+    audioControls.pause = () => wsRef.current?.pause();
     audioControls.skip = (delta: number) => {
       const ws = wsRef.current;
       if (!ws) return;
@@ -240,22 +298,56 @@ export function AudioPlayer() {
     });
   }, []);
 
-  if (isServiceMode) {
-    return (
-      <div className="flex flex-col gap-3 p-4 bg-zinc-900 rounded-xl border border-zinc-700">
-        <ServicePlayerPanel />
-      </div>
-    );
-  }
+  const handleSpotifyLogin = async () => {
+    if (!spotifyClientId.trim()) {
+      onSpotifyNoClientId?.();
+      return;
+    }
+    try { await startLogin(); } catch { /* error shown in settings */ }
+  };
+
+  const handleLoadCurrent = async () => {
+    try {
+      const track = await fetchCurrentlyPlaying();
+      if (track) await transferPlaybackToApp();
+      else setShowNoTrackAlert(true);
+    } catch { setShowNoTrackAlert(true); }
+  };
 
   return (
+    <>
+      {showNoTrackAlert && (
+        <NoTrackAlert t={t} onClose={() => setShowNoTrackAlert(false)} />
+      )}
+      {ytModalOpen && (
+        <YouTubeModal
+          t={t}
+          ytUrl={ytUrl}
+          ytLoading={ytLoading}
+          ytError={ytError}
+          onChangeUrl={(v) => { setYtUrl(v); setYtError(null); }}
+          onLoad={handleYtLoad}
+          onCancel={handleYtCancel}
+          onClose={handleYtModalClose}
+        />
+      )}
     <div className="flex flex-col gap-3 p-4 bg-zinc-900 rounded-xl border border-zinc-700">
+      {/* WaveSurfer container must always remain in the DOM while the component
+          is mounted — removing it detaches the canvas and breaks the instance
+          when switching back from Spotify mode. Hide with display:none instead. */}
       <div
         ref={containerRef}
         className="w-full rounded-lg overflow-hidden bg-zinc-800 cursor-pointer"
-        style={{ minHeight: 80, display: viewMode === "bar" ? "none" : "" }}
+        style={{ minHeight: 80, display: (isServiceMode || viewMode === "bar") ? "none" : "" }}
       />
 
+      {isServiceMode ? (
+        <ServicePlayerPanel
+          onSpotifySearch={onSpotifySearch}
+          onLoadCurrent={handleLoadCurrent}
+        />
+      ) : (
+      <>
       {viewMode === "bar" && (
         <div
           className="w-full rounded-xl bg-zinc-800 select-none flex flex-col justify-center px-5"
@@ -404,12 +496,46 @@ export function AudioPlayer() {
       </div>
 
       {/* 열기 버튼 */}
-      <button
-        onClick={openAudio}
-        className="w-full py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm transition-colors text-center truncate"
-      >
-        {t.openAudio}
-      </button>
+      {spotifyMode ? (
+        !isLoggedIn ? (
+          <button
+            onClick={handleSpotifyLogin}
+            className="w-full py-1.5 rounded-lg bg-green-700 hover:bg-green-600 text-white text-sm transition-colors text-center truncate"
+          >
+            {t.spotifyConnect}
+          </button>
+        ) : (
+          <div className="flex gap-2">
+            <button
+              onClick={handleLoadCurrent}
+              className="flex-1 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm transition-colors text-center truncate"
+            >
+              {t.spotifyLoadCurrent}
+            </button>
+            <button
+              onClick={onSpotifySearch}
+              className="flex-1 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm transition-colors text-center truncate"
+            >
+              {t.spotifySearchTrack}
+            </button>
+          </div>
+        )
+      ) : youtubeMode ? (
+        <button
+          onClick={() => setYtModalOpen(true)}
+          className="w-full py-1.5 rounded-lg bg-red-700 hover:bg-red-600 text-white text-sm transition-colors text-center truncate flex items-center justify-center gap-2"
+        >
+          <YouTubeLinkIcon />
+          {ytLoading ? t.youtubeLoading : t.youtubeOpenLink}
+        </button>
+      ) : (
+        <button
+          onClick={openAudio}
+          className="w-full py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm transition-colors text-center truncate"
+        >
+          {t.openAudio}
+        </button>
+      )}
 
       {/* 볼륨 + 줌 슬라이더: grid로 왼쪽 열 너비 자동 통일 */}
       <div className="grid gap-1.5" style={{ gridTemplateColumns: "auto 1fr" }}>
@@ -461,7 +587,10 @@ export function AudioPlayer() {
       {!audioPath && (
         <p className="text-center text-zinc-500 text-sm">{t.noAudio}</p>
       )}
+      </>
+      )}
     </div>
+    </>
   );
 }
 
@@ -527,6 +656,7 @@ function SkipBackIcon() {
   );
 }
 
+
 function SkipFwdIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
@@ -540,6 +670,148 @@ function LoopIcon() {
     <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
       <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
     </svg>
+  );
+}
+
+function YouTubeLinkIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+    </svg>
+  );
+}
+
+function YouTubeModal({
+  t, ytUrl, ytLoading, ytError,
+  onChangeUrl, onLoad, onCancel, onClose,
+}: {
+  t: Translations;
+  ytUrl: string;
+  ytLoading: boolean;
+  ytError: string | null;
+  onChangeUrl: (v: string) => void;
+  onLoad: () => void;
+  onCancel: () => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !ytLoading) onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [ytLoading, onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
+          <div className="flex items-center gap-2">
+            <span className="text-red-500"><YouTubeLinkIcon /></span>
+            <span className="font-semibold text-zinc-100 text-sm">{t.youtubeModalTitle}</span>
+          </div>
+          {!ytLoading && (
+            <button
+              onClick={onClose}
+              className="text-zinc-500 hover:text-white transition-colors text-lg leading-none"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        <div className="p-5 flex flex-col gap-4">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={ytUrl}
+              onChange={(e) => onChangeUrl(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !ytLoading && ytUrl.trim()) onLoad(); }}
+              placeholder={t.youtubeUrlPlaceholder}
+              disabled={ytLoading}
+              autoFocus
+              className="flex-1 min-w-0 px-3 py-2 text-sm bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-red-500 font-mono disabled:opacity-50"
+            />
+          </div>
+
+          {ytLoading && (
+            <span className="text-xs text-zinc-400">{t.youtubeLoading}</span>
+          )}
+
+          {ytError && (
+            <span className="text-xs text-red-400 break-all">{ytError}</span>
+          )}
+
+          <div className="flex justify-end gap-2">
+            {ytLoading ? (
+              <button
+                onClick={onCancel}
+                className="px-4 py-2 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
+              >
+                {t.youtubeCancel}
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
+                >
+                  {t.youtubeCancel}
+                </button>
+                <button
+                  onClick={onLoad}
+                  disabled={!ytUrl.trim()}
+                  className="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
+                >
+                  {t.youtubeLoad}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NoTrackAlert({ t, onClose }: { t: Translations; onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape" || e.key === "Enter") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 py-4 border-b border-zinc-800">
+          <span className="font-semibold text-zinc-100">{t.spotifyNoTrackAlertTitle}</span>
+        </div>
+        <div className="px-5 py-4">
+          <p className="text-sm text-zinc-300 whitespace-pre-line">{t.spotifyNoTrackAlertMessage}</p>
+        </div>
+        <div className="flex justify-end px-5 pb-4">
+          <button
+            onClick={onClose}
+            className="px-5 py-1.5 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100 transition-colors"
+          >
+            {t.spotifyNoTrackAlertOk}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
