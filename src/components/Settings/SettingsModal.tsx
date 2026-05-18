@@ -14,9 +14,11 @@ type Tab = "general" | "models" | "spotify" | "youtube";
 export function SettingsModal({
   onClose,
   onUpdateFound,
+  initialTab = "general",
 }: {
   onClose: () => void;
   onUpdateFound: (version: string) => void;
+  initialTab?: Tab;
 }) {
   const { t, lang } = useI18nStore();
   const {
@@ -30,7 +32,7 @@ export function SettingsModal({
   const spotifyGuideUrl = `https://github.com/${GITHUB_REPO}/blob/main/etc/Spotify_Connection_guide.${guideSuffix}.md`;
   const youtubeGuideUrl = `https://github.com/${GITHUB_REPO}/blob/main/etc/YouTube_guide.${guideSuffix}.md`;
   const [checkState, setCheckState] = useState<CheckState>("idle");
-  const [tab, setTab] = useState<Tab>("general");
+  const [tab, setTab] = useState<Tab>(initialTab);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
