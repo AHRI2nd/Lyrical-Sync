@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { useI18nStore } from "../../stores/useI18nStore";
@@ -19,9 +20,23 @@ export function ModeSelectButton() {
   const trackName = useServiceStore((s) => s.trackName);
   const pausePlayback = useServiceStore((s) => s.pausePlayback);
 
-  useEffect(() => {
+  const checkYtdlp = () => {
     invoke<string | null>("check_ytdlp").then((v) => setYtdlpInstalled(v !== null)).catch(() => {});
+  };
+
+  useEffect(() => {
+    checkYtdlp();
   }, []);
+
+  // Re-check when yt-dlp installation completes
+  useEffect(() => {
+    let active = true;
+    let unlisten: (() => void) | null = null;
+    listen<{ done: boolean }>("ytdlp-install-progress", (e) => {
+      if (active && e.payload.done) checkYtdlp();
+    }).then((fn) => { unlisten = fn; if (!active) fn(); });
+    return () => { active = false; unlisten?.(); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -67,7 +82,7 @@ export function ModeSelectButton() {
   return (
     <div ref={ref} className="relative shrink-0">
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => { setOpen((v) => !v); checkYtdlp(); }}
         className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-colors font-medium ${currentColor}`}
       >
         <span className="text-zinc-400 font-normal">{t.modeSelect}</span>
