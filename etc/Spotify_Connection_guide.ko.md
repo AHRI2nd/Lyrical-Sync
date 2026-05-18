@@ -23,7 +23,7 @@ Lyrical Sync는 Spotify Web Playback SDK를 통해 Spotify 곡을 앱 내에서 
 
    | 항목 | 입력값 |
    |------|--------|
-   | App name | 자유롭게 입력 (예: `Lyrical Sync`) |
+   | App name | `Lyrical Sync` |
    | App description | 자유롭게 입력 |
    | Redirect URIs | `http://127.0.0.1:54321/callback` |
    | Which API/SDKs | **Web Playback SDK** 체크 |
@@ -31,7 +31,7 @@ Lyrical Sync는 Spotify Web Playback SDK를 통해 Spotify 곡을 앱 내에서 
 4. **"Save"** 를 클릭합니다.
 5. 생성된 앱의 **Settings** 페이지에서 **Client ID**를 복사합니다.
 
-> **Redirect URI 주의**: `http://127.0.0.1:54321/callback` 을 정확하게 입력해야 합니다. `localhost` 나 다른 포트로 입력하면 인증이 실패합니다.
+> **Redirect URI 주의**: `http://127.0.0.1:54321/callback` 을 정확하게 입력해야 합니다.
 
 ---
 
@@ -49,8 +49,6 @@ Lyrical Sync는 Spotify Web Playback SDK를 통해 Spotify 곡을 앱 내에서 
 2. 브라우저가 열리며 Spotify 로그인 페이지가 표시됩니다.
 3. Spotify Premium 계정으로 로그인하고 앱 권한을 허용합니다.
 4. 인증이 완료되면 Lyrical Sync로 자동 복귀합니다.
-
-> 로그인 정보는 시스템 키체인(macOS: Keychain, Windows: Credential Manager)에 안전하게 저장되어 다음 실행 시 자동으로 복원됩니다.
 
 ---
 
