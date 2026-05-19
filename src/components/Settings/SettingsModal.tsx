@@ -28,9 +28,9 @@ export function SettingsModal({
 
   const GITHUB_REPO = "AHRI2nd/Lyrical-Sync";
   const guideSuffix = lang === "ko" ? "ko" : lang === "ja" ? "ja" : "en";
-  const aiGuideUrl = `https://github.com/${GITHUB_REPO}/blob/main/etc/AI_Installation_guide.${guideSuffix}.md`;
-  const spotifyGuideUrl = `https://github.com/${GITHUB_REPO}/blob/main/etc/Spotify_Connection_guide.${guideSuffix}.md`;
-  const youtubeGuideUrl = `https://github.com/${GITHUB_REPO}/blob/main/etc/YouTube_guide.${guideSuffix}.md`;
+  const aiGuideUrl = `https://ahri2nd.xyz/posts/lyrical-sync-ai-installation-guide-${guideSuffix}/`;
+  const spotifyGuideUrl = `https://ahri2nd.xyz/posts/lyrical-sync-spotify-guide-${guideSuffix}/`;
+  const youtubeGuideUrl = `https://ahri2nd.xyz/posts/lyrical-sync-youtube-guide-${guideSuffix}/`;
   const [checkState, setCheckState] = useState<CheckState>("idle");
   const [tab, setTab] = useState<Tab>(initialTab);
 

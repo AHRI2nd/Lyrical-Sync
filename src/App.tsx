@@ -277,9 +277,9 @@ function HelpModal({ onClose }: { onClose: () => void }) {
   const { t, lang } = useI18nStore();
 
   const guideFileSuffix = lang === "ko" ? "ko" : lang === "ja" ? "ja" : "en";
-  const aiGuideUrl = `https://github.com/${GITHUB_REPO}/blob/main/etc/AI_Installation_guide.${guideFileSuffix}.md`;
-  const spotifyGuideUrl = `https://github.com/${GITHUB_REPO}/blob/main/etc/Spotify_Connection_guide.${guideFileSuffix}.md`;
-  const youtubeGuideUrl = `https://github.com/${GITHUB_REPO}/blob/main/etc/YouTube_guide.${guideFileSuffix}.md`;
+  const aiGuideUrl = `https://ahri2nd.xyz/posts/lyrical-sync-ai-installation-guide-${guideFileSuffix}/`;
+  const spotifyGuideUrl = `https://ahri2nd.xyz/posts/lyrical-sync-spotify-guide-${guideFileSuffix}/`;
+  const youtubeGuideUrl = `https://ahri2nd.xyz/posts/lyrical-sync-youtube-guide-${guideFileSuffix}/`;
   const [tab, setTab] = useState<"shortcuts" | "ai" | "spotify" | "youtube">("shortcuts");
 
   const shortcuts = [
