@@ -26,7 +26,6 @@ export function SettingsModal({
     setAutoCheckUpdate, setUiScale, setBlankLineOffset, setSpotifyClientId, setSpotifyMode,
   } = useSettingsStore();
 
-  const GITHUB_REPO = "AHRI2nd/Lyrical-Sync";
   const guideSuffix = lang === "ko" ? "ko" : lang === "ja" ? "ja" : "en";
   const aiGuideUrl = `https://ahri2nd.xyz/posts/lyrical-sync-ai-installation-guide-${guideSuffix}/`;
   const spotifyGuideUrl = `https://ahri2nd.xyz/posts/lyrical-sync-spotify-guide-${guideSuffix}/`;

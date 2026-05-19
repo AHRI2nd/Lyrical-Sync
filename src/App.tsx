@@ -14,7 +14,7 @@ import { audioControls } from "./utils/audioControls";
 import { serviceControls } from "./utils/serviceControls";
 import { initSpotifyPlayer } from "./utils/spotifyPlayer";
 import { type Lang } from "./i18n/translations";
-import { checkForUpdate, RELEASES_URL, GITHUB_REPO } from "./utils/updateCheck";
+import { checkForUpdate, RELEASES_URL } from "./utils/updateCheck";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { listen } from "@tauri-apps/api/event";
 
