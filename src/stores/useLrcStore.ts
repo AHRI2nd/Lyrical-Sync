@@ -22,6 +22,10 @@ interface AlignmentProgressEvent {
 
 interface LrcStore {
   doc: LrcDocument;
+  _history: LrcDocument[];
+  _future: LrcDocument[];
+  undo: () => void;
+  redo: () => void;
   audioPath: string | null;
   lrcPath: string | null;
   currentTime: number;
@@ -69,8 +73,12 @@ interface LrcStore {
 let nextId = 1;
 const genId = () => String(nextId++);
 
+const MAX_HISTORY = 50;
+
 export const useLrcStore = create<LrcStore>((set, get) => ({
   doc: defaultDocument(),
+  _history: [],
+  _future: [],
   audioPath: null,
   lrcPath: null,
   currentTime: 0,
@@ -84,6 +92,30 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   aiSyncProgressStatus: "",
   aiDraftConfidence: null,
 
+  undo: () => {
+    const { doc, _history, _future } = get();
+    if (_history.length === 0) return;
+    const prev = _history[_history.length - 1];
+    set({
+      doc: prev,
+      _history: _history.slice(0, -1),
+      _future: [doc, ..._future].slice(0, MAX_HISTORY),
+      isDirty: true,
+    });
+  },
+
+  redo: () => {
+    const { doc, _history, _future } = get();
+    if (_future.length === 0) return;
+    const next = _future[0];
+    set({
+      doc: next,
+      _history: [..._history, doc].slice(-MAX_HISTORY),
+      _future: _future.slice(1),
+      isDirty: true,
+    });
+  },
+
   setIsPlaying: (v) => set({ isPlaying: v }),
   setDuration: (d) => set({ duration: d }),
   setCurrentTime: (t) => set({ currentTime: t }),
@@ -91,7 +123,8 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   setActiveLineId: (id) => set({ activeLineId: id }),
 
   stampAndAdvance: () => {
-    const { activeLineId, currentTime, doc, aiDraftConfidence } = get();
+    const { activeLineId, currentTime, doc, aiDraftConfidence, _history } = get();
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [] });
     const lines = doc.lines;
     if (lines.length === 0) return;
 
@@ -139,24 +172,28 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
       isDirty: true,
     })),
 
-  setLines: (lines) =>
-    set((s) => ({ doc: { ...s.doc, lines }, isDirty: true })),
+  setLines: (lines) => {
+    const { doc, _history } = get();
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, isDirty: true });
+  },
 
-  addLine: (text = "") =>
-    set((s) => ({
-      doc: { ...s.doc, lines: [...s.doc.lines, { id: genId(), timestamp: null, text }] },
+  addLine: (text = "") => {
+    const { doc, _history } = get();
+    set({
+      _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [],
+      doc: { ...doc, lines: [...doc.lines, { id: genId(), timestamp: null, text }] },
       isDirty: true,
-    })),
+    });
+  },
 
   insertLinesAfter: (afterId, texts) => {
     const newLines = texts.map((t) => ({ id: genId(), timestamp: null as null, text: t }));
     const lastId = newLines[newLines.length - 1].id;
-    set((s) => {
-      const idx = s.doc.lines.findIndex((l) => l.id === afterId);
-      const lines = [...s.doc.lines];
-      lines.splice(idx + 1, 0, ...newLines);
-      return { doc: { ...s.doc, lines }, isDirty: true };
-    });
+    const { doc, _history } = get();
+    const idx = doc.lines.findIndex((l) => l.id === afterId);
+    const lines = [...doc.lines];
+    lines.splice(idx + 1, 0, ...newLines);
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, isDirty: true });
     return lastId;
   },
 
@@ -169,17 +206,16 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
       isDirty: true,
     })),
 
-  deleteLine: (id) =>
-    set((s) => {
-      const lines = s.doc.lines.filter((l) => l.id !== id);
-      const activeLineId = s.activeLineId === id
-        ? (lines[0]?.id ?? null)
-        : s.activeLineId;
-      return { doc: { ...s.doc, lines }, activeLineId, isDirty: true };
-    }),
+  deleteLine: (id) => {
+    const { doc, _history, activeLineId } = get();
+    const lines = doc.lines.filter((l) => l.id !== id);
+    const newActiveLineId = activeLineId === id ? (lines[0]?.id ?? null) : activeLineId;
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, activeLineId: newActiveLineId, isDirty: true });
+  },
 
   stampCurrentLine: (id) => {
-    const { currentTime, doc, aiDraftConfidence } = get();
+    const { currentTime, doc, aiDraftConfidence, _history } = get();
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [] });
     let newConfidence = aiDraftConfidence;
     if (newConfidence && id in newConfidence) {
       newConfidence = { ...newConfidence };
@@ -198,6 +234,8 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   },
 
   loadFromRawText: (raw) => {
+    const { doc, _history } = get();
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [] });
     const parsed = parseLrc(raw);
     let id = nextId;
     parsed.lines = parsed.lines.map((l) => ({ ...l, id: String(id++) }));
@@ -207,7 +245,8 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   },
 
   applyOffset: () => {
-    const { doc } = get();
+    const { doc, _history } = get();
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [] });
     const deltaSeconds = doc.metadata.offset / 1000;
     if (deltaSeconds === 0) return;
     set({
@@ -249,7 +288,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
       doc.lines = doc.lines.map((l) => ({ ...l, id: String(id++) }));
       nextId = id;
       const firstId = doc.lines[0]?.id ?? null;
-      set({ doc, lrcPath: selected, isDirty: false, activeLineId: firstId });
+      set({ doc, lrcPath: selected, isDirty: false, activeLineId: firstId, _history: [], _future: [] });
     }
   },
 
@@ -273,7 +312,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   },
 
   newLrc: () =>
-    set({ doc: defaultDocument(), lrcPath: null, isDirty: false, activeLineId: null }),
+    set({ doc: defaultDocument(), lrcPath: null, isDirty: false, activeLineId: null, _history: [], _future: [] }),
 
   runAiSync: async (language, blankLineOffset) => {
     const { audioPath, doc } = get();
@@ -327,7 +366,9 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
         confidence[doc.lines[i].id] = 1.0;
       }
 
+      const { _history } = get();
       set({
+        _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [],
         doc: { ...doc, lines: newLines },
         aiSyncStatus: "done",
         aiSyncProgressStatus: "done",
