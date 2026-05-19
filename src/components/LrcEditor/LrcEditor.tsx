@@ -248,8 +248,10 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
 
           // Timestamp button colour varies by AI confidence
           const tsClass = confidence !== undefined
-            ? confidence >= 0.8
+            ? confidence >= 0.7
               ? "bg-emerald-900/50 text-emerald-300 hover:bg-emerald-800/60"
+              : confidence >= 0.5
+              ? "bg-yellow-900/50 text-yellow-300 hover:bg-yellow-800/60"
               : "bg-red-900/50 text-red-300 hover:bg-red-800/60"
             : line.timestamp !== null
             ? "bg-zinc-700 text-indigo-300 hover:bg-zinc-600"
@@ -274,13 +276,19 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                 {idx + 1}
               </span>
 
-              <button
-                onClick={(e) => { e.stopPropagation(); stampCurrentLine(line.id); }}
-                className={`shrink-0 font-mono text-xs px-2 py-0.5 rounded transition-colors ${tsClass}`}
-                title={tsTitle}
-              >
-                {line.timestamp !== null ? formatDisplayTime(line.timestamp) : "-:--:--.---"}
-              </button>
+              <div className="relative group/ts shrink-0">
+                <button
+                  onClick={(e) => { e.stopPropagation(); stampCurrentLine(line.id); }}
+                  className={`font-mono text-xs px-2 py-0.5 rounded transition-colors ${tsClass}`}
+                >
+                  {line.timestamp !== null ? formatDisplayTime(line.timestamp) : "-:--:--.---"}
+                </button>
+                <div className={`pointer-events-none absolute left-0 hidden group-hover/ts:block z-30 ${idx < 2 ? "top-full mt-1.5" : "bottom-full mb-1.5"}`}>
+                  <div className="bg-zinc-800 border border-zinc-600 text-zinc-200 text-xs rounded-lg px-2.5 py-1.5 shadow-xl whitespace-nowrap">
+                    {tsTitle}
+                  </div>
+                </div>
+              </div>
 
               <input
                 ref={setInputRef(line.id)}
