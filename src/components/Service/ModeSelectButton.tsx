@@ -83,7 +83,7 @@ export function ModeSelectButton() {
     <div ref={ref} className="relative shrink-0">
       <button
         onClick={() => { setOpen((v) => !v); checkYtdlp(); }}
-        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-colors font-medium ${currentColor}`}
+        className={`h-8 flex items-center gap-1.5 px-3 text-xs rounded-lg transition-colors font-medium ${currentColor}`}
       >
         <span className="text-zinc-400 font-normal">{t.modeSelect}</span>
         <span className="text-[10px] text-zinc-500">|</span>

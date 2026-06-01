@@ -7,6 +7,8 @@ export interface Translations {
   openLrc: string;
   save: string;
   saveAs: string;
+  undo: string;
+  redo: string;
   // Help modal
   helpTitle: string;
   helpTabShortcuts: string;
@@ -213,6 +215,8 @@ const ko: Translations = {
   openLrc: "LRC 열기",
   save: "저장",
   saveAs: "다른 이름으로 저장",
+  undo: "실행 취소",
+  redo: "다시 실행",
   helpTitle: "도움말",
   helpTabShortcuts: "단축키",
   helpTabAi: "AI 사용법",
@@ -430,6 +434,8 @@ const en: Translations = {
   openLrc: "Open LRC",
   save: "Save",
   saveAs: "Save As",
+  undo: "Undo",
+  redo: "Redo",
   helpTitle: "Help",
   helpTabShortcuts: "Shortcuts",
   helpTabAi: "AI Guide",
@@ -648,6 +654,8 @@ const ja: Translations = {
   openLrc: "LRCを開く",
   save: "保存",
   saveAs: "名前を付けて保存",
+  undo: "元に戻す",
+  redo: "やり直す",
   helpTitle: "ヘルプ",
   helpTabShortcuts: "ショートカット",
   helpTabAi: "AI使い方",
