@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { AudioPlayer } from "./components/AudioPlayer/AudioPlayer";
 import { MetaEditor } from "./components/MetaEditor/MetaEditor";
 import { LrcEditor } from "./components/LrcEditor/LrcEditor";
@@ -19,7 +19,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { listen } from "@tauri-apps/api/event";
 
 function useGlobalKeys() {
-  const { stampAndAdvance, goToPreviousLine } = useLrcStore();
+  const { stampAndAdvance, goToPreviousLine, undo, redo } = useLrcStore();
   const isLoggedInForKeys = useServiceStore((s) => s.isLoggedIn);
   const spotifyModeForKeys = useSettingsStore((s) => s.spotifyMode);
   const isServiceMode = isLoggedInForKeys && spotifyModeForKeys;
@@ -30,6 +30,15 @@ function useGlobalKeys() {
       const inInput =
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement;
+
+      const isMod = e.ctrlKey || e.metaKey;
+      if (isMod && e.code === "KeyZ") {
+        if (inInput) return;
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+        return;
+      }
 
       if (e.ctrlKey || e.altKey || e.metaKey) return;
 
@@ -69,7 +78,7 @@ function useGlobalKeys() {
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [stampAndAdvance, goToPreviousLine, isServiceMode]);
+  }, [stampAndAdvance, goToPreviousLine, undo, redo, isServiceMode]);
 }
 
 function useAutoUpdateCheck(onUpdateAvailable: (version: string) => void, enabled: boolean) {
@@ -107,8 +116,8 @@ function App() {
   const [showNewConfirm, setShowNewConfirm] = useState(false);
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const [showSpotifySearch, setShowSpotifySearch] = useState(false);
-  const { lrcPath, isDirty, openLrc, saveLrc, saveLrcAs, newLrc } = useLrcStore();
-  const { lang, setLang, t } = useI18nStore();
+  const { lrcPath, isDirty, openLrc, saveLrc, saveLrcAs, newLrc, undo, redo, _history, _future } = useLrcStore();
+  const { t } = useI18nStore();
   const { autoCheckUpdate, uiScale } = useSettingsStore();
   const { isLoggedIn, handleCallback, tryRestoreSession } = useServiceStore();
 
@@ -177,33 +186,24 @@ function App() {
       }}
     >
       <header className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border-b border-zinc-800 shrink-0">
-        <span className="font-semibold text-indigo-400 mr-2">Lyrical Sync</span>
-        <span className="text-zinc-400 text-sm flex-1 truncate">
-          {title}
-          {isDirty && <span className="text-rose-400 ml-1">●</span>}
-        </span>
-        <div className="flex items-center gap-1 mr-2 shrink-0">
-          {LANG_LABELS.map(({ lang: l, label }) => (
-            <button
-              key={l}
-              onClick={() => setLang(l)}
-              className={[
-                "w-16 py-1 text-xs rounded-lg transition-colors text-center",
-                lang === l
-                  ? "bg-indigo-600 text-white"
-                  : "bg-zinc-700 hover:bg-zinc-600 text-zinc-300",
-              ].join(" ")}
-            >
-              {label}
-            </button>
-          ))}
+        <span className="font-semibold text-indigo-400 mr-2 shrink-0">Lyrical Sync</span>
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <span className="text-zinc-400 text-sm truncate">
+            {title}
+            {isDirty && <span className="text-rose-400 ml-1">●</span>}
+          </span>
+          <div className="flex gap-1 shrink-0">
+            <IconBtn onClick={undo} disabled={_history.length === 0} title={t.undo}><UndoIcon /></IconBtn>
+            <IconBtn onClick={redo} disabled={_future.length === 0} title={t.redo}><RedoIcon /></IconBtn>
+          </div>
         </div>
-        <div className="flex gap-2 shrink-0">
-          <ToolBtn onClick={handleNewLrc} className="w-24">{t.newFileBtn}</ToolBtn>
-          <ToolBtn onClick={openLrc} className="w-24">{t.openLrc}</ToolBtn>
+        <div className="flex gap-1.5 shrink-0">
           <ModeSelectButton />
-          <ToolBtn onClick={saveLrc} accent className="w-16">{t.save}</ToolBtn>
-          <ToolBtn onClick={saveLrcAs} className="w-40">{t.saveAs}</ToolBtn>
+          <IconBtn onClick={handleNewLrc} title={t.newFileBtn}><NewFileIcon /></IconBtn>
+          <IconBtn onClick={openLrc} title={t.openLrc}><OpenFolderIcon /></IconBtn>
+          <LangDropdown />
+          <IconBtn onClick={saveLrc} accent title={t.save} tooltipAlign="right"><SaveIcon /></IconBtn>
+          <IconBtn onClick={saveLrcAs} title={t.saveAs} tooltipAlign="right"><SaveAsIcon /></IconBtn>
         </div>
       </header>
 
@@ -502,25 +502,154 @@ function ConfirmModal({
   );
 }
 
-function ToolBtn({
-  children, onClick, accent, className = "",
+
+function IconBtn({
+  children, onClick, disabled, accent, title, tooltipAlign = "center",
 }: {
   children: React.ReactNode;
   onClick: () => void;
+  disabled?: boolean;
   accent?: boolean;
-  className?: string;
+  title: string;
+  tooltipAlign?: "center" | "right";
 }) {
+  const tooltipPos = tooltipAlign === "right"
+    ? "right-0"
+    : "left-1/2 -translate-x-1/2";
   return (
-    <button
-      onClick={onClick}
-      className={`px-3 py-1 text-sm rounded-lg transition-colors text-center truncate ${
-        accent
-          ? "bg-indigo-600 hover:bg-indigo-500 text-white"
-          : "bg-zinc-700 hover:bg-zinc-600 text-zinc-100"
-      } ${className}`}
-    >
-      {children}
-    </button>
+    <div className="relative group/ibtn">
+      <button
+        onClick={onClick}
+        disabled={disabled}
+        className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+          accent
+            ? "bg-indigo-600 hover:bg-indigo-500 text-white"
+            : "bg-zinc-700 hover:bg-zinc-600 text-zinc-100"
+        }`}
+      >
+        {children}
+      </button>
+      <div className={`pointer-events-none absolute top-full ${tooltipPos} mt-1.5 hidden group-hover/ibtn:block z-30`}>
+        <div className="bg-zinc-800 border border-zinc-600 text-zinc-200 text-xs rounded-lg px-2.5 py-1.5 shadow-xl whitespace-nowrap">
+          {title}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NewFileIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="12" y1="11" x2="12" y2="17" />
+      <line x1="9" y1="14" x2="15" y2="14" />
+    </svg>
+  );
+}
+
+function OpenFolderIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+
+function SaveIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+      <polyline points="17 21 17 13 7 13 7 21" />
+      <polyline points="7 3 7 8 15 8" />
+    </svg>
+  );
+}
+
+function SaveAsIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+      <polyline points="17 21 17 13 7 13 7 21" />
+      <polyline points="7 3 7 8 15 8" />
+      <line x1="20" y1="8" x2="20" y2="14" />
+      <line x1="17" y1="11" x2="23" y2="11" />
+    </svg>
+  );
+}
+
+function UndoIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="9 14 4 9 9 4" />
+      <path d="M20 20v-7a4 4 0 0 0-4-4H4" />
+    </svg>
+  );
+}
+
+function RedoIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="15 14 20 9 15 4" />
+      <path d="M4 20v-7a4 4 0 0 1 4-4h12" />
+    </svg>
+  );
+}
+
+function LangDropdown() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const { lang, setLang } = useI18nStore();
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const handleSelect = useCallback((l: Lang) => { setLang(l); setOpen(false); }, [setLang]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-8 h-8 flex items-center justify-center rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100 transition-colors"
+      >
+        <GlobeIcon />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-50 overflow-hidden py-1 min-w-[110px]">
+          {LANG_LABELS.map(({ lang: l, label }) => (
+            <button
+              key={l}
+              onClick={() => handleSelect(l)}
+              className={[
+                "w-full flex items-center justify-between px-3 py-2 text-xs transition-colors",
+                lang === l
+                  ? "text-white bg-zinc-700"
+                  : "text-zinc-300 hover:bg-zinc-700 hover:text-white",
+              ].join(" ")}
+            >
+              <span>{label}</span>
+              {lang === l && <span className="text-indigo-400">✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GlobeIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </svg>
   );
 }
 
