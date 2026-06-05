@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { LrcDocument, LrcLine, LrcMetadata, defaultDocument } from "../types/lrc";
 import { parseLrc, serializeLrc } from "../utils/lrcParser";
+import { serializeSrt, parseSrt } from "../utils/srtConverter";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
@@ -55,8 +56,9 @@ interface LrcStore {
   openAudio: () => Promise<void>;
   openLrc: () => Promise<void>;
   saveLrc: () => Promise<void>;
-  saveLrcAs: () => Promise<void>;
+  saveLrcAs: (format: "lrc" | "srt") => Promise<void>;
   newLrc: () => void;
+  importSrt: () => Promise<void>;
 
   // AI Auto Sync
   aiSyncStatus: AiSyncStatus;
@@ -72,6 +74,14 @@ interface LrcStore {
 
 let nextId = 1;
 const genId = () => String(nextId++);
+
+// 저장 경로의 확장자에 따라 LRC 또는 SRT로 직렬화
+function serializeForPath(path: string, doc: LrcDocument, duration: number): string {
+  if (path.toLowerCase().endsWith(".srt")) {
+    return serializeSrt(doc, duration > 0 ? duration : undefined);
+  }
+  return serializeLrc(doc);
+}
 
 const MAX_HISTORY = 50;
 
@@ -293,26 +303,48 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   },
 
   saveLrc: async () => {
-    const { lrcPath, doc } = get();
-    if (!lrcPath) { await get().saveLrcAs(); return; }
-    await invoke("write_lrc_file", { path: lrcPath, content: serializeLrc(doc) });
+    const { lrcPath, doc, duration } = get();
+    if (!lrcPath) { await get().saveLrcAs("lrc"); return; }
+    await invoke("write_lrc_file", { path: lrcPath, content: serializeForPath(lrcPath, doc, duration) });
     set({ isDirty: false });
   },
 
-  saveLrcAs: async () => {
-    const { doc } = get();
+  saveLrcAs: async (format) => {
+    const { doc, duration } = get();
     const path = await save({
-      filters: [{ name: "LRC", extensions: ["lrc"] }],
+      filters: format === "srt"
+        ? [{ name: "SubRip", extensions: ["srt"] }]
+        : [{ name: "LRC", extensions: ["lrc"] }],
       defaultPath: doc.metadata.title || "untitled",
     });
     if (path) {
-      await invoke("write_lrc_file", { path, content: serializeLrc(doc) });
+      const content = format === "srt"
+        ? serializeSrt(doc, duration > 0 ? duration : undefined)
+        : serializeLrc(doc);
+      await invoke("write_lrc_file", { path, content });
       set({ lrcPath: path, isDirty: false });
     }
   },
 
   newLrc: () =>
     set({ doc: defaultDocument(), lrcPath: null, isDirty: false, activeLineId: null, _history: [], _future: [] }),
+
+  importSrt: async () => {
+    const selected = await open({
+      multiple: false,
+      filters: [{ name: "SubRip", extensions: ["srt"] }],
+    });
+    if (typeof selected === "string") {
+      const content: string = await invoke("read_lrc_file", { path: selected });
+      const doc = parseSrt(content);
+      let id = 1;
+      doc.lines = doc.lines.map((l) => ({ ...l, id: String(id++) }));
+      nextId = id;
+      const firstId = doc.lines[0]?.id ?? null;
+      // SRT는 LRC 경로가 아니므로 lrcPath는 비우고 dirty 상태로 둠
+      set({ doc, lrcPath: null, isDirty: true, activeLineId: firstId, _history: [], _future: [] });
+    }
+  },
 
   runAiSync: async (language, blankLineOffset) => {
     const { audioPath, doc } = get();
