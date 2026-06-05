@@ -7,6 +7,9 @@ export interface Translations {
   openLrc: string;
   save: string;
   saveAs: string;
+  saveFormatTitle: string;
+  saveFormatLrcDesc: string;
+  saveFormatSrtDesc: string;
   undo: string;
   redo: string;
   // Help modal
@@ -60,6 +63,7 @@ export interface Translations {
   applyOffset: string;
   applyOffsetTooltip: string;
   viewAll: string;
+  importSrt: string;
   rawEditorTitle: string;
   rawEditorApply: string;
   rawEditorCancel: string;
@@ -215,6 +219,9 @@ const ko: Translations = {
   openLrc: "LRC 열기",
   save: "저장",
   saveAs: "다른 이름으로 저장",
+  saveFormatTitle: "저장 형식 선택",
+  saveFormatLrcDesc: "가사 동기화 파일",
+  saveFormatSrtDesc: "영상 자막 파일",
   undo: "실행 취소",
   redo: "다시 실행",
   helpTitle: "도움말",
@@ -285,6 +292,7 @@ const ko: Translations = {
   applyOffset: "입력",
   applyOffsetTooltip: "모든 타임스탬프에 오프셋을 더한 후 오프셋을 0으로 초기화합니다",
   viewAll: "전체보기",
+  importSrt: "SRT 가져오기",
   rawEditorTitle: "LRC 전체 편집",
   rawEditorApply: "적용",
   rawEditorCancel: "취소",
@@ -434,6 +442,9 @@ const en: Translations = {
   openLrc: "Open LRC",
   save: "Save",
   saveAs: "Save As",
+  saveFormatTitle: "Choose Save Format",
+  saveFormatLrcDesc: "Synced lyrics file",
+  saveFormatSrtDesc: "Video subtitle file",
   undo: "Undo",
   redo: "Redo",
   helpTitle: "Help",
@@ -505,6 +516,7 @@ const en: Translations = {
   applyOffset: "Apply",
   applyOffsetTooltip: "Add offset to all timestamps, then reset offset to 0",
   viewAll: "View All",
+  importSrt: "Import SRT",
   rawEditorTitle: "Edit Full LRC",
   rawEditorApply: "Apply Changes",
   rawEditorCancel: "Discard",
@@ -654,6 +666,9 @@ const ja: Translations = {
   openLrc: "LRCを開く",
   save: "保存",
   saveAs: "名前を付けて保存",
+  saveFormatTitle: "保存形式を選択",
+  saveFormatLrcDesc: "歌詞同期ファイル",
+  saveFormatSrtDesc: "動画字幕ファイル",
   undo: "元に戻す",
   redo: "やり直す",
   helpTitle: "ヘルプ",
@@ -724,6 +739,7 @@ const ja: Translations = {
   applyOffset: "入力",
   applyOffsetTooltip: "全タイムスタンプにオフセットを加算し、オフセットを0にリセットします",
   viewAll: "全体表示",
+  importSrt: "SRT読み込み",
   rawEditorTitle: "LRC全体を編集",
   rawEditorApply: "適用",
   rawEditorCancel: "キャンセル",
