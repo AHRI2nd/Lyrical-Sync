@@ -4,7 +4,7 @@ import { useI18nStore } from "../../stores/useI18nStore";
 import { serializeLrc } from "../../utils/lrcParser";
 
 export function MetaEditor() {
-  const { doc, setMetadata, applyOffset, loadFromRawText } = useLrcStore();
+  const { doc, setMetadata, applyOffset, loadFromRawText, importSrt } = useLrcStore();
   const { t } = useI18nStore();
   const { metadata } = doc;
 
@@ -21,12 +21,20 @@ export function MetaEditor() {
     <div className="flex flex-col gap-3 p-4 bg-zinc-900 rounded-xl border border-zinc-700">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-zinc-300">{t.songInfo}</h2>
-        <button
-          onClick={() => setShowRawEditor(true)}
-          className="px-2.5 py-0.5 text-xs rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
-        >
-          {t.viewAll}
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={importSrt}
+            className="px-2.5 py-0.5 text-xs rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
+          >
+            {t.importSrt}
+          </button>
+          <button
+            onClick={() => setShowRawEditor(true)}
+            className="px-2.5 py-0.5 text-xs rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
+          >
+            {t.viewAll}
+          </button>
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-2">
         {fields.map(({ key, label, placeholder }) => (
