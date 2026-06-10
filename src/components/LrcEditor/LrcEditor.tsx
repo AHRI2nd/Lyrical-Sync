@@ -5,6 +5,7 @@ import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { formatDisplayTime, validateTimestamps } from "../../utils/lrcParser";
+import { audioControls } from "../../utils/audioControls";
 import { MODEL_DEFS } from "../../utils/modelDefs";
 
 // ISO 639-3 codes used by ctc-forced-aligner / MMS model
@@ -412,6 +413,8 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
               ref={setRowRef(line.id)}
               onClick={() => {
                 setActiveLineId(line.id);
+                // 줄 클릭 → 해당 타임스탬프로 오디오 시크 (파형과 연동)
+                if (line.timestamp !== null) audioControls.seekTo(line.timestamp);
                 if (showFR) {
                   const idx = matchIds.indexOf(line.id);
                   if (idx !== -1) setMatchPos(idx);

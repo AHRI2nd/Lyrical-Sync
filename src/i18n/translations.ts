@@ -22,6 +22,7 @@ export interface Translations {
   shortcutDescs: {
     s1: string; s2: string; s3: string; s4: string; s5: string; s6: string;
     space: string; backspace: string;
+    enter: string; undo: string; redo: string; find: string;
   };
   helpAiSteps: { title: string; desc: string }[];
   helpSpotifySteps: { title: string; desc: string }[];
@@ -261,6 +262,10 @@ const ko: Translations = {
     s6: "정지 및 처음으로",
     space: "현재 줄에 타임스탬프 찍기 + 다음 줄로 이동",
     backspace: "이전 줄로 이동",
+    enter: "가사 편집 중 현재 줄 아래에 새 줄 삽입",
+    undo: "실행 취소",
+    redo: "다시 실행",
+    find: "찾기 / 바꾸기 열기",
   },
   helpAiSteps: [
     { title: "Python 환경 설치", desc: "설정(⚙) → AI 환경 탭에서 내장 Python을 다운로드하고 패키지를 설치합니다." },
@@ -506,6 +511,10 @@ const en: Translations = {
     s6: "Stop & reset to start",
     space: "Stamp current line + move to next",
     backspace: "Move to previous line",
+    enter: "Insert a new line below while editing lyrics",
+    undo: "Undo",
+    redo: "Redo",
+    find: "Open Find / Replace",
   },
   helpAiSteps: [
     { title: "Install Python Environment", desc: "Go to Settings(⚙) → AI Environment tab to download the bundled Python and install packages." },
@@ -752,6 +761,10 @@ const ja: Translations = {
     s6: "停止して最初へ",
     space: "現在行にタイムスタンプ + 次の行へ移動",
     backspace: "前の行へ移動",
+    enter: "歌詞編集中に現在行の下へ新しい行を挿入",
+    undo: "元に戻す",
+    redo: "やり直し",
+    find: "検索 / 置換を開く",
   },
   helpAiSteps: [
     { title: "Python環境のインストール", desc: "設定(⚙) → AI環境タブで内蔵Pythonをダウンロードし、パッケージをインストールします。" },
