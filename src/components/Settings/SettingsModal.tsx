@@ -22,8 +22,8 @@ export function SettingsModal({
 }) {
   const { t, lang } = useI18nStore();
   const {
-    autoCheckUpdate, uiScale, blankLineOffset, spotifyClientId, spotifyMode,
-    setAutoCheckUpdate, setUiScale, setBlankLineOffset, setSpotifyClientId, setSpotifyMode,
+    autoCheckUpdate, autoSave, uiScale, blankLineOffset, spotifyClientId, spotifyMode,
+    setAutoCheckUpdate, setAutoSave, setUiScale, setBlankLineOffset, setSpotifyClientId, setSpotifyMode,
   } = useSettingsStore();
 
   const guideSuffix = lang === "ko" ? "ko" : lang === "ja" ? "ja" : "en";
@@ -133,6 +133,32 @@ export function SettingsModal({
                     <span className="text-xs text-emerald-400">{t.settingsUpToDate}</span>
                   )}
                 </div>
+              </div>
+
+              <div className="border-t border-zinc-800" />
+
+              {/* Auto save */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-zinc-200">{t.settingsAutoSave}</span>
+                  <button
+                    onClick={() => setAutoSave(!autoSave)}
+                    className={[
+                      "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
+                      autoSave ? "bg-indigo-600" : "bg-zinc-600",
+                    ].join(" ")}
+                    role="switch"
+                    aria-checked={autoSave}
+                  >
+                    <span
+                      className={[
+                        "absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                        autoSave ? "translate-x-[22px]" : "translate-x-0.5",
+                      ].join(" ")}
+                    />
+                  </button>
+                </div>
+                <p className="text-xs text-zinc-500">{t.settingsAutoSaveDesc}</p>
               </div>
 
               <div className="border-t border-zinc-800" />

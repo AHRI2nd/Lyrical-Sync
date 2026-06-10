@@ -118,6 +118,8 @@ export interface Translations {
   settingsTabModels: string;
   settingsAutoUpdate: string;
   settingsAutoUpdateDesc: string;
+  settingsAutoSave: string;
+  settingsAutoSaveDesc: string;
   settingsCheckNow: string;
   settingsChecking: string;
   settingsUpToDate: string;
@@ -376,6 +378,8 @@ const ko: Translations = {
   settingsTabModels: "AI 모델",
   settingsAutoUpdate: "자동 업데이트 확인",
   settingsAutoUpdateDesc: "앱 시작 시 최신 버전을 자동으로 확인합니다.",
+  settingsAutoSave: "자동 저장",
+  settingsAutoSaveDesc: "저장 위치가 지정된 파일은 변경 후 잠시 멈추면 자동으로 저장합니다.",
   settingsCheckNow: "지금 확인",
   settingsChecking: "확인 중...",
   settingsUpToDate: "최신 버전입니다.",
@@ -632,6 +636,8 @@ const en: Translations = {
   settingsTabModels: "AI Models",
   settingsAutoUpdate: "Auto-check for updates",
   settingsAutoUpdateDesc: "Automatically check for new versions on startup.",
+  settingsAutoSave: "Auto-save",
+  settingsAutoSaveDesc: "Files with a save location are saved automatically a moment after you stop editing.",
   settingsCheckNow: "Check Now",
   settingsChecking: "Checking...",
   settingsUpToDate: "You're up to date.",
@@ -887,6 +893,8 @@ const ja: Translations = {
   settingsTabModels: "AIモデル",
   settingsAutoUpdate: "自動更新確認",
   settingsAutoUpdateDesc: "アプリ起動時に最新バージョンを自動で確認します。",
+  settingsAutoSave: "自動保存",
+  settingsAutoSaveDesc: "保存先が指定されたファイルは、編集を止めると少し後に自動保存されます。",
   settingsCheckNow: "今すぐ確認",
   settingsChecking: "確認中...",
   settingsUpToDate: "最新バージョンです。",
