@@ -140,6 +140,14 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     const regions = ws.registerPlugin(RegionsPlugin.create());
     regionsRef.current = regions;
 
+    // 파형의 가사 마커 클릭 → 해당 줄 선택 (에디터가 activeLineId 변경에 따라 자동 스크롤)
+    regions.on("region-clicked", (region, e) => {
+      if (typeof region.id === "string" && region.id.startsWith("lyric:")) {
+        e.stopPropagation(); // 파형 탐색(시크) 방지
+        useLrcStore.getState().setActiveLineId(region.id.slice("lyric:".length));
+      }
+    });
+
     ws.on("ready", () => {
       const d = ws.getDuration();
       setDurationLocal(d);
@@ -265,10 +273,14 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     const regions = regionsRef.current;
     if (!regions || !isAudioReady) return;
     regions.clearRegions();
-    // 마커/영역은 순수 시각 표시 — 파형 클릭(탐색)을 가로막지 않도록 pointer-events 해제
-    const addVisual = (opts: Parameters<typeof regions.addRegion>[0]) => {
+    // 마커/영역은 기본적으로 순수 시각 표시 — 파형 클릭(탐색)을 가로막지 않도록 pointer-events 해제.
+    // 가사 마커만 clickable로 두어 클릭 시 해당 줄을 선택할 수 있게 함.
+    const addVisual = (opts: Parameters<typeof regions.addRegion>[0], clickable = false) => {
       const r = regions.addRegion(opts);
-      if (r.element) r.element.style.pointerEvents = "none";
+      if (r.element) {
+        r.element.style.pointerEvents = clickable ? "auto" : "none";
+        if (clickable) r.element.style.cursor = "pointer";
+      }
     };
     // A-B 구간 음영
     if (loopA !== null && loopB !== null && loopB > loopA) {
@@ -280,11 +292,12 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         if (l.timestamp === null) continue;
         const isActive = l.id === activeLineId;
         addVisual({
+          id: `lyric:${l.id}`,
           start: l.timestamp,
           color: isActive ? "#f59e0b" : "rgba(251, 191, 36, 0.4)",
           drag: false,
           resize: false,
-        });
+        }, true);
       }
     }
     // A/B 경계 마커
