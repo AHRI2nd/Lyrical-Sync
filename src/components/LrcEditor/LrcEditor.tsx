@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useRef, useEffect, useCallback, useState, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
@@ -17,6 +17,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     stampCurrentLine, setActiveLineId,
     aiSyncStatus, aiSyncMessage, aiSyncProgressStatus, aiDraftConfidence,
     runAiSync, cancelAiSync, clearAiDraft,
+    replaceInLines,
     audioPath,
   } = useLrcStore();
   const { t, lang } = useI18nStore();
@@ -30,6 +31,14 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
 
   const [pythonReady, setPythonReady] = useState(false);
   const [missingModels, setMissingModels] = useState<string[]>([]);
+
+  // Find/Replace state
+  const [showFR, setShowFR] = useState(false);
+  const [findText, setFindText] = useState("");
+  const [replaceText, setReplaceText] = useState("");
+  const [caseSensitive, setCaseSensitive] = useState(false);
+  const [matchPos, setMatchPos] = useState(0);
+  const findInputRef = useRef<HTMLInputElement>(null);
 
   const checkAiRequirements = useCallback(async () => {
     try {
@@ -120,6 +129,85 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     pendingFocusId.current = newId;
   };
 
+  // 매칭 줄 id 목록
+  const matchIds = useMemo(() => {
+    if (!findText) return [];
+    const needle = caseSensitive ? findText : findText.toLowerCase();
+    return lines
+      .filter((l) => (caseSensitive ? l.text : l.text.toLowerCase()).includes(needle))
+      .map((l) => l.id);
+  }, [lines, findText, caseSensitive]);
+
+  // matchPos 범위 보정
+  useEffect(() => {
+    if (matchIds.length === 0) return;
+    setMatchPos((p) => Math.min(p, matchIds.length - 1));
+  }, [matchIds.length]);
+
+  // 현재 매치로 스크롤 + 선택
+  useEffect(() => {
+    if (!showFR || !findText || matchIds.length === 0) return;
+    const id = matchIds[matchPos];
+    rowRefs.current.get(id)?.scrollIntoView({ block: "nearest" });
+    const input = inputRefs.current.get(id);
+    if (!input) return;
+    const line = lines.find((l) => l.id === id);
+    if (!line) return;
+    const needle = caseSensitive ? findText : findText.toLowerCase();
+    const haystack = caseSensitive ? line.text : line.text.toLowerCase();
+    const pos = haystack.indexOf(needle);
+    if (pos === -1) return;
+    setTimeout(() => {
+      input.focus();
+      input.setSelectionRange(pos, pos + findText.length);
+    }, 0);
+  }, [matchPos, matchIds, findText, caseSensitive, showFR, lines]);
+
+  // Ctrl/Cmd+F 열기
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.code === "KeyF") {
+        e.preventDefault();
+        setShowFR(true);
+        setTimeout(() => findInputRef.current?.focus(), 0);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  const handleFRClose = useCallback(() => {
+    setShowFR(false);
+    setMatchPos(0);
+  }, []);
+
+  const handleFRPrev = useCallback(() => {
+    setMatchPos((p) => (p > 0 ? p - 1 : matchIds.length - 1));
+  }, [matchIds.length]);
+
+  const handleFRNext = useCallback(() => {
+    setMatchPos((p) => (p < matchIds.length - 1 ? p + 1 : 0));
+  }, [matchIds.length]);
+
+  const handleReplace = useCallback(() => {
+    if (!matchIds.length || !findText) return;
+    const id = matchIds[matchPos];
+    const line = lines.find((l) => l.id === id);
+    if (!line) return;
+    const escaped = findText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(escaped, caseSensitive ? "" : "i");
+    const newText = line.text.replace(re, replaceText);
+    if (newText !== line.text) updateLine(id, { text: newText });
+    // 다음 매치로 이동 (matchIds는 갱신되므로 다음 렌더 후 자동 이동)
+    setMatchPos((p) => (p < matchIds.length - 1 ? p + 1 : 0));
+  }, [matchIds, matchPos, findText, replaceText, caseSensitive, lines, updateLine]);
+
+  const handleReplaceAll = useCallback(() => {
+    if (!findText) return;
+    replaceInLines(findText, replaceText, caseSensitive);
+    setMatchPos(0);
+  }, [findText, replaceText, caseSensitive, replaceInLines]);
+
   const handleAiSync = () => {
     const language = LANG_CODE[lang] ?? "eng";
     runAiSync(language, blankLineOffset);
@@ -204,6 +292,12 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           )}
 
           <button
+            onClick={() => { setShowFR((v) => !v); setTimeout(() => findInputRef.current?.focus(), 0); }}
+            className={`px-3 py-1 text-xs rounded-lg transition-colors ${showFR ? "bg-amber-600 hover:bg-amber-500 text-white" : "bg-zinc-700 hover:bg-zinc-600 text-zinc-200"}`}
+          >
+            {t.findReplace}
+          </button>
+          <button
             onClick={onPreview}
             className="px-3 py-1 text-xs rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-200 transition-colors"
           >
@@ -238,6 +332,25 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
         </div>
       )}
 
+      {showFR && (
+        <FindReplaceBar
+          findText={findText}
+          replaceText={replaceText}
+          caseSensitive={caseSensitive}
+          matchCount={matchIds.length}
+          matchPos={matchPos}
+          onFindChange={(v) => { setFindText(v); setMatchPos(0); }}
+          onReplaceChange={setReplaceText}
+          onCaseSensitiveToggle={() => setCaseSensitive((v) => !v)}
+          onPrev={handleFRPrev}
+          onNext={handleFRNext}
+          onReplace={handleReplace}
+          onReplaceAll={handleReplaceAll}
+          onClose={handleFRClose}
+          findInputRef={findInputRef}
+        />
+      )}
+
       <div className="flex-1 overflow-y-auto flex flex-col gap-1 px-1 py-1">
         {lines.length === 0 && (
           <p className="text-zinc-500 text-sm text-center py-8">{t.noLines}</p>
@@ -261,14 +374,21 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
             ? `${t.stampTooltip} · ${t.aiSyncConfidenceLabel} ${(confidence * 100).toFixed(0)}%`
             : t.stampTooltip;
 
+          const isMatch = showFR && matchIds.includes(line.id);
+          const isCurrentMatch = showFR && matchIds[matchPos] === line.id;
+
           return (
             <div
               key={line.id}
               ref={setRowRef(line.id)}
               onClick={() => setActiveLineId(line.id)}
               className={`flex items-center gap-2 rounded-lg px-2 py-1 transition-colors cursor-pointer ${
-                isActive
+                isCurrentMatch
+                  ? "bg-amber-900/30 ring-1 ring-amber-500"
+                  : isActive
                   ? "bg-indigo-900/40 ring-1 ring-indigo-500"
+                  : isMatch
+                  ? "bg-amber-900/10 ring-1 ring-amber-800"
                   : "hover:bg-zinc-800"
               }`}
             >
@@ -316,6 +436,109 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
 
       <div className="text-xs text-zinc-500 text-right font-mono">
         {t.currentTimeLabel}{formatDisplayTime(currentTime)}
+      </div>
+    </div>
+  );
+}
+
+function FindReplaceBar({
+  findText, replaceText, caseSensitive,
+  matchCount, matchPos,
+  onFindChange, onReplaceChange, onCaseSensitiveToggle,
+  onPrev, onNext, onReplace, onReplaceAll, onClose,
+  findInputRef,
+}: {
+  findText: string; replaceText: string; caseSensitive: boolean;
+  matchCount: number; matchPos: number;
+  onFindChange: (v: string) => void; onReplaceChange: (v: string) => void;
+  onCaseSensitiveToggle: () => void;
+  onPrev: () => void; onNext: () => void;
+  onReplace: () => void; onReplaceAll: () => void; onClose: () => void;
+  findInputRef: React.RefObject<HTMLInputElement | null>;
+}) {
+  const { t } = useI18nStore();
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  const countLabel = findText
+    ? matchCount === 0
+      ? t.noMatches
+      : `${matchPos + 1} / ${matchCount}`
+    : "";
+
+  return (
+    <div className="flex flex-col gap-1.5 px-2 py-2 bg-zinc-800 border border-zinc-700 rounded-lg">
+      {/* 찾기 행 */}
+      <div className="flex items-center gap-1.5">
+        <input
+          ref={findInputRef}
+          type="text"
+          value={findText}
+          onChange={(e) => onFindChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); e.shiftKey ? onPrev() : onNext(); }
+          }}
+          placeholder={t.findPlaceholder}
+          className="flex-1 min-w-0 px-2.5 py-1 text-sm bg-zinc-900 border border-zinc-600 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500 transition-colors"
+        />
+        {/* 대소문자 구분 */}
+        <button
+          onClick={onCaseSensitiveToggle}
+          title={t.caseSensitive}
+          className={`px-2 py-1 text-xs rounded-lg font-mono transition-colors ${
+            caseSensitive
+              ? "bg-amber-600 text-white"
+              : "bg-zinc-700 hover:bg-zinc-600 text-zinc-300"
+          }`}
+        >
+          Aa
+        </button>
+        {/* 결과 카운트 */}
+        <span className={`text-xs font-mono w-14 text-right shrink-0 ${matchCount === 0 && findText ? "text-red-400" : "text-zinc-400"}`}>
+          {countLabel}
+        </span>
+        {/* 이전/다음 */}
+        <button onClick={onPrev} disabled={matchCount === 0} className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 transition-colors" title="이전 (Shift+Enter)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+        </button>
+        <button onClick={onNext} disabled={matchCount === 0} className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 transition-colors" title="다음 (Enter)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        {/* 닫기 */}
+        <button onClick={onClose} className="w-6 h-6 flex items-center justify-center rounded text-zinc-500 hover:text-white hover:bg-zinc-700 transition-colors">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      {/* 바꾸기 행 */}
+      <div className="flex items-center gap-1.5">
+        <input
+          type="text"
+          value={replaceText}
+          onChange={(e) => onReplaceChange(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onReplace(); } }}
+          placeholder={t.replacePlaceholder}
+          className="flex-1 min-w-0 px-2.5 py-1 text-sm bg-zinc-900 border border-zinc-600 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500 transition-colors"
+        />
+        <button
+          onClick={onReplace}
+          disabled={matchCount === 0}
+          className="shrink-0 px-3 py-1 text-xs rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-200 disabled:opacity-40 transition-colors"
+        >
+          {t.replaceBtn}
+        </button>
+        <button
+          onClick={onReplaceAll}
+          disabled={matchCount === 0}
+          className="shrink-0 px-3 py-1 text-xs rounded-lg bg-amber-700 hover:bg-amber-600 text-white disabled:opacity-40 transition-colors"
+        >
+          {t.replaceAll}
+        </button>
       </div>
     </div>
   );

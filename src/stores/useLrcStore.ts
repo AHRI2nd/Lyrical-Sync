@@ -59,6 +59,7 @@ interface LrcStore {
   saveLrcAs: (format: "lrc" | "srt") => Promise<void>;
   newLrc: () => void;
   importSrt: () => Promise<void>;
+  replaceInLines: (find: string, replace: string, caseSensitive: boolean) => number;
 
   // AI Auto Sync
   aiSyncStatus: AiSyncStatus;
@@ -328,6 +329,23 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
 
   newLrc: () =>
     set({ doc: defaultDocument(), lrcPath: null, isDirty: false, activeLineId: null, _history: [], _future: [] }),
+
+  replaceInLines: (find, replace, caseSensitive) => {
+    if (!find) return 0;
+    const { doc, _history } = get();
+    const escaped = find.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(escaped, caseSensitive ? "g" : "gi");
+    let count = 0;
+    const newLines = doc.lines.map((l) => {
+      const matches = l.text.match(re);
+      if (!matches) return l;
+      count += matches.length;
+      return { ...l, text: l.text.replace(re, replace) };
+    });
+    if (count === 0) return 0;
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines: newLines }, isDirty: true });
+    return count;
+  },
 
   importSrt: async () => {
     const selected = await open({

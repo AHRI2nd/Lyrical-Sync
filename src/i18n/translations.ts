@@ -48,6 +48,13 @@ export interface Translations {
   // LrcEditor
   lyricsEditor: string;
   addLine: string;
+  findReplace: string;
+  findPlaceholder: string;
+  replacePlaceholder: string;
+  replaceBtn: string;
+  replaceAll: string;
+  caseSensitive: string;
+  noMatches: string;
   noLines: string;
   stampTooltip: string;
   linePlaceholder: string;
@@ -278,6 +285,13 @@ const ko: Translations = {
   tooltipViewSeekBar: "재생바",
   lyricsEditor: "가사 편집",
   addLine: "+ 줄 추가",
+  findReplace: "찾기/바꾸기",
+  findPlaceholder: "찾기...",
+  replacePlaceholder: "바꾸기...",
+  replaceBtn: "바꾸기",
+  replaceAll: "모두 바꾸기",
+  caseSensitive: "Aa",
+  noMatches: "결과 없음",
   noLines: "「+ 줄 추가」 버튼으로 가사를 입력하세요",
   stampTooltip: "클릭하여 현재 시간을 타임스탬프로 설정",
   linePlaceholder: "가사를 입력하세요...",
@@ -502,6 +516,13 @@ const en: Translations = {
 
   lyricsEditor: "Lyrics Editor",
   addLine: "+ Add Line",
+  findReplace: "Find/Replace",
+  findPlaceholder: "Find...",
+  replacePlaceholder: "Replace...",
+  replaceBtn: "Replace",
+  replaceAll: "Replace All",
+  caseSensitive: "Aa",
+  noMatches: "No matches",
   noLines: "Press \"+ Add Line\" to start entering lyrics",
   stampTooltip: "Click to set current time as timestamp",
   linePlaceholder: "Enter lyrics...",
@@ -725,6 +746,13 @@ const ja: Translations = {
   tooltipViewSeekBar: "シーク",
   lyricsEditor: "歌詞編集",
   addLine: "+ 行を追加",
+  findReplace: "検索/置換",
+  findPlaceholder: "検索...",
+  replacePlaceholder: "置換...",
+  replaceBtn: "置換",
+  replaceAll: "すべて置換",
+  caseSensitive: "Aa",
+  noMatches: "一致なし",
   noLines: "「+ 行を追加」ボタンで歌詞を入力してください",
   stampTooltip: "クリックして現在時刻をタイムスタンプに設定",
   linePlaceholder: "歌詞を入力してください...",
