@@ -60,6 +60,7 @@ interface LrcStore {
   newLrc: () => void;
   importSrt: () => Promise<void>;
   replaceInLines: (find: string, replace: string, caseSensitive: boolean) => number;
+  shiftTimeRange: (fromIdx: number, toIdx: number, deltaSeconds: number) => void;
 
   // AI Auto Sync
   aiSyncStatus: AiSyncStatus;
@@ -329,6 +330,16 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
 
   newLrc: () =>
     set({ doc: defaultDocument(), lrcPath: null, isDirty: false, activeLineId: null, _history: [], _future: [] }),
+
+  shiftTimeRange: (fromIdx, toIdx, deltaSeconds) => {
+    if (deltaSeconds === 0) return;
+    const { doc, _history } = get();
+    const newLines = doc.lines.map((l, i) => {
+      if (i < fromIdx || i > toIdx || l.timestamp === null) return l;
+      return { ...l, timestamp: Math.max(0, l.timestamp + deltaSeconds) };
+    });
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines: newLines }, isDirty: true });
+  },
 
   replaceInLines: (find, replace, caseSensitive) => {
     if (!find) return 0;

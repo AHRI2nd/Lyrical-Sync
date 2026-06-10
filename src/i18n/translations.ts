@@ -55,6 +55,13 @@ export interface Translations {
   replaceAll: string;
   caseSensitive: string;
   noMatches: string;
+  timeShift: string;
+  timeShiftTooltip: string;
+  timeShiftFrom: string;
+  timeShiftTo: string;
+  timeShiftDelta: string;
+  timeShiftApply: string;
+  timeShiftSec: string;
   noLines: string;
   stampTooltip: string;
   linePlaceholder: string;
@@ -290,8 +297,15 @@ const ko: Translations = {
   replacePlaceholder: "바꾸기...",
   replaceBtn: "바꾸기",
   replaceAll: "모두 바꾸기",
-  caseSensitive: "Aa",
+  caseSensitive: "대소문자 구분",
   noMatches: "결과 없음",
+  timeShift: "구간 오프셋",
+  timeShiftTooltip: "선택한 줄 범위의 타임스탬프를 일괄로 앞뒤로 이동합니다",
+  timeShiftFrom: "시작",
+  timeShiftTo: "끝",
+  timeShiftDelta: "이동량",
+  timeShiftApply: "적용",
+  timeShiftSec: "초",
   noLines: "「+ 줄 추가」 버튼으로 가사를 입력하세요",
   stampTooltip: "클릭하여 현재 시간을 타임스탬프로 설정",
   linePlaceholder: "가사를 입력하세요...",
@@ -521,8 +535,15 @@ const en: Translations = {
   replacePlaceholder: "Replace...",
   replaceBtn: "Replace",
   replaceAll: "Replace All",
-  caseSensitive: "Aa",
+  caseSensitive: "Case Sensitive",
   noMatches: "No matches",
+  timeShift: "Range Offset",
+  timeShiftTooltip: "Shift timestamps of a selected line range forward or backward",
+  timeShiftFrom: "From",
+  timeShiftTo: "To",
+  timeShiftDelta: "Shift",
+  timeShiftApply: "Apply",
+  timeShiftSec: "s",
   noLines: "Press \"+ Add Line\" to start entering lyrics",
   stampTooltip: "Click to set current time as timestamp",
   linePlaceholder: "Enter lyrics...",
@@ -751,8 +772,15 @@ const ja: Translations = {
   replacePlaceholder: "置換...",
   replaceBtn: "置換",
   replaceAll: "すべて置換",
-  caseSensitive: "Aa",
+  caseSensitive: "大文字・小文字を区別",
   noMatches: "一致なし",
+  timeShift: "区間オフセット",
+  timeShiftTooltip: "選択した行範囲のタイムスタンプを前後に一括移動します",
+  timeShiftFrom: "開始",
+  timeShiftTo: "終了",
+  timeShiftDelta: "移動量",
+  timeShiftApply: "適用",
+  timeShiftSec: "秒",
   noLines: "「+ 行を追加」ボタンで歌詞を入力してください",
   stampTooltip: "クリックして現在時刻をタイムスタンプに設定",
   linePlaceholder: "歌詞を入力してください...",
