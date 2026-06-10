@@ -23,6 +23,7 @@ export interface Translations {
     s1: string; s2: string; s3: string; s4: string; s5: string; s6: string;
     space: string; backspace: string;
     enter: string; undo: string; redo: string; find: string;
+    tsEditKey: string; tsEditDesc: string; tsStampKey: string; tsStampDesc: string;
   };
   menu: {
     file: string; edit: string; playback: string; mode: string; view: string; help: string;
@@ -49,10 +50,6 @@ export interface Translations {
   tooltipStop: string;
   tooltipLoop: string;
   tooltipMarkers: string;
-  tooltipSetA: string;
-  tooltipSetB: string;
-  tooltipClearAB: string;
-  abLoopLabel: string;
   tooltipSpeedDown: string;
   tooltipSpeedUp: string;
   tooltipViewWaveform: string;
@@ -274,6 +271,10 @@ const ko: Translations = {
     undo: "실행 취소",
     redo: "다시 실행",
     find: "찾기 / 바꾸기 열기",
+    tsEditKey: "좌클릭",
+    tsEditDesc: "타임스탬프 직접 편집 (숫자키로 MM:SS.xx 입력, Enter 확정 · Esc 취소)",
+    tsStampKey: "우클릭",
+    tsStampDesc: "타임스탬프를 현재 재생 시간으로 설정",
   },
   menu: {
     file: "파일", edit: "편집", playback: "재생", mode: "모드", view: "보기", help: "도움말",
@@ -314,10 +315,6 @@ const ko: Translations = {
   tooltipStop: "[6] 처음으로",
   tooltipLoop: "반복재생",
   tooltipMarkers: "가사 마커 표시",
-  tooltipSetA: "현재 위치를 A(시작)로 설정",
-  tooltipSetB: "현재 위치를 B(끝)로 설정",
-  tooltipClearAB: "구간 반복 해제",
-  abLoopLabel: "구간 반복",
   tooltipSpeedDown: "배속 감소",
   tooltipSpeedUp: "배속 증가",
   tooltipViewWaveform: "파형",
@@ -531,6 +528,10 @@ const en: Translations = {
     undo: "Undo",
     redo: "Redo",
     find: "Open Find / Replace",
+    tsEditKey: "L-Click",
+    tsEditDesc: "Edit the timestamp directly (type MM:SS.xx, Enter to confirm · Esc to cancel)",
+    tsStampKey: "R-Click",
+    tsStampDesc: "Set the timestamp to the current playback time",
   },
   menu: {
     file: "File", edit: "Edit", playback: "Playback", mode: "Mode", view: "View", help: "Help",
@@ -571,10 +572,6 @@ const en: Translations = {
   tooltipStop: "[6] Reset",
   tooltipLoop: "Loop",
   tooltipMarkers: "Show lyric markers",
-  tooltipSetA: "Set A (start) to current position",
-  tooltipSetB: "Set B (end) to current position",
-  tooltipClearAB: "Clear A-B loop",
-  abLoopLabel: "A-B Loop",
   tooltipSpeedDown: "Slower",
   tooltipSpeedUp: "Faster",
   tooltipViewWaveform: "Waveform",
@@ -789,6 +786,10 @@ const ja: Translations = {
     undo: "元に戻す",
     redo: "やり直し",
     find: "検索 / 置換を開く",
+    tsEditKey: "左クリック",
+    tsEditDesc: "タイムスタンプを直接編集（MM:SS.xx を入力、Enter で確定・Esc で取消）",
+    tsStampKey: "右クリック",
+    tsStampDesc: "タイムスタンプを現在の再生位置に設定",
   },
   menu: {
     file: "ファイル", edit: "編集", playback: "再生", mode: "モード", view: "表示", help: "ヘルプ",
@@ -829,10 +830,6 @@ const ja: Translations = {
   tooltipStop: "[6] 最初へ",
   tooltipLoop: "リピート",
   tooltipMarkers: "歌詞マーカー表示",
-  tooltipSetA: "現在位置をA（開始）に設定",
-  tooltipSetB: "現在位置をB（終了）に設定",
-  tooltipClearAB: "区間リピート解除",
-  abLoopLabel: "区間リピート",
   tooltipSpeedDown: "遅くする",
   tooltipSpeedUp: "速くする",
   tooltipViewWaveform: "波形",

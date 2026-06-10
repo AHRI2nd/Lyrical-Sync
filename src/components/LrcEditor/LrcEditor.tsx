@@ -4,7 +4,7 @@ import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
-import { formatDisplayTime, validateTimestamps } from "../../utils/lrcParser";
+import { formatDisplayTime, formatTimestamp, parseTimestampInput, validateTimestamps } from "../../utils/lrcParser";
 import { audioControls } from "../../utils/audioControls";
 import { MODEL_DEFS } from "../../utils/modelDefs";
 
@@ -43,6 +43,21 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [matchPos, setMatchPos] = useState(0);
   const findInputRef = useRef<HTMLInputElement>(null);
+
+  // 타임스탬프 인라인 편집 상태 (좌클릭 시 직접 시간 입력)
+  const [editingTsId, setEditingTsId] = useState<string | null>(null);
+  const [editTsValue, setEditTsValue] = useState("");
+
+  const startTsEdit = (id: string, timestamp: number | null) => {
+    setActiveLineId(id);
+    setEditTsValue(timestamp !== null ? formatTimestamp(timestamp) : "");
+    setEditingTsId(id);
+  };
+  const commitTsEdit = (id: string) => {
+    const parsed = parseTimestampInput(editTsValue.trim());
+    if (parsed !== null) updateLine(id, { timestamp: parsed });
+    setEditingTsId(null);
+  };
 
   const checkAiRequirements = useCallback(async () => {
     try {
@@ -399,10 +414,6 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
             ? "bg-zinc-700 text-indigo-300 hover:bg-zinc-600"
             : "bg-zinc-800 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300";
 
-          const tsTitle = confidence !== undefined
-            ? `${t.stampTooltip} · ${t.aiSyncConfidenceLabel} ${(confidence * 100).toFixed(0)}%`
-            : t.stampTooltip;
-
           const isMatch = showFR && matchIds.includes(line.id);
           const isCurrentMatch = showFR && matchIds[matchPos] === line.id;
           const warning = warnings.get(line.id);
@@ -434,18 +445,34 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                 {idx + 1}
               </span>
 
-              <div className="relative group/ts shrink-0">
-                <button
-                  onClick={(e) => { e.stopPropagation(); stampCurrentLine(line.id); }}
-                  className={`font-mono text-xs px-2 py-0.5 rounded transition-colors ${tsClass}`}
-                >
-                  {line.timestamp !== null ? formatDisplayTime(line.timestamp) : "-:--:--.---"}
-                </button>
-                <div className={`pointer-events-none absolute left-0 hidden group-hover/ts:block z-30 ${idx < 2 ? "top-full mt-1.5" : "bottom-full mb-1.5"}`}>
-                  <div className="bg-zinc-800 border border-zinc-600 text-zinc-200 text-xs rounded-lg px-2.5 py-1.5 shadow-xl whitespace-nowrap">
-                    {tsTitle}
-                  </div>
-                </div>
+              <div className="shrink-0">
+                {editingTsId === line.id ? (
+                  // 좌클릭 시 인라인 편집: 숫자키로 MM:SS.xx 직접 입력
+                  <input
+                    autoFocus
+                    type="text"
+                    value={editTsValue}
+                    onClick={(e) => e.stopPropagation()}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setEditTsValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); commitTsEdit(line.id); }
+                      else if (e.key === "Escape") { e.preventDefault(); setEditingTsId(null); }
+                    }}
+                    onBlur={() => commitTsEdit(line.id)}
+                    placeholder="MM:SS.xx"
+                    className="font-mono text-xs px-2 py-0.5 rounded w-24 bg-zinc-700 text-indigo-200 border border-indigo-500 focus:outline-none placeholder-zinc-500"
+                  />
+                ) : (
+                  // 좌클릭 → 시간 직접 편집 / 우클릭 → 현재 재생 시간으로 설정
+                  <button
+                    onClick={(e) => { e.stopPropagation(); startTsEdit(line.id, line.timestamp); }}
+                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); stampCurrentLine(line.id); }}
+                    className={`font-mono text-xs px-2 py-0.5 rounded transition-colors ${tsClass}`}
+                  >
+                    {line.timestamp !== null ? formatDisplayTime(line.timestamp) : "-:--:--.---"}
+                  </button>
+                )}
               </div>
 
               {warning && (
