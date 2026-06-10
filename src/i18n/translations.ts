@@ -41,6 +41,11 @@ export interface Translations {
   tooltipSkipFwd5: string;
   tooltipStop: string;
   tooltipLoop: string;
+  tooltipMarkers: string;
+  tooltipSetA: string;
+  tooltipSetB: string;
+  tooltipClearAB: string;
+  abLoopLabel: string;
   tooltipSpeedDown: string;
   tooltipSpeedUp: string;
   tooltipViewWaveform: string;
@@ -62,6 +67,9 @@ export interface Translations {
   timeShiftDelta: string;
   timeShiftApply: string;
   timeShiftSec: string;
+  warnOutOfOrder: string;
+  warnDuplicate: string;
+  validationSummary: string;
   noLines: string;
   stampTooltip: string;
   linePlaceholder: string;
@@ -286,6 +294,11 @@ const ko: Translations = {
   tooltipSkipFwd5: "[5] +5초",
   tooltipStop: "[6] 처음으로",
   tooltipLoop: "반복재생",
+  tooltipMarkers: "가사 마커 표시",
+  tooltipSetA: "현재 위치를 A(시작)로 설정",
+  tooltipSetB: "현재 위치를 B(끝)로 설정",
+  tooltipClearAB: "구간 반복 해제",
+  abLoopLabel: "구간 반복",
   tooltipSpeedDown: "배속 감소",
   tooltipSpeedUp: "배속 증가",
   tooltipViewWaveform: "파형",
@@ -306,6 +319,9 @@ const ko: Translations = {
   timeShiftDelta: "이동량",
   timeShiftApply: "적용",
   timeShiftSec: "초",
+  warnOutOfOrder: "이전 줄보다 타임스탬프가 빠릅니다 (순서 역전)",
+  warnDuplicate: "다른 줄과 타임스탬프가 중복됩니다",
+  validationSummary: "타임스탬프 문제",
   noLines: "「+ 줄 추가」 버튼으로 가사를 입력하세요",
   stampTooltip: "클릭하여 현재 시간을 타임스탬프로 설정",
   linePlaceholder: "가사를 입력하세요...",
@@ -523,6 +539,11 @@ const en: Translations = {
   tooltipSkipFwd5: "[5] +5s",
   tooltipStop: "[6] Reset",
   tooltipLoop: "Loop",
+  tooltipMarkers: "Show lyric markers",
+  tooltipSetA: "Set A (start) to current position",
+  tooltipSetB: "Set B (end) to current position",
+  tooltipClearAB: "Clear A-B loop",
+  abLoopLabel: "A-B Loop",
   tooltipSpeedDown: "Slower",
   tooltipSpeedUp: "Faster",
   tooltipViewWaveform: "Waveform",
@@ -544,6 +565,9 @@ const en: Translations = {
   timeShiftDelta: "Shift",
   timeShiftApply: "Apply",
   timeShiftSec: "s",
+  warnOutOfOrder: "Timestamp is earlier than the previous line (out of order)",
+  warnDuplicate: "Timestamp duplicates another line",
+  validationSummary: "timestamp issue(s)",
   noLines: "Press \"+ Add Line\" to start entering lyrics",
   stampTooltip: "Click to set current time as timestamp",
   linePlaceholder: "Enter lyrics...",
@@ -761,6 +785,11 @@ const ja: Translations = {
   tooltipSkipFwd5: "[5] +5秒",
   tooltipStop: "[6] 最初へ",
   tooltipLoop: "リピート",
+  tooltipMarkers: "歌詞マーカー表示",
+  tooltipSetA: "現在位置をA（開始）に設定",
+  tooltipSetB: "現在位置をB（終了）に設定",
+  tooltipClearAB: "区間リピート解除",
+  abLoopLabel: "区間リピート",
   tooltipSpeedDown: "遅くする",
   tooltipSpeedUp: "速くする",
   tooltipViewWaveform: "波形",
@@ -781,6 +810,9 @@ const ja: Translations = {
   timeShiftDelta: "移動量",
   timeShiftApply: "適用",
   timeShiftSec: "秒",
+  warnOutOfOrder: "前の行よりタイムスタンプが早いです（順序逆転）",
+  warnDuplicate: "他の行とタイムスタンプが重複しています",
+  validationSummary: "タイムスタンプの問題",
   noLines: "「+ 行を追加」ボタンで歌詞を入力してください",
   stampTooltip: "クリックして現在時刻をタイムスタンプに設定",
   linePlaceholder: "歌詞を入力してください...",

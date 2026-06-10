@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import WaveSurfer from "wavesurfer.js";
+import RegionsPlugin from "wavesurfer.js/dist/plugins/regions.esm.js";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -39,8 +40,11 @@ interface AudioPlayerProps {
 export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlayerProps = {}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
+  const regionsRef = useRef<ReturnType<typeof RegionsPlugin.create> | null>(null);
   const isLoopingRef = useRef(false);
   const playbackRateRef = useRef(1.0);
+  const loopARef = useRef<number | null>(null);
+  const loopBRef = useRef<number | null>(null);
   const zoomDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seekBarRef = useRef<HTMLDivElement>(null);
   const isSeeking = useRef(false);
@@ -58,6 +62,11 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   const [showNoTrackAlert, setShowNoTrackAlert] = useState(false);
 
   const { audioPath, setCurrentTime, setIsPlaying, setDuration, openAudio, setAudioPath } = useLrcStore();
+  const lines = useLrcStore((s) => s.doc.lines);
+  const activeLineId = useLrcStore((s) => s.activeLineId);
+  const [showMarkers, setShowMarkers] = useState(true);
+  const [loopA, setLoopA] = useState<number | null>(null);
+  const [loopB, setLoopB] = useState<number | null>(null);
   const { t } = useI18nStore();
   const { isLoggedIn, startLogin, fetchCurrentlyPlaying, transferPlaybackToApp } = useServiceStore();
   const { spotifyMode, spotifyClientId, youtubeMode, ytdlpAudioQuality, ytdlpCookiesFile, ytdlpProxy } = useSettingsStore();
@@ -127,6 +136,10 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     // Windows의 가로 스크롤바가 파형 하단을 가리는 문제 방지
     ws.getWrapper().classList.add("ws-scroll");
 
+    // 가사 타임스탬프 마커 플러그인
+    const regions = ws.registerPlugin(RegionsPlugin.create());
+    regionsRef.current = regions;
+
     ws.on("ready", () => {
       const d = ws.getDuration();
       setDurationLocal(d);
@@ -140,6 +153,13 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     ws.on("audioprocess", (t) => {
       setCurrentTimeLocal(t);
       setCurrentTime(t);
+      // A-B 구간 반복: B 지점 도달 시 A로 되감기
+      const a = loopARef.current;
+      const b = loopBRef.current;
+      if (a !== null && b !== null && b > a && t >= b) {
+        const d = ws.getDuration();
+        if (d) ws.seekTo(a / d);
+      }
     });
     ws.on("seeking", (t) => {
       setCurrentTimeLocal(t);
@@ -236,6 +256,41 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   useEffect(() => {
     wsRef.current?.setVolume(volume);
   }, [volume]);
+
+  useEffect(() => { loopARef.current = loopA; }, [loopA]);
+  useEffect(() => { loopBRef.current = loopB; }, [loopB]);
+
+  // 가사 타임스탬프 마커 + A-B 구간을 파형에 동기화
+  useEffect(() => {
+    const regions = regionsRef.current;
+    if (!regions || !isAudioReady) return;
+    regions.clearRegions();
+    // 마커/영역은 순수 시각 표시 — 파형 클릭(탐색)을 가로막지 않도록 pointer-events 해제
+    const addVisual = (opts: Parameters<typeof regions.addRegion>[0]) => {
+      const r = regions.addRegion(opts);
+      if (r.element) r.element.style.pointerEvents = "none";
+    };
+    // A-B 구간 음영
+    if (loopA !== null && loopB !== null && loopB > loopA) {
+      addVisual({ start: loopA, end: loopB, color: "rgba(34, 197, 94, 0.15)", drag: false, resize: false });
+    }
+    // 가사 마커
+    if (showMarkers) {
+      for (const l of lines) {
+        if (l.timestamp === null) continue;
+        const isActive = l.id === activeLineId;
+        addVisual({
+          start: l.timestamp,
+          color: isActive ? "#f59e0b" : "rgba(251, 191, 36, 0.4)",
+          drag: false,
+          resize: false,
+        });
+      }
+    }
+    // A/B 경계 마커
+    if (loopA !== null) addVisual({ start: loopA, color: "#22c55e", drag: false, resize: false });
+    if (loopB !== null) addVisual({ start: loopB, color: "#22c55e", drag: false, resize: false });
+  }, [lines, activeLineId, isAudioReady, showMarkers, loopA, loopB]);
 
   const progress = duration > 0 ? currentTime / duration : 0;
 
@@ -471,6 +526,9 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         <CtrlBtn onClick={toggleLoop} title={t.tooltipLoop} active={isLooping}>
           <LoopIcon />
         </CtrlBtn>
+        <CtrlBtn onClick={() => setShowMarkers((v) => !v)} title={t.tooltipMarkers} active={showMarkers}>
+          <MarkerIcon />
+        </CtrlBtn>
 
         <div className="flex items-center gap-1 ml-1">
           <CtrlBtn
@@ -493,6 +551,38 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
             <span className="text-sm font-bold leading-none">+</span>
           </CtrlBtn>
         </div>
+      </div>
+
+      {/* A-B 구간 반복 */}
+      <div className="flex items-center justify-center gap-1.5">
+        <span className="text-[11px] text-zinc-500 mr-1">{t.abLoopLabel}</span>
+        <button
+          onClick={() => setLoopA(currentTime)}
+          title={t.tooltipSetA}
+          className={`h-7 px-2.5 rounded-lg text-xs font-mono transition-colors ${
+            loopA !== null ? "bg-green-700 text-white" : "bg-zinc-700 hover:bg-zinc-600 text-zinc-300"
+          }`}
+        >
+          A {loopA !== null ? formatDisplayTime(loopA) : ""}
+        </button>
+        <button
+          onClick={() => setLoopB(currentTime)}
+          title={t.tooltipSetB}
+          className={`h-7 px-2.5 rounded-lg text-xs font-mono transition-colors ${
+            loopB !== null ? "bg-green-700 text-white" : "bg-zinc-700 hover:bg-zinc-600 text-zinc-300"
+          }`}
+        >
+          B {loopB !== null ? formatDisplayTime(loopB) : ""}
+        </button>
+        {(loopA !== null || loopB !== null) && (
+          <button
+            onClick={() => { setLoopA(null); setLoopB(null); }}
+            title={t.tooltipClearAB}
+            className="h-7 w-7 flex items-center justify-center rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-400 hover:text-rose-400 transition-colors"
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       {/* 열기 버튼 */}
@@ -661,6 +751,16 @@ function SkipFwdIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
       <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" />
+    </svg>
+  );
+}
+
+function MarkerIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <line x1="6" y1="4" x2="6" y2="20" />
+      <line x1="12" y1="4" x2="12" y2="20" />
+      <line x1="18" y1="4" x2="18" y2="20" />
     </svg>
   );
 }
