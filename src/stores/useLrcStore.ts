@@ -58,7 +58,6 @@ interface LrcStore {
   saveLrc: () => Promise<void>;
   saveLrcAs: (format: "lrc" | "srt") => Promise<void>;
   newLrc: () => void;
-  importSrt: () => Promise<void>;
   replaceInLines: (find: string, replace: string, caseSensitive: boolean) => number;
   shiftTimeRange: (fromIdx: number, toIdx: number, deltaSeconds: number) => void;
 
@@ -288,14 +287,16 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     }
   },
 
+  // 가사 열기: LRC·SRT 모두 지원. 확장자로 파서 분기.
   openLrc: async () => {
     const selected = await open({
       multiple: false,
-      filters: [{ name: "LRC", extensions: ["lrc"] }],
+      filters: [{ name: "Lyrics", extensions: ["lrc", "srt"] }],
     });
     if (typeof selected === "string") {
       const content: string = await invoke("read_lrc_file", { path: selected });
-      const doc = parseLrc(content);
+      const isSrt = selected.split(".").pop()?.toLowerCase() === "srt";
+      const doc = isSrt ? parseSrt(content) : parseLrc(content);
       let id = 1;
       doc.lines = doc.lines.map((l) => ({ ...l, id: String(id++) }));
       nextId = id;
@@ -356,23 +357,6 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     if (count === 0) return 0;
     set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines: newLines }, isDirty: true });
     return count;
-  },
-
-  importSrt: async () => {
-    const selected = await open({
-      multiple: false,
-      filters: [{ name: "SubRip", extensions: ["srt"] }],
-    });
-    if (typeof selected === "string") {
-      const content: string = await invoke("read_lrc_file", { path: selected });
-      const doc = parseSrt(content);
-      let id = 1;
-      doc.lines = doc.lines.map((l) => ({ ...l, id: String(id++) }));
-      nextId = id;
-      const firstId = doc.lines[0]?.id ?? null;
-      // SRT는 LRC 경로가 아니므로 lrcPath는 비우고 dirty 상태로 둠
-      set({ doc, lrcPath: null, isDirty: true, activeLineId: firstId, _history: [], _future: [] });
-    }
   },
 
   runAiSync: async (language, blankLineOffset) => {
