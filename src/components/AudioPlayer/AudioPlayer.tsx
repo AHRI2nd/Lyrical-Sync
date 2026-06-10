@@ -43,8 +43,6 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   const regionsRef = useRef<ReturnType<typeof RegionsPlugin.create> | null>(null);
   const isLoopingRef = useRef(false);
   const playbackRateRef = useRef(1.0);
-  const loopARef = useRef<number | null>(null);
-  const loopBRef = useRef<number | null>(null);
   const zoomDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seekBarRef = useRef<HTMLDivElement>(null);
   const isSeeking = useRef(false);
@@ -65,8 +63,6 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   const lines = useLrcStore((s) => s.doc.lines);
   const activeLineId = useLrcStore((s) => s.activeLineId);
   const [showMarkers, setShowMarkers] = useState(true);
-  const [loopA, setLoopA] = useState<number | null>(null);
-  const [loopB, setLoopB] = useState<number | null>(null);
   const { t } = useI18nStore();
   const { isLoggedIn, startLogin, fetchCurrentlyPlaying, transferPlaybackToApp } = useServiceStore();
   const { spotifyMode, spotifyClientId, youtubeMode, ytdlpAudioQuality, ytdlpCookiesFile, ytdlpProxy } = useSettingsStore();
@@ -161,13 +157,6 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     ws.on("audioprocess", (t) => {
       setCurrentTimeLocal(t);
       setCurrentTime(t);
-      // A-B 구간 반복: B 지점 도달 시 A로 되감기
-      const a = loopARef.current;
-      const b = loopBRef.current;
-      if (a !== null && b !== null && b > a && t >= b) {
-        const d = ws.getDuration();
-        if (d) ws.seekTo(a / d);
-      }
     });
     ws.on("seeking", (t) => {
       setCurrentTimeLocal(t);
@@ -265,45 +254,30 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     wsRef.current?.setVolume(volume);
   }, [volume]);
 
-  useEffect(() => { loopARef.current = loopA; }, [loopA]);
-  useEffect(() => { loopBRef.current = loopB; }, [loopB]);
-
-  // 가사 타임스탬프 마커 + A-B 구간을 파형에 동기화
+  // 가사 타임스탬프 마커를 파형에 동기화
   useEffect(() => {
     const regions = regionsRef.current;
     if (!regions || !isAudioReady) return;
     regions.clearRegions();
-    // 마커/영역은 기본적으로 순수 시각 표시 — 파형 클릭(탐색)을 가로막지 않도록 pointer-events 해제.
+    if (!showMarkers) return;
+    // 마커는 순수 시각 표시 — 파형 클릭(탐색)을 가로막지 않도록 pointer-events 해제하되,
     // 가사 마커만 clickable로 두어 클릭 시 해당 줄을 선택할 수 있게 함.
-    const addVisual = (opts: Parameters<typeof regions.addRegion>[0], clickable = false) => {
-      const r = regions.addRegion(opts);
+    for (const l of lines) {
+      if (l.timestamp === null) continue;
+      const isActive = l.id === activeLineId;
+      const r = regions.addRegion({
+        id: `lyric:${l.id}`,
+        start: l.timestamp,
+        color: isActive ? "#f59e0b" : "rgba(251, 191, 36, 0.4)",
+        drag: false,
+        resize: false,
+      });
       if (r.element) {
-        r.element.style.pointerEvents = clickable ? "auto" : "none";
-        if (clickable) r.element.style.cursor = "pointer";
-      }
-    };
-    // A-B 구간 음영
-    if (loopA !== null && loopB !== null && loopB > loopA) {
-      addVisual({ start: loopA, end: loopB, color: "rgba(34, 197, 94, 0.15)", drag: false, resize: false });
-    }
-    // 가사 마커
-    if (showMarkers) {
-      for (const l of lines) {
-        if (l.timestamp === null) continue;
-        const isActive = l.id === activeLineId;
-        addVisual({
-          id: `lyric:${l.id}`,
-          start: l.timestamp,
-          color: isActive ? "#f59e0b" : "rgba(251, 191, 36, 0.4)",
-          drag: false,
-          resize: false,
-        }, true);
+        r.element.style.pointerEvents = "auto";
+        r.element.style.cursor = "pointer";
       }
     }
-    // A/B 경계 마커
-    if (loopA !== null) addVisual({ start: loopA, color: "#22c55e", drag: false, resize: false });
-    if (loopB !== null) addVisual({ start: loopB, color: "#22c55e", drag: false, resize: false });
-  }, [lines, activeLineId, isAudioReady, showMarkers, loopA, loopB]);
+  }, [lines, activeLineId, isAudioReady, showMarkers]);
 
   const progress = duration > 0 ? currentTime / duration : 0;
 
@@ -564,38 +538,6 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
             <span className="text-sm font-bold leading-none">+</span>
           </CtrlBtn>
         </div>
-      </div>
-
-      {/* A-B 구간 반복 */}
-      <div className="flex items-center justify-center gap-1.5">
-        <span className="text-[11px] text-zinc-500 mr-1">{t.abLoopLabel}</span>
-        <button
-          onClick={() => setLoopA(currentTime)}
-          title={t.tooltipSetA}
-          className={`h-7 px-2.5 rounded-lg text-xs font-mono transition-colors ${
-            loopA !== null ? "bg-green-700 text-white" : "bg-zinc-700 hover:bg-zinc-600 text-zinc-300"
-          }`}
-        >
-          A {loopA !== null ? formatDisplayTime(loopA) : ""}
-        </button>
-        <button
-          onClick={() => setLoopB(currentTime)}
-          title={t.tooltipSetB}
-          className={`h-7 px-2.5 rounded-lg text-xs font-mono transition-colors ${
-            loopB !== null ? "bg-green-700 text-white" : "bg-zinc-700 hover:bg-zinc-600 text-zinc-300"
-          }`}
-        >
-          B {loopB !== null ? formatDisplayTime(loopB) : ""}
-        </button>
-        {(loopA !== null || loopB !== null) && (
-          <button
-            onClick={() => { setLoopA(null); setLoopB(null); }}
-            title={t.tooltipClearAB}
-            className="h-7 w-7 flex items-center justify-center rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-400 hover:text-rose-400 transition-colors"
-          >
-            ✕
-          </button>
-        )}
       </div>
 
       {/* 열기 버튼 */}
