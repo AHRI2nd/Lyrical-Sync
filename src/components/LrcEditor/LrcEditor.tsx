@@ -4,7 +4,7 @@ import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
-import { formatDisplayTime } from "../../utils/lrcParser";
+import { formatDisplayTime, validateTimestamps } from "../../utils/lrcParser";
 import { MODEL_DEFS } from "../../utils/modelDefs";
 
 // ISO 639-3 codes used by ctc-forced-aligner / MMS model
@@ -132,6 +132,9 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     pendingFocusId.current = newId;
   };
 
+  // 타임스탬프 검증 경고
+  const warnings = useMemo(() => validateTimestamps(lines), [lines]);
+
   // 매칭 줄 id 목록
   const matchIds = useMemo(() => {
     if (!findText) return [];
@@ -229,7 +232,14 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   return (
     <div className="flex flex-col gap-2 p-4 bg-zinc-900 rounded-xl border border-zinc-700 flex-1 min-h-0">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-zinc-300">{t.lyricsEditor}</h2>
+        <div className="flex items-center gap-2 shrink-0">
+          <h2 className="text-sm font-semibold text-zinc-300">{t.lyricsEditor}</h2>
+          {warnings.size > 0 && (
+            <span className="flex items-center gap-1 text-xs text-amber-400 bg-amber-900/20 border border-amber-800/50 rounded-full px-2 py-0.5">
+              ⚠ {warnings.size} {t.validationSummary}
+            </span>
+          )}
+        </div>
         <div className="flex gap-2 items-center flex-wrap justify-end">
 
           {/* AI Auto Sync */}
@@ -394,6 +404,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
 
           const isMatch = showFR && matchIds.includes(line.id);
           const isCurrentMatch = showFR && matchIds[matchPos] === line.id;
+          const warning = warnings.get(line.id);
 
           return (
             <div
@@ -433,6 +444,17 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                   </div>
                 </div>
               </div>
+
+              {warning && (
+                <div className="relative group/warn shrink-0">
+                  <span className="text-amber-400 text-sm leading-none cursor-help">⚠</span>
+                  <div className={`pointer-events-none absolute left-0 hidden group-hover/warn:block z-30 ${idx < 2 ? "top-full mt-1.5" : "bottom-full mb-1.5"}`}>
+                    <div className="bg-zinc-800 border border-amber-700/60 text-amber-200 text-xs rounded-lg px-2.5 py-1.5 shadow-xl whitespace-nowrap">
+                      {warning === "duplicate" ? t.warnDuplicate : t.warnOutOfOrder}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <input
                 ref={setInputRef(line.id)}

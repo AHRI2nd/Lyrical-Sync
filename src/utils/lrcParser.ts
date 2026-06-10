@@ -1,4 +1,4 @@
-import { LrcDocument, LrcMetadata, defaultDocument } from "../types/lrc";
+import { LrcDocument, LrcLine, LrcMetadata, defaultDocument } from "../types/lrc";
 
 const META_TAGS: Record<string, keyof LrcMetadata> = {
   ti: "title",
@@ -51,6 +51,39 @@ export function formatDisplayTime(seconds: number): string {
   const m = totalMins % 60;
   const h = Math.floor(totalMins / 60);
   return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
+}
+
+export type LineWarning = "outOfOrder" | "duplicate";
+
+// 타임스탬프 줄의 순서 역전·중복을 검사해 lineId → 경고 맵 반환
+export function validateTimestamps(lines: LrcLine[]): Map<string, LineWarning> {
+  const warnings = new Map<string, LineWarning>();
+
+  // 중복 검사 (센티초 단위 = LRC 정밀도)
+  const seen = new Map<number, string[]>();
+  for (const l of lines) {
+    if (l.timestamp === null) continue;
+    const cs = Math.round(l.timestamp * 100);
+    const ids = seen.get(cs) ?? [];
+    ids.push(l.id);
+    seen.set(cs, ids);
+  }
+  for (const ids of seen.values()) {
+    if (ids.length > 1) ids.forEach((id) => warnings.set(id, "duplicate"));
+  }
+
+  // 순서 역전 검사 (배열 순서 = 가사 순서, 타임스탬프는 오름차순이어야 함)
+  let lastTs: number | null = null;
+  for (const l of lines) {
+    if (l.timestamp === null) continue;
+    if (lastTs !== null && l.timestamp < lastTs) {
+      // 중복 경고가 우선이 아니면 순서 경고로 표시
+      if (!warnings.has(l.id)) warnings.set(l.id, "outOfOrder");
+    }
+    lastTs = l.timestamp;
+  }
+
+  return warnings;
 }
 
 export function parseLrc(raw: string): LrcDocument {
