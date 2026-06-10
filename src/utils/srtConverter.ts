@@ -69,8 +69,13 @@ export function serializeSrt(doc: LrcDocument, lastCueEnd?: number): string {
 
 /**
  * SubRip(SRT) 문자열을 LRC 문서로 파싱.
- * 각 자막 cue의 시작 시간만 LRC 타임스탬프로 변환하고 종료 시간은 버림.
+ * 각 자막 cue의 시작 시간을 LRC 타임스탬프로 변환.
  * cue 본문이 여러 줄이면 공백으로 합쳐 한 줄로 만듦.
+ *
+ * 가사 사이 빈 시간(갭): cue가 끝난 뒤 다음 cue 시작 전까지 공백이 있으면,
+ * 그 종료 시각에 "텍스트 없는 타임스탬프 줄"(LRC 문단 구분선)을 삽입해
+ * 에디터에서 가사가 비는 구간을 빈 줄로 표현한다. serializeSrt가 이 빈 줄을
+ * 직전 cue의 종료 경계로 사용하므로 SRT→LRC→SRT 라운드트립도 보존된다.
  */
 export function parseSrt(raw: string): LrcDocument {
   const doc = defaultDocument();
@@ -79,6 +84,8 @@ export function parseSrt(raw: string): LrcDocument {
   // CRLF 정규화 후 빈 줄 기준으로 블록 분할
   const blocks = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split(/\n\s*\n/);
 
+  // 1) cue(start, end, text) 수집
+  const cues: { start: number; end: number; text: string }[] = [];
   for (const block of blocks) {
     const rows = block.split("\n").map((r) => r.trim()).filter((r) => r !== "");
     if (rows.length === 0) continue;
@@ -87,11 +94,28 @@ export function parseSrt(raw: string): LrcDocument {
     const arrowIdx = rows.findIndex((r) => r.includes("-->"));
     if (arrowIdx === -1) continue;
 
-    const start = parseSrtTime(rows[arrowIdx].split("-->")[0]);
+    const [startStr, endStr] = rows[arrowIdx].split("-->");
+    const start = parseSrtTime(startStr);
     if (start === null) continue;
+    const end = parseSrtTime(endStr ?? "");
 
     const text = rows.slice(arrowIdx + 1).join(" ").trim();
-    doc.lines.push({ id: String(lineId++), timestamp: start, text });
+    cues.push({ start, end: end ?? start, text });
+  }
+
+  cues.sort((a, b) => a.start - b.start);
+
+  // 2) cue → 가사 줄 + 가사 사이 갭에 빈 줄(경계) 삽입
+  const cs = (s: number) => Math.round(s * 100); // 센티초(LRC 정밀도) 기준 비교
+  for (let i = 0; i < cues.length; i++) {
+    const cue = cues[i];
+    doc.lines.push({ id: String(lineId++), timestamp: cue.start, text: cue.text });
+
+    // 다음 cue가 있고, 종료 시각이 현재 시작보다 뒤·다음 시작보다 앞이면(갭 존재) 빈 줄 삽입
+    const next = cues[i + 1];
+    if (next && cs(cue.end) > cs(cue.start) && cs(cue.end) < cs(next.start)) {
+      doc.lines.push({ id: String(lineId++), timestamp: cue.end, text: "" });
+    }
   }
 
   doc.lines.sort((a, b) => {

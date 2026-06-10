@@ -245,7 +245,7 @@ export interface Translations {
 const ko: Translations = {
   newFileTitle: "새 LRC 파일",
   newFileBtn: "새로 만들기",
-  openLrc: "LRC 열기",
+  openLrc: "가사 열기",
   save: "저장",
   saveAs: "다른 이름으로 저장",
   saveFormatTitle: "저장 형식 선택",
@@ -500,7 +500,7 @@ const ko: Translations = {
 const en: Translations = {
   newFileTitle: "New LRC File",
   newFileBtn: "New",
-  openLrc: "Open LRC",
+  openLrc: "Open Lyrics",
   save: "Save",
   saveAs: "Save As",
   saveFormatTitle: "Choose Save Format",
@@ -756,7 +756,7 @@ const en: Translations = {
 const ja: Translations = {
   newFileTitle: "新規LRCファイル",
   newFileBtn: "新規作成",
-  openLrc: "LRCを開く",
+  openLrc: "歌詞を開く",
   save: "保存",
   saveAs: "名前を付けて保存",
   saveFormatTitle: "保存形式を選択",

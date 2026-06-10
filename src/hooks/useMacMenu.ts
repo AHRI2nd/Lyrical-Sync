@@ -10,7 +10,6 @@ export interface MacMenuHandlers {
   save: () => void;
   saveAsLrc: () => void;
   saveAsSrt: () => void;
-  importSrt: () => void;
   undo: () => void;
   redo: () => void;
   togglePlay: () => void;
@@ -80,8 +79,6 @@ export function useMacMenu(handlers: MacMenuHandlers, state: MacMenuState) {
           await item(t.save, () => h().save(), "CmdOrCtrl+S"),
           await item(t.menu.saveAsLrc, () => h().saveAsLrc(), "CmdOrCtrl+Shift+S"),
           await item(t.menu.saveAsSrt, () => h().saveAsSrt()),
-          await sep(),
-          await item(t.importSrt, () => h().importSrt()),
         ],
       });
 

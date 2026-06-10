@@ -119,7 +119,7 @@ function App() {
   const [showFormatChooser, setShowFormatChooser] = useState(false);
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const [showSpotifySearch, setShowSpotifySearch] = useState(false);
-  const { lrcPath, isDirty, openLrc, openAudio, saveLrc, saveLrcAs, newLrc, importSrt, undo, redo, _history, _future } = useLrcStore();
+  const { lrcPath, isDirty, openLrc, openAudio, saveLrc, saveLrcAs, newLrc, undo, redo, _history, _future } = useLrcStore();
   const { t } = useI18nStore();
   const { autoCheckUpdate, uiScale, spotifyMode, youtubeMode, setSpotifyMode, setYoutubeMode } = useSettingsStore();
   const { isLoggedIn, handleCallback, tryRestoreSession, pausePlayback } = useServiceStore();
@@ -223,7 +223,6 @@ function App() {
       save: handleSave,
       saveAsLrc: () => saveLrcAs("lrc"),
       saveAsSrt: () => saveLrcAs("srt"),
-      importSrt,
       undo,
       redo,
       togglePlay: () => playbackControls.togglePlay(),
