@@ -83,6 +83,24 @@ function useGlobalKeys() {
   }, [stampAndAdvance, goToPreviousLine, undo, redo, isServiceMode]);
 }
 
+// 저장 경로(lrcPath)가 지정된 파일에 한해, 변경 후 일정 시간 멈추면 자동 저장.
+// 새 문서(lrcPath 없음)는 저장 위치가 없으므로 자동 저장하지 않음.
+function useAutoSave() {
+  const isDirty = useLrcStore((s) => s.isDirty);
+  const lrcPath = useLrcStore((s) => s.lrcPath);
+  const doc = useLrcStore((s) => s.doc);
+  const autoSave = useSettingsStore((s) => s.autoSave);
+
+  useEffect(() => {
+    if (!autoSave || !lrcPath || !isDirty) return;
+    const id = setTimeout(() => {
+      useLrcStore.getState().saveLrc();
+    }, 1500);
+    return () => clearTimeout(id);
+    // doc 변경마다 타이머 리셋 → 입력이 멈춘 뒤에만 저장(디바운스)
+  }, [autoSave, lrcPath, isDirty, doc]);
+}
+
 function useAutoUpdateCheck(onUpdateAvailable: (version: string) => void, enabled: boolean) {
   const cbRef = useRef(onUpdateAvailable);
   cbRef.current = onUpdateAvailable;
@@ -110,6 +128,7 @@ const LANG_LABELS: { lang: Lang; label: string }[] = [
 
 function App() {
   useGlobalKeys();
+  useAutoSave();
 
   const [showHelp, setShowHelp] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
