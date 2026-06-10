@@ -15,8 +15,10 @@ import { serviceControls } from "./utils/serviceControls";
 import { initSpotifyPlayer } from "./utils/spotifyPlayer";
 import { type Lang } from "./i18n/translations";
 import { checkForUpdate, RELEASES_URL } from "./utils/updateCheck";
+import { useMacMenu } from "./hooks/useMacMenu";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 
 function useGlobalKeys() {
   const { stampAndAdvance, goToPreviousLine, undo, redo } = useLrcStore();
@@ -117,10 +119,11 @@ function App() {
   const [showFormatChooser, setShowFormatChooser] = useState(false);
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const [showSpotifySearch, setShowSpotifySearch] = useState(false);
-  const { lrcPath, isDirty, openLrc, saveLrc, saveLrcAs, newLrc, undo, redo, _history, _future } = useLrcStore();
+  const { lrcPath, isDirty, openLrc, openAudio, saveLrc, saveLrcAs, newLrc, importSrt, undo, redo, _history, _future } = useLrcStore();
   const { t } = useI18nStore();
-  const { autoCheckUpdate, uiScale } = useSettingsStore();
-  const { isLoggedIn, handleCallback, tryRestoreSession } = useServiceStore();
+  const { autoCheckUpdate, uiScale, spotifyMode, youtubeMode, setSpotifyMode, setYoutubeMode } = useSettingsStore();
+  const { isLoggedIn, handleCallback, tryRestoreSession, pausePlayback } = useServiceStore();
+  const [ytdlpInstalled, setYtdlpInstalled] = useState(false);
 
   useAutoUpdateCheck((v) => setUpdateVersion(v), autoCheckUpdate);
 
@@ -176,6 +179,65 @@ function App() {
     if (lrcPath) saveLrc();
     else setShowFormatChooser(true);
   };
+
+  // yt-dlp 설치 여부 (모드 메뉴의 YouTube 활성화 판단)
+  useEffect(() => {
+    let active = true;
+    const check = () =>
+      invoke<string | null>("check_ytdlp")
+        .then((v) => { if (active) setYtdlpInstalled(v !== null); })
+        .catch(() => {});
+    check();
+    let unlisten: (() => void) | null = null;
+    listen<{ done: boolean }>("ytdlp-install-progress", (e) => {
+      if (active && e.payload.done) check();
+    }).then((fn) => { unlisten = fn; if (!active) fn(); });
+    return () => { active = false; unlisten?.(); };
+  }, []);
+
+  // 모드 전환 (ModeSelectButton과 동일한 동작 — 전환 시 재생 정지)
+  const selectModeFile = () => {
+    if (spotifyMode && isLoggedIn) pausePlayback();
+    else audioControls.pause();
+    setSpotifyMode(false); setYoutubeMode(false);
+  };
+  const selectModeSpotify = () => {
+    audioControls.pause();
+    setSpotifyMode(true); setYoutubeMode(false);
+  };
+  const selectModeYouTube = () => {
+    if (spotifyMode && isLoggedIn) pausePlayback();
+    else audioControls.pause();
+    setSpotifyMode(false); setYoutubeMode(true);
+  };
+
+  // 재생 컨트롤은 현재 모드(로컬/Spotify)에 맞게 선택
+  const isServiceMode = isLoggedIn && spotifyMode;
+  const playbackControls = isServiceMode ? serviceControls : audioControls;
+
+  useMacMenu(
+    {
+      newFile: handleNewLrc,
+      openLrc,
+      openAudio,
+      save: handleSave,
+      saveAsLrc: () => saveLrcAs("lrc"),
+      saveAsSrt: () => saveLrcAs("srt"),
+      importSrt,
+      undo,
+      redo,
+      togglePlay: () => playbackControls.togglePlay(),
+      skip: (d) => playbackControls.skip(d),
+      stop: () => playbackControls.stopAndReset(),
+      modeFile: selectModeFile,
+      modeSpotify: selectModeSpotify,
+      modeYouTube: selectModeYouTube,
+      openSettings: () => { setSettingsInitialTab("general"); setShowSettings(true); },
+      openPreview: () => setShowPreview(true),
+      openHelp: () => setShowHelp(true),
+    },
+    { t, spotifyMode, youtubeMode, ytdlpInstalled }
+  );
 
   const title = lrcPath
     ? lrcPath.split(/[\\/]/).pop()
