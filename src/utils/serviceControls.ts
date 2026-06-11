@@ -25,6 +25,16 @@ async function spotifyTogglePlay(): Promise<void> {
   });
 }
 
+async function spotifyStop(): Promise<void> {
+  // 정지 = 일시정지 + 처음으로
+  const token = await useServiceStore.getState().ensureToken();
+  await fetch("https://api.spotify.com/v1/me/player/pause", {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  await spotifySeekTo(0);
+}
+
 export const serviceControls = {
   togglePlay: () => { spotifyTogglePlay().catch(() => {}); },
   skip: (delta: number) => {
@@ -32,5 +42,5 @@ export const serviceControls = {
     spotifySeekTo((positionMs + delta * 1000) / 1000).catch(() => {});
   },
   seekTo: (seconds: number) => { spotifySeekTo(seconds).catch(() => {}); },
-  stopAndReset: () => { spotifySeekTo(0).catch(() => {}); },
+  stopAndReset: () => { spotifyStop().catch(() => {}); },
 };

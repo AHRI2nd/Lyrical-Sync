@@ -15,8 +15,15 @@ import { serviceControls } from "./utils/serviceControls";
 import { initSpotifyPlayer } from "./utils/spotifyPlayer";
 import { type Lang } from "./i18n/translations";
 import { checkForUpdate, RELEASES_URL } from "./utils/updateCheck";
+import { useMacMenu } from "./hooks/useMacMenu";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+
+const AUDIO_EXTS = ["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff", "aif"];
+const LYRICS_EXTS = ["lrc", "srt"];
+const fileExt = (p: string) => p.split(".").pop()?.toLowerCase() ?? "";
 
 function useGlobalKeys() {
   const { stampAndAdvance, goToPreviousLine, undo, redo } = useLrcStore();
@@ -81,6 +88,25 @@ function useGlobalKeys() {
   }, [stampAndAdvance, goToPreviousLine, undo, redo, isServiceMode]);
 }
 
+// 저장 경로(lrcPath)가 지정된 파일에 한해, 변경 후 일정 시간 멈추면 자동 저장.
+// 새 문서(lrcPath 없음)는 저장 위치가 없으므로 자동 저장하지 않음.
+function useAutoSave() {
+  const isDirty = useLrcStore((s) => s.isDirty);
+  const lrcPath = useLrcStore((s) => s.lrcPath);
+  const doc = useLrcStore((s) => s.doc);
+  const autoSave = useSettingsStore((s) => s.autoSave);
+
+  useEffect(() => {
+    if (!autoSave || !lrcPath || !isDirty) return;
+    const id = setTimeout(() => {
+      // 디스크 쓰기 실패(권한/경로 등) 시 미처리 거부 방지
+      useLrcStore.getState().saveLrc().catch(() => {});
+    }, 1500);
+    return () => clearTimeout(id);
+    // doc 변경마다 타이머 리셋 → 입력이 멈춘 뒤에만 저장(디바운스)
+  }, [autoSave, lrcPath, isDirty, doc]);
+}
+
 function useAutoUpdateCheck(onUpdateAvailable: (version: string) => void, enabled: boolean) {
   const cbRef = useRef(onUpdateAvailable);
   cbRef.current = onUpdateAvailable;
@@ -108,6 +134,7 @@ const LANG_LABELS: { lang: Lang; label: string }[] = [
 
 function App() {
   useGlobalKeys();
+  useAutoSave();
 
   const [showHelp, setShowHelp] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -117,10 +144,15 @@ function App() {
   const [showFormatChooser, setShowFormatChooser] = useState(false);
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const [showSpotifySearch, setShowSpotifySearch] = useState(false);
-  const { lrcPath, isDirty, openLrc, saveLrc, saveLrcAs, newLrc, undo, redo, _history, _future } = useLrcStore();
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [dropConflict, setDropConflict] = useState<
+    { audio?: string; lyrics?: string; audioConflict: boolean; lyricsConflict: boolean } | null
+  >(null);
+  const { lrcPath, isDirty, openLrc, openAudio, saveLrc, saveLrcAs, newLrc, undo, redo, _history, _future } = useLrcStore();
   const { t } = useI18nStore();
-  const { autoCheckUpdate, uiScale } = useSettingsStore();
-  const { isLoggedIn, handleCallback, tryRestoreSession } = useServiceStore();
+  const { autoCheckUpdate, uiScale, spotifyMode, youtubeMode, setSpotifyMode, setYoutubeMode } = useSettingsStore();
+  const { isLoggedIn, handleCallback, tryRestoreSession, pausePlayback } = useServiceStore();
+  const [ytdlpInstalled, setYtdlpInstalled] = useState(false);
 
   useAutoUpdateCheck((v) => setUpdateVersion(v), autoCheckUpdate);
 
@@ -177,6 +209,106 @@ function App() {
     else setShowFormatChooser(true);
   };
 
+  // 드롭된 파일을 실제로 연다 (오디오 → 오디오 경로, lrc/srt → 가사)
+  const applyDrop = (d: { audio?: string; lyrics?: string }) => {
+    const st = useLrcStore.getState();
+    if (d.audio) st.setAudioPath(d.audio);
+    if (d.lyrics) st.loadLyricsPath(d.lyrics).catch(() => {});
+  };
+
+  // 파일 드래그앤드롭 열기 (Tauri 네이티브 드롭 이벤트 → 파일 경로 제공)
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+    getCurrentWebview()
+      .onDragDropEvent((event) => {
+        const p = event.payload;
+        if (p.type === "enter") {
+          // 지원 파일이 하나라도 있을 때만 오버레이 표시
+          if (p.paths.some((x) => AUDIO_EXTS.includes(fileExt(x)) || LYRICS_EXTS.includes(fileExt(x)))) {
+            setIsDragOver(true);
+          }
+          return;
+        }
+        if (p.type === "over") return;
+        if (p.type === "leave") { setIsDragOver(false); return; }
+        // drop
+        setIsDragOver(false);
+        const audio = p.paths.find((x) => AUDIO_EXTS.includes(fileExt(x)));
+        const lyrics = p.paths.find((x) => LYRICS_EXTS.includes(fileExt(x)));
+        if (!audio && !lyrics) return; // 지원하지 않는 파일은 무시
+
+        const st = useLrcStore.getState();
+        const audioConflict = !!audio && st.audioPath !== null;
+        const lyricsConflict = !!lyrics && (st.lrcPath !== null || st.isDirty || st.doc.lines.length > 0);
+        if (audioConflict || lyricsConflict) {
+          setDropConflict({ audio, lyrics, audioConflict, lyricsConflict });
+        } else {
+          applyDrop({ audio, lyrics });
+        }
+      })
+      .then((fn) => { if (cancelled) fn(); else unlisten = fn; });
+    return () => { cancelled = true; unlisten?.(); };
+  }, []);
+
+  // yt-dlp 설치 여부 (모드 메뉴의 YouTube 활성화 판단)
+  useEffect(() => {
+    let active = true;
+    const check = () =>
+      invoke<string | null>("check_ytdlp")
+        .then((v) => { if (active) setYtdlpInstalled(v !== null); })
+        .catch(() => {});
+    check();
+    let unlisten: (() => void) | null = null;
+    listen<{ done: boolean }>("ytdlp-install-progress", (e) => {
+      if (active && e.payload.done) check();
+    }).then((fn) => { unlisten = fn; if (!active) fn(); });
+    return () => { active = false; unlisten?.(); };
+  }, []);
+
+  // 모드 전환 (ModeSelectButton과 동일한 동작 — 전환 시 재생 정지)
+  const selectModeFile = () => {
+    if (spotifyMode && isLoggedIn) pausePlayback();
+    else audioControls.pause();
+    setSpotifyMode(false); setYoutubeMode(false);
+  };
+  const selectModeSpotify = () => {
+    audioControls.pause();
+    setSpotifyMode(true); setYoutubeMode(false);
+  };
+  const selectModeYouTube = () => {
+    if (spotifyMode && isLoggedIn) pausePlayback();
+    else audioControls.pause();
+    setSpotifyMode(false); setYoutubeMode(true);
+  };
+
+  // 재생 컨트롤은 현재 모드(로컬/Spotify)에 맞게 선택
+  const isServiceMode = isLoggedIn && spotifyMode;
+  const playbackControls = isServiceMode ? serviceControls : audioControls;
+
+  useMacMenu(
+    {
+      newFile: handleNewLrc,
+      openLrc,
+      openAudio,
+      save: handleSave,
+      saveAsLrc: () => saveLrcAs("lrc"),
+      saveAsSrt: () => saveLrcAs("srt"),
+      undo,
+      redo,
+      togglePlay: () => playbackControls.togglePlay(),
+      skip: (d) => playbackControls.skip(d),
+      stop: () => playbackControls.stopAndReset(),
+      modeFile: selectModeFile,
+      modeSpotify: selectModeSpotify,
+      modeYouTube: selectModeYouTube,
+      openSettings: () => { setSettingsInitialTab("general"); setShowSettings(true); },
+      openPreview: () => setShowPreview(true),
+      openHelp: () => setShowHelp(true),
+    },
+    { t, spotifyMode, youtubeMode, ytdlpInstalled }
+  );
+
   const title = lrcPath
     ? lrcPath.split(/[\\/]/).pop()
     : t.newFileTitle;
@@ -203,13 +335,16 @@ function App() {
             <IconBtn onClick={redo} disabled={_future.length === 0} title={t.redo}><RedoIcon /></IconBtn>
           </div>
         </div>
-        <div className="flex gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           <ModeSelectButton />
+          <div className="w-px h-5 bg-zinc-700 mx-0.5" />
+          {/* 파일 액션 그룹 */}
           <IconBtn onClick={handleNewLrc} title={t.newFileBtn}><NewFileIcon /></IconBtn>
           <IconBtn onClick={openLrc} title={t.openLrc}><OpenFolderIcon /></IconBtn>
-          <LangDropdown />
           <IconBtn onClick={handleSave} accent title={t.save} tooltipAlign="right"><SaveIcon /></IconBtn>
           <IconBtn onClick={() => setShowFormatChooser(true)} title={t.saveAs} tooltipAlign="right"><SaveAsIcon /></IconBtn>
+          <div className="w-px h-5 bg-zinc-700 mx-0.5" />
+          <LangDropdown />
         </div>
       </header>
 
@@ -250,6 +385,30 @@ function App() {
       )}
       {showSpotifySearch && (
         <SpotifySearchModal onClose={() => setShowSpotifySearch(false)} />
+      )}
+      {dropConflict && (
+        <ConfirmModal
+          title={t.drop.replaceTitle}
+          message={
+            dropConflict.audioConflict && dropConflict.lyricsConflict
+              ? t.drop.replaceBoth
+              : dropConflict.audioConflict
+              ? t.drop.replaceAudio
+              : t.drop.replaceLyrics
+          }
+          okLabel={t.drop.replaceOk}
+          cancelLabel={t.drop.replaceCancel}
+          onOk={() => { applyDrop(dropConflict); setDropConflict(null); }}
+          onCancel={() => setDropConflict(null)}
+        />
+      )}
+      {isDragOver && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-indigo-950/60 backdrop-blur-sm pointer-events-none border-4 border-dashed border-indigo-400/70 m-2 rounded-2xl">
+          <div className="text-center">
+            <p className="text-xl font-semibold text-indigo-100">{t.drop.overlayHint}</p>
+            <p className="text-sm text-indigo-300 mt-1 font-mono">Audio · LRC · SRT</p>
+          </div>
+        </div>
       )}
 
       <div className="flex flex-1 min-h-0 gap-0">
@@ -294,15 +453,38 @@ function HelpModal({ onClose }: { onClose: () => void }) {
   const youtubeGuideUrl = `https://ahri2nd.xyz/posts/lyrical-sync-youtube-guide-${guideFileSuffix}/`;
   const [tab, setTab] = useState<"shortcuts" | "ai" | "spotify" | "youtube">("shortcuts");
 
-  const shortcuts = [
-    { key: "1", desc: t.shortcutDescs.s1 },
-    { key: "2", desc: t.shortcutDescs.s2 },
-    { key: "3", desc: t.shortcutDescs.s3 },
-    { key: "4", desc: t.shortcutDescs.s4 },
-    { key: "5", desc: t.shortcutDescs.s5 },
-    { key: "6", desc: t.shortcutDescs.s6 },
-    { key: "Space", desc: t.shortcutDescs.space },
-    { key: "Backspace", desc: t.shortcutDescs.backspace },
+  const shortcutGroups = [
+    {
+      title: t.helpGroupPlayback,
+      items: [
+        { key: "1", desc: t.shortcutDescs.s1 },
+        { key: "2", desc: t.shortcutDescs.s2 },
+        { key: "3", desc: t.shortcutDescs.s3 },
+        { key: "4", desc: t.shortcutDescs.s4 },
+        { key: "5", desc: t.shortcutDescs.s5 },
+        { key: "6", desc: t.shortcutDescs.s6 },
+      ],
+    },
+    {
+      title: t.helpGroupEdit,
+      items: [
+        { key: "Space", desc: t.shortcutDescs.space },
+        { key: "Backspace", desc: t.shortcutDescs.backspace },
+        { key: "Enter", desc: t.shortcutDescs.enter },
+        { key: "Ctrl/⌘ Z", desc: t.shortcutDescs.undo },
+        { key: "Ctrl/⌘ ⇧ Z", desc: t.shortcutDescs.redo },
+        { key: "Ctrl/⌘ F", desc: t.shortcutDescs.find },
+      ],
+    },
+    {
+      title: t.helpGroupMouse,
+      items: [
+        { key: t.shortcutDescs.tsEditKey, desc: t.shortcutDescs.tsEditDesc },
+        { key: t.shortcutDescs.tsStampKey, desc: t.shortcutDescs.tsStampDesc },
+        { key: t.shortcutDescs.lineClickKey, desc: t.shortcutDescs.lineClickDesc },
+        { key: t.shortcutDescs.markerClickKey, desc: t.shortcutDescs.markerClickDesc },
+      ],
+    },
   ];
 
   useEffect(() => {
@@ -326,11 +508,11 @@ function HelpModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800 shrink-0">
           <span className="font-semibold text-zinc-100">{t.helpTitle}</span>
           <button
             onClick={onClose}
@@ -341,7 +523,7 @@ function HelpModal({ onClose }: { onClose: () => void }) {
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-zinc-800">
+        <div className="flex border-b border-zinc-800 shrink-0">
           {tabs.map(({ id, label }) => (
             <button
               key={id}
@@ -359,18 +541,25 @@ function HelpModal({ onClose }: { onClose: () => void }) {
         </div>
 
         {/* Content */}
-        <div className="p-4 max-h-80 overflow-y-auto">
+        <div className="p-5 flex-1 overflow-y-auto">
           {tab === "shortcuts" && (
-            <div className="flex flex-col gap-1.5">
-              {shortcuts.map(({ key, desc }) => (
-                <div key={key} className="flex items-center gap-3">
-                  <kbd className="shrink-0 min-w-[2.5rem] text-center px-2 py-0.5 rounded bg-zinc-800 border border-zinc-600 text-xs font-mono text-zinc-200">
-                    {key}
-                  </kbd>
-                  <span className="text-sm text-zinc-300">{desc}</span>
+            <div className="flex flex-col gap-5">
+              {shortcutGroups.map((g) => (
+                <div key={g.title}>
+                  <h3 className="text-xs font-semibold text-zinc-400 mb-2.5">{g.title}</h3>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
+                    {g.items.map(({ key, desc }) => (
+                      <div key={key} className="flex items-center gap-3">
+                        <kbd className="shrink-0 min-w-[3rem] text-center px-2 py-1 rounded-md bg-zinc-800 border border-zinc-600 text-xs font-mono text-zinc-200 whitespace-nowrap">
+                          {key}
+                        </kbd>
+                        <span className="text-sm text-zinc-300 leading-snug">{desc}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
-              <p className="mt-3 text-xs text-zinc-500">{t.shortcutNote}</p>
+              <p className="text-xs text-zinc-500 pt-1">{t.shortcutNote}</p>
             </div>
           )}
 
@@ -485,7 +674,7 @@ function ConfirmModal({
           {leftLabel && onLeft && (
             <button
               onClick={onLeft}
-              className="px-4 py-1.5 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors whitespace-nowrap"
+              className="px-4 py-1.5 text-sm rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors whitespace-nowrap"
             >
               {leftLabel}
             </button>
@@ -494,7 +683,7 @@ function ConfirmModal({
           {cancelLabel && (
             <button
               onClick={onCancel}
-              className="px-4 py-1.5 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100 transition-colors whitespace-nowrap"
+              className="px-4 py-1.5 text-sm rounded-lg text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors whitespace-nowrap"
             >
               {cancelLabel}
             </button>
@@ -562,7 +751,7 @@ function SaveFormatModal({
         <div className="flex justify-end px-5 pb-4">
           <button
             onClick={onCancel}
-            className="px-4 py-1.5 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100 transition-colors"
+            className="px-4 py-1.5 text-sm rounded-lg text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
           >
             {t.rawEditorCancel}
           </button>
@@ -593,7 +782,7 @@ function IconBtn({
         className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
           accent
             ? "bg-indigo-600 hover:bg-indigo-500 text-white"
-            : "bg-zinc-700 hover:bg-zinc-600 text-zinc-100"
+            : "text-zinc-400 hover:bg-zinc-800 hover:text-white"
         }`}
       >
         {children}

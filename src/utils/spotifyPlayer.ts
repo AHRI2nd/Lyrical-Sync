@@ -1,5 +1,6 @@
 import { useServiceStore } from "../stores/useServiceStore";
 import { useLrcStore } from "../stores/useLrcStore";
+import { useSettingsStore } from "../stores/useSettingsStore";
 
 let player: Spotify.Player | null = null;
 let pendingToken: string | null = null;
@@ -128,12 +129,16 @@ async function pollOnce(): Promise<void> {
       _lastKnownPositionMs: positionMs,
       _lastStateTimestamp: Date.now(),
     });
-    useLrcStore.getState().setMetadata({ title: track.name, artist: artistName, album: track.album.name });
+    // Spotify 모드일 때만 문서에 반영
+    const inSpotifyMode = useSettingsStore.getState().spotifyMode;
+    if (inSpotifyMode) {
+      useLrcStore.getState().setMetadata({ title: track.name, artist: artistName, album: track.album.name });
+    }
 
     if (isPlaying) useServiceStore.getState()._startInterpolation();
     else {
       useServiceStore.getState()._stopInterpolation();
-      useLrcStore.getState().setCurrentTime(positionMs / 1000);
+      if (inSpotifyMode) useLrcStore.getState().setCurrentTime(positionMs / 1000);
     }
   } catch {
     // ignore

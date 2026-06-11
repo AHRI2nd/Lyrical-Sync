@@ -111,13 +111,13 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
             <SkipBackIcon /><span className="text-[10px] font-bold ml-0.5">5</span>
           </PreviewBtn>
           <PreviewBtn onClick={() => skip(-1)} title="-1s">
-            <SkipBackIcon /><span className="text-[10px] font-bold ml-0.5">1</span>
+            <TriLeftIcon /><span className="text-[10px] font-bold ml-0.5">1</span>
           </PreviewBtn>
           <PreviewBtn onClick={togglePlay} accent>
             {isPlaying ? <PauseIcon /> : <PlayIcon />}
           </PreviewBtn>
           <PreviewBtn onClick={() => skip(1)} title="+1s">
-            <span className="text-[10px] font-bold mr-0.5">1</span><SkipFwdIcon />
+            <span className="text-[10px] font-bold mr-0.5">1</span><TriRightIcon />
           </PreviewBtn>
           <PreviewBtn onClick={() => skip(5)} title="+5s">
             <span className="text-[10px] font-bold mr-0.5">5</span><SkipFwdIcon />
@@ -244,10 +244,10 @@ function PreviewBtn({
       onClick={onClick}
       title={title}
       className={[
-        "h-9 px-3 rounded-lg flex items-center justify-center text-sm transition-colors",
+        "flex items-center justify-center text-sm transition-colors",
         accent
-          ? "bg-indigo-500 hover:bg-indigo-400 text-white px-4 shadow-md"
-          : "bg-zinc-800 hover:bg-zinc-700 text-zinc-200",
+          ? "w-9 h-9 rounded-full bg-indigo-500 hover:bg-indigo-400 text-white"
+          : "h-9 px-2 rounded-lg text-zinc-300 hover:bg-white/10 hover:text-white",
       ].join(" ")}
     >
       {children}
@@ -274,7 +274,7 @@ function PauseIcon() {
 function SkipBackIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
+      <path d="M11 6 L11 18 L4 12 Z M18 6 L18 18 L11 12 Z" />
     </svg>
   );
 }
@@ -282,7 +282,15 @@ function SkipBackIcon() {
 function SkipFwdIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" />
+      <path d="M6 6 L6 18 L13 12 Z M13 6 L13 18 L20 12 Z" />
     </svg>
   );
+}
+
+function TriLeftIcon() {
+  return <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M15 6 L15 18 L7 12 Z" /></svg>;
+}
+
+function TriRightIcon() {
+  return <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M9 6 L9 18 L17 12 Z" /></svg>;
 }

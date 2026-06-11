@@ -2,20 +2,25 @@ import { useEffect, useRef, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { serializeLrc } from "../../utils/lrcParser";
+import { LrcLibModal } from "../LrcLib/LrcLibModal";
 
 export function MetaEditor() {
-  const { doc, setMetadata, applyOffset, loadFromRawText, importSrt } = useLrcStore();
+  const { doc, setMetadata, applyOffset, loadFromRawText } = useLrcStore();
   const { t } = useI18nStore();
   const { metadata } = doc;
 
   const [showRawEditor, setShowRawEditor] = useState(false);
+  const [showLrcLib, setShowLrcLib] = useState(false);
 
-  const fields = [
-    { key: "title" as const, ...t.metaTitle },
-    { key: "artist" as const, ...t.metaArtist },
-    { key: "album" as const, ...t.metaAlbum },
-    { key: "by" as const, ...t.metaBy },
-  ];
+  // 오프셋 입력은 로컬 문자열로 관리해 ""·"-"·음수 입력을 허용 (숫자 0 고정 방지)
+  const [offsetStr, setOffsetStr] = useState(String(metadata.offset));
+  useEffect(() => {
+    // 외부에서 offset이 바뀌면(파일 로드·오프셋 적용 등) 입력값 동기화
+    if ((parseInt(offsetStr, 10) || 0) !== metadata.offset) setOffsetStr(String(metadata.offset));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metadata.offset]);
+
+  const offsetChanged = metadata.offset !== 0;
 
   return (
     <div className="flex flex-col gap-3 p-4 bg-zinc-900 rounded-xl border border-zinc-700">
@@ -23,51 +28,58 @@ export function MetaEditor() {
         <h2 className="text-sm font-semibold text-zinc-300">{t.songInfo}</h2>
         <div className="flex items-center gap-1.5">
           <button
-            onClick={importSrt}
-            className="px-2.5 py-0.5 text-xs rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
+            onClick={() => setShowLrcLib(true)}
+            title={t.lrclib.button}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 transition-colors"
           >
-            {t.importSrt}
+            <DownloadIcon /> LRCLIB
           </button>
           <button
             onClick={() => setShowRawEditor(true)}
-            className="px-2.5 py-0.5 text-xs rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
+            title={t.viewAll}
+            className="p-1.5 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors"
           >
-            {t.viewAll}
+            <CodeIcon />
           </button>
         </div>
       </div>
+
       <div className="grid grid-cols-2 gap-2">
-        {fields.map(({ key, label, placeholder }) => (
-          <div key={key} className="flex flex-col gap-1">
-            <label className="text-xs text-zinc-400">{label}</label>
-            <input
-              type="text"
-              value={metadata[key]}
-              placeholder={placeholder}
-              onChange={(e) => setMetadata({ [key]: e.target.value })}
-              className="px-2.5 py-1.5 rounded-lg bg-zinc-800 border border-zinc-600 text-white text-sm placeholder-zinc-500 focus:outline-none focus:border-indigo-500 transition-colors"
-            />
-          </div>
-        ))}
-        <div className="col-span-2 flex flex-col gap-1">
-          <label className="text-xs text-zinc-400">{t.metaOffset}</label>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              value={metadata.offset}
-              onChange={(e) => setMetadata({ offset: parseInt(e.target.value, 10) || 0 })}
-              className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-zinc-800 border border-zinc-600 text-white text-sm focus:outline-none focus:border-indigo-500 transition-colors"
-            />
-            <button
-              onClick={applyOffset}
-              disabled={metadata.offset === 0}
-              title={t.applyOffsetTooltip}
-              className="shrink-0 px-3 py-1.5 rounded-lg text-sm transition-colors bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {t.applyOffset}
-            </button>
-          </div>
-        </div>
+        <Field label={t.metaTitle.label} placeholder={t.metaTitle.placeholder} value={metadata.title} onChange={(v) => setMetadata({ title: v })} />
+        <Field label={t.metaArtist.label} placeholder={t.metaArtist.placeholder} value={metadata.artist} onChange={(v) => setMetadata({ artist: v })} />
+        <Field label={t.metaAlbum.label} placeholder={t.metaAlbum.placeholder} value={metadata.album} onChange={(v) => setMetadata({ album: v })} />
+        <Field label={t.metaBy.label} placeholder={t.metaBy.placeholder} value={metadata.by} onChange={(v) => setMetadata({ by: v })} />
+      </div>
+
+      <div className="flex items-center gap-1.5 pt-3 border-t border-zinc-800">
+        <span className="text-xs text-zinc-400 shrink-0">{t.metaOffsetShort}</span>
+        <input
+          type="text"
+          inputMode="numeric"
+          value={offsetStr}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === "" || v === "-" || /^-?\d+$/.test(v)) {
+              setOffsetStr(v);
+              const n = parseInt(v, 10);
+              setMetadata({ offset: Number.isNaN(n) ? 0 : n });
+            }
+          }}
+          className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-zinc-800 border border-transparent text-white text-sm font-mono focus:outline-none focus:border-indigo-500 transition-colors"
+        />
+        <span className="text-[11px] text-zinc-500 shrink-0">ms</span>
+        <button
+          onClick={applyOffset}
+          disabled={!offsetChanged}
+          title={t.applyOffsetTooltip}
+          className={`shrink-0 px-2 py-1.5 text-xs rounded-lg border transition-colors ${
+            offsetChanged
+              ? "border-indigo-500 text-indigo-300 hover:bg-indigo-500/15"
+              : "border-zinc-700 text-zinc-600 cursor-not-allowed"
+          }`}
+        >
+          {t.applyOffset}
+        </button>
       </div>
 
       {showRawEditor && (
@@ -80,7 +92,46 @@ export function MetaEditor() {
           onClose={() => setShowRawEditor(false)}
         />
       )}
+      {showLrcLib && <LrcLibModal onClose={() => setShowLrcLib(false)} />}
     </div>
+  );
+}
+
+function Field({
+  label, placeholder, value, onChange,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="min-w-0">
+      <label className="block text-[11px] text-zinc-500 mb-1">{label}</label>
+      <input
+        type="text"
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-2.5 py-1.5 rounded-lg bg-zinc-800 border border-transparent text-white text-sm placeholder-zinc-600 focus:outline-none focus:border-indigo-500 transition-colors"
+      />
+    </div>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3v12M8 11l4 4 4-4M5 20h14" />
+    </svg>
+  );
+}
+
+function CodeIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 18l6-6-6-6M8 6l-6 6 6 6" />
+    </svg>
   );
 }
 

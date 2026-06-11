@@ -22,8 +22,8 @@ export function SettingsModal({
 }) {
   const { t, lang } = useI18nStore();
   const {
-    autoCheckUpdate, uiScale, blankLineOffset, spotifyClientId, spotifyMode,
-    setAutoCheckUpdate, setUiScale, setBlankLineOffset, setSpotifyClientId, setSpotifyMode,
+    autoCheckUpdate, autoSave, uiScale, blankLineOffset, spotifyClientId, spotifyMode,
+    setAutoCheckUpdate, setAutoSave, setUiScale, setBlankLineOffset, setSpotifyClientId, setSpotifyMode,
   } = useSettingsStore();
 
   const guideSuffix = lang === "ko" ? "ko" : lang === "ja" ? "ja" : "en";
@@ -125,7 +125,7 @@ export function SettingsModal({
                   <button
                     onClick={handleCheckNow}
                     disabled={checkState === "checking"}
-                    className="px-3 py-1.5 text-xs rounded-lg bg-zinc-700 hover:bg-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed text-zinc-100 transition-colors"
+                    className="px-3 py-1.5 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800 hover:border-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed text-zinc-200 transition-colors"
                   >
                     {checkState === "checking" ? t.settingsChecking : t.settingsCheckNow}
                   </button>
@@ -133,6 +133,32 @@ export function SettingsModal({
                     <span className="text-xs text-emerald-400">{t.settingsUpToDate}</span>
                   )}
                 </div>
+              </div>
+
+              <div className="border-t border-zinc-800" />
+
+              {/* Auto save */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-zinc-200">{t.settingsAutoSave}</span>
+                  <button
+                    onClick={() => setAutoSave(!autoSave)}
+                    className={[
+                      "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
+                      autoSave ? "bg-indigo-600" : "bg-zinc-600",
+                    ].join(" ")}
+                    role="switch"
+                    aria-checked={autoSave}
+                  >
+                    <span
+                      className={[
+                        "absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                        autoSave ? "translate-x-[22px]" : "translate-x-0.5",
+                      ].join(" ")}
+                    />
+                  </button>
+                </div>
+                <p className="text-xs text-zinc-500">{t.settingsAutoSaveDesc}</p>
               </div>
 
               <div className="border-t border-zinc-800" />
@@ -152,7 +178,8 @@ export function SettingsModal({
                   step={0.1}
                   value={blankLineOffset}
                   onChange={(e) => setBlankLineOffset(Number(e.target.value))}
-                  className="w-full accent-indigo-500"
+                  className="range-slim w-full"
+                  style={{ background: `linear-gradient(to right, #6366f1 ${Math.round((blankLineOffset / 5) * 100)}%, #3f3f46 ${Math.round((blankLineOffset / 5) * 100)}%)` }}
                 />
                 <p className="text-xs text-zinc-500">{t.aiSyncBlankOffsetDesc}</p>
               </div>
@@ -170,7 +197,7 @@ export function SettingsModal({
                     <button
                       onClick={() => setUiScale(1.0)}
                       disabled={uiScale === 1.0}
-                      className="px-2 py-0.5 text-xs rounded bg-zinc-700 hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed text-zinc-300 transition-colors"
+                      className="px-2 py-0.5 text-xs rounded text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       {t.settingsUiScaleReset}
                     </button>
@@ -183,7 +210,8 @@ export function SettingsModal({
                   step={0.05}
                   value={uiScale}
                   onChange={(e) => setUiScale(Number(e.target.value))}
-                  className="w-full accent-indigo-500"
+                  className="range-slim w-full"
+                  style={{ background: `linear-gradient(to right, #6366f1 ${Math.round(((uiScale - 0.7) / 0.6) * 100)}%, #3f3f46 ${Math.round(((uiScale - 0.7) / 0.6) * 100)}%)` }}
                 />
                 <div className="flex justify-between text-xs text-zinc-500 select-none">
                   <span>70%</span>
