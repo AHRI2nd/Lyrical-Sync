@@ -176,13 +176,13 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
       <div className="flex gap-2">
         <button
           onClick={onLoadCurrent}
-          className="flex-1 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm transition-colors text-center truncate"
+          className="flex-1 py-2 rounded-lg border border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800 text-zinc-300 text-sm transition-colors text-center truncate"
         >
           {t.spotifyLoadCurrent}
         </button>
         <button
           onClick={onSpotifySearch}
-          className="flex-1 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm transition-colors text-center truncate"
+          className="flex-1 py-2 rounded-lg border border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800 text-zinc-300 text-sm transition-colors text-center truncate"
         >
           {t.spotifySearchTrack}
         </button>

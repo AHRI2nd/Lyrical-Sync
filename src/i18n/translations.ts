@@ -19,11 +19,15 @@ export interface Translations {
   helpTabSpotify: string;
   shortcutsTitle: string;
   shortcutNote: string;
+  helpGroupPlayback: string;
+  helpGroupEdit: string;
+  helpGroupMouse: string;
   shortcutDescs: {
     s1: string; s2: string; s3: string; s4: string; s5: string; s6: string;
     space: string; backspace: string;
     enter: string; undo: string; redo: string; find: string;
     tsEditKey: string; tsEditDesc: string; tsStampKey: string; tsStampDesc: string;
+    lineClickKey: string; lineClickDesc: string; markerClickKey: string; markerClickDesc: string;
   };
   menu: {
     file: string; edit: string; playback: string; mode: string; view: string; help: string;
@@ -280,6 +284,9 @@ const ko: Translations = {
   helpTabSpotify: "Spotify",
   shortcutsTitle: "단축키 안내",
   shortcutNote: "* 인풋 포커스 중일 때는 단축키가 동작하지 않습니다.",
+  helpGroupPlayback: "재생 · 탐색",
+  helpGroupEdit: "편집",
+  helpGroupMouse: "마우스",
   shortcutDescs: {
     s1: "−5초 뒤로 스킵",
     s2: "−1초 뒤로 스킵",
@@ -297,6 +304,10 @@ const ko: Translations = {
     tsEditDesc: "타임스탬프 직접 편집 (숫자키로 MM:SS.xx 입력, Enter 확정 · Esc 취소)",
     tsStampKey: "우클릭",
     tsStampDesc: "타임스탬프를 현재 재생 시간으로 설정",
+    lineClickKey: "줄 클릭",
+    lineClickDesc: "해당 타임스탬프로 재생 위치 이동",
+    markerClickKey: "마커 클릭",
+    markerClickDesc: "파형 마커 → 해당 가사 줄 선택",
   },
   menu: {
     file: "파일", edit: "편집", playback: "재생", mode: "모드", view: "보기", help: "도움말",
@@ -572,6 +583,9 @@ const en: Translations = {
   helpTabSpotify: "Spotify",
   shortcutsTitle: "Keyboard Shortcuts",
   shortcutNote: "* Shortcuts are disabled while an input is focused.",
+  helpGroupPlayback: "Playback",
+  helpGroupEdit: "Editing",
+  helpGroupMouse: "Mouse",
   shortcutDescs: {
     s1: "Skip back 5s",
     s2: "Skip back 1s",
@@ -589,6 +603,10 @@ const en: Translations = {
     tsEditDesc: "Edit the timestamp directly (type MM:SS.xx, Enter to confirm · Esc to cancel)",
     tsStampKey: "R-Click",
     tsStampDesc: "Set the timestamp to the current playback time",
+    lineClickKey: "Line click",
+    lineClickDesc: "Seek playback to the line's timestamp",
+    markerClickKey: "Marker click",
+    markerClickDesc: "Waveform marker → select that lyric line",
   },
   menu: {
     file: "File", edit: "Edit", playback: "Playback", mode: "Mode", view: "View", help: "Help",
@@ -865,6 +883,9 @@ const ja: Translations = {
   helpTabSpotify: "Spotify",
   shortcutsTitle: "キーボードショートカット",
   shortcutNote: "* 入力欄にフォーカス中はショートカットが無効になります。",
+  helpGroupPlayback: "再生・移動",
+  helpGroupEdit: "編集",
+  helpGroupMouse: "マウス",
   shortcutDescs: {
     s1: "5秒戻る",
     s2: "1秒戻る",
@@ -882,6 +903,10 @@ const ja: Translations = {
     tsEditDesc: "タイムスタンプを直接編集（MM:SS.xx を入力、Enter で確定・Esc で取消）",
     tsStampKey: "右クリック",
     tsStampDesc: "タイムスタンプを現在の再生位置に設定",
+    lineClickKey: "行クリック",
+    lineClickDesc: "その行のタイムスタンプへ再生位置を移動",
+    markerClickKey: "マーカー",
+    markerClickDesc: "波形マーカー → その歌詞行を選択",
   },
   menu: {
     file: "ファイル", edit: "編集", playback: "再生", mode: "モード", view: "表示", help: "ヘルプ",

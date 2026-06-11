@@ -125,7 +125,7 @@ export function SettingsModal({
                   <button
                     onClick={handleCheckNow}
                     disabled={checkState === "checking"}
-                    className="px-3 py-1.5 text-xs rounded-lg bg-zinc-700 hover:bg-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed text-zinc-100 transition-colors"
+                    className="px-3 py-1.5 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800 hover:border-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed text-zinc-200 transition-colors"
                   >
                     {checkState === "checking" ? t.settingsChecking : t.settingsCheckNow}
                   </button>
@@ -197,7 +197,7 @@ export function SettingsModal({
                     <button
                       onClick={() => setUiScale(1.0)}
                       disabled={uiScale === 1.0}
-                      className="px-2 py-0.5 text-xs rounded bg-zinc-700 hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed text-zinc-300 transition-colors"
+                      className="px-2 py-0.5 text-xs rounded text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       {t.settingsUiScaleReset}
                     </button>

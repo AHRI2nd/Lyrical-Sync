@@ -453,21 +453,38 @@ function HelpModal({ onClose }: { onClose: () => void }) {
   const youtubeGuideUrl = `https://ahri2nd.xyz/posts/lyrical-sync-youtube-guide-${guideFileSuffix}/`;
   const [tab, setTab] = useState<"shortcuts" | "ai" | "spotify" | "youtube">("shortcuts");
 
-  const shortcuts = [
-    { key: "1", desc: t.shortcutDescs.s1 },
-    { key: "2", desc: t.shortcutDescs.s2 },
-    { key: "3", desc: t.shortcutDescs.s3 },
-    { key: "4", desc: t.shortcutDescs.s4 },
-    { key: "5", desc: t.shortcutDescs.s5 },
-    { key: "6", desc: t.shortcutDescs.s6 },
-    { key: "Space", desc: t.shortcutDescs.space },
-    { key: "Backspace", desc: t.shortcutDescs.backspace },
-    { key: "Enter", desc: t.shortcutDescs.enter },
-    { key: t.shortcutDescs.tsEditKey, desc: t.shortcutDescs.tsEditDesc },
-    { key: t.shortcutDescs.tsStampKey, desc: t.shortcutDescs.tsStampDesc },
-    { key: "Ctrl/⌘ Z", desc: t.shortcutDescs.undo },
-    { key: "Ctrl/⌘ ⇧ Z", desc: t.shortcutDescs.redo },
-    { key: "Ctrl/⌘ F", desc: t.shortcutDescs.find },
+  const shortcutGroups = [
+    {
+      title: t.helpGroupPlayback,
+      items: [
+        { key: "1", desc: t.shortcutDescs.s1 },
+        { key: "2", desc: t.shortcutDescs.s2 },
+        { key: "3", desc: t.shortcutDescs.s3 },
+        { key: "4", desc: t.shortcutDescs.s4 },
+        { key: "5", desc: t.shortcutDescs.s5 },
+        { key: "6", desc: t.shortcutDescs.s6 },
+      ],
+    },
+    {
+      title: t.helpGroupEdit,
+      items: [
+        { key: "Space", desc: t.shortcutDescs.space },
+        { key: "Backspace", desc: t.shortcutDescs.backspace },
+        { key: "Enter", desc: t.shortcutDescs.enter },
+        { key: "Ctrl/⌘ Z", desc: t.shortcutDescs.undo },
+        { key: "Ctrl/⌘ ⇧ Z", desc: t.shortcutDescs.redo },
+        { key: "Ctrl/⌘ F", desc: t.shortcutDescs.find },
+      ],
+    },
+    {
+      title: t.helpGroupMouse,
+      items: [
+        { key: t.shortcutDescs.tsEditKey, desc: t.shortcutDescs.tsEditDesc },
+        { key: t.shortcutDescs.tsStampKey, desc: t.shortcutDescs.tsStampDesc },
+        { key: t.shortcutDescs.lineClickKey, desc: t.shortcutDescs.lineClickDesc },
+        { key: t.shortcutDescs.markerClickKey, desc: t.shortcutDescs.markerClickDesc },
+      ],
+    },
   ];
 
   useEffect(() => {
@@ -491,11 +508,11 @@ function HelpModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800 shrink-0">
           <span className="font-semibold text-zinc-100">{t.helpTitle}</span>
           <button
             onClick={onClose}
@@ -506,7 +523,7 @@ function HelpModal({ onClose }: { onClose: () => void }) {
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-zinc-800">
+        <div className="flex border-b border-zinc-800 shrink-0">
           {tabs.map(({ id, label }) => (
             <button
               key={id}
@@ -524,18 +541,25 @@ function HelpModal({ onClose }: { onClose: () => void }) {
         </div>
 
         {/* Content */}
-        <div className="p-4 max-h-80 overflow-y-auto">
+        <div className="p-5 flex-1 overflow-y-auto">
           {tab === "shortcuts" && (
-            <div className="flex flex-col gap-1.5">
-              {shortcuts.map(({ key, desc }) => (
-                <div key={key} className="flex items-center gap-3">
-                  <kbd className="shrink-0 min-w-[2.5rem] text-center px-2 py-0.5 rounded bg-zinc-800 border border-zinc-600 text-xs font-mono text-zinc-200">
-                    {key}
-                  </kbd>
-                  <span className="text-sm text-zinc-300">{desc}</span>
+            <div className="flex flex-col gap-5">
+              {shortcutGroups.map((g) => (
+                <div key={g.title}>
+                  <h3 className="text-xs font-semibold text-zinc-400 mb-2.5">{g.title}</h3>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
+                    {g.items.map(({ key, desc }) => (
+                      <div key={key} className="flex items-center gap-3">
+                        <kbd className="shrink-0 min-w-[3rem] text-center px-2 py-1 rounded-md bg-zinc-800 border border-zinc-600 text-xs font-mono text-zinc-200 whitespace-nowrap">
+                          {key}
+                        </kbd>
+                        <span className="text-sm text-zinc-300 leading-snug">{desc}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
-              <p className="mt-3 text-xs text-zinc-500">{t.shortcutNote}</p>
+              <p className="text-xs text-zinc-500 pt-1">{t.shortcutNote}</p>
             </div>
           )}
 
@@ -650,7 +674,7 @@ function ConfirmModal({
           {leftLabel && onLeft && (
             <button
               onClick={onLeft}
-              className="px-4 py-1.5 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors whitespace-nowrap"
+              className="px-4 py-1.5 text-sm rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors whitespace-nowrap"
             >
               {leftLabel}
             </button>
@@ -659,7 +683,7 @@ function ConfirmModal({
           {cancelLabel && (
             <button
               onClick={onCancel}
-              className="px-4 py-1.5 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100 transition-colors whitespace-nowrap"
+              className="px-4 py-1.5 text-sm rounded-lg text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors whitespace-nowrap"
             >
               {cancelLabel}
             </button>
@@ -727,7 +751,7 @@ function SaveFormatModal({
         <div className="flex justify-end px-5 pb-4">
           <button
             onClick={onCancel}
-            className="px-4 py-1.5 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100 transition-colors"
+            className="px-4 py-1.5 text-sm rounded-lg text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
           >
             {t.rawEditorCancel}
           </button>
@@ -758,7 +782,7 @@ function IconBtn({
         className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
           accent
             ? "bg-indigo-600 hover:bg-indigo-500 text-white"
-            : "bg-zinc-700 hover:bg-zinc-600 text-zinc-100"
+            : "text-zinc-400 hover:bg-zinc-800 hover:text-white"
         }`}
       >
         {children}
