@@ -68,6 +68,8 @@ export interface Translations {
   tooltipStop: string;
   tooltipLoop: string;
   tooltipMarkers: string;
+  playerMore: string;
+  playerSpeed: string;
   tooltipSpeedDown: string;
   tooltipSpeedUp: string;
   tooltipViewWaveform: string;
@@ -76,6 +78,7 @@ export interface Translations {
   lyricsEditor: string;
   addLine: string;
   findReplace: string;
+  editorTools: string;
   findPlaceholder: string;
   replacePlaceholder: string;
   replaceBtn: string;
@@ -364,6 +367,8 @@ const ko: Translations = {
   tooltipStop: "[6] 처음으로",
   tooltipLoop: "반복재생",
   tooltipMarkers: "가사 마커 표시",
+  playerMore: "더보기 (반복·마커·배속)",
+  playerSpeed: "배속",
   tooltipSpeedDown: "배속 감소",
   tooltipSpeedUp: "배속 증가",
   tooltipViewWaveform: "파형",
@@ -371,6 +376,7 @@ const ko: Translations = {
   lyricsEditor: "가사 편집",
   addLine: "+ 줄 추가",
   findReplace: "찾기/바꾸기",
+  editorTools: "도구",
   findPlaceholder: "찾기...",
   replacePlaceholder: "바꾸기...",
   replaceBtn: "바꾸기",
@@ -652,6 +658,8 @@ const en: Translations = {
   tooltipStop: "[6] Reset",
   tooltipLoop: "Loop",
   tooltipMarkers: "Show lyric markers",
+  playerMore: "More (loop · markers · speed)",
+  playerSpeed: "Speed",
   tooltipSpeedDown: "Slower",
   tooltipSpeedUp: "Faster",
   tooltipViewWaveform: "Waveform",
@@ -660,6 +668,7 @@ const en: Translations = {
   lyricsEditor: "Lyrics Editor",
   addLine: "+ Add Line",
   findReplace: "Find/Replace",
+  editorTools: "Tools",
   findPlaceholder: "Find...",
   replacePlaceholder: "Replace...",
   replaceBtn: "Replace",
@@ -941,6 +950,8 @@ const ja: Translations = {
   tooltipStop: "[6] 最初へ",
   tooltipLoop: "リピート",
   tooltipMarkers: "歌詞マーカー表示",
+  playerMore: "その他（リピート・マーカー・速度）",
+  playerSpeed: "再生速度",
   tooltipSpeedDown: "遅くする",
   tooltipSpeedUp: "速くする",
   tooltipViewWaveform: "波形",
@@ -948,6 +959,7 @@ const ja: Translations = {
   lyricsEditor: "歌詞編集",
   addLine: "+ 行を追加",
   findReplace: "検索/置換",
+  editorTools: "ツール",
   findPlaceholder: "検索...",
   replacePlaceholder: "置換...",
   replaceBtn: "置換",

@@ -45,6 +45,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   const playbackRateRef = useRef(1.0);
   const zoomDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seekBarRef = useRef<HTMLDivElement>(null);
+  const moreRef = useRef<HTMLDivElement>(null);
   const isSeeking = useRef(false);
   const [isPlaying, setIsPlayingLocal] = useState(false);
   const [isAudioReady, setIsAudioReady] = useState(false);
@@ -63,6 +64,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   const lines = useLrcStore((s) => s.doc.lines);
   const activeLineId = useLrcStore((s) => s.activeLineId);
   const [showMarkers, setShowMarkers] = useState(true);
+  const [showMore, setShowMore] = useState(false);
   const { t } = useI18nStore();
   const { isLoggedIn, startLogin, fetchCurrentlyPlaying, transferPlaybackToApp } = useServiceStore();
   const { spotifyMode, spotifyClientId, youtubeMode, ytdlpAudioQuality, ytdlpCookiesFile, ytdlpProxy } = useSettingsStore();
@@ -261,6 +263,16 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   useEffect(() => {
     wsRef.current?.setVolume(volume);
   }, [volume]);
+
+  // 보조기능 오버플로우(⋯) 바깥 클릭 시 닫기
+  useEffect(() => {
+    if (!showMore) return;
+    const h = (e: MouseEvent) => {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setShowMore(false);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [showMore]);
 
   // 가사 타임스탬프 마커를 파형에 동기화
   useEffect(() => {
@@ -513,40 +525,52 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         </CtrlBtn>
       </div>
 
-      {/* Row 2: 정지 + 반복 + 배속 */}
-      <div className="flex items-center justify-center gap-1.5">
+      {/* Row 2: 정지 + 보조기능 오버플로우(⋯). relative를 행 전체에 두어 팝오버가
+          좁은 카드 폭(우측 정렬) 안에 들어오게 함 */}
+      <div className="relative flex items-center justify-center gap-1.5" ref={moreRef}>
         <CtrlBtn onClick={stopAndReset} title={t.tooltipStop}>
           <StopIcon />
         </CtrlBtn>
-        <CtrlBtn onClick={toggleLoop} title={t.tooltipLoop} active={isLooping}>
-          <LoopIcon />
+        <CtrlBtn
+          onClick={() => setShowMore((v) => !v)}
+          title={t.playerMore}
+          active={showMore || isLooping || playbackRate !== 1.0}
+        >
+          <MoreIcon />
         </CtrlBtn>
-        <CtrlBtn onClick={() => setShowMarkers((v) => !v)} title={t.tooltipMarkers} active={showMarkers}>
-          <MarkerIcon />
-        </CtrlBtn>
-
-        <div className="flex items-center gap-1 ml-1">
-          <CtrlBtn
-            onClick={() => adjustSpeed(-1)}
-            title={t.tooltipSpeedDown}
-            disabled={playbackRate <= SPEED_STEPS[0]}
-          >
-            <span className="text-sm font-bold leading-none">−</span>
-          </CtrlBtn>
-          <div className="w-14 h-9 rounded-lg bg-zinc-800 border border-zinc-600 flex items-center justify-center select-none">
-            <span className="text-xs font-mono text-zinc-200 tabular-nums">
-              {playbackRate.toFixed(2)}×
-            </span>
-          </div>
-          <CtrlBtn
-            onClick={() => adjustSpeed(1)}
-            title={t.tooltipSpeedUp}
-            disabled={playbackRate >= SPEED_STEPS[SPEED_STEPS.length - 1]}
-          >
-            <span className="text-sm font-bold leading-none">+</span>
-          </CtrlBtn>
+        {showMore && (
+          <div className="absolute right-0 bottom-full mb-2 z-40 w-56 bg-zinc-800 border border-zinc-700 rounded-xl shadow-2xl p-3 flex flex-col gap-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-zinc-300">{t.tooltipLoop}</span>
+                <button onClick={toggleLoop} className={popToggleCls(isLooping)} title={t.tooltipLoop}>
+                  <LoopIcon />
+                </button>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-zinc-300">{t.tooltipMarkers}</span>
+                <button onClick={() => setShowMarkers((v) => !v)} className={popToggleCls(showMarkers)} title={t.tooltipMarkers}>
+                  <MarkerIcon />
+                </button>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-zinc-300">{t.playerSpeed}</span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => adjustSpeed(-1)}
+                    disabled={playbackRate <= SPEED_STEPS[0]}
+                    className="w-6 h-6 flex items-center justify-center rounded-md bg-zinc-700 hover:bg-zinc-600 disabled:opacity-30 text-zinc-200 text-sm font-bold leading-none transition-colors"
+                  >−</button>
+                  <span className="w-12 text-center text-xs font-mono text-zinc-200 tabular-nums">{playbackRate.toFixed(2)}×</span>
+                  <button
+                    onClick={() => adjustSpeed(1)}
+                    disabled={playbackRate >= SPEED_STEPS[SPEED_STEPS.length - 1]}
+                    className="w-6 h-6 flex items-center justify-center rounded-md bg-zinc-700 hover:bg-zinc-600 disabled:opacity-30 text-zinc-200 text-sm font-bold leading-none transition-colors"
+                  >+</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-      </div>
 
       {/* 열기 버튼 */}
       {spotifyMode ? (
@@ -702,18 +726,20 @@ function StopIcon() {
 }
 
 function SkipBackIcon() {
+  // 채워진 이중 삼각형 (◀◀ 되감기)
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
+      <path d="M11 6 L11 18 L4 12 Z M18 6 L18 18 L11 12 Z" />
     </svg>
   );
 }
 
 
 function SkipFwdIcon() {
+  // 채워진 이중 삼각형 (▶▶ 빨리감기)
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" />
+      <path d="M6 6 L6 18 L13 12 Z M13 6 L13 18 L20 12 Z" />
     </svg>
   );
 }
@@ -734,6 +760,24 @@ function LoopIcon() {
       <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
     </svg>
   );
+}
+
+function MoreIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <circle cx="5" cy="12" r="2" />
+      <circle cx="12" cy="12" r="2" />
+      <circle cx="19" cy="12" r="2" />
+    </svg>
+  );
+}
+
+// 오버플로우 팝오버 내 토글 버튼 스타일
+function popToggleCls(active: boolean): string {
+  return [
+    "w-8 h-8 flex items-center justify-center rounded-lg transition-colors",
+    active ? "bg-indigo-500 text-white hover:bg-indigo-400" : "bg-zinc-700 text-zinc-200 hover:bg-zinc-600",
+  ].join(" ");
 }
 
 function YouTubeLinkIcon() {

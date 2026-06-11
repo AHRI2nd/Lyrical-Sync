@@ -38,6 +38,10 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
 
   // Time Shift state
   const [showTS, setShowTS] = useState(false);
+
+  // 도구 오버플로우(찾기·구간오프셋)
+  const [showTools, setShowTools] = useState(false);
+  const toolsRef = useRef<HTMLDivElement>(null);
   const [findText, setFindText] = useState("");
   const [replaceText, setReplaceText] = useState("");
   const [caseSensitive, setCaseSensitive] = useState(false);
@@ -195,6 +199,16 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
+  // 도구 오버플로우 바깥 클릭 시 닫기
+  useEffect(() => {
+    if (!showTools) return;
+    const h = (e: MouseEvent) => {
+      if (toolsRef.current && !toolsRef.current.contains(e.target as Node)) setShowTools(false);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [showTools]);
+
   const handleFRClose = useCallback(() => {
     setShowFR(false);
     setMatchPos(0);
@@ -322,25 +336,31 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
             </button>
           )}
 
-          <div className="relative group/ts-btn">
+          {/* 도구 오버플로우: 찾기/바꾸기 · 구간 오프셋 */}
+          <div className="relative" ref={toolsRef}>
             <button
-              onClick={() => setShowTS((v) => !v)}
-              className={`px-3 py-1 text-xs rounded-lg transition-colors ${showTS ? "bg-sky-600 hover:bg-sky-500 text-white" : "bg-zinc-700 hover:bg-zinc-600 text-zinc-200"}`}
+              onClick={() => setShowTools((v) => !v)}
+              className={`px-3 py-1 text-xs rounded-lg transition-colors ${showTools || showFR || showTS ? "bg-zinc-600 text-white" : "bg-zinc-700 hover:bg-zinc-600 text-zinc-200"}`}
             >
-              {t.timeShift}
+              {t.editorTools}
             </button>
-            <div className="pointer-events-none absolute right-0 top-full mt-1.5 hidden group-hover/ts-btn:block z-30">
-              <div className="bg-zinc-800 border border-zinc-600 text-zinc-200 text-xs rounded-lg px-2.5 py-1.5 shadow-xl whitespace-nowrap">
-                {t.timeShiftTooltip}
+            {showTools && (
+              <div className="absolute right-0 top-full mt-1.5 z-40 w-44 bg-zinc-800 border border-zinc-700 rounded-xl shadow-2xl p-1.5 flex flex-col gap-0.5">
+                <button
+                  onClick={() => { setShowFR((v) => !v); setShowTools(false); setTimeout(() => findInputRef.current?.focus(), 0); }}
+                  className={`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showFR ? "bg-amber-600 text-white" : "hover:bg-zinc-700 text-zinc-200"}`}
+                >
+                  {t.findReplace}
+                </button>
+                <button
+                  onClick={() => { setShowTS((v) => !v); setShowTools(false); }}
+                  className={`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showTS ? "bg-sky-600 text-white" : "hover:bg-zinc-700 text-zinc-200"}`}
+                >
+                  {t.timeShift}
+                </button>
               </div>
-            </div>
+            )}
           </div>
-          <button
-            onClick={() => { setShowFR((v) => !v); setTimeout(() => findInputRef.current?.focus(), 0); }}
-            className={`px-3 py-1 text-xs rounded-lg transition-colors ${showFR ? "bg-amber-600 hover:bg-amber-500 text-white" : "bg-zinc-700 hover:bg-zinc-600 text-zinc-200"}`}
-          >
-            {t.findReplace}
-          </button>
           <button
             onClick={onPreview}
             className="px-3 py-1 text-xs rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-200 transition-colors"
@@ -440,7 +460,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                   if (idx !== -1) setMatchPos(idx);
                 }
               }}
-              className={`flex items-center gap-2 rounded-lg px-2 py-1 transition-colors cursor-pointer ${
+              className={`group/row flex items-center gap-2 rounded-lg px-2 py-1 transition-colors cursor-pointer ${
                 isCurrentMatch
                   ? "bg-amber-900/30 ring-1 ring-amber-500"
                   : isActive
@@ -509,7 +529,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
 
               <button
                 onClick={(e) => { e.stopPropagation(); deleteLine(line.id); }}
-                className="shrink-0 text-zinc-600 hover:text-rose-400 transition-colors text-sm px-1"
+                className="shrink-0 text-zinc-600 hover:text-rose-400 text-sm px-1 opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
                 title={t.deleteLine}
               >
                 ✕
