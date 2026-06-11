@@ -178,7 +178,8 @@ export function SettingsModal({
                   step={0.1}
                   value={blankLineOffset}
                   onChange={(e) => setBlankLineOffset(Number(e.target.value))}
-                  className="w-full accent-indigo-500"
+                  className="range-slim w-full"
+                  style={{ background: `linear-gradient(to right, #6366f1 ${Math.round((blankLineOffset / 5) * 100)}%, #3f3f46 ${Math.round((blankLineOffset / 5) * 100)}%)` }}
                 />
                 <p className="text-xs text-zinc-500">{t.aiSyncBlankOffsetDesc}</p>
               </div>
@@ -209,7 +210,8 @@ export function SettingsModal({
                   step={0.05}
                   value={uiScale}
                   onChange={(e) => setUiScale(Number(e.target.value))}
-                  className="w-full accent-indigo-500"
+                  className="range-slim w-full"
+                  style={{ background: `linear-gradient(to right, #6366f1 ${Math.round(((uiScale - 0.7) / 0.6) * 100)}%, #3f3f46 ${Math.round(((uiScale - 0.7) / 0.6) * 100)}%)` }}
                 />
                 <div className="flex justify-between text-xs text-zinc-500 select-none">
                   <span>70%</span>
