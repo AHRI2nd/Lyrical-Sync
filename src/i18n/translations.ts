@@ -40,6 +40,15 @@ export interface Translations {
     replaceOk: string;
     replaceCancel: string;
   };
+  lrclib: {
+    button: string; title: string;
+    fieldTitle: string; fieldArtist: string; fieldAlbum: string;
+    search: string; searching: string; noResults: string; error: string; hint: string;
+    syncedOnly: string; plainOnly: string;
+    preview: string; confirm: string;
+    instrumental: string; noLyrics: string; synced: string; plain: string;
+    previewTitle: string; close: string;
+  };
   helpAiSteps: { title: string; desc: string }[];
   helpSpotifySteps: { title: string; desc: string }[];
   helpYoutubeSteps: { title: string; desc: string }[];
@@ -299,6 +308,28 @@ const ko: Translations = {
     replaceBoth: "작업 중인 오디오·가사가 있습니다. 저장하지 않은 변경 사항은 사라집니다. 교체하시겠습니까?",
     replaceOk: "교체",
     replaceCancel: "취소",
+  },
+  lrclib: {
+    button: "LRCLIB 불러오기",
+    title: "LRCLIB 가사 검색",
+    fieldTitle: "제목",
+    fieldArtist: "아티스트",
+    fieldAlbum: "앨범",
+    search: "검색",
+    searching: "검색 중…",
+    noResults: "검색 결과가 없습니다.",
+    error: "검색에 실패했습니다.",
+    hint: "제목·아티스트·앨범으로 검색하세요. (제목 우선순위 높음)",
+    syncedOnly: "동기화 가사만",
+    plainOnly: "일반 가사만",
+    preview: "미리보기",
+    confirm: "확인",
+    instrumental: "연주곡",
+    noLyrics: "가사 없음",
+    synced: "동기화",
+    plain: "가사",
+    previewTitle: "가사 미리보기",
+    close: "닫기",
   },
   helpAiSteps: [
     { title: "Python 환경 설치", desc: "설정(⚙) → AI 환경 탭에서 내장 Python을 다운로드하고 패키지를 설치합니다." },
@@ -566,6 +597,28 @@ const en: Translations = {
     replaceOk: "Replace",
     replaceCancel: "Cancel",
   },
+  lrclib: {
+    button: "Fetch from LRCLIB",
+    title: "Search lyrics on LRCLIB",
+    fieldTitle: "Title",
+    fieldArtist: "Artist",
+    fieldAlbum: "Album",
+    search: "Search",
+    searching: "Searching…",
+    noResults: "No results found.",
+    error: "Search failed.",
+    hint: "Search by title, artist, and album. (Title is weighted highest)",
+    syncedOnly: "Synced only",
+    plainOnly: "Plain only",
+    preview: "Preview",
+    confirm: "Use",
+    instrumental: "Instrumental",
+    noLyrics: "No lyrics",
+    synced: "Synced",
+    plain: "Plain",
+    previewTitle: "Lyrics preview",
+    close: "Close",
+  },
   helpAiSteps: [
     { title: "Install Python Environment", desc: "Go to Settings(⚙) → AI Environment tab to download the bundled Python and install packages." },
     { title: "Download Model", desc: "Go to Settings → AI Models tab and download the required model ctc-mms-300m (1.2 GB)." },
@@ -832,6 +885,28 @@ const ja: Translations = {
     replaceBoth: "編集中のオーディオ・歌詞があります。保存していない変更は失われます。置き換えますか？",
     replaceOk: "置き換え",
     replaceCancel: "キャンセル",
+  },
+  lrclib: {
+    button: "LRCLIBから取得",
+    title: "LRCLIBで歌詞を検索",
+    fieldTitle: "タイトル",
+    fieldArtist: "アーティスト",
+    fieldAlbum: "アルバム",
+    search: "検索",
+    searching: "検索中…",
+    noResults: "検索結果がありません。",
+    error: "検索に失敗しました。",
+    hint: "タイトル・アーティスト・アルバムで検索（タイトル優先）",
+    syncedOnly: "同期歌詞のみ",
+    plainOnly: "通常歌詞のみ",
+    preview: "プレビュー",
+    confirm: "確定",
+    instrumental: "インスト",
+    noLyrics: "歌詞なし",
+    synced: "同期",
+    plain: "歌詞",
+    previewTitle: "歌詞プレビュー",
+    close: "閉じる",
   },
   helpAiSteps: [
     { title: "Python環境のインストール", desc: "設定(⚙) → AI環境タブで内蔵Pythonをダウンロードし、パッケージをインストールします。" },
