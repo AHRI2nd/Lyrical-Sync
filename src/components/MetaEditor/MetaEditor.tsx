@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { serializeLrc } from "../../utils/lrcParser";
+import { LrcLibModal } from "../LrcLib/LrcLibModal";
 
 export function MetaEditor() {
   const { doc, setMetadata, applyOffset, loadFromRawText } = useLrcStore();
@@ -9,6 +10,7 @@ export function MetaEditor() {
   const { metadata } = doc;
 
   const [showRawEditor, setShowRawEditor] = useState(false);
+  const [showLrcLib, setShowLrcLib] = useState(false);
 
   const fields = [
     { key: "title" as const, ...t.metaTitle },
@@ -22,6 +24,12 @@ export function MetaEditor() {
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-zinc-300">{t.songInfo}</h2>
         <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setShowLrcLib(true)}
+            className="px-2.5 py-0.5 text-xs rounded-lg bg-indigo-700/70 hover:bg-indigo-600 text-indigo-100 transition-colors"
+          >
+            {t.lrclib.button}
+          </button>
           <button
             onClick={() => setShowRawEditor(true)}
             className="px-2.5 py-0.5 text-xs rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
@@ -74,6 +82,7 @@ export function MetaEditor() {
           onClose={() => setShowRawEditor(false)}
         />
       )}
+      {showLrcLib && <LrcLibModal onClose={() => setShowLrcLib(false)} />}
     </div>
   );
 }

@@ -56,6 +56,7 @@ interface LrcStore {
   openAudio: () => Promise<void>;
   openLrc: () => Promise<void>;
   loadLyricsPath: (path: string) => Promise<void>;
+  applyFetchedLyrics: (lrcText: string, meta?: { title: string; artist: string; album: string }) => void;
   saveLrc: () => Promise<void>;
   saveLrcAs: (format: "lrc" | "srt") => Promise<void>;
   newLrc: () => void;
@@ -298,6 +299,34 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     nextId = id;
     const firstId = doc.lines[0]?.id ?? null;
     set({ doc, lrcPath: path, isDirty: false, activeLineId: firstId, _history: [], _future: [] });
+  },
+
+  // LRCLIB 등 외부에서 가져온 가사 적용. 라인은 교체하되 메타데이터는 보존:
+  // 이미 입력된 title/artist/album은 그대로 두고, 비어 있는 필드만 결과로 채운다.
+  // (by/offset도 보존). 로컬 파일 무관 → lrcPath 비움.
+  applyFetchedLyrics: (lrcText, meta) => {
+    const parsed = parseLrc(lrcText);
+    let id = 1;
+    parsed.lines = parsed.lines.map((l) => ({ ...l, id: String(id++) }));
+    nextId = id;
+    const current = get().doc.metadata;
+    const metadata = meta
+      ? {
+          ...current,
+          title: current.title.trim() || meta.title,
+          artist: current.artist.trim() || meta.artist,
+          album: current.album.trim() || meta.album,
+        }
+      : current;
+    const firstId = parsed.lines[0]?.id ?? null;
+    set({
+      doc: { ...parsed, metadata },
+      lrcPath: null,
+      isDirty: true,
+      activeLineId: firstId,
+      _history: [],
+      _future: [],
+    });
   },
 
   // 가사 열기: LRC·SRT 모두 지원.
