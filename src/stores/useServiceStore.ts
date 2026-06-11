@@ -237,18 +237,22 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
       _lastStateTimestamp: Date.now(),
     });
 
+    // Spotify 모드일 때만 문서(가사 위치·메타데이터)에 반영. 파일/유튜브 모드에선 무시.
+    const inSpotifyMode = useSettingsStore.getState().spotifyMode;
     if (isPlaying) {
       get()._startInterpolation();
     } else {
       get()._stopInterpolation();
-      useLrcStore.getState().setCurrentTime(positionMs / 1000);
+      if (inSpotifyMode) useLrcStore.getState().setCurrentTime(positionMs / 1000);
     }
 
-    useLrcStore.getState().setMetadata({
-      title: track.name,
-      artist: track.artists.map((a) => a.name).join(", "),
-      album: track.album.name,
-    });
+    if (inSpotifyMode) {
+      useLrcStore.getState().setMetadata({
+        title: track.name,
+        artist: track.artists.map((a) => a.name).join(", "),
+        album: track.album.name,
+      });
+    }
   },
 
   transferPlaybackToApp: async () => {
@@ -350,7 +354,7 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
       const elapsed = Date.now() - _lastStateTimestamp;
       const interpolated = Math.min(_lastKnownPositionMs + elapsed, durationMs);
       set({ positionMs: interpolated });
-      useLrcStore.getState().setCurrentTime(interpolated / 1000);
+      if (useSettingsStore.getState().spotifyMode) useLrcStore.getState().setCurrentTime(interpolated / 1000);
       interpolationRaf = requestAnimationFrame(tick);
     };
     interpolationRaf = requestAnimationFrame(tick);

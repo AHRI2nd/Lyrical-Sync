@@ -3,6 +3,8 @@ import { persist } from "zustand/middleware";
 
 interface SettingsState {
   autoCheckUpdate: boolean;
+  /** 저장 경로가 지정된 파일에 대해 변경 시 자동 저장 */
+  autoSave: boolean;
   uiScale: number;
   /** 커스텀 모델 저장 경로. "" = 앱 기본 경로 사용 */
   modelsDir: string;
@@ -21,6 +23,7 @@ interface SettingsState {
   /** yt-dlp 프록시 설정 */
   ytdlpProxy: string;
   setAutoCheckUpdate: (v: boolean) => void;
+  setAutoSave: (v: boolean) => void;
   setUiScale: (v: number) => void;
   setModelsDir: (v: string) => void;
   setBlankLineOffset: (v: number) => void;
@@ -36,6 +39,7 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
       autoCheckUpdate: true,
+      autoSave: true,
       uiScale: 1.0,
       modelsDir: "",
       blankLineOffset: 1.0,
@@ -46,6 +50,7 @@ export const useSettingsStore = create<SettingsState>()(
       ytdlpCookiesFile: "",
       ytdlpProxy: "",
       setAutoCheckUpdate: (v) => set({ autoCheckUpdate: v }),
+      setAutoSave: (v) => set({ autoSave: v }),
       setUiScale: (v) => set({ uiScale: v }),
       setModelsDir: (v) => set({ modelsDir: v }),
       setBlankLineOffset: (v) => set({ blankLineOffset: v }),

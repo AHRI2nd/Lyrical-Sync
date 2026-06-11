@@ -19,9 +19,39 @@ export interface Translations {
   helpTabSpotify: string;
   shortcutsTitle: string;
   shortcutNote: string;
+  helpGroupPlayback: string;
+  helpGroupEdit: string;
+  helpGroupMouse: string;
   shortcutDescs: {
     s1: string; s2: string; s3: string; s4: string; s5: string; s6: string;
     space: string; backspace: string;
+    enter: string; undo: string; redo: string; find: string;
+    tsEditKey: string; tsEditDesc: string; tsStampKey: string; tsStampDesc: string;
+    lineClickKey: string; lineClickDesc: string; markerClickKey: string; markerClickDesc: string;
+  };
+  menu: {
+    file: string; edit: string; playback: string; mode: string; view: string; help: string;
+    settings: string; saveAsLrc: string; saveAsSrt: string;
+    playPause: string; skipBack5: string; skipBack1: string;
+    skipFwd1: string; skipFwd5: string; stop: string;
+  };
+  drop: {
+    overlayHint: string;
+    replaceTitle: string;
+    replaceAudio: string;
+    replaceLyrics: string;
+    replaceBoth: string;
+    replaceOk: string;
+    replaceCancel: string;
+  };
+  lrclib: {
+    button: string; title: string;
+    fieldTitle: string; fieldArtist: string; fieldAlbum: string;
+    search: string; searching: string; noResults: string; error: string; hint: string;
+    syncedOnly: string; plainOnly: string;
+    preview: string; confirm: string;
+    instrumental: string; noLyrics: string; synced: string; plain: string;
+    previewTitle: string; close: string;
   };
   helpAiSteps: { title: string; desc: string }[];
   helpSpotifySteps: { title: string; desc: string }[];
@@ -41,6 +71,9 @@ export interface Translations {
   tooltipSkipFwd5: string;
   tooltipStop: string;
   tooltipLoop: string;
+  tooltipMarkers: string;
+  playerMore: string;
+  playerSpeed: string;
   tooltipSpeedDown: string;
   tooltipSpeedUp: string;
   tooltipViewWaveform: string;
@@ -48,6 +81,24 @@ export interface Translations {
   // LrcEditor
   lyricsEditor: string;
   addLine: string;
+  findReplace: string;
+  editorTools: string;
+  findPlaceholder: string;
+  replacePlaceholder: string;
+  replaceBtn: string;
+  replaceAll: string;
+  caseSensitive: string;
+  noMatches: string;
+  timeShift: string;
+  timeShiftTooltip: string;
+  timeShiftFrom: string;
+  timeShiftTo: string;
+  timeShiftDelta: string;
+  timeShiftApply: string;
+  timeShiftSec: string;
+  warnOutOfOrder: string;
+  warnDuplicate: string;
+  validationSummary: string;
   noLines: string;
   stampTooltip: string;
   linePlaceholder: string;
@@ -60,6 +111,7 @@ export interface Translations {
   metaAlbum: { label: string; placeholder: string };
   metaBy: { label: string; placeholder: string };
   metaOffset: string;
+  metaOffsetShort: string;
   applyOffset: string;
   applyOffsetTooltip: string;
   viewAll: string;
@@ -89,6 +141,8 @@ export interface Translations {
   settingsTabModels: string;
   settingsAutoUpdate: string;
   settingsAutoUpdateDesc: string;
+  settingsAutoSave: string;
+  settingsAutoSaveDesc: string;
   settingsCheckNow: string;
   settingsChecking: string;
   settingsUpToDate: string;
@@ -216,7 +270,7 @@ export interface Translations {
 const ko: Translations = {
   newFileTitle: "새 LRC 파일",
   newFileBtn: "새로 만들기",
-  openLrc: "LRC 열기",
+  openLrc: "가사 열기",
   save: "저장",
   saveAs: "다른 이름으로 저장",
   saveFormatTitle: "저장 형식 선택",
@@ -230,6 +284,9 @@ const ko: Translations = {
   helpTabSpotify: "Spotify",
   shortcutsTitle: "단축키 안내",
   shortcutNote: "* 인풋 포커스 중일 때는 단축키가 동작하지 않습니다.",
+  helpGroupPlayback: "재생 · 탐색",
+  helpGroupEdit: "편집",
+  helpGroupMouse: "마우스",
   shortcutDescs: {
     s1: "−5초 뒤로 스킵",
     s2: "−1초 뒤로 스킵",
@@ -239,6 +296,55 @@ const ko: Translations = {
     s6: "정지 및 처음으로",
     space: "현재 줄에 타임스탬프 찍기 + 다음 줄로 이동",
     backspace: "이전 줄로 이동",
+    enter: "가사 편집 중 현재 줄 아래에 새 줄 삽입",
+    undo: "실행 취소",
+    redo: "다시 실행",
+    find: "찾기 / 바꾸기 열기",
+    tsEditKey: "좌클릭",
+    tsEditDesc: "타임스탬프 직접 편집 (숫자키로 MM:SS.xx 입력, Enter 확정 · Esc 취소)",
+    tsStampKey: "우클릭",
+    tsStampDesc: "타임스탬프를 현재 재생 시간으로 설정",
+    lineClickKey: "줄 클릭",
+    lineClickDesc: "해당 타임스탬프로 재생 위치 이동",
+    markerClickKey: "마커 클릭",
+    markerClickDesc: "파형 마커 → 해당 가사 줄 선택",
+  },
+  menu: {
+    file: "파일", edit: "편집", playback: "재생", mode: "모드", view: "보기", help: "도움말",
+    settings: "설정…", saveAsLrc: "LRC로 저장…", saveAsSrt: "SRT로 저장…",
+    playPause: "재생 / 일시정지", skipBack5: "5초 뒤로", skipBack1: "1초 뒤로",
+    skipFwd1: "1초 앞으로", skipFwd5: "5초 앞으로", stop: "정지",
+  },
+  drop: {
+    overlayHint: "여기에 파일을 놓아 열기",
+    replaceTitle: "파일 열기",
+    replaceAudio: "작업 중인 오디오가 있습니다. 새 오디오로 교체하시겠습니까?",
+    replaceLyrics: "작업 중인 가사가 있습니다. 저장하지 않은 변경 사항은 사라집니다. 교체하시겠습니까?",
+    replaceBoth: "작업 중인 오디오·가사가 있습니다. 저장하지 않은 변경 사항은 사라집니다. 교체하시겠습니까?",
+    replaceOk: "교체",
+    replaceCancel: "취소",
+  },
+  lrclib: {
+    button: "LRCLIB 불러오기",
+    title: "LRCLIB 가사 검색",
+    fieldTitle: "제목",
+    fieldArtist: "아티스트",
+    fieldAlbum: "앨범",
+    search: "검색",
+    searching: "검색 중…",
+    noResults: "검색 결과가 없습니다.",
+    error: "검색에 실패했습니다.",
+    hint: "제목·아티스트·앨범으로 검색하세요. (제목 우선순위 높음)",
+    syncedOnly: "동기화 가사만",
+    plainOnly: "일반 가사만",
+    preview: "미리보기",
+    confirm: "확인",
+    instrumental: "연주곡",
+    noLyrics: "가사 없음",
+    synced: "동기화",
+    plain: "가사",
+    previewTitle: "가사 미리보기",
+    close: "닫기",
   },
   helpAiSteps: [
     { title: "Python 환경 설치", desc: "설정(⚙) → AI 환경 탭에서 내장 Python을 다운로드하고 패키지를 설치합니다." },
@@ -272,12 +378,33 @@ const ko: Translations = {
   tooltipSkipFwd5: "[5] +5초",
   tooltipStop: "[6] 처음으로",
   tooltipLoop: "반복재생",
+  tooltipMarkers: "가사 마커 표시",
+  playerMore: "더보기 (반복·마커·배속)",
+  playerSpeed: "배속",
   tooltipSpeedDown: "배속 감소",
   tooltipSpeedUp: "배속 증가",
   tooltipViewWaveform: "파형",
   tooltipViewSeekBar: "재생바",
   lyricsEditor: "가사 편집",
   addLine: "+ 줄 추가",
+  findReplace: "찾기/바꾸기",
+  editorTools: "도구",
+  findPlaceholder: "찾기...",
+  replacePlaceholder: "바꾸기...",
+  replaceBtn: "바꾸기",
+  replaceAll: "모두 바꾸기",
+  caseSensitive: "대소문자 구분",
+  noMatches: "결과 없음",
+  timeShift: "구간 오프셋",
+  timeShiftTooltip: "선택한 줄 범위의 타임스탬프를 일괄로 앞뒤로 이동합니다",
+  timeShiftFrom: "시작",
+  timeShiftTo: "끝",
+  timeShiftDelta: "이동량",
+  timeShiftApply: "적용",
+  timeShiftSec: "초",
+  warnOutOfOrder: "이전 줄보다 타임스탬프가 빠릅니다 (순서 역전)",
+  warnDuplicate: "다른 줄과 타임스탬프가 중복됩니다",
+  validationSummary: "타임스탬프 문제",
   noLines: "「+ 줄 추가」 버튼으로 가사를 입력하세요",
   stampTooltip: "클릭하여 현재 시간을 타임스탬프로 설정",
   linePlaceholder: "가사를 입력하세요...",
@@ -289,6 +416,7 @@ const ko: Translations = {
   metaAlbum: { label: "앨범 (al)", placeholder: "앨범 이름" },
   metaBy: { label: "작성자 (by)", placeholder: "LRC 작성자" },
   metaOffset: "오프셋 ms (offset)",
+  metaOffsetShort: "오프셋",
   applyOffset: "입력",
   applyOffsetTooltip: "모든 타임스탬프에 오프셋을 더한 후 오프셋을 0으로 초기화합니다",
   viewAll: "전체보기",
@@ -315,6 +443,8 @@ const ko: Translations = {
   settingsTabModels: "AI 모델",
   settingsAutoUpdate: "자동 업데이트 확인",
   settingsAutoUpdateDesc: "앱 시작 시 최신 버전을 자동으로 확인합니다.",
+  settingsAutoSave: "자동 저장",
+  settingsAutoSaveDesc: "저장 위치가 지정된 파일은 변경 후 잠시 멈추면 자동으로 저장합니다.",
   settingsCheckNow: "지금 확인",
   settingsChecking: "확인 중...",
   settingsUpToDate: "최신 버전입니다.",
@@ -439,7 +569,7 @@ const ko: Translations = {
 const en: Translations = {
   newFileTitle: "New LRC File",
   newFileBtn: "New",
-  openLrc: "Open LRC",
+  openLrc: "Open Lyrics",
   save: "Save",
   saveAs: "Save As",
   saveFormatTitle: "Choose Save Format",
@@ -453,6 +583,9 @@ const en: Translations = {
   helpTabSpotify: "Spotify",
   shortcutsTitle: "Keyboard Shortcuts",
   shortcutNote: "* Shortcuts are disabled while an input is focused.",
+  helpGroupPlayback: "Playback",
+  helpGroupEdit: "Editing",
+  helpGroupMouse: "Mouse",
   shortcutDescs: {
     s1: "Skip back 5s",
     s2: "Skip back 1s",
@@ -462,6 +595,55 @@ const en: Translations = {
     s6: "Stop & reset to start",
     space: "Stamp current line + move to next",
     backspace: "Move to previous line",
+    enter: "Insert a new line below while editing lyrics",
+    undo: "Undo",
+    redo: "Redo",
+    find: "Open Find / Replace",
+    tsEditKey: "L-Click",
+    tsEditDesc: "Edit the timestamp directly (type MM:SS.xx, Enter to confirm · Esc to cancel)",
+    tsStampKey: "R-Click",
+    tsStampDesc: "Set the timestamp to the current playback time",
+    lineClickKey: "Line click",
+    lineClickDesc: "Seek playback to the line's timestamp",
+    markerClickKey: "Marker click",
+    markerClickDesc: "Waveform marker → select that lyric line",
+  },
+  menu: {
+    file: "File", edit: "Edit", playback: "Playback", mode: "Mode", view: "View", help: "Help",
+    settings: "Settings…", saveAsLrc: "Save as LRC…", saveAsSrt: "Save as SRT…",
+    playPause: "Play / Pause", skipBack5: "Back 5s", skipBack1: "Back 1s",
+    skipFwd1: "Forward 1s", skipFwd5: "Forward 5s", stop: "Stop",
+  },
+  drop: {
+    overlayHint: "Drop files here to open",
+    replaceTitle: "Open file",
+    replaceAudio: "Audio is currently open. Replace it with the new audio?",
+    replaceLyrics: "Lyrics are currently open. Unsaved changes will be lost. Replace them?",
+    replaceBoth: "Audio and lyrics are currently open. Unsaved changes will be lost. Replace them?",
+    replaceOk: "Replace",
+    replaceCancel: "Cancel",
+  },
+  lrclib: {
+    button: "Fetch from LRCLIB",
+    title: "Search lyrics on LRCLIB",
+    fieldTitle: "Title",
+    fieldArtist: "Artist",
+    fieldAlbum: "Album",
+    search: "Search",
+    searching: "Searching…",
+    noResults: "No results found.",
+    error: "Search failed.",
+    hint: "Search by title, artist, and album. (Title is weighted highest)",
+    syncedOnly: "Synced only",
+    plainOnly: "Plain only",
+    preview: "Preview",
+    confirm: "Use",
+    instrumental: "Instrumental",
+    noLyrics: "No lyrics",
+    synced: "Synced",
+    plain: "Plain",
+    previewTitle: "Lyrics preview",
+    close: "Close",
   },
   helpAiSteps: [
     { title: "Install Python Environment", desc: "Go to Settings(⚙) → AI Environment tab to download the bundled Python and install packages." },
@@ -495,6 +677,9 @@ const en: Translations = {
   tooltipSkipFwd5: "[5] +5s",
   tooltipStop: "[6] Reset",
   tooltipLoop: "Loop",
+  tooltipMarkers: "Show lyric markers",
+  playerMore: "More (loop · markers · speed)",
+  playerSpeed: "Speed",
   tooltipSpeedDown: "Slower",
   tooltipSpeedUp: "Faster",
   tooltipViewWaveform: "Waveform",
@@ -502,6 +687,24 @@ const en: Translations = {
 
   lyricsEditor: "Lyrics Editor",
   addLine: "+ Add Line",
+  findReplace: "Find/Replace",
+  editorTools: "Tools",
+  findPlaceholder: "Find...",
+  replacePlaceholder: "Replace...",
+  replaceBtn: "Replace",
+  replaceAll: "Replace All",
+  caseSensitive: "Case Sensitive",
+  noMatches: "No matches",
+  timeShift: "Range Offset",
+  timeShiftTooltip: "Shift timestamps of a selected line range forward or backward",
+  timeShiftFrom: "From",
+  timeShiftTo: "To",
+  timeShiftDelta: "Shift",
+  timeShiftApply: "Apply",
+  timeShiftSec: "s",
+  warnOutOfOrder: "Timestamp is earlier than the previous line (out of order)",
+  warnDuplicate: "Timestamp duplicates another line",
+  validationSummary: "timestamp issue(s)",
   noLines: "Press \"+ Add Line\" to start entering lyrics",
   stampTooltip: "Click to set current time as timestamp",
   linePlaceholder: "Enter lyrics...",
@@ -513,6 +716,7 @@ const en: Translations = {
   metaAlbum: { label: "Album (al)", placeholder: "Album name" },
   metaBy: { label: "Author (by)", placeholder: "LRC author" },
   metaOffset: "Offset ms (offset)",
+  metaOffsetShort: "Offset",
   applyOffset: "Apply",
   applyOffsetTooltip: "Add offset to all timestamps, then reset offset to 0",
   viewAll: "View All",
@@ -539,6 +743,8 @@ const en: Translations = {
   settingsTabModels: "AI Models",
   settingsAutoUpdate: "Auto-check for updates",
   settingsAutoUpdateDesc: "Automatically check for new versions on startup.",
+  settingsAutoSave: "Auto-save",
+  settingsAutoSaveDesc: "Files with a save location are saved automatically a moment after you stop editing.",
   settingsCheckNow: "Check Now",
   settingsChecking: "Checking...",
   settingsUpToDate: "You're up to date.",
@@ -663,7 +869,7 @@ const en: Translations = {
 const ja: Translations = {
   newFileTitle: "新規LRCファイル",
   newFileBtn: "新規作成",
-  openLrc: "LRCを開く",
+  openLrc: "歌詞を開く",
   save: "保存",
   saveAs: "名前を付けて保存",
   saveFormatTitle: "保存形式を選択",
@@ -677,6 +883,9 @@ const ja: Translations = {
   helpTabSpotify: "Spotify",
   shortcutsTitle: "キーボードショートカット",
   shortcutNote: "* 入力欄にフォーカス中はショートカットが無効になります。",
+  helpGroupPlayback: "再生・移動",
+  helpGroupEdit: "編集",
+  helpGroupMouse: "マウス",
   shortcutDescs: {
     s1: "5秒戻る",
     s2: "1秒戻る",
@@ -686,6 +895,55 @@ const ja: Translations = {
     s6: "停止して最初へ",
     space: "現在行にタイムスタンプ + 次の行へ移動",
     backspace: "前の行へ移動",
+    enter: "歌詞編集中に現在行の下へ新しい行を挿入",
+    undo: "元に戻す",
+    redo: "やり直し",
+    find: "検索 / 置換を開く",
+    tsEditKey: "左クリック",
+    tsEditDesc: "タイムスタンプを直接編集（MM:SS.xx を入力、Enter で確定・Esc で取消）",
+    tsStampKey: "右クリック",
+    tsStampDesc: "タイムスタンプを現在の再生位置に設定",
+    lineClickKey: "行クリック",
+    lineClickDesc: "その行のタイムスタンプへ再生位置を移動",
+    markerClickKey: "マーカー",
+    markerClickDesc: "波形マーカー → その歌詞行を選択",
+  },
+  menu: {
+    file: "ファイル", edit: "編集", playback: "再生", mode: "モード", view: "表示", help: "ヘルプ",
+    settings: "設定…", saveAsLrc: "LRCで保存…", saveAsSrt: "SRTで保存…",
+    playPause: "再生 / 一時停止", skipBack5: "5秒戻る", skipBack1: "1秒戻る",
+    skipFwd1: "1秒進む", skipFwd5: "5秒進む", stop: "停止",
+  },
+  drop: {
+    overlayHint: "ここにファイルをドロップして開く",
+    replaceTitle: "ファイルを開く",
+    replaceAudio: "編集中のオーディオがあります。新しいオーディオに置き換えますか？",
+    replaceLyrics: "編集中の歌詞があります。保存していない変更は失われます。置き換えますか？",
+    replaceBoth: "編集中のオーディオ・歌詞があります。保存していない変更は失われます。置き換えますか？",
+    replaceOk: "置き換え",
+    replaceCancel: "キャンセル",
+  },
+  lrclib: {
+    button: "LRCLIBから取得",
+    title: "LRCLIBで歌詞を検索",
+    fieldTitle: "タイトル",
+    fieldArtist: "アーティスト",
+    fieldAlbum: "アルバム",
+    search: "検索",
+    searching: "検索中…",
+    noResults: "検索結果がありません。",
+    error: "検索に失敗しました。",
+    hint: "タイトル・アーティスト・アルバムで検索（タイトル優先）",
+    syncedOnly: "同期歌詞のみ",
+    plainOnly: "通常歌詞のみ",
+    preview: "プレビュー",
+    confirm: "確定",
+    instrumental: "インスト",
+    noLyrics: "歌詞なし",
+    synced: "同期",
+    plain: "歌詞",
+    previewTitle: "歌詞プレビュー",
+    close: "閉じる",
   },
   helpAiSteps: [
     { title: "Python環境のインストール", desc: "設定(⚙) → AI環境タブで内蔵Pythonをダウンロードし、パッケージをインストールします。" },
@@ -719,12 +977,33 @@ const ja: Translations = {
   tooltipSkipFwd5: "[5] +5秒",
   tooltipStop: "[6] 最初へ",
   tooltipLoop: "リピート",
+  tooltipMarkers: "歌詞マーカー表示",
+  playerMore: "その他（リピート・マーカー・速度）",
+  playerSpeed: "再生速度",
   tooltipSpeedDown: "遅くする",
   tooltipSpeedUp: "速くする",
   tooltipViewWaveform: "波形",
   tooltipViewSeekBar: "シーク",
   lyricsEditor: "歌詞編集",
   addLine: "+ 行を追加",
+  findReplace: "検索/置換",
+  editorTools: "ツール",
+  findPlaceholder: "検索...",
+  replacePlaceholder: "置換...",
+  replaceBtn: "置換",
+  replaceAll: "すべて置換",
+  caseSensitive: "大文字・小文字を区別",
+  noMatches: "一致なし",
+  timeShift: "区間オフセット",
+  timeShiftTooltip: "選択した行範囲のタイムスタンプを前後に一括移動します",
+  timeShiftFrom: "開始",
+  timeShiftTo: "終了",
+  timeShiftDelta: "移動量",
+  timeShiftApply: "適用",
+  timeShiftSec: "秒",
+  warnOutOfOrder: "前の行よりタイムスタンプが早いです（順序逆転）",
+  warnDuplicate: "他の行とタイムスタンプが重複しています",
+  validationSummary: "タイムスタンプの問題",
   noLines: "「+ 行を追加」ボタンで歌詞を入力してください",
   stampTooltip: "クリックして現在時刻をタイムスタンプに設定",
   linePlaceholder: "歌詞を入力してください...",
@@ -736,6 +1015,7 @@ const ja: Translations = {
   metaAlbum: { label: "アルバム (al)", placeholder: "アルバム名" },
   metaBy: { label: "作成者 (by)", placeholder: "LRC作成者" },
   metaOffset: "オフセット ms (offset)",
+  metaOffsetShort: "オフセット",
   applyOffset: "入力",
   applyOffsetTooltip: "全タイムスタンプにオフセットを加算し、オフセットを0にリセットします",
   viewAll: "全体表示",
@@ -762,6 +1042,8 @@ const ja: Translations = {
   settingsTabModels: "AIモデル",
   settingsAutoUpdate: "自動更新確認",
   settingsAutoUpdateDesc: "アプリ起動時に最新バージョンを自動で確認します。",
+  settingsAutoSave: "自動保存",
+  settingsAutoSaveDesc: "保存先が指定されたファイルは、編集を止めると少し後に自動保存されます。",
   settingsCheckNow: "今すぐ確認",
   settingsChecking: "確認中...",
   settingsUpToDate: "最新バージョンです。",

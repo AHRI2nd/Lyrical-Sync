@@ -129,40 +129,36 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
         </div>
       )}
 
-      {/* Row 1: skip + play */}
-      <div className="flex items-center justify-center gap-1.5">
-        <CtrlBtn onClick={() => serviceControls.skip(-5)} title={t.tooltipSkipBack5}>
-          <SkipBackIcon /><span className="text-[10px] font-bold ml-0.5">5</span>
-        </CtrlBtn>
-        <CtrlBtn onClick={() => serviceControls.skip(-1)} title={t.tooltipSkipBack1}>
-          <SkipBackIcon /><span className="text-[10px] font-bold ml-0.5">1</span>
-        </CtrlBtn>
-        <CtrlBtn onClick={() => serviceControls.togglePlay()} title={t.tooltipPlayPause} accent>
-          {isPlaying ? <PauseIcon /> : <PlayIcon />}
-        </CtrlBtn>
-        <CtrlBtn onClick={() => serviceControls.skip(1)} title={t.tooltipSkipFwd1}>
-          <span className="text-[10px] font-bold mr-0.5">1</span><SkipFwdIcon />
-        </CtrlBtn>
-        <CtrlBtn onClick={() => serviceControls.skip(5)} title={t.tooltipSkipFwd5}>
-          <span className="text-[10px] font-bold mr-0.5">5</span><SkipFwdIcon />
-        </CtrlBtn>
-      </div>
-
-      {/* Row 2: stop + loop */}
-      <div className="flex items-center justify-center gap-1.5">
+      {/* 재생 컨트롤 한 줄: 정지(좌) · 전송(중앙) · 반복(우) */}
+      <div className="flex items-center gap-0.5">
         <CtrlBtn onClick={() => serviceControls.stopAndReset()} title={t.tooltipStop}>
           <StopIcon />
         </CtrlBtn>
+        <div className="flex-1 flex items-center justify-center gap-0.5">
+          <CtrlBtn onClick={() => serviceControls.skip(-5)} title={t.tooltipSkipBack5}>
+            <SkipBackIcon /><span className="text-[10px] font-bold ml-0.5">5</span>
+          </CtrlBtn>
+          <CtrlBtn onClick={() => serviceControls.skip(-1)} title={t.tooltipSkipBack1}>
+            <TriLeftIcon /><span className="text-[10px] font-bold ml-0.5">1</span>
+          </CtrlBtn>
+          <CtrlBtn onClick={() => serviceControls.togglePlay()} title={t.tooltipPlayPause} accent>
+            {isPlaying ? <PauseIcon /> : <PlayIcon />}
+          </CtrlBtn>
+          <CtrlBtn onClick={() => serviceControls.skip(1)} title={t.tooltipSkipFwd1}>
+            <span className="text-[10px] font-bold mr-0.5">1</span><TriRightIcon />
+          </CtrlBtn>
+          <CtrlBtn onClick={() => serviceControls.skip(5)} title={t.tooltipSkipFwd5}>
+            <span className="text-[10px] font-bold mr-0.5">5</span><SkipFwdIcon />
+          </CtrlBtn>
+        </div>
         <CtrlBtn onClick={() => toggleLoop().catch(() => {})} title={t.tooltipLoop} active={isLooping}>
           <LoopIcon />
         </CtrlBtn>
       </div>
 
       {/* Volume */}
-      <div className="grid gap-1.5" style={{ gridTemplateColumns: "auto 1fr" }}>
-        <span className="text-xs text-zinc-400 text-right self-center pr-2">
-          {t.volume} <span className="tabular-nums">{Math.round(volume * 100)}%</span>
-        </span>
+      <div className="flex items-center gap-2.5 text-zinc-400" title={`${t.volume} ${Math.round(volume * 100)}%`}>
+        <span className="shrink-0"><VolumeIcon /></span>
         <input
           type="range" min={0} max={1} step={0.01} value={volume}
           onChange={(e) => {
@@ -170,21 +166,23 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
             setVolume(v);
             setSpotifyVolume(v).catch(() => {});
           }}
-          className="min-w-0 accent-green-500"
+          className="range-slim min-w-0 flex-1"
+          style={{ background: `linear-gradient(to right, #22c55e ${Math.round(volume * 100)}%, #3f3f46 ${Math.round(volume * 100)}%)`, ["--slim-accent" as string]: "#22c55e" }}
         />
+        <span className="shrink-0 w-9 text-right text-xs text-zinc-400 tabular-nums">{Math.round(volume * 100)}%</span>
       </div>
 
       {/* 곡 검색/열기 버튼 */}
       <div className="flex gap-2">
         <button
           onClick={onLoadCurrent}
-          className="flex-1 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm transition-colors text-center truncate"
+          className="flex-1 py-2 rounded-lg border border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800 text-zinc-300 text-sm transition-colors text-center truncate"
         >
           {t.spotifyLoadCurrent}
         </button>
         <button
           onClick={onSpotifySearch}
-          className="flex-1 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm transition-colors text-center truncate"
+          className="flex-1 py-2 rounded-lg border border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800 text-zinc-300 text-sm transition-colors text-center truncate"
         >
           {t.spotifySearchTrack}
         </button>
@@ -208,12 +206,12 @@ function CtrlBtn({
       onClick={onClick}
       title={title}
       className={[
-        "h-9 px-3 rounded-lg flex items-center justify-center text-sm transition-colors",
+        "flex items-center justify-center text-sm transition-colors",
         accent
-          ? "bg-green-600 hover:bg-green-500 active:bg-green-700 text-white px-5 shadow-md"
+          ? "w-9 h-9 rounded-full bg-green-600 hover:bg-green-500 active:bg-green-700 text-white"
           : active
-            ? "bg-zinc-600 text-green-400 hover:bg-zinc-500"
-            : "bg-zinc-700 hover:bg-zinc-600 text-zinc-200",
+            ? "h-9 px-2 rounded-lg bg-green-500/15 text-green-400 hover:bg-green-500/25"
+            : "h-9 px-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white",
       ].join(" ")}
     >
       {children}
@@ -231,10 +229,24 @@ function StopIcon() {
   return <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z" /></svg>;
 }
 function SkipBackIcon() {
-  return <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>;
+  return <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M11 6 L11 18 L4 12 Z M18 6 L18 18 L11 12 Z" /></svg>;
 }
 function SkipFwdIcon() {
-  return <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" /></svg>;
+  return <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6 L6 18 L13 12 Z M13 6 L13 18 L20 12 Z" /></svg>;
+}
+function TriLeftIcon() {
+  return <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M15 6 L15 18 L7 12 Z" /></svg>;
+}
+function TriRightIcon() {
+  return <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M9 6 L9 18 L17 12 Z" /></svg>;
+}
+function VolumeIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M4 9v6h4l5 4V5L8 9H4z" />
+      <path d="M16 8.5a4.5 4.5 0 0 1 0 7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
 }
 function LoopIcon() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" /></svg>;
