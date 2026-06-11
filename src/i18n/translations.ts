@@ -107,6 +107,7 @@ export interface Translations {
   metaAlbum: { label: string; placeholder: string };
   metaBy: { label: string; placeholder: string };
   metaOffset: string;
+  metaOffsetShort: string;
   applyOffset: string;
   applyOffsetTooltip: string;
   viewAll: string;
@@ -404,6 +405,7 @@ const ko: Translations = {
   metaAlbum: { label: "앨범 (al)", placeholder: "앨범 이름" },
   metaBy: { label: "작성자 (by)", placeholder: "LRC 작성자" },
   metaOffset: "오프셋 ms (offset)",
+  metaOffsetShort: "오프셋",
   applyOffset: "입력",
   applyOffsetTooltip: "모든 타임스탬프에 오프셋을 더한 후 오프셋을 0으로 초기화합니다",
   viewAll: "전체보기",
@@ -696,6 +698,7 @@ const en: Translations = {
   metaAlbum: { label: "Album (al)", placeholder: "Album name" },
   metaBy: { label: "Author (by)", placeholder: "LRC author" },
   metaOffset: "Offset ms (offset)",
+  metaOffsetShort: "Offset",
   applyOffset: "Apply",
   applyOffsetTooltip: "Add offset to all timestamps, then reset offset to 0",
   viewAll: "View All",
@@ -987,6 +990,7 @@ const ja: Translations = {
   metaAlbum: { label: "アルバム (al)", placeholder: "アルバム名" },
   metaBy: { label: "作成者 (by)", placeholder: "LRC作成者" },
   metaOffset: "オフセット ms (offset)",
+  metaOffsetShort: "オフセット",
   applyOffset: "入力",
   applyOffsetTooltip: "全タイムスタンプにオフセットを加算し、オフセットを0にリセットします",
   viewAll: "全体表示",
