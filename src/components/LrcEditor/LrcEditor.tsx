@@ -6,6 +6,7 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { formatDisplayTime, formatTimestamp, parseTimestampInput, validateTimestamps } from "../../utils/lrcParser";
 import { audioControls } from "../../utils/audioControls";
+import { serviceControls } from "../../utils/serviceControls";
 import { MODEL_DEFS } from "../../utils/modelDefs";
 
 // ISO 639-3 codes used by ctc-forced-aligner / MMS model
@@ -22,8 +23,11 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     audioPath,
   } = useLrcStore();
   const { t, lang } = useI18nStore();
-  const { blankLineOffset } = useSettingsStore();
+  const { blankLineOffset, spotifyMode } = useSettingsStore();
   const isServiceMode = useServiceStore((s) => s.isReady);
+  const serviceLoggedIn = useServiceStore((s) => s.isLoggedIn);
+  // 줄 클릭 시크 등에서 사용할 실제 활성 플레이어 판별 (Spotify 모드 + 로그인)
+  const serviceActive = serviceLoggedIn && spotifyMode;
   const { lines } = doc;
 
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
@@ -320,7 +324,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           {isRunning && (
             <button
               onClick={cancelAiSync}
-              className="px-3 py-1 text-xs rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-200 transition-colors"
+              className="px-3 py-1 text-xs rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors"
             >
               {t.aiSyncCancel}
             </button>
@@ -330,7 +334,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           {aiDraftConfidence && !isRunning && (
             <button
               onClick={clearAiDraft}
-              className="px-3 py-1 text-xs rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-400 transition-colors"
+              className="px-3 py-1 text-xs rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors"
             >
               {t.aiSyncClear}
             </button>
@@ -340,7 +344,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           <div className="relative" ref={toolsRef}>
             <button
               onClick={() => setShowTools((v) => !v)}
-              className={`px-3 py-1 text-xs rounded-lg transition-colors ${showTools || showFR || showTS ? "bg-zinc-600 text-white" : "bg-zinc-700 hover:bg-zinc-600 text-zinc-200"}`}
+              className={`px-3 py-1 text-xs rounded-lg transition-colors ${showTools || showFR || showTS ? "bg-zinc-700 text-white" : "text-zinc-400 hover:bg-zinc-800 hover:text-white"}`}
             >
               {t.editorTools}
             </button>
@@ -363,7 +367,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           </div>
           <button
             onClick={onPreview}
-            className="px-3 py-1 text-xs rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-200 transition-colors"
+            className="px-3 py-1 text-xs rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors"
           >
             {t.previewBtn}
           </button>
@@ -453,8 +457,11 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
               ref={setRowRef(line.id)}
               onClick={() => {
                 setActiveLineId(line.id);
-                // 줄 클릭 → 해당 타임스탬프로 오디오 시크 (파형과 연동)
-                if (line.timestamp !== null) audioControls.seekTo(line.timestamp);
+                // 줄 클릭 → 해당 타임스탬프로 시크. 현재 활성 플레이어에 맞게 분기
+                // (Spotify 모드면 Spotify 재생 위치, 아니면 로컬 파형)
+                if (line.timestamp !== null) {
+                  (serviceActive ? serviceControls : audioControls).seekTo(line.timestamp);
+                }
                 if (showFR) {
                   const idx = matchIds.indexOf(line.id);
                   if (idx !== -1) setMatchPos(idx);

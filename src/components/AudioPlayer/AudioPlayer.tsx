@@ -296,9 +296,12 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         r.element.style.pointerEvents = "auto";
         r.element.style.cursor = "pointer";
         r.element.style.overflow = "visible";
-        // 상단에 줄 번호(에디터 행 번호와 동일, 1-based) 표시
+        r.element.classList.add("lyric-marker");
+        // 상단에 줄 번호(에디터 행 번호와 동일, 1-based). 활성 줄은 항상,
+        // 비활성 줄은 겹침 방지를 위해 마커 호버 시에만 표시.
         const label = document.createElement("div");
         label.textContent = String(i + 1);
+        label.className = isActive ? "lyric-marker-num" : "lyric-marker-num dim";
         label.style.cssText = [
           "position:absolute", "top:0", "left:50%", "transform:translateX(-50%)",
           "font:600 9px ui-monospace,SFMono-Regular,monospace", "line-height:1.4",
@@ -513,48 +516,46 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         </div>
       )}
 
-      {/* Row 1: 스킵 + 재생 */}
-      <div className="flex items-center justify-center gap-0.5">
-        <CtrlBtn onClick={() => skip(-5)} title={t.tooltipSkipBack5}>
-          <SkipBackIcon /><span className="text-[10px] font-bold ml-0.5">5</span>
-        </CtrlBtn>
-        <CtrlBtn onClick={() => skip(-1)} title={t.tooltipSkipBack1}>
-          <TriLeftIcon /><span className="text-[10px] font-bold ml-0.5">1</span>
-        </CtrlBtn>
-        <CtrlBtn
-          onClick={togglePlay}
-          disabled={!audioPath}
-          title={t.tooltipPlayPause}
-          accent
-        >
-          {isPlaying ? <PauseIcon /> : <PlayIcon />}
-        </CtrlBtn>
-        <CtrlBtn onClick={() => skip(1)} title={t.tooltipSkipFwd1}>
-          <span className="text-[10px] font-bold mr-0.5">1</span><TriRightIcon />
-        </CtrlBtn>
-        <CtrlBtn onClick={() => skip(5)} title={t.tooltipSkipFwd5}>
-          <span className="text-[10px] font-bold mr-0.5">5</span><SkipFwdIcon />
-        </CtrlBtn>
-      </div>
-
-      {/* Row 2: 정지 + 보조기능 오버플로우(⋯). relative를 행 전체에 두어 팝오버가
-          좁은 카드 폭(우측 정렬) 안에 들어오게 함 */}
-      <div className="relative flex items-center justify-center gap-0.5" ref={moreRef}>
+      {/* 재생 컨트롤 한 줄: 정지(좌) · 전송(중앙) · 더보기(우). relative를 행 전체에
+          두어 팝오버가 좁은 카드 폭(우측 정렬) 안에 들어오게 함 */}
+      <div className="relative flex items-center gap-0.5" ref={moreRef}>
         <CtrlBtn onClick={stopAndReset} title={t.tooltipStop}>
           <StopIcon />
         </CtrlBtn>
-        <CtrlBtn onClick={toggleLoop} title={t.tooltipLoop} active={isLooping}>
-          <LoopIcon />
-        </CtrlBtn>
+
+        <div className="flex-1 flex items-center justify-center gap-0.5">
+          <CtrlBtn onClick={() => skip(-5)} title={t.tooltipSkipBack5}>
+            <SkipBackIcon /><span className="text-[10px] font-bold ml-0.5">5</span>
+          </CtrlBtn>
+          <CtrlBtn onClick={() => skip(-1)} title={t.tooltipSkipBack1}>
+            <TriLeftIcon /><span className="text-[10px] font-bold ml-0.5">1</span>
+          </CtrlBtn>
+          <CtrlBtn onClick={togglePlay} disabled={!audioPath} title={t.tooltipPlayPause} accent>
+            {isPlaying ? <PauseIcon /> : <PlayIcon />}
+          </CtrlBtn>
+          <CtrlBtn onClick={() => skip(1)} title={t.tooltipSkipFwd1}>
+            <span className="text-[10px] font-bold mr-0.5">1</span><TriRightIcon />
+          </CtrlBtn>
+          <CtrlBtn onClick={() => skip(5)} title={t.tooltipSkipFwd5}>
+            <span className="text-[10px] font-bold mr-0.5">5</span><SkipFwdIcon />
+          </CtrlBtn>
+        </div>
+
         <CtrlBtn
           onClick={() => setShowMore((v) => !v)}
           title={t.playerMore}
-          active={showMore || playbackRate !== 1.0}
+          active={showMore || isLooping || playbackRate !== 1.0}
         >
           <MoreIcon />
         </CtrlBtn>
         {showMore && (
           <div className="absolute right-0 bottom-full mb-2 z-40 w-56 bg-zinc-800 border border-zinc-700 rounded-xl shadow-2xl p-3 flex flex-col gap-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-zinc-300">{t.tooltipLoop}</span>
+                <button onClick={toggleLoop} className={popToggleCls(isLooping)} title={t.tooltipLoop}>
+                  <LoopIcon />
+                </button>
+              </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-zinc-300">{t.tooltipMarkers}</span>
                 <button onClick={() => setShowMarkers((v) => !v)} className={popToggleCls(showMarkers)} title={t.tooltipMarkers}>

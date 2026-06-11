@@ -62,7 +62,7 @@ input[type="range"].range-slim::-webkit-slider-thumb {
   margin-top: -4px;
   border-radius: 50%;
   background: #ffffff;
-  border: 2px solid #6366f1;
+  border: 2px solid var(--slim-accent, #6366f1);
   transition: transform 0.1s ease;
 }
 input[type="range"].range-slim:hover::-webkit-slider-thumb {
@@ -76,8 +76,22 @@ input[type="range"].range-slim::-moz-range-track {
 input[type="range"].range-slim::-moz-range-thumb {
   width: 13px;
   height: 13px;
-  border: 2px solid #6366f1;
+  border: 2px solid var(--slim-accent, #6366f1);
   border-radius: 50%;
   background: #ffffff;
   cursor: pointer;
+}
+
+/* 가사 마커 줄번호: 활성은 항상, 비활성(.dim)은 마커 호버 시에만 표시 */
+.lyric-marker-num {
+  transition: opacity 0.12s ease;
+}
+.lyric-marker-num.dim {
+  opacity: 0;
+}
+.lyric-marker:hover {
+  z-index: 6;
+}
+.lyric-marker:hover .lyric-marker-num.dim {
+  opacity: 1;
 }
