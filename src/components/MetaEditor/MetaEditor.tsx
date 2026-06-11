@@ -12,6 +12,14 @@ export function MetaEditor() {
   const [showRawEditor, setShowRawEditor] = useState(false);
   const [showLrcLib, setShowLrcLib] = useState(false);
 
+  // 오프셋 입력은 로컬 문자열로 관리해 ""·"-"·음수 입력을 허용 (숫자 0 고정 방지)
+  const [offsetStr, setOffsetStr] = useState(String(metadata.offset));
+  useEffect(() => {
+    // 외부에서 offset이 바뀌면(파일 로드·오프셋 적용 등) 입력값 동기화
+    if ((parseInt(offsetStr, 10) || 0) !== metadata.offset) setOffsetStr(String(metadata.offset));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metadata.offset]);
+
   const fields = [
     { key: "title" as const, ...t.metaTitle },
     { key: "artist" as const, ...t.metaArtist },
@@ -55,9 +63,18 @@ export function MetaEditor() {
           <label className="text-xs text-zinc-400">{t.metaOffset}</label>
           <div className="flex gap-2">
             <input
-              type="number"
-              value={metadata.offset}
-              onChange={(e) => setMetadata({ offset: parseInt(e.target.value, 10) || 0 })}
+              type="text"
+              inputMode="numeric"
+              value={offsetStr}
+              onChange={(e) => {
+                const v = e.target.value;
+                // 빈칸·단독 "-"·정수(음수 포함)만 허용
+                if (v === "" || v === "-" || /^-?\d+$/.test(v)) {
+                  setOffsetStr(v);
+                  const n = parseInt(v, 10);
+                  setMetadata({ offset: Number.isNaN(n) ? 0 : n });
+                }
+              }}
               className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-zinc-800 border border-zinc-600 text-white text-sm focus:outline-none focus:border-indigo-500 transition-colors"
             />
             <button
