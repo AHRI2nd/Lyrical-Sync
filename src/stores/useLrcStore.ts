@@ -55,6 +55,7 @@ interface LrcStore {
   setAudioPath: (path: string | null) => void;
   openAudio: () => Promise<void>;
   openLrc: () => Promise<void>;
+  loadLyricsPath: (path: string) => Promise<void>;
   saveLrc: () => Promise<void>;
   saveLrcAs: (format: "lrc" | "srt") => Promise<void>;
   newLrc: () => void;
@@ -287,22 +288,25 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     }
   },
 
-  // 가사 열기: LRC·SRT 모두 지원. 확장자로 파서 분기.
+  // 경로로 가사 로드 (확장자로 LRC/SRT 분기). 다이얼로그/드래그앤드롭 공용.
+  loadLyricsPath: async (path) => {
+    const content: string = await invoke("read_lrc_file", { path });
+    const isSrt = path.split(".").pop()?.toLowerCase() === "srt";
+    const doc = isSrt ? parseSrt(content) : parseLrc(content);
+    let id = 1;
+    doc.lines = doc.lines.map((l) => ({ ...l, id: String(id++) }));
+    nextId = id;
+    const firstId = doc.lines[0]?.id ?? null;
+    set({ doc, lrcPath: path, isDirty: false, activeLineId: firstId, _history: [], _future: [] });
+  },
+
+  // 가사 열기: LRC·SRT 모두 지원.
   openLrc: async () => {
     const selected = await open({
       multiple: false,
       filters: [{ name: "Lyrics", extensions: ["lrc", "srt"] }],
     });
-    if (typeof selected === "string") {
-      const content: string = await invoke("read_lrc_file", { path: selected });
-      const isSrt = selected.split(".").pop()?.toLowerCase() === "srt";
-      const doc = isSrt ? parseSrt(content) : parseLrc(content);
-      let id = 1;
-      doc.lines = doc.lines.map((l) => ({ ...l, id: String(id++) }));
-      nextId = id;
-      const firstId = doc.lines[0]?.id ?? null;
-      set({ doc, lrcPath: selected, isDirty: false, activeLineId: firstId, _history: [], _future: [] });
-    }
+    if (typeof selected === "string") await get().loadLyricsPath(selected);
   },
 
   saveLrc: async () => {

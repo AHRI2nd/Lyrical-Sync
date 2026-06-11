@@ -31,6 +31,15 @@ export interface Translations {
     playPause: string; skipBack5: string; skipBack1: string;
     skipFwd1: string; skipFwd5: string; stop: string;
   };
+  drop: {
+    overlayHint: string;
+    replaceTitle: string;
+    replaceAudio: string;
+    replaceLyrics: string;
+    replaceBoth: string;
+    replaceOk: string;
+    replaceCancel: string;
+  };
   helpAiSteps: { title: string; desc: string }[];
   helpSpotifySteps: { title: string; desc: string }[];
   helpYoutubeSteps: { title: string; desc: string }[];
@@ -281,6 +290,15 @@ const ko: Translations = {
     settings: "설정…", saveAsLrc: "LRC로 저장…", saveAsSrt: "SRT로 저장…",
     playPause: "재생 / 일시정지", skipBack5: "5초 뒤로", skipBack1: "1초 뒤로",
     skipFwd1: "1초 앞으로", skipFwd5: "5초 앞으로", stop: "정지",
+  },
+  drop: {
+    overlayHint: "여기에 파일을 놓아 열기",
+    replaceTitle: "파일 열기",
+    replaceAudio: "작업 중인 오디오가 있습니다. 새 오디오로 교체하시겠습니까?",
+    replaceLyrics: "작업 중인 가사가 있습니다. 저장하지 않은 변경 사항은 사라집니다. 교체하시겠습니까?",
+    replaceBoth: "작업 중인 오디오·가사가 있습니다. 저장하지 않은 변경 사항은 사라집니다. 교체하시겠습니까?",
+    replaceOk: "교체",
+    replaceCancel: "취소",
   },
   helpAiSteps: [
     { title: "Python 환경 설치", desc: "설정(⚙) → AI 환경 탭에서 내장 Python을 다운로드하고 패키지를 설치합니다." },
@@ -539,6 +557,15 @@ const en: Translations = {
     playPause: "Play / Pause", skipBack5: "Back 5s", skipBack1: "Back 1s",
     skipFwd1: "Forward 1s", skipFwd5: "Forward 5s", stop: "Stop",
   },
+  drop: {
+    overlayHint: "Drop files here to open",
+    replaceTitle: "Open file",
+    replaceAudio: "Audio is currently open. Replace it with the new audio?",
+    replaceLyrics: "Lyrics are currently open. Unsaved changes will be lost. Replace them?",
+    replaceBoth: "Audio and lyrics are currently open. Unsaved changes will be lost. Replace them?",
+    replaceOk: "Replace",
+    replaceCancel: "Cancel",
+  },
   helpAiSteps: [
     { title: "Install Python Environment", desc: "Go to Settings(⚙) → AI Environment tab to download the bundled Python and install packages." },
     { title: "Download Model", desc: "Go to Settings → AI Models tab and download the required model ctc-mms-300m (1.2 GB)." },
@@ -796,6 +823,15 @@ const ja: Translations = {
     settings: "設定…", saveAsLrc: "LRCで保存…", saveAsSrt: "SRTで保存…",
     playPause: "再生 / 一時停止", skipBack5: "5秒戻る", skipBack1: "1秒戻る",
     skipFwd1: "1秒進む", skipFwd5: "5秒進む", stop: "停止",
+  },
+  drop: {
+    overlayHint: "ここにファイルをドロップして開く",
+    replaceTitle: "ファイルを開く",
+    replaceAudio: "編集中のオーディオがあります。新しいオーディオに置き換えますか？",
+    replaceLyrics: "編集中の歌詞があります。保存していない変更は失われます。置き換えますか？",
+    replaceBoth: "編集中のオーディオ・歌詞があります。保存していない変更は失われます。置き換えますか？",
+    replaceOk: "置き換え",
+    replaceCancel: "キャンセル",
   },
   helpAiSteps: [
     { title: "Python環境のインストール", desc: "設定(⚙) → AI環境タブで内蔵Pythonをダウンロードし、パッケージをインストールします。" },

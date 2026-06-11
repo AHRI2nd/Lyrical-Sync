@@ -19,6 +19,11 @@ import { useMacMenu } from "./hooks/useMacMenu";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+
+const AUDIO_EXTS = ["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff", "aif"];
+const LYRICS_EXTS = ["lrc", "srt"];
+const fileExt = (p: string) => p.split(".").pop()?.toLowerCase() ?? "";
 
 function useGlobalKeys() {
   const { stampAndAdvance, goToPreviousLine, undo, redo } = useLrcStore();
@@ -138,6 +143,10 @@ function App() {
   const [showFormatChooser, setShowFormatChooser] = useState(false);
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const [showSpotifySearch, setShowSpotifySearch] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [dropConflict, setDropConflict] = useState<
+    { audio?: string; lyrics?: string; audioConflict: boolean; lyricsConflict: boolean } | null
+  >(null);
   const { lrcPath, isDirty, openLrc, openAudio, saveLrc, saveLrcAs, newLrc, undo, redo, _history, _future } = useLrcStore();
   const { t } = useI18nStore();
   const { autoCheckUpdate, uiScale, spotifyMode, youtubeMode, setSpotifyMode, setYoutubeMode } = useSettingsStore();
@@ -198,6 +207,48 @@ function App() {
     if (lrcPath) saveLrc();
     else setShowFormatChooser(true);
   };
+
+  // 드롭된 파일을 실제로 연다 (오디오 → 오디오 경로, lrc/srt → 가사)
+  const applyDrop = (d: { audio?: string; lyrics?: string }) => {
+    const st = useLrcStore.getState();
+    if (d.audio) st.setAudioPath(d.audio);
+    if (d.lyrics) st.loadLyricsPath(d.lyrics);
+  };
+
+  // 파일 드래그앤드롭 열기 (Tauri 네이티브 드롭 이벤트 → 파일 경로 제공)
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+    getCurrentWebview()
+      .onDragDropEvent((event) => {
+        const p = event.payload;
+        if (p.type === "enter") {
+          // 지원 파일이 하나라도 있을 때만 오버레이 표시
+          if (p.paths.some((x) => AUDIO_EXTS.includes(fileExt(x)) || LYRICS_EXTS.includes(fileExt(x)))) {
+            setIsDragOver(true);
+          }
+          return;
+        }
+        if (p.type === "over") return;
+        if (p.type === "leave") { setIsDragOver(false); return; }
+        // drop
+        setIsDragOver(false);
+        const audio = p.paths.find((x) => AUDIO_EXTS.includes(fileExt(x)));
+        const lyrics = p.paths.find((x) => LYRICS_EXTS.includes(fileExt(x)));
+        if (!audio && !lyrics) return; // 지원하지 않는 파일은 무시
+
+        const st = useLrcStore.getState();
+        const audioConflict = !!audio && st.audioPath !== null;
+        const lyricsConflict = !!lyrics && (st.lrcPath !== null || st.isDirty || st.doc.lines.length > 0);
+        if (audioConflict || lyricsConflict) {
+          setDropConflict({ audio, lyrics, audioConflict, lyricsConflict });
+        } else {
+          applyDrop({ audio, lyrics });
+        }
+      })
+      .then((fn) => { if (cancelled) fn(); else unlisten = fn; });
+    return () => { cancelled = true; unlisten?.(); };
+  }, []);
 
   // yt-dlp 설치 여부 (모드 메뉴의 YouTube 활성화 판단)
   useEffect(() => {
@@ -330,6 +381,30 @@ function App() {
       )}
       {showSpotifySearch && (
         <SpotifySearchModal onClose={() => setShowSpotifySearch(false)} />
+      )}
+      {dropConflict && (
+        <ConfirmModal
+          title={t.drop.replaceTitle}
+          message={
+            dropConflict.audioConflict && dropConflict.lyricsConflict
+              ? t.drop.replaceBoth
+              : dropConflict.audioConflict
+              ? t.drop.replaceAudio
+              : t.drop.replaceLyrics
+          }
+          okLabel={t.drop.replaceOk}
+          cancelLabel={t.drop.replaceCancel}
+          onOk={() => { applyDrop(dropConflict); setDropConflict(null); }}
+          onCancel={() => setDropConflict(null)}
+        />
+      )}
+      {isDragOver && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-indigo-950/60 backdrop-blur-sm pointer-events-none border-4 border-dashed border-indigo-400/70 m-2 rounded-2xl">
+          <div className="text-center">
+            <p className="text-xl font-semibold text-indigo-100">{t.drop.overlayHint}</p>
+            <p className="text-sm text-indigo-300 mt-1 font-mono">Audio · LRC · SRT</p>
+          </div>
+        </div>
       )}
 
       <div className="flex flex-1 min-h-0 gap-0">
