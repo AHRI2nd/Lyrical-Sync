@@ -282,21 +282,33 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     if (!showMarkers) return;
     // 마커는 순수 시각 표시 — 파형 클릭(탐색)을 가로막지 않도록 pointer-events 해제하되,
     // 가사 마커만 clickable로 두어 클릭 시 해당 줄을 선택할 수 있게 함.
-    for (const l of lines) {
-      if (l.timestamp === null) continue;
+    lines.forEach((l, i) => {
+      if (l.timestamp === null) return;
       const isActive = l.id === activeLineId;
       const r = regions.addRegion({
         id: `lyric:${l.id}`,
         start: l.timestamp,
-        color: isActive ? "#f59e0b" : "rgba(251, 191, 36, 0.4)",
+        color: isActive ? "#ea580c" : "rgba(217, 119, 6, 0.8)",
         drag: false,
         resize: false,
       });
       if (r.element) {
         r.element.style.pointerEvents = "auto";
         r.element.style.cursor = "pointer";
+        r.element.style.overflow = "visible";
+        // 상단에 줄 번호(에디터 행 번호와 동일, 1-based) 표시
+        const label = document.createElement("div");
+        label.textContent = String(i + 1);
+        label.style.cssText = [
+          "position:absolute", "top:0", "left:50%", "transform:translateX(-50%)",
+          "font:600 9px ui-monospace,SFMono-Regular,monospace", "line-height:1.4",
+          "padding:0 3px", "border-radius:0 0 3px 3px", "color:#fff",
+          `background:${isActive ? "#ea580c" : "#b45309"}`,
+          "pointer-events:none", "white-space:nowrap", "z-index:5",
+        ].join(";");
+        r.element.appendChild(label);
       }
-    }
+    });
   }, [lines, activeLineId, isAudioReady, showMarkers]);
 
   const progress = duration > 0 ? currentTime / duration : 0;
@@ -502,7 +514,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       )}
 
       {/* Row 1: 스킵 + 재생 */}
-      <div className="flex items-center justify-center gap-1.5">
+      <div className="flex items-center justify-center gap-0.5">
         <CtrlBtn onClick={() => skip(-5)} title={t.tooltipSkipBack5}>
           <SkipBackIcon /><span className="text-[10px] font-bold ml-0.5">5</span>
         </CtrlBtn>
@@ -527,7 +539,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
 
       {/* Row 2: 정지 + 보조기능 오버플로우(⋯). relative를 행 전체에 두어 팝오버가
           좁은 카드 폭(우측 정렬) 안에 들어오게 함 */}
-      <div className="relative flex items-center justify-center gap-1.5" ref={moreRef}>
+      <div className="relative flex items-center justify-center gap-0.5" ref={moreRef}>
         <CtrlBtn onClick={stopAndReset} title={t.tooltipStop}>
           <StopIcon />
         </CtrlBtn>
@@ -696,8 +708,8 @@ function CtrlBtn({
         accent
           ? "w-9 h-9 rounded-full bg-indigo-500 hover:bg-indigo-400 active:bg-indigo-600 text-white"
           : active
-            ? "h-9 px-2.5 rounded-lg bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25"
-            : "h-9 px-2.5 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white",
+            ? "h-9 px-2 rounded-lg bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25"
+            : "h-9 px-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white",
       ].join(" ")}
     >
       {children}
