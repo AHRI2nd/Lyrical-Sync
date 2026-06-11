@@ -335,13 +335,16 @@ function App() {
             <IconBtn onClick={redo} disabled={_future.length === 0} title={t.redo}><RedoIcon /></IconBtn>
           </div>
         </div>
-        <div className="flex gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           <ModeSelectButton />
+          <div className="w-px h-5 bg-zinc-700 mx-0.5" />
+          {/* 파일 액션 그룹 */}
           <IconBtn onClick={handleNewLrc} title={t.newFileBtn}><NewFileIcon /></IconBtn>
           <IconBtn onClick={openLrc} title={t.openLrc}><OpenFolderIcon /></IconBtn>
-          <LangDropdown />
           <IconBtn onClick={handleSave} accent title={t.save} tooltipAlign="right"><SaveIcon /></IconBtn>
           <IconBtn onClick={() => setShowFormatChooser(true)} title={t.saveAs} tooltipAlign="right"><SaveAsIcon /></IconBtn>
+          <div className="w-px h-5 bg-zinc-700 mx-0.5" />
+          <LangDropdown />
         </div>
       </header>
 
