@@ -48,14 +48,23 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   const [editingTsId, setEditingTsId] = useState<string | null>(null);
   const [editTsValue, setEditTsValue] = useState("");
 
+  // Esc 취소 시 input 언마운트로 onBlur가 commit을 유발하지 않도록 가드
+  const tsEditCancel = useRef(false);
+
   const startTsEdit = (id: string, timestamp: number | null) => {
+    tsEditCancel.current = false;
     setActiveLineId(id);
     setEditTsValue(timestamp !== null ? formatTimestamp(timestamp) : "");
     setEditingTsId(id);
   };
   const commitTsEdit = (id: string) => {
+    if (tsEditCancel.current) { tsEditCancel.current = false; return; }
     const parsed = parseTimestampInput(editTsValue.trim());
     if (parsed !== null) updateLine(id, { timestamp: parsed });
+    setEditingTsId(null);
+  };
+  const cancelTsEdit = () => {
+    tsEditCancel.current = true;
     setEditingTsId(null);
   };
 
@@ -457,7 +466,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                     onChange={(e) => setEditTsValue(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") { e.preventDefault(); commitTsEdit(line.id); }
-                      else if (e.key === "Escape") { e.preventDefault(); setEditingTsId(null); }
+                      else if (e.key === "Escape") { e.preventDefault(); cancelTsEdit(); }
                     }}
                     onBlur={() => commitTsEdit(line.id)}
                     placeholder="MM:SS.xx"

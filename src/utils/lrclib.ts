@@ -36,10 +36,17 @@ export async function lrclibSearch(q: LrcLibQuery): Promise<LrcLibResult[]> {
     params.set("q", query);
   }
 
-  const res = await fetch(`${BASE}/search?${params.toString()}`);
-  if (!res.ok) throw new Error(`LRCLIB ${res.status}`);
-  const data = await res.json();
-  return Array.isArray(data) ? (data as LrcLibResult[]) : [];
+  // 네트워크 지연 시 모달이 무한 로딩에 걸리지 않도록 10초 타임아웃
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 10000);
+  try {
+    const res = await fetch(`${BASE}/search?${params.toString()}`, { signal: ctrl.signal });
+    if (!res.ok) throw new Error(`LRCLIB ${res.status}`);
+    const data = await res.json();
+    return Array.isArray(data) ? (data as LrcLibResult[]) : [];
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // 문자열 정규화 후 0~1 유사도

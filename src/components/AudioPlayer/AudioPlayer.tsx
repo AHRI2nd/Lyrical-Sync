@@ -221,12 +221,20 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     const isWindows = navigator.platform.startsWith("Win");
     const needsTranscode = isAiff && isWindows;
 
-    const getBytes = (): Promise<Uint8Array> => {
+    const getBytes = async (): Promise<Uint8Array> => {
       if (needsTranscode) {
-        return invoke<string>("decode_audio_to_wav", { path: audioPath })
-          .then((wavPath) => readFile(wavPath));
+        const wavPath = await invoke<string>("decode_audio_to_wav", { path: audioPath });
+        return readFile(wavPath);
       }
-      return readFile(audioPath);
+      try {
+        // 빠른 경로: 홈 디렉터리 내 파일은 plugin readFile (바이너리 채널)
+        return await readFile(audioPath);
+      } catch {
+        // fs 스코프($HOME/**) 밖 파일(예: Windows D:\, macOS /Volumes)은 거부되므로
+        // 스코프 제약이 없는 커스텀 커맨드로 폴백
+        const arr = await invoke<number[]>("read_audio_file", { path: audioPath });
+        return new Uint8Array(arr);
+      }
     };
 
     getBytes().then((bytes) => {
