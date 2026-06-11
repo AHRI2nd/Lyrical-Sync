@@ -507,7 +507,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           <SkipBackIcon /><span className="text-[10px] font-bold ml-0.5">5</span>
         </CtrlBtn>
         <CtrlBtn onClick={() => skip(-1)} title={t.tooltipSkipBack1}>
-          <SkipBackIcon /><span className="text-[10px] font-bold ml-0.5">1</span>
+          <TriLeftIcon /><span className="text-[10px] font-bold ml-0.5">1</span>
         </CtrlBtn>
         <CtrlBtn
           onClick={togglePlay}
@@ -518,7 +518,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           {isPlaying ? <PauseIcon /> : <PlayIcon />}
         </CtrlBtn>
         <CtrlBtn onClick={() => skip(1)} title={t.tooltipSkipFwd1}>
-          <span className="text-[10px] font-bold mr-0.5">1</span><SkipFwdIcon />
+          <span className="text-[10px] font-bold mr-0.5">1</span><TriRightIcon />
         </CtrlBtn>
         <CtrlBtn onClick={() => skip(5)} title={t.tooltipSkipFwd5}>
           <span className="text-[10px] font-bold mr-0.5">5</span><SkipFwdIcon />
@@ -531,21 +531,18 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         <CtrlBtn onClick={stopAndReset} title={t.tooltipStop}>
           <StopIcon />
         </CtrlBtn>
+        <CtrlBtn onClick={toggleLoop} title={t.tooltipLoop} active={isLooping}>
+          <LoopIcon />
+        </CtrlBtn>
         <CtrlBtn
           onClick={() => setShowMore((v) => !v)}
           title={t.playerMore}
-          active={showMore || isLooping || playbackRate !== 1.0}
+          active={showMore || playbackRate !== 1.0}
         >
           <MoreIcon />
         </CtrlBtn>
         {showMore && (
           <div className="absolute right-0 bottom-full mb-2 z-40 w-56 bg-zinc-800 border border-zinc-700 rounded-xl shadow-2xl p-3 flex flex-col gap-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-300">{t.tooltipLoop}</span>
-                <button onClick={toggleLoop} className={popToggleCls(isLooping)} title={t.tooltipLoop}>
-                  <LoopIcon />
-                </button>
-              </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-zinc-300">{t.tooltipMarkers}</span>
                 <button onClick={() => setShowMarkers((v) => !v)} className={popToggleCls(showMarkers)} title={t.tooltipMarkers}>
@@ -608,24 +605,47 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       ) : (
         <button
           onClick={openAudio}
-          className="w-full py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm transition-colors text-center truncate"
+          className="w-full py-2 rounded-lg border border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800 text-zinc-300 text-sm transition-colors text-center truncate"
         >
           {t.openAudio}
         </button>
       )}
 
-      {/* 볼륨 + 줌 슬라이더: grid로 왼쪽 열 너비 자동 통일 */}
-      <div className="grid gap-1.5" style={{ gridTemplateColumns: "auto 1fr" }}>
-        <span className="text-xs text-zinc-400 text-right self-center pr-2">
-          {t.volume} <span className="tabular-nums">{Math.round(volume * 100)}%</span>
-        </span>
+      {/* 볼륨 (스피커 아이콘 + 슬림 슬라이더) */}
+      <div className="flex items-center gap-2.5 text-zinc-400" title={`${t.volume} ${Math.round(volume * 100)}%`}>
+        <span className="shrink-0"><VolumeIcon /></span>
         <input
           type="range" min={0} max={1} step={0.01} value={volume}
           onChange={(e) => setVolume(parseFloat(Number(e.target.value).toFixed(2)))}
-          className="min-w-0 accent-indigo-500"
+          className="range-slim min-w-0 flex-1"
+          style={{ background: `linear-gradient(to right, #6366f1 ${Math.round(volume * 100)}%, #3f3f46 ${Math.round(volume * 100)}%)` }}
         />
+        <span className="shrink-0 w-9 text-right text-xs text-zinc-400 tabular-nums">{Math.round(volume * 100)}%</span>
+      </div>
 
-        <div className="flex shrink-0 bg-zinc-800 rounded-lg p-0.5 self-center">
+      {/* 줌 + 뷰 토글 */}
+      <div className="flex items-center gap-2.5 text-zinc-400">
+        {viewMode === "waveform" ? (
+          <>
+            <span className="shrink-0"><ZoomIcon /></span>
+            <input
+              type="range" min={0} max={100} value={zoomLevel}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setZoomLevel(v);
+                if (zoomDebounceRef.current) clearTimeout(zoomDebounceRef.current);
+                zoomDebounceRef.current = setTimeout(() => {
+                  if (wsRef.current && isAudioReady) wsRef.current.zoom(zoomLevelToPixels(v));
+                }, 80);
+              }}
+              className="range-slim min-w-0 flex-1"
+              style={{ background: `linear-gradient(to right, #6366f1 ${zoomLevel}%, #3f3f46 ${zoomLevel}%)` }}
+            />
+          </>
+        ) : (
+          <div className="flex-1" />
+        )}
+        <div className="flex shrink-0 bg-zinc-800 rounded-lg p-0.5">
           <button
             onClick={() => setViewMode("waveform")}
             className={`px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors ${
@@ -643,22 +663,6 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
             {t.tooltipViewSeekBar}
           </button>
         </div>
-        {viewMode === "waveform" ? (
-          <input
-            type="range" min={0} max={100} value={zoomLevel}
-            onChange={(e) => {
-              const v = Number(e.target.value);
-              setZoomLevel(v);
-              if (zoomDebounceRef.current) clearTimeout(zoomDebounceRef.current);
-              zoomDebounceRef.current = setTimeout(() => {
-                if (wsRef.current && isAudioReady) wsRef.current.zoom(zoomLevelToPixels(v));
-              }, 80);
-            }}
-            className="min-w-0 accent-indigo-500"
-          />
-        ) : (
-          <div />
-        )}
       </div>
 
       {!audioPath && (
@@ -687,13 +691,13 @@ function CtrlBtn({
       title={title}
       disabled={disabled}
       className={[
-        "h-9 px-3 rounded-lg flex items-center justify-center text-sm transition-colors",
-        "disabled:opacity-40 disabled:cursor-not-allowed",
+        "flex items-center justify-center text-sm transition-colors",
+        "disabled:opacity-30 disabled:cursor-not-allowed",
         accent
-          ? "bg-indigo-500 hover:bg-indigo-400 active:bg-indigo-600 text-white px-5 shadow-md"
+          ? "w-9 h-9 rounded-full bg-indigo-500 hover:bg-indigo-400 active:bg-indigo-600 text-white"
           : active
-            ? "bg-indigo-500 hover:bg-indigo-400 text-white"
-            : "bg-zinc-700 hover:bg-zinc-600 text-zinc-200",
+            ? "h-9 px-2.5 rounded-lg bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25"
+            : "h-9 px-2.5 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white",
       ].join(" ")}
     >
       {children}
@@ -740,6 +744,44 @@ function SkipFwdIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
       <path d="M6 6 L6 18 L13 12 Z M13 6 L13 18 L20 12 Z" />
+    </svg>
+  );
+}
+
+function TriLeftIcon() {
+  // 채워진 홑 삼각형 (◀ ±1)
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M15 6 L15 18 L7 12 Z" />
+    </svg>
+  );
+}
+
+function TriRightIcon() {
+  // 채워진 홑 삼각형 (▶ ±1)
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M9 6 L9 18 L17 12 Z" />
+    </svg>
+  );
+}
+
+function VolumeIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M4 9v6h4l5 4V5L8 9H4z" />
+      <path d="M16 8.5a4.5 4.5 0 0 1 0 7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ZoomIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="10" cy="10" r="6" />
+      <line x1="20" y1="20" x2="15" y2="15" />
+      <line x1="10" y1="7" x2="10" y2="13" />
+      <line x1="7" y1="10" x2="13" y2="10" />
     </svg>
   );
 }
