@@ -99,7 +99,8 @@ function useAutoSave() {
   useEffect(() => {
     if (!autoSave || !lrcPath || !isDirty) return;
     const id = setTimeout(() => {
-      useLrcStore.getState().saveLrc();
+      // 디스크 쓰기 실패(권한/경로 등) 시 미처리 거부 방지
+      useLrcStore.getState().saveLrc().catch(() => {});
     }, 1500);
     return () => clearTimeout(id);
     // doc 변경마다 타이머 리셋 → 입력이 멈춘 뒤에만 저장(디바운스)
@@ -212,7 +213,7 @@ function App() {
   const applyDrop = (d: { audio?: string; lyrics?: string }) => {
     const st = useLrcStore.getState();
     if (d.audio) st.setAudioPath(d.audio);
-    if (d.lyrics) st.loadLyricsPath(d.lyrics);
+    if (d.lyrics) st.loadLyricsPath(d.lyrics).catch(() => {});
   };
 
   // 파일 드래그앤드롭 열기 (Tauri 네이티브 드롭 이벤트 → 파일 경로 제공)
