@@ -24,10 +24,11 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   } = useLrcStore();
   const { t, lang } = useI18nStore();
   const { blankLineOffset, spotifyMode } = useSettingsStore();
-  const isServiceMode = useServiceStore((s) => s.isReady);
   const serviceLoggedIn = useServiceStore((s) => s.isLoggedIn);
-  // 줄 클릭 시크 등에서 사용할 실제 활성 플레이어 판별 (Spotify 모드 + 로그인)
-  const serviceActive = serviceLoggedIn && spotifyMode;
+  // 실제 Spotify 모드(로그인 + spotifyMode 활성)일 때만 서비스 모드로 간주.
+  // 단순 계정 연결만으로 AI 싱크를 막지 않도록 isReady 대신 spotifyMode 기준 사용.
+  const isServiceMode = serviceLoggedIn && spotifyMode;
+  const serviceActive = isServiceMode;
   const { lines } = doc;
 
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
