@@ -27,6 +27,7 @@ const fileExt = (p: string) => p.split(".").pop()?.toLowerCase() ?? "";
 
 function useGlobalKeys() {
   const { stampAndAdvance, goToPreviousLine, undo, redo } = useLrcStore();
+  const syncMode = useLrcStore((s) => s.syncMode);
   const isLoggedInForKeys = useServiceStore((s) => s.isLoggedIn);
   const spotifyModeForKeys = useSettingsStore((s) => s.spotifyMode);
   const isServiceMode = isLoggedInForKeys && spotifyModeForKeys;
@@ -70,6 +71,9 @@ function useGlobalKeys() {
         return;
       }
 
+      // 글자 동기화 모드에서는 Space/Backspace를 CharSyncView가 처리
+      if ((e.code === "Space" || e.code === "Backspace") && syncMode === "char") return;
+
       if (e.code === "Space" && !inInput) {
         e.preventDefault();
         stampAndAdvance();
@@ -85,7 +89,7 @@ function useGlobalKeys() {
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [stampAndAdvance, goToPreviousLine, undo, redo, isServiceMode]);
+  }, [stampAndAdvance, goToPreviousLine, undo, redo, isServiceMode, syncMode]);
 }
 
 // 저장 경로(lrcPath)가 지정된 파일에 한해, 변경 후 일정 시간 멈추면 자동 저장.

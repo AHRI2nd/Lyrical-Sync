@@ -4,10 +4,11 @@ import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
-import { formatDisplayTime, formatTimestamp, parseTimestampInput, validateTimestamps } from "../../utils/lrcParser";
+import { formatDisplayTime, formatTimestamp, parseTimestampInput, validateTimestamps, type SyncUnit } from "../../utils/lrcParser";
 import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
 import { MODEL_DEFS } from "../../utils/modelDefs";
+import { CharSyncView } from "./CharSyncView";
 
 // ISO 639-3 codes used by ctc-forced-aligner / MMS model
 const LANG_CODE: Record<string, string> = { ko: "kor", en: "eng", ja: "jpn" };
@@ -21,6 +22,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     runAiSync, cancelAiSync, clearAiDraft,
     replaceInLines, shiftTimeRange,
     audioPath,
+    syncMode, syncUnit, setSyncMode, setSyncUnit, clearLineSyllables,
   } = useLrcStore();
   const { t, lang } = useI18nStore();
   const { blankLineOffset, spotifyMode } = useSettingsStore();
@@ -59,6 +61,45 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
 
   // Esc 취소 시 input 언마운트로 onBlur가 commit을 유발하지 않도록 가드
   const tsEditCancel = useRef(false);
+
+  // 글자 동기화된 줄의 텍스트 수정 경고 / 단위 변경 경고
+  const [pendingTextEdit, setPendingTextEdit] = useState<{ id: string; text: string } | null>(null);
+  const [pendingUnit, setPendingUnit] = useState<SyncUnit | null>(null);
+
+  const charMode = syncMode === "char";
+
+  // 텍스트 입력: 글자 타이밍이 있는 줄이면 경고 후 재토큰화 동의 받기
+  const handleTextChange = (id: string, value: string) => {
+    const ln = lines.find((l) => l.id === id);
+    if (ln?.syllables?.some((s) => s.time !== null)) {
+      setPendingTextEdit({ id, text: value });
+      return;
+    }
+    updateLine(id, { text: value });
+  };
+  const confirmTextEdit = () => {
+    if (pendingTextEdit) updateLine(pendingTextEdit.id, { text: pendingTextEdit.text, syllables: undefined });
+    setPendingTextEdit(null);
+  };
+
+  // 단위 변경: 활성 줄에 글자 타이밍이 있으면 경고 후 해당 줄 초기화
+  const handleUnitChange = (u: SyncUnit) => {
+    if (u === syncUnit) return;
+    const active = lines.find((l) => l.id === activeLineId);
+    if (active?.syllables?.some((s) => s.time !== null)) {
+      setPendingUnit(u);
+      return;
+    }
+    setSyncUnit(u);
+  };
+  const confirmUnitChange = () => {
+    if (pendingUnit) {
+      const active = lines.find((l) => l.id === activeLineId);
+      if (active) clearLineSyllables(active.id);
+      setSyncUnit(pendingUnit);
+    }
+    setPendingUnit(null);
+  };
 
   const startTsEdit = (id: string, timestamp: number | null) => {
     tsEditCancel.current = false;
@@ -157,7 +198,8 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     const after = currentText.slice(selEnd);
     const pasteLines = pasted.split(/\r?\n/);
 
-    updateLine(id, { text: before + pasteLines[0] });
+    // 텍스트가 바뀌므로 글자 동기화 토큰은 무효화
+    updateLine(id, { text: before + pasteLines[0], syllables: undefined });
 
     const restTexts = pasteLines.slice(1);
     restTexts[restTexts.length - 1] += after;
@@ -286,6 +328,43 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
         </div>
         <div className="flex gap-2 items-center flex-wrap justify-end">
 
+          {/* 줄 ↔ 글자 동기화 모드 토글 */}
+          <div className="inline-flex bg-zinc-800 rounded-lg p-0.5">
+            <button
+              onClick={() => setSyncMode("line")}
+              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${!charMode ? "bg-indigo-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
+            >
+              {t.charSync.modeLine}
+            </button>
+            <button
+              onClick={() => setSyncMode("char")}
+              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${charMode ? "bg-indigo-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
+            >
+              {t.charSync.modeChar}
+            </button>
+          </div>
+
+          {charMode && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-zinc-500">{t.charSync.unitLabel}</span>
+              <div className="inline-flex bg-zinc-800 rounded-lg p-0.5">
+                <button
+                  onClick={() => handleUnitChange("char")}
+                  className={`px-2.5 py-1 text-xs rounded-md transition-colors ${syncUnit === "char" ? "bg-zinc-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
+                >
+                  {t.charSync.unitChar}
+                </button>
+                <button
+                  onClick={() => handleUnitChange("word")}
+                  className={`px-2.5 py-1 text-xs rounded-md transition-colors ${syncUnit === "word" ? "bg-zinc-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
+                >
+                  {t.charSync.unitWord}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!charMode && (<>
           {/* AI Auto Sync */}
           <div className="relative group">
             <button
@@ -366,12 +445,14 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
               </div>
             )}
           </div>
+          </>)}
           <button
             onClick={onPreview}
             className="px-3 py-1 text-xs rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors"
           >
             {t.previewBtn}
           </button>
+          {!charMode && (
           <button
             onClick={() => {
               addLine();
@@ -386,9 +467,13 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           >
             {t.addLine}
           </button>
+          )}
         </div>
       </div>
 
+      {charMode && <CharSyncView />}
+
+      {!charMode && (<>
       {/* AI progress message */}
       {(isRunning || aiSyncStatus === "error") && displayMessage && (
         <div className={[
@@ -527,7 +612,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                 ref={setInputRef(line.id)}
                 type="text"
                 value={line.text}
-                onChange={(e) => updateLine(line.id, { text: e.target.value })}
+                onChange={(e) => handleTextChange(line.id, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(e, line.id)}
                 onFocus={() => setActiveLineId(line.id)}
                 onPaste={(e) => handlePaste(e, line.id, line.text)}
@@ -546,9 +631,61 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           );
         })}
       </div>
+      </>)}
 
       <div className="text-xs text-zinc-500 text-right font-mono">
         {t.currentTimeLabel}{formatDisplayTime(currentTime)}
+      </div>
+
+      {pendingTextEdit && (
+        <MiniConfirm
+          title={t.charSync.retokenizeTitle}
+          message={t.charSync.retokenizeMsg}
+          okLabel={t.charSync.retokenizeOk}
+          cancelLabel={t.charSync.retokenizeCancel}
+          onOk={confirmTextEdit}
+          onCancel={() => setPendingTextEdit(null)}
+        />
+      )}
+      {pendingUnit && (
+        <MiniConfirm
+          title={t.charSync.retokenizeTitle}
+          message={t.charSync.unitChangeMsg}
+          okLabel={t.charSync.retokenizeOk}
+          cancelLabel={t.charSync.retokenizeCancel}
+          onOk={confirmUnitChange}
+          onCancel={() => setPendingUnit(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function MiniConfirm({
+  title, message, okLabel, cancelLabel, onOk, onCancel,
+}: {
+  title: string; message: string; okLabel: string; cancelLabel: string;
+  onOk: () => void; onCancel: () => void;
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onCancel(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onCancel]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onCancel}>
+      <div className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-zinc-800">
+          <span className="font-semibold text-zinc-100">{title}</span>
+        </div>
+        <div className="px-5 py-4">
+          <p className="text-sm text-zinc-300 whitespace-pre-line">{message}</p>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-5 pb-4">
+          <button onClick={onCancel} className="px-4 py-1.5 text-sm rounded-lg text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">{cancelLabel}</button>
+          <button onClick={onOk} className="px-4 py-1.5 text-sm rounded-lg text-white bg-rose-600 hover:bg-rose-500 transition-colors">{okLabel}</button>
+        </div>
       </div>
     </div>
   );

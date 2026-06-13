@@ -1,4 +1,19 @@
-import { LrcDocument, LrcLine, LrcMetadata, defaultDocument } from "../types/lrc";
+import { LrcDocument, LrcLine, LrcMetadata, LrcSyllable, defaultDocument } from "../types/lrc";
+
+export type SyncUnit = "char" | "word";
+
+// 줄 텍스트를 글자/단어 토큰으로 분할. 공백도 토큰으로 보존(연결 시 원문 복원).
+export function tokenizeText(text: string, unit: SyncUnit): LrcSyllable[] {
+  if (text === "") return [];
+  const pieces =
+    unit === "char"
+      ? Array.from(text)
+      : text.split(/(\s+)/).filter((s) => s !== "");
+  return pieces.map((p) => ({ text: p, time: null }));
+}
+
+// 공백뿐인 토큰은 스탬프 대상이 아님
+export const isStampable = (s: LrcSyllable): boolean => s.text.trim() !== "";
 
 const META_TAGS: Record<string, keyof LrcMetadata> = {
   ti: "title",
@@ -12,6 +27,36 @@ const META_RE = /^\[(\w+):([^\]]*)\]$/;
 // 줄 맨 앞의 타임스탬프 토큰: [mm:ss.xx] / [mm:ss.xxx] / [mm:ss] (센티초 선택)
 // 한 줄에 여러 토큰이 올 수 있음 (후렴 반복: [t1][t2]가사)
 const TS_TOKEN_RE = /^\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\]/;
+
+// Enhanced LRC 인라인 단어 타임스탬프 <mm:ss.xx>
+const INLINE_TS_RE = /<(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?>/g;
+
+// 줄 텍스트(앞쪽 [..] 제거 후) 안의 <mm:ss.xx> 인라인 태그를 파싱해 토큰 배열로.
+// 인라인 태그가 없으면 null.
+function parseInlineSyllables(rest: string): LrcSyllable[] | null {
+  if (!rest.includes("<")) return null;
+  INLINE_TS_RE.lastIndex = 0;
+  const tags: { time: number; start: number; end: number }[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = INLINE_TS_RE.exec(rest)) !== null) {
+    tags.push({
+      time: parseInt(m[1], 10) * 60 + parseInt(m[2], 10) + fracToSeconds(m[3]),
+      start: m.index,
+      end: INLINE_TS_RE.lastIndex,
+    });
+  }
+  if (tags.length === 0) return null;
+
+  const syl: LrcSyllable[] = [];
+  // 첫 태그 앞의 텍스트는 타임스탬프 없는 선행 텍스트
+  if (tags[0].start > 0) syl.push({ text: rest.slice(0, tags[0].start), time: null });
+  for (let i = 0; i < tags.length; i++) {
+    const textStart = tags[i].end;
+    const textEnd = i + 1 < tags.length ? tags[i + 1].start : rest.length;
+    syl.push({ text: rest.slice(textStart, textEnd), time: tags[i].time });
+  }
+  return syl;
+}
 
 // 소수 부분 문자열을 초로 변환 ("5"→0.5, "34"→0.34, "345"→0.345)
 function fracToSeconds(frac: string | undefined): number {
@@ -112,9 +157,16 @@ export function parseLrc(raw: string): LrcDocument {
       rest = rest.slice(tok[0].length);
     }
     if (timestamps.length > 0) {
-      const text = rest.trim();
+      const syllables = parseInlineSyllables(rest);
+      const text = syllables ? syllables.map((s) => s.text).join("") : rest.trim();
       for (const ts of timestamps) {
-        doc.lines.push({ id: String(lineId++), timestamp: ts, text });
+        doc.lines.push({
+          id: String(lineId++),
+          timestamp: ts,
+          text,
+          // 반복 줄([t1][t2]…)마다 토큰을 복제해 공유 참조 방지
+          ...(syllables ? { syllables: syllables.map((s) => ({ ...s })) } : {}),
+        });
       }
       continue;
     }
@@ -164,7 +216,18 @@ export function serializeLrc(doc: LrcDocument): string {
   parts.push("");
 
   for (const line of lines) {
-    if (line.timestamp !== null) {
+    // Enhanced LRC(A2): 토큰에 시각이 하나라도 있으면 <mm:ss.xx> 인라인으로 출력
+    const timedSyl = line.syllables?.some((s) => s.time !== null);
+    if (timedSyl && line.syllables) {
+      const times = line.syllables.filter((s) => s.time !== null).map((s) => s.time as number);
+      const lineTs = line.timestamp ?? Math.min(...times);
+      let out = `[${formatTimestamp(lineTs)}]`;
+      for (const s of line.syllables) {
+        if (s.time !== null) out += `<${formatTimestamp(s.time)}>`;
+        out += s.text;
+      }
+      parts.push(out);
+    } else if (line.timestamp !== null) {
       parts.push(`[${formatTimestamp(line.timestamp)}]${line.text}`);
     } else if (line.text) {
       parts.push(line.text);
