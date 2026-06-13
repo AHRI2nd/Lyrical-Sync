@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import { LrcDocument, LrcLine, LrcMetadata, defaultDocument } from "../types/lrc";
-import { parseLrc, serializeLrc } from "../utils/lrcParser";
+import { LrcDocument, LrcLine, LrcMetadata, LrcSyllable, defaultDocument } from "../types/lrc";
+import { parseLrc, serializeLrc, type SyncUnit } from "../utils/lrcParser";
 import { serializeSrt, parseSrt } from "../utils/srtConverter";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -41,6 +41,18 @@ interface LrcStore {
   setActiveLineId: (id: string | null) => void;
   stampAndAdvance: () => void;
   goToPreviousLine: () => void;
+
+  // 글자/단어 동기화 (Enhanced LRC) 편집 모드
+  syncMode: "line" | "char";
+  syncUnit: SyncUnit;
+  activeSyllableIndex: number;
+  setSyncMode: (m: "line" | "char") => void;
+  setSyncUnit: (u: SyncUnit) => void;
+  setActiveSyllable: (i: number) => void;
+  // 줄의 토큰 전체를 교체(히스토리 기록). line.timestamp는 최소 토큰 시각으로 동기화.
+  commitSyllables: (lineId: string, syllables: LrcSyllable[]) => void;
+  // 줄의 글자 동기화 제거(일반 줄로 복귀). line.timestamp는 유지.
+  clearLineSyllables: (lineId: string) => void;
 
   setMetadata: (meta: Partial<LrcMetadata>) => void;
   setLines: (lines: LrcLine[]) => void;
@@ -104,6 +116,44 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   aiSyncMessage: "",
   aiSyncProgressStatus: "",
   aiDraftConfidence: null,
+
+  syncMode: "line",
+  syncUnit: "char",
+  activeSyllableIndex: 0,
+
+  setSyncMode: (m) => set({ syncMode: m }),
+  setSyncUnit: (u) => set({ syncUnit: u }),
+  setActiveSyllable: (i) => set({ activeSyllableIndex: i }),
+
+  commitSyllables: (lineId, syllables) => {
+    const { doc, _history } = get();
+    const times = syllables.filter((s) => s.time !== null).map((s) => s.time as number);
+    const lineTs = times.length > 0 ? Math.min(...times) : null;
+    const lines = doc.lines.map((l) =>
+      l.id === lineId
+        ? { ...l, syllables, timestamp: lineTs !== null ? lineTs : l.timestamp }
+        : l
+    );
+    set({
+      _history: [..._history.slice(-(MAX_HISTORY - 1)), doc],
+      _future: [],
+      doc: { ...doc, lines },
+      isDirty: true,
+    });
+  },
+
+  clearLineSyllables: (lineId) => {
+    const { doc, _history } = get();
+    const lines = doc.lines.map((l) =>
+      l.id === lineId ? { ...l, syllables: undefined } : l
+    );
+    set({
+      _history: [..._history.slice(-(MAX_HISTORY - 1)), doc],
+      _future: [],
+      doc: { ...doc, lines },
+      isDirty: true,
+    });
+  },
 
   undo: () => {
     const { doc, _history, _future } = get();
@@ -271,6 +321,11 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
           timestamp: l.timestamp !== null
             ? Math.max(0, l.timestamp + deltaSeconds)
             : null,
+          // 글자 동기화 토큰 시각도 함께 이동
+          syllables: l.syllables?.map((s) => ({
+            ...s,
+            time: s.time !== null ? Math.max(0, s.time + deltaSeconds) : null,
+          })),
         })),
       },
       isDirty: true,
@@ -370,7 +425,14 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     const { doc, _history } = get();
     const newLines = doc.lines.map((l, i) => {
       if (i < fromIdx || i > toIdx || l.timestamp === null) return l;
-      return { ...l, timestamp: Math.max(0, l.timestamp + deltaSeconds) };
+      return {
+        ...l,
+        timestamp: Math.max(0, l.timestamp + deltaSeconds),
+        syllables: l.syllables?.map((s) => ({
+          ...s,
+          time: s.time !== null ? Math.max(0, s.time + deltaSeconds) : null,
+        })),
+      };
     });
     set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines: newLines }, isDirty: true });
   },
@@ -385,7 +447,8 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
       const matches = l.text.match(re);
       if (!matches) return l;
       count += matches.length;
-      return { ...l, text: l.text.replace(re, replace) };
+      // 텍스트가 바뀌면 옛 토큰 경계가 무효 → 글자 동기화 해제
+      return { ...l, text: l.text.replace(re, replace), syllables: undefined };
     });
     if (count === 0) return 0;
     set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines: newLines }, isDirty: true });
@@ -427,7 +490,8 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
         const r = byIndex.get(idx);
         if (r) {
           confidence[line.id] = r.confidence;
-          return { ...line, timestamp: r.start };
+          // AI가 줄 단위로 재정렬 → 기존 글자 동기화는 무효화
+          return { ...line, timestamp: r.start, syllables: undefined };
         }
         return line;
       });

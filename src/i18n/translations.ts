@@ -44,6 +44,24 @@ export interface Translations {
     replaceOk: string;
     replaceCancel: string;
   };
+  charSync: {
+    modeLine: string;
+    modeChar: string;
+    unitLabel: string;
+    unitChar: string;
+    unitWord: string;
+    hint: string;
+    stampHint: string;
+    replayLine: string;
+    clearLine: string;
+    current: string;
+    empty: string;
+    retokenizeTitle: string;
+    retokenizeMsg: string;
+    retokenizeOk: string;
+    retokenizeCancel: string;
+    unitChangeMsg: string;
+  };
   lrclib: {
     button: string; title: string;
     fieldTitle: string; fieldArtist: string; fieldAlbum: string;
@@ -323,6 +341,24 @@ const ko: Translations = {
     replaceBoth: "작업 중인 오디오·가사가 있습니다. 저장하지 않은 변경 사항은 사라집니다. 교체하시겠습니까?",
     replaceOk: "교체",
     replaceCancel: "취소",
+  },
+  charSync: {
+    modeLine: "줄 동기화",
+    modeChar: "글자 동기화",
+    unitLabel: "단위",
+    unitChar: "글자",
+    unitWord: "단어",
+    hint: "글자를 드래그해 시간에 맞추거나, Space로 현재 글자를 찍으세요.",
+    stampHint: "현재 글자 찍고 다음으로",
+    replayLine: "이 줄 재생",
+    clearLine: "이 줄 초기화",
+    current: "현재",
+    empty: "가사 줄이 없습니다. 먼저 줄 동기화 모드에서 가사를 입력하세요.",
+    retokenizeTitle: "글자 동기화 재설정",
+    retokenizeMsg: "이 줄은 글자 단위로 동기화되어 있습니다. 텍스트를 수정하면 글자 타이밍이 모두 사라집니다. 계속하시겠습니까?",
+    retokenizeOk: "수정하고 재설정",
+    retokenizeCancel: "취소",
+    unitChangeMsg: "이 줄은 이미 글자 타이밍이 있습니다. 단위를 바꾸면 타이밍이 모두 사라집니다. 계속하시겠습니까?",
   },
   lrclib: {
     button: "LRCLIB 불러오기",
@@ -623,6 +659,24 @@ const en: Translations = {
     replaceOk: "Replace",
     replaceCancel: "Cancel",
   },
+  charSync: {
+    modeLine: "Line Sync",
+    modeChar: "Character Sync",
+    unitLabel: "Unit",
+    unitChar: "Char",
+    unitWord: "Word",
+    hint: "Drag a glyph to scrub to its time, or press Space to stamp the current one.",
+    stampHint: "Stamp current glyph & advance",
+    replayLine: "Play line",
+    clearLine: "Reset line",
+    current: "Current",
+    empty: "No lyric lines. Enter lyrics in Line Sync mode first.",
+    retokenizeTitle: "Reset character sync",
+    retokenizeMsg: "This line is character-synced. Editing the text will discard all glyph timings. Continue?",
+    retokenizeOk: "Edit & reset",
+    retokenizeCancel: "Cancel",
+    unitChangeMsg: "This line already has glyph timings. Changing the unit will discard them. Continue?",
+  },
   lrclib: {
     button: "Fetch from LRCLIB",
     title: "Search lyrics on LRCLIB",
@@ -922,6 +976,24 @@ const ja: Translations = {
     replaceBoth: "編集中のオーディオ・歌詞があります。保存していない変更は失われます。置き換えますか？",
     replaceOk: "置き換え",
     replaceCancel: "キャンセル",
+  },
+  charSync: {
+    modeLine: "行同期",
+    modeChar: "文字同期",
+    unitLabel: "単位",
+    unitChar: "文字",
+    unitWord: "単語",
+    hint: "文字をドラッグして時間に合わせるか、Spaceで現在の文字を打刻します。",
+    stampHint: "現在の文字を打刻して次へ",
+    replayLine: "この行を再生",
+    clearLine: "この行をリセット",
+    current: "現在",
+    empty: "歌詞行がありません。先に行同期モードで歌詞を入力してください。",
+    retokenizeTitle: "文字同期のリセット",
+    retokenizeMsg: "この行は文字単位で同期されています。テキストを編集すると文字タイミングはすべて失われます。続行しますか？",
+    retokenizeOk: "編集してリセット",
+    retokenizeCancel: "キャンセル",
+    unitChangeMsg: "この行には既に文字タイミングがあります。単位を変更するとタイミングは失われます。続行しますか？",
   },
   lrclib: {
     button: "LRCLIBから取得",
