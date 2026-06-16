@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -200,45 +200,91 @@ export function CharSyncView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 드래그 스크럽: 글자를 누른 채 좌우로 → 오디오 탐색 + 놓는 시각에 스탬프
   const laneRef = useRef<HTMLDivElement>(null);
   const dragCleanupRef = useRef<(() => void) | null>(null);
-  const [dragPreview, setDragPreview] = useState<{ index: number; time: number } | null>(null);
 
-  // 드래그 도중 언마운트되면 window 리스너/rAF 정리
+  // 드래그 도중 언마운트되면 window 리스너 정리
   useEffect(() => () => dragCleanupRef.current?.(), []);
 
+  // 글자를 "현재 재생 시간"으로 찍고 다음 글자를 준비(활성)로. 재생헤드는 건드리지 않음.
+  // recordHistory=false면 히스토리 미기록(칠하기 드래그 도중 글자들을 1회 undo로 묶기 위함).
+  const stampGlyphAt = (index: number, recordHistory = true) => {
+    const { line: ln, syllables: syl, stampableIdx: sidx } = stateRef.current;
+    if (!ln || !syl[index] || !isStampable(syl[index])) return;
+    const time = useLrcStore.getState().currentTime;
+    commitSyllables(ln.id, syl.map((s, i) => (i === index ? { ...s, time } : s)), recordHistory);
+    const pos = sidx.indexOf(index);
+    const nextIdx = sidx[pos + 1];
+    if (nextIdx != null) setActiveSyllable(nextIdx);
+  };
+
+  // 글자 위 드래그 = 칠하기: 재생 중 글자 위를 끌면 지나는 글자가 현재 재생 시간으로 찍히고
+  // 다음 글자가 준비됨(재생헤드 이동/스크럽 없음). 단순 클릭 = 그 글자를 활성(준비)으로 선택만.
   const beginDrag = (index: number, e: React.MouseEvent) => {
     if (!line || e.button !== 0) return; // 좌클릭만 (우클릭은 글자 지우기)
     e.preventDefault();
     const startX = e.clientX;
-    let moved = false;
-    // 이웃 토큰 시각으로 단조성 보장
-    let lo = winStart;
-    let hi = winEnd;
-    for (let i = index - 1; i >= 0; i--) {
-      if (syllables[i].time !== null) { lo = syllables[i].time as number; break; }
-    }
-    for (let i = index + 1; i < syllables.length; i++) {
-      if (syllables[i].time !== null) { hi = syllables[i].time as number; break; }
-    }
+    let painting = false;
+    let lastIdx = -1;
+    let advancedViaEnd = false;
 
-    const timeAt = (clientX: number) => {
+    const move = (ev: MouseEvent) => {
+      if (!painting) {
+        if (Math.abs(ev.clientX - startX) <= 5) return;
+        painting = true;
+        stampGlyphAt(index, true); // 칠하기 시작 = 히스토리 1회 기록
+        lastIdx = index;
+        return;
+      }
+      const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
+      // 마지막 공백 셀까지 칠이 이어지면 다음 줄로 (드래그 1회당 한 번만)
+      if (el?.getAttribute?.("data-glyph-end") != null) {
+        if (!advancedViaEnd) {
+          advancedViaEnd = true;
+          gotoLine(stateRef.current.lineIdx + 1);
+          lastIdx = -1;
+        }
+        return;
+      }
+      // 커서 아래 글자 판별 → 새 글자에 진입하면 현재 재생 시간으로 찍기 (히스토리 미기록=배치)
+      const attr = el?.getAttribute?.("data-glyph");
+      if (attr == null) return;
+      advancedViaEnd = false;
+      const gi = parseInt(attr, 10);
+      if (Number.isNaN(gi) || gi === lastIdx) return;
+      lastIdx = gi;
+      stampGlyphAt(gi, false);
+    };
+    const cleanup = () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      dragCleanupRef.current = null;
+    };
+    const up = () => {
+      cleanup();
+      if (!painting) setActiveSyllable(index); // 단순 클릭 = 선택만(찍지 않음)
+    };
+    dragCleanupRef.current = cleanup;
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  };
+
+  // 레인 = 탐색(내비게이션) 전용. 누르거나 끌어서 재생 위치 이동(글자 시각엔 영향 없음).
+  const beginLaneDrag = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const seekAt = (clientX: number) => {
       const el = laneRef.current;
-      if (!el) return winStart;
+      if (!el) return;
       const r = el.getBoundingClientRect();
       const ratio = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
-      const tt = winStart + ratio * (winEnd - winStart);
-      return Math.max(lo, Math.min(hi, tt));
+      controls.seekTo(winStart + ratio * (winEnd - winStart));
     };
-
     let raf: number | null = null;
+    seekAt(e.clientX);
     const move = (ev: MouseEvent) => {
-      if (Math.abs(ev.clientX - startX) > 3) moved = true;
-      const tt = timeAt(ev.clientX);
-      setDragPreview({ index, time: tt });
       if (raf) cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => controls.seekTo(tt));
+      raf = requestAnimationFrame(() => seekAt(ev.clientX));
     };
     const cleanup = () => {
       window.removeEventListener("mousemove", move);
@@ -246,21 +292,7 @@ export function CharSyncView() {
       if (raf) cancelAnimationFrame(raf);
       dragCleanupRef.current = null;
     };
-    const up = (ev: MouseEvent) => {
-      cleanup();
-      if (moved) {
-        const tt = timeAt(ev.clientX);
-        const next = syllables.map((s, i) => (i === index ? { ...s, time: tt } : s));
-        commitSyllables(line.id, next);
-        setActiveSyllable(index);
-      } else {
-        // 단순 클릭 = 글자 선택 + (시각 있으면) 탐색
-        setActiveSyllable(index);
-        const ts = syllables[index].time;
-        if (ts !== null) controls.seekTo(ts);
-      }
-      setDragPreview(null);
-    };
+    const up = () => cleanup();
     dragCleanupRef.current = cleanup;
     window.addEventListener("mousemove", move);
     window.addEventListener("mouseup", up);
@@ -290,13 +322,9 @@ export function CharSyncView() {
   }
 
   // readout: 드래그 중이면 끌고 있는 글자, 아니면 현재 활성 글자
-  const readoutSyl = dragPreview ? syllables[dragPreview.index] : syllables[activeSyllableIndex];
+  const readoutSyl = syllables[activeSyllableIndex];
   const readoutText = readoutSyl && isStampable(readoutSyl) ? readoutSyl.text.trim() : "—";
-  const readoutTime = dragPreview
-    ? formatTimestamp(dragPreview.time)
-    : readoutSyl && readoutSyl.time !== null
-    ? formatTimestamp(readoutSyl.time)
-    : "--:--.--";
+  const readoutTime = readoutSyl && readoutSyl.time !== null ? formatTimestamp(readoutSyl.time) : "--:--.--";
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -312,28 +340,7 @@ export function CharSyncView() {
         <span className="text-xs text-zinc-500 font-mono shrink-0">
           {lineIdx + 1} / {lines.length}
         </span>
-        <div className="flex-1 flex items-center gap-1.5 overflow-x-auto py-1">
-          {lines.map((l, i) => {
-            const st = lineSyncState(l);
-            const active = i === lineIdx;
-            const color =
-              st === "done"
-                ? "bg-emerald-500"
-                : st === "partial"
-                ? "bg-amber-500"
-                : "bg-zinc-600";
-            return (
-              <button
-                key={l.id}
-                onClick={() => setActiveLineId(l.id)}
-                title={`${i + 1}. ${l.text}`}
-                className={`shrink-0 rounded-full transition-all ${color} ${
-                  active ? "w-2.5 h-2.5 ring-2 ring-indigo-400/60" : "w-2 h-2 opacity-70 hover:opacity-100"
-                }`}
-              />
-            );
-          })}
-        </div>
+        <LineDots lines={lines} activeIdx={lineIdx} onSelect={setActiveLineId} />
         <button
           onClick={(e) => { gotoLine(lineIdx + 1); e.currentTarget.blur(); }}
           disabled={lineIdx >= lines.length - 1}
@@ -366,14 +373,24 @@ export function CharSyncView() {
           return (
             <span
               key={i}
+              data-glyph={i}
               onMouseDown={(e) => beginDrag(i, e)}
               onContextMenu={(e) => { e.preventDefault(); clearGlyph(i); }}
-              className={`cursor-grab transition-colors ${cls}`}
+              className={`cursor-pointer transition-colors ${cls}`}
             >
               {s.text}
             </span>
           );
         })}
+        {/* 마지막 공백 셀: 여기까지 칠하면(또는 클릭하면) 다음 줄로 */}
+        <span
+          data-glyph-end="1"
+          onClick={() => gotoLine(lineIdx + 1)}
+          title={t.charSync.endCell}
+          className="inline-block align-middle ml-1 w-8 text-center rounded border border-dashed border-zinc-700 text-zinc-600 text-base cursor-pointer hover:border-indigo-500 hover:text-indigo-300 select-none"
+        >
+          ↵
+        </span>
       </div>
 
       {/* 현재 글자 readout */}
@@ -387,25 +404,10 @@ export function CharSyncView() {
       {/* 스크럽 레인 */}
       <div
         ref={laneRef}
-        onMouseDown={(e) => {
-          const r = e.currentTarget.getBoundingClientRect();
-          const ratio = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
-          controls.seekTo(winStart + ratio * (winEnd - winStart));
-        }}
+        onMouseDown={beginLaneDrag}
         className="relative h-10 rounded-lg bg-zinc-950/60 border border-zinc-800 overflow-hidden cursor-pointer mb-1"
       >
-        {waveBars && (
-          <svg
-            className="absolute inset-0 w-full h-full pointer-events-none"
-            viewBox={`0 0 ${waveBars.length} 100`}
-            preserveAspectRatio="none"
-          >
-            {waveBars.map((v, k) => {
-              const h = Math.max(1, v * 88);
-              return <rect key={k} x={k + 0.1} width={0.8} y={(100 - h) / 2} height={h} fill="#3f3f46" />;
-            })}
-          </svg>
-        )}
+        <LaneWaveform bars={waveBars} />
         {syllables.map((s, i) =>
           s.time !== null && isStampable(s) ? (
             <div
@@ -449,3 +451,50 @@ export function CharSyncView() {
     </div>
   );
 }
+
+// 줄 점 네비게이터: lines/활성 줄이 바뀔 때만 갱신 → 재생 중 매 프레임 재렌더 방지
+const LineDots = memo(function LineDots({
+  lines, activeIdx, onSelect,
+}: {
+  lines: LrcLine[];
+  activeIdx: number;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <div className="flex-1 flex items-center gap-1.5 overflow-x-auto py-1">
+      {lines.map((l, i) => {
+        const st = lineSyncState(l);
+        const active = i === activeIdx;
+        const color =
+          st === "done" ? "bg-emerald-500" : st === "partial" ? "bg-amber-500" : "bg-zinc-600";
+        return (
+          <button
+            key={l.id}
+            onClick={() => onSelect(l.id)}
+            title={`${i + 1}. ${l.text}`}
+            className={`shrink-0 rounded-full transition-all ${color} ${
+              active ? "w-2.5 h-2.5 ring-2 ring-indigo-400/60" : "w-2 h-2 opacity-70 hover:opacity-100"
+            }`}
+          />
+        );
+      })}
+    </div>
+  );
+});
+
+// 파형 막대는 시간 창(window)이 바뀔 때만 갱신 → 재생 중 매 프레임 재렌더 방지
+const LaneWaveform = memo(function LaneWaveform({ bars }: { bars: number[] | null }) {
+  if (!bars) return null;
+  return (
+    <svg
+      className="absolute inset-0 w-full h-full pointer-events-none"
+      viewBox={`0 0 ${bars.length} 100`}
+      preserveAspectRatio="none"
+    >
+      {bars.map((v, k) => {
+        const h = Math.max(1, v * 88);
+        return <rect key={k} x={k + 0.1} width={0.8} y={(100 - h) / 2} height={h} fill="#3f3f46" />;
+      })}
+    </svg>
+  );
+});

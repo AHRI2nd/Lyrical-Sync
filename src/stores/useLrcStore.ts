@@ -50,8 +50,9 @@ interface LrcStore {
   setSyncMode: (m: "line" | "char") => void;
   setSyncUnit: (u: SyncUnit) => void;
   setActiveSyllable: (i: number) => void;
-  // 줄의 토큰 전체를 교체(히스토리 기록). line.timestamp는 최소 토큰 시각으로 동기화.
-  commitSyllables: (lineId: string, syllables: LrcSyllable[]) => void;
+  // 줄의 토큰 전체를 교체. line.timestamp는 최소 토큰 시각으로 동기화.
+  // recordHistory=false면 히스토리를 쌓지 않음(칠하기 드래그를 1회 undo로 묶기 위함).
+  commitSyllables: (lineId: string, syllables: LrcSyllable[], recordHistory?: boolean) => void;
   // 줄의 글자 동기화 제거(일반 줄로 복귀). line.timestamp는 유지.
   clearLineSyllables: (lineId: string) => void;
 
@@ -126,7 +127,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   setSyncUnit: (u) => set({ syncUnit: u }),
   setActiveSyllable: (i) => set({ activeSyllableIndex: i }),
 
-  commitSyllables: (lineId, syllables) => {
+  commitSyllables: (lineId, syllables, recordHistory = true) => {
     const { doc, _history } = get();
     const times = syllables.filter((s) => s.time !== null).map((s) => s.time as number);
     const lineTs = times.length > 0 ? Math.min(...times) : null;
@@ -136,8 +137,9 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
         : l
     );
     set({
-      _history: [..._history.slice(-(MAX_HISTORY - 1)), doc],
-      _future: [],
+      ...(recordHistory
+        ? { _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [] }
+        : {}),
       doc: { ...doc, lines },
       isDirty: true,
     });
