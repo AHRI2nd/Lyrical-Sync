@@ -13,6 +13,15 @@ const DEFAULT_SPAN = 8;
 
 type LineState = "none" | "partial" | "done";
 
+// 스탬프 시각을 이웃 글자 시각 사이로 클램프 → 글자 시각이 항상 단조 증가(유효한 A2 보장)
+function clampToNeighbors(syl: LrcSyllable[], index: number, time: number): number {
+  let lo = 0;
+  let hi = Infinity;
+  for (let i = index - 1; i >= 0; i--) { const t = syl[i].time; if (t !== null) { lo = t; break; } }
+  for (let i = index + 1; i < syl.length; i++) { const t = syl[i].time; if (t !== null) { hi = t; break; } }
+  return Math.max(lo, Math.min(hi, Math.max(0, time)));
+}
+
 function lineSyncState(line: LrcLine): LineState {
   const syl = line.syllables;
   if (!syl) return "none";
@@ -132,7 +141,7 @@ export function CharSyncView() {
     if (sidx.length === 0) { gotoLine(li + 1); return; }
     const idx = useLrcStore.getState().activeSyllableIndex;
     if (!syl[idx] || !isStampable(syl[idx])) return;
-    const time = useLrcStore.getState().currentTime;
+    const time = clampToNeighbors(syl, idx, useLrcStore.getState().currentTime);
     const next = syl.map((s, i) => (i === idx ? { ...s, time } : s));
     commitSyllables(ln.id, next);
     const pos = sidx.indexOf(idx);
@@ -211,7 +220,7 @@ export function CharSyncView() {
   const stampGlyphAt = (index: number, recordHistory = true) => {
     const { line: ln, syllables: syl, stampableIdx: sidx } = stateRef.current;
     if (!ln || !syl[index] || !isStampable(syl[index])) return;
-    const time = useLrcStore.getState().currentTime;
+    const time = clampToNeighbors(syl, index, useLrcStore.getState().currentTime);
     commitSyllables(ln.id, syl.map((s, i) => (i === index ? { ...s, time } : s)), recordHistory);
     const pos = sidx.indexOf(index);
     const nextIdx = sidx[pos + 1];

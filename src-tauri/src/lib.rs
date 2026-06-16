@@ -58,6 +58,9 @@ impl Default for ModelsDirState {
 struct FileSpec {
     url: String,
     filename: String,
+    /// 선택적 SHA-256 (소문자 hex). 지정 시 다운로드 후 무결성 검증, 불일치하면 파일 삭제·실패.
+    #[serde(default)]
+    sha256: Option<String>,
 }
 
 #[derive(Serialize, Clone)]
@@ -252,6 +255,9 @@ async fn download_model(
         let mut downloaded: u64 = 0;
 
         use tokio::io::AsyncWriteExt;
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        let verify = spec.sha256.as_deref().map(str::trim).filter(|s| !s.is_empty());
         let mut file = tokio::fs::File::create(&dest).await.map_err(|e| e.to_string())?;
 
         loop {
@@ -265,6 +271,7 @@ async fn download_model(
             match resp.chunk().await {
                 Ok(Some(chunk)) => {
                     file.write_all(&chunk).await.map_err(|e| e.to_string())?;
+                    if verify.is_some() { hasher.update(&chunk); }
                     downloaded += chunk.len() as u64;
                     let _ = app.emit(
                         "model-download-progress",
@@ -281,6 +288,19 @@ async fn download_model(
                 }
                 Ok(None) => {
                     file.flush().await.map_err(|e| e.to_string())?;
+                    // 무결성 검증 (sha256 지정된 파일만)
+                    if let Some(expected) = verify {
+                        let got = format!("{:x}", hasher.finalize());
+                        if !got.eq_ignore_ascii_case(expected) {
+                            drop(file);
+                            let _ = tokio::fs::remove_file(&dest).await;
+                            dl_state.cancels.lock().unwrap().remove(&model_id);
+                            return Err(format!(
+                                "체크섬 불일치 ({}): 예상 {} / 실제 {}",
+                                spec.filename, expected, got
+                            ));
+                        }
+                    }
                     break;
                 }
                 Err(e) => {
@@ -1055,12 +1075,15 @@ async fn download_ytdlp(app: AppHandle) -> Result<(), String> {
     let mut downloaded: u64 = 0;
 
     use tokio::io::AsyncWriteExt;
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
     let mut file = tokio::fs::File::create(&dest).await.map_err(|e| e.to_string())?;
 
     loop {
         match resp.chunk().await {
             Ok(Some(chunk)) => {
                 file.write_all(&chunk).await.map_err(|e| e.to_string())?;
+                hasher.update(&chunk);
                 downloaded += chunk.len() as u64;
                 let _ = app.emit("ytdlp-install-progress", YtdlpInstallProgress {
                     downloaded, total, done: false,
@@ -1075,6 +1098,33 @@ async fn download_ytdlp(app: AppHandle) -> Result<(), String> {
                 let _ = tokio::fs::remove_file(&dest).await;
                 return Err(e.to_string());
             }
+        }
+    }
+
+    // 무결성 검증: 같은 릴리즈의 SHA2-256SUMS에서 자산 해시를 받아 대조.
+    // SUMS를 받을 수 있으면 엄격히 검증(불일치=실패), 못 받으면 best-effort로 통과.
+    let actual = format!("{:x}", hasher.finalize());
+    let expected: Option<String> = async {
+        let r = client
+            .get("https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS")
+            .header("User-Agent", "lyrical-sync/1.0")
+            .send()
+            .await
+            .ok()?;
+        if !r.status().is_success() { return None; }
+        let text = r.text().await.ok()?;
+        text.lines().find_map(|l| {
+            let mut it = l.split_whitespace();
+            let hash = it.next()?;
+            let name = it.next()?;
+            if name == remote_name { Some(hash.to_string()) } else { None }
+        })
+    }
+    .await;
+    if let Some(exp) = expected {
+        if !actual.eq_ignore_ascii_case(&exp) {
+            let _ = tokio::fs::remove_file(&dest).await;
+            return Err(format!("yt-dlp 체크섬 불일치: 예상 {exp} / 실제 {actual}"));
         }
     }
 
