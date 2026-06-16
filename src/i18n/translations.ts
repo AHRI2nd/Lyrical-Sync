@@ -66,6 +66,7 @@ export interface Translations {
     retokenizeCancel: string;
     unitChangeMsg: string;
     badge: string;
+    endCell: string;
   };
   lrclib: {
     button: string; title: string;
@@ -336,10 +337,10 @@ const ko: Translations = {
     markerClickDesc: "파형 마커 → 해당 가사 줄 선택",
     csStamp: "현재 글자에 타임스탬프 찍기 + 다음 글자로",
     csMove: "이전 / 다음 글자로 이동",
-    csDragKey: "글자 드래그",
-    csDragDesc: "끌어서 오디오를 탐색하고 놓는 시각으로 그 글자를 찍기",
+    csDragKey: "글자 드래그(칠하기)",
+    csDragDesc: "재생 중 글자 위를 끌면 지나는 글자가 현재 재생 시간으로 찍히고 다음 글자가 준비됨(재생헤드 이동 없음)",
     csClickKey: "글자 클릭",
-    csClickDesc: "글자 선택 + (시각이 있으면) 그 위치로 탐색",
+    csClickDesc: "글자를 활성(준비) 상태로 선택",
     csClearKey: "글자 우클릭",
     csClearDesc: "그 글자의 시각만 제거",
     csNudgeKey: "Shift + ← / →",
@@ -366,7 +367,7 @@ const ko: Translations = {
     unitLabel: "단위",
     unitChar: "글자",
     unitWord: "단어",
-    hint: "글자 드래그=시간 맞추기 · Space=찍기 · 우클릭=지우기 · Shift+←/→=미세조정",
+    hint: "글자 드래그=재생 시간으로 칠하기 · Space=찍기 · 우클릭=지우기 · Shift+←/→=미세조정 · 파형=탐색",
     stampHint: "현재 글자 찍고 다음으로",
     replayLine: "이 줄 재생",
     clearLine: "이 줄 초기화",
@@ -378,6 +379,7 @@ const ko: Translations = {
     retokenizeCancel: "취소",
     unitChangeMsg: "이 줄은 이미 글자 타이밍이 있습니다. 단위를 바꾸면 타이밍이 모두 사라집니다. 계속하시겠습니까?",
     badge: "글자 동기화됨",
+    endCell: "다음 줄로 (여기까지 칠하거나 클릭)",
   },
   lrclib: {
     button: "LRCLIB 불러오기",
@@ -667,10 +669,10 @@ const en: Translations = {
     markerClickDesc: "Waveform marker → select that lyric line",
     csStamp: "Stamp the current glyph + advance to the next",
     csMove: "Move to previous / next glyph",
-    csDragKey: "Drag glyph",
-    csDragDesc: "Drag to scrub audio and stamp the glyph at the released time",
+    csDragKey: "Drag glyphs (paint)",
+    csDragDesc: "While playing, drag across glyphs to stamp each at the live playback time and advance (playhead doesn't move)",
     csClickKey: "Glyph click",
-    csClickDesc: "Select the glyph + seek to its time (if set)",
+    csClickDesc: "Select the glyph (make it the active/ready one)",
     csClearKey: "Glyph R-Click",
     csClearDesc: "Clear just that glyph's time",
     csNudgeKey: "Shift + ← / →",
@@ -697,7 +699,7 @@ const en: Translations = {
     unitLabel: "Unit",
     unitChar: "Char",
     unitWord: "Word",
-    hint: "Drag glyph=set time · Space=stamp · right-click=clear · Shift+←/→=nudge",
+    hint: "Drag glyphs=paint at playback time · Space=stamp · right-click=clear · Shift+←/→=nudge · waveform=seek",
     stampHint: "Stamp current glyph & advance",
     replayLine: "Play line",
     clearLine: "Reset line",
@@ -709,6 +711,7 @@ const en: Translations = {
     retokenizeCancel: "Cancel",
     unitChangeMsg: "This line already has glyph timings. Changing the unit will discard them. Continue?",
     badge: "Character-synced",
+    endCell: "Next line (paint here or click)",
   },
   lrclib: {
     button: "Fetch from LRCLIB",
@@ -999,10 +1002,10 @@ const ja: Translations = {
     markerClickDesc: "波形マーカー → その歌詞行を選択",
     csStamp: "現在の文字にタイムスタンプ + 次の文字へ",
     csMove: "前 / 次の文字へ移動",
-    csDragKey: "文字ドラッグ",
-    csDragDesc: "ドラッグして音声をスクラブし、離した時刻でその文字を打刻",
+    csDragKey: "文字ドラッグ（塗り）",
+    csDragDesc: "再生中に文字の上をドラッグすると、通過した文字が現在の再生時間で打刻され次の文字が準備される（再生位置は動かない）",
     csClickKey: "文字クリック",
-    csClickDesc: "文字を選択 + (時刻があれば) その位置へ移動",
+    csClickDesc: "文字を選択（アクティブ/準備状態に）",
     csClearKey: "文字 右クリック",
     csClearDesc: "その文字の時刻のみ消去",
     csNudgeKey: "Shift + ← / →",
@@ -1029,7 +1032,7 @@ const ja: Translations = {
     unitLabel: "単位",
     unitChar: "文字",
     unitWord: "単語",
-    hint: "文字ドラッグ=時間合わせ · Space=打刻 · 右クリック=消去 · Shift+←/→=微調整",
+    hint: "文字ドラッグ=再生時間で塗り打刻 · Space=打刻 · 右クリック=消去 · Shift+←/→=微調整 · 波形=シーク",
     stampHint: "現在の文字を打刻して次へ",
     replayLine: "この行を再生",
     clearLine: "この行をリセット",
@@ -1041,6 +1044,7 @@ const ja: Translations = {
     retokenizeCancel: "キャンセル",
     unitChangeMsg: "この行には既に文字タイミングがあります。単位を変更するとタイミングは失われます。続行しますか？",
     badge: "文字同期済み",
+    endCell: "次の行へ（ここまで塗るかクリック）",
   },
   lrclib: {
     button: "LRCLIBから取得",
