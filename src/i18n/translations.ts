@@ -22,12 +22,16 @@ export interface Translations {
   helpGroupPlayback: string;
   helpGroupEdit: string;
   helpGroupMouse: string;
+  helpGroupCharSync: string;
   shortcutDescs: {
     s1: string; s2: string; s3: string; s4: string; s5: string; s6: string;
     space: string; backspace: string;
     enter: string; undo: string; redo: string; find: string;
     tsEditKey: string; tsEditDesc: string; tsStampKey: string; tsStampDesc: string;
     lineClickKey: string; lineClickDesc: string; markerClickKey: string; markerClickDesc: string;
+    csStamp: string; csMove: string;
+    csDragKey: string; csDragDesc: string; csClickKey: string; csClickDesc: string;
+    csClearKey: string; csClearDesc: string; csNudgeKey: string; csNudgeDesc: string;
   };
   menu: {
     file: string; edit: string; playback: string; mode: string; view: string; help: string;
@@ -61,6 +65,7 @@ export interface Translations {
     retokenizeOk: string;
     retokenizeCancel: string;
     unitChangeMsg: string;
+    badge: string;
   };
   lrclib: {
     button: string; title: string;
@@ -161,6 +166,8 @@ export interface Translations {
   settingsAutoUpdateDesc: string;
   settingsAutoSave: string;
   settingsAutoSaveDesc: string;
+  settingsEnhancedLrc: string;
+  settingsEnhancedLrcDesc: string;
   settingsCheckNow: string;
   settingsChecking: string;
   settingsUpToDate: string;
@@ -305,6 +312,7 @@ const ko: Translations = {
   helpGroupPlayback: "재생 · 탐색",
   helpGroupEdit: "편집",
   helpGroupMouse: "마우스",
+  helpGroupCharSync: "글자 동기화 모드",
   shortcutDescs: {
     s1: "−5초 뒤로 스킵",
     s2: "−1초 뒤로 스킵",
@@ -326,6 +334,16 @@ const ko: Translations = {
     lineClickDesc: "해당 타임스탬프로 재생 위치 이동",
     markerClickKey: "마커 클릭",
     markerClickDesc: "파형 마커 → 해당 가사 줄 선택",
+    csStamp: "현재 글자에 타임스탬프 찍기 + 다음 글자로",
+    csMove: "이전 / 다음 글자로 이동",
+    csDragKey: "글자 드래그",
+    csDragDesc: "끌어서 오디오를 탐색하고 놓는 시각으로 그 글자를 찍기",
+    csClickKey: "글자 클릭",
+    csClickDesc: "글자 선택 + (시각이 있으면) 그 위치로 탐색",
+    csClearKey: "글자 우클릭",
+    csClearDesc: "그 글자의 시각만 제거",
+    csNudgeKey: "Shift + ← / →",
+    csNudgeDesc: "현재 글자 시각을 ±0.05초 미세조정",
   },
   menu: {
     file: "파일", edit: "편집", playback: "재생", mode: "모드", view: "보기", help: "도움말",
@@ -348,7 +366,7 @@ const ko: Translations = {
     unitLabel: "단위",
     unitChar: "글자",
     unitWord: "단어",
-    hint: "글자를 드래그해 시간에 맞추거나, Space로 현재 글자를 찍으세요.",
+    hint: "글자 드래그=시간 맞추기 · Space=찍기 · 우클릭=지우기 · Shift+←/→=미세조정",
     stampHint: "현재 글자 찍고 다음으로",
     replayLine: "이 줄 재생",
     clearLine: "이 줄 초기화",
@@ -359,6 +377,7 @@ const ko: Translations = {
     retokenizeOk: "수정하고 재설정",
     retokenizeCancel: "취소",
     unitChangeMsg: "이 줄은 이미 글자 타이밍이 있습니다. 단위를 바꾸면 타이밍이 모두 사라집니다. 계속하시겠습니까?",
+    badge: "글자 동기화됨",
   },
   lrclib: {
     button: "LRCLIB 불러오기",
@@ -481,6 +500,8 @@ const ko: Translations = {
   settingsAutoUpdateDesc: "앱 시작 시 최신 버전을 자동으로 확인합니다.",
   settingsAutoSave: "자동 저장",
   settingsAutoSaveDesc: "저장 위치가 지정된 파일은 변경 후 잠시 멈추면 자동으로 저장합니다.",
+  settingsEnhancedLrc: "Enhanced LRC로 내보내기",
+  settingsEnhancedLrcDesc: "저장 시 글자/단어 동기화 태그(<mm:ss.xx>)를 포함합니다. 끄면 일반 LRC로 저장되어 호환성이 높아지지만 글자 단위 타이밍은 빠집니다.",
   settingsCheckNow: "지금 확인",
   settingsChecking: "확인 중...",
   settingsUpToDate: "최신 버전입니다.",
@@ -622,6 +643,7 @@ const en: Translations = {
   helpGroupPlayback: "Playback",
   helpGroupEdit: "Editing",
   helpGroupMouse: "Mouse",
+  helpGroupCharSync: "Character Sync Mode",
   shortcutDescs: {
     s1: "Skip back 5s",
     s2: "Skip back 1s",
@@ -643,6 +665,16 @@ const en: Translations = {
     lineClickDesc: "Seek playback to the line's timestamp",
     markerClickKey: "Marker click",
     markerClickDesc: "Waveform marker → select that lyric line",
+    csStamp: "Stamp the current glyph + advance to the next",
+    csMove: "Move to previous / next glyph",
+    csDragKey: "Drag glyph",
+    csDragDesc: "Drag to scrub audio and stamp the glyph at the released time",
+    csClickKey: "Glyph click",
+    csClickDesc: "Select the glyph + seek to its time (if set)",
+    csClearKey: "Glyph R-Click",
+    csClearDesc: "Clear just that glyph's time",
+    csNudgeKey: "Shift + ← / →",
+    csNudgeDesc: "Nudge the current glyph's time by ±0.05s",
   },
   menu: {
     file: "File", edit: "Edit", playback: "Playback", mode: "Mode", view: "View", help: "Help",
@@ -665,7 +697,7 @@ const en: Translations = {
     unitLabel: "Unit",
     unitChar: "Char",
     unitWord: "Word",
-    hint: "Drag a glyph to scrub to its time, or press Space to stamp the current one.",
+    hint: "Drag glyph=set time · Space=stamp · right-click=clear · Shift+←/→=nudge",
     stampHint: "Stamp current glyph & advance",
     replayLine: "Play line",
     clearLine: "Reset line",
@@ -676,6 +708,7 @@ const en: Translations = {
     retokenizeOk: "Edit & reset",
     retokenizeCancel: "Cancel",
     unitChangeMsg: "This line already has glyph timings. Changing the unit will discard them. Continue?",
+    badge: "Character-synced",
   },
   lrclib: {
     button: "Fetch from LRCLIB",
@@ -799,6 +832,8 @@ const en: Translations = {
   settingsAutoUpdateDesc: "Automatically check for new versions on startup.",
   settingsAutoSave: "Auto-save",
   settingsAutoSaveDesc: "Files with a save location are saved automatically a moment after you stop editing.",
+  settingsEnhancedLrc: "Export as Enhanced LRC",
+  settingsEnhancedLrcDesc: "Include word/character sync tags (<mm:ss.xx>) when saving. Turn off to save plain LRC for wider compatibility, dropping per-glyph timing.",
   settingsCheckNow: "Check Now",
   settingsChecking: "Checking...",
   settingsUpToDate: "You're up to date.",
@@ -940,6 +975,7 @@ const ja: Translations = {
   helpGroupPlayback: "再生・移動",
   helpGroupEdit: "編集",
   helpGroupMouse: "マウス",
+  helpGroupCharSync: "文字同期モード",
   shortcutDescs: {
     s1: "5秒戻る",
     s2: "1秒戻る",
@@ -961,6 +997,16 @@ const ja: Translations = {
     lineClickDesc: "その行のタイムスタンプへ再生位置を移動",
     markerClickKey: "マーカー",
     markerClickDesc: "波形マーカー → その歌詞行を選択",
+    csStamp: "現在の文字にタイムスタンプ + 次の文字へ",
+    csMove: "前 / 次の文字へ移動",
+    csDragKey: "文字ドラッグ",
+    csDragDesc: "ドラッグして音声をスクラブし、離した時刻でその文字を打刻",
+    csClickKey: "文字クリック",
+    csClickDesc: "文字を選択 + (時刻があれば) その位置へ移動",
+    csClearKey: "文字 右クリック",
+    csClearDesc: "その文字の時刻のみ消去",
+    csNudgeKey: "Shift + ← / →",
+    csNudgeDesc: "現在の文字の時刻を ±0.05秒 微調整",
   },
   menu: {
     file: "ファイル", edit: "編集", playback: "再生", mode: "モード", view: "表示", help: "ヘルプ",
@@ -983,7 +1029,7 @@ const ja: Translations = {
     unitLabel: "単位",
     unitChar: "文字",
     unitWord: "単語",
-    hint: "文字をドラッグして時間に合わせるか、Spaceで現在の文字を打刻します。",
+    hint: "文字ドラッグ=時間合わせ · Space=打刻 · 右クリック=消去 · Shift+←/→=微調整",
     stampHint: "現在の文字を打刻して次へ",
     replayLine: "この行を再生",
     clearLine: "この行をリセット",
@@ -994,6 +1040,7 @@ const ja: Translations = {
     retokenizeOk: "編集してリセット",
     retokenizeCancel: "キャンセル",
     unitChangeMsg: "この行には既に文字タイミングがあります。単位を変更するとタイミングは失われます。続行しますか？",
+    badge: "文字同期済み",
   },
   lrclib: {
     button: "LRCLIBから取得",
@@ -1116,6 +1163,8 @@ const ja: Translations = {
   settingsAutoUpdateDesc: "アプリ起動時に最新バージョンを自動で確認します。",
   settingsAutoSave: "自動保存",
   settingsAutoSaveDesc: "保存先が指定されたファイルは、編集を止めると少し後に自動保存されます。",
+  settingsEnhancedLrc: "Enhanced LRC で書き出す",
+  settingsEnhancedLrcDesc: "保存時に文字/単語同期タグ（<mm:ss.xx>）を含めます。オフにすると通常の LRC として保存され互換性が高まりますが、文字単位のタイミングは失われます。",
   settingsCheckNow: "今すぐ確認",
   settingsChecking: "確認中...",
   settingsUpToDate: "最新バージョンです。",

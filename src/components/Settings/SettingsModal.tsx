@@ -22,8 +22,8 @@ export function SettingsModal({
 }) {
   const { t, lang } = useI18nStore();
   const {
-    autoCheckUpdate, autoSave, uiScale, blankLineOffset, spotifyClientId, spotifyMode,
-    setAutoCheckUpdate, setAutoSave, setUiScale, setBlankLineOffset, setSpotifyClientId, setSpotifyMode,
+    autoCheckUpdate, autoSave, uiScale, blankLineOffset, exportEnhancedLrc, spotifyClientId, spotifyMode,
+    setAutoCheckUpdate, setAutoSave, setUiScale, setBlankLineOffset, setExportEnhancedLrc, setSpotifyClientId, setSpotifyMode,
   } = useSettingsStore();
 
   const guideSuffix = lang === "ko" ? "ko" : lang === "ja" ? "ja" : "en";
@@ -159,6 +159,32 @@ export function SettingsModal({
                   </button>
                 </div>
                 <p className="text-xs text-zinc-500">{t.settingsAutoSaveDesc}</p>
+              </div>
+
+              <div className="border-t border-zinc-800" />
+
+              {/* Enhanced LRC export */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-zinc-200">{t.settingsEnhancedLrc}</span>
+                  <button
+                    onClick={() => setExportEnhancedLrc(!exportEnhancedLrc)}
+                    className={[
+                      "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
+                      exportEnhancedLrc ? "bg-indigo-600" : "bg-zinc-600",
+                    ].join(" ")}
+                    role="switch"
+                    aria-checked={exportEnhancedLrc}
+                  >
+                    <span
+                      className={[
+                        "absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                        exportEnhancedLrc ? "translate-x-[22px]" : "translate-x-0.5",
+                      ].join(" ")}
+                    />
+                  </button>
+                </div>
+                <p className="text-xs text-zinc-500">{t.settingsEnhancedLrcDesc}</p>
               </div>
 
               <div className="border-t border-zinc-800" />

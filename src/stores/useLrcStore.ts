@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { LrcDocument, LrcLine, LrcMetadata, LrcSyllable, defaultDocument } from "../types/lrc";
 import { parseLrc, serializeLrc, type SyncUnit } from "../utils/lrcParser";
 import { serializeSrt, parseSrt } from "../utils/srtConverter";
+import { useSettingsStore } from "./useSettingsStore";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
@@ -95,7 +96,7 @@ function serializeForPath(path: string, doc: LrcDocument, duration: number): str
   if (path.toLowerCase().endsWith(".srt")) {
     return serializeSrt(doc, duration > 0 ? duration : undefined);
   }
-  return serializeLrc(doc);
+  return serializeLrc(doc, useSettingsStore.getState().exportEnhancedLrc);
 }
 
 const MAX_HISTORY = 50;
@@ -411,7 +412,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     if (path) {
       const content = format === "srt"
         ? serializeSrt(doc, duration > 0 ? duration : undefined)
-        : serializeLrc(doc);
+        : serializeLrc(doc, useSettingsStore.getState().exportEnhancedLrc);
       await invoke("write_lrc_file", { path, content });
       set({ lrcPath: path, isDirty: false });
     }
