@@ -40,6 +40,7 @@ interface AudioPlayerProps {
 export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlayerProps = {}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
+  const peaksRef = useRef<number[] | null>(null);
   const regionsRef = useRef<ReturnType<typeof RegionsPlugin.create> | null>(null);
   const isLoopingRef = useRef(false);
   const playbackRateRef = useRef(1.0);
@@ -151,6 +152,12 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       setDurationLocal(d);
       setDuration(d);
       setIsAudioReady(true);
+      // 글자 동기화 레인 파형용 정규화 peaks 캐시
+      try {
+        peaksRef.current = ws.exportPeaks({ channels: 1, maxLength: 4000 })[0] ?? null;
+      } catch {
+        peaksRef.current = null;
+      }
       // 새 오디오 로드 시 미디어 엘리먼트가 배속을 1.0으로 초기화하므로 재적용
       if (playbackRateRef.current !== 1.0) {
         ws.setPlaybackRate(playbackRateRef.current);
@@ -199,6 +206,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       setCurrentTimeLocal(0);
       setCurrentTime(0);
     };
+    audioControls.getPeaks = () => peaksRef.current;
     audioControls.seekTo = (seconds: number) => {
       const ws = wsRef.current;
       if (!ws) return;

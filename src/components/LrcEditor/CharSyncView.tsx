@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -30,6 +30,7 @@ export function CharSyncView() {
   const currentTime = useLrcStore((s) => s.currentTime);
   const isPlaying = useLrcStore((s) => s.isPlaying);
   const duration = useLrcStore((s) => s.duration);
+  const audioPath = useLrcStore((s) => s.audioPath);
   const syncUnit = useLrcStore((s) => s.syncUnit);
   const activeSyllableIndex = useLrcStore((s) => s.activeSyllableIndex);
   const setActiveSyllable = useLrcStore((s) => s.setActiveSyllable);
@@ -71,6 +72,27 @@ export function CharSyncView() {
   const pct = (time: number) =>
     `${Math.max(0, Math.min(1, (time - winStart) / (winEnd - winStart))) * 100}%`;
 
+  // 레인 파형: 전체 트랙 peaks에서 현재 시간 창 구간만 잘라 막대로
+  const peaks = useMemo(() => audioControls.getPeaks(), [audioPath, duration]);
+  const waveBars = useMemo(() => {
+    if (!peaks || duration <= 0 || winEnd <= winStart) return null;
+    const i0 = Math.max(0, Math.floor((winStart / duration) * peaks.length));
+    const i1 = Math.min(peaks.length, Math.ceil((winEnd / duration) * peaks.length));
+    if (i1 <= i0) return null;
+    return peaks.slice(i0, i1).map((v) => Math.min(1, Math.abs(v)));
+  }, [peaks, duration, winStart, winEnd]);
+
+  // 재생 위치에서 지금 불리는 글자(편집 커서와 별개). 창 밖이면 -1.
+  const playingIdx = useMemo(() => {
+    if (currentTime < winStart || currentTime > winEnd) return -1;
+    let idx = -1;
+    for (let i = 0; i < syllables.length; i++) {
+      const tt = syllables[i].time;
+      if (tt !== null && isStampable(syllables[i]) && tt <= currentTime) idx = i;
+    }
+    return idx;
+  }, [syllables, currentTime, winStart, winEnd]);
+
   // 활성 줄이 바뀌면 활성 글자를 첫 미입력(없으면 첫 글자)으로
   useEffect(() => {
     if (stampableIdx.length === 0) {
@@ -88,6 +110,11 @@ export function CharSyncView() {
     if (l) setActiveLineId(l.id);
   };
 
+  // 활성 줄이 없으면 첫 줄로 (글자 모드 진입 시 선택 보장)
+  useEffect(() => {
+    if (!activeLineId && lines.length > 0) setActiveLineId(lines[0].id);
+  }, [activeLineId, lines, setActiveLineId]);
+
   // 최신 상태 스냅샷 (키 핸들러에서 참조)
   const stateRef = useRef({
     line,
@@ -101,6 +128,8 @@ export function CharSyncView() {
   const stampActive = () => {
     const { line: ln, syllables: syl, stampableIdx: sidx, lineIdx: li } = stateRef.current;
     if (!ln) return;
+    // 스탬프할 글자가 없는 줄(빈 구분선)이면 다음 줄로 건너뜀
+    if (sidx.length === 0) { gotoLine(li + 1); return; }
     const idx = useLrcStore.getState().activeSyllableIndex;
     if (!syl[idx] || !isStampable(syl[idx])) return;
     const time = useLrcStore.getState().currentTime;
@@ -122,6 +151,24 @@ export function CharSyncView() {
     else gotoLine(li + 1);
   };
 
+  // 현재 글자 시각 미세조정 (Shift+←/→). 이웃 글자 시각 사이로 클램프 + 탐색.
+  const nudge = (delta: number) => {
+    const { line: ln, syllables: syl } = stateRef.current;
+    if (!ln) return;
+    const idx = useLrcStore.getState().activeSyllableIndex;
+    const s = syl[idx];
+    if (!s || !isStampable(s) || s.time === null) return;
+    let lo = 0;
+    let hi = Infinity;
+    for (let i = idx - 1; i >= 0; i--) { if (syl[i].time !== null) { lo = syl[i].time as number; break; } }
+    for (let i = idx + 1; i < syl.length; i++) { if (syl[i].time !== null) { hi = syl[i].time as number; break; } }
+    const nt = Math.max(lo, Math.min(hi, Math.max(0, (s.time as number) + delta)));
+    commitSyllables(ln.id, syl.map((x, i) => (i === idx ? { ...x, time: nt } : x)));
+    const ctrl = useServiceStore.getState().isLoggedIn && useSettingsStore.getState().spotifyMode
+      ? serviceControls : audioControls;
+    ctrl.seekTo(nt);
+  };
+
   // Space=찍기, Backspace/←→=이동
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -131,6 +178,12 @@ export function CharSyncView() {
       if (e.code === "Space") {
         e.preventDefault();
         stampActive();
+      } else if (e.code === "ArrowLeft" && e.shiftKey) {
+        e.preventDefault();
+        nudge(-0.05);
+      } else if (e.code === "ArrowRight" && e.shiftKey) {
+        e.preventDefault();
+        nudge(0.05);
       } else if (e.code === "Backspace") {
         e.preventDefault();
         moveActive(-1);
@@ -149,10 +202,14 @@ export function CharSyncView() {
 
   // 드래그 스크럽: 글자를 누른 채 좌우로 → 오디오 탐색 + 놓는 시각에 스탬프
   const laneRef = useRef<HTMLDivElement>(null);
-  const dragPreviewRef = useRef<HTMLSpanElement | null>(null);
+  const dragCleanupRef = useRef<(() => void) | null>(null);
+  const [dragPreview, setDragPreview] = useState<{ index: number; time: number } | null>(null);
+
+  // 드래그 도중 언마운트되면 window 리스너/rAF 정리
+  useEffect(() => () => dragCleanupRef.current?.(), []);
 
   const beginDrag = (index: number, e: React.MouseEvent) => {
-    if (!line) return;
+    if (!line || e.button !== 0) return; // 좌클릭만 (우클릭은 글자 지우기)
     e.preventDefault();
     const startX = e.clientX;
     let moved = false;
@@ -179,14 +236,18 @@ export function CharSyncView() {
     const move = (ev: MouseEvent) => {
       if (Math.abs(ev.clientX - startX) > 3) moved = true;
       const tt = timeAt(ev.clientX);
-      if (dragPreviewRef.current) dragPreviewRef.current.textContent = formatTimestamp(tt);
+      setDragPreview({ index, time: tt });
       if (raf) cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => controls.seekTo(tt));
     };
-    const up = (ev: MouseEvent) => {
+    const cleanup = () => {
       window.removeEventListener("mousemove", move);
       window.removeEventListener("mouseup", up);
       if (raf) cancelAnimationFrame(raf);
+      dragCleanupRef.current = null;
+    };
+    const up = (ev: MouseEvent) => {
+      cleanup();
       if (moved) {
         const tt = timeAt(ev.clientX);
         const next = syllables.map((s, i) => (i === index ? { ...s, time: tt } : s));
@@ -198,7 +259,9 @@ export function CharSyncView() {
         const ts = syllables[index].time;
         if (ts !== null) controls.seekTo(ts);
       }
+      setDragPreview(null);
     };
+    dragCleanupRef.current = cleanup;
     window.addEventListener("mousemove", move);
     window.addEventListener("mouseup", up);
   };
@@ -212,6 +275,12 @@ export function CharSyncView() {
     if (line) clearLineSyllables(line.id);
   };
 
+  // 우클릭: 그 글자의 시각만 제거
+  const clearGlyph = (index: number) => {
+    if (!line || syllables[index].time === null) return;
+    commitSyllables(line.id, syllables.map((s, i) => (i === index ? { ...s, time: null } : s)));
+  };
+
   if (!line) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -220,15 +289,21 @@ export function CharSyncView() {
     );
   }
 
-  const cur = syllables[activeSyllableIndex];
-  const curText = cur && isStampable(cur) ? cur.text.trim() : "—";
+  // readout: 드래그 중이면 끌고 있는 글자, 아니면 현재 활성 글자
+  const readoutSyl = dragPreview ? syllables[dragPreview.index] : syllables[activeSyllableIndex];
+  const readoutText = readoutSyl && isStampable(readoutSyl) ? readoutSyl.text.trim() : "—";
+  const readoutTime = dragPreview
+    ? formatTimestamp(dragPreview.time)
+    : readoutSyl && readoutSyl.time !== null
+    ? formatTimestamp(readoutSyl.time)
+    : "--:--.--";
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {/* 줄 네비게이터 */}
       <div className="flex items-center gap-2 px-2 py-1.5 bg-zinc-800/60 rounded-lg mb-4">
         <button
-          onClick={() => gotoLine(lineIdx - 1)}
+          onClick={(e) => { gotoLine(lineIdx - 1); e.currentTarget.blur(); }}
           disabled={lineIdx <= 0}
           className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 transition-colors"
         >
@@ -260,7 +335,7 @@ export function CharSyncView() {
           })}
         </div>
         <button
-          onClick={() => gotoLine(lineIdx + 1)}
+          onClick={(e) => { gotoLine(lineIdx + 1); e.currentTarget.blur(); }}
           disabled={lineIdx >= lines.length - 1}
           className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 transition-colors"
         >
@@ -268,6 +343,7 @@ export function CharSyncView() {
         </button>
       </div>
 
+      <div className="flex-1 min-h-0 overflow-y-auto">
       <p className="text-xs text-zinc-500 mb-2 px-1">{t.charSync.hint}</p>
 
       {/* 활성 줄 — 한 줄 흐름 텍스트 */}
@@ -278,9 +354,12 @@ export function CharSyncView() {
         {syllables.map((s, i) => {
           if (!isStampable(s)) return <span key={i}>{s.text}</span>;
           const isCurrent = i === activeSyllableIndex;
+          const isSinging = i === playingIdx && !isCurrent;
           const stamped = s.time !== null;
           const cls = isCurrent
             ? "bg-indigo-500 text-white rounded px-0.5"
+            : isSinging
+            ? "bg-amber-500/20 text-amber-200 rounded px-0.5"
             : stamped
             ? "text-zinc-100 border-b-2 border-indigo-500/60"
             : "text-zinc-600 hover:text-zinc-400";
@@ -288,6 +367,7 @@ export function CharSyncView() {
             <span
               key={i}
               onMouseDown={(e) => beginDrag(i, e)}
+              onContextMenu={(e) => { e.preventDefault(); clearGlyph(i); }}
               className={`cursor-grab transition-colors ${cls}`}
             >
               {s.text}
@@ -299,11 +379,9 @@ export function CharSyncView() {
       {/* 현재 글자 readout */}
       <div className="flex items-center gap-2 text-xs mb-2 px-1">
         <span className="font-mono text-indigo-300">
-          {t.charSync.current}: 「{curText}」 →{" "}
-          <span ref={dragPreviewRef}>
-            {cur && cur.time !== null ? formatTimestamp(cur.time) : "--:--.--"}
-          </span>
+          {t.charSync.current}: 「{readoutText}」 → {readoutTime}
         </span>
+      </div>
       </div>
 
       {/* 스크럽 레인 */}
@@ -316,6 +394,18 @@ export function CharSyncView() {
         }}
         className="relative h-10 rounded-lg bg-zinc-950/60 border border-zinc-800 overflow-hidden cursor-pointer mb-1"
       >
+        {waveBars && (
+          <svg
+            className="absolute inset-0 w-full h-full pointer-events-none"
+            viewBox={`0 0 ${waveBars.length} 100`}
+            preserveAspectRatio="none"
+          >
+            {waveBars.map((v, k) => {
+              const h = Math.max(1, v * 88);
+              return <rect key={k} x={k + 0.1} width={0.8} y={(100 - h) / 2} height={h} fill="#3f3f46" />;
+            })}
+          </svg>
+        )}
         {syllables.map((s, i) =>
           s.time !== null && isStampable(s) ? (
             <div
@@ -344,13 +434,13 @@ export function CharSyncView() {
           {t.charSync.stampHint}
         </div>
         <button
-          onClick={replayLine}
+          onClick={(e) => { replayLine(); e.currentTarget.blur(); }}
           className="px-3 py-2 text-xs rounded-lg text-zinc-300 border border-zinc-700 hover:bg-zinc-800 hover:text-white transition-colors whitespace-nowrap"
         >
           ↺ {t.charSync.replayLine}
         </button>
         <button
-          onClick={clearLine}
+          onClick={(e) => { clearLine(); e.currentTarget.blur(); }}
           className="px-3 py-2 text-xs rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-rose-300 transition-colors whitespace-nowrap"
         >
           {t.charSync.clearLine}

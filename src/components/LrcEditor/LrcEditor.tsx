@@ -331,13 +331,13 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           {/* 줄 ↔ 글자 동기화 모드 토글 */}
           <div className="inline-flex bg-zinc-800 rounded-lg p-0.5">
             <button
-              onClick={() => setSyncMode("line")}
+              onClick={(e) => { setSyncMode("line"); e.currentTarget.blur(); }}
               className={`px-2.5 py-1 text-xs rounded-md transition-colors ${!charMode ? "bg-indigo-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
             >
               {t.charSync.modeLine}
             </button>
             <button
-              onClick={() => setSyncMode("char")}
+              onClick={(e) => { setSyncMode("char"); e.currentTarget.blur(); }}
               className={`px-2.5 py-1 text-xs rounded-md transition-colors ${charMode ? "bg-indigo-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
             >
               {t.charSync.modeChar}
@@ -349,13 +349,13 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
               <span className="text-xs text-zinc-500">{t.charSync.unitLabel}</span>
               <div className="inline-flex bg-zinc-800 rounded-lg p-0.5">
                 <button
-                  onClick={() => handleUnitChange("char")}
+                  onClick={(e) => { handleUnitChange("char"); e.currentTarget.blur(); }}
                   className={`px-2.5 py-1 text-xs rounded-md transition-colors ${syncUnit === "char" ? "bg-zinc-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
                 >
                   {t.charSync.unitChar}
                 </button>
                 <button
-                  onClick={() => handleUnitChange("word")}
+                  onClick={(e) => { handleUnitChange("word"); e.currentTarget.blur(); }}
                   className={`px-2.5 py-1 text-xs rounded-md transition-colors ${syncUnit === "word" ? "bg-zinc-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
                 >
                   {t.charSync.unitWord}
@@ -521,6 +521,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
         {lines.map((line, idx) => {
           const isActive = line.id === activeLineId;
           const confidence = aiDraftConfidence?.[line.id];
+          const hasGlyphSync = !!line.syllables?.some((s) => s.time !== null);
 
           // Timestamp button colour varies by AI confidence
           const tsClass = confidence !== undefined
@@ -596,6 +597,17 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                   </button>
                 )}
               </div>
+
+              {hasGlyphSync && (
+                <span
+                  title={t.charSync.badge}
+                  className="shrink-0 flex items-center justify-center w-5 h-5 rounded bg-indigo-500/15 text-indigo-300"
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <path d="M5 8v8M12 5v14M19 8v8" />
+                  </svg>
+                </span>
+              )}
 
               {warning && (
                 <div className="relative group/warn shrink-0">

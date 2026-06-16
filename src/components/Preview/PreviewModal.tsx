@@ -2,7 +2,8 @@ import { useEffect, useRef, useMemo, useCallback, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { audioControls } from "../../utils/audioControls";
-import { formatDisplayTime, formatTimestamp, parseTimestampInput } from "../../utils/lrcParser";
+import { formatDisplayTime, formatTimestamp, parseTimestampInput, isStampable } from "../../utils/lrcParser";
+import type { LrcSyllable } from "../../types/lrc";
 
 export function PreviewModal({ onClose }: { onClose: () => void }) {
   const { doc, currentTime, duration, isPlaying, updateLine } = useLrcStore();
@@ -152,6 +153,13 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
             {doc.lines.map((line, i) => {
               const dist = activeIdx === -1 ? 999 : Math.abs(i - activeIdx);
               const isActive = i === activeIdx;
+              const hasGlyphSync = !!line.syllables?.some((s) => s.time !== null);
+
+              // 가라오케 채움의 마지막 글자 종료 시각 = 다음 타임스탬프 줄 / 총 길이
+              let lineEnd = duration > 0 ? duration : (line.timestamp ?? 0) + 4;
+              for (let j = i + 1; j < doc.lines.length; j++) {
+                if (doc.lines[j].timestamp !== null) { lineEnd = doc.lines[j].timestamp as number; break; }
+              }
 
               const dimClass = isActive
                 ? "text-white"
@@ -213,7 +221,11 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
                   >
                     {isActive ? (
                       <span className="relative inline-block">
-                        {line.text || " "}
+                        {hasGlyphSync && line.syllables ? (
+                          <KaraokeText syllables={line.syllables} currentTime={currentTime} lineEnd={lineEnd} />
+                        ) : (
+                          line.text || " "
+                        )}
                         <span className="absolute -bottom-1 left-0 right-0 h-0.5 rounded-full bg-indigo-500 opacity-80" />
                       </span>
                     ) : (
@@ -228,6 +240,49 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
         )}
       </div>
     </div>
+  );
+}
+
+// 글자 단위 가라오케 채움: 각 글자를 시작~다음 시각 사이 진행도로 좌→우 채움
+function KaraokeText({
+  syllables, currentTime, lineEnd,
+}: {
+  syllables: LrcSyllable[];
+  currentTime: number;
+  lineEnd: number;
+}) {
+  return (
+    <>
+      {syllables.map((s, i) => {
+        if (!isStampable(s)) return <span key={i}>{s.text}</span>;
+        if (s.time === null) return <span key={i} style={{ color: "#52525b" }}>{s.text}</span>;
+        // 다음 시각이 있는 글자(없으면 줄 종료)까지를 이 글자의 지속 구간으로
+        let nextT = lineEnd;
+        for (let j = i + 1; j < syllables.length; j++) {
+          if (syllables[j].time !== null) { nextT = syllables[j].time as number; break; }
+        }
+        const start = s.time;
+        const fill =
+          nextT > start
+            ? Math.max(0, Math.min(1, (currentTime - start) / (nextT - start)))
+            : currentTime >= start ? 1 : 0;
+        const pct = fill * 100;
+        return (
+          <span
+            key={i}
+            style={{
+              background: `linear-gradient(90deg, #ffffff ${pct}%, #6b7280 ${pct}%)`,
+              WebkitBackgroundClip: "text",
+              backgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              color: "transparent",
+            }}
+          >
+            {s.text}
+          </span>
+        );
+      })}
+    </>
   );
 }
 

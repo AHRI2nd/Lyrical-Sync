@@ -489,6 +489,17 @@ function HelpModal({ onClose }: { onClose: () => void }) {
         { key: t.shortcutDescs.markerClickKey, desc: t.shortcutDescs.markerClickDesc },
       ],
     },
+    {
+      title: t.helpGroupCharSync,
+      items: [
+        { key: "Space", desc: t.shortcutDescs.csStamp },
+        { key: "← / →", desc: t.shortcutDescs.csMove },
+        { key: t.shortcutDescs.csNudgeKey, desc: t.shortcutDescs.csNudgeDesc },
+        { key: t.shortcutDescs.csDragKey, desc: t.shortcutDescs.csDragDesc },
+        { key: t.shortcutDescs.csClickKey, desc: t.shortcutDescs.csClickDesc },
+        { key: t.shortcutDescs.csClearKey, desc: t.shortcutDescs.csClearDesc },
+      ],
+    },
   ];
 
   useEffect(() => {

@@ -201,7 +201,8 @@ export function parseLrc(raw: string): LrcDocument {
   return doc;
 }
 
-export function serializeLrc(doc: LrcDocument): string {
+// enhanced=false면 글자/단어 동기화 태그를 제거하고 일반 LRC로 출력
+export function serializeLrc(doc: LrcDocument, enhanced = true): string {
   const { metadata, lines, extraTags } = doc;
   const parts: string[] = [];
 
@@ -217,7 +218,7 @@ export function serializeLrc(doc: LrcDocument): string {
 
   for (const line of lines) {
     // Enhanced LRC(A2): 토큰에 시각이 하나라도 있으면 <mm:ss.xx> 인라인으로 출력
-    const timedSyl = line.syllables?.some((s) => s.time !== null);
+    const timedSyl = enhanced && line.syllables?.some((s) => s.time !== null);
     if (timedSyl && line.syllables) {
       const times = line.syllables.filter((s) => s.time !== null).map((s) => s.time as number);
       const lineTs = line.timestamp ?? Math.min(...times);
