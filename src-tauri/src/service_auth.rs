@@ -14,6 +14,13 @@ fn token_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
         .map_err(|e| e.to_string())
 }
 
+const KEYRING_SERVICE: &str = "Lyrical Sync";
+const KEYRING_USER: &str = "spotify_refresh_token";
+
+fn keyring_entry() -> Result<keyring::Entry, keyring::Error> {
+    keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
+}
+
 /// Returned to TypeScript via Tauri (camelCase)
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -103,14 +110,13 @@ pub async fn refresh_spotify_token(
         .map_err(|e| format!("응답 파싱 실패: {e}"))
 }
 
-#[tauri::command]
-pub fn save_refresh_token(token: String, app: AppHandle) -> Result<(), String> {
-    let path = token_path(&app)?;
+// 평문 파일 저장 (OS 키체인 사용 불가 시 폴백). unix는 0600.
+fn save_token_file(app: &AppHandle, token: &str) -> Result<(), String> {
+    let path = token_path(app)?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     std::fs::write(&path, token.as_bytes()).map_err(|e| format!("토큰 저장 실패: {e}"))?;
-    // owner-only read/write
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -120,7 +126,34 @@ pub fn save_refresh_token(token: String, app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn save_refresh_token(token: String, app: AppHandle) -> Result<(), String> {
+    // 1순위: OS 키체인(암호화 저장). 성공 시 기존 평문 파일은 제거(마이그레이션).
+    if let Ok(entry) = keyring_entry() {
+        if entry.set_password(&token).is_ok() {
+            if let Ok(path) = token_path(&app) {
+                let _ = std::fs::remove_file(path);
+            }
+            return Ok(());
+        }
+    }
+    // 폴백: 0600 평문 파일
+    save_token_file(&app, &token)
+}
+
+#[tauri::command]
 pub fn load_refresh_token(app: AppHandle) -> Result<Option<String>, String> {
+    // 1순위: 키체인
+    if let Ok(entry) = keyring_entry() {
+        match entry.get_password() {
+            Ok(t) => {
+                let trimmed = t.trim().to_string();
+                return Ok(if trimmed.is_empty() { None } else { Some(trimmed) });
+            }
+            Err(keyring::Error::NoEntry) => {} // 키체인에 없음 → 레거시 파일 확인
+            Err(_) => {}                        // 키체인 사용 불가 → 파일 폴백
+        }
+    }
+    // 폴백/레거시: 평문 파일
     let path = token_path(&app)?;
     if !path.exists() {
         return Ok(None);
@@ -177,6 +210,10 @@ pub async fn start_oauth_listener(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub fn clear_refresh_token(app: AppHandle) -> Result<(), String> {
+    // 키체인 + 레거시 파일 모두 제거
+    if let Ok(entry) = keyring_entry() {
+        let _ = entry.delete_credential();
+    }
     let path = token_path(&app)?;
     if path.exists() {
         std::fs::remove_file(&path).map_err(|e| format!("토큰 삭제 실패: {e}"))?;

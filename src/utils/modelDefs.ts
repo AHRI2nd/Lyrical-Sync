@@ -3,6 +3,8 @@ export type ModelCategory = "demucs" | "wav2vec2" | "ctc";
 export interface ModelFile {
   filename: string; // models 디렉터리 내 상대 경로
   url: string;
+  /** 선택적 SHA-256 (소문자 hex). 지정 시 다운로드 후 무결성 검증. 미지정이면 검증 생략. */
+  sha256?: string;
 }
 
 export interface ModelDef {

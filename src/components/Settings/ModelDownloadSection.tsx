@@ -201,7 +201,7 @@ export function ModelDownloadSection() {
     try {
       await invoke("download_model", {
         modelId: model.id,
-        files: model.files.map((f) => ({ url: f.url, filename: f.filename })),
+        files: model.files.map((f) => ({ url: f.url, filename: f.filename, sha256: f.sha256 ?? null })),
       });
     } catch (e) {
       if (String(e) === "cancelled") {
