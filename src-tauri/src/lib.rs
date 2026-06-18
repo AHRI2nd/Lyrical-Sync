@@ -99,8 +99,11 @@ async fn write_lrc_file(path: String, content: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn read_audio_file(path: String) -> Result<Vec<u8>, String> {
-    std::fs::read(&path).map_err(|e| e.to_string())
+async fn read_audio_file(path: String) -> Result<tauri::ipc::Response, String> {
+    // 바이트를 JSON(number[]) 대신 raw 바이너리로 반환 → 대용량 오디오도 빠름
+    std::fs::read(&path)
+        .map(tauri::ipc::Response::new)
+        .map_err(|e| e.to_string())
 }
 
 /// AIFF 등 WebView2 미지원 포맷을 WAV로 트랜스코딩해 임시 파일 경로를 반환합니다.
@@ -522,7 +525,7 @@ async fn download_embedded_python(app: AppHandle) -> Result<(), String> {
 
     // Extract tarball
     let status = tokio::process::Command::new("tar")
-        .args(["-xzf", tarball_path.to_str().unwrap(), "-C", dir.to_str().unwrap()])
+        .arg("-xzf").arg(&tarball_path).arg("-C").arg(&dir)
         .status()
         .await
         .map_err(|e| e.to_string())?;
@@ -536,7 +539,7 @@ async fn download_embedded_python(app: AppHandle) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
         let _ = tokio::process::Command::new("xattr")
-            .args(["-rd", "com.apple.quarantine", dir.to_str().unwrap()])
+            .arg("-rd").arg("com.apple.quarantine").arg(&dir)
             .status()
             .await;
     }
@@ -750,7 +753,7 @@ async fn install_python_packages(app: AppHandle) -> Result<(), String> {
 
         let child2 = python_cmd(&python)
             .arg("-u")
-            .arg(script_path.to_str().unwrap())
+            .arg(&script_path)
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .spawn()
@@ -845,7 +848,7 @@ async fn run_alignment(
 
         let mut sep_child = python_cmd_inference(&python_str)
             .args([
-                sep_script_path.to_str().unwrap(),
+                sep_script_path.to_string_lossy().as_ref(),
                 "--model-path", &demucs_model.to_string_lossy(),
                 "--audio",      &audio_path,
                 "--output",     &vocals_tmp_path.to_string_lossy().as_ref(),
@@ -888,10 +891,10 @@ async fn run_alignment(
         audio_for_align = audio_path.clone();
     }
 
-    let script_str = align_script_path.to_str().unwrap();
+    let script_str = align_script_path.to_string_lossy().into_owned();
     let mut child = python_cmd_inference(&python_str)
         .args([
-            script_str,
+            script_str.as_str(),
             "--models-dir", &models_dir_str,
             "--audio",      &audio_for_align,
             "--lines",      &lines_json,
@@ -1213,7 +1216,7 @@ async fn ytdlp_load_audio(
     let mut cmd = tokio::process::Command::new(&exe);
     cmd.arg("--no-playlist")
         .arg("-f").arg(format)
-        .arg("-o").arg(output_tpl.to_str().unwrap())
+        .arg("-o").arg(&output_tpl)
         .arg("--newline")
         .arg("--no-part");
 
@@ -1328,4 +1331,26 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_ytdlp_progress_extracts_fields() {
+        let p = parse_ytdlp_progress("[download]  45.3% of 5.00MiB at 1.20MiB/s ETA 00:03")
+            .expect("should parse progress line");
+        assert!((p.percent - 45.3_f32).abs() < 0.01_f32);
+        assert_eq!(p.speed, "1.20MiB/s");
+        assert_eq!(p.eta, "00:03");
+        assert!(!p.done);
+    }
+
+    #[test]
+    fn parse_ytdlp_progress_ignores_non_progress() {
+        assert!(parse_ytdlp_progress("[info] Downloading webpage").is_none());
+        assert!(parse_ytdlp_progress("just some text").is_none());
+        assert!(parse_ytdlp_progress("[download] Destination: out.mp3").is_none());
+    }
 }

@@ -1,6 +1,7 @@
 import { useRef, useEffect, useCallback, useState, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useLrcStore } from "../../stores/useLrcStore";
+import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
@@ -14,8 +15,9 @@ import { CharSyncView } from "./CharSyncView";
 const LANG_CODE: Record<string, string> = { ko: "kor", en: "eng", ja: "jpn" };
 
 export function LrcEditor({ onPreview }: { onPreview: () => void }) {
+  // currentTime은 푸터에서만 쓰므로 구독에서 제외 → 재생 중 줄 목록이 매 프레임 리렌더되지 않음
   const {
-    doc, currentTime, activeLineId,
+    doc, activeLineId,
     addLine, insertLinesAfter, updateLine, deleteLine,
     stampCurrentLine, setActiveLineId,
     aiSyncStatus, aiSyncMessage, aiSyncProgressStatus, aiDraftConfidence,
@@ -23,7 +25,18 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     replaceInLines, shiftTimeRange,
     audioPath,
     syncMode, syncUnit, setSyncMode, setSyncUnit, clearLineSyllables,
-  } = useLrcStore();
+  } = useLrcStore(
+    useShallow((s) => ({
+      doc: s.doc, activeLineId: s.activeLineId,
+      addLine: s.addLine, insertLinesAfter: s.insertLinesAfter, updateLine: s.updateLine, deleteLine: s.deleteLine,
+      stampCurrentLine: s.stampCurrentLine, setActiveLineId: s.setActiveLineId,
+      aiSyncStatus: s.aiSyncStatus, aiSyncMessage: s.aiSyncMessage, aiSyncProgressStatus: s.aiSyncProgressStatus, aiDraftConfidence: s.aiDraftConfidence,
+      runAiSync: s.runAiSync, cancelAiSync: s.cancelAiSync, clearAiDraft: s.clearAiDraft,
+      replaceInLines: s.replaceInLines, shiftTimeRange: s.shiftTimeRange,
+      audioPath: s.audioPath,
+      syncMode: s.syncMode, syncUnit: s.syncUnit, setSyncMode: s.setSyncMode, setSyncUnit: s.setSyncUnit, clearLineSyllables: s.clearLineSyllables,
+    }))
+  );
   const { t, lang } = useI18nStore();
   const { blankLineOffset, spotifyMode } = useSettingsStore();
   const serviceLoggedIn = useServiceStore((s) => s.isLoggedIn);
@@ -145,10 +158,10 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     import("@tauri-apps/api/event").then(({ listen }) => {
       listen<{ done: boolean }>("model-download-progress", (e) => {
         if (e.payload.done) checkAiRequirements();
-      }).then((fn) => { unlistenModel = fn; });
+      }).then((fn) => { unlistenModel = fn; }).catch(() => {});
       listen<{ done: boolean }>("pip-install-progress", (e) => {
         if (e.payload.done) checkAiRequirements();
-      }).then((fn) => { unlistenPip = fn; });
+      }).then((fn) => { unlistenPip = fn; }).catch(() => {});
     });
     return () => { unlistenModel?.(); unlistenPip?.(); };
   }, [checkAiRequirements]);
@@ -338,7 +351,9 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
             </button>
             <button
               onClick={(e) => { setSyncMode("char"); e.currentTarget.blur(); }}
-              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${charMode ? "bg-indigo-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
+              disabled={isRunning}
+              title={isRunning ? t.aiSyncRunning : undefined}
+              className={`px-2.5 py-1 text-xs rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${charMode ? "bg-indigo-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
             >
               {t.charSync.modeChar}
             </button>
@@ -645,9 +660,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
       </div>
       </>)}
 
-      <div className="text-xs text-zinc-500 text-right font-mono">
-        {t.currentTimeLabel}{formatDisplayTime(currentTime)}
-      </div>
+      <CurrentTimeFooter />
 
       {pendingTextEdit && (
         <MiniConfirm
@@ -669,6 +682,17 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           onCancel={() => setPendingUnit(null)}
         />
       )}
+    </div>
+  );
+}
+
+// currentTime만 구독하는 푸터 → 재생 중 이 작은 컴포넌트만 리렌더(줄 목록 영향 없음)
+function CurrentTimeFooter() {
+  const currentTime = useLrcStore((s) => s.currentTime);
+  const { t } = useI18nStore();
+  return (
+    <div className="text-xs text-zinc-500 text-right font-mono">
+      {t.currentTimeLabel}{formatDisplayTime(currentTime)}
     </div>
   );
 }

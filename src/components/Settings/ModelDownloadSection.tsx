@@ -189,7 +189,7 @@ export function ModelDownloadSection() {
           },
         };
       });
-    }).then((fn) => { unlistenRef.current = fn; });
+    }).then((fn) => { unlistenRef.current = fn; }).catch(() => {});
     return () => { unlistenRef.current?.(); };
   }, []);
 

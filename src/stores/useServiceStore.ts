@@ -101,7 +101,6 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
     // Start local HTTP listener before opening the browser so the callback is captured
     await invoke("start_oauth_listener");
     const authUrl = buildAuthUrl(clientId, codeChallenge, state);
-    console.log("[Spotify OAuth URL]", authUrl);
     await openUrl(authUrl);
   },
 

@@ -72,7 +72,8 @@ interface LrcStore {
   loadLyricsPath: (path: string) => Promise<void>;
   applyFetchedLyrics: (lrcText: string, meta?: { title: string; artist: string; album: string }) => void;
   saveLrc: () => Promise<void>;
-  saveLrcAs: (format: "lrc" | "srt") => Promise<void>;
+  // enhanced: 이번 저장에만 적용하는 일회성 override(미지정 시 exportEnhancedLrc 설정 사용)
+  saveLrcAs: (format: "lrc" | "srt", enhanced?: boolean) => Promise<void>;
   newLrc: () => void;
   replaceInLines: (find: string, replace: string, caseSensitive: boolean) => number;
   shiftTimeRange: (fromIdx: number, toIdx: number, deltaSeconds: number) => void;
@@ -403,7 +404,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     set({ isDirty: false });
   },
 
-  saveLrcAs: async (format) => {
+  saveLrcAs: async (format, enhanced) => {
     const { doc, duration } = get();
     const path = await save({
       filters: format === "srt"
@@ -412,9 +413,10 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
       defaultPath: doc.metadata.title || "untitled",
     });
     if (path) {
+      const useEnhanced = enhanced ?? useSettingsStore.getState().exportEnhancedLrc;
       const content = format === "srt"
         ? serializeSrt(doc, duration > 0 ? duration : undefined)
-        : serializeLrc(doc, useSettingsStore.getState().exportEnhancedLrc);
+        : serializeLrc(doc, useEnhanced);
       await invoke("write_lrc_file", { path, content });
       set({ lrcPath: path, isDirty: false });
     }

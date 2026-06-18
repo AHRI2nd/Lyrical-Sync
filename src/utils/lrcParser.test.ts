@@ -4,6 +4,7 @@ import {
   serializeLrc,
   tokenizeText,
   isStampable,
+  clampToNeighbors,
   parseTimestamp,
   parseTimestampInput,
   formatTimestamp,
@@ -169,6 +170,29 @@ describe("Enhanced LRC (A2) — char/word sync", () => {
     ]);
     expect(serializeLrc(doc, true).trim()).toBe("[00:12.00]<00:12.00>너<00:12.24>의");
     expect(serializeLrc(doc, false).trim()).toBe("[00:12.00]너의");
+  });
+});
+
+describe("clampToNeighbors", () => {
+  const row = [
+    { text: "a", time: 5 as number | null },
+    { text: "b", time: null as number | null },
+    { text: "c", time: 8 as number | null },
+  ];
+  it("clamps up to the previous stamped time", () => {
+    expect(clampToNeighbors(row, 1, 3)).toBe(5);
+  });
+  it("clamps down to the next stamped time", () => {
+    expect(clampToNeighbors(row, 1, 10)).toBe(8);
+  });
+  it("keeps a value already between neighbors", () => {
+    expect(clampToNeighbors(row, 1, 6.5)).toBe(6.5);
+  });
+  it("never goes below 0", () => {
+    expect(clampToNeighbors([{ text: "a", time: null }], 0, -2)).toBe(0);
+  });
+  it("with no stamped neighbors, only enforces non-negative", () => {
+    expect(clampToNeighbors([{ text: "a", time: null }], 0, 12.3)).toBe(12.3);
   });
 });
 

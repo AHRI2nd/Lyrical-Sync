@@ -10,6 +10,10 @@ export interface Translations {
   saveFormatTitle: string;
   saveFormatLrcDesc: string;
   saveFormatSrtDesc: string;
+  saveFormatLrcEnhanced: string;
+  saveFormatLrcEnhancedDesc: string;
+  saveFormatLrcPlain: string;
+  saveFormatLrcPlainDesc: string;
   undo: string;
   redo: string;
   // Help modal
@@ -67,6 +71,7 @@ export interface Translations {
     unitChangeMsg: string;
     badge: string;
     endCell: string;
+    glyphProgress: string;
   };
   lrclib: {
     button: string; title: string;
@@ -302,6 +307,10 @@ const ko: Translations = {
   saveFormatTitle: "저장 형식 선택",
   saveFormatLrcDesc: "가사 동기화 파일",
   saveFormatSrtDesc: "영상 자막 파일",
+  saveFormatLrcEnhanced: "Enhanced LRC",
+  saveFormatLrcEnhancedDesc: "글자/단어 동기화 태그 포함",
+  saveFormatLrcPlain: "일반 LRC",
+  saveFormatLrcPlainDesc: "줄 단위만 · 호환성 높음",
   undo: "실행 취소",
   redo: "다시 실행",
   helpTitle: "도움말",
@@ -380,6 +389,7 @@ const ko: Translations = {
     unitChangeMsg: "이 줄은 이미 글자 타이밍이 있습니다. 단위를 바꾸면 타이밍이 모두 사라집니다. 계속하시겠습니까?",
     badge: "글자 동기화됨",
     endCell: "다음 줄로 (여기까지 칠하거나 클릭)",
+    glyphProgress: "현재 줄의 글자 동기화 진행도",
   },
   lrclib: {
     button: "LRCLIB 불러오기",
@@ -634,6 +644,10 @@ const en: Translations = {
   saveFormatTitle: "Choose Save Format",
   saveFormatLrcDesc: "Synced lyrics file",
   saveFormatSrtDesc: "Video subtitle file",
+  saveFormatLrcEnhanced: "Enhanced LRC",
+  saveFormatLrcEnhancedDesc: "Includes word/character sync tags",
+  saveFormatLrcPlain: "Plain LRC",
+  saveFormatLrcPlainDesc: "Line-level only · wider compatibility",
   undo: "Undo",
   redo: "Redo",
   helpTitle: "Help",
@@ -712,6 +726,7 @@ const en: Translations = {
     unitChangeMsg: "This line already has glyph timings. Changing the unit will discard them. Continue?",
     badge: "Character-synced",
     endCell: "Next line (paint here or click)",
+    glyphProgress: "Glyphs synced in this line",
   },
   lrclib: {
     button: "Fetch from LRCLIB",
@@ -967,6 +982,10 @@ const ja: Translations = {
   saveFormatTitle: "保存形式を選択",
   saveFormatLrcDesc: "歌詞同期ファイル",
   saveFormatSrtDesc: "動画字幕ファイル",
+  saveFormatLrcEnhanced: "Enhanced LRC",
+  saveFormatLrcEnhancedDesc: "文字/単語同期タグを含む",
+  saveFormatLrcPlain: "通常 LRC",
+  saveFormatLrcPlainDesc: "行単位のみ · 互換性が高い",
   undo: "元に戻す",
   redo: "やり直す",
   helpTitle: "ヘルプ",
@@ -1045,6 +1064,7 @@ const ja: Translations = {
     unitChangeMsg: "この行には既に文字タイミングがあります。単位を変更するとタイミングは失われます。続行しますか？",
     badge: "文字同期済み",
     endCell: "次の行へ（ここまで塗るかクリック）",
+    glyphProgress: "この行の文字同期の進捗",
   },
   lrclib: {
     button: "LRCLIBから取得",

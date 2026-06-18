@@ -19,6 +19,7 @@ A desktop application for creating and editing `.lrc` (LRC) lyric files
 ### Core
 - **Waveform & seek bar** — visualize audio with Wavesurfer.js; switch between waveform view and a sleek seek bar with hover tooltip, drag-to-seek, and remaining-time toggle
 - **Real-time timestamp stamping** — press `Space` to stamp the active lyric line with the current playback position and auto-advance to the next line
+- **Character/word-level sync (Enhanced LRC)** — a dedicated mode to time each glyph: drag across glyphs to "paint" timestamps at the live playback position, with a zoomable waveform scrub lane, keyboard nudge, and karaoke fill in preview; exports A2 `<mm:ss.xx>` tags or plain LRC
 - **Lyrics editor** — add, edit, and delete lyric lines; paste multi-line text to split into multiple lines at once
 - **Preview mode** — karaoke-style full-screen preview with auto-scrolling highlight, click-to-seek on any lyric line, and inline timestamp editing
 - **Offset adjustment** — bulk-shift all timestamps by a millisecond offset value

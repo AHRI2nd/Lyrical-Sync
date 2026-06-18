@@ -15,6 +15,15 @@ export function tokenizeText(text: string, unit: SyncUnit): LrcSyllable[] {
 // 공백뿐인 토큰은 스탬프 대상이 아님
 export const isStampable = (s: LrcSyllable): boolean => s.text.trim() !== "";
 
+// 스탬프 시각을 이웃(시각이 있는) 토큰 사이로 클램프 → 글자 시각이 항상 단조 증가(유효한 A2 보장)
+export function clampToNeighbors(syl: LrcSyllable[], index: number, time: number): number {
+  let lo = 0;
+  let hi = Infinity;
+  for (let i = index - 1; i >= 0; i--) { const t = syl[i].time; if (t !== null) { lo = t; break; } }
+  for (let i = index + 1; i < syl.length; i++) { const t = syl[i].time; if (t !== null) { hi = t; break; } }
+  return Math.max(lo, Math.min(hi, Math.max(0, time)));
+}
+
 const META_TAGS: Record<string, keyof LrcMetadata> = {
   ti: "title",
   ar: "artist",

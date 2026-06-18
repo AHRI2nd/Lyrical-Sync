@@ -1,9 +1,9 @@
-import { memo, useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
-import { tokenizeText, isStampable, formatTimestamp } from "../../utils/lrcParser";
+import { tokenizeText, isStampable, formatTimestamp, clampToNeighbors } from "../../utils/lrcParser";
 import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
 import type { LrcLine, LrcSyllable } from "../../types/lrc";
@@ -12,15 +12,6 @@ import type { LrcLine, LrcSyllable } from "../../types/lrc";
 const DEFAULT_SPAN = 8;
 
 type LineState = "none" | "partial" | "done";
-
-// 스탬프 시각을 이웃 글자 시각 사이로 클램프 → 글자 시각이 항상 단조 증가(유효한 A2 보장)
-function clampToNeighbors(syl: LrcSyllable[], index: number, time: number): number {
-  let lo = 0;
-  let hi = Infinity;
-  for (let i = index - 1; i >= 0; i--) { const t = syl[i].time; if (t !== null) { lo = t; break; } }
-  for (let i = index + 1; i < syl.length; i++) { const t = syl[i].time; if (t !== null) { hi = t; break; } }
-  return Math.max(lo, Math.min(hi, Math.max(0, time)));
-}
 
 function lineSyncState(line: LrcLine): LineState {
   const syl = line.syllables;
@@ -78,18 +69,30 @@ export function CharSyncView() {
     nextLineTs ??
     Math.min(winStart + DEFAULT_SPAN, duration > 0 ? duration : winStart + DEFAULT_SPAN);
   if (winEnd <= winStart) winEnd = winStart + DEFAULT_SPAN;
-  const pct = (time: number) =>
-    `${Math.max(0, Math.min(1, (time - winStart) / (winEnd - winStart))) * 100}%`;
 
-  // 레인 파형: 전체 트랙 peaks에서 현재 시간 창 구간만 잘라 막대로
+  // 레인 줌: 창을 1/zoom 너비로 좁혀 재생헤드 중심으로 표시 → 밀집 구간 정밀도↑
+  const [zoom, setZoom] = useState(1);
+  useEffect(() => { setZoom(1); }, [activeLineId]);
+  let viewStart = winStart;
+  let viewEnd = winEnd;
+  if (zoom > 1) {
+    const vw = (winEnd - winStart) / zoom;
+    const center = Math.min(Math.max(currentTime, winStart), winEnd);
+    viewStart = Math.max(winStart, Math.min(center - vw / 2, winEnd - vw));
+    viewEnd = viewStart + vw;
+  }
+  const pct = (time: number) =>
+    `${Math.max(0, Math.min(1, (time - viewStart) / (viewEnd - viewStart))) * 100}%`;
+
+  // 레인 파형: 전체 트랙 peaks에서 표시 창(view) 구간만 잘라 막대로
   const peaks = useMemo(() => audioControls.getPeaks(), [audioPath, duration]);
   const waveBars = useMemo(() => {
-    if (!peaks || duration <= 0 || winEnd <= winStart) return null;
-    const i0 = Math.max(0, Math.floor((winStart / duration) * peaks.length));
-    const i1 = Math.min(peaks.length, Math.ceil((winEnd / duration) * peaks.length));
+    if (!peaks || duration <= 0 || viewEnd <= viewStart) return null;
+    const i0 = Math.max(0, Math.floor((viewStart / duration) * peaks.length));
+    const i1 = Math.min(peaks.length, Math.ceil((viewEnd / duration) * peaks.length));
     if (i1 <= i0) return null;
     return peaks.slice(i0, i1).map((v) => Math.min(1, Math.abs(v)));
-  }, [peaks, duration, winStart, winEnd]);
+  }, [peaks, duration, viewStart, viewEnd]);
 
   // 재생 위치에서 지금 불리는 글자(편집 커서와 별개). 창 밖이면 -1.
   const playingIdx = useMemo(() => {
@@ -287,7 +290,7 @@ export function CharSyncView() {
       if (!el) return;
       const r = el.getBoundingClientRect();
       const ratio = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
-      controls.seekTo(winStart + ratio * (winEnd - winStart));
+      controls.seekTo(viewStart + ratio * (viewEnd - viewStart));
     };
     let raf: number | null = null;
     seekAt(e.clientX);
@@ -330,10 +333,21 @@ export function CharSyncView() {
     );
   }
 
-  // readout: 드래그 중이면 끌고 있는 글자, 아니면 현재 활성 글자
+  // readout: 현재 활성 글자
   const readoutSyl = syllables[activeSyllableIndex];
   const readoutText = readoutSyl && isStampable(readoutSyl) ? readoutSyl.text.trim() : "—";
   const readoutTime = readoutSyl && readoutSyl.time !== null ? formatTimestamp(readoutSyl.time) : "--:--.--";
+
+  // 활성 줄 글자 진행도
+  const glyphTotal = stampableIdx.length;
+  const glyphDone = stampableIdx.filter((i) => syllables[i].time !== null).length;
+
+  const ZOOM_LEVELS = [1, 2, 4, 8];
+  const setZoomStep = (dir: number) =>
+    setZoom((z) => {
+      const i = Math.max(0, Math.min(ZOOM_LEVELS.length - 1, ZOOM_LEVELS.indexOf(z) + dir));
+      return ZOOM_LEVELS[i];
+    });
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -348,6 +362,14 @@ export function CharSyncView() {
         </button>
         <span className="text-xs text-zinc-500 font-mono shrink-0">
           {lineIdx + 1} / {lines.length}
+          {glyphTotal > 0 && (
+            <span
+              className={`ml-1.5 ${glyphDone === glyphTotal ? "text-emerald-400" : "text-amber-400"}`}
+              title={t.charSync.glyphProgress}
+            >
+              {glyphDone}/{glyphTotal}
+            </span>
+          )}
         </span>
         <LineDots lines={lines} activeIdx={lineIdx} onSelect={setActiveLineId} />
         <button
@@ -402,11 +424,29 @@ export function CharSyncView() {
         </span>
       </div>
 
-      {/* 현재 글자 readout */}
-      <div className="flex items-center gap-2 text-xs mb-2 px-1">
+      {/* 현재 글자 readout + 레인 줌 */}
+      <div className="flex items-center justify-between gap-2 text-xs mb-2 px-1">
         <span className="font-mono text-indigo-300">
           {t.charSync.current}: 「{readoutText}」 → {readoutTime}
         </span>
+        <div className="flex items-center gap-1 shrink-0 text-zinc-500">
+          <span>{t.zoom}</span>
+          <button
+            onClick={(e) => { setZoomStep(-1); e.currentTarget.blur(); }}
+            disabled={zoom <= 1}
+            className="w-5 h-5 flex items-center justify-center rounded hover:bg-zinc-800 hover:text-white disabled:opacity-30 transition-colors"
+          >
+            −
+          </button>
+          <span className="font-mono text-zinc-400 w-6 text-center">{zoom}×</span>
+          <button
+            onClick={(e) => { setZoomStep(1); e.currentTarget.blur(); }}
+            disabled={zoom >= 8}
+            className="w-5 h-5 flex items-center justify-center rounded hover:bg-zinc-800 hover:text-white disabled:opacity-30 transition-colors"
+          >
+            +
+          </button>
+        </div>
       </div>
       </div>
 
@@ -418,7 +458,7 @@ export function CharSyncView() {
       >
         <LaneWaveform bars={waveBars} />
         {syllables.map((s, i) =>
-          s.time !== null && isStampable(s) ? (
+          s.time !== null && isStampable(s) && s.time >= viewStart && s.time <= viewEnd ? (
             <div
               key={i}
               style={{ left: pct(s.time) }}
@@ -431,10 +471,10 @@ export function CharSyncView() {
           className="absolute top-0 bottom-0 w-0.5 bg-amber-400 pointer-events-none"
         />
         <span className="absolute left-1.5 bottom-0.5 text-[10px] text-zinc-600 font-mono pointer-events-none">
-          {formatTimestamp(winStart)}
+          {formatTimestamp(viewStart)}
         </span>
         <span className="absolute right-1.5 bottom-0.5 text-[10px] text-zinc-600 font-mono pointer-events-none">
-          {formatTimestamp(winEnd)}
+          {formatTimestamp(viewEnd)}
         </span>
       </div>
 

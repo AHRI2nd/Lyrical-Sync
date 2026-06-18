@@ -82,7 +82,7 @@ export function YtdlpSection() {
     ).then((fn) => {
       unlisten = fn;
       if (!active) fn(); // already unmounted before listen resolved
-    });
+    }).catch(() => {});
 
     return () => {
       active = false;

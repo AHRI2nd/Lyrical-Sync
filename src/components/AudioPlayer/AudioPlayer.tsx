@@ -5,6 +5,7 @@ import { readFile } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useLrcStore } from "../../stores/useLrcStore";
+import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { type Translations } from "../../i18n/translations";
 import { useServiceStore } from "../../stores/useServiceStore";
@@ -61,7 +62,13 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   const [showRemaining, setShowRemaining] = useState(false);
   const [showNoTrackAlert, setShowNoTrackAlert] = useState(false);
 
-  const { audioPath, setCurrentTime, setIsPlaying, setDuration, openAudio, setAudioPath } = useLrcStore();
+  // 자체 로컬 상태(currentTimeLocal 등)로 UI를 그리므로 스토어 currentTime은 구독하지 않음
+  const { audioPath, setCurrentTime, setIsPlaying, setDuration, openAudio, setAudioPath } = useLrcStore(
+    useShallow((s) => ({
+      audioPath: s.audioPath, setCurrentTime: s.setCurrentTime, setIsPlaying: s.setIsPlaying,
+      setDuration: s.setDuration, openAudio: s.openAudio, setAudioPath: s.setAudioPath,
+    }))
+  );
   const lines = useLrcStore((s) => s.doc.lines);
   const activeLineId = useLrcStore((s) => s.activeLineId);
   const [showMarkers, setShowMarkers] = useState(true);
@@ -218,6 +225,11 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
 
   const blobUrlRef = useRef<string | null>(null);
 
+  // 언마운트 시 마지막 Blob URL 해제 (경로 변경 시엔 아래 로드 effect가 직전 URL을 해제)
+  useEffect(() => () => {
+    if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+  }, []);
+
   useEffect(() => {
     if (!wsRef.current || !audioPath) return;
     let cancelled = false;
@@ -232,18 +244,18 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     const needsTranscode = isAiff && isWindows;
 
     const getBytes = async (): Promise<Uint8Array> => {
-      if (needsTranscode) {
-        const wavPath = await invoke<string>("decode_audio_to_wav", { path: audioPath });
-        return readFile(wavPath);
-      }
+      // Windows AIFF는 임시 WAV로 트랜스코딩(임시 폴더는 fs 스코프 밖)
+      const path = needsTranscode
+        ? await invoke<string>("decode_audio_to_wav", { path: audioPath })
+        : audioPath;
       try {
-        // 빠른 경로: 홈 디렉터리 내 파일은 plugin readFile (바이너리 채널)
-        return await readFile(audioPath);
+        // 빠른 경로: fs 스코프(미디어 디렉터리) 내 파일은 plugin readFile (바이너리 채널)
+        return await readFile(path);
       } catch {
-        // fs 스코프($HOME/**) 밖 파일(예: Windows D:\, macOS /Volumes)은 거부되므로
-        // 스코프 제약이 없는 커스텀 커맨드로 폴백
-        const arr = await invoke<number[]>("read_audio_file", { path: audioPath });
-        return new Uint8Array(arr);
+        // 스코프 밖 파일(임시 폴더, 외장 드라이브 등)은 거부되므로
+        // 스코프 제약이 없는 커스텀 커맨드로 폴백 (raw 바이너리 반환)
+        const buf = await invoke<ArrayBuffer>("read_audio_file", { path });
+        return new Uint8Array(buf);
       }
     };
 

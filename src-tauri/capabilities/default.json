@@ -14,6 +14,8 @@
     "fs:scope-document-recursive",
     "fs:scope-desktop-recursive",
     "fs:scope-video-recursive",
+    "fs:scope-temp-recursive",
+    "fs:scope-appcache-recursive",
     "deep-link:default"
   ]
 }

@@ -7,6 +7,7 @@ import { SettingsModal } from "./components/Settings/SettingsModal";
 import { ModeSelectButton } from "./components/Service/ModeSelectButton";
 import { SpotifySearchModal } from "./components/Service/SpotifySearchModal";
 import { useLrcStore } from "./stores/useLrcStore";
+import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "./stores/useI18nStore";
 import { useSettingsStore } from "./stores/useSettingsStore";
 import { useServiceStore } from "./stores/useServiceStore";
@@ -26,7 +27,15 @@ const LYRICS_EXTS = ["lrc", "srt"];
 const fileExt = (p: string) => p.split(".").pop()?.toLowerCase() ?? "";
 
 function useGlobalKeys() {
-  const { stampAndAdvance, goToPreviousLine, undo, redo } = useLrcStore();
+  // 액션은 안정 참조 → 셀렉터로 좁혀 currentTime 등 매 프레임 갱신에 리렌더되지 않게
+  const { stampAndAdvance, goToPreviousLine, undo, redo } = useLrcStore(
+    useShallow((s) => ({
+      stampAndAdvance: s.stampAndAdvance,
+      goToPreviousLine: s.goToPreviousLine,
+      undo: s.undo,
+      redo: s.redo,
+    }))
+  );
   const syncMode = useLrcStore((s) => s.syncMode);
   const isLoggedInForKeys = useServiceStore((s) => s.isLoggedIn);
   const spotifyModeForKeys = useSettingsStore((s) => s.spotifyMode);
@@ -152,7 +161,15 @@ function App() {
   const [dropConflict, setDropConflict] = useState<
     { audio?: string; lyrics?: string; audioConflict: boolean; lyricsConflict: boolean } | null
   >(null);
-  const { lrcPath, isDirty, openLrc, openAudio, saveLrc, saveLrcAs, newLrc, undo, redo, _history, _future } = useLrcStore();
+  // 셀렉터로 좁혀 재생 중 currentTime 갱신마다 App 전체가 리렌더되지 않게 함
+  const { lrcPath, isDirty, openLrc, openAudio, saveLrc, saveLrcAs, newLrc, undo, redo, _history, _future } = useLrcStore(
+    useShallow((s) => ({
+      lrcPath: s.lrcPath, isDirty: s.isDirty,
+      openLrc: s.openLrc, openAudio: s.openAudio, saveLrc: s.saveLrc, saveLrcAs: s.saveLrcAs, newLrc: s.newLrc,
+      undo: s.undo, redo: s.redo, _history: s._history, _future: s._future,
+    }))
+  );
+  const hasGlyphSync = useLrcStore((s) => s.doc.lines.some((l) => l.syllables?.some((sy) => sy.time !== null)));
   const { t } = useI18nStore();
   const { autoCheckUpdate, uiScale, spotifyMode, youtubeMode, setSpotifyMode, setYoutubeMode } = useSettingsStore();
   const { isLoggedIn, handleCallback, tryRestoreSession, pausePlayback } = useServiceStore();
@@ -180,7 +197,7 @@ function App() {
     }).then((fn) => {
       if (cancelled) fn();
       else unlistenFn = fn;
-    });
+    }).catch(() => {});
     return () => {
       cancelled = true;
       unlistenFn?.();
@@ -251,7 +268,8 @@ function App() {
           applyDrop({ audio, lyrics });
         }
       })
-      .then((fn) => { if (cancelled) fn(); else unlisten = fn; });
+      .then((fn) => { if (cancelled) fn(); else unlisten = fn; })
+      .catch(() => {});
     return () => { cancelled = true; unlisten?.(); };
   }, []);
 
@@ -266,7 +284,7 @@ function App() {
     let unlisten: (() => void) | null = null;
     listen<{ done: boolean }>("ytdlp-install-progress", (e) => {
       if (active && e.payload.done) check();
-    }).then((fn) => { unlisten = fn; if (!active) fn(); });
+    }).then((fn) => { unlisten = fn; if (!active) fn(); }).catch(() => {});
     return () => { active = false; unlisten?.(); };
   }, []);
 
@@ -383,7 +401,11 @@ function App() {
       )}
       {showFormatChooser && (
         <SaveFormatModal
-          onSelect={(format) => { setShowFormatChooser(false); saveLrcAs(format); }}
+          hasGlyphSync={hasGlyphSync}
+          onSelect={(format, enhanced) => {
+            setShowFormatChooser(false);
+            saveLrcAs(format, enhanced); // 다이얼로그 선택은 이번 저장에만 적용(전역 설정 불변)
+          }}
           onCancel={() => setShowFormatChooser(false)}
         />
       )}
@@ -720,9 +742,10 @@ function ConfirmModal({
 
 
 function SaveFormatModal({
-  onSelect, onCancel,
+  hasGlyphSync, onSelect, onCancel,
 }: {
-  onSelect: (format: "lrc" | "srt") => void;
+  hasGlyphSync: boolean;
+  onSelect: (format: "lrc" | "srt", enhanced?: boolean) => void;
   onCancel: () => void;
 }) {
   const { t } = useI18nStore();
@@ -734,6 +757,9 @@ function SaveFormatModal({
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onCancel]);
+
+  const optClass =
+    "flex flex-col items-start gap-0.5 px-4 py-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-indigo-500 transition-colors text-left";
 
   return (
     <div
@@ -748,17 +774,24 @@ function SaveFormatModal({
           <span className="font-semibold text-zinc-100">{t.saveFormatTitle}</span>
         </div>
         <div className="flex flex-col gap-2 px-5 py-4">
-          <button
-            onClick={() => onSelect("lrc")}
-            className="flex flex-col items-start gap-0.5 px-4 py-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-indigo-500 transition-colors text-left"
-          >
-            <span className="text-sm font-semibold text-white">LRC <span className="text-zinc-500 font-normal">(.lrc)</span></span>
-            <span className="text-xs text-zinc-400">{t.saveFormatLrcDesc}</span>
-          </button>
-          <button
-            onClick={() => onSelect("srt")}
-            className="flex flex-col items-start gap-0.5 px-4 py-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-indigo-500 transition-colors text-left"
-          >
+          {hasGlyphSync ? (
+            <>
+              <button onClick={() => onSelect("lrc", true)} className={optClass}>
+                <span className="text-sm font-semibold text-white">{t.saveFormatLrcEnhanced} <span className="text-zinc-500 font-normal">(.lrc)</span></span>
+                <span className="text-xs text-zinc-400">{t.saveFormatLrcEnhancedDesc}</span>
+              </button>
+              <button onClick={() => onSelect("lrc", false)} className={optClass}>
+                <span className="text-sm font-semibold text-white">{t.saveFormatLrcPlain} <span className="text-zinc-500 font-normal">(.lrc)</span></span>
+                <span className="text-xs text-zinc-400">{t.saveFormatLrcPlainDesc}</span>
+              </button>
+            </>
+          ) : (
+            <button onClick={() => onSelect("lrc")} className={optClass}>
+              <span className="text-sm font-semibold text-white">LRC <span className="text-zinc-500 font-normal">(.lrc)</span></span>
+              <span className="text-xs text-zinc-400">{t.saveFormatLrcDesc}</span>
+            </button>
+          )}
+          <button onClick={() => onSelect("srt")} className={optClass}>
             <span className="text-sm font-semibold text-white">SubRip <span className="text-zinc-500 font-normal">(.srt)</span></span>
             <span className="text-xs text-zinc-400">{t.saveFormatSrtDesc}</span>
           </button>
