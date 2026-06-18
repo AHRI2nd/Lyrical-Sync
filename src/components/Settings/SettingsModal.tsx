@@ -333,7 +333,7 @@ function PythonEnvSection() {
           setDownloading(false);
           refresh();
         }
-      }).then((fn) => { unlisten = fn; });
+      }).then((fn) => { unlisten = fn; }).catch(() => {});
     });
     return () => { unlisten?.(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -349,7 +349,7 @@ function PythonEnvSection() {
         } else if (e.payload.line) {
           setInstallLog((prev) => [...prev, e.payload.line]);
         }
-      }).then((fn) => { unlisten = fn; });
+      }).then((fn) => { unlisten = fn; }).catch(() => {});
     });
     return () => { unlisten?.(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps

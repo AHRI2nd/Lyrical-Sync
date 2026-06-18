@@ -54,7 +54,6 @@ export function SpotifySearchModal({ onClose }: Props) {
           return;
         }
         const data = await resp.json();
-        console.log("[playlists] data:", data);
         setPlaylists(
           ((data.items ?? []) as { id: string; name: string; images: { url: string }[]; tracks: { total: number } }[])
             .filter(Boolean)
