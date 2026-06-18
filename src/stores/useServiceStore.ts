@@ -154,10 +154,20 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
     const storedToken: string | null = await invoke("load_refresh_token");
     if (!storedToken) throw new Error("no_refresh_token");
 
-    const resp: TokenResponse = await invoke("refresh_spotify_token", {
-      refreshToken: storedToken,
-      clientId,
-    });
+    let resp: TokenResponse;
+    try {
+      resp = await invoke("refresh_spotify_token", {
+        refreshToken: storedToken,
+        clientId,
+      });
+    } catch (e) {
+      // 리프레시 토큰 만료/취소(invalid_grant) → 저장 토큰 폐기 + 로그아웃해 재로그인 유도.
+      // 재시도하지 않음(Spotify 권장 처리). 2026-07-20부터 리프레시 토큰은 6개월 후 만료.
+      if (String(e).includes("invalid_grant")) {
+        get().logout();
+      }
+      throw e;
+    }
 
     if (resp.refreshToken) {
       await invoke("save_refresh_token", { token: resp.refreshToken });
