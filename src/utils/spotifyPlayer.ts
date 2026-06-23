@@ -103,7 +103,7 @@ function createPlayer(accessToken: string): void {
 function startPolling(): void {
   if (pollingInterval !== null) return;
   pollOnce();
-  pollingInterval = setInterval(pollOnce, 3000);
+  pollingInterval = setInterval(pollOnce, 1500);
 }
 
 function stopPolling(): void {
@@ -116,6 +116,7 @@ function stopPolling(): void {
 async function pollOnce(): Promise<void> {
   try {
     const token = await useServiceStore.getState().ensureToken();
+    const t0 = Date.now();
     const resp = await fetch("https://api.spotify.com/v1/me/player", {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -124,7 +125,10 @@ async function pollOnce(): Promise<void> {
     if (!data?.item) return;
 
     const isPlaying = data.is_playing as boolean;
-    const positionMs = data.progress_ms as number;
+    // progress_ms는 응답을 받기까지의 네트워크 왕복만큼 이미 과거 값.
+    // 재생 중이면 왕복의 절반을 더해 "현재"에 근접시킴(가사 하이라이트 지연 감소). 캡 750ms.
+    const latencyComp = isPlaying ? Math.min(1500, Date.now() - t0) / 2 : 0;
+    const positionMs = Math.round((data.progress_ms as number) + latencyComp);
     const track = data.item;
     const artistName = (track.artists as { name: string }[]).map((a) => a.name).join(", ");
 
