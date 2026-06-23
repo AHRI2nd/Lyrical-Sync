@@ -4,6 +4,7 @@ import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { tokenizeText, isStampable, formatTimestamp, clampToNeighbors } from "../../utils/lrcParser";
+import { anyModalOpen } from "../../utils/modalGuard";
 import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
 import type { LrcLine, LrcSyllable } from "../../types/lrc";
@@ -187,6 +188,8 @@ export function CharSyncView() {
       const inInput =
         e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
       if (inInput) return;
+      // 모달이 열려 있으면 글자 모드 키가 모달 뒤에서 동작하지 않게 차단
+      if (anyModalOpen()) return;
       if (e.code === "Space") {
         e.preventDefault();
         stampActive();

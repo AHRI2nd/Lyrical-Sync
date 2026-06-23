@@ -1,14 +1,27 @@
 import { useEffect, useRef, useMemo, useCallback, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { useSettingsStore } from "../../stores/useSettingsStore";
+import { useServiceStore } from "../../stores/useServiceStore";
 import { audioControls } from "../../utils/audioControls";
+import { serviceControls } from "../../utils/serviceControls";
 import { formatDisplayTime, formatTimestamp, parseTimestampInput, isStampable } from "../../utils/lrcParser";
 import type { LrcSyllable } from "../../types/lrc";
 
 export function PreviewModal({ onClose }: { onClose: () => void }) {
   const { doc, currentTime, duration, isPlaying, updateLine } = useLrcStore();
+  const spotifyMode = useSettingsStore((s) => s.spotifyMode);
+  const serviceLoggedIn = useServiceStore((s) => s.isLoggedIn);
+  const servicePositionMs = useServiceStore((s) => s.positionMs);
+  const serviceDurationMs = useServiceStore((s) => s.durationMs);
+  const serviceIsPlaying = useServiceStore((s) => s.isPlaying);
   const { t } = useI18nStore();
   const activeLineRef = useRef<HTMLDivElement>(null);
+  const isServiceMode = serviceLoggedIn && spotifyMode;
+  const controls = isServiceMode ? serviceControls : audioControls;
+  const playbackTime = isServiceMode ? servicePositionMs / 1000 : currentTime;
+  const playbackDuration = isServiceMode ? serviceDurationMs / 1000 : duration;
+  const playbackIsPlaying = isServiceMode ? serviceIsPlaying : isPlaying;
 
   // 인라인 타임스탬프 편집 상태
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -20,10 +33,10 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
     let idx = -1;
     for (let i = 0; i < doc.lines.length; i++) {
       const ts = doc.lines[i].timestamp;
-      if (ts !== null && ts <= currentTime) idx = i;
+      if (ts !== null && ts <= playbackTime) idx = i;
     }
     return idx;
-  }, [doc.lines, currentTime]);
+  }, [doc.lines, playbackTime]);
 
   // 활성 줄이 바뀔 때 스크롤 (편집 중이 아닐 때만)
   useEffect(() => {
@@ -51,8 +64,8 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
     return () => window.removeEventListener("keydown", handler);
   }, [onClose, editingId]);
 
-  const togglePlay = useCallback(() => audioControls.togglePlay(), []);
-  const skip = useCallback((d: number) => audioControls.skip(d), []);
+  const togglePlay = useCallback(() => controls.togglePlay(), [controls]);
+  const skip = useCallback((d: number) => controls.skip(d), [controls]);
 
   const startEdit = (id: string, currentTs: number | null) => {
     setEditingId(id);
@@ -69,14 +82,14 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
 
   const hasTimestamps = doc.lines.some((l) => l.timestamp !== null);
 
-  const progress = duration > 0 ? currentTime / duration : 0;
+  const progress = playbackDuration > 0 ? playbackTime / playbackDuration : 0;
 
   const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!duration) return;
+    if (!playbackDuration) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    audioControls.seekTo(ratio * duration);
-  }, [duration]);
+    controls.seekTo(ratio * playbackDuration);
+  }, [controls, playbackDuration]);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-zinc-950">
@@ -115,7 +128,7 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
             <TriLeftIcon /><span className="text-[10px] font-bold ml-0.5">1</span>
           </PreviewBtn>
           <PreviewBtn onClick={togglePlay} accent>
-            {isPlaying ? <PauseIcon /> : <PlayIcon />}
+            {playbackIsPlaying ? <PauseIcon /> : <PlayIcon />}
           </PreviewBtn>
           <PreviewBtn onClick={() => skip(1)} title="+1s">
             <span className="text-[10px] font-bold mr-0.5">1</span><TriRightIcon />
@@ -124,7 +137,7 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
             <span className="text-[10px] font-bold mr-0.5">5</span><SkipFwdIcon />
           </PreviewBtn>
           <span className="font-mono text-xs text-zinc-400 tabular-nums w-24 text-center">
-            {formatDisplayTime(currentTime)}
+            {formatDisplayTime(playbackTime)}
           </span>
         </div>
 
@@ -156,7 +169,7 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
               const hasGlyphSync = !!line.syllables?.some((s) => s.time !== null);
 
               // 가라오케 채움의 마지막 글자 종료 시각 = 다음 타임스탬프 줄 / 총 길이
-              let lineEnd = duration > 0 ? duration : (line.timestamp ?? 0) + 4;
+              let lineEnd = playbackDuration > 0 ? playbackDuration : (line.timestamp ?? 0) + 4;
               for (let j = i + 1; j < doc.lines.length; j++) {
                 if (doc.lines[j].timestamp !== null) { lineEnd = doc.lines[j].timestamp as number; break; }
               }
@@ -214,15 +227,15 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
                     className={`flex-1 leading-snug ${textSizeClass} ${line.timestamp !== null ? "cursor-pointer" : "select-none"}`}
                     onClick={() => {
                       if (line.timestamp !== null) {
-                        audioControls.seekTo(line.timestamp);
-                        if (!isPlaying) audioControls.togglePlay();
+                        controls.seekTo(line.timestamp);
+                        if (!playbackIsPlaying) controls.togglePlay();
                       }
                     }}
                   >
                     {isActive ? (
                       <span className="relative inline-block">
                         {hasGlyphSync && line.syllables ? (
-                          <KaraokeText syllables={line.syllables} currentTime={currentTime} lineEnd={lineEnd} />
+                          <KaraokeText syllables={line.syllables} currentTime={playbackTime} lineEnd={lineEnd} />
                         ) : (
                           line.text || " "
                         )}
