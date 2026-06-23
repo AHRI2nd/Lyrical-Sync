@@ -4,6 +4,7 @@ import { serviceControls } from "../../utils/serviceControls";
 import { setSpotifyVolume } from "../../utils/spotifyPlayer";
 import { formatDisplayTime } from "../../utils/lrcParser";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { DevicePickerModal } from "./DevicePickerModal";
 
 interface ServicePlayerPanelProps {
   onSpotifySearch?: () => void;
@@ -21,6 +22,7 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
   const [hoverRatio, setHoverRatio] = useState<number | null>(null);
   const [showRemaining, setShowRemaining] = useState(false);
   const [volume, setVolume] = useState(1.0);
+  const [showDevices, setShowDevices] = useState(false);
 
   const positionSec = positionMs / 1000;
   const durationSec = durationMs / 1000;
@@ -172,7 +174,7 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
         <span className="shrink-0 w-9 text-right text-xs text-zinc-400 tabular-nums">{Math.round(volume * 100)}%</span>
       </div>
 
-      {/* 곡 검색/열기 버튼 */}
+      {/* 곡 검색/열기 버튼 + 기기 선택 */}
       <div className="flex gap-2">
         <button
           onClick={onLoadCurrent}
@@ -186,9 +188,28 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
         >
           {t.spotifySearchTrack}
         </button>
+        <button
+          onClick={() => setShowDevices(true)}
+          title={t.devicePicker.button}
+          className="shrink-0 px-3 py-2 rounded-lg border border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800 text-zinc-300 transition-colors flex items-center justify-center"
+        >
+          <DevicesIcon />
+        </button>
       </div>
 
+      {showDevices && <DevicePickerModal onClose={() => setShowDevices(false)} />}
+
     </div>
+  );
+}
+
+function DevicesIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="4" width="11" height="9" rx="1.5" />
+      <rect x="14" y="10" width="6" height="10" rx="1.5" />
+      <line x1="7" y1="17" x2="11" y2="17" />
+    </svg>
   );
 }
 

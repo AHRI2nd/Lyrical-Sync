@@ -14,6 +14,14 @@ export interface SpotifyTrack {
   durationMs: number;
 }
 
+export interface SpotifyDevice {
+  id: string;
+  name: string;
+  type: string;
+  is_active: boolean;
+  volume_percent: number | null;
+}
+
 interface TokenResponse {
   accessToken: string;
   refreshToken?: string;
@@ -33,6 +41,9 @@ interface ServiceState {
 
   // SDK / playback
   deviceId: string | null;
+  /** 최근 Web Playback SDK 오류(초기화/인증/계정/재생). null=정상 */
+  playerError: string | null;
+  setPlayerError: (msg: string | null) => void;
   isReady: boolean;
   isPlaying: boolean;
   isLooping: boolean;
@@ -65,6 +76,9 @@ interface ServiceState {
   playTrack: (uri: string) => Promise<void>;
   pausePlayback: () => Promise<void>;
   fetchCurrentlyPlaying: () => Promise<SpotifyTrack | null>;
+  // 기기 선택
+  fetchDevices: () => Promise<SpotifyDevice[]>;
+  transferToDevice: (deviceId: string, play: boolean) => Promise<void>;
 
   _startInterpolation: () => void;
   _stopInterpolation: () => void;
@@ -77,6 +91,7 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
   _pendingCodeVerifier: null,
   _pendingOAuthState: null,
   deviceId: null,
+  playerError: null,
   isReady: false,
   isPlaying: false,
   isLooping: false,
@@ -223,8 +238,10 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
     return token;
   },
 
+  setPlayerError: (msg) => set({ playerError: msg }),
+
   onPlayerReady: (deviceId: string) => {
-    set({ deviceId, isReady: true });
+    set({ deviceId, isReady: true, playerError: null });
   },
 
   onPlayerStateChanged: (state: Spotify.PlaybackState) => {
@@ -265,9 +282,14 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
   },
 
   transferPlaybackToApp: async () => {
-    const { deviceId, ensureToken } = get();
-    if (!deviceId) return;
-    const token = await ensureToken();
+    // SDK 'ready'가 아직 안 왔을 수 있으니 deviceId를 잠깐 대기(최대 ~3초)
+    let deviceId = get().deviceId;
+    for (let i = 0; i < 12 && !deviceId; i++) {
+      await new Promise((r) => setTimeout(r, 250));
+      deviceId = get().deviceId;
+    }
+    if (!deviceId) return; // SDK 기기 미준비(playerError 참고) → 기존 기기 유지
+    const token = await get().ensureToken();
     await fetch("https://api.spotify.com/v1/me/player", {
       method: "PUT",
       headers: {
@@ -275,6 +297,25 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ device_ids: [deviceId], play: true }),
+    });
+  },
+
+  fetchDevices: async () => {
+    const token = await get().ensureToken();
+    const resp = await fetch("https://api.spotify.com/v1/me/player/devices", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    return (data.devices ?? []) as SpotifyDevice[];
+  },
+
+  transferToDevice: async (deviceId, play) => {
+    const token = await get().ensureToken();
+    await fetch("https://api.spotify.com/v1/me/player", {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ device_ids: [deviceId], play }),
     });
   },
 

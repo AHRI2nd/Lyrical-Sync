@@ -73,6 +73,16 @@ export interface Translations {
     endCell: string;
     glyphProgress: string;
   };
+  devicePicker: {
+    button: string;
+    title: string;
+    refresh: string;
+    loading: string;
+    empty: string;
+    active: string;
+    close: string;
+    hint: string;
+  };
   lrclib: {
     button: string; title: string;
     fieldTitle: string; fieldArtist: string; fieldAlbum: string;
@@ -390,6 +400,16 @@ const ko: Translations = {
     badge: "글자 동기화됨",
     endCell: "다음 줄로 (여기까지 칠하거나 클릭)",
     glyphProgress: "현재 줄의 글자 동기화 진행도",
+  },
+  devicePicker: {
+    button: "재생 기기",
+    title: "재생 기기 선택",
+    refresh: "새로고침",
+    loading: "기기 목록 불러오는 중…",
+    empty: "사용 가능한 기기가 없습니다. Spotify 앱이 실행 중인지 확인하세요.",
+    active: "재생 중",
+    close: "닫기",
+    hint: "기기를 선택하면 해당 기기에서 재생됩니다.",
   },
   lrclib: {
     button: "LRCLIB 불러오기",
@@ -728,6 +748,16 @@ const en: Translations = {
     endCell: "Next line (paint here or click)",
     glyphProgress: "Glyphs synced in this line",
   },
+  devicePicker: {
+    button: "Playback device",
+    title: "Select playback device",
+    refresh: "Refresh",
+    loading: "Loading devices…",
+    empty: "No devices available. Make sure the Spotify app is running.",
+    active: "Active",
+    close: "Close",
+    hint: "Pick a device to play on it.",
+  },
   lrclib: {
     button: "Fetch from LRCLIB",
     title: "Search lyrics on LRCLIB",
@@ -1065,6 +1095,16 @@ const ja: Translations = {
     badge: "文字同期済み",
     endCell: "次の行へ（ここまで塗るかクリック）",
     glyphProgress: "この行の文字同期の進捗",
+  },
+  devicePicker: {
+    button: "再生デバイス",
+    title: "再生デバイスを選択",
+    refresh: "更新",
+    loading: "デバイスを読み込み中…",
+    empty: "利用可能なデバイスがありません。Spotifyアプリが起動しているか確認してください。",
+    active: "再生中",
+    close: "閉じる",
+    hint: "デバイスを選ぶとそのデバイスで再生します。",
   },
   lrclib: {
     button: "LRCLIBから取得",

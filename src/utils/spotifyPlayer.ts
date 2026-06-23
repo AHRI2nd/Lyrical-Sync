@@ -78,7 +78,24 @@ function createPlayer(accessToken: string): void {
     if (state) useServiceStore.getState().onPlayerStateChanged(state);
   });
 
-  player.addListener("not_ready", () => {});
+  player.addListener("not_ready", () => {
+    // SDK 기기가 오프라인이 됨 → deviceId 무효화(전환 대상에서 제외)
+    useServiceStore.setState({ deviceId: null });
+  });
+
+  // SDK 실패는 기존엔 무음으로 사라졌음. 원인 진단을 위해 노출.
+  // - initialization_error: 웹뷰가 EME/Widevine 등 미지원(네이티브 웹뷰에서 흔함)
+  // - authentication_error: 토큰/스코프 문제
+  // - account_error: Spotify Premium 아님(SDK 재생 불가)
+  // - playback_error: 재생 실패(주로 DRM)
+  const reportError = (kind: string) => ({ message }: { message: string }) => {
+    useServiceStore.getState().setPlayerError(`${kind}: ${message}`);
+    console.warn(`[Spotify SDK] ${kind}: ${message}`);
+  };
+  player.addListener("initialization_error", reportError("initialization_error"));
+  player.addListener("authentication_error", reportError("authentication_error"));
+  player.addListener("account_error", reportError("account_error"));
+  player.addListener("playback_error", reportError("playback_error"));
 
   player.connect();
 }
