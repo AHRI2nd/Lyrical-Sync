@@ -130,6 +130,22 @@ describe("useLrcStore — history & raw load", () => {
     expect(lines()).toHaveLength(1);
   });
 
+  it("stampAndAdvance with no active line records no history (no empty undo)", () => {
+    reset([{ id: "1", timestamp: null, text: "a" }]);
+    useLrcStore.setState({ activeLineId: null });
+    const h0 = useLrcStore.getState()._history.length;
+    useLrcStore.getState().stampAndAdvance(); // only selects first line
+    expect(useLrcStore.getState()._history.length).toBe(h0);
+    expect(useLrcStore.getState().activeLineId).toBe("1");
+  });
+
+  it("applyOffset with zero offset records no history", () => {
+    reset([{ id: "1", timestamp: 5, text: "a" }], 0);
+    const h0 = useLrcStore.getState()._history.length;
+    useLrcStore.getState().applyOffset();
+    expect(useLrcStore.getState()._history.length).toBe(h0);
+  });
+
   it("loadFromRawText replaces the document", () => {
     reset([{ id: "9", timestamp: null, text: "old" }]);
     useLrcStore.getState().loadFromRawText("[00:01.00]hello");

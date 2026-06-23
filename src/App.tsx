@@ -13,6 +13,7 @@ import { useSettingsStore } from "./stores/useSettingsStore";
 import { useServiceStore } from "./stores/useServiceStore";
 import { audioControls } from "./utils/audioControls";
 import { serviceControls } from "./utils/serviceControls";
+import { anyModalOpen } from "./utils/modalGuard";
 import { initSpotifyPlayer } from "./utils/spotifyPlayer";
 import { type Lang } from "./i18n/translations";
 import { checkForUpdate, RELEASES_URL } from "./utils/updateCheck";
@@ -50,7 +51,7 @@ function useGlobalKeys() {
 
       const isMod = e.ctrlKey || e.metaKey;
       if (isMod && e.code === "KeyZ") {
-        if (inInput) return;
+        if (inInput || anyModalOpen()) return;
         e.preventDefault();
         if (e.shiftKey) redo();
         else undo();
@@ -82,6 +83,9 @@ function useGlobalKeys() {
 
       // 글자 동기화 모드에서는 Space/Backspace를 CharSyncView가 처리
       if ((e.code === "Space" || e.code === "Backspace") && syncMode === "char") return;
+
+      // 모달이 열려 있으면 편집 키(스탬프/줄 이동)가 모달 뒤에서 동작하지 않게 차단
+      if ((e.code === "Space" || e.code === "Backspace") && anyModalOpen()) return;
 
       if (e.code === "Space" && !inInput) {
         e.preventDefault();

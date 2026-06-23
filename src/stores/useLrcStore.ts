@@ -191,10 +191,10 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
 
   stampAndAdvance: () => {
     const { activeLineId, currentTime, doc, aiDraftConfidence, _history } = get();
-    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [] });
     const lines = doc.lines;
     if (lines.length === 0) return;
 
+    // 활성 줄이 없으면 선택만(문서 변경 없음 → 히스토리 기록 안 함)
     if (!activeLineId) {
       set({ activeLineId: lines[0].id });
       return;
@@ -213,7 +213,9 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
       delete newConfidence[activeLineId];
     }
 
+    // 실제 스탬프할 때만 히스토리 기록
     set({
+      _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [],
       doc: { ...doc, lines: stamped },
       activeLineId: next ? next.id : activeLineId,
       aiDraftConfidence: newConfidence,
@@ -313,9 +315,9 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
 
   applyOffset: () => {
     const { doc, _history } = get();
-    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [] });
     const deltaSeconds = doc.metadata.offset / 1000;
-    if (deltaSeconds === 0) return;
+    if (deltaSeconds === 0) return; // 변화 없음 → 히스토리 기록 안 함(빈 undo 방지)
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [] });
     set({
       doc: {
         ...doc,
