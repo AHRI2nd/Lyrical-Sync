@@ -11,6 +11,7 @@ import { type Translations } from "../../i18n/translations";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { audioControls } from "../../utils/audioControls";
+import { activateSpotifyPlayer } from "../../utils/spotifyPlayer";
 import { formatDisplayTime } from "../../utils/lrcParser";
 import { ServicePlayerPanel } from "../Service/ServicePlayerPanel";
 
@@ -406,8 +407,10 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   const handleLoadCurrent = async () => {
     try {
       const track = await fetchCurrentlyPlaying();
-      if (track) await transferPlaybackToApp();
-      else setShowNoTrackAlert(true);
+      if (track) {
+        await activateSpotifyPlayer(); // 사용자 제스처에서 오디오 잠금 해제(SDK 기기로 재생 위함)
+        await transferPlaybackToApp();
+      } else setShowNoTrackAlert(true);
     } catch { setShowNoTrackAlert(true); }
   };
 
