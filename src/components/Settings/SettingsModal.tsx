@@ -5,6 +5,7 @@ import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { checkForUpdate } from "../../utils/updateCheck";
+import { safeUnlisten } from "../../utils/safeUnlisten";
 import { ModelDownloadSection } from "./ModelDownloadSection";
 import { YtdlpSection } from "./YtdlpSection";
 
@@ -335,7 +336,7 @@ function PythonEnvSection() {
         }
       }).then((fn) => { unlisten = fn; }).catch(() => {});
     });
-    return () => { unlisten?.(); };
+    return () => { safeUnlisten(unlisten); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -351,7 +352,7 @@ function PythonEnvSection() {
         }
       }).then((fn) => { unlisten = fn; }).catch(() => {});
     });
-    return () => { unlisten?.(); };
+    return () => { safeUnlisten(unlisten); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

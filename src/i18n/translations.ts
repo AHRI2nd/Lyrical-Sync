@@ -14,6 +14,8 @@ export interface Translations {
   saveFormatLrcEnhancedDesc: string;
   saveFormatLrcPlain: string;
   saveFormatLrcPlainDesc: string;
+  saveFormatVttDesc: string;
+  saveFormatAssDesc: string;
   undo: string;
   redo: string;
   // Help modal
@@ -91,6 +93,26 @@ export interface Translations {
     preview: string; confirm: string;
     instrumental: string; noLyrics: string; synced: string; plain: string;
     previewTitle: string; close: string;
+  };
+  lrclibPublish: {
+    button: string;
+    title: string;
+    duration: string;
+    syncedLines: string;
+    missing: string;
+    needTitle: string;
+    needArtist: string;
+    needDuration: string;
+    needSync: string;
+    hint: string;
+    warning: string;
+    confirm: string;
+    publish: string;
+    publishing: string;
+    success: string;
+    failed: string;
+    close: string;
+    cancel: string;
   };
   helpAiSteps: { title: string; desc: string }[];
   helpSpotifySteps: { title: string; desc: string }[];
@@ -321,6 +343,8 @@ const ko: Translations = {
   saveFormatLrcEnhancedDesc: "글자/단어 동기화 태그 포함",
   saveFormatLrcPlain: "일반 LRC",
   saveFormatLrcPlainDesc: "줄 단위만 · 호환성 높음",
+  saveFormatVttDesc: "웹 영상 자막 (HTML5)",
+  saveFormatAssDesc: "노래방 영상 자막 (글자 동기화 \\k)",
   undo: "실행 취소",
   redo: "다시 실행",
   helpTitle: "도움말",
@@ -433,6 +457,26 @@ const ko: Translations = {
     previewTitle: "가사 미리보기",
     close: "닫기",
   },
+  lrclibPublish: {
+    button: "LRCLIB에 업로드",
+    title: "LRCLIB에 가사 기여",
+    duration: "길이",
+    syncedLines: "동기화 줄",
+    missing: "업로드하려면 다음이 필요합니다:",
+    needTitle: "제목",
+    needArtist: "아티스트",
+    needDuration: "오디오 길이(오디오를 열어주세요)",
+    needSync: "타임스탬프가 있는 동기화 가사",
+    hint: "현재 곡 정보·동기화 가사를 LRCLIB에 공개 기여합니다. 정확한 제목·아티스트·길이를 확인하세요.",
+    warning: "LRCLIB는 누구나 볼 수 있는 공개 데이터베이스입니다. 부정확하거나 테스트용 가사를 올리면 다른 사용자에게 영향을 주며 되돌리기 어렵습니다. 제목·아티스트·가사가 정확한지 다시 확인하셨나요?",
+    confirm: "확인했으며 업로드",
+    publish: "업로드",
+    publishing: "업로드 중… (작업 증명 계산, 수 초 소요)",
+    success: "업로드 완료! 기여해 주셔서 감사합니다.",
+    failed: "업로드 실패",
+    close: "닫기",
+    cancel: "취소",
+  },
   helpAiSteps: [
     { title: "Python 환경 설치", desc: "설정(⚙) → AI 환경 탭에서 내장 Python을 다운로드하고 패키지를 설치합니다." },
     { title: "모델 다운로드", desc: "설정 → AI 모델 탭에서 필수 모델 ctc-mms-300m(1.2 GB)을 다운로드합니다." },
@@ -504,7 +548,7 @@ const ko: Translations = {
   metaBy: { label: "작성자 (by)", placeholder: "LRC 작성자" },
   metaOffset: "오프셋 ms (offset)",
   metaOffsetShort: "오프셋",
-  applyOffset: "입력",
+  applyOffset: "적용",
   applyOffsetTooltip: "모든 타임스탬프에 오프셋을 더한 후 오프셋을 0으로 초기화합니다",
   viewAll: "전체보기",
   importSrt: "SRT 가져오기",
@@ -668,6 +712,8 @@ const en: Translations = {
   saveFormatLrcEnhancedDesc: "Includes word/character sync tags",
   saveFormatLrcPlain: "Plain LRC",
   saveFormatLrcPlainDesc: "Line-level only · wider compatibility",
+  saveFormatVttDesc: "Web video captions (HTML5)",
+  saveFormatAssDesc: "Karaoke video subtitle (per-glyph \\k)",
   undo: "Undo",
   redo: "Redo",
   helpTitle: "Help",
@@ -779,6 +825,26 @@ const en: Translations = {
     plain: "Plain",
     previewTitle: "Lyrics preview",
     close: "Close",
+  },
+  lrclibPublish: {
+    button: "Publish to LRCLIB",
+    title: "Contribute lyrics to LRCLIB",
+    duration: "Duration",
+    syncedLines: "Synced lines",
+    missing: "To publish, you need:",
+    needTitle: "Title",
+    needArtist: "Artist",
+    needDuration: "Audio duration (open an audio file)",
+    needSync: "Synced lyrics with timestamps",
+    hint: "Publicly contribute the current song info and synced lyrics to LRCLIB. Double-check the title, artist, and duration.",
+    warning: "LRCLIB is a public database visible to everyone. Uploading inaccurate or test lyrics affects other users and is hard to undo. Have you double-checked the title, artist, and lyrics?",
+    confirm: "I've checked — upload",
+    publish: "Publish",
+    publishing: "Publishing… (computing proof-of-work, a few seconds)",
+    success: "Published! Thanks for contributing.",
+    failed: "Publish failed",
+    close: "Close",
+    cancel: "Cancel",
   },
   helpAiSteps: [
     { title: "Install Python Environment", desc: "Go to Settings(⚙) → AI Environment tab to download the bundled Python and install packages." },
@@ -1016,6 +1082,8 @@ const ja: Translations = {
   saveFormatLrcEnhancedDesc: "文字/単語同期タグを含む",
   saveFormatLrcPlain: "通常 LRC",
   saveFormatLrcPlainDesc: "行単位のみ · 互換性が高い",
+  saveFormatVttDesc: "Web動画字幕 (HTML5)",
+  saveFormatAssDesc: "カラオケ動画字幕 (文字同期 \\k)",
   undo: "元に戻す",
   redo: "やり直す",
   helpTitle: "ヘルプ",
@@ -1128,6 +1196,26 @@ const ja: Translations = {
     previewTitle: "歌詞プレビュー",
     close: "閉じる",
   },
+  lrclibPublish: {
+    button: "LRCLIBに公開",
+    title: "LRCLIBに歌詞を貢献",
+    duration: "長さ",
+    syncedLines: "同期行",
+    missing: "公開するには以下が必要です：",
+    needTitle: "タイトル",
+    needArtist: "アーティスト",
+    needDuration: "音声の長さ（音声を開いてください）",
+    needSync: "タイムスタンプ付きの同期歌詞",
+    hint: "現在の曲情報・同期歌詞をLRCLIBに公開貢献します。タイトル・アーティスト・長さを確認してください。",
+    warning: "LRCLIBは誰でも閲覧できる公開データベースです。不正確またはテスト用の歌詞を投稿すると他のユーザーに影響し、取り消しが困難です。タイトル・アーティスト・歌詞を再確認しましたか？",
+    confirm: "確認のうえ公開",
+    publish: "公開",
+    publishing: "公開中…（証明計算、数秒かかります）",
+    success: "公開しました！ご貢献ありがとうございます。",
+    failed: "公開に失敗しました",
+    close: "閉じる",
+    cancel: "キャンセル",
+  },
   helpAiSteps: [
     { title: "Python環境のインストール", desc: "設定(⚙) → AI環境タブで内蔵Pythonをダウンロードし、パッケージをインストールします。" },
     { title: "モデルのダウンロード", desc: "設定 → AIモデルタブで必須モデル ctc-mms-300m（1.2 GB）をダウンロードします。" },
@@ -1199,7 +1287,7 @@ const ja: Translations = {
   metaBy: { label: "作成者 (by)", placeholder: "LRC作成者" },
   metaOffset: "オフセット ms (offset)",
   metaOffsetShort: "オフセット",
-  applyOffset: "入力",
+  applyOffset: "適用",
   applyOffsetTooltip: "全タイムスタンプにオフセットを加算し、オフセットを0にリセットします",
   viewAll: "全体表示",
   importSrt: "SRT読み込み",

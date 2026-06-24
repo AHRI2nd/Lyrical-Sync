@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
+import { safeUnlisten } from "../../utils/safeUnlisten";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 
@@ -81,12 +82,12 @@ export function YtdlpSection() {
       }
     ).then((fn) => {
       unlisten = fn;
-      if (!active) fn(); // already unmounted before listen resolved
+      if (!active) safeUnlisten(fn); // already unmounted before listen resolved
     }).catch(() => {});
 
     return () => {
       active = false;
-      unlisten?.();
+      safeUnlisten(unlisten);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
