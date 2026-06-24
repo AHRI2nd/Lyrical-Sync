@@ -3,7 +3,6 @@ import { LrcDocument, LrcLine, LrcMetadata, LrcSyllable, defaultDocument } from 
 import { parseLrc, serializeLrc, type SyncUnit } from "../utils/lrcParser";
 import { serializeSrt, parseSrt } from "../utils/srtConverter";
 import { serializeVtt, serializeAss } from "../utils/exportFormats";
-import { useSettingsStore } from "./useSettingsStore";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
@@ -101,7 +100,8 @@ function serializeForPath(path: string, doc: LrcDocument, duration: number): str
   if (p.endsWith(".srt")) return serializeSrt(doc, end);
   if (p.endsWith(".vtt")) return serializeVtt(doc, end);
   if (p.endsWith(".ass")) return serializeAss(doc, end);
-  return serializeLrc(doc, useSettingsStore.getState().exportEnhancedLrc);
+  // 글자/단어 동기화가 있으면 보존(자동 E-LRC), 없으면 일반 LRC로 출력
+  return serializeLrc(doc, true);
 }
 
 const MAX_HISTORY = 50;
@@ -423,12 +423,11 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     });
     if (path) {
       const end = duration > 0 ? duration : undefined;
-      const useEnhanced = enhanced ?? useSettingsStore.getState().exportEnhancedLrc;
       const content =
         format === "srt" ? serializeSrt(doc, end)
         : format === "vtt" ? serializeVtt(doc, end)
         : format === "ass" ? serializeAss(doc, end)
-        : serializeLrc(doc, useEnhanced);
+        : serializeLrc(doc, enhanced ?? true);
       await invoke("write_lrc_file", { path, content });
       // 보조 포맷 저장 시엔 작업 파일 경로(lrcPath)·dirty 상태를 바꾸지 않음
       if (format === "lrc" || format === "srt") set({ lrcPath: path, isDirty: false });

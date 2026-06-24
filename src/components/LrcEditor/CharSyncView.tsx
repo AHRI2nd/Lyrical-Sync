@@ -5,6 +5,7 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { tokenizeText, isStampable, formatTimestamp, clampToNeighbors } from "../../utils/lrcParser";
 import { anyModalOpen } from "../../utils/modalGuard";
+import { matchAction, normalizeKeybindings } from "../../utils/keybindings";
 import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
 import type { LrcLine, LrcSyllable } from "../../types/lrc";
@@ -238,7 +239,7 @@ export function CharSyncView() {
     ctrl.seekTo(nt);
   };
 
-  // Space=찍기, Backspace/←→=이동
+  // ←→=글자 이동(Shift=미세조정, 고정) · stamp/prevLine=사용자 단축키
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const inInput =
@@ -246,25 +247,17 @@ export function CharSyncView() {
       if (inInput) return;
       // 모달이 열려 있으면 글자 모드 키가 모달 뒤에서 동작하지 않게 차단
       if (anyModalOpen()) return;
-      if (e.code === "Space") {
-        e.preventDefault();
-        stampActive();
-      } else if (e.code === "ArrowLeft" && e.shiftKey) {
-        e.preventDefault();
-        nudge(-0.05);
-      } else if (e.code === "ArrowRight" && e.shiftKey) {
-        e.preventDefault();
-        nudge(0.05);
-      } else if (e.code === "Backspace") {
-        e.preventDefault();
-        moveActive(-1);
-      } else if (e.code === "ArrowLeft") {
-        e.preventDefault();
-        moveActive(-1);
-      } else if (e.code === "ArrowRight") {
-        e.preventDefault();
-        moveActive(1);
-      }
+      // 글자 이동/미세조정(고정)
+      if (e.code === "ArrowLeft" && e.shiftKey) { e.preventDefault(); nudge(-0.05); return; }
+      if (e.code === "ArrowRight" && e.shiftKey) { e.preventDefault(); nudge(0.05); return; }
+      if (e.code === "ArrowLeft") { e.preventDefault(); moveActive(-1); return; }
+      if (e.code === "ArrowRight") { e.preventDefault(); moveActive(1); return; }
+      // 사용자 단축키(stamp/prevLine). 수식자 조합 제외.
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const kb = normalizeKeybindings(useSettingsStore.getState().keybindings);
+      const action = matchAction(e.code, kb);
+      if (action === "stamp") { e.preventDefault(); stampActive(); }
+      else if (action === "prevLine") { e.preventDefault(); moveActive(-1); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
