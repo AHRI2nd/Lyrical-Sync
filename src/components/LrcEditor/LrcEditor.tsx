@@ -270,6 +270,16 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     return () => document.removeEventListener("mousedown", h);
   }, [showTools]);
 
+  const handleAddLine = useCallback(() => {
+    addLine();
+    const allLines = useLrcStore.getState().doc.lines;
+    const lastId = allLines[allLines.length - 1]?.id;
+    if (lastId) {
+      setActiveLineId(lastId);
+      pendingFocusId.current = lastId;
+    }
+  }, [addLine, setActiveLineId]);
+
   const handleFRClose = useCallback(() => {
     setShowFR(false);
     setMatchPos(0);
@@ -470,15 +480,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           </button>
           {!charMode && (
           <button
-            onClick={() => {
-              addLine();
-              const allLines = useLrcStore.getState().doc.lines;
-              const lastId = allLines[allLines.length - 1]?.id;
-              if (lastId) {
-                setActiveLineId(lastId);
-                pendingFocusId.current = lastId;
-              }
-            }}
+            onClick={handleAddLine}
             className="px-3 py-1 text-xs rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
           >
             {t.addLine}
@@ -530,9 +532,15 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
         />
       )}
 
-      <div className="flex-1 overflow-y-auto flex flex-col gap-1 px-1 py-1">
+      <div
+        className="flex-1 overflow-y-auto flex flex-col gap-1 px-1 py-1"
+        onDoubleClick={(e) => { if (e.target === e.currentTarget) handleAddLine(); }}
+      >
         {lines.length === 0 && (
-          <p className="text-zinc-500 text-sm text-center py-8">{t.noLines}</p>
+          <p
+            className="text-zinc-500 text-sm text-center py-8 cursor-pointer"
+            onDoubleClick={handleAddLine}
+          >{t.noLines}</p>
         )}
         {lines.map((line, idx) => {
           const isActive = line.id === activeLineId;
