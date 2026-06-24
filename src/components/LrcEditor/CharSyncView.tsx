@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -11,6 +11,16 @@ import type { LrcLine, LrcSyllable } from "../../types/lrc";
 
 // 줄 타임스탬프가 없을 때 글자를 펼칠 기본 시간 창(초)
 const DEFAULT_SPAN = 8;
+
+// 찍힌 글자 아래 시간 마커(점선+시각) 레이아웃
+const MARK_STEP = 13;        // 단계당 점선 길이 증가(px)
+const MARK_LEVELS = 5;       // 라벨을 배치할 최대 단계 수
+const MARK_GAP = 8;          // 라벨 간 최소 간격(px)
+const MARK_LABEL_H = 14;     // 라벨 높이(px)
+const MARK_TICK = 5;         // 라벨 없는(겹쳐서 생략된) 글자의 짧은 틱 길이(px)
+
+// label=false: 라벨 들어갈 자리가 없어 틱만 표시
+type TimeMark = { index: number; x: number; level: number; time: string; label: boolean };
 
 type LineState = "none" | "partial" | "done";
 
@@ -105,6 +115,52 @@ export function CharSyncView() {
     }
     return idx;
   }, [syllables, currentTime, winStart, winEnd]);
+
+  // 찍힌 글자 아래 시간 마커(점선+시각). 글자 위치·라벨 폭을 측정해 겹치지 않게 배치.
+  const textRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLSpanElement>(null);
+  const [marks, setMarks] = useState<TimeMark[]>([]);
+  const [marksHeight, setMarksHeight] = useState(0);
+  const [measureKey, setMeasureKey] = useState(0);
+
+  useEffect(() => {
+    const onResize = () => setMeasureKey((k) => k + 1);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  useLayoutEffect(() => {
+    const root = textRef.current;
+    if (!root) { setMarks([]); setMarksHeight(0); return; }
+    // 실제 라벨 폭 측정(폰트 의존). 실패 시 보수적 기본값.
+    const labelW = (measureRef.current?.offsetWidth ?? 56) + MARK_GAP;
+    const levelRight: number[] = []; // 단계별 마지막 라벨 우측 끝
+    const out: TimeMark[] = [];
+    let maxLabelLevel = 0;
+    for (let i = 0; i < syllables.length; i++) {
+      const s = syllables[i];
+      if (s.time === null || !isStampable(s)) continue;
+      const el = root.querySelector<HTMLElement>(`[data-glyph="${i}"]`);
+      if (!el) continue;
+      const cx = el.offsetLeft + el.offsetWidth / 2;
+      const left = cx - labelW / 2;
+      const right = cx + labelW / 2;
+      // 겹치지 않는 가장 낮은 단계 찾기. 없으면 라벨 생략(틱만) → 겹침 0 보장.
+      let level = -1;
+      for (let L = 0; L < MARK_LEVELS; L++) {
+        if (levelRight[L] === undefined || levelRight[L] <= left) { level = L; break; }
+      }
+      const hasLabel = level !== -1;
+      if (hasLabel) {
+        levelRight[level] = right;
+        maxLabelLevel = Math.max(maxLabelLevel, level);
+      }
+      out.push({ index: i, x: cx, level: hasLabel ? level : 0, time: formatTimestamp(s.time), label: hasLabel });
+    }
+    const anyLabel = out.some((m) => m.label);
+    setMarks(out);
+    setMarksHeight(out.length ? (anyLabel ? maxLabelLevel * MARK_STEP + MARK_LABEL_H + 6 : MARK_TICK + 4) : 0);
+  }, [syllables, activeLineId, syncUnit, measureKey]);
 
   // 활성 줄이 바뀌면 활성 글자를 첫 미입력(없으면 첫 글자)으로
   useEffect(() => {
@@ -387,10 +443,12 @@ export function CharSyncView() {
       <div className="flex-1 min-h-0 overflow-y-auto">
       <p className="text-xs text-zinc-500 mb-2 px-1">{t.charSync.hint}</p>
 
-      {/* 활성 줄 — 한 줄 흐름 텍스트 */}
+      {/* 활성 줄 — 한 줄 흐름 텍스트 + 글자별 시간 마커 (가로 스크롤) */}
+      <div className="overflow-x-auto mb-3">
+      <div ref={textRef} className="relative inline-block" style={{ minWidth: "100%" }}>
       <div
-        className="text-3xl leading-relaxed mb-3 px-1 select-none"
-        style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+        className="text-3xl leading-relaxed select-none"
+        style={{ whiteSpace: "pre" }}
       >
         {syllables.map((s, i) => {
           if (!isStampable(s)) return <span key={i}>{s.text}</span>;
@@ -425,6 +483,41 @@ export function CharSyncView() {
         >
           ↵
         </span>
+      </div>
+
+      {/* 글자별 시간 마커: 점선 + 싱크 시각. 겹치면 단계적으로 내리고, 자리가 없으면 라벨 생략(틱만) */}
+      {marksHeight > 0 && (
+        <div className="relative pointer-events-none" style={{ height: marksHeight }}>
+          {marks.map((m) => (
+            <div key={m.index} className="absolute top-0" style={{ left: m.x }}>
+              <div
+                className={`absolute top-0 border-l border-dashed ${m.label ? "border-indigo-400/70" : "border-indigo-400/35"}`}
+                style={{ height: m.label ? m.level * MARK_STEP + 4 : MARK_TICK }}
+              />
+              {m.label && (
+                <div
+                  className="absolute font-mono text-[10px] text-indigo-300 whitespace-nowrap"
+                  style={{ top: m.level * MARK_STEP + 4, transform: "translateX(-50%)" }}
+                >
+                  {m.time}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 라벨 폭 측정용(숨김) */}
+      <span
+        ref={measureRef}
+        aria-hidden
+        className="font-mono text-[10px] whitespace-nowrap"
+        style={{ position: "absolute", visibility: "hidden", left: -9999, top: 0 }}
+      >
+        00:00.00
+      </span>
+
+      </div>
       </div>
 
       {/* 현재 글자 readout + 레인 줌 */}
