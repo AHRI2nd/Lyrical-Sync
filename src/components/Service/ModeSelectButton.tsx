@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { safeUnlisten } from "../../utils/safeUnlisten";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { useI18nStore } from "../../stores/useI18nStore";
@@ -34,8 +35,8 @@ export function ModeSelectButton() {
     let unlisten: (() => void) | null = null;
     listen<{ done: boolean }>("ytdlp-install-progress", (e) => {
       if (active && e.payload.done) checkYtdlp();
-    }).then((fn) => { unlisten = fn; if (!active) fn(); });
-    return () => { active = false; unlisten?.(); };
+    }).then((fn) => { unlisten = fn; if (!active) safeUnlisten(fn); }).catch(() => {});
+    return () => { active = false; safeUnlisten(unlisten); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {

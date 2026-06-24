@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { safeUnlisten } from "../../utils/safeUnlisten";
 import { type Translations } from "../../i18n/translations";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -190,7 +191,7 @@ export function ModelDownloadSection() {
         };
       });
     }).then((fn) => { unlistenRef.current = fn; }).catch(() => {});
-    return () => { unlistenRef.current?.(); };
+    return () => { safeUnlisten(unlistenRef.current); };
   }, []);
 
   const handleInstall = async (model: ModelDef) => {

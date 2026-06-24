@@ -14,6 +14,7 @@ import { useServiceStore } from "./stores/useServiceStore";
 import { audioControls } from "./utils/audioControls";
 import { serviceControls } from "./utils/serviceControls";
 import { anyModalOpen } from "./utils/modalGuard";
+import { safeUnlisten } from "./utils/safeUnlisten";
 import { initSpotifyPlayer } from "./utils/spotifyPlayer";
 import { type Lang } from "./i18n/translations";
 import { checkForUpdate, RELEASES_URL } from "./utils/updateCheck";
@@ -199,12 +200,12 @@ function App() {
         // OAuth failed — user can retry from settings
       }
     }).then((fn) => {
-      if (cancelled) fn();
+      if (cancelled) safeUnlisten(fn);
       else unlistenFn = fn;
     }).catch(() => {});
     return () => {
       cancelled = true;
-      unlistenFn?.();
+      safeUnlisten(unlistenFn);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -272,9 +273,9 @@ function App() {
           applyDrop({ audio, lyrics });
         }
       })
-      .then((fn) => { if (cancelled) fn(); else unlisten = fn; })
+      .then((fn) => { if (cancelled) safeUnlisten(fn); else unlisten = fn; })
       .catch(() => {});
-    return () => { cancelled = true; unlisten?.(); };
+    return () => { cancelled = true; safeUnlisten(unlisten); };
   }, []);
 
   // yt-dlp 설치 여부 (모드 메뉴의 YouTube 활성화 판단)
@@ -288,8 +289,8 @@ function App() {
     let unlisten: (() => void) | null = null;
     listen<{ done: boolean }>("ytdlp-install-progress", (e) => {
       if (active && e.payload.done) check();
-    }).then((fn) => { unlisten = fn; if (!active) fn(); }).catch(() => {});
-    return () => { active = false; unlisten?.(); };
+    }).then((fn) => { unlisten = fn; if (!active) safeUnlisten(fn); }).catch(() => {});
+    return () => { active = false; safeUnlisten(unlisten); };
   }, []);
 
   // 모드 전환 (ModeSelectButton과 동일한 동작 — 전환 시 재생 정지)
@@ -749,7 +750,7 @@ function SaveFormatModal({
   hasGlyphSync, onSelect, onCancel,
 }: {
   hasGlyphSync: boolean;
-  onSelect: (format: "lrc" | "srt", enhanced?: boolean) => void;
+  onSelect: (format: "lrc" | "srt" | "vtt" | "ass", enhanced?: boolean) => void;
   onCancel: () => void;
 }) {
   const { t } = useI18nStore();
@@ -798,6 +799,14 @@ function SaveFormatModal({
           <button onClick={() => onSelect("srt")} className={optClass}>
             <span className="text-sm font-semibold text-white">SubRip <span className="text-zinc-500 font-normal">(.srt)</span></span>
             <span className="text-xs text-zinc-400">{t.saveFormatSrtDesc}</span>
+          </button>
+          <button onClick={() => onSelect("vtt")} className={optClass}>
+            <span className="text-sm font-semibold text-white">WebVTT <span className="text-zinc-500 font-normal">(.vtt)</span></span>
+            <span className="text-xs text-zinc-400">{t.saveFormatVttDesc}</span>
+          </button>
+          <button onClick={() => onSelect("ass")} className={optClass}>
+            <span className="text-sm font-semibold text-white">ASS <span className="text-zinc-500 font-normal">(.ass)</span></span>
+            <span className="text-xs text-zinc-400">{t.saveFormatAssDesc}</span>
           </button>
         </div>
         <div className="flex justify-end px-5 pb-4">

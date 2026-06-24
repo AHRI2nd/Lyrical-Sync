@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { LrcDocument, LrcLine, LrcMetadata, LrcSyllable, defaultDocument } from "../types/lrc";
 import { parseLrc, serializeLrc, type SyncUnit } from "../utils/lrcParser";
 import { serializeSrt, parseSrt } from "../utils/srtConverter";
+import { serializeVtt, serializeAss } from "../utils/exportFormats";
 import { useSettingsStore } from "./useSettingsStore";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -73,7 +74,7 @@ interface LrcStore {
   applyFetchedLyrics: (lrcText: string, meta?: { title: string; artist: string; album: string }) => void;
   saveLrc: () => Promise<void>;
   // enhanced: 이번 저장에만 적용하는 일회성 override(미지정 시 exportEnhancedLrc 설정 사용)
-  saveLrcAs: (format: "lrc" | "srt", enhanced?: boolean) => Promise<void>;
+  saveLrcAs: (format: "lrc" | "srt" | "vtt" | "ass", enhanced?: boolean) => Promise<void>;
   newLrc: () => void;
   replaceInLines: (find: string, replace: string, caseSensitive: boolean) => number;
   shiftTimeRange: (fromIdx: number, toIdx: number, deltaSeconds: number) => void;
@@ -95,9 +96,11 @@ const genId = () => String(nextId++);
 
 // 저장 경로의 확장자에 따라 LRC 또는 SRT로 직렬화
 function serializeForPath(path: string, doc: LrcDocument, duration: number): string {
-  if (path.toLowerCase().endsWith(".srt")) {
-    return serializeSrt(doc, duration > 0 ? duration : undefined);
-  }
+  const p = path.toLowerCase();
+  const end = duration > 0 ? duration : undefined;
+  if (p.endsWith(".srt")) return serializeSrt(doc, end);
+  if (p.endsWith(".vtt")) return serializeVtt(doc, end);
+  if (p.endsWith(".ass")) return serializeAss(doc, end);
   return serializeLrc(doc, useSettingsStore.getState().exportEnhancedLrc);
 }
 
@@ -408,19 +411,27 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
 
   saveLrcAs: async (format, enhanced) => {
     const { doc, duration } = get();
+    const FILTERS: Record<string, { name: string; extensions: string[] }> = {
+      lrc: { name: "LRC", extensions: ["lrc"] },
+      srt: { name: "SubRip", extensions: ["srt"] },
+      vtt: { name: "WebVTT", extensions: ["vtt"] },
+      ass: { name: "Advanced SubStation Alpha", extensions: ["ass"] },
+    };
     const path = await save({
-      filters: format === "srt"
-        ? [{ name: "SubRip", extensions: ["srt"] }]
-        : [{ name: "LRC", extensions: ["lrc"] }],
+      filters: [FILTERS[format]],
       defaultPath: doc.metadata.title || "untitled",
     });
     if (path) {
+      const end = duration > 0 ? duration : undefined;
       const useEnhanced = enhanced ?? useSettingsStore.getState().exportEnhancedLrc;
-      const content = format === "srt"
-        ? serializeSrt(doc, duration > 0 ? duration : undefined)
+      const content =
+        format === "srt" ? serializeSrt(doc, end)
+        : format === "vtt" ? serializeVtt(doc, end)
+        : format === "ass" ? serializeAss(doc, end)
         : serializeLrc(doc, useEnhanced);
       await invoke("write_lrc_file", { path, content });
-      set({ lrcPath: path, isDirty: false });
+      // 보조 포맷 저장 시엔 작업 파일 경로(lrcPath)·dirty 상태를 바꾸지 않음
+      if (format === "lrc" || format === "srt") set({ lrcPath: path, isDirty: false });
     }
   },
 

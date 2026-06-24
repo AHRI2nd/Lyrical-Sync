@@ -10,6 +10,7 @@ import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
 import { MODEL_DEFS } from "../../utils/modelDefs";
 import { CharSyncView } from "./CharSyncView";
+import { safeUnlisten } from "../../utils/safeUnlisten";
 
 // ISO 639-3 codes used by ctc-forced-aligner / MMS model
 const LANG_CODE: Record<string, string> = { ko: "kor", en: "eng", ja: "jpn" };
@@ -163,7 +164,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
         if (e.payload.done) checkAiRequirements();
       }).then((fn) => { unlistenPip = fn; }).catch(() => {});
     });
-    return () => { unlistenModel?.(); unlistenPip?.(); };
+    return () => { safeUnlisten(unlistenModel); safeUnlisten(unlistenPip); };
   }, [checkAiRequirements]);
 
   const canRunAi = pythonReady && missingModels.length === 0;

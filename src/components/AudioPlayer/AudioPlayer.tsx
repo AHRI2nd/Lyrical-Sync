@@ -12,6 +12,7 @@ import { useServiceStore } from "../../stores/useServiceStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { audioControls } from "../../utils/audioControls";
 import { activateSpotifyPlayer } from "../../utils/spotifyPlayer";
+import { safeUnlisten } from "../../utils/safeUnlisten";
 import { formatDisplayTime } from "../../utils/lrcParser";
 import { ServicePlayerPanel } from "../Service/ServicePlayerPanel";
 
@@ -91,8 +92,8 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       (e) => {
         if (e.payload.done) setYtLoading(false);
       }
-    ).then((fn) => { unlisten = fn; });
-    return () => { unlisten?.(); };
+    ).then((fn) => { unlisten = fn; }).catch(() => {});
+    return () => { safeUnlisten(unlisten); };
   }, []);
 
   const handleYtLoad = async () => {
