@@ -24,8 +24,8 @@ export function SettingsModal({
 }) {
   const { t, lang } = useI18nStore();
   const {
-    autoCheckUpdate, autoSave, uiScale, blankLineOffset, showElrcSaveNotice, spotifyClientId, spotifyMode,
-    setAutoCheckUpdate, setAutoSave, setUiScale, setBlankLineOffset, setShowElrcSaveNotice, setSpotifyClientId, setSpotifyMode,
+    autoCheckUpdate, autoSave, uiScale, blankLineOffset, showElrcSaveNotice, lyricsFontScale, showGlyphTimeMarkers, spotifyClientId, spotifyMode,
+    setAutoCheckUpdate, setAutoSave, setUiScale, setBlankLineOffset, setShowElrcSaveNotice, setLyricsFontScale, setShowGlyphTimeMarkers, setSpotifyClientId, setSpotifyMode,
   } = useSettingsStore();
 
   const guideSuffix = lang === "ko" ? "ko" : lang === "ja" ? "ja" : "en";
@@ -249,6 +249,63 @@ export function SettingsModal({
                   <span>100%</span>
                   <span>130%</span>
                 </div>
+              </div>
+
+              <div className="border-t border-zinc-800" />
+
+              {/* Lyrics font size */}
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-zinc-200">{t.settingsLyricsFontSize}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm tabular-nums text-zinc-300 w-10 text-right">
+                      {Math.round(lyricsFontScale * 100)}%
+                    </span>
+                    <button
+                      onClick={() => setLyricsFontScale(1.0)}
+                      disabled={lyricsFontScale === 1.0}
+                      className="px-2 py-0.5 text-xs rounded text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {t.settingsUiScaleReset}
+                    </button>
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  min={0.8}
+                  max={1.5}
+                  step={0.05}
+                  value={lyricsFontScale}
+                  onChange={(e) => setLyricsFontScale(Number(e.target.value))}
+                  className="range-slim w-full"
+                  style={{ background: `linear-gradient(to right, #6366f1 ${Math.round(((lyricsFontScale - 0.8) / 0.7) * 100)}%, #3f3f46 ${Math.round(((lyricsFontScale - 0.8) / 0.7) * 100)}%)` }}
+                />
+              </div>
+
+              <div className="border-t border-zinc-800" />
+
+              {/* Glyph time markers */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-zinc-200">{t.settingsGlyphMarkers}</span>
+                  <button
+                    onClick={() => setShowGlyphTimeMarkers(!showGlyphTimeMarkers)}
+                    className={[
+                      "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
+                      showGlyphTimeMarkers ? "bg-indigo-600" : "bg-zinc-600",
+                    ].join(" ")}
+                    role="switch"
+                    aria-checked={showGlyphTimeMarkers}
+                  >
+                    <span
+                      className={[
+                        "absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                        showGlyphTimeMarkers ? "translate-x-[22px]" : "translate-x-0.5",
+                      ].join(" ")}
+                    />
+                  </button>
+                </div>
+                <p className="text-xs text-zinc-500">{t.settingsGlyphMarkersDesc}</p>
               </div>
             </div>
           )}

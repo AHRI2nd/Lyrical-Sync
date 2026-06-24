@@ -71,9 +71,10 @@ interface LrcStore {
   openLrc: () => Promise<void>;
   loadLyricsPath: (path: string) => Promise<void>;
   applyFetchedLyrics: (lrcText: string, meta?: { title: string; artist: string; album: string }) => void;
-  saveLrc: () => Promise<void>;
-  // enhanced: 이번 저장에만 적용하는 일회성 override(미지정 시 exportEnhancedLrc 설정 사용)
-  saveLrcAs: (format: "lrc" | "srt" | "vtt" | "ass", enhanced?: boolean) => Promise<void>;
+  // 반환값: 실제로 파일을 썼으면 true, 사용자가 저장 다이얼로그를 취소하면 false
+  saveLrc: () => Promise<boolean>;
+  // enhanced: 이번 저장에만 적용하는 일회성 override(미지정 시 글자 데이터 있으면 E-LRC)
+  saveLrcAs: (format: "lrc" | "srt" | "vtt" | "ass", enhanced?: boolean) => Promise<boolean>;
   newLrc: () => void;
   replaceInLines: (find: string, replace: string, caseSensitive: boolean) => number;
   shiftTimeRange: (fromIdx: number, toIdx: number, deltaSeconds: number) => void;
@@ -404,9 +405,10 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
 
   saveLrc: async () => {
     const { lrcPath, doc, duration } = get();
-    if (!lrcPath) { await get().saveLrcAs("lrc"); return; }
+    if (!lrcPath) return get().saveLrcAs("lrc");
     await invoke("write_lrc_file", { path: lrcPath, content: serializeForPath(lrcPath, doc, duration) });
     set({ isDirty: false });
+    return true;
   },
 
   saveLrcAs: async (format, enhanced) => {
@@ -431,7 +433,9 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
       await invoke("write_lrc_file", { path, content });
       // 보조 포맷 저장 시엔 작업 파일 경로(lrcPath)·dirty 상태를 바꾸지 않음
       if (format === "lrc" || format === "srt") set({ lrcPath: path, isDirty: false });
+      return true;
     }
+    return false; // 사용자가 저장 다이얼로그 취소
   },
 
   newLrc: () =>
