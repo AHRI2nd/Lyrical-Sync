@@ -15,6 +15,7 @@ import { audioControls } from "./utils/audioControls";
 import { serviceControls } from "./utils/serviceControls";
 import { anyModalOpen } from "./utils/modalGuard";
 import { safeUnlisten } from "./utils/safeUnlisten";
+import { matchAction, normalizeKeybindings, keyLabel, PLAYBACK_ACTIONS } from "./utils/keybindings";
 import { initSpotifyPlayer } from "./utils/spotifyPlayer";
 import { type Lang } from "./i18n/translations";
 import { checkForUpdate, RELEASES_URL } from "./utils/updateCheck";
@@ -39,17 +40,20 @@ function useGlobalKeys() {
     }))
   );
   const syncMode = useLrcStore((s) => s.syncMode);
+  const keybindings = useSettingsStore((s) => s.keybindings);
   const isLoggedInForKeys = useServiceStore((s) => s.isLoggedIn);
   const spotifyModeForKeys = useSettingsStore((s) => s.spotifyMode);
   const isServiceMode = isLoggedInForKeys && spotifyModeForKeys;
 
   useEffect(() => {
     const controls = isServiceMode ? serviceControls : audioControls;
+    const kb = normalizeKeybindings(keybindings);
     const handler = (e: KeyboardEvent) => {
       const inInput =
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement;
 
+      // Cmd/Ctrl+Z 실행취소/다시실행 (재설정 불가, 예약)
       const isMod = e.ctrlKey || e.metaKey;
       if (isMod && e.code === "KeyZ") {
         if (inInput || anyModalOpen()) return;
@@ -58,52 +62,36 @@ function useGlobalKeys() {
         else undo();
         return;
       }
-
+      // 수식자 조합은 사용자 단축키 대상 아님
       if (e.ctrlKey || e.altKey || e.metaKey) return;
 
-      const digitMap: Record<string, number> = {
-        Digit1: 1, Numpad1: 1,
-        Digit2: 2, Numpad2: 2,
-        Digit3: 3, Numpad3: 3,
-        Digit4: 4, Numpad4: 4,
-        Digit5: 5, Numpad5: 5,
-        Digit6: 6, Numpad6: 6,
-      };
-      const digit = digitMap[e.code];
+      const action = matchAction(e.code, kb);
+      if (!action || inInput) return;
 
-      if (digit && !inInput) {
+      // 재생 트랜스포트: 줄/글자 모드 공통(모달 열려도 미디어 제어 허용)
+      if (PLAYBACK_ACTIONS.includes(action)) {
         e.preventDefault();
-        if (digit === 1) controls.skip(-5);
-        else if (digit === 2) controls.skip(-1);
-        else if (digit === 3) controls.togglePlay();
-        else if (digit === 4) controls.skip(1);
-        else if (digit === 5) controls.skip(5);
-        else if (digit === 6) controls.stopAndReset();
+        if (action === "skipBack5") controls.skip(-5);
+        else if (action === "skipBack1") controls.skip(-1);
+        else if (action === "playPause") controls.togglePlay();
+        else if (action === "skipFwd1") controls.skip(1);
+        else if (action === "skipFwd5") controls.skip(5);
+        else if (action === "stop") controls.stopAndReset();
         return;
       }
 
-      // 글자 동기화 모드에서는 Space/Backspace를 CharSyncView가 처리
-      if ((e.code === "Space" || e.code === "Backspace") && syncMode === "char") return;
-
-      // 모달이 열려 있으면 편집 키(스탬프/줄 이동)가 모달 뒤에서 동작하지 않게 차단
-      if ((e.code === "Space" || e.code === "Backspace") && anyModalOpen()) return;
-
-      if (e.code === "Space" && !inInput) {
+      // stamp/prevLine: 글자 모드에선 CharSyncView가 처리, 모달 뒤에선 차단
+      if (action === "stamp" || action === "prevLine") {
+        if (syncMode === "char" || anyModalOpen()) return;
         e.preventDefault();
-        stampAndAdvance();
-        return;
-      }
-
-      if (e.code === "Backspace" && !inInput) {
-        e.preventDefault();
-        goToPreviousLine();
-        return;
+        if (action === "stamp") stampAndAdvance();
+        else goToPreviousLine();
       }
     };
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [stampAndAdvance, goToPreviousLine, undo, redo, isServiceMode, syncMode]);
+  }, [stampAndAdvance, goToPreviousLine, undo, redo, isServiceMode, syncMode, keybindings]);
 }
 
 // 저장 경로(lrcPath)가 지정된 파일에 한해, 변경 후 일정 시간 멈추면 자동 저장.
@@ -160,6 +148,8 @@ function App() {
   const [settingsInitialTab, setSettingsInitialTab] = useState<"general" | "models" | "spotify" | "youtube">("general");
   const [showNewConfirm, setShowNewConfirm] = useState(false);
   const [showFormatChooser, setShowFormatChooser] = useState(false);
+  const [showElrcNotice, setShowElrcNotice] = useState(false);
+  const pendingSaveRef = useRef<(() => void) | null>(null);
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const [showSpotifySearch, setShowSpotifySearch] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -176,7 +166,7 @@ function App() {
   );
   const hasGlyphSync = useLrcStore((s) => s.doc.lines.some((l) => l.syllables?.some((sy) => sy.time !== null)));
   const { t } = useI18nStore();
-  const { autoCheckUpdate, uiScale, spotifyMode, youtubeMode, setSpotifyMode, setYoutubeMode } = useSettingsStore();
+  const { autoCheckUpdate, uiScale, spotifyMode, youtubeMode, setSpotifyMode, setYoutubeMode, showElrcSaveNotice, setShowElrcSaveNotice } = useSettingsStore();
   const { isLoggedIn, handleCallback, tryRestoreSession, pausePlayback } = useServiceStore();
   const [ytdlpInstalled, setYtdlpInstalled] = useState(false);
 
@@ -230,9 +220,23 @@ function App() {
     }
   };
 
+  // 글자/단어 동기화가 있어 E-LRC로 저장될 LRC 저장은 알림 팝업을 거쳐 실행
+  const requestSaveLrc = (fn: () => void) => {
+    if (hasGlyphSync && showElrcSaveNotice) {
+      pendingSaveRef.current = fn;
+      setShowElrcNotice(true);
+    } else {
+      fn();
+    }
+  };
+
   const handleSave = () => {
-    if (lrcPath) saveLrc();
-    else setShowFormatChooser(true);
+    if (lrcPath) {
+      if (lrcPath.toLowerCase().endsWith(".lrc")) requestSaveLrc(() => saveLrc());
+      else saveLrc();
+    } else {
+      setShowFormatChooser(true);
+    }
   };
 
   // 드롭된 파일을 실제로 연다 (오디오 → 오디오 경로, lrc/srt → 가사)
@@ -319,7 +323,7 @@ function App() {
       openLrc,
       openAudio,
       save: handleSave,
-      saveAsLrc: () => saveLrcAs("lrc"),
+      saveAsLrc: () => requestSaveLrc(() => saveLrcAs("lrc")),
       saveAsSrt: () => saveLrcAs("srt"),
       undo,
       redo,
@@ -406,12 +410,24 @@ function App() {
       )}
       {showFormatChooser && (
         <SaveFormatModal
-          hasGlyphSync={hasGlyphSync}
-          onSelect={(format, enhanced) => {
+          onSelect={(format) => {
             setShowFormatChooser(false);
-            saveLrcAs(format, enhanced); // 다이얼로그 선택은 이번 저장에만 적용(전역 설정 불변)
+            if (format === "lrc") requestSaveLrc(() => saveLrcAs("lrc"));
+            else saveLrcAs(format);
           }}
           onCancel={() => setShowFormatChooser(false)}
+        />
+      )}
+      {showElrcNotice && (
+        <ELrcNoticeModal
+          onConfirm={(dontShowAgain) => {
+            if (dontShowAgain) setShowElrcSaveNotice(false);
+            setShowElrcNotice(false);
+            const fn = pendingSaveRef.current;
+            pendingSaveRef.current = null;
+            fn?.();
+          }}
+          onCancel={() => { setShowElrcNotice(false); pendingSaveRef.current = null; }}
         />
       )}
       {showSpotifySearch && (
@@ -477,6 +493,7 @@ function App() {
 
 function HelpModal({ onClose }: { onClose: () => void }) {
   const { t, lang } = useI18nStore();
+  const kb = normalizeKeybindings(useSettingsStore((s) => s.keybindings));
 
   const guideFileSuffix = lang === "ko" ? "ko" : lang === "ja" ? "ja" : "en";
   const aiGuideUrl = `https://ahri2nd.xyz/posts/lyrical-sync-ai-installation-guide-${guideFileSuffix}/`;
@@ -488,19 +505,19 @@ function HelpModal({ onClose }: { onClose: () => void }) {
     {
       title: t.helpGroupPlayback,
       items: [
-        { key: "1", desc: t.shortcutDescs.s1 },
-        { key: "2", desc: t.shortcutDescs.s2 },
-        { key: "3", desc: t.shortcutDescs.s3 },
-        { key: "4", desc: t.shortcutDescs.s4 },
-        { key: "5", desc: t.shortcutDescs.s5 },
-        { key: "6", desc: t.shortcutDescs.s6 },
+        { key: keyLabel(kb.skipBack5), desc: t.shortcutDescs.s1 },
+        { key: keyLabel(kb.skipBack1), desc: t.shortcutDescs.s2 },
+        { key: keyLabel(kb.playPause), desc: t.shortcutDescs.s3 },
+        { key: keyLabel(kb.skipFwd1), desc: t.shortcutDescs.s4 },
+        { key: keyLabel(kb.skipFwd5), desc: t.shortcutDescs.s5 },
+        { key: keyLabel(kb.stop), desc: t.shortcutDescs.s6 },
       ],
     },
     {
       title: t.helpGroupEdit,
       items: [
-        { key: "Space", desc: t.shortcutDescs.space },
-        { key: "Backspace", desc: t.shortcutDescs.backspace },
+        { key: keyLabel(kb.stamp), desc: t.shortcutDescs.space },
+        { key: keyLabel(kb.prevLine), desc: t.shortcutDescs.backspace },
         { key: "Enter", desc: t.shortcutDescs.enter },
         { key: "Ctrl/⌘ Z", desc: t.shortcutDescs.undo },
         { key: "Ctrl/⌘ ⇧ Z", desc: t.shortcutDescs.redo },
@@ -519,7 +536,7 @@ function HelpModal({ onClose }: { onClose: () => void }) {
     {
       title: t.helpGroupCharSync,
       items: [
-        { key: "Space", desc: t.shortcutDescs.csStamp },
+        { key: keyLabel(kb.stamp), desc: t.shortcutDescs.csStamp },
         { key: "← / →", desc: t.shortcutDescs.csMove },
         { key: t.shortcutDescs.csNudgeKey, desc: t.shortcutDescs.csNudgeDesc },
         { key: t.shortcutDescs.csDragKey, desc: t.shortcutDescs.csDragDesc },
@@ -747,10 +764,9 @@ function ConfirmModal({
 
 
 function SaveFormatModal({
-  hasGlyphSync, onSelect, onCancel,
+  onSelect, onCancel,
 }: {
-  hasGlyphSync: boolean;
-  onSelect: (format: "lrc" | "srt" | "vtt" | "ass", enhanced?: boolean) => void;
+  onSelect: (format: "lrc" | "srt" | "vtt" | "ass") => void;
   onCancel: () => void;
 }) {
   const { t } = useI18nStore();
@@ -779,23 +795,10 @@ function SaveFormatModal({
           <span className="font-semibold text-zinc-100">{t.saveFormatTitle}</span>
         </div>
         <div className="flex flex-col gap-2 px-5 py-4">
-          {hasGlyphSync ? (
-            <>
-              <button onClick={() => onSelect("lrc", true)} className={optClass}>
-                <span className="text-sm font-semibold text-white">{t.saveFormatLrcEnhanced} <span className="text-zinc-500 font-normal">(.lrc)</span></span>
-                <span className="text-xs text-zinc-400">{t.saveFormatLrcEnhancedDesc}</span>
-              </button>
-              <button onClick={() => onSelect("lrc", false)} className={optClass}>
-                <span className="text-sm font-semibold text-white">{t.saveFormatLrcPlain} <span className="text-zinc-500 font-normal">(.lrc)</span></span>
-                <span className="text-xs text-zinc-400">{t.saveFormatLrcPlainDesc}</span>
-              </button>
-            </>
-          ) : (
-            <button onClick={() => onSelect("lrc")} className={optClass}>
-              <span className="text-sm font-semibold text-white">LRC <span className="text-zinc-500 font-normal">(.lrc)</span></span>
-              <span className="text-xs text-zinc-400">{t.saveFormatLrcDesc}</span>
-            </button>
-          )}
+          <button onClick={() => onSelect("lrc")} className={optClass}>
+            <span className="text-sm font-semibold text-white">LRC <span className="text-zinc-500 font-normal">(.lrc)</span></span>
+            <span className="text-xs text-zinc-400">{t.saveFormatLrcDesc}</span>
+          </button>
           <button onClick={() => onSelect("srt")} className={optClass}>
             <span className="text-sm font-semibold text-white">SubRip <span className="text-zinc-500 font-normal">(.srt)</span></span>
             <span className="text-xs text-zinc-400">{t.saveFormatSrtDesc}</span>
@@ -815,6 +818,61 @@ function SaveFormatModal({
             className="px-4 py-1.5 text-sm rounded-lg text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
           >
             {t.rawEditorCancel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ELrcNoticeModal({
+  onConfirm, onCancel,
+}: {
+  onConfirm: (dontShowAgain: boolean) => void;
+  onCancel: () => void;
+}) {
+  const { t } = useI18nStore();
+  const [dontShowAgain, setDontShowAgain] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+      else if (e.key === "Enter") onConfirm(dontShowAgain);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onCancel, onConfirm, dontShowAgain]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onCancel}
+    >
+      <div
+        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 py-4 border-b border-zinc-800">
+          <span className="font-semibold text-zinc-100">{t.elrcNotice.title}</span>
+        </div>
+        <div className="px-5 py-4">
+          <p className="text-sm text-zinc-300 leading-relaxed">{t.elrcNotice.message}</p>
+        </div>
+        <div className="flex items-center justify-between gap-3 px-5 pb-4">
+          <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={dontShowAgain}
+              onChange={(e) => setDontShowAgain(e.target.checked)}
+              className="accent-indigo-600 w-3.5 h-3.5"
+            />
+            {t.elrcNotice.dontShowAgain}
+          </label>
+          <button
+            onClick={() => onConfirm(dontShowAgain)}
+            className="px-4 py-1.5 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium transition-colors"
+          >
+            {t.elrcNotice.confirm}
           </button>
         </div>
       </div>

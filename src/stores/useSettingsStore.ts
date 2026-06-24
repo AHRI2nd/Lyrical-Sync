@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { type KeyAction, DEFAULT_KEYBINDINGS } from "../utils/keybindings";
 
 interface SettingsState {
   autoCheckUpdate: boolean;
@@ -10,8 +11,10 @@ interface SettingsState {
   modelsDir: string;
   /** 빈 줄 타임스탬프 = 앞 가사 end + blankLineOffset 초 */
   blankLineOffset: number;
-  /** 저장 시 글자/단어 동기화(<mm:ss.xx>)를 포함한 Enhanced LRC로 출력. false면 일반 LRC */
-  exportEnhancedLrc: boolean;
+  /** 글자/단어 동기화가 있어 Enhanced LRC로 저장될 때 알림 팝업 표시. false면 묻지 않고 저장 */
+  showElrcSaveNotice: boolean;
+  /** 전역 단축키 바인딩(action → KeyboardEvent.code) */
+  keybindings: Record<KeyAction, string>;
   /** Spotify Developer App client_id (사용자 직접 입력) */
   spotifyClientId: string;
   /** Spotify 모드 활성화 여부 (로그인 상태와 독립적으로 UI 전환) */
@@ -29,7 +32,9 @@ interface SettingsState {
   setUiScale: (v: number) => void;
   setModelsDir: (v: string) => void;
   setBlankLineOffset: (v: number) => void;
-  setExportEnhancedLrc: (v: boolean) => void;
+  setShowElrcSaveNotice: (v: boolean) => void;
+  setKeybinding: (action: KeyAction, code: string) => void;
+  resetKeybindings: () => void;
   setSpotifyClientId: (v: string) => void;
   setSpotifyMode: (v: boolean) => void;
   setYoutubeMode: (v: boolean) => void;
@@ -46,7 +51,8 @@ export const useSettingsStore = create<SettingsState>()(
       uiScale: 1.0,
       modelsDir: "",
       blankLineOffset: 1.0,
-      exportEnhancedLrc: true,
+      showElrcSaveNotice: true,
+      keybindings: { ...DEFAULT_KEYBINDINGS },
       spotifyClientId: "",
       spotifyMode: false,
       youtubeMode: false,
@@ -58,7 +64,10 @@ export const useSettingsStore = create<SettingsState>()(
       setUiScale: (v) => set({ uiScale: v }),
       setModelsDir: (v) => set({ modelsDir: v }),
       setBlankLineOffset: (v) => set({ blankLineOffset: v }),
-      setExportEnhancedLrc: (v) => set({ exportEnhancedLrc: v }),
+      setShowElrcSaveNotice: (v) => set({ showElrcSaveNotice: v }),
+      setKeybinding: (action, code) =>
+        set((s) => ({ keybindings: { ...s.keybindings, [action]: code } })),
+      resetKeybindings: () => set({ keybindings: { ...DEFAULT_KEYBINDINGS } }),
       setSpotifyClientId: (v) => set({ spotifyClientId: v }),
       setSpotifyMode: (v) => set({ spotifyMode: v }),
       setYoutubeMode: (v) => set({ youtubeMode: v }),

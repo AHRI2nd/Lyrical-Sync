@@ -6,11 +6,12 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { checkForUpdate } from "../../utils/updateCheck";
 import { safeUnlisten } from "../../utils/safeUnlisten";
+import { KeybindingsSection } from "./KeybindingsSection";
 import { ModelDownloadSection } from "./ModelDownloadSection";
 import { YtdlpSection } from "./YtdlpSection";
 
 type CheckState = "idle" | "checking" | "upToDate";
-type Tab = "general" | "models" | "spotify" | "youtube";
+type Tab = "general" | "shortcuts" | "models" | "spotify" | "youtube";
 
 export function SettingsModal({
   onClose,
@@ -23,8 +24,8 @@ export function SettingsModal({
 }) {
   const { t, lang } = useI18nStore();
   const {
-    autoCheckUpdate, autoSave, uiScale, blankLineOffset, exportEnhancedLrc, spotifyClientId, spotifyMode,
-    setAutoCheckUpdate, setAutoSave, setUiScale, setBlankLineOffset, setExportEnhancedLrc, setSpotifyClientId, setSpotifyMode,
+    autoCheckUpdate, autoSave, uiScale, blankLineOffset, showElrcSaveNotice, spotifyClientId, spotifyMode,
+    setAutoCheckUpdate, setAutoSave, setUiScale, setBlankLineOffset, setShowElrcSaveNotice, setSpotifyClientId, setSpotifyMode,
   } = useSettingsStore();
 
   const guideSuffix = lang === "ko" ? "ko" : lang === "ja" ? "ja" : "en";
@@ -83,6 +84,9 @@ export function SettingsModal({
         <div className="flex border-b border-zinc-800 shrink-0">
           <TabBtn active={tab === "general"} onClick={() => setTab("general")}>
             {t.settingsTabGeneral}
+          </TabBtn>
+          <TabBtn active={tab === "shortcuts"} onClick={() => setTab("shortcuts")}>
+            {t.settingsTabShortcuts}
           </TabBtn>
           <TabBtn active={tab === "models"} onClick={() => setTab("models")}>
             {t.settingsTabModels}
@@ -164,28 +168,28 @@ export function SettingsModal({
 
               <div className="border-t border-zinc-800" />
 
-              {/* Enhanced LRC export */}
+              {/* Enhanced LRC 저장 알림 */}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-zinc-200">{t.settingsEnhancedLrc}</span>
+                  <span className="text-sm font-medium text-zinc-200">{t.settingsElrcNotice}</span>
                   <button
-                    onClick={() => setExportEnhancedLrc(!exportEnhancedLrc)}
+                    onClick={() => setShowElrcSaveNotice(!showElrcSaveNotice)}
                     className={[
                       "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
-                      exportEnhancedLrc ? "bg-indigo-600" : "bg-zinc-600",
+                      showElrcSaveNotice ? "bg-indigo-600" : "bg-zinc-600",
                     ].join(" ")}
                     role="switch"
-                    aria-checked={exportEnhancedLrc}
+                    aria-checked={showElrcSaveNotice}
                   >
                     <span
                       className={[
                         "absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
-                        exportEnhancedLrc ? "translate-x-[22px]" : "translate-x-0.5",
+                        showElrcSaveNotice ? "translate-x-[22px]" : "translate-x-0.5",
                       ].join(" ")}
                     />
                   </button>
                 </div>
-                <p className="text-xs text-zinc-500">{t.settingsEnhancedLrcDesc}</p>
+                <p className="text-xs text-zinc-500">{t.settingsElrcNoticeDesc}</p>
               </div>
 
               <div className="border-t border-zinc-800" />
@@ -246,6 +250,12 @@ export function SettingsModal({
                   <span>130%</span>
                 </div>
               </div>
+            </div>
+          )}
+
+          {tab === "shortcuts" && (
+            <div className="p-5">
+              <KeybindingsSection />
             </div>
           )}
 

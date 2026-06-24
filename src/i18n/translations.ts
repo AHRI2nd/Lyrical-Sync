@@ -10,10 +10,6 @@ export interface Translations {
   saveFormatTitle: string;
   saveFormatLrcDesc: string;
   saveFormatSrtDesc: string;
-  saveFormatLrcEnhanced: string;
-  saveFormatLrcEnhancedDesc: string;
-  saveFormatLrcPlain: string;
-  saveFormatLrcPlainDesc: string;
   saveFormatVttDesc: string;
   saveFormatAssDesc: string;
   undo: string;
@@ -199,13 +195,36 @@ export interface Translations {
   // Settings modal
   settingsTitle: string;
   settingsTabGeneral: string;
+  settingsTabShortcuts: string;
   settingsTabModels: string;
   settingsAutoUpdate: string;
   settingsAutoUpdateDesc: string;
   settingsAutoSave: string;
   settingsAutoSaveDesc: string;
-  settingsEnhancedLrc: string;
-  settingsEnhancedLrcDesc: string;
+  settingsElrcNotice: string;
+  settingsElrcNoticeDesc: string;
+  elrcNotice: {
+    title: string;
+    message: string;
+    confirm: string;
+    dontShowAgain: string;
+  };
+  keys: {
+    title: string;
+    capturing: string;
+    reset: string;
+    conflict: string;
+    reserved: string;
+    hint: string;
+    skipBack5: string;
+    skipBack1: string;
+    playPause: string;
+    skipFwd1: string;
+    skipFwd5: string;
+    stop: string;
+    stamp: string;
+    prevLine: string;
+  };
   settingsCheckNow: string;
   settingsChecking: string;
   settingsUpToDate: string;
@@ -339,10 +358,6 @@ const ko: Translations = {
   saveFormatTitle: "저장 형식 선택",
   saveFormatLrcDesc: "가사 동기화 파일",
   saveFormatSrtDesc: "영상 자막 파일",
-  saveFormatLrcEnhanced: "Enhanced LRC",
-  saveFormatLrcEnhancedDesc: "글자/단어 동기화 태그 포함",
-  saveFormatLrcPlain: "일반 LRC",
-  saveFormatLrcPlainDesc: "줄 단위만 · 호환성 높음",
   saveFormatVttDesc: "웹 영상 자막 (HTML5)",
   saveFormatAssDesc: "노래방 영상 자막 (글자 동기화 \\k)",
   undo: "실행 취소",
@@ -571,13 +586,36 @@ const ko: Translations = {
   updateLater: "나중에",
   settingsTitle: "설정",
   settingsTabGeneral: "일반",
+  settingsTabShortcuts: "단축키",
   settingsTabModels: "AI 모델",
   settingsAutoUpdate: "자동 업데이트 확인",
   settingsAutoUpdateDesc: "앱 시작 시 최신 버전을 자동으로 확인합니다.",
   settingsAutoSave: "자동 저장",
   settingsAutoSaveDesc: "저장 위치가 지정된 파일은 변경 후 잠시 멈추면 자동으로 저장합니다.",
-  settingsEnhancedLrc: "Enhanced LRC로 내보내기",
-  settingsEnhancedLrcDesc: "저장 시 글자/단어 동기화 태그(<mm:ss.xx>)를 포함합니다. 끄면 일반 LRC로 저장되어 호환성이 높아지지만 글자 단위 타이밍은 빠집니다.",
+  settingsElrcNotice: "Enhanced LRC 저장 알림",
+  settingsElrcNoticeDesc: "글자/단어 동기화가 있어 Enhanced LRC로 저장될 때 알림 팝업을 표시합니다. 끄면 묻지 않고 저장합니다.",
+  elrcNotice: {
+    title: "Enhanced LRC로 저장",
+    message: "글자/단어 동기화가 포함되어 있어 이 파일은 Enhanced LRC(.lrc)로 저장됩니다. 일부 플레이어는 글자 단위 타이밍 태그를 지원하지 않을 수 있습니다.",
+    confirm: "확인",
+    dontShowAgain: "다시 보지 않기",
+  },
+  keys: {
+    title: "단축키",
+    capturing: "원하는 키를 누르세요… (Esc로 취소)",
+    reset: "기본값 복원",
+    conflict: "이미 「{action}」에 할당된 키입니다",
+    reserved: "사용할 수 없는 키입니다",
+    hint: "변경할 항목을 클릭한 뒤 원하는 키를 누르세요. 같은 키를 두 곳에 줄 수 없습니다. (Ctrl/⌘ 조합·Esc는 예약)",
+    skipBack5: "−5초",
+    skipBack1: "−1초",
+    playPause: "재생 / 일시정지",
+    skipFwd1: "+1초",
+    skipFwd5: "+5초",
+    stop: "정지 및 처음으로",
+    stamp: "타임스탬프 찍기 / 다음",
+    prevLine: "이전 줄 / 글자",
+  },
   settingsCheckNow: "지금 확인",
   settingsChecking: "확인 중...",
   settingsUpToDate: "최신 버전입니다.",
@@ -708,10 +746,6 @@ const en: Translations = {
   saveFormatTitle: "Choose Save Format",
   saveFormatLrcDesc: "Synced lyrics file",
   saveFormatSrtDesc: "Video subtitle file",
-  saveFormatLrcEnhanced: "Enhanced LRC",
-  saveFormatLrcEnhancedDesc: "Includes word/character sync tags",
-  saveFormatLrcPlain: "Plain LRC",
-  saveFormatLrcPlainDesc: "Line-level only · wider compatibility",
   saveFormatVttDesc: "Web video captions (HTML5)",
   saveFormatAssDesc: "Karaoke video subtitle (per-glyph \\k)",
   undo: "Undo",
@@ -941,13 +975,36 @@ const en: Translations = {
   updateLater: "Later",
   settingsTitle: "Settings",
   settingsTabGeneral: "General",
+  settingsTabShortcuts: "Shortcuts",
   settingsTabModels: "AI Models",
   settingsAutoUpdate: "Auto-check for updates",
   settingsAutoUpdateDesc: "Automatically check for new versions on startup.",
   settingsAutoSave: "Auto-save",
   settingsAutoSaveDesc: "Files with a save location are saved automatically a moment after you stop editing.",
-  settingsEnhancedLrc: "Export as Enhanced LRC",
-  settingsEnhancedLrcDesc: "Include word/character sync tags (<mm:ss.xx>) when saving. Turn off to save plain LRC for wider compatibility, dropping per-glyph timing.",
+  settingsElrcNotice: "Enhanced LRC save notice",
+  settingsElrcNoticeDesc: "Show a notice when word/character sync causes the file to be saved as Enhanced LRC. Turn off to save without asking.",
+  elrcNotice: {
+    title: "Save as Enhanced LRC",
+    message: "This file contains word/character sync, so it will be saved as Enhanced LRC (.lrc). Some players may not support per-glyph timing tags.",
+    confirm: "OK",
+    dontShowAgain: "Don't show again",
+  },
+  keys: {
+    title: "Keyboard shortcuts",
+    capturing: "Press a key… (Esc to cancel)",
+    reset: "Reset to defaults",
+    conflict: "Already assigned to “{action}”",
+    reserved: "That key can't be used",
+    hint: "Click an action, then press a key. The same key can't be used twice. (Ctrl/⌘ combos and Esc are reserved.)",
+    skipBack5: "Skip back 5s",
+    skipBack1: "Skip back 1s",
+    playPause: "Play / Pause",
+    skipFwd1: "Skip forward 1s",
+    skipFwd5: "Skip forward 5s",
+    stop: "Stop & reset",
+    stamp: "Stamp / next",
+    prevLine: "Previous line / glyph",
+  },
   settingsCheckNow: "Check Now",
   settingsChecking: "Checking...",
   settingsUpToDate: "You're up to date.",
@@ -1078,10 +1135,6 @@ const ja: Translations = {
   saveFormatTitle: "保存形式を選択",
   saveFormatLrcDesc: "歌詞同期ファイル",
   saveFormatSrtDesc: "動画字幕ファイル",
-  saveFormatLrcEnhanced: "Enhanced LRC",
-  saveFormatLrcEnhancedDesc: "文字/単語同期タグを含む",
-  saveFormatLrcPlain: "通常 LRC",
-  saveFormatLrcPlainDesc: "行単位のみ · 互換性が高い",
   saveFormatVttDesc: "Web動画字幕 (HTML5)",
   saveFormatAssDesc: "カラオケ動画字幕 (文字同期 \\k)",
   undo: "元に戻す",
@@ -1310,13 +1363,36 @@ const ja: Translations = {
   updateLater: "あとで",
   settingsTitle: "設定",
   settingsTabGeneral: "一般",
+  settingsTabShortcuts: "ショートカット",
   settingsTabModels: "AIモデル",
   settingsAutoUpdate: "自動更新確認",
   settingsAutoUpdateDesc: "アプリ起動時に最新バージョンを自動で確認します。",
   settingsAutoSave: "自動保存",
   settingsAutoSaveDesc: "保存先が指定されたファイルは、編集を止めると少し後に自動保存されます。",
-  settingsEnhancedLrc: "Enhanced LRC で書き出す",
-  settingsEnhancedLrcDesc: "保存時に文字/単語同期タグ（<mm:ss.xx>）を含めます。オフにすると通常の LRC として保存され互換性が高まりますが、文字単位のタイミングは失われます。",
+  settingsElrcNotice: "Enhanced LRC 保存通知",
+  settingsElrcNoticeDesc: "文字/単語同期があり Enhanced LRC として保存される際に通知ポップアップを表示します。オフにすると確認せず保存します。",
+  elrcNotice: {
+    title: "Enhanced LRC で保存",
+    message: "文字/単語同期が含まれているため、このファイルは Enhanced LRC（.lrc）として保存されます。一部のプレーヤーは文字単位のタイミングタグに対応していない場合があります。",
+    confirm: "OK",
+    dontShowAgain: "今後表示しない",
+  },
+  keys: {
+    title: "ショートカット",
+    capturing: "キーを押してください…（Escで取消）",
+    reset: "デフォルトに戻す",
+    conflict: "すでに「{action}」に割り当て済みです",
+    reserved: "使用できないキーです",
+    hint: "項目をクリックしてキーを押します。同じキーを2か所には設定できません。（Ctrl/⌘ 組合せ・Escは予約）",
+    skipBack5: "5秒戻る",
+    skipBack1: "1秒戻る",
+    playPause: "再生 / 一時停止",
+    skipFwd1: "1秒進む",
+    skipFwd5: "5秒進む",
+    stop: "停止して最初へ",
+    stamp: "タイムスタンプ / 次へ",
+    prevLine: "前の行 / 文字",
+  },
   settingsCheckNow: "今すぐ確認",
   settingsChecking: "確認中...",
   settingsUpToDate: "最新バージョンです。",
