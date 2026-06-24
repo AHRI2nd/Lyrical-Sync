@@ -16,6 +16,8 @@ import { serviceControls } from "./utils/serviceControls";
 import { anyModalOpen } from "./utils/modalGuard";
 import { safeUnlisten } from "./utils/safeUnlisten";
 import { matchAction, normalizeKeybindings, keyLabel, PLAYBACK_ACTIONS } from "./utils/keybindings";
+import { toast } from "./stores/useToastStore";
+import { ToastContainer } from "./components/Toast/ToastContainer";
 import { initSpotifyPlayer } from "./utils/spotifyPlayer";
 import { type Lang } from "./i18n/translations";
 import { checkForUpdate, RELEASES_URL } from "./utils/updateCheck";
@@ -105,8 +107,10 @@ function useAutoSave() {
   useEffect(() => {
     if (!autoSave || !lrcPath || !isDirty) return;
     const id = setTimeout(() => {
-      // 디스크 쓰기 실패(권한/경로 등) 시 미처리 거부 방지
-      useLrcStore.getState().saveLrc().catch(() => {});
+      // 자동저장: 성공은 조용히, 실패만 토스트로 알림
+      useLrcStore.getState().saveLrc().catch(() => {
+        toast.error(useI18nStore.getState().t.toast.saveFailed);
+      });
     }, 1500);
     return () => clearTimeout(id);
     // doc 변경마다 타이머 리셋 → 입력이 멈춘 뒤에만 저장(디바운스)
@@ -149,7 +153,7 @@ function App() {
   const [showNewConfirm, setShowNewConfirm] = useState(false);
   const [showFormatChooser, setShowFormatChooser] = useState(false);
   const [showElrcNotice, setShowElrcNotice] = useState(false);
-  const pendingSaveRef = useRef<(() => void) | null>(null);
+  const pendingSaveRef = useRef<(() => Promise<boolean>) | null>(null);
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const [showSpotifySearch, setShowSpotifySearch] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -220,30 +224,38 @@ function App() {
     }
   };
 
+  // 저장 결과를 토스트로 알림(취소 시 무알림, 실패 시 에러)
+  const runSave = (p: Promise<boolean>) => {
+    p.then((written) => { if (written) toast.success(t.toast.saved); })
+     .catch(() => toast.error(t.toast.saveFailed));
+  };
+
   // 글자/단어 동기화가 있어 E-LRC로 저장될 LRC 저장은 알림 팝업을 거쳐 실행
-  const requestSaveLrc = (fn: () => void) => {
+  const requestSaveLrc = (fn: () => Promise<boolean>) => {
     if (hasGlyphSync && showElrcSaveNotice) {
       pendingSaveRef.current = fn;
       setShowElrcNotice(true);
     } else {
-      fn();
+      runSave(fn());
     }
   };
 
   const handleSave = () => {
     if (lrcPath) {
       if (lrcPath.toLowerCase().endsWith(".lrc")) requestSaveLrc(() => saveLrc());
-      else saveLrc();
+      else runSave(saveLrc());
     } else {
       setShowFormatChooser(true);
     }
   };
 
+  const handleOpenLrc = () => openLrc().catch(() => toast.error(t.toast.openFailed));
+
   // 드롭된 파일을 실제로 연다 (오디오 → 오디오 경로, lrc/srt → 가사)
   const applyDrop = (d: { audio?: string; lyrics?: string }) => {
     const st = useLrcStore.getState();
     if (d.audio) st.setAudioPath(d.audio);
-    if (d.lyrics) st.loadLyricsPath(d.lyrics).catch(() => {});
+    if (d.lyrics) st.loadLyricsPath(d.lyrics).catch(() => toast.error(t.toast.openFailed));
   };
 
   // 파일 드래그앤드롭 열기 (Tauri 네이티브 드롭 이벤트 → 파일 경로 제공)
@@ -320,11 +332,11 @@ function App() {
   useMacMenu(
     {
       newFile: handleNewLrc,
-      openLrc,
+      openLrc: handleOpenLrc,
       openAudio,
       save: handleSave,
       saveAsLrc: () => requestSaveLrc(() => saveLrcAs("lrc")),
-      saveAsSrt: () => saveLrcAs("srt"),
+      saveAsSrt: () => runSave(saveLrcAs("srt")),
       undo,
       redo,
       togglePlay: () => playbackControls.togglePlay(),
@@ -371,7 +383,7 @@ function App() {
           <div className="w-px h-5 bg-zinc-700 mx-0.5" />
           {/* 파일 액션 그룹 */}
           <IconBtn onClick={handleNewLrc} title={t.newFileBtn}><NewFileIcon /></IconBtn>
-          <IconBtn onClick={openLrc} title={t.openLrc}><OpenFolderIcon /></IconBtn>
+          <IconBtn onClick={handleOpenLrc} title={t.openLrc}><OpenFolderIcon /></IconBtn>
           <IconBtn onClick={handleSave} accent title={t.save} tooltipAlign="right"><SaveIcon /></IconBtn>
           <IconBtn onClick={() => setShowFormatChooser(true)} title={t.saveAs} tooltipAlign="right"><SaveAsIcon /></IconBtn>
           <div className="w-px h-5 bg-zinc-700 mx-0.5" />
@@ -413,7 +425,7 @@ function App() {
           onSelect={(format) => {
             setShowFormatChooser(false);
             if (format === "lrc") requestSaveLrc(() => saveLrcAs("lrc"));
-            else saveLrcAs(format);
+            else runSave(saveLrcAs(format));
           }}
           onCancel={() => setShowFormatChooser(false)}
         />
@@ -425,7 +437,7 @@ function App() {
             setShowElrcNotice(false);
             const fn = pendingSaveRef.current;
             pendingSaveRef.current = null;
-            fn?.();
+            if (fn) runSave(fn());
           }}
           onCancel={() => { setShowElrcNotice(false); pendingSaveRef.current = null; }}
         />
@@ -487,6 +499,8 @@ function App() {
           ?
         </button>
       </div>
+
+      <ToastContainer />
     </div>
   );
 }

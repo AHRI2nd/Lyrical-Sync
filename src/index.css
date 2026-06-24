@@ -95,3 +95,9 @@ input[type="range"].range-slim::-moz-range-thumb {
 .lyric-marker:hover .lyric-marker-num.dim {
   opacity: 1;
 }
+
+/* 토스트 알림 진입 애니메이션 */
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}

@@ -13,6 +13,10 @@ interface SettingsState {
   blankLineOffset: number;
   /** 글자/단어 동기화가 있어 Enhanced LRC로 저장될 때 알림 팝업 표시. false면 묻지 않고 저장 */
   showElrcSaveNotice: boolean;
+  /** 가사 편집 글꼴 크기 배율 (0.8 ~ 1.5, 기본값: 1.0) */
+  lyricsFontScale: number;
+  /** 글자 동기화 모드에서 글자 아래 시간 마커 표시 */
+  showGlyphTimeMarkers: boolean;
   /** 전역 단축키 바인딩(action → KeyboardEvent.code) */
   keybindings: Record<KeyAction, string>;
   /** Spotify Developer App client_id (사용자 직접 입력) */
@@ -33,6 +37,8 @@ interface SettingsState {
   setModelsDir: (v: string) => void;
   setBlankLineOffset: (v: number) => void;
   setShowElrcSaveNotice: (v: boolean) => void;
+  setLyricsFontScale: (v: number) => void;
+  setShowGlyphTimeMarkers: (v: boolean) => void;
   setKeybinding: (action: KeyAction, code: string) => void;
   resetKeybindings: () => void;
   setSpotifyClientId: (v: string) => void;
@@ -52,6 +58,8 @@ export const useSettingsStore = create<SettingsState>()(
       modelsDir: "",
       blankLineOffset: 1.0,
       showElrcSaveNotice: true,
+      lyricsFontScale: 1.0,
+      showGlyphTimeMarkers: true,
       keybindings: { ...DEFAULT_KEYBINDINGS },
       spotifyClientId: "",
       spotifyMode: false,
@@ -65,6 +73,8 @@ export const useSettingsStore = create<SettingsState>()(
       setModelsDir: (v) => set({ modelsDir: v }),
       setBlankLineOffset: (v) => set({ blankLineOffset: v }),
       setShowElrcSaveNotice: (v) => set({ showElrcSaveNotice: v }),
+      setLyricsFontScale: (v) => set({ lyricsFontScale: v }),
+      setShowGlyphTimeMarkers: (v) => set({ showGlyphTimeMarkers: v }),
       setKeybinding: (action, code) =>
         set((s) => ({ keybindings: { ...s.keybindings, [action]: code } })),
       resetKeybindings: () => set({ keybindings: { ...DEFAULT_KEYBINDINGS } }),

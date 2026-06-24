@@ -50,6 +50,8 @@ export function CharSyncView() {
   const clearLineSyllables = useLrcStore((s) => s.clearLineSyllables);
   const { t } = useI18nStore();
   const spotifyMode = useSettingsStore((s) => s.spotifyMode);
+  const lyricsFontScale = useSettingsStore((s) => s.lyricsFontScale);
+  const showGlyphTimeMarkers = useSettingsStore((s) => s.showGlyphTimeMarkers);
   const serviceLoggedIn = useServiceStore((s) => s.isLoggedIn);
   const controls = serviceLoggedIn && spotifyMode ? serviceControls : audioControls;
 
@@ -132,7 +134,7 @@ export function CharSyncView() {
 
   useLayoutEffect(() => {
     const root = textRef.current;
-    if (!root) { setMarks([]); setMarksHeight(0); return; }
+    if (!root || !showGlyphTimeMarkers) { setMarks([]); setMarksHeight(0); return; }
     // 실제 라벨 폭 측정(폰트 의존). 실패 시 보수적 기본값.
     const labelW = (measureRef.current?.offsetWidth ?? 56) + MARK_GAP;
     const levelRight: number[] = []; // 단계별 마지막 라벨 우측 끝
@@ -161,7 +163,7 @@ export function CharSyncView() {
     const anyLabel = out.some((m) => m.label);
     setMarks(out);
     setMarksHeight(out.length ? (anyLabel ? maxLabelLevel * MARK_STEP + MARK_LABEL_H + 6 : MARK_TICK + 4) : 0);
-  }, [syllables, activeLineId, syncUnit, measureKey]);
+  }, [syllables, activeLineId, syncUnit, measureKey, showGlyphTimeMarkers, lyricsFontScale]);
 
   // 활성 줄이 바뀌면 활성 글자를 첫 미입력(없으면 첫 글자)으로
   useEffect(() => {
@@ -440,8 +442,8 @@ export function CharSyncView() {
       <div className="overflow-x-auto mb-3">
       <div ref={textRef} className="relative inline-block" style={{ minWidth: "100%" }}>
       <div
-        className="text-3xl leading-relaxed select-none"
-        style={{ whiteSpace: "pre" }}
+        className="leading-relaxed select-none"
+        style={{ whiteSpace: "pre", fontSize: `${1.875 * lyricsFontScale}rem` }}
       >
         {syllables.map((s, i) => {
           if (!isStampable(s)) return <span key={i}>{s.text}</span>;

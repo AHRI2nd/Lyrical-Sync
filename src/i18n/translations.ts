@@ -203,11 +203,19 @@ export interface Translations {
   settingsAutoSaveDesc: string;
   settingsElrcNotice: string;
   settingsElrcNoticeDesc: string;
+  settingsLyricsFontSize: string;
+  settingsGlyphMarkers: string;
+  settingsGlyphMarkersDesc: string;
   elrcNotice: {
     title: string;
     message: string;
     confirm: string;
     dontShowAgain: string;
+  };
+  toast: {
+    saved: string;
+    saveFailed: string;
+    openFailed: string;
   };
   keys: {
     title: string;
@@ -594,11 +602,19 @@ const ko: Translations = {
   settingsAutoSaveDesc: "저장 위치가 지정된 파일은 변경 후 잠시 멈추면 자동으로 저장합니다.",
   settingsElrcNotice: "Enhanced LRC 저장 알림",
   settingsElrcNoticeDesc: "글자/단어 동기화가 있어 Enhanced LRC로 저장될 때 알림 팝업을 표시합니다. 끄면 묻지 않고 저장합니다.",
+  settingsLyricsFontSize: "가사 글꼴 크기",
+  settingsGlyphMarkers: "글자 시간 마커 표시",
+  settingsGlyphMarkersDesc: "글자 동기화 모드에서 각 글자 아래에 찍힌 시간을 점선으로 표시합니다.",
   elrcNotice: {
     title: "Enhanced LRC로 저장",
     message: "글자/단어 동기화가 포함되어 있어 이 파일은 Enhanced LRC(.lrc)로 저장됩니다. 일부 플레이어는 글자 단위 타이밍 태그를 지원하지 않을 수 있습니다.",
     confirm: "확인",
     dontShowAgain: "다시 보지 않기",
+  },
+  toast: {
+    saved: "저장되었습니다",
+    saveFailed: "저장에 실패했습니다",
+    openFailed: "파일을 열지 못했습니다",
   },
   keys: {
     title: "단축키",
@@ -983,11 +999,19 @@ const en: Translations = {
   settingsAutoSaveDesc: "Files with a save location are saved automatically a moment after you stop editing.",
   settingsElrcNotice: "Enhanced LRC save notice",
   settingsElrcNoticeDesc: "Show a notice when word/character sync causes the file to be saved as Enhanced LRC. Turn off to save without asking.",
+  settingsLyricsFontSize: "Lyrics font size",
+  settingsGlyphMarkers: "Show glyph time markers",
+  settingsGlyphMarkersDesc: "Show the stamped time under each glyph with dotted lines in character sync mode.",
   elrcNotice: {
     title: "Save as Enhanced LRC",
     message: "This file contains word/character sync, so it will be saved as Enhanced LRC (.lrc). Some players may not support per-glyph timing tags.",
     confirm: "OK",
     dontShowAgain: "Don't show again",
+  },
+  toast: {
+    saved: "Saved",
+    saveFailed: "Failed to save",
+    openFailed: "Couldn't open file",
   },
   keys: {
     title: "Keyboard shortcuts",
@@ -1371,11 +1395,19 @@ const ja: Translations = {
   settingsAutoSaveDesc: "保存先が指定されたファイルは、編集を止めると少し後に自動保存されます。",
   settingsElrcNotice: "Enhanced LRC 保存通知",
   settingsElrcNoticeDesc: "文字/単語同期があり Enhanced LRC として保存される際に通知ポップアップを表示します。オフにすると確認せず保存します。",
+  settingsLyricsFontSize: "歌詞のフォントサイズ",
+  settingsGlyphMarkers: "文字タイムマーカーを表示",
+  settingsGlyphMarkersDesc: "文字同期モードで各文字の下に記録した時刻を点線で表示します。",
   elrcNotice: {
     title: "Enhanced LRC で保存",
     message: "文字/単語同期が含まれているため、このファイルは Enhanced LRC（.lrc）として保存されます。一部のプレーヤーは文字単位のタイミングタグに対応していない場合があります。",
     confirm: "OK",
     dontShowAgain: "今後表示しない",
+  },
+  toast: {
+    saved: "保存しました",
+    saveFailed: "保存に失敗しました",
+    openFailed: "ファイルを開けませんでした",
   },
   keys: {
     title: "ショートカット",

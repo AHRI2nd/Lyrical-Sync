@@ -39,7 +39,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     }))
   );
   const { t, lang } = useI18nStore();
-  const { blankLineOffset, spotifyMode } = useSettingsStore();
+  const { blankLineOffset, spotifyMode, lyricsFontScale } = useSettingsStore();
   const serviceLoggedIn = useServiceStore((s) => s.isLoggedIn);
   // 실제 Spotify 모드(로그인 + spotifyMode 활성)일 때만 서비스 모드로 간주.
   // 단순 계정 연결만으로 AI 싱크를 막지 않도록 isReady 대신 spotifyMode 기준 사용.
@@ -653,6 +653,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                 onFocus={() => setActiveLineId(line.id)}
                 onPaste={(e) => handlePaste(e, line.id, line.text)}
                 className="flex-1 bg-transparent text-white text-sm placeholder-zinc-600 focus:outline-none"
+                style={{ fontSize: `${0.875 * lyricsFontScale}rem` }}
                 placeholder={t.linePlaceholder}
               />
 
