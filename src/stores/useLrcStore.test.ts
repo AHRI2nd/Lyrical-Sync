@@ -19,7 +19,8 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(() => Promise.resolve(()
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 
 import { useLrcStore } from "./useLrcStore";
-import type { LrcLine } from "../types/lrc";
+import type { LrcLine, LrcDocument } from "../types/lrc";
+import { saveRecoverySnapshot, loadRecoverySnapshot, clearRecoverySnapshot } from "../utils/recovery";
 
 const reset = (lines: LrcLine[], offset = 0) =>
   useLrcStore.setState({
@@ -204,5 +205,67 @@ describe("useLrcStore — line manipulation", () => {
     expect(lines()).toHaveLength(3);
     useLrcStore.getState().undo();
     expect(lines()).toHaveLength(2);
+  });
+});
+
+describe("useLrcStore — bulk line actions", () => {
+  const mk = (id: string, text: string, ts: number | null = null): LrcLine => ({ id, timestamp: ts, text });
+
+  it("deleteLines removes all given ids", () => {
+    reset([mk("1", "a"), mk("2", "b"), mk("3", "c")]);
+    useLrcStore.getState().deleteLines(["1", "3"]);
+    expect(lines().map((l) => l.text)).toEqual(["b"]);
+  });
+
+  it("shiftLines moves only selected timestamps", () => {
+    reset([mk("1", "a", 1), mk("2", "b", 2), mk("3", "c", 3)]);
+    useLrcStore.getState().shiftLines(["1", "3"], 0.5);
+    expect(lines().map((l) => l.timestamp)).toEqual([1.5, 2, 3.5]);
+  });
+
+  it("shiftLines never goes below 0", () => {
+    reset([mk("1", "a", 0.2)]);
+    useLrcStore.getState().shiftLines(["1"], -1);
+    expect(lines()[0].timestamp).toBe(0);
+  });
+
+  it("clearTimestamps clears only selected", () => {
+    reset([mk("1", "a", 1), mk("2", "b", 2)]);
+    useLrcStore.getState().clearTimestamps(["2"]);
+    expect(lines().map((l) => l.timestamp)).toEqual([1, null]);
+  });
+});
+
+describe("recovery snapshot & restoreDoc", () => {
+  const mkDoc = (): LrcDocument => ({
+    metadata: { title: "T", artist: "A", album: "", by: "", offset: 0 },
+    lines: [{ id: "x", timestamp: 1, text: "hi" }],
+    extraTags: {},
+  });
+  beforeEach(() => clearRecoverySnapshot());
+
+  it("save/load round-trips doc and paths", () => {
+    saveRecoverySnapshot(mkDoc(), "/x.lrc", "/a.mp3");
+    const snap = loadRecoverySnapshot();
+    expect(snap?.doc.lines[0].text).toBe("hi");
+    expect(snap?.lrcPath).toBe("/x.lrc");
+    expect(snap?.audioPath).toBe("/a.mp3");
+  });
+
+  it("clear removes the snapshot", () => {
+    saveRecoverySnapshot(mkDoc(), null, null);
+    clearRecoverySnapshot();
+    expect(loadRecoverySnapshot()).toBeNull();
+  });
+
+  it("restoreDoc loads doc, marks dirty, reassigns ids", () => {
+    reset([]);
+    useLrcStore.getState().restoreDoc(mkDoc(), "/p.lrc", "/a.mp3");
+    const st = useLrcStore.getState();
+    expect(st.doc.lines[0].text).toBe("hi");
+    expect(st.lrcPath).toBe("/p.lrc");
+    expect(st.audioPath).toBe("/a.mp3");
+    expect(st.isDirty).toBe(true);
+    expect(st.doc.lines[0].id).toBe("1");
   });
 });

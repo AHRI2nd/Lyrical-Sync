@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, lazy, Suspense } from "react";
 import { AudioPlayer } from "./components/AudioPlayer/AudioPlayer";
 import { MetaEditor } from "./components/MetaEditor/MetaEditor";
 import { LrcEditor } from "./components/LrcEditor/LrcEditor";
-import { PreviewModal } from "./components/Preview/PreviewModal";
-import { SettingsModal } from "./components/Settings/SettingsModal";
+// 모달은 시작 시 불필요 → 지연 로드(초기 번들·파싱 절감)
+const PreviewModal = lazy(() => import("./components/Preview/PreviewModal").then((m) => ({ default: m.PreviewModal })));
+const SettingsModal = lazy(() => import("./components/Settings/SettingsModal").then((m) => ({ default: m.SettingsModal })));
 import { ModeSelectButton } from "./components/Service/ModeSelectButton";
-import { SpotifySearchModal } from "./components/Service/SpotifySearchModal";
+const SpotifySearchModal = lazy(() => import("./components/Service/SpotifySearchModal").then((m) => ({ default: m.SpotifySearchModal })));
 import { useLrcStore } from "./stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "./stores/useI18nStore";
@@ -18,6 +19,7 @@ import { safeUnlisten } from "./utils/safeUnlisten";
 import { matchAction, normalizeKeybindings, keyLabel, PLAYBACK_ACTIONS } from "./utils/keybindings";
 import { toast } from "./stores/useToastStore";
 import { ToastContainer } from "./components/Toast/ToastContainer";
+import { type RecoverySnapshot, loadRecoverySnapshot, saveRecoverySnapshot, clearRecoverySnapshot } from "./utils/recovery";
 import { initSpotifyPlayer } from "./utils/spotifyPlayer";
 import { type Lang } from "./i18n/translations";
 import { checkForUpdate, RELEASES_URL } from "./utils/updateCheck";
@@ -115,6 +117,17 @@ function useAutoSave() {
     return () => clearTimeout(id);
     // doc 변경마다 타이머 리셋 → 입력이 멈춘 뒤에만 저장(디바운스)
   }, [autoSave, lrcPath, isDirty, doc]);
+
+  // 미저장 작업 자동 복구 스냅샷: dirty면 디바운스로 저장, 저장되면(dirty 해제) 제거.
+  // 저장 경로가 없어도 보호되므로 autoSave와 독립적으로 동작.
+  useEffect(() => {
+    if (!isDirty) { clearRecoverySnapshot(); return; }
+    const id = setTimeout(() => {
+      const st = useLrcStore.getState();
+      saveRecoverySnapshot(st.doc, st.lrcPath, st.audioPath);
+    }, 2000);
+    return () => clearTimeout(id);
+  }, [isDirty, doc]);
 }
 
 function useAutoUpdateCheck(onUpdateAvailable: (version: string) => void, enabled: boolean) {
@@ -146,6 +159,11 @@ function App() {
   useGlobalKeys();
   useAutoSave();
 
+  // 시작 시(이펙트 실행 전) 스냅샷을 캡처 — dirty 해제 이펙트가 지우기 전에 확보
+  const [recovery, setRecovery] = useState<RecoverySnapshot | null>(() => {
+    const snap = loadRecoverySnapshot();
+    return snap && snap.doc.lines.length > 0 ? snap : null;
+  });
   const [showHelp, setShowHelp] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -392,13 +410,19 @@ function App() {
       </header>
 
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
-      {showPreview && <PreviewModal onClose={() => setShowPreview(false)} />}
+      {showPreview && (
+        <Suspense fallback={null}>
+          <PreviewModal onClose={() => setShowPreview(false)} />
+        </Suspense>
+      )}
       {showSettings && (
-        <SettingsModal
-          onClose={() => setShowSettings(false)}
-          onUpdateFound={(v) => { setShowSettings(false); setUpdateVersion(v); }}
-          initialTab={settingsInitialTab}
-        />
+        <Suspense fallback={null}>
+          <SettingsModal
+            onClose={() => setShowSettings(false)}
+            onUpdateFound={(v) => { setShowSettings(false); setUpdateVersion(v); }}
+            initialTab={settingsInitialTab}
+          />
+        </Suspense>
       )}
       {updateVersion && (
         <ConfirmModal
@@ -408,6 +432,20 @@ function App() {
           cancelLabel={t.updateLater}
           onOk={() => { setUpdateVersion(null); openUrl(RELEASES_URL); }}
           onCancel={() => setUpdateVersion(null)}
+        />
+      )}
+      {recovery && (
+        <ConfirmModal
+          title={t.recovery.title}
+          message={`${t.recovery.message}${recovery.doc.metadata.title ? `\n\n「${recovery.doc.metadata.title}」 · ${recovery.doc.lines.length}${t.recovery.lines}` : ""}`}
+          okLabel={t.recovery.restore}
+          cancelLabel={t.recovery.discard}
+          onOk={() => {
+            useLrcStore.getState().restoreDoc(recovery.doc, recovery.lrcPath, recovery.audioPath);
+            clearRecoverySnapshot();
+            setRecovery(null);
+          }}
+          onCancel={() => { clearRecoverySnapshot(); setRecovery(null); }}
         />
       )}
       {showNewConfirm && (
@@ -443,7 +481,9 @@ function App() {
         />
       )}
       {showSpotifySearch && (
-        <SpotifySearchModal onClose={() => setShowSpotifySearch(false)} />
+        <Suspense fallback={null}>
+          <SpotifySearchModal onClose={() => setShowSpotifySearch(false)} />
+        </Suspense>
       )}
       {dropConflict && (
         <ConfirmModal

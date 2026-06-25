@@ -172,6 +172,11 @@ export interface Translations {
   duplicateLine: string;
   mergeLineUp: string;
   reorderLine: string;
+  bulkSelected: string;
+  bulkShift: string;
+  bulkClearTs: string;
+  bulkDelete: string;
+  bulkDeselect: string;
   currentTimeLabel: string;
   // MetaEditor
   songInfo: string;
@@ -223,6 +228,13 @@ export interface Translations {
     message: string;
     confirm: string;
     dontShowAgain: string;
+  };
+  recovery: {
+    title: string;
+    message: string;
+    restore: string;
+    discard: string;
+    lines: string;
   };
   toast: {
     saved: string;
@@ -606,6 +618,11 @@ const ko: Translations = {
   duplicateLine: "줄 복제",
   mergeLineUp: "위 줄과 병합",
   reorderLine: "드래그하여 순서 변경",
+  bulkSelected: "줄 선택됨",
+  bulkShift: "이동",
+  bulkClearTs: "타임스탬프 지우기",
+  bulkDelete: "삭제",
+  bulkDeselect: "선택 해제",
   currentTimeLabel: "현재: ",
   songInfo: "곡 정보",
   metaTitle: { label: "제목 (ti)", placeholder: "노래 제목" },
@@ -653,6 +670,13 @@ const ko: Translations = {
     message: "글자/단어 동기화가 포함되어 있어 이 파일은 Enhanced LRC(.lrc)로 저장됩니다. 일부 플레이어는 글자 단위 타이밍 태그를 지원하지 않을 수 있습니다.",
     confirm: "확인",
     dontShowAgain: "다시 보지 않기",
+  },
+  recovery: {
+    title: "미저장 작업 복구",
+    message: "이전에 저장하지 않은 작업이 남아 있습니다. 복구하시겠습니까?",
+    restore: "복구",
+    discard: "버리기",
+    lines: "줄",
   },
   toast: {
     saved: "저장되었습니다",
@@ -1034,6 +1058,11 @@ const en: Translations = {
   duplicateLine: "Duplicate line",
   mergeLineUp: "Merge with line above",
   reorderLine: "Drag to reorder",
+  bulkSelected: "selected",
+  bulkShift: "Shift",
+  bulkClearTs: "Clear timestamps",
+  bulkDelete: "Delete",
+  bulkDeselect: "Deselect",
   currentTimeLabel: "Current: ",
   songInfo: "Song Info",
   metaTitle: { label: "Title (ti)", placeholder: "Song title" },
@@ -1081,6 +1110,13 @@ const en: Translations = {
     message: "This file contains word/character sync, so it will be saved as Enhanced LRC (.lrc). Some players may not support per-glyph timing tags.",
     confirm: "OK",
     dontShowAgain: "Don't show again",
+  },
+  recovery: {
+    title: "Recover unsaved work",
+    message: "Unsaved work from a previous session was found. Restore it?",
+    restore: "Restore",
+    discard: "Discard",
+    lines: " lines",
   },
   toast: {
     saved: "Saved",
@@ -1461,6 +1497,11 @@ const ja: Translations = {
   duplicateLine: "行を複製",
   mergeLineUp: "上の行と結合",
   reorderLine: "ドラッグで並べ替え",
+  bulkSelected: "行を選択中",
+  bulkShift: "移動",
+  bulkClearTs: "タイムスタンプ消去",
+  bulkDelete: "削除",
+  bulkDeselect: "選択解除",
   currentTimeLabel: "現在: ",
   songInfo: "曲情報",
   metaTitle: { label: "タイトル (ti)", placeholder: "曲のタイトル" },
@@ -1508,6 +1549,13 @@ const ja: Translations = {
     message: "文字/単語同期が含まれているため、このファイルは Enhanced LRC（.lrc）として保存されます。一部のプレーヤーは文字単位のタイミングタグに対応していない場合があります。",
     confirm: "OK",
     dontShowAgain: "今後表示しない",
+  },
+  recovery: {
+    title: "未保存の作業を復元",
+    message: "前回保存されていない作業が残っています。復元しますか？",
+    restore: "復元",
+    discard: "破棄",
+    lines: "行",
   },
   toast: {
     saved: "保存しました",

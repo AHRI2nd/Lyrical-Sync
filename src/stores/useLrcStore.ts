@@ -74,9 +74,17 @@ interface LrcStore {
   moveLine: (fromIndex: number, toIndex: number) => void;
   /** 모든 타임스탬프(+글자 동기화)를 배율로 스케일 — 템포/버전 불일치 보정 */
   scaleTimestamps: (factor: number) => void;
+  /** 여러 줄 일괄 삭제 */
+  deleteLines: (ids: string[]) => void;
+  /** 여러 줄의 타임스탬프(+글자 동기화)를 delta초만큼 이동 */
+  shiftLines: (ids: string[], delta: number) => void;
+  /** 여러 줄의 타임스탬프·글자 동기화 제거(텍스트 유지) */
+  clearTimestamps: (ids: string[]) => void;
   stampCurrentLine: (id: string) => void;
   applyOffset: () => void;
   loadFromRawText: (raw: string) => void;
+  /** 자동 복구: 스냅샷 문서·경로를 통째로 복원(미저장 상태로) */
+  restoreDoc: (doc: LrcDocument, lrcPath: string | null, audioPath: string | null) => void;
 
   setAudioPath: (path: string | null) => void;
   openAudio: () => Promise<void>;
@@ -364,6 +372,36 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, isDirty: true });
   },
 
+  deleteLines: (ids) => {
+    if (ids.length === 0) return;
+    const idSet = new Set(ids);
+    const { doc, _history, activeLineId } = get();
+    const lines = doc.lines.filter((l) => !idSet.has(l.id));
+    const newActiveLineId = activeLineId && idSet.has(activeLineId) ? (lines[0]?.id ?? null) : activeLineId;
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, activeLineId: newActiveLineId, isDirty: true });
+  },
+
+  shiftLines: (ids, delta) => {
+    if (delta === 0 || ids.length === 0) return;
+    const idSet = new Set(ids);
+    const { doc, _history } = get();
+    const sh = (t: number | null) => (t !== null ? Math.max(0, Math.round((t + delta) * 1000) / 1000) : null);
+    const lines = doc.lines.map((l) =>
+      idSet.has(l.id)
+        ? { ...l, timestamp: sh(l.timestamp), syllables: l.syllables?.map((s) => ({ ...s, time: sh(s.time) })) }
+        : l
+    );
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, isDirty: true });
+  },
+
+  clearTimestamps: (ids) => {
+    if (ids.length === 0) return;
+    const idSet = new Set(ids);
+    const { doc, _history } = get();
+    const lines = doc.lines.map((l) => (idSet.has(l.id) ? { ...l, timestamp: null, syllables: undefined } : l));
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, isDirty: true });
+  },
+
   stampCurrentLine: (id) => {
     const { currentTime, doc, aiDraftConfidence, _history } = get();
     set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [] });
@@ -393,6 +431,22 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     nextId = id;
     const firstId = parsed.lines[0]?.id ?? null;
     set({ doc: parsed, activeLineId: firstId, isDirty: true });
+  },
+
+  restoreDoc: (doc, lrcPath, audioPath) => {
+    // 줄 id를 새로 부여해 nextId 카운터와 충돌 없게 함
+    let id = 1;
+    const lines = doc.lines.map((l) => ({ ...l, id: String(id++) }));
+    nextId = id;
+    set({
+      doc: { ...doc, lines },
+      lrcPath,
+      audioPath,
+      activeLineId: lines[0]?.id ?? null,
+      isDirty: true, // 복구된 작업은 아직 미저장
+      _history: [],
+      _future: [],
+    });
   },
 
   applyOffset: () => {
