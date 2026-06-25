@@ -5,6 +5,7 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { safeUnlisten } from "../../utils/safeUnlisten";
 import { type Translations } from "../../i18n/translations";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { toast } from "../../stores/useToastStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import {
   CATEGORY_ORDER,
@@ -204,12 +205,17 @@ export function ModelDownloadSection() {
         modelId: model.id,
         files: model.files.map((f) => ({ url: f.url, filename: f.filename, sha256: f.sha256 ?? null })),
       });
+      toast.success(t.toast.modelDownloaded.replace("{name}", model.name));
     } catch (e) {
       if (String(e) === "cancelled") {
         setStates((prev) => ({
           ...prev,
           [model.id]: { status: "not-installed", progress: 0, _completedBytes: 0, _curFileIndex: -1, _curFileTotal: 0 },
         }));
+      } else {
+        // 취소가 아닌 실제 실패(네트워크·해시 불일치 등): 에러 상태 + 알림
+        setStates((prev) => ({ ...prev, [model.id]: { status: "error", progress: 0, error: String(e) } }));
+        toast.error(t.toast.modelDownloadFailed.replace("{name}", model.name));
       }
     }
   };

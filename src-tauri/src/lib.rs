@@ -892,6 +892,8 @@ async fn run_alignment(
     }
 
     let script_str = align_script_path.to_string_lossy().into_owned();
+    // VAD on the audio is only meaningful when it's the isolated vocal stem
+    let separated_flag = if audio_for_align != audio_path { "true" } else { "false" };
     let mut child = python_cmd_inference(&python_str)
         .args([
             script_str.as_str(),
@@ -899,6 +901,7 @@ async fn run_alignment(
             "--audio",      &audio_for_align,
             "--lines",      &lines_json,
             "--language",   &language,
+            "--separated",  separated_flag,
         ])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
