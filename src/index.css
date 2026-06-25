@@ -38,3 +38,66 @@ body,
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
+
+/* 슬림 커스텀 슬라이더 (볼륨·줌 등). 채움은 인라인 그라데이션으로 지정 */
+input[type="range"].range-slim {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 5px;
+  border-radius: 9999px;
+  background: #3f3f46;
+  cursor: pointer;
+  outline: none;
+}
+input[type="range"].range-slim::-webkit-slider-runnable-track {
+  height: 5px;
+  border-radius: 9999px;
+  background: transparent;
+}
+input[type="range"].range-slim::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid var(--slim-accent, #6366f1);
+  transition: transform 0.1s ease;
+}
+input[type="range"].range-slim:hover::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+input[type="range"].range-slim::-moz-range-track {
+  height: 5px;
+  border-radius: 9999px;
+  background: transparent;
+}
+input[type="range"].range-slim::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--slim-accent, #6366f1);
+  border-radius: 50%;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+/* 가사 마커 줄번호: 활성은 항상, 비활성(.dim)은 마커 호버 시에만 표시 */
+.lyric-marker-num {
+  transition: opacity 0.12s ease;
+}
+.lyric-marker-num.dim {
+  opacity: 0;
+}
+.lyric-marker:hover {
+  z-index: 6;
+}
+.lyric-marker:hover .lyric-marker-num.dim {
+  opacity: 1;
+}
+
+/* 토스트 알림 진입 애니메이션 */
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
