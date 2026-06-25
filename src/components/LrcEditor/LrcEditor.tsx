@@ -39,7 +39,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     }))
   );
   const { t, lang } = useI18nStore();
-  const { blankLineOffset, spotifyMode, lyricsFontScale } = useSettingsStore();
+  const { blankLineOffset, spotifyMode, lyricsFontScale, useVocalSeparation, useVad } = useSettingsStore();
   const serviceLoggedIn = useServiceStore((s) => s.isLoggedIn);
   // 실제 Spotify 모드(로그인 + spotifyMode 활성)일 때만 서비스 모드로 간주.
   // 단순 계정 연결만으로 AI 싱크를 막지 않도록 isReady 대신 spotifyMode 기준 사용.
@@ -79,6 +79,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   // 글자 동기화된 줄의 텍스트 수정 경고 / 단위 변경 경고
   const [pendingTextEdit, setPendingTextEdit] = useState<{ id: string; text: string } | null>(null);
   const [pendingUnit, setPendingUnit] = useState<SyncUnit | null>(null);
+  const [pendingAiSync, setPendingAiSync] = useState(false);
 
   const charMode = syncMode === "char";
 
@@ -317,9 +318,15 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     setShowTS(false);
   }, [shiftTimeRange]);
 
-  const handleAiSync = () => {
+  const runAiSyncNow = () => {
     const language = LANG_CODE[lang] ?? "eng";
-    runAiSync(language, blankLineOffset);
+    runAiSync(language, blankLineOffset, useVocalSeparation, useVad);
+  };
+  const handleAiSync = () => {
+    // AI 정렬은 줄 단위 재정렬 → 기존 글자/단어 동기화가 삭제됨. 있으면 먼저 확인.
+    const hasGlyph = lines.some((l) => l.syllables?.some((s) => s.time !== null));
+    if (hasGlyph) { setPendingAiSync(true); return; }
+    runAiSyncNow();
   };
 
   const isRunning = aiSyncStatus === "running";
@@ -690,6 +697,16 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           cancelLabel={t.charSync.retokenizeCancel}
           onOk={confirmUnitChange}
           onCancel={() => setPendingUnit(null)}
+        />
+      )}
+      {pendingAiSync && (
+        <MiniConfirm
+          title={t.aiSyncGlyphWarnTitle}
+          message={t.aiSyncGlyphWarnMsg}
+          okLabel={t.aiSyncGlyphWarnOk}
+          cancelLabel={t.charSync.retokenizeCancel}
+          onOk={() => { setPendingAiSync(false); runAiSyncNow(); }}
+          onCancel={() => setPendingAiSync(false)}
         />
       )}
     </div>

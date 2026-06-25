@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { serviceControls } from "../../utils/serviceControls";
 import { setSpotifyVolume } from "../../utils/spotifyPlayer";
@@ -15,9 +16,14 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
   const { t } = useI18nStore();
   const {
     isPlaying, isLooping, positionMs, durationMs,
-    trackName, artistName, albumName, albumArtUrl,
+    trackName, artistName, albumName, albumArtUrl, trackUri,
     toggleLoop,
   } = useServiceStore();
+
+  // Spotify 콘텐츠 출처표시: 트랙을 Spotify에서 열기 (spotify:track:ID → open.spotify.com)
+  const trackUrl = trackUri?.startsWith("spotify:track:")
+    ? `https://open.spotify.com/track/${trackUri.split(":")[2]}`
+    : null;
 
   const [hoverRatio, setHoverRatio] = useState<number | null>(null);
   const [showRemaining, setShowRemaining] = useState(false);
@@ -110,9 +116,15 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
         </div>
       </div>
 
-      {/* Track info */}
+      {/* Track info — 클릭 시 Spotify에서 열기(출처표시) */}
       {trackName ? (
-        <div className="flex items-center gap-3 min-w-0 px-1">
+        <button
+          type="button"
+          onClick={() => { if (trackUrl) openUrl(trackUrl); }}
+          disabled={!trackUrl}
+          title={trackUrl ? t.spotifyOpenInSpotify : undefined}
+          className="group/track flex items-center gap-3 min-w-0 px-1 text-left w-full enabled:hover:bg-zinc-800/40 rounded-lg py-1 -my-1 transition-colors disabled:cursor-default"
+        >
           {albumArtUrl && (
             <img
               src={albumArtUrl}
@@ -121,10 +133,17 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
             />
           )}
           <div className="flex flex-col min-w-0">
-            <span className="text-sm font-medium text-zinc-100 truncate">{trackName}</span>
+            <span className="text-sm font-medium text-zinc-100 truncate group-enabled/track:group-hover/track:underline">
+              {trackName}
+              {trackUrl && (
+                <svg className="inline-block ml-1 mb-0.5 opacity-0 group-hover/track:opacity-60" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M7 7h10v10" /><path d="M7 17 17 7" />
+                </svg>
+              )}
+            </span>
             <span className="text-xs text-zinc-400 truncate">{artistName}</span>
           </div>
-        </div>
+        </button>
       ) : (
         <div className="h-10 flex items-center px-1">
           <span className="text-xs text-zinc-500">{t.spotifyConnected}</span>

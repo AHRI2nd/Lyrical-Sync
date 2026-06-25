@@ -74,8 +74,11 @@ def main():
                         help="ISO 639-3 language code (eng/kor/jpn/…)")
     parser.add_argument("--separated", default="false",
                         help="'true' if --audio is an isolated vocal stem (enables VAD)")
+    parser.add_argument("--vad", default="true",
+                        help="'true' to compute vocal-activity segments (needs --separated)")
     args = parser.parse_args()
     separated = args.separated == "true"
+    vad_enabled = args.vad == "true"
 
     try:
         lines = json.loads(args.lines)  # [{"index": int, "text": str}]
@@ -232,7 +235,7 @@ def main():
 
     # ── Vocal activity (only meaningful on an isolated vocal stem) ────────────
     # Used downstream to place blank-line / vocal-resume timestamps precisely.
-    vocal_segments = detect_vocal_segments(audio_waveform) if separated else []
+    vocal_segments = detect_vocal_segments(audio_waveform) if (separated and vad_enabled) else []
 
     progress("done", "Alignment complete", 1.0)
     print(json.dumps({

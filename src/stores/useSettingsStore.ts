@@ -17,6 +17,10 @@ interface SettingsState {
   lyricsFontScale: number;
   /** 글자 동기화 모드에서 글자 아래 시간 마커 표시 */
   showGlyphTimeMarkers: boolean;
+  /** AI 정렬 시 Demucs 보컬 분리 사용(설치돼 있을 때). false면 원본 오디오로 정렬 */
+  useVocalSeparation: boolean;
+  /** AI 정렬 시 보컬 활동 감지(VAD) 사용 — 빈 줄 정밀 배치 + 신뢰도 보정. 보컬 분리 필요 */
+  useVad: boolean;
   /** 전역 단축키 바인딩(action → KeyboardEvent.code) */
   keybindings: Record<KeyAction, string>;
   /** Spotify Developer App client_id (사용자 직접 입력) */
@@ -31,6 +35,8 @@ interface SettingsState {
   ytdlpCookiesFile: string;
   /** yt-dlp 프록시 설정 */
   ytdlpProxy: string;
+  /** YouTube 다운로드 면책 고지에 1회 동의했는지 */
+  youtubeDisclaimerAccepted: boolean;
   setAutoCheckUpdate: (v: boolean) => void;
   setAutoSave: (v: boolean) => void;
   setUiScale: (v: number) => void;
@@ -39,6 +45,8 @@ interface SettingsState {
   setShowElrcSaveNotice: (v: boolean) => void;
   setLyricsFontScale: (v: number) => void;
   setShowGlyphTimeMarkers: (v: boolean) => void;
+  setUseVocalSeparation: (v: boolean) => void;
+  setUseVad: (v: boolean) => void;
   setKeybinding: (action: KeyAction, code: string) => void;
   resetKeybindings: () => void;
   setSpotifyClientId: (v: string) => void;
@@ -47,6 +55,7 @@ interface SettingsState {
   setYtdlpAudioQuality: (v: "best" | "192" | "128") => void;
   setYtdlpCookiesFile: (v: string) => void;
   setYtdlpProxy: (v: string) => void;
+  setYoutubeDisclaimerAccepted: (v: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -60,6 +69,8 @@ export const useSettingsStore = create<SettingsState>()(
       showElrcSaveNotice: true,
       lyricsFontScale: 1.0,
       showGlyphTimeMarkers: true,
+      useVocalSeparation: true,
+      useVad: true,
       keybindings: { ...DEFAULT_KEYBINDINGS },
       spotifyClientId: "",
       spotifyMode: false,
@@ -67,6 +78,7 @@ export const useSettingsStore = create<SettingsState>()(
       ytdlpAudioQuality: "best",
       ytdlpCookiesFile: "",
       ytdlpProxy: "",
+      youtubeDisclaimerAccepted: false,
       setAutoCheckUpdate: (v) => set({ autoCheckUpdate: v }),
       setAutoSave: (v) => set({ autoSave: v }),
       setUiScale: (v) => set({ uiScale: v }),
@@ -75,6 +87,8 @@ export const useSettingsStore = create<SettingsState>()(
       setShowElrcSaveNotice: (v) => set({ showElrcSaveNotice: v }),
       setLyricsFontScale: (v) => set({ lyricsFontScale: v }),
       setShowGlyphTimeMarkers: (v) => set({ showGlyphTimeMarkers: v }),
+      setUseVocalSeparation: (v) => set({ useVocalSeparation: v }),
+      setUseVad: (v) => set({ useVad: v }),
       setKeybinding: (action, code) =>
         set((s) => ({ keybindings: { ...s.keybindings, [action]: code } })),
       resetKeybindings: () => set({ keybindings: { ...DEFAULT_KEYBINDINGS } }),
@@ -84,6 +98,7 @@ export const useSettingsStore = create<SettingsState>()(
       setYtdlpAudioQuality: (v) => set({ ytdlpAudioQuality: v }),
       setYtdlpCookiesFile: (v) => set({ ytdlpCookiesFile: v }),
       setYtdlpProxy: (v) => set({ ytdlpProxy: v }),
+      setYoutubeDisclaimerAccepted: (v) => set({ youtubeDisclaimerAccepted: v }),
     }),
     { name: "lyrical-sync-settings" }
   )

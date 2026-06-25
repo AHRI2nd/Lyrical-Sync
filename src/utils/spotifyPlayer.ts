@@ -114,6 +114,11 @@ function stopPolling(): void {
 }
 
 async function pollOnce(): Promise<void> {
+  // Spotify 모드가 아니면 폴링 불필요 → 불필요한 API 호출·보간 중단(모드 진입 시 다음 틱부터 재개)
+  if (!useSettingsStore.getState().spotifyMode) {
+    useServiceStore.getState()._stopInterpolation();
+    return;
+  }
   try {
     const token = await useServiceStore.getState().ensureToken();
     const t0 = Date.now();
@@ -153,7 +158,7 @@ async function pollOnce(): Promise<void> {
     // Spotify 모드일 때만 문서에 반영
     const inSpotifyMode = useSettingsStore.getState().spotifyMode;
     if (inSpotifyMode) {
-      useLrcStore.getState().setMetadata({ title: track.name, artist: artistName, album: track.album.name });
+      useLrcStore.getState().setMetadata({ title: track.name, artist: artistName, album: track.album.name }, true);
     }
 
     if (isPlaying) useServiceStore.getState()._startInterpolation();
