@@ -216,6 +216,11 @@ export interface Translations {
     saved: string;
     saveFailed: string;
     openFailed: string;
+    audioLoadFailed: string;
+    aiSyncDone: string;
+    aiSyncFailed: string;
+    modelDownloaded: string;
+    modelDownloadFailed: string;
   };
   keys: {
     title: string;
@@ -615,6 +620,11 @@ const ko: Translations = {
     saved: "저장되었습니다",
     saveFailed: "저장에 실패했습니다",
     openFailed: "파일을 열지 못했습니다",
+    audioLoadFailed: "오디오를 불러오지 못했습니다",
+    aiSyncDone: "AI 정렬이 완료되었습니다",
+    aiSyncFailed: "AI 정렬에 실패했습니다",
+    modelDownloaded: "{name} 다운로드 완료",
+    modelDownloadFailed: "{name} 다운로드 실패",
   },
   keys: {
     title: "단축키",
@@ -1012,6 +1022,11 @@ const en: Translations = {
     saved: "Saved",
     saveFailed: "Failed to save",
     openFailed: "Couldn't open file",
+    audioLoadFailed: "Couldn't load audio",
+    aiSyncDone: "AI alignment complete",
+    aiSyncFailed: "AI alignment failed",
+    modelDownloaded: "{name} downloaded",
+    modelDownloadFailed: "{name} download failed",
   },
   keys: {
     title: "Keyboard shortcuts",
@@ -1408,6 +1423,11 @@ const ja: Translations = {
     saved: "保存しました",
     saveFailed: "保存に失敗しました",
     openFailed: "ファイルを開けませんでした",
+    audioLoadFailed: "オーディオを読み込めませんでした",
+    aiSyncDone: "AI 整列が完了しました",
+    aiSyncFailed: "AI 整列に失敗しました",
+    modelDownloaded: "{name} のダウンロード完了",
+    modelDownloadFailed: "{name} のダウンロード失敗",
   },
   keys: {
     title: "ショートカット",

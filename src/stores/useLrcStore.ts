@@ -3,6 +3,8 @@ import { LrcDocument, LrcLine, LrcMetadata, LrcSyllable, defaultDocument } from 
 import { parseLrc, serializeLrc, type SyncUnit } from "../utils/lrcParser";
 import { serializeSrt, parseSrt } from "../utils/srtConverter";
 import { serializeVtt, serializeAss } from "../utils/exportFormats";
+import { toast } from "./useToastStore";
+import { useI18nStore } from "./useI18nStore";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
@@ -503,8 +505,21 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
         language,
       });
 
-      const results: AlignmentResult[] = JSON.parse(resultJson);
+      // align.py는 { lines, vocal_segments, separated } 객체를 반환(구버전은 배열).
+      const parsed = JSON.parse(resultJson);
+      const results: AlignmentResult[] = Array.isArray(parsed) ? parsed : parsed.lines;
+      const vocalSegments: [number, number][] = Array.isArray(parsed) ? [] : (parsed.vocal_segments ?? []);
+      const separated: boolean = Array.isArray(parsed) ? false : !!parsed.separated;
       const byIndex = new Map(results.map((r) => [r.index, r]));
+
+      // 간주 뒤 보컬이 다시 시작하는 지점(분리 스템 VAD). prevEnd 직후 첫 보컬 구간 시작.
+      const vocalResumeAfter = (t: number): number | null => {
+        if (!separated || vocalSegments.length === 0) return null;
+        for (const [s] of vocalSegments) {
+          if (s > t + 0.1) return s; // 실제 공백 뒤 재개만(이전 줄 꼬리 제외)
+        }
+        return null;
+      };
 
       const confidence: Record<string, number> = {};
       const newLines = doc.lines.map((line, idx) => {
@@ -517,8 +532,10 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
         return line;
       });
 
-      // Set blank-line timestamps = previous non-blank end + offset,
-      // clamped to not exceed the next non-blank line's start time.
+      // 빈 줄(문단 구분선) 타임스탬프 배치:
+      //  - 분리 스템 VAD가 있으면 간주 뒤 "보컬 재개 지점"에 정밀 배치
+      //  - 없으면(또는 부적합) 이전 줄 end + offset 휴리스틱
+      //  항상 다음 비공백 줄 시작을 넘지 않도록 클램프.
       for (let i = 0; i < newLines.length; i++) {
         if (doc.lines[i].text.trim() !== "") continue;
         let prevEnd = 0;
@@ -531,7 +548,9 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
           const r = byIndex.get(j);
           if (r) { nextStart = r.start; break; }
         }
-        const desired = prevEnd + blankLineOffset;
+        const resume = vocalResumeAfter(prevEnd);
+        const useResume = resume !== null && (nextStart === null || resume < nextStart);
+        const desired = useResume ? (resume as number) : prevEnd + blankLineOffset;
         const ts = nextStart !== null ? Math.min(desired, nextStart) : desired;
         newLines[i] = { ...newLines[i], timestamp: Math.round(ts * 1000) / 1000 };
         confidence[doc.lines[i].id] = 1.0;
@@ -546,12 +565,14 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
         aiDraftConfidence: confidence,
         isDirty: true,
       });
+      toast.success(useI18nStore.getState().t.toast.aiSyncDone);
     } catch (err) {
       const msg = String(err);
       if (msg === "cancelled") {
         set({ aiSyncStatus: "idle", aiSyncMessage: "", aiSyncProgressStatus: "" });
       } else {
         set({ aiSyncStatus: "error", aiSyncProgressStatus: "error", aiSyncMessage: msg });
+        toast.error(useI18nStore.getState().t.toast.aiSyncFailed);
       }
     } finally {
       unlisten();

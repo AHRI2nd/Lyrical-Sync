@@ -7,6 +7,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { toast } from "../../stores/useToastStore";
 import { type Translations } from "../../i18n/translations";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -270,8 +271,12 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       const blob = new Blob([bytes], { type: mimeType });
       const url = URL.createObjectURL(blob);
       blobUrlRef.current = url;
-      wsRef.current.load(url);
-    }).catch(console.error);
+      return wsRef.current.load(url);
+    }).catch((e) => {
+      // 새 로드로 인한 중단(AbortError)은 무시, 실제 디코드/읽기 실패만 알림
+      if (cancelled || (e && (e as Error).name === "AbortError")) return;
+      toast.error(useI18nStore.getState().t.toast.audioLoadFailed);
+    });
 
     return () => { cancelled = true; };
   }, [audioPath]);
