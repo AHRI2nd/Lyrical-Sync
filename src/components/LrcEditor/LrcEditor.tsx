@@ -21,6 +21,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     doc, activeLineId,
     addLine, insertLinesAfter, updateLine, deleteLine,
     duplicateLine, mergeLineUp, splitLine, moveLine, scaleTimestamps,
+    deleteLines, shiftLines, clearTimestamps,
     stampCurrentLine, setActiveLineId,
     aiSyncStatus, aiSyncMessage, aiSyncProgressStatus, aiDraftConfidence,
     runAiSync, cancelAiSync, clearAiDraft,
@@ -32,6 +33,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
       doc: s.doc, activeLineId: s.activeLineId,
       addLine: s.addLine, insertLinesAfter: s.insertLinesAfter, updateLine: s.updateLine, deleteLine: s.deleteLine,
       duplicateLine: s.duplicateLine, mergeLineUp: s.mergeLineUp, splitLine: s.splitLine, moveLine: s.moveLine, scaleTimestamps: s.scaleTimestamps,
+      deleteLines: s.deleteLines, shiftLines: s.shiftLines, clearTimestamps: s.clearTimestamps,
       stampCurrentLine: s.stampCurrentLine, setActiveLineId: s.setActiveLineId,
       aiSyncStatus: s.aiSyncStatus, aiSyncMessage: s.aiSyncMessage, aiSyncProgressStatus: s.aiSyncProgressStatus, aiDraftConfidence: s.aiDraftConfidence,
       runAiSync: s.runAiSync, cancelAiSync: s.cancelAiSync, clearAiDraft: s.clearAiDraft,
@@ -63,6 +65,9 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   const [showTS, setShowTS] = useState(false);
   const [showScale, setShowScale] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
+  // 줄 다중선택(일괄 작업)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selAnchor, setSelAnchor] = useState<string | null>(null);
 
   // 도구 오버플로우(찾기·구간오프셋)
   const [showTools, setShowTools] = useState(false);
@@ -265,6 +270,41 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     setActiveLineId(id);
     rowRefs.current.get(id)?.scrollIntoView({ block: "center" });
     setShowValidation(false);
+  };
+
+  // 줄 클릭: Shift=범위 선택, Ctrl/⌘=토글, 일반=단일 선택+시크(기존 동작)
+  const handleRowClick = (e: React.MouseEvent, id: string, idx: number) => {
+    if (e.shiftKey && selAnchor) {
+      const aIdx = lines.findIndex((l) => l.id === selAnchor);
+      if (aIdx >= 0) {
+        const [lo, hi] = aIdx <= idx ? [aIdx, idx] : [idx, aIdx];
+        setSelectedIds(new Set(lines.slice(lo, hi + 1).map((l) => l.id)));
+      }
+      setActiveLineId(id);
+      return;
+    }
+    if (e.metaKey || e.ctrlKey) {
+      setSelectedIds((prev) => {
+        const n = new Set(prev);
+        if (n.has(id)) n.delete(id); else n.add(id);
+        return n;
+      });
+      setSelAnchor(id);
+      setActiveLineId(id);
+      return;
+    }
+    // 일반 클릭: 다중선택 해제 + 기존 동작(활성/시크/찾기)
+    if (selectedIds.size > 0) setSelectedIds(new Set());
+    setSelAnchor(id);
+    setActiveLineId(id);
+    const ln = lines.find((l) => l.id === id);
+    if (ln && ln.timestamp !== null) {
+      (serviceActive ? serviceControls : audioControls).seekTo(ln.timestamp);
+    }
+    if (showFR) {
+      const mi = matchIds.indexOf(id);
+      if (mi !== -1) setMatchPos(mi);
+    }
   };
 
   // 매칭 줄 id 목록
@@ -579,6 +619,20 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
         />
       )}
 
+      {selectedIds.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-zinc-800 border border-sky-700/50 rounded-lg text-xs">
+          <span className="text-sky-300 font-medium shrink-0">{selectedIds.size} {t.bulkSelected}</span>
+          <div className="w-px h-4 bg-zinc-700 shrink-0" />
+          <span className="text-zinc-400 shrink-0">{t.bulkShift}</span>
+          <button onClick={() => shiftLines([...selectedIds], -0.1)} className="px-2 py-1 rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-200 transition-colors">−0.1s</button>
+          <button onClick={() => shiftLines([...selectedIds], 0.1)} className="px-2 py-1 rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-200 transition-colors">+0.1s</button>
+          <div className="w-px h-4 bg-zinc-700 shrink-0" />
+          <button onClick={() => clearTimestamps([...selectedIds])} className="px-2.5 py-1 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-200 transition-colors">{t.bulkClearTs}</button>
+          <button onClick={() => { deleteLines([...selectedIds]); setSelectedIds(new Set()); }} className="px-2.5 py-1 rounded-lg bg-rose-700 hover:bg-rose-600 text-white transition-colors">{t.bulkDelete}</button>
+          <button onClick={() => setSelectedIds(new Set())} className="ml-auto px-2.5 py-1 rounded-lg text-zinc-400 hover:bg-zinc-700 hover:text-white transition-colors">{t.bulkDeselect}</button>
+        </div>
+      )}
+
       {showFR && (
         <FindReplaceBar
           findText={findText}
@@ -632,18 +686,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
             <div
               key={line.id}
               ref={setRowRef(line.id)}
-              onClick={() => {
-                setActiveLineId(line.id);
-                // 줄 클릭 → 해당 타임스탬프로 시크. 현재 활성 플레이어에 맞게 분기
-                // (Spotify 모드면 Spotify 재생 위치, 아니면 로컬 파형)
-                if (line.timestamp !== null) {
-                  (serviceActive ? serviceControls : audioControls).seekTo(line.timestamp);
-                }
-                if (showFR) {
-                  const idx = matchIds.indexOf(line.id);
-                  if (idx !== -1) setMatchPos(idx);
-                }
-              }}
+              onClick={(e) => handleRowClick(e, line.id, idx)}
               onDragOver={(e) => { if (dragIdx !== null) { e.preventDefault(); if (dragOverIdx !== idx) setDragOverIdx(idx); } }}
               onDrop={(e) => {
                 e.preventDefault();
@@ -653,6 +696,8 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
               className={`group/row flex items-center gap-2 rounded-lg px-2 py-1 transition-colors cursor-pointer ${
                 dragIdx !== null && dragOverIdx === idx && dragIdx !== idx
                   ? "outline outline-1 outline-indigo-400 bg-indigo-900/10"
+                  : selectedIds.has(line.id)
+                  ? "bg-sky-900/30 ring-1 ring-sky-600/60"
                   : isCurrentMatch
                   ? "bg-amber-900/30 ring-1 ring-amber-500"
                   : isActive

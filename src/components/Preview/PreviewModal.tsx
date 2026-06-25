@@ -38,6 +38,20 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
     return idx;
   }, [doc.lines, playbackTime]);
 
+  // 각 줄의 가라오케 종료 시각을 1회 O(n) 패스로 미리 계산
+  // (기존엔 줄마다 앞쪽 스캔 → 렌더당 O(n²)이 매 프레임 실행됐음)
+  const lineEnds = useMemo(() => {
+    const ends = new Array<number>(doc.lines.length);
+    let nextStampedTs: number | null = null;
+    for (let i = doc.lines.length - 1; i >= 0; i--) {
+      ends[i] = nextStampedTs !== null
+        ? nextStampedTs
+        : (playbackDuration > 0 ? playbackDuration : (doc.lines[i].timestamp ?? 0) + 4);
+      if (doc.lines[i].timestamp !== null) nextStampedTs = doc.lines[i].timestamp;
+    }
+    return ends;
+  }, [doc.lines, playbackDuration]);
+
   // 활성 줄이 바뀔 때 스크롤 (편집 중이 아닐 때만)
   useEffect(() => {
     if (editingId) return;
@@ -67,18 +81,100 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
   const togglePlay = useCallback(() => controls.togglePlay(), [controls]);
   const skip = useCallback((d: number) => controls.skip(d), [controls]);
 
-  const startEdit = (id: string, currentTs: number | null) => {
+  const startEdit = useCallback((id: string, currentTs: number | null) => {
     setEditingId(id);
     setEditValue(currentTs !== null ? formatTimestamp(currentTs) : "");
-  };
+  }, []);
 
-  const commitEdit = (id: string) => {
+  const commitEdit = useCallback((id: string) => {
     const parsed = parseTimestampInput(editValue);
     if (parsed !== null) {
       updateLine(id, { timestamp: parsed });
     }
     setEditingId(null);
-  };
+  }, [editValue, updateLine]);
+
+  // 줄 클릭 시 시크(+정지 상태면 재생). 재생 상태는 fresh로 읽어 목록 메모 의존성에서 제외
+  const seekToLine = useCallback((ts: number) => {
+    controls.seekTo(ts);
+    const playing = isServiceMode ? useServiceStore.getState().isPlaying : useLrcStore.getState().isPlaying;
+    if (!playing) controls.togglePlay();
+  }, [controls, isServiceMode]);
+
+  // 줄 목록을 메모화 → 부모가 매 프레임(currentTime) 리렌더돼도 활성 줄 전환·편집 시에만 재구성.
+  // 활성 줄의 가라오케 채움은 KaraokeText가 시간을 자체 구독해 갱신.
+  const linesContent = useMemo(() => doc.lines.map((line, i) => {
+    const dist = activeIdx === -1 ? 999 : Math.abs(i - activeIdx);
+    const isActive = i === activeIdx;
+    const hasGlyphSync = !!line.syllables?.some((s) => s.time !== null);
+    const lineEnd = lineEnds[i];
+
+    const dimClass = isActive
+      ? "text-white"
+      : dist === 1 ? "text-zinc-300"
+      : dist === 2 ? "text-zinc-500"
+      : "text-zinc-700";
+    const textSizeClass = isActive
+      ? "text-2xl font-bold"
+      : dist === 1 ? "text-xl font-medium"
+      : dist === 2 ? "text-lg"
+      : "text-base";
+
+    return (
+      <div
+        key={line.id}
+        ref={isActive ? activeLineRef : null}
+        className={`flex items-baseline gap-4 transition-all duration-300 ${dimClass}`}
+      >
+        <div className="w-20 shrink-0 flex justify-end">
+          {editingId === line.id ? (
+            <input
+              ref={editInputRef}
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={() => commitEdit(line.id)}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === "Enter") commitEdit(line.id);
+                if (e.key === "Escape") setEditingId(null);
+              }}
+              placeholder="00:00.00"
+              className="w-20 bg-zinc-800 border border-indigo-500 rounded px-1.5 py-0.5 text-xs font-mono text-indigo-300 focus:outline-none text-right"
+            />
+          ) : (
+            <button
+              onClick={() => startEdit(line.id, line.timestamp)}
+              className={`font-mono text-xs px-1.5 py-0.5 rounded transition-colors text-right w-full
+                ${line.timestamp !== null
+                  ? "hover:bg-zinc-800 hover:text-indigo-300"
+                  : "text-zinc-700 hover:bg-zinc-800 hover:text-zinc-500"
+                }`}
+            >
+              {line.timestamp !== null ? formatTimestamp(line.timestamp) : "—"}
+            </button>
+          )}
+        </div>
+
+        <div
+          className={`flex-1 leading-snug ${textSizeClass} ${line.timestamp !== null ? "cursor-pointer" : "select-none"}`}
+          onClick={() => { if (line.timestamp !== null) seekToLine(line.timestamp); }}
+        >
+          {isActive ? (
+            <span className="relative inline-block">
+              {hasGlyphSync && line.syllables ? (
+                <KaraokeText syllables={line.syllables} lineEnd={lineEnd} isServiceMode={isServiceMode} />
+              ) : (
+                line.text || " "
+              )}
+              <span className="absolute -bottom-1 left-0 right-0 h-0.5 rounded-full bg-indigo-500 opacity-80" />
+            </span>
+          ) : (
+            line.text || " "
+          )}
+        </div>
+      </div>
+    );
+  }), [doc.lines, activeIdx, lineEnds, editingId, editValue, startEdit, commitEdit, seekToLine, isServiceMode]);
 
   const hasTimestamps = doc.lines.some((l) => l.timestamp !== null);
 
@@ -163,91 +259,7 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
             {!hasTimestamps && (
               <p className="text-zinc-700 text-sm text-center mb-2">{t.previewNoTimestamps}</p>
             )}
-            {doc.lines.map((line, i) => {
-              const dist = activeIdx === -1 ? 999 : Math.abs(i - activeIdx);
-              const isActive = i === activeIdx;
-              const hasGlyphSync = !!line.syllables?.some((s) => s.time !== null);
-
-              // 가라오케 채움의 마지막 글자 종료 시각 = 다음 타임스탬프 줄 / 총 길이
-              let lineEnd = playbackDuration > 0 ? playbackDuration : (line.timestamp ?? 0) + 4;
-              for (let j = i + 1; j < doc.lines.length; j++) {
-                if (doc.lines[j].timestamp !== null) { lineEnd = doc.lines[j].timestamp as number; break; }
-              }
-
-              const dimClass = isActive
-                ? "text-white"
-                : dist === 1 ? "text-zinc-300"
-                : dist === 2 ? "text-zinc-500"
-                : "text-zinc-700";
-
-              const textSizeClass = isActive
-                ? "text-2xl font-bold"
-                : dist === 1 ? "text-xl font-medium"
-                : dist === 2 ? "text-lg"
-                : "text-base";
-
-              return (
-                <div
-                  key={line.id}
-                  ref={isActive ? activeLineRef : null}
-                  className={`flex items-baseline gap-4 transition-all duration-300 ${dimClass}`}
-                >
-                  {/* 타임스탬프 영역 */}
-                  <div className="w-20 shrink-0 flex justify-end">
-                    {editingId === line.id ? (
-                      <input
-                        ref={editInputRef}
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onBlur={() => commitEdit(line.id)}
-                        onKeyDown={(e) => {
-                          e.stopPropagation();
-                          if (e.key === "Enter") commitEdit(line.id);
-                          if (e.key === "Escape") setEditingId(null);
-                        }}
-                        placeholder="00:00.00"
-                        className="w-20 bg-zinc-800 border border-indigo-500 rounded px-1.5 py-0.5 text-xs font-mono text-indigo-300 focus:outline-none text-right"
-                      />
-                    ) : (
-                      <button
-                        onClick={() => startEdit(line.id, line.timestamp)}
-                        className={`font-mono text-xs px-1.5 py-0.5 rounded transition-colors text-right w-full
-                          ${line.timestamp !== null
-                            ? "hover:bg-zinc-800 hover:text-indigo-300"
-                            : "text-zinc-700 hover:bg-zinc-800 hover:text-zinc-500"
-                          }`}
-                      >
-                        {line.timestamp !== null ? formatTimestamp(line.timestamp) : "—"}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* 가사 텍스트 */}
-                  <div
-                    className={`flex-1 leading-snug ${textSizeClass} ${line.timestamp !== null ? "cursor-pointer" : "select-none"}`}
-                    onClick={() => {
-                      if (line.timestamp !== null) {
-                        controls.seekTo(line.timestamp);
-                        if (!playbackIsPlaying) controls.togglePlay();
-                      }
-                    }}
-                  >
-                    {isActive ? (
-                      <span className="relative inline-block">
-                        {hasGlyphSync && line.syllables ? (
-                          <KaraokeText syllables={line.syllables} currentTime={playbackTime} lineEnd={lineEnd} />
-                        ) : (
-                          line.text || " "
-                        )}
-                        <span className="absolute -bottom-1 left-0 right-0 h-0.5 rounded-full bg-indigo-500 opacity-80" />
-                      </span>
-                    ) : (
-                      line.text || " "
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+            {linesContent}
             <div className="h-24 shrink-0" />
           </div>
         )}
@@ -257,13 +269,17 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
 }
 
 // 글자 단위 가라오케 채움: 각 글자를 시작~다음 시각 사이 진행도로 좌→우 채움
+// 시간을 자체 구독 → 부모(미리보기 목록)가 매 프레임 리렌더되지 않아도 활성 줄만 채움 갱신
 function KaraokeText({
-  syllables, currentTime, lineEnd,
+  syllables, lineEnd, isServiceMode,
 }: {
   syllables: LrcSyllable[];
-  currentTime: number;
   lineEnd: number;
+  isServiceMode: boolean;
 }) {
+  const ct = useLrcStore((s) => s.currentTime);
+  const pos = useServiceStore((s) => s.positionMs);
+  const currentTime = isServiceMode ? pos / 1000 : ct;
   return (
     <>
       {syllables.map((s, i) => {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "wavesurfer.js/dist/plugins/regions.esm.js";
 import { readFile } from "@tauri-apps/plugin-fs";
@@ -324,6 +324,13 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     return () => document.removeEventListener("mousedown", h);
   }, [showMore]);
 
+  // 마커는 줄 id·타임스탬프·줄번호(인덱스)에만 의존 → 텍스트 편집(타임스탬프 불변)으로는
+  // region을 재생성하지 않도록 시그니처로 의존성을 좁힘(키 입력마다 전체 region 재생성 방지).
+  const markerSig = useMemo(
+    () => lines.map((l, i) => (l.timestamp !== null ? `${l.id}:${l.timestamp}:${i}` : "")).filter(Boolean).join("|"),
+    [lines]
+  );
+
   // 가사 타임스탬프 마커를 파형에 동기화
   useEffect(() => {
     const regions = regionsRef.current;
@@ -362,7 +369,26 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         r.element.appendChild(label);
       }
     });
-  }, [lines, activeLineId, isAudioReady, showMarkers]);
+    // lines/activeLineId는 closure 최신값 사용. markerSig(마커 위치 변경)에만 재생성 →
+    // 활성 줄만 바뀔 땐 아래 별도 effect가 스타일만 토글(전체 region 재생성 회피).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markerSig, isAudioReady, showMarkers]);
+
+  // 활성 줄 변경: region을 다시 만들지 않고 색/라벨 스타일만 갱신
+  useEffect(() => {
+    const regions = regionsRef.current;
+    if (!regions || !isAudioReady || !showMarkers) return;
+    const activeRegionId = activeLineId ? `lyric:${activeLineId}` : null;
+    regions.getRegions().forEach((r) => {
+      const isActive = r.id === activeRegionId;
+      r.setOptions({ color: isActive ? "#ea580c" : "rgba(217, 119, 6, 0.8)" });
+      const label = r.element?.querySelector<HTMLElement>(".lyric-marker-num");
+      if (label) {
+        label.className = isActive ? "lyric-marker-num" : "lyric-marker-num dim";
+        label.style.background = isActive ? "#ea580c" : "#b45309";
+      }
+    });
+  }, [activeLineId, isAudioReady, showMarkers, markerSig]);
 
   const progress = duration > 0 ? currentTime / duration : 0;
 
