@@ -58,7 +58,7 @@ interface LrcStore {
   // 줄의 글자 동기화 제거(일반 줄로 복귀). line.timestamp는 유지.
   clearLineSyllables: (lineId: string) => void;
 
-  setMetadata: (meta: Partial<LrcMetadata>) => void;
+  setMetadata: (meta: Partial<LrcMetadata>, silent?: boolean) => void;
   setLines: (lines: LrcLine[]) => void;
   addLine: (text?: string) => void;
   insertLinesAfter: (afterId: string, texts: string[]) => string;
@@ -88,7 +88,7 @@ interface LrcStore {
   aiSyncProgressStatus: string;
   /** lineId → confidence (0–1). null = no AI draft active */
   aiDraftConfidence: Record<string, number> | null;
-  runAiSync: (language: string, blankLineOffset: number) => Promise<void>;
+  runAiSync: (language: string, blankLineOffset: number, useSeparation: boolean, useVad: boolean) => Promise<void>;
   cancelAiSync: () => void;
   clearAiDraft: () => void;
 }
@@ -241,10 +241,11 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     if (idx > 0) set({ activeLineId: lines[idx - 1].id });
   },
 
-  setMetadata: (meta) =>
+  setMetadata: (meta, silent = false) =>
     set((s) => ({
       doc: { ...s.doc, metadata: { ...s.doc.metadata, ...meta } },
-      isDirty: true,
+      // silent: 서비스(Spotify) 자동 동기화 등 사용자 편집이 아닌 갱신은 dirty로 표시하지 않음
+      isDirty: silent ? s.isDirty : true,
     })),
 
   setLines: (lines) => {
@@ -478,7 +479,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     return count;
   },
 
-  runAiSync: async (language, blankLineOffset) => {
+  runAiSync: async (language, blankLineOffset, useSeparation, useVad) => {
     const { audioPath, doc } = get();
     if (!audioPath) return;
 
@@ -503,6 +504,8 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
         audioPath,
         linesJson: JSON.stringify(linesInput),
         language,
+        useSeparation,
+        useVad,
       });
 
       // align.py는 { lines, vocal_segments, separated } 객체를 반환(구버전은 배열).
@@ -521,11 +524,28 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
         return null;
       };
 
+      // 정렬된 줄 [start,end]이 보컬 활동 구간과 얼마나 겹치는지(0~1).
+      // VAD 없으면 1(페널티 없음). 겹침이 낮으면 보컬 없는 구간에 잘못 찍혔을 가능성.
+      const vocalOverlapRatio = (start: number, end: number): number => {
+        if (!separated || vocalSegments.length === 0) return 1;
+        const dur = Math.max(end - start, 0.05);
+        let ov = 0;
+        for (const [s, e] of vocalSegments) {
+          if (s > end) break; // 정렬되어 있어 조기 종료 가능
+          ov += Math.max(0, Math.min(end, e) - Math.max(start, s));
+        }
+        return Math.max(0, Math.min(1, ov / dur));
+      };
+
       const confidence: Record<string, number> = {};
       const newLines = doc.lines.map((line, idx) => {
         const r = byIndex.get(idx);
         if (r) {
-          confidence[line.id] = r.confidence;
+          // VAD 보정: 보컬 활동과 겹침이 낮은 줄(=무보컬 구간 오정렬 의심)은 신뢰도 하향.
+          // 타임스탬프는 유지하고 배지 색만 낮춰 "검토 필요"로 표시(자동 이동은 정확성 위험으로 미적용).
+          const ratio = vocalOverlapRatio(r.start, r.end);
+          const adjusted = r.confidence * (0.4 + 0.6 * ratio);
+          confidence[line.id] = Math.round(adjusted * 1000) / 1000;
           // AI가 줄 단위로 재정렬 → 기존 글자 동기화는 무효화
           return { ...line, timestamp: r.start, syllables: undefined };
         }

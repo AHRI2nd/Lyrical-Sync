@@ -807,6 +807,8 @@ async fn run_alignment(
     audio_path: String,
     lines_json: String,
     language: String,
+    use_separation: bool,
+    use_vad: bool,
 ) -> Result<String, String> {
     // Use the app-embedded Python (downloaded once via Settings > AI Models)
     let python_exe = embedded_python_exe(&app)?;
@@ -840,7 +842,7 @@ async fn run_alignment(
     let vocals_tmp_path = std::env::temp_dir().join("lyrical_sync_vocals.wav");
     let audio_for_align: String;
 
-    if demucs_model.exists() {
+    if use_separation && demucs_model.exists() {
         let sep_script_path = std::env::temp_dir().join("lyrical_sync_separate.py");
         tokio::fs::write(&sep_script_path, SEPARATE_SCRIPT)
             .await
@@ -894,6 +896,7 @@ async fn run_alignment(
     let script_str = align_script_path.to_string_lossy().into_owned();
     // VAD on the audio is only meaningful when it's the isolated vocal stem
     let separated_flag = if audio_for_align != audio_path { "true" } else { "false" };
+    let vad_flag = if use_vad { "true" } else { "false" };
     let mut child = python_cmd_inference(&python_str)
         .args([
             script_str.as_str(),
@@ -902,6 +905,7 @@ async fn run_alignment(
             "--lines",      &lines_json,
             "--language",   &language,
             "--separated",  separated_flag,
+            "--vad",        vad_flag,
         ])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())

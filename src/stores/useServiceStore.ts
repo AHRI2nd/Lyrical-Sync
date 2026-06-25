@@ -30,6 +30,9 @@ interface TokenResponse {
 
 // Module-level RAF handle — not stored in Zustand since it doesn't drive UI
 let interpolationRaf: number | null = null;
+// 진행 중인 토큰 갱신 promise — 동시 ensureToken 호출이 같은 refresh 토큰으로
+// 중복 갱신해 로테이팅 토큰이 무효화(invalid_grant)되는 레이스를 방지.
+let refreshPromise: Promise<void> | null = null;
 
 interface ServiceState {
   // Auth
@@ -165,34 +168,43 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
   },
 
   refreshAccessToken: async () => {
-    const clientId = useSettingsStore.getState().spotifyClientId.trim();
-    const storedToken: string | null = await invoke("load_refresh_token");
-    if (!storedToken) throw new Error("no_refresh_token");
+    // 이미 갱신 중이면 그 promise를 공유(중복 갱신 방지)
+    if (refreshPromise) return refreshPromise;
+    refreshPromise = (async () => {
+      try {
+        const clientId = useSettingsStore.getState().spotifyClientId.trim();
+        const storedToken: string | null = await invoke("load_refresh_token");
+        if (!storedToken) throw new Error("no_refresh_token");
 
-    let resp: TokenResponse;
-    try {
-      resp = await invoke("refresh_spotify_token", {
-        refreshToken: storedToken,
-        clientId,
-      });
-    } catch (e) {
-      // 리프레시 토큰 만료/취소(invalid_grant) → 저장 토큰 폐기 + 로그아웃해 재로그인 유도.
-      // 재시도하지 않음(Spotify 권장 처리). 2026-07-20부터 리프레시 토큰은 6개월 후 만료.
-      if (String(e).includes("invalid_grant")) {
-        get().logout();
+        let resp: TokenResponse;
+        try {
+          resp = await invoke("refresh_spotify_token", {
+            refreshToken: storedToken,
+            clientId,
+          });
+        } catch (e) {
+          // 리프레시 토큰 만료/취소(invalid_grant) → 저장 토큰 폐기 + 로그아웃해 재로그인 유도.
+          // 재시도하지 않음(Spotify 권장 처리). 2026-07-20부터 리프레시 토큰은 6개월 후 만료.
+          if (String(e).includes("invalid_grant")) {
+            get().logout();
+          }
+          throw e;
+        }
+
+        if (resp.refreshToken) {
+          await invoke("save_refresh_token", { token: resp.refreshToken });
+        }
+
+        set({
+          isLoggedIn: true,
+          accessToken: resp.accessToken,
+          tokenExpiresAt: Date.now() + resp.expiresIn * 1000,
+        });
+      } finally {
+        refreshPromise = null;
       }
-      throw e;
-    }
-
-    if (resp.refreshToken) {
-      await invoke("save_refresh_token", { token: resp.refreshToken });
-    }
-
-    set({
-      isLoggedIn: true,
-      accessToken: resp.accessToken,
-      tokenExpiresAt: Date.now() + resp.expiresIn * 1000,
-    });
+    })();
+    return refreshPromise;
   },
 
   toggleLoop: async () => {
@@ -277,7 +289,7 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
         title: track.name,
         artist: track.artists.map((a) => a.name).join(", "),
         album: track.album.name,
-      });
+      }, true); // 서비스 자동 동기화 → dirty 미표시
     }
   },
 

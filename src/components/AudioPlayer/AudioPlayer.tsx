@@ -157,10 +157,15 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       }
     });
 
+    // Spotify 서비스 모드에선 로컬 파형이 전역 재생상태(currentTime/isPlaying/duration)를
+    // 덮어쓰지 않도록 차단(Spotify가 단일 소스). 로컬 UI 상태(*Local)는 항상 갱신.
+    const inService = () =>
+      useServiceStore.getState().isLoggedIn && useSettingsStore.getState().spotifyMode;
+
     ws.on("ready", () => {
       const d = ws.getDuration();
       setDurationLocal(d);
-      setDuration(d);
+      if (!inService()) setDuration(d);
       setIsAudioReady(true);
       // 글자 동기화 레인 파형용 정규화 peaks 캐시
       try {
@@ -175,21 +180,21 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     });
     ws.on("audioprocess", (t) => {
       setCurrentTimeLocal(t);
-      setCurrentTime(t);
+      if (!inService()) setCurrentTime(t);
     });
     ws.on("seeking", (t) => {
       setCurrentTimeLocal(t);
-      setCurrentTime(t);
+      if (!inService()) setCurrentTime(t);
     });
-    ws.on("play", () => { setIsPlaying(true); setIsPlayingLocal(true); });
-    ws.on("pause", () => { setIsPlaying(false); setIsPlayingLocal(false); });
+    ws.on("play", () => { setIsPlayingLocal(true); if (!inService()) setIsPlaying(true); });
+    ws.on("pause", () => { setIsPlayingLocal(false); if (!inService()) setIsPlaying(false); });
     ws.on("finish", () => {
       if (isLoopingRef.current) {
         ws.seekTo(0);
         ws.play();
       } else {
-        setIsPlaying(false);
         setIsPlayingLocal(false);
+        if (!inService()) setIsPlaying(false);
       }
     });
 
@@ -885,6 +890,9 @@ function YouTubeModal({
   onCancel: () => void;
   onClose: () => void;
 }) {
+  const youtubeDisclaimerAccepted = useSettingsStore((s) => s.youtubeDisclaimerAccepted);
+  const setYoutubeDisclaimerAccepted = useSettingsStore((s) => s.setYoutubeDisclaimerAccepted);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !ytLoading) onClose();
@@ -917,6 +925,26 @@ function YouTubeModal({
           )}
         </div>
 
+        {!youtubeDisclaimerAccepted ? (
+          /* 최초 1회 면책 동의 게이트 */
+          <div className="p-5 flex flex-col gap-4">
+            <p className="text-sm leading-relaxed text-zinc-300">{t.youtubeDisclaimer}</p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
+              >
+                {t.youtubeCancel}
+              </button>
+              <button
+                onClick={() => setYoutubeDisclaimerAccepted(true)}
+                className="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-500 text-white transition-colors"
+              >
+                {t.youtubeAgree}
+              </button>
+            </div>
+          </div>
+        ) : (
         <div className="p-5 flex flex-col gap-4">
           <div className="flex gap-2">
             <input
@@ -938,6 +966,10 @@ function YouTubeModal({
           {ytError && (
             <span className="text-xs text-red-400 break-all">{ytError}</span>
           )}
+
+          <p className="text-[11px] leading-relaxed text-zinc-500 border-t border-zinc-800 pt-3">
+            {t.youtubeDisclaimer}
+          </p>
 
           <div className="flex justify-end gap-2">
             {ytLoading ? (
@@ -966,6 +998,7 @@ function YouTubeModal({
             )}
           </div>
         </div>
+        )}
       </div>
     </div>
   );

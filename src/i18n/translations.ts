@@ -257,6 +257,13 @@ export interface Translations {
   modelErrorPrefix: string;
   modelRequired: string;
   modelOptional: string;
+  aiUsageTitle: string;
+  aiUsageSeparation: string;
+  aiUsageSeparationDesc: string;
+  aiUsageVad: string;
+  aiUsageVadDesc: string;
+  aiUsageNeedModel: string;
+  aiUsageNeedSeparation: string;
   modelChangeDir: string;
   modelResetDir: string;
   modelCopyPath: string;
@@ -268,6 +275,9 @@ export interface Translations {
   aiSyncCancel: string;
   aiSyncClear: string;
   aiSyncNoModel: string;
+  aiSyncGlyphWarnTitle: string;
+  aiSyncGlyphWarnMsg: string;
+  aiSyncGlyphWarnOk: string;
   aiSyncNoAudio: string;
   aiSyncDone: string;
   aiSyncError: string;
@@ -304,6 +314,7 @@ export interface Translations {
   spotifyConnect: string;
   spotifyConnecting: string;
   spotifyConnected: string;
+  spotifyOpenInSpotify: string;
   spotifyLogout: string;
   spotifyNoClientId: string;
   spotifyNoClientIdDesc: string;
@@ -351,7 +362,9 @@ export interface Translations {
   ytdlpProxySave: string;
   ytdlpInfoText: string;
   youtubeUrlPlaceholder: string;
+  youtubeDisclaimer: string;
   youtubeLoad: string;
+  youtubeAgree: string;
   youtubeLoading: string;
   youtubeCancel: string;
   youtubeNotInstalled: string;
@@ -496,7 +509,7 @@ const ko: Translations = {
     needDuration: "오디오 길이(오디오를 열어주세요)",
     needSync: "타임스탬프가 있는 동기화 가사",
     hint: "현재 곡 정보·동기화 가사를 LRCLIB에 공개 기여합니다. 정확한 제목·아티스트·길이를 확인하세요.",
-    warning: "LRCLIB는 누구나 볼 수 있는 공개 데이터베이스입니다. 부정확하거나 테스트용 가사를 올리면 다른 사용자에게 영향을 주며 되돌리기 어렵습니다. 제목·아티스트·가사가 정확한지 다시 확인하셨나요?",
+    warning: "LRCLIB는 누구나 볼 수 있는 공개 데이터베이스입니다. 부정확하거나 테스트용 가사를 올리면 다른 사용자에게 영향을 주며 되돌리기 어렵습니다. 또한 가사는 저작권의 대상일 수 있으니 본인이 권리를 갖거나 허용된 경우에만 기여하세요. 제목·아티스트·가사가 정확한지 다시 확인하셨나요?",
     confirm: "확인했으며 업로드",
     publish: "업로드",
     publishing: "업로드 중… (작업 증명 계산, 수 초 소요)",
@@ -660,6 +673,13 @@ const ko: Translations = {
   modelErrorPrefix: "오류",
   modelRequired: "필수",
   modelOptional: "선택",
+  aiUsageTitle: "정렬에 사용",
+  aiUsageSeparation: "보컬 분리 (Demucs)",
+  aiUsageSeparationDesc: "정렬 전 보컬을 분리해 정확도를 높입니다 (느려짐)",
+  aiUsageVad: "보컬 활동 감지 (VAD)",
+  aiUsageVadDesc: "빈 줄을 보컬 재개 지점에 배치하고 무보컬 구간 오정렬을 표시",
+  aiUsageNeedModel: "Demucs 모델 미설치 — 설치 후 사용 가능",
+  aiUsageNeedSeparation: "보컬 분리를 켜야 사용할 수 있습니다",
   modelChangeDir: "위치 변경",
   modelResetDir: "기본으로",
   modelCopyPath: "복사",
@@ -670,6 +690,9 @@ const ko: Translations = {
   aiSyncCancel: "취소",
   aiSyncClear: "초안 지우기",
   aiSyncNoModel: "다음 필수 항목이 설치되지 않았습니다:",
+  aiSyncGlyphWarnTitle: "글자 동기화가 삭제됩니다",
+  aiSyncGlyphWarnMsg: "AI 정렬은 줄 단위로 다시 정렬하므로 기존 글자/단어 동기화가 모두 삭제됩니다. 계속할까요?",
+  aiSyncGlyphWarnOk: "계속",
   aiSyncNoAudio: "오디오 파일을 먼저 열어주세요",
   aiSyncDone: "AI 싱크 완료",
   aiSyncError: "AI 싱크 오류",
@@ -705,6 +728,7 @@ const ko: Translations = {
   spotifyConnect: "Spotify 연결",
   spotifyConnecting: "연결 중...",
   spotifyConnected: "연결됨",
+  spotifyOpenInSpotify: "Spotify에서 열기",
   spotifyLogout: "로그아웃",
   spotifyNoClientId: "Client ID가 입력되지 않았습니다",
   spotifyNoClientIdDesc: "아래에 Spotify Client ID를 입력한 후 연결하세요.",
@@ -752,7 +776,9 @@ const ko: Translations = {
   ytdlpProxySave: "저장",
   ytdlpInfoText: "YouTube 영상의 오디오를 임시 파일로 불러와 파형 시각화 및 타임스탬프 작업에 사용합니다.",
   youtubeUrlPlaceholder: "YouTube URL 입력...",
+  youtubeDisclaimer: "저작권이 있는 콘텐츠의 다운로드는 거주 국가의 법률과 YouTube 약관의 적용을 받습니다. 본인이 권리를 갖거나 허용된 범위(예: 개인적·비상업적 이용) 내에서만 사용하세요. 사용에 대한 책임은 전적으로 사용자에게 있습니다.",
   youtubeLoad: "불러오기",
+  youtubeAgree: "동의하고 계속",
   youtubeLoading: "불러오는 중...",
   youtubeCancel: "취소",
   youtubeNotInstalled: "yt-dlp 설치 필요 (설정 → YouTube)",
@@ -897,7 +923,7 @@ const en: Translations = {
     needDuration: "Audio duration (open an audio file)",
     needSync: "Synced lyrics with timestamps",
     hint: "Publicly contribute the current song info and synced lyrics to LRCLIB. Double-check the title, artist, and duration.",
-    warning: "LRCLIB is a public database visible to everyone. Uploading inaccurate or test lyrics affects other users and is hard to undo. Have you double-checked the title, artist, and lyrics?",
+    warning: "LRCLIB is a public database visible to everyone. Uploading inaccurate or test lyrics affects other users and is hard to undo. Lyrics may also be copyrighted — only contribute content you own or are permitted to share. Have you double-checked the title, artist, and lyrics?",
     confirm: "I've checked — upload",
     publish: "Publish",
     publishing: "Publishing… (computing proof-of-work, a few seconds)",
@@ -1062,6 +1088,13 @@ const en: Translations = {
   modelErrorPrefix: "Error",
   modelRequired: "Required",
   modelOptional: "Optional",
+  aiUsageTitle: "Use for alignment",
+  aiUsageSeparation: "Vocal separation (Demucs)",
+  aiUsageSeparationDesc: "Isolate vocals before alignment for better accuracy (slower)",
+  aiUsageVad: "Vocal activity detection (VAD)",
+  aiUsageVadDesc: "Place blank lines at vocal resume and flag misaligned silent regions",
+  aiUsageNeedModel: "Demucs model not installed — install to enable",
+  aiUsageNeedSeparation: "Requires vocal separation to be enabled",
   modelChangeDir: "Change location",
   modelResetDir: "Reset to default",
   modelCopyPath: "Copy",
@@ -1072,6 +1105,9 @@ const en: Translations = {
   aiSyncCancel: "Cancel",
   aiSyncClear: "Clear Draft",
   aiSyncNoModel: "Required items not installed:",
+  aiSyncGlyphWarnTitle: "Character sync will be cleared",
+  aiSyncGlyphWarnMsg: "AI alignment re-aligns line by line, so all existing character/word sync will be removed. Continue?",
+  aiSyncGlyphWarnOk: "Continue",
   aiSyncNoAudio: "Please open an audio file first",
   aiSyncDone: "AI Sync complete",
   aiSyncError: "AI Sync error",
@@ -1107,6 +1143,7 @@ const en: Translations = {
   spotifyConnect: "Connect Spotify",
   spotifyConnecting: "Connecting...",
   spotifyConnected: "Connected",
+  spotifyOpenInSpotify: "Open in Spotify",
   spotifyLogout: "Log out",
   spotifyNoClientId: "No Client ID entered",
   spotifyNoClientIdDesc: "Enter your Spotify Client ID below to connect.",
@@ -1154,7 +1191,9 @@ const en: Translations = {
   ytdlpProxySave: "Save",
   ytdlpInfoText: "Downloads audio from YouTube videos to a temporary file for waveform visualization and timestamp editing.",
   youtubeUrlPlaceholder: "Enter YouTube URL...",
+  youtubeDisclaimer: "Downloading copyrighted content is subject to the laws of your country and YouTube's Terms of Service. Use only content you own or are otherwise permitted to use (e.g. personal, non-commercial use). You are solely responsible for your use.",
   youtubeLoad: "Load",
+  youtubeAgree: "Agree & continue",
   youtubeLoading: "Loading...",
   youtubeCancel: "Cancel",
   youtubeNotInstalled: "yt-dlp required (Settings → YouTube)",
@@ -1299,7 +1338,7 @@ const ja: Translations = {
     needDuration: "音声の長さ（音声を開いてください）",
     needSync: "タイムスタンプ付きの同期歌詞",
     hint: "現在の曲情報・同期歌詞をLRCLIBに公開貢献します。タイトル・アーティスト・長さを確認してください。",
-    warning: "LRCLIBは誰でも閲覧できる公開データベースです。不正確またはテスト用の歌詞を投稿すると他のユーザーに影響し、取り消しが困難です。タイトル・アーティスト・歌詞を再確認しましたか？",
+    warning: "LRCLIBは誰でも閲覧できる公開データベースです。不正確またはテスト用の歌詞を投稿すると他のユーザーに影響し、取り消しが困難です。また歌詞は著作権の対象となる場合があるため、ご自身が権利を有するか許可された場合のみ投稿してください。タイトル・アーティスト・歌詞を再確認しましたか？",
     confirm: "確認のうえ公開",
     publish: "公開",
     publishing: "公開中…（証明計算、数秒かかります）",
@@ -1463,6 +1502,13 @@ const ja: Translations = {
   modelErrorPrefix: "エラー",
   modelRequired: "必須",
   modelOptional: "任意",
+  aiUsageTitle: "整列に使用",
+  aiUsageSeparation: "ボーカル分離 (Demucs)",
+  aiUsageSeparationDesc: "整列前にボーカルを分離して精度を向上（遅くなります）",
+  aiUsageVad: "ボーカル活動検出 (VAD)",
+  aiUsageVadDesc: "空行をボーカル再開地点に配置し、無ボーカル区間の誤整列を表示",
+  aiUsageNeedModel: "Demucs モデル未インストール — インストールで有効化",
+  aiUsageNeedSeparation: "ボーカル分離を有効にする必要があります",
   modelChangeDir: "場所を変更",
   modelResetDir: "デフォルトに戻す",
   modelCopyPath: "コピー",
@@ -1473,6 +1519,9 @@ const ja: Translations = {
   aiSyncCancel: "キャンセル",
   aiSyncClear: "下書きを消去",
   aiSyncNoModel: "以下の必須項目がインストールされていません:",
+  aiSyncGlyphWarnTitle: "文字同期が削除されます",
+  aiSyncGlyphWarnMsg: "AI 整列は行単位で再整列するため、既存の文字/単語同期がすべて削除されます。続行しますか？",
+  aiSyncGlyphWarnOk: "続行",
   aiSyncNoAudio: "先に音声ファイルを開いてください",
   aiSyncDone: "AI同期完了",
   aiSyncError: "AI同期エラー",
@@ -1508,6 +1557,7 @@ const ja: Translations = {
   spotifyConnect: "Spotify に接続",
   spotifyConnecting: "接続中...",
   spotifyConnected: "接続済み",
+  spotifyOpenInSpotify: "Spotifyで開く",
   spotifyLogout: "ログアウト",
   spotifyNoClientId: "クライアントIDが未入力です",
   spotifyNoClientIdDesc: "下のフィールドにSpotifyクライアントIDを入力して接続してください。",
@@ -1555,7 +1605,9 @@ const ja: Translations = {
   ytdlpProxySave: "保存",
   ytdlpInfoText: "YouTube動画の音声を一時ファイルとして読み込み、波形表示とタイムスタンプ編集に使用します。",
   youtubeUrlPlaceholder: "YouTube URLを入力...",
+  youtubeDisclaimer: "著作権で保護されたコンテンツのダウンロードは、お住まいの国の法律および YouTube の利用規約の対象となります。ご自身が権利を有するか、許可された範囲（個人的・非商用利用など）でのみ使用してください。使用に関する責任はすべて利用者にあります。",
   youtubeLoad: "読み込む",
+  youtubeAgree: "同意して続行",
   youtubeLoading: "読み込み中...",
   youtubeCancel: "キャンセル",
   youtubeNotInstalled: "yt-dlpが必要です（設定 → YouTube）",

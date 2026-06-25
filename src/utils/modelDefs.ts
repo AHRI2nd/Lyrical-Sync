@@ -60,30 +60,9 @@ export const MODEL_DEFS: ModelDef[] = [
     required: true,
   },
 
-  // ── wav2vec2 ─────────────────────────────────────────────────────────────────
-  {
-    id: "wav2vec2-base-960h",
-    category: "wav2vec2",
-    name: "wav2vec2-base-960h",
-    description: {
-      ko: "영어 전용 ASR 모델 — 영어 가사의 정렬 정확도를 높입니다 (선택)",
-      en: "English-only ASR model — improves alignment accuracy for English lyrics (optional)",
-      ja: "英語専用ASRモデル — 英語歌詞のアライメント精度を向上させます（任意）",
-    },
-    files: [
-      { filename: "wav2vec2/config.json", url: "https://huggingface.co/facebook/wav2vec2-base-960h/resolve/main/config.json" },
-      { filename: "wav2vec2/preprocessor_config.json", url: "https://huggingface.co/facebook/wav2vec2-base-960h/resolve/main/preprocessor_config.json" },
-      { filename: "wav2vec2/tokenizer_config.json", url: "https://huggingface.co/facebook/wav2vec2-base-960h/resolve/main/tokenizer_config.json" },
-      { filename: "wav2vec2/vocab.json", url: "https://huggingface.co/facebook/wav2vec2-base-960h/resolve/main/vocab.json" },
-      { filename: "wav2vec2/special_tokens_map.json", url: "https://huggingface.co/facebook/wav2vec2-base-960h/resolve/main/special_tokens_map.json" },
-      { filename: "wav2vec2/model.safetensors", url: "https://huggingface.co/facebook/wav2vec2-base-960h/resolve/main/model.safetensors" },
-    ],
-    totalSizeMb: 380,
-    required: false,
-  },
 ];
 
-export const CATEGORY_ORDER: ModelCategory[] = ["demucs", "ctc", "wav2vec2"];
+export const CATEGORY_ORDER: ModelCategory[] = ["demucs", "ctc"];
 
 export function formatSize(mb: number): string {
   if (mb >= 1000) return `${(mb / 1000).toFixed(2)} GB`;
