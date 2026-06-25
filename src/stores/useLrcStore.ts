@@ -64,6 +64,16 @@ interface LrcStore {
   insertLinesAfter: (afterId: string, texts: string[]) => string;
   updateLine: (id: string, patch: Partial<Omit<LrcLine, "id">>) => void;
   deleteLine: (id: string) => void;
+  /** 줄 복제(텍스트만, 타임스탬프 없이 바로 아래에). 새 줄 id 반환 */
+  duplicateLine: (id: string) => string;
+  /** 줄을 이전 줄과 병합(텍스트 결합, 이전 줄 타임스탬프 유지). 병합된 줄 id, 첫 줄이면 null */
+  mergeLineUp: (id: string) => string | null;
+  /** 커서 위치에서 줄을 둘로 분할. 새(뒤) 줄 id 반환 */
+  splitLine: (id: string, caretPos: number) => string;
+  /** 줄 순서 이동(드래그 재정렬) */
+  moveLine: (fromIndex: number, toIndex: number) => void;
+  /** 모든 타임스탬프(+글자 동기화)를 배율로 스케일 — 템포/버전 불일치 보정 */
+  scaleTimestamps: (factor: number) => void;
   stampCurrentLine: (id: string) => void;
   applyOffset: () => void;
   loadFromRawText: (raw: string) => void;
@@ -287,6 +297,71 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     const lines = doc.lines.filter((l) => l.id !== id);
     const newActiveLineId = activeLineId === id ? (lines[0]?.id ?? null) : activeLineId;
     set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, activeLineId: newActiveLineId, isDirty: true });
+  },
+
+  duplicateLine: (id) => {
+    const { doc, _history } = get();
+    const idx = doc.lines.findIndex((l) => l.id === id);
+    if (idx < 0) return id;
+    const newId = genId();
+    // 텍스트만 복제 — 타임스탬프/글자 동기화는 비워 중복 시각을 만들지 않음
+    const copy: LrcLine = { id: newId, timestamp: null, text: doc.lines[idx].text };
+    const lines = [...doc.lines];
+    lines.splice(idx + 1, 0, copy);
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, isDirty: true });
+    return newId;
+  },
+
+  mergeLineUp: (id) => {
+    const { doc, _history } = get();
+    const idx = doc.lines.findIndex((l) => l.id === id);
+    if (idx <= 0) return null;
+    const prev = doc.lines[idx - 1];
+    const cur = doc.lines[idx];
+    const sep = prev.text && cur.text ? " " : "";
+    // 이전 줄 타임스탬프 유지, 텍스트 결합, 글자 동기화는 무효화(텍스트 변경)
+    const merged: LrcLine = { ...prev, text: prev.text + sep + cur.text, syllables: undefined };
+    const lines = [...doc.lines];
+    lines.splice(idx - 1, 2, merged);
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, activeLineId: prev.id, isDirty: true });
+    return prev.id;
+  },
+
+  splitLine: (id, caretPos) => {
+    const { doc, _history } = get();
+    const idx = doc.lines.findIndex((l) => l.id === id);
+    if (idx < 0) return id;
+    const cur = doc.lines[idx];
+    const newId = genId();
+    // 앞부분: 타임스탬프 유지 / 뒷부분: 새 줄(타임스탬프 없음). 둘 다 글자 동기화 무효화
+    const first: LrcLine = { ...cur, text: cur.text.slice(0, caretPos), syllables: undefined };
+    const second: LrcLine = { id: newId, timestamp: null, text: cur.text.slice(caretPos) };
+    const lines = [...doc.lines];
+    lines.splice(idx, 1, first, second);
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, activeLineId: newId, isDirty: true });
+    return newId;
+  },
+
+  moveLine: (fromIndex, toIndex) => {
+    const { doc, _history } = get();
+    const n = doc.lines.length;
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= n || toIndex >= n) return;
+    const lines = [...doc.lines];
+    const [moved] = lines.splice(fromIndex, 1);
+    lines.splice(toIndex, 0, moved);
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, isDirty: true });
+  },
+
+  scaleTimestamps: (factor) => {
+    if (!(factor > 0) || factor === 1) return;
+    const { doc, _history } = get();
+    const sc = (t: number | null) => (t !== null ? Math.max(0, Math.round(t * factor * 1000) / 1000) : null);
+    const lines = doc.lines.map((l) => ({
+      ...l,
+      timestamp: sc(l.timestamp),
+      syllables: l.syllables?.map((s) => ({ ...s, time: sc(s.time) })),
+    }));
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, isDirty: true });
   },
 
   stampCurrentLine: (id) => {

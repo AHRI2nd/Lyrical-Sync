@@ -181,6 +181,28 @@ async fn decode_audio_to_wav(path: String) -> Result<String, String> {
     Ok(temp_path.to_string_lossy().into_owned())
 }
 
+#[derive(serde::Serialize)]
+struct AudioMetadata {
+    title: String,
+    artist: String,
+    album: String,
+}
+
+/// 오디오 파일 태그(ID3/Vorbis/MP4 등)에서 제목·아티스트·앨범을 읽습니다.
+/// 태그가 없거나 읽기 실패 시 빈 문자열을 돌려줍니다(프런트에서 빈 필드만 채움).
+#[tauri::command]
+fn read_audio_metadata(path: String) -> Result<AudioMetadata, String> {
+    use lofty::file::TaggedFileExt;
+    use lofty::tag::Accessor;
+    let tagged = lofty::read_from_path(&path).map_err(|e| e.to_string())?;
+    let tag = tagged.primary_tag().or_else(|| tagged.first_tag());
+    let s = |o: Option<std::borrow::Cow<str>>| o.map(|c| c.trim().to_string()).unwrap_or_default();
+    Ok(match tag {
+        Some(t) => AudioMetadata { title: s(t.title()), artist: s(t.artist()), album: s(t.album()) },
+        None => AudioMetadata { title: String::new(), artist: String::new(), album: String::new() },
+    })
+}
+
 // ─── Model management commands ────────────────────────────────────────────────
 
 /// 커스텀 모델 저장 경로를 설정합니다. None이면 앱 기본 경로로 초기화합니다.
@@ -1314,6 +1336,7 @@ pub fn run() {
             write_lrc_file,
             read_audio_file,
             decode_audio_to_wav,
+            read_audio_metadata,
             set_models_dir_override,
             get_models_dir,
             check_model_files,

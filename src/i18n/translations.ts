@@ -28,7 +28,7 @@ export interface Translations {
   shortcutDescs: {
     s1: string; s2: string; s3: string; s4: string; s5: string; s6: string;
     space: string; backspace: string;
-    enter: string; undo: string; redo: string; find: string;
+    enter: string; splitLine: string; undo: string; redo: string; find: string;
     tsEditKey: string; tsEditDesc: string; tsStampKey: string; tsStampDesc: string;
     lineClickKey: string; lineClickDesc: string; markerClickKey: string; markerClickDesc: string;
     csStamp: string; csMove: string;
@@ -147,6 +147,9 @@ export interface Translations {
   caseSensitive: string;
   noMatches: string;
   timeShift: string;
+  tsScale: string;
+  tsScaleFactor: string;
+  tsScaleHint: string;
   timeShiftTooltip: string;
   timeShiftFrom: string;
   timeShiftTo: string;
@@ -156,10 +159,19 @@ export interface Translations {
   warnOutOfOrder: string;
   warnDuplicate: string;
   validationSummary: string;
+  validationTitle: string;
+  validationStatComplete: string;
+  validationStatStamped: string;
+  validationStatLines: string;
+  validationUnstamped: string;
+  validationNoIssues: string;
   noLines: string;
   stampTooltip: string;
   linePlaceholder: string;
   deleteLine: string;
+  duplicateLine: string;
+  mergeLineUp: string;
+  reorderLine: string;
   currentTimeLabel: string;
   // MetaEditor
   songInfo: string;
@@ -408,6 +420,7 @@ const ko: Translations = {
     space: "현재 줄에 타임스탬프 찍기 + 다음 줄로 이동",
     backspace: "이전 줄로 이동",
     enter: "가사 편집 중 현재 줄 아래에 새 줄 삽입",
+    splitLine: "커서 위치에서 줄을 둘로 분할",
     undo: "실행 취소",
     redo: "다시 실행",
     find: "찾기 / 바꾸기 열기",
@@ -568,6 +581,9 @@ const ko: Translations = {
   caseSensitive: "대소문자 구분",
   noMatches: "결과 없음",
   timeShift: "구간 오프셋",
+  tsScale: "타임스탬프 스케일",
+  tsScaleFactor: "배율",
+  tsScaleHint: "전체 타임스탬프 ×배율 (예: 1.05 = 5% 느리게)",
   timeShiftTooltip: "선택한 줄 범위의 타임스탬프를 일괄로 앞뒤로 이동합니다",
   timeShiftFrom: "시작",
   timeShiftTo: "끝",
@@ -577,10 +593,19 @@ const ko: Translations = {
   warnOutOfOrder: "이전 줄보다 타임스탬프가 빠릅니다 (순서 역전)",
   warnDuplicate: "다른 줄과 타임스탬프가 중복됩니다",
   validationSummary: "타임스탬프 문제",
+  validationTitle: "검증 / 통계",
+  validationStatComplete: "완성도",
+  validationStatStamped: "찍힘",
+  validationStatLines: "줄",
+  validationUnstamped: "타임스탬프 미입력",
+  validationNoIssues: "모든 줄이 올바르게 입력되었습니다",
   noLines: "「+ 줄 추가」 버튼으로 가사를 입력하세요",
   stampTooltip: "클릭하여 현재 시간을 타임스탬프로 설정",
   linePlaceholder: "가사를 입력하세요...",
   deleteLine: "줄 삭제",
+  duplicateLine: "줄 복제",
+  mergeLineUp: "위 줄과 병합",
+  reorderLine: "드래그하여 순서 변경",
   currentTimeLabel: "현재: ",
   songInfo: "곡 정보",
   metaTitle: { label: "제목 (ti)", placeholder: "노래 제목" },
@@ -822,6 +847,7 @@ const en: Translations = {
     space: "Stamp current line + move to next",
     backspace: "Move to previous line",
     enter: "Insert a new line below while editing lyrics",
+    splitLine: "Split the line in two at the cursor",
     undo: "Undo",
     redo: "Redo",
     find: "Open Find / Replace",
@@ -983,6 +1009,9 @@ const en: Translations = {
   caseSensitive: "Case Sensitive",
   noMatches: "No matches",
   timeShift: "Range Offset",
+  tsScale: "Timestamp scale",
+  tsScaleFactor: "Factor",
+  tsScaleHint: "All timestamps × factor (e.g. 1.05 = 5% slower)",
   timeShiftTooltip: "Shift timestamps of a selected line range forward or backward",
   timeShiftFrom: "From",
   timeShiftTo: "To",
@@ -992,10 +1021,19 @@ const en: Translations = {
   warnOutOfOrder: "Timestamp is earlier than the previous line (out of order)",
   warnDuplicate: "Timestamp duplicates another line",
   validationSummary: "timestamp issue(s)",
+  validationTitle: "Validation / Stats",
+  validationStatComplete: "Complete",
+  validationStatStamped: "Stamped",
+  validationStatLines: "Lines",
+  validationUnstamped: "No timestamp",
+  validationNoIssues: "All lines look good",
   noLines: "Press \"+ Add Line\" to start entering lyrics",
   stampTooltip: "Click to set current time as timestamp",
   linePlaceholder: "Enter lyrics...",
   deleteLine: "Delete line",
+  duplicateLine: "Duplicate line",
+  mergeLineUp: "Merge with line above",
+  reorderLine: "Drag to reorder",
   currentTimeLabel: "Current: ",
   songInfo: "Song Info",
   metaTitle: { label: "Title (ti)", placeholder: "Song title" },
@@ -1237,6 +1275,7 @@ const ja: Translations = {
     space: "現在行にタイムスタンプ + 次の行へ移動",
     backspace: "前の行へ移動",
     enter: "歌詞編集中に現在行の下へ新しい行を挿入",
+    splitLine: "カーソル位置で行を2つに分割",
     undo: "元に戻す",
     redo: "やり直し",
     find: "検索 / 置換を開く",
@@ -1397,6 +1436,9 @@ const ja: Translations = {
   caseSensitive: "大文字・小文字を区別",
   noMatches: "一致なし",
   timeShift: "区間オフセット",
+  tsScale: "タイムスタンプ倍率",
+  tsScaleFactor: "倍率",
+  tsScaleHint: "全タイムスタンプ × 倍率（例: 1.05 = 5%遅く）",
   timeShiftTooltip: "選択した行範囲のタイムスタンプを前後に一括移動します",
   timeShiftFrom: "開始",
   timeShiftTo: "終了",
@@ -1406,10 +1448,19 @@ const ja: Translations = {
   warnOutOfOrder: "前の行よりタイムスタンプが早いです（順序逆転）",
   warnDuplicate: "他の行とタイムスタンプが重複しています",
   validationSummary: "タイムスタンプの問題",
+  validationTitle: "検証 / 統計",
+  validationStatComplete: "完成度",
+  validationStatStamped: "記録済み",
+  validationStatLines: "行",
+  validationUnstamped: "タイムスタンプ未入力",
+  validationNoIssues: "すべての行が正しく入力されています",
   noLines: "「+ 行を追加」ボタンで歌詞を入力してください",
   stampTooltip: "クリックして現在時刻をタイムスタンプに設定",
   linePlaceholder: "歌詞を入力してください...",
   deleteLine: "行を削除",
+  duplicateLine: "行を複製",
+  mergeLineUp: "上の行と結合",
+  reorderLine: "ドラッグで並べ替え",
   currentTimeLabel: "現在: ",
   songInfo: "曲情報",
   metaTitle: { label: "タイトル (ti)", placeholder: "曲のタイトル" },

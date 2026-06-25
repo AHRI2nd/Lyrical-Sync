@@ -533,6 +533,7 @@ function HelpModal({ onClose }: { onClose: () => void }) {
         { key: keyLabel(kb.stamp), desc: t.shortcutDescs.space },
         { key: keyLabel(kb.prevLine), desc: t.shortcutDescs.backspace },
         { key: "Enter", desc: t.shortcutDescs.enter },
+        { key: "⇧ Enter", desc: t.shortcutDescs.splitLine },
         { key: "Ctrl/⌘ Z", desc: t.shortcutDescs.undo },
         { key: "Ctrl/⌘ ⇧ Z", desc: t.shortcutDescs.redo },
         { key: "Ctrl/⌘ F", desc: t.shortcutDescs.find },

@@ -153,3 +153,56 @@ describe("useLrcStore — history & raw load", () => {
     expect(lines()[0].timestamp).toBe(1);
   });
 });
+
+describe("useLrcStore — line manipulation", () => {
+  const mk = (id: string, text: string, ts: number | null = null): LrcLine => ({ id, timestamp: ts, text });
+
+  it("duplicateLine copies text below without timestamp", () => {
+    reset([mk("1", "a", 1), mk("2", "b", 2)]);
+    const nid = useLrcStore.getState().duplicateLine("1");
+    const ls = lines();
+    expect(ls.map((l) => l.text)).toEqual(["a", "a", "b"]);
+    expect(ls[1].id).toBe(nid);
+    expect(ls[1].timestamp).toBeNull();
+  });
+
+  it("mergeLineUp combines into previous keeping its timestamp", () => {
+    reset([mk("1", "hello", 1), mk("2", "world", 2)]);
+    const pid = useLrcStore.getState().mergeLineUp("2");
+    const ls = lines();
+    expect(ls).toHaveLength(1);
+    expect(ls[0].text).toBe("hello world");
+    expect(ls[0].timestamp).toBe(1);
+    expect(pid).toBe("1");
+  });
+
+  it("mergeLineUp on the first line is a no-op", () => {
+    reset([mk("1", "a"), mk("2", "b")]);
+    expect(useLrcStore.getState().mergeLineUp("1")).toBeNull();
+    expect(lines()).toHaveLength(2);
+  });
+
+  it("splitLine splits at caret; first keeps timestamp, second is new", () => {
+    reset([mk("1", "helloworld", 5)]);
+    const nid = useLrcStore.getState().splitLine("1", 5);
+    const ls = lines();
+    expect(ls.map((l) => l.text)).toEqual(["hello", "world"]);
+    expect(ls[0].timestamp).toBe(5);
+    expect(ls[1].timestamp).toBeNull();
+    expect(ls[1].id).toBe(nid);
+  });
+
+  it("moveLine reorders lines", () => {
+    reset([mk("1", "a"), mk("2", "b"), mk("3", "c")]);
+    useLrcStore.getState().moveLine(0, 2);
+    expect(lines().map((l) => l.text)).toEqual(["b", "c", "a"]);
+  });
+
+  it("line ops are undoable", () => {
+    reset([mk("1", "a"), mk("2", "b")]);
+    useLrcStore.getState().duplicateLine("1");
+    expect(lines()).toHaveLength(3);
+    useLrcStore.getState().undo();
+    expect(lines()).toHaveLength(2);
+  });
+});

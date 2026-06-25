@@ -286,6 +286,24 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     return () => { cancelled = true; };
   }, [audioPath]);
 
+  // 오디오 열면 파일 태그(ID3 등)에서 메타데이터를 읽어 비어 있는 필드만 자동 채움
+  useEffect(() => {
+    if (!audioPath) return;
+    let cancelled = false;
+    invoke<{ title: string; artist: string; album: string }>("read_audio_metadata", { path: audioPath })
+      .then((m) => {
+        if (cancelled) return;
+        const cur = useLrcStore.getState().doc.metadata;
+        const patch: { title?: string; artist?: string; album?: string } = {};
+        if (!cur.title.trim() && m.title) patch.title = m.title;
+        if (!cur.artist.trim() && m.artist) patch.artist = m.artist;
+        if (!cur.album.trim() && m.album) patch.album = m.album;
+        if (Object.keys(patch).length > 0) useLrcStore.getState().setMetadata(patch);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [audioPath]);
+
   // 오디오 로드 완료 시 현재 zoom 값 적용 (슬라이더 조작 중 zoom은 debounce로 직접 처리)
   useEffect(() => {
     if (!wsRef.current || !isAudioReady) return;
