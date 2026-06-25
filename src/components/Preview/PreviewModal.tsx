@@ -1,13 +1,27 @@
 import { useEffect, useRef, useMemo, useCallback, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { useSettingsStore } from "../../stores/useSettingsStore";
+import { useServiceStore } from "../../stores/useServiceStore";
 import { audioControls } from "../../utils/audioControls";
-import { formatDisplayTime, formatTimestamp, parseTimestampInput } from "../../utils/lrcParser";
+import { serviceControls } from "../../utils/serviceControls";
+import { formatDisplayTime, formatTimestamp, parseTimestampInput, isStampable } from "../../utils/lrcParser";
+import type { LrcSyllable } from "../../types/lrc";
 
 export function PreviewModal({ onClose }: { onClose: () => void }) {
   const { doc, currentTime, duration, isPlaying, updateLine } = useLrcStore();
+  const spotifyMode = useSettingsStore((s) => s.spotifyMode);
+  const serviceLoggedIn = useServiceStore((s) => s.isLoggedIn);
+  const servicePositionMs = useServiceStore((s) => s.positionMs);
+  const serviceDurationMs = useServiceStore((s) => s.durationMs);
+  const serviceIsPlaying = useServiceStore((s) => s.isPlaying);
   const { t } = useI18nStore();
   const activeLineRef = useRef<HTMLDivElement>(null);
+  const isServiceMode = serviceLoggedIn && spotifyMode;
+  const controls = isServiceMode ? serviceControls : audioControls;
+  const playbackTime = isServiceMode ? servicePositionMs / 1000 : currentTime;
+  const playbackDuration = isServiceMode ? serviceDurationMs / 1000 : duration;
+  const playbackIsPlaying = isServiceMode ? serviceIsPlaying : isPlaying;
 
   // 인라인 타임스탬프 편집 상태
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -19,10 +33,10 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
     let idx = -1;
     for (let i = 0; i < doc.lines.length; i++) {
       const ts = doc.lines[i].timestamp;
-      if (ts !== null && ts <= currentTime) idx = i;
+      if (ts !== null && ts <= playbackTime) idx = i;
     }
     return idx;
-  }, [doc.lines, currentTime]);
+  }, [doc.lines, playbackTime]);
 
   // 활성 줄이 바뀔 때 스크롤 (편집 중이 아닐 때만)
   useEffect(() => {
@@ -50,8 +64,8 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
     return () => window.removeEventListener("keydown", handler);
   }, [onClose, editingId]);
 
-  const togglePlay = useCallback(() => audioControls.togglePlay(), []);
-  const skip = useCallback((d: number) => audioControls.skip(d), []);
+  const togglePlay = useCallback(() => controls.togglePlay(), [controls]);
+  const skip = useCallback((d: number) => controls.skip(d), [controls]);
 
   const startEdit = (id: string, currentTs: number | null) => {
     setEditingId(id);
@@ -68,14 +82,14 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
 
   const hasTimestamps = doc.lines.some((l) => l.timestamp !== null);
 
-  const progress = duration > 0 ? currentTime / duration : 0;
+  const progress = playbackDuration > 0 ? playbackTime / playbackDuration : 0;
 
   const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!duration) return;
+    if (!playbackDuration) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    audioControls.seekTo(ratio * duration);
-  }, [duration]);
+    controls.seekTo(ratio * playbackDuration);
+  }, [controls, playbackDuration]);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-zinc-950">
@@ -111,19 +125,19 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
             <SkipBackIcon /><span className="text-[10px] font-bold ml-0.5">5</span>
           </PreviewBtn>
           <PreviewBtn onClick={() => skip(-1)} title="-1s">
-            <SkipBackIcon /><span className="text-[10px] font-bold ml-0.5">1</span>
+            <TriLeftIcon /><span className="text-[10px] font-bold ml-0.5">1</span>
           </PreviewBtn>
           <PreviewBtn onClick={togglePlay} accent>
-            {isPlaying ? <PauseIcon /> : <PlayIcon />}
+            {playbackIsPlaying ? <PauseIcon /> : <PlayIcon />}
           </PreviewBtn>
           <PreviewBtn onClick={() => skip(1)} title="+1s">
-            <span className="text-[10px] font-bold mr-0.5">1</span><SkipFwdIcon />
+            <span className="text-[10px] font-bold mr-0.5">1</span><TriRightIcon />
           </PreviewBtn>
           <PreviewBtn onClick={() => skip(5)} title="+5s">
             <span className="text-[10px] font-bold mr-0.5">5</span><SkipFwdIcon />
           </PreviewBtn>
           <span className="font-mono text-xs text-zinc-400 tabular-nums w-24 text-center">
-            {formatDisplayTime(currentTime)}
+            {formatDisplayTime(playbackTime)}
           </span>
         </div>
 
@@ -152,6 +166,13 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
             {doc.lines.map((line, i) => {
               const dist = activeIdx === -1 ? 999 : Math.abs(i - activeIdx);
               const isActive = i === activeIdx;
+              const hasGlyphSync = !!line.syllables?.some((s) => s.time !== null);
+
+              // 가라오케 채움의 마지막 글자 종료 시각 = 다음 타임스탬프 줄 / 총 길이
+              let lineEnd = playbackDuration > 0 ? playbackDuration : (line.timestamp ?? 0) + 4;
+              for (let j = i + 1; j < doc.lines.length; j++) {
+                if (doc.lines[j].timestamp !== null) { lineEnd = doc.lines[j].timestamp as number; break; }
+              }
 
               const dimClass = isActive
                 ? "text-white"
@@ -202,10 +223,22 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
                   </div>
 
                   {/* 가사 텍스트 */}
-                  <div className={`flex-1 leading-snug select-none ${textSizeClass}`}>
+                  <div
+                    className={`flex-1 leading-snug ${textSizeClass} ${line.timestamp !== null ? "cursor-pointer" : "select-none"}`}
+                    onClick={() => {
+                      if (line.timestamp !== null) {
+                        controls.seekTo(line.timestamp);
+                        if (!playbackIsPlaying) controls.togglePlay();
+                      }
+                    }}
+                  >
                     {isActive ? (
                       <span className="relative inline-block">
-                        {line.text || " "}
+                        {hasGlyphSync && line.syllables ? (
+                          <KaraokeText syllables={line.syllables} currentTime={playbackTime} lineEnd={lineEnd} />
+                        ) : (
+                          line.text || " "
+                        )}
                         <span className="absolute -bottom-1 left-0 right-0 h-0.5 rounded-full bg-indigo-500 opacity-80" />
                       </span>
                     ) : (
@@ -223,6 +256,49 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+// 글자 단위 가라오케 채움: 각 글자를 시작~다음 시각 사이 진행도로 좌→우 채움
+function KaraokeText({
+  syllables, currentTime, lineEnd,
+}: {
+  syllables: LrcSyllable[];
+  currentTime: number;
+  lineEnd: number;
+}) {
+  return (
+    <>
+      {syllables.map((s, i) => {
+        if (!isStampable(s)) return <span key={i}>{s.text}</span>;
+        if (s.time === null) return <span key={i} style={{ color: "#52525b" }}>{s.text}</span>;
+        // 다음 시각이 있는 글자(없으면 줄 종료)까지를 이 글자의 지속 구간으로
+        let nextT = lineEnd;
+        for (let j = i + 1; j < syllables.length; j++) {
+          if (syllables[j].time !== null) { nextT = syllables[j].time as number; break; }
+        }
+        const start = s.time;
+        const fill =
+          nextT > start
+            ? Math.max(0, Math.min(1, (currentTime - start) / (nextT - start)))
+            : currentTime >= start ? 1 : 0;
+        const pct = fill * 100;
+        return (
+          <span
+            key={i}
+            style={{
+              background: `linear-gradient(90deg, #ffffff ${pct}%, #6b7280 ${pct}%)`,
+              WebkitBackgroundClip: "text",
+              backgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              color: "transparent",
+            }}
+          >
+            {s.text}
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
 function PreviewBtn({
   onClick, title, accent, children,
 }: {
@@ -236,10 +312,10 @@ function PreviewBtn({
       onClick={onClick}
       title={title}
       className={[
-        "h-9 px-3 rounded-lg flex items-center justify-center text-sm transition-colors",
+        "flex items-center justify-center text-sm transition-colors",
         accent
-          ? "bg-indigo-500 hover:bg-indigo-400 text-white px-4 shadow-md"
-          : "bg-zinc-800 hover:bg-zinc-700 text-zinc-200",
+          ? "w-9 h-9 rounded-full bg-indigo-500 hover:bg-indigo-400 text-white"
+          : "h-9 px-2 rounded-lg text-zinc-300 hover:bg-white/10 hover:text-white",
       ].join(" ")}
     >
       {children}
@@ -266,7 +342,7 @@ function PauseIcon() {
 function SkipBackIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
+      <path d="M11 6 L11 18 L4 12 Z M18 6 L18 18 L11 12 Z" />
     </svg>
   );
 }
@@ -274,7 +350,15 @@ function SkipBackIcon() {
 function SkipFwdIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" />
+      <path d="M6 6 L6 18 L13 12 Z M13 6 L13 18 L20 12 Z" />
     </svg>
   );
+}
+
+function TriLeftIcon() {
+  return <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M15 6 L15 18 L7 12 Z" /></svg>;
+}
+
+function TriRightIcon() {
+  return <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M9 6 L9 18 L17 12 Z" /></svg>;
 }

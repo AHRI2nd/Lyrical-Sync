@@ -1,6 +1,8 @@
 import { create } from "zustand";
-import { LrcDocument, LrcLine, LrcMetadata, defaultDocument } from "../types/lrc";
-import { parseLrc, serializeLrc } from "../utils/lrcParser";
+import { LrcDocument, LrcLine, LrcMetadata, LrcSyllable, defaultDocument } from "../types/lrc";
+import { parseLrc, serializeLrc, type SyncUnit } from "../utils/lrcParser";
+import { serializeSrt, parseSrt } from "../utils/srtConverter";
+import { serializeVtt, serializeAss } from "../utils/exportFormats";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
@@ -22,6 +24,10 @@ interface AlignmentProgressEvent {
 
 interface LrcStore {
   doc: LrcDocument;
+  _history: LrcDocument[];
+  _future: LrcDocument[];
+  undo: () => void;
+  redo: () => void;
   audioPath: string | null;
   lrcPath: string | null;
   currentTime: number;
@@ -37,6 +43,19 @@ interface LrcStore {
   stampAndAdvance: () => void;
   goToPreviousLine: () => void;
 
+  // 글자/단어 동기화 (Enhanced LRC) 편집 모드
+  syncMode: "line" | "char";
+  syncUnit: SyncUnit;
+  activeSyllableIndex: number;
+  setSyncMode: (m: "line" | "char") => void;
+  setSyncUnit: (u: SyncUnit) => void;
+  setActiveSyllable: (i: number) => void;
+  // 줄의 토큰 전체를 교체. line.timestamp는 최소 토큰 시각으로 동기화.
+  // recordHistory=false면 히스토리를 쌓지 않음(칠하기 드래그를 1회 undo로 묶기 위함).
+  commitSyllables: (lineId: string, syllables: LrcSyllable[], recordHistory?: boolean) => void;
+  // 줄의 글자 동기화 제거(일반 줄로 복귀). line.timestamp는 유지.
+  clearLineSyllables: (lineId: string) => void;
+
   setMetadata: (meta: Partial<LrcMetadata>) => void;
   setLines: (lines: LrcLine[]) => void;
   addLine: (text?: string) => void;
@@ -47,15 +66,24 @@ interface LrcStore {
   applyOffset: () => void;
   loadFromRawText: (raw: string) => void;
 
+  setAudioPath: (path: string | null) => void;
   openAudio: () => Promise<void>;
   openLrc: () => Promise<void>;
-  saveLrc: () => Promise<void>;
-  saveLrcAs: () => Promise<void>;
+  loadLyricsPath: (path: string) => Promise<void>;
+  applyFetchedLyrics: (lrcText: string, meta?: { title: string; artist: string; album: string }) => void;
+  // 반환값: 실제로 파일을 썼으면 true, 사용자가 저장 다이얼로그를 취소하면 false
+  saveLrc: () => Promise<boolean>;
+  // enhanced: 이번 저장에만 적용하는 일회성 override(미지정 시 글자 데이터 있으면 E-LRC)
+  saveLrcAs: (format: "lrc" | "srt" | "vtt" | "ass", enhanced?: boolean) => Promise<boolean>;
   newLrc: () => void;
+  replaceInLines: (find: string, replace: string, caseSensitive: boolean) => number;
+  shiftTimeRange: (fromIdx: number, toIdx: number, deltaSeconds: number) => void;
 
   // AI Auto Sync
   aiSyncStatus: AiSyncStatus;
   aiSyncMessage: string;
+  /** Python progress status code (e.g. "loading_model", "analyzing", "error") */
+  aiSyncProgressStatus: string;
   /** lineId → confidence (0–1). null = no AI draft active */
   aiDraftConfidence: Record<string, number> | null;
   runAiSync: (language: string, blankLineOffset: number) => Promise<void>;
@@ -66,8 +94,23 @@ interface LrcStore {
 let nextId = 1;
 const genId = () => String(nextId++);
 
+// 저장 경로의 확장자에 따라 LRC 또는 SRT로 직렬화
+function serializeForPath(path: string, doc: LrcDocument, duration: number): string {
+  const p = path.toLowerCase();
+  const end = duration > 0 ? duration : undefined;
+  if (p.endsWith(".srt")) return serializeSrt(doc, end);
+  if (p.endsWith(".vtt")) return serializeVtt(doc, end);
+  if (p.endsWith(".ass")) return serializeAss(doc, end);
+  // 글자/단어 동기화가 있으면 보존(자동 E-LRC), 없으면 일반 LRC로 출력
+  return serializeLrc(doc, true);
+}
+
+const MAX_HISTORY = 50;
+
 export const useLrcStore = create<LrcStore>((set, get) => ({
   doc: defaultDocument(),
+  _history: [],
+  _future: [],
   audioPath: null,
   lrcPath: null,
   currentTime: 0,
@@ -78,7 +121,71 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
 
   aiSyncStatus: "idle",
   aiSyncMessage: "",
+  aiSyncProgressStatus: "",
   aiDraftConfidence: null,
+
+  syncMode: "line",
+  syncUnit: "char",
+  activeSyllableIndex: 0,
+
+  setSyncMode: (m) => set({ syncMode: m }),
+  setSyncUnit: (u) => set({ syncUnit: u }),
+  setActiveSyllable: (i) => set({ activeSyllableIndex: i }),
+
+  commitSyllables: (lineId, syllables, recordHistory = true) => {
+    const { doc, _history } = get();
+    const times = syllables.filter((s) => s.time !== null).map((s) => s.time as number);
+    const lineTs = times.length > 0 ? Math.min(...times) : null;
+    const lines = doc.lines.map((l) =>
+      l.id === lineId
+        ? { ...l, syllables, timestamp: lineTs !== null ? lineTs : l.timestamp }
+        : l
+    );
+    set({
+      ...(recordHistory
+        ? { _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [] }
+        : {}),
+      doc: { ...doc, lines },
+      isDirty: true,
+    });
+  },
+
+  clearLineSyllables: (lineId) => {
+    const { doc, _history } = get();
+    const lines = doc.lines.map((l) =>
+      l.id === lineId ? { ...l, syllables: undefined } : l
+    );
+    set({
+      _history: [..._history.slice(-(MAX_HISTORY - 1)), doc],
+      _future: [],
+      doc: { ...doc, lines },
+      isDirty: true,
+    });
+  },
+
+  undo: () => {
+    const { doc, _history, _future } = get();
+    if (_history.length === 0) return;
+    const prev = _history[_history.length - 1];
+    set({
+      doc: prev,
+      _history: _history.slice(0, -1),
+      _future: [doc, ..._future].slice(0, MAX_HISTORY),
+      isDirty: true,
+    });
+  },
+
+  redo: () => {
+    const { doc, _history, _future } = get();
+    if (_future.length === 0) return;
+    const next = _future[0];
+    set({
+      doc: next,
+      _history: [..._history, doc].slice(-MAX_HISTORY),
+      _future: _future.slice(1),
+      isDirty: true,
+    });
+  },
 
   setIsPlaying: (v) => set({ isPlaying: v }),
   setDuration: (d) => set({ duration: d }),
@@ -87,10 +194,11 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   setActiveLineId: (id) => set({ activeLineId: id }),
 
   stampAndAdvance: () => {
-    const { activeLineId, currentTime, doc, aiDraftConfidence } = get();
+    const { activeLineId, currentTime, doc, aiDraftConfidence, _history } = get();
     const lines = doc.lines;
     if (lines.length === 0) return;
 
+    // 활성 줄이 없으면 선택만(문서 변경 없음 → 히스토리 기록 안 함)
     if (!activeLineId) {
       set({ activeLineId: lines[0].id });
       return;
@@ -109,7 +217,9 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
       delete newConfidence[activeLineId];
     }
 
+    // 실제 스탬프할 때만 히스토리 기록
     set({
+      _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [],
       doc: { ...doc, lines: stamped },
       activeLineId: next ? next.id : activeLineId,
       aiDraftConfidence: newConfidence,
@@ -135,24 +245,28 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
       isDirty: true,
     })),
 
-  setLines: (lines) =>
-    set((s) => ({ doc: { ...s.doc, lines }, isDirty: true })),
+  setLines: (lines) => {
+    const { doc, _history } = get();
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, isDirty: true });
+  },
 
-  addLine: (text = "") =>
-    set((s) => ({
-      doc: { ...s.doc, lines: [...s.doc.lines, { id: genId(), timestamp: null, text }] },
+  addLine: (text = "") => {
+    const { doc, _history } = get();
+    set({
+      _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [],
+      doc: { ...doc, lines: [...doc.lines, { id: genId(), timestamp: null, text }] },
       isDirty: true,
-    })),
+    });
+  },
 
   insertLinesAfter: (afterId, texts) => {
     const newLines = texts.map((t) => ({ id: genId(), timestamp: null as null, text: t }));
     const lastId = newLines[newLines.length - 1].id;
-    set((s) => {
-      const idx = s.doc.lines.findIndex((l) => l.id === afterId);
-      const lines = [...s.doc.lines];
-      lines.splice(idx + 1, 0, ...newLines);
-      return { doc: { ...s.doc, lines }, isDirty: true };
-    });
+    const { doc, _history } = get();
+    const idx = doc.lines.findIndex((l) => l.id === afterId);
+    const lines = [...doc.lines];
+    lines.splice(idx + 1, 0, ...newLines);
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, isDirty: true });
     return lastId;
   },
 
@@ -165,17 +279,16 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
       isDirty: true,
     })),
 
-  deleteLine: (id) =>
-    set((s) => {
-      const lines = s.doc.lines.filter((l) => l.id !== id);
-      const activeLineId = s.activeLineId === id
-        ? (lines[0]?.id ?? null)
-        : s.activeLineId;
-      return { doc: { ...s.doc, lines }, activeLineId, isDirty: true };
-    }),
+  deleteLine: (id) => {
+    const { doc, _history, activeLineId } = get();
+    const lines = doc.lines.filter((l) => l.id !== id);
+    const newActiveLineId = activeLineId === id ? (lines[0]?.id ?? null) : activeLineId;
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, activeLineId: newActiveLineId, isDirty: true });
+  },
 
   stampCurrentLine: (id) => {
-    const { currentTime, doc, aiDraftConfidence } = get();
+    const { currentTime, doc, aiDraftConfidence, _history } = get();
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [] });
     let newConfidence = aiDraftConfidence;
     if (newConfidence && id in newConfidence) {
       newConfidence = { ...newConfidence };
@@ -194,6 +307,8 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   },
 
   loadFromRawText: (raw) => {
+    const { doc, _history } = get();
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [] });
     const parsed = parseLrc(raw);
     let id = nextId;
     parsed.lines = parsed.lines.map((l) => ({ ...l, id: String(id++) }));
@@ -203,9 +318,10 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   },
 
   applyOffset: () => {
-    const { doc } = get();
+    const { doc, _history } = get();
     const deltaSeconds = doc.metadata.offset / 1000;
-    if (deltaSeconds === 0) return;
+    if (deltaSeconds === 0) return; // 변화 없음 → 히스토리 기록 안 함(빈 undo 방지)
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [] });
     set({
       doc: {
         ...doc,
@@ -215,11 +331,18 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
           timestamp: l.timestamp !== null
             ? Math.max(0, l.timestamp + deltaSeconds)
             : null,
+          // 글자 동기화 토큰 시각도 함께 이동
+          syllables: l.syllables?.map((s) => ({
+            ...s,
+            time: s.time !== null ? Math.max(0, s.time + deltaSeconds) : null,
+          })),
         })),
       },
       isDirty: true,
     });
   },
+
+  setAudioPath: (path) => set({ audioPath: path }),
 
   openAudio: async () => {
     const selected = await open({
@@ -231,43 +354,127 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     }
   },
 
+  // 경로로 가사 로드 (확장자로 LRC/SRT 분기). 다이얼로그/드래그앤드롭 공용.
+  loadLyricsPath: async (path) => {
+    const content: string = await invoke("read_lrc_file", { path });
+    const isSrt = path.split(".").pop()?.toLowerCase() === "srt";
+    const doc = isSrt ? parseSrt(content) : parseLrc(content);
+    let id = 1;
+    doc.lines = doc.lines.map((l) => ({ ...l, id: String(id++) }));
+    nextId = id;
+    const firstId = doc.lines[0]?.id ?? null;
+    set({ doc, lrcPath: path, isDirty: false, activeLineId: firstId, _history: [], _future: [] });
+  },
+
+  // LRCLIB 등 외부에서 가져온 가사 적용. 라인은 교체하되 메타데이터는 보존:
+  // 이미 입력된 title/artist/album은 그대로 두고, 비어 있는 필드만 결과로 채운다.
+  // (by/offset도 보존). 로컬 파일 무관 → lrcPath 비움.
+  applyFetchedLyrics: (lrcText, meta) => {
+    const parsed = parseLrc(lrcText);
+    let id = 1;
+    parsed.lines = parsed.lines.map((l) => ({ ...l, id: String(id++) }));
+    nextId = id;
+    const current = get().doc.metadata;
+    const metadata = meta
+      ? {
+          ...current,
+          title: current.title.trim() || meta.title,
+          artist: current.artist.trim() || meta.artist,
+          album: current.album.trim() || meta.album,
+        }
+      : current;
+    const firstId = parsed.lines[0]?.id ?? null;
+    set({
+      doc: { ...parsed, metadata },
+      lrcPath: null,
+      isDirty: true,
+      activeLineId: firstId,
+      _history: [],
+      _future: [],
+    });
+  },
+
+  // 가사 열기: LRC·SRT 모두 지원.
   openLrc: async () => {
     const selected = await open({
       multiple: false,
-      filters: [{ name: "LRC", extensions: ["lrc"] }],
+      filters: [{ name: "Lyrics", extensions: ["lrc", "srt"] }],
     });
-    if (typeof selected === "string") {
-      const content: string = await invoke("read_lrc_file", { path: selected });
-      const doc = parseLrc(content);
-      let id = 1;
-      doc.lines = doc.lines.map((l) => ({ ...l, id: String(id++) }));
-      nextId = id;
-      const firstId = doc.lines[0]?.id ?? null;
-      set({ doc, lrcPath: selected, isDirty: false, activeLineId: firstId });
-    }
+    if (typeof selected === "string") await get().loadLyricsPath(selected);
   },
 
   saveLrc: async () => {
-    const { lrcPath, doc } = get();
-    if (!lrcPath) { await get().saveLrcAs(); return; }
-    await invoke("write_lrc_file", { path: lrcPath, content: serializeLrc(doc) });
+    const { lrcPath, doc, duration } = get();
+    if (!lrcPath) return get().saveLrcAs("lrc");
+    await invoke("write_lrc_file", { path: lrcPath, content: serializeForPath(lrcPath, doc, duration) });
     set({ isDirty: false });
+    return true;
   },
 
-  saveLrcAs: async () => {
-    const { doc } = get();
+  saveLrcAs: async (format, enhanced) => {
+    const { doc, duration } = get();
+    const FILTERS: Record<string, { name: string; extensions: string[] }> = {
+      lrc: { name: "LRC", extensions: ["lrc"] },
+      srt: { name: "SubRip", extensions: ["srt"] },
+      vtt: { name: "WebVTT", extensions: ["vtt"] },
+      ass: { name: "Advanced SubStation Alpha", extensions: ["ass"] },
+    };
     const path = await save({
-      filters: [{ name: "LRC", extensions: ["lrc"] }],
+      filters: [FILTERS[format]],
       defaultPath: doc.metadata.title || "untitled",
     });
     if (path) {
-      await invoke("write_lrc_file", { path, content: serializeLrc(doc) });
-      set({ lrcPath: path, isDirty: false });
+      const end = duration > 0 ? duration : undefined;
+      const content =
+        format === "srt" ? serializeSrt(doc, end)
+        : format === "vtt" ? serializeVtt(doc, end)
+        : format === "ass" ? serializeAss(doc, end)
+        : serializeLrc(doc, enhanced ?? true);
+      await invoke("write_lrc_file", { path, content });
+      // 보조 포맷 저장 시엔 작업 파일 경로(lrcPath)·dirty 상태를 바꾸지 않음
+      if (format === "lrc" || format === "srt") set({ lrcPath: path, isDirty: false });
+      return true;
     }
+    return false; // 사용자가 저장 다이얼로그 취소
   },
 
   newLrc: () =>
-    set({ doc: defaultDocument(), lrcPath: null, isDirty: false, activeLineId: null }),
+    set({ doc: defaultDocument(), lrcPath: null, isDirty: false, activeLineId: null, _history: [], _future: [] }),
+
+  shiftTimeRange: (fromIdx, toIdx, deltaSeconds) => {
+    if (deltaSeconds === 0) return;
+    const { doc, _history } = get();
+    const newLines = doc.lines.map((l, i) => {
+      if (i < fromIdx || i > toIdx || l.timestamp === null) return l;
+      return {
+        ...l,
+        timestamp: Math.max(0, l.timestamp + deltaSeconds),
+        syllables: l.syllables?.map((s) => ({
+          ...s,
+          time: s.time !== null ? Math.max(0, s.time + deltaSeconds) : null,
+        })),
+      };
+    });
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines: newLines }, isDirty: true });
+  },
+
+  replaceInLines: (find, replace, caseSensitive) => {
+    if (!find) return 0;
+    const { doc, _history } = get();
+    const escaped = find.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(escaped, caseSensitive ? "g" : "gi");
+    let count = 0;
+    const newLines = doc.lines.map((l) => {
+      const matches = l.text.match(re);
+      if (!matches) return l;
+      count += matches.length;
+      // 텍스트가 바뀌면 옛 토큰 경계가 무효 → 글자 동기화 해제
+      return { ...l, text: l.text.replace(re, replace), syllables: undefined };
+    });
+    if (count === 0) return 0;
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines: newLines }, isDirty: true });
+    return count;
+  },
 
   runAiSync: async (language, blankLineOffset) => {
     const { audioPath, doc } = get();
@@ -276,7 +483,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     set({ aiSyncStatus: "running", aiSyncMessage: "" });
 
     const unlisten = await listen<AlignmentProgressEvent>("alignment-progress", (e) => {
-      set({ aiSyncMessage: e.payload.message });
+      set({ aiSyncProgressStatus: e.payload.status, aiSyncMessage: e.payload.message });
     });
 
     try {
@@ -304,7 +511,8 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
         const r = byIndex.get(idx);
         if (r) {
           confidence[line.id] = r.confidence;
-          return { ...line, timestamp: r.start };
+          // AI가 줄 단위로 재정렬 → 기존 글자 동기화는 무효화
+          return { ...line, timestamp: r.start, syllables: undefined };
         }
         return line;
       });
@@ -329,18 +537,21 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
         confidence[doc.lines[i].id] = 1.0;
       }
 
+      const { _history } = get();
       set({
+        _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [],
         doc: { ...doc, lines: newLines },
         aiSyncStatus: "done",
+        aiSyncProgressStatus: "done",
         aiDraftConfidence: confidence,
         isDirty: true,
       });
     } catch (err) {
       const msg = String(err);
       if (msg === "cancelled") {
-        set({ aiSyncStatus: "idle", aiSyncMessage: "" });
+        set({ aiSyncStatus: "idle", aiSyncMessage: "", aiSyncProgressStatus: "" });
       } else {
-        set({ aiSyncStatus: "error", aiSyncMessage: msg });
+        set({ aiSyncStatus: "error", aiSyncProgressStatus: "error", aiSyncMessage: msg });
       }
     } finally {
       unlisten();

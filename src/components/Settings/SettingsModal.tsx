@@ -1,27 +1,39 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
+import { useServiceStore } from "../../stores/useServiceStore";
 import { checkForUpdate } from "../../utils/updateCheck";
+import { safeUnlisten } from "../../utils/safeUnlisten";
+import { KeybindingsSection } from "./KeybindingsSection";
 import { ModelDownloadSection } from "./ModelDownloadSection";
+import { YtdlpSection } from "./YtdlpSection";
 
 type CheckState = "idle" | "checking" | "upToDate";
-type Tab = "general" | "models";
+type Tab = "general" | "shortcuts" | "models" | "spotify" | "youtube";
 
 export function SettingsModal({
   onClose,
   onUpdateFound,
+  initialTab = "general",
 }: {
   onClose: () => void;
   onUpdateFound: (version: string) => void;
+  initialTab?: Tab;
 }) {
-  const { t } = useI18nStore();
+  const { t, lang } = useI18nStore();
   const {
-    autoCheckUpdate, uiScale, blankLineOffset,
-    setAutoCheckUpdate, setUiScale, setBlankLineOffset,
+    autoCheckUpdate, autoSave, uiScale, blankLineOffset, showElrcSaveNotice, lyricsFontScale, showGlyphTimeMarkers, spotifyClientId, spotifyMode,
+    setAutoCheckUpdate, setAutoSave, setUiScale, setBlankLineOffset, setShowElrcSaveNotice, setLyricsFontScale, setShowGlyphTimeMarkers, setSpotifyClientId, setSpotifyMode,
   } = useSettingsStore();
+
+  const guideSuffix = lang === "ko" ? "ko" : lang === "ja" ? "ja" : "en";
+  const aiGuideUrl = `https://ahri2nd.xyz/posts/lyrical-sync-ai-installation-guide-${guideSuffix}/`;
+  const spotifyGuideUrl = `https://ahri2nd.xyz/posts/lyrical-sync-spotify-guide-${guideSuffix}/`;
+  const youtubeGuideUrl = `https://ahri2nd.xyz/posts/lyrical-sync-youtube-guide-${guideSuffix}/`;
   const [checkState, setCheckState] = useState<CheckState>("idle");
-  const [tab, setTab] = useState<Tab>("general");
+  const [tab, setTab] = useState<Tab>(initialTab);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -73,8 +85,17 @@ export function SettingsModal({
           <TabBtn active={tab === "general"} onClick={() => setTab("general")}>
             {t.settingsTabGeneral}
           </TabBtn>
+          <TabBtn active={tab === "shortcuts"} onClick={() => setTab("shortcuts")}>
+            {t.settingsTabShortcuts}
+          </TabBtn>
           <TabBtn active={tab === "models"} onClick={() => setTab("models")}>
             {t.settingsTabModels}
+          </TabBtn>
+          <TabBtn active={tab === "spotify"} onClick={() => setTab("spotify")}>
+            {t.settingsTabSpotify}
+          </TabBtn>
+          <TabBtn active={tab === "youtube"} onClick={() => setTab("youtube")}>
+            {t.settingsTabYouTube}
           </TabBtn>
         </div>
 
@@ -109,7 +130,7 @@ export function SettingsModal({
                   <button
                     onClick={handleCheckNow}
                     disabled={checkState === "checking"}
-                    className="px-3 py-1.5 text-xs rounded-lg bg-zinc-700 hover:bg-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed text-zinc-100 transition-colors"
+                    className="px-3 py-1.5 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800 hover:border-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed text-zinc-200 transition-colors"
                   >
                     {checkState === "checking" ? t.settingsChecking : t.settingsCheckNow}
                   </button>
@@ -117,6 +138,58 @@ export function SettingsModal({
                     <span className="text-xs text-emerald-400">{t.settingsUpToDate}</span>
                   )}
                 </div>
+              </div>
+
+              <div className="border-t border-zinc-800" />
+
+              {/* Auto save */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-zinc-200">{t.settingsAutoSave}</span>
+                  <button
+                    onClick={() => setAutoSave(!autoSave)}
+                    className={[
+                      "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
+                      autoSave ? "bg-indigo-600" : "bg-zinc-600",
+                    ].join(" ")}
+                    role="switch"
+                    aria-checked={autoSave}
+                  >
+                    <span
+                      className={[
+                        "absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                        autoSave ? "translate-x-[22px]" : "translate-x-0.5",
+                      ].join(" ")}
+                    />
+                  </button>
+                </div>
+                <p className="text-xs text-zinc-500">{t.settingsAutoSaveDesc}</p>
+              </div>
+
+              <div className="border-t border-zinc-800" />
+
+              {/* Enhanced LRC 저장 알림 */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-zinc-200">{t.settingsElrcNotice}</span>
+                  <button
+                    onClick={() => setShowElrcSaveNotice(!showElrcSaveNotice)}
+                    className={[
+                      "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
+                      showElrcSaveNotice ? "bg-indigo-600" : "bg-zinc-600",
+                    ].join(" ")}
+                    role="switch"
+                    aria-checked={showElrcSaveNotice}
+                  >
+                    <span
+                      className={[
+                        "absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                        showElrcSaveNotice ? "translate-x-[22px]" : "translate-x-0.5",
+                      ].join(" ")}
+                    />
+                  </button>
+                </div>
+                <p className="text-xs text-zinc-500">{t.settingsElrcNoticeDesc}</p>
               </div>
 
               <div className="border-t border-zinc-800" />
@@ -136,7 +209,8 @@ export function SettingsModal({
                   step={0.1}
                   value={blankLineOffset}
                   onChange={(e) => setBlankLineOffset(Number(e.target.value))}
-                  className="w-full accent-indigo-500"
+                  className="range-slim w-full"
+                  style={{ background: `linear-gradient(to right, #6366f1 ${Math.round((blankLineOffset / 5) * 100)}%, #3f3f46 ${Math.round((blankLineOffset / 5) * 100)}%)` }}
                 />
                 <p className="text-xs text-zinc-500">{t.aiSyncBlankOffsetDesc}</p>
               </div>
@@ -154,7 +228,7 @@ export function SettingsModal({
                     <button
                       onClick={() => setUiScale(1.0)}
                       disabled={uiScale === 1.0}
-                      className="px-2 py-0.5 text-xs rounded bg-zinc-700 hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed text-zinc-300 transition-colors"
+                      className="px-2 py-0.5 text-xs rounded text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       {t.settingsUiScaleReset}
                     </button>
@@ -167,7 +241,8 @@ export function SettingsModal({
                   step={0.05}
                   value={uiScale}
                   onChange={(e) => setUiScale(Number(e.target.value))}
-                  className="w-full accent-indigo-500"
+                  className="range-slim w-full"
+                  style={{ background: `linear-gradient(to right, #6366f1 ${Math.round(((uiScale - 0.7) / 0.6) * 100)}%, #3f3f46 ${Math.round(((uiScale - 0.7) / 0.6) * 100)}%)` }}
                 />
                 <div className="flex justify-between text-xs text-zinc-500 select-none">
                   <span>70%</span>
@@ -175,15 +250,102 @@ export function SettingsModal({
                   <span>130%</span>
                 </div>
               </div>
+
+              <div className="border-t border-zinc-800" />
+
+              {/* Lyrics font size */}
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-zinc-200">{t.settingsLyricsFontSize}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm tabular-nums text-zinc-300 w-10 text-right">
+                      {Math.round(lyricsFontScale * 100)}%
+                    </span>
+                    <button
+                      onClick={() => setLyricsFontScale(1.0)}
+                      disabled={lyricsFontScale === 1.0}
+                      className="px-2 py-0.5 text-xs rounded text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {t.settingsUiScaleReset}
+                    </button>
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  min={0.8}
+                  max={1.5}
+                  step={0.05}
+                  value={lyricsFontScale}
+                  onChange={(e) => setLyricsFontScale(Number(e.target.value))}
+                  className="range-slim w-full"
+                  style={{ background: `linear-gradient(to right, #6366f1 ${Math.round(((lyricsFontScale - 0.8) / 0.7) * 100)}%, #3f3f46 ${Math.round(((lyricsFontScale - 0.8) / 0.7) * 100)}%)` }}
+                />
+              </div>
+
+              <div className="border-t border-zinc-800" />
+
+              {/* Glyph time markers */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-zinc-200">{t.settingsGlyphMarkers}</span>
+                  <button
+                    onClick={() => setShowGlyphTimeMarkers(!showGlyphTimeMarkers)}
+                    className={[
+                      "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
+                      showGlyphTimeMarkers ? "bg-indigo-600" : "bg-zinc-600",
+                    ].join(" ")}
+                    role="switch"
+                    aria-checked={showGlyphTimeMarkers}
+                  >
+                    <span
+                      className={[
+                        "absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                        showGlyphTimeMarkers ? "translate-x-[22px]" : "translate-x-0.5",
+                      ].join(" ")}
+                    />
+                  </button>
+                </div>
+                <p className="text-xs text-zinc-500">{t.settingsGlyphMarkersDesc}</p>
+              </div>
+            </div>
+          )}
+
+          {tab === "shortcuts" && (
+            <div className="p-5">
+              <KeybindingsSection />
             </div>
           )}
 
           {tab === "models" && (
             <div className="p-5 flex flex-col gap-5">
+              <GuideBanner color="indigo" url={aiGuideUrl} label={t.settingsViewGuide} />
               <PythonEnvSection />
               <div className="border-t border-zinc-800" />
               <ModelDownloadSection />
             </div>
+          )}
+
+          {tab === "spotify" && (
+            <>
+              <div className="px-5 pt-4">
+                <GuideBanner color="green" url={spotifyGuideUrl} label={t.settingsViewGuide} />
+              </div>
+              <SpotifySection
+                clientId={spotifyClientId}
+                onSaveClientId={setSpotifyClientId}
+                spotifyMode={spotifyMode}
+                onToggleMode={setSpotifyMode}
+              />
+            </>
+          )}
+
+          {tab === "youtube" && (
+            <>
+              <div className="px-5 pt-4">
+                <GuideBanner color="red" url={youtubeGuideUrl} label={t.settingsViewGuide} />
+              </div>
+              <YtdlpSection />
+            </>
           )}
         </div>
       </div>
@@ -222,6 +384,14 @@ function PythonEnvSection() {
 
   useEffect(() => { refresh(); }, []);
 
+  // Clear stale install error once packages are confirmed ready (handles the
+  // case where pip exits with non-zero on Windows but packages are installed).
+  useEffect(() => {
+    if (info?.packagesReady) {
+      setInstallError(null);
+    }
+  }, [info]);
+
   useEffect(() => {
     let unlisten: (() => void) | null = null;
     import("@tauri-apps/api/event").then(({ listen }) => {
@@ -231,9 +401,9 @@ function PythonEnvSection() {
           setDownloading(false);
           refresh();
         }
-      }).then((fn) => { unlisten = fn; });
+      }).then((fn) => { unlisten = fn; }).catch(() => {});
     });
-    return () => { unlisten?.(); };
+    return () => { safeUnlisten(unlisten); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -247,9 +417,9 @@ function PythonEnvSection() {
         } else if (e.payload.line) {
           setInstallLog((prev) => [...prev, e.payload.line]);
         }
-      }).then((fn) => { unlisten = fn; });
+      }).then((fn) => { unlisten = fn; }).catch(() => {});
     });
-    return () => { unlisten?.(); };
+    return () => { safeUnlisten(unlisten); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -294,7 +464,12 @@ function PythonEnvSection() {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-zinc-200">{t.settingsVenvTitle}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-zinc-200">{t.settingsVenvTitle}</span>
+          <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded text-amber-300 bg-amber-900/40">
+            {t.modelRequired}
+          </span>
+        </div>
         <button
           onClick={refresh}
           disabled={loading || downloading || installing}
@@ -345,6 +520,9 @@ function PythonEnvSection() {
           >
             {installing ? t.settingsVenvInstalling : t.settingsVenvInstallBtn}
           </button>
+          {installing && (
+            <p className="text-xs text-amber-400/80">{t.settingsVenvCmdWarning}</p>
+          )}
           {installError && (
             <span className="text-xs text-red-400 break-all">{installError}</span>
           )}
@@ -361,6 +539,163 @@ function PythonEnvSection() {
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Spotify section ─────────────────────────────────────────────────────────
+
+function SpotifySection({
+  clientId,
+  onSaveClientId,
+  spotifyMode,
+  onToggleMode,
+}: {
+  clientId: string;
+  onSaveClientId: (v: string) => void;
+  spotifyMode: boolean;
+  onToggleMode: (v: boolean) => void;
+}) {
+  const { t } = useI18nStore();
+  const { isLoggedIn, isReady, trackName, artistName, startLogin, logout } = useServiceStore();
+  const [draft, setDraft] = useState(clientId);
+  const [saved, setSaved] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSave = () => {
+    onSaveClientId(draft.trim());
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+  };
+
+  const handleConnect = async () => {
+    setError(null);
+    setConnecting(true);
+    try {
+      await startLogin();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  return (
+    <div className="p-5 flex flex-col gap-5">
+      {/* Client ID input */}
+      <div className="flex flex-col gap-2">
+        <span className="text-sm font-semibold text-zinc-200">{t.spotifyClientId}</span>
+        <p className="text-xs text-zinc-500 leading-relaxed">{t.spotifyClientIdDesc}</p>
+        <div className="flex gap-2 mt-1">
+          <input
+            type="text"
+            value={draft}
+            onChange={(e) => { setDraft(e.target.value); setSaved(false); }}
+            placeholder={t.spotifyClientIdPlaceholder}
+            className="flex-1 px-3 py-1.5 text-sm bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
+          />
+          <button
+            onClick={handleSave}
+            disabled={draft.trim() === clientId && !saved}
+            className="px-3 py-1.5 text-xs rounded-lg bg-zinc-700 hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed text-zinc-100 transition-colors"
+          >
+            {saved ? t.spotifyClientIdSaved : t.spotifyClientIdSave}
+          </button>
+        </div>
+      </div>
+
+      <div className="border-t border-zinc-800" />
+
+      {/* Mode toggle */}
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm font-medium text-zinc-200">Spotify 모드</span>
+          <span className="text-xs text-zinc-500">
+            {spotifyMode ? "Spotify 플레이어 사용 중" : "일반 오디오 파일 모드"}
+          </span>
+        </div>
+        <button
+          onClick={() => onToggleMode(!spotifyMode)}
+          disabled={!isLoggedIn}
+          className={[
+            "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
+            spotifyMode && isLoggedIn ? "bg-green-600" : "bg-zinc-600",
+            !isLoggedIn ? "opacity-40 cursor-not-allowed" : "",
+          ].join(" ")}
+          role="switch"
+          aria-checked={spotifyMode}
+          title={!isLoggedIn ? "먼저 Spotify에 연결하세요" : undefined}
+        >
+          <span
+            className={[
+              "absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
+              spotifyMode && isLoggedIn ? "translate-x-[22px]" : "translate-x-0.5",
+            ].join(" ")}
+          />
+        </button>
+      </div>
+
+      <div className="border-t border-zinc-800" />
+
+      {/* Connect / status */}
+      <div className="flex flex-col gap-3">
+        {isLoggedIn ? (
+          <>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono text-emerald-400">●</span>
+              <span className="text-sm text-zinc-200">
+                {isReady && trackName
+                  ? `${trackName} — ${artistName}`
+                  : t.spotifyConnected}
+              </span>
+            </div>
+            <button
+              onClick={logout}
+              className="self-start px-3 py-1.5 text-xs rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
+            >
+              {t.spotifyLogout}
+            </button>
+          </>
+        ) : (
+          <>
+            {!clientId && (
+              <p className="text-xs text-amber-400">{t.spotifyNoClientIdDesc}</p>
+            )}
+            <button
+              onClick={handleConnect}
+              disabled={connecting || !clientId}
+              className="self-start px-4 py-2 text-sm rounded-lg bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium transition-colors"
+            >
+              {connecting ? t.spotifyConnecting : t.spotifyConnect}
+            </button>
+            {error && (
+              <span className="text-xs text-red-400 break-all">{error}</span>
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="border-t border-zinc-800" />
+
+      <p className="text-xs text-zinc-600 leading-relaxed">{t.spotifyServiceModeInfo}</p>
+    </div>
+  );
+}
+
+function GuideBanner({ color, url, label }: { color: "indigo" | "green" | "red"; url: string; label: string }) {
+  const colorMap = {
+    indigo: "bg-indigo-950/60 border-indigo-800/50 text-indigo-400 hover:text-indigo-300",
+    green:  "bg-green-950/60 border-green-800/50 text-green-400 hover:text-green-300",
+    red:    "bg-red-950/60 border-red-800/50 text-red-400 hover:text-red-300",
+  };
+  return (
+    <button
+      onClick={() => openUrl(url)}
+      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-xs transition-colors ${colorMap[color]}`}
+    >
+      <span>{label}</span>
+      <span className="opacity-70">↗</span>
+    </button>
   );
 }
 

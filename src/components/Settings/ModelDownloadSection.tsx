@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { safeUnlisten } from "../../utils/safeUnlisten";
 import { type Translations } from "../../i18n/translations";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -168,12 +169,13 @@ export function ModelDownloadSection() {
           completedBytes += prevFileTotal;
         }
 
-        // Denominator: use real Content-Length (completedBytes + this file's total) when
-        // available; fall back to static estimate only when server omits Content-Length.
+        // Use the total model size estimate as the denominator for consistent overall progress.
+        // Per-file Content-Length would cause tiny config files (~KB) to briefly show 99%
+        // before the large model file starts downloading.
         const staticEstimate = MODEL_DEFS.find((m) => m.id === p.modelId)!.totalSizeMb * 1024 * 1024;
-        const denominator = p.total > 0
-          ? Math.max(completedBytes + p.total, completedBytes + p.downloaded)
-          : staticEstimate;
+        const denominator = staticEstimate > 0
+          ? staticEstimate
+          : Math.max(completedBytes + (p.total > 0 ? p.total : p.downloaded), 1);
         const overall = Math.min((completedBytes + p.downloaded) / denominator * 100, 99);
 
         return {
@@ -188,8 +190,8 @@ export function ModelDownloadSection() {
           },
         };
       });
-    }).then((fn) => { unlistenRef.current = fn; });
-    return () => { unlistenRef.current?.(); };
+    }).then((fn) => { unlistenRef.current = fn; }).catch(() => {});
+    return () => { safeUnlisten(unlistenRef.current); };
   }, []);
 
   const handleInstall = async (model: ModelDef) => {
@@ -200,7 +202,7 @@ export function ModelDownloadSection() {
     try {
       await invoke("download_model", {
         modelId: model.id,
-        files: model.files.map((f) => ({ url: f.url, filename: f.filename })),
+        files: model.files.map((f) => ({ url: f.url, filename: f.filename, sha256: f.sha256 ?? null })),
       });
     } catch (e) {
       if (String(e) === "cancelled") {
@@ -252,8 +254,12 @@ export function ModelDownloadSection() {
 
   const grouped = CATEGORY_ORDER.map((cat) => ({
     cat,
-    models: MODEL_DEFS.filter((m) => m.category === cat),
-  }));
+    models: MODEL_DEFS.filter((m) => m.category === cat).sort((a, b) => Number(b.required) - Number(a.required)),
+  })).sort((a, b) => {
+    const aReq = a.models.some((m) => m.required) ? 1 : 0;
+    const bReq = b.models.some((m) => m.required) ? 1 : 0;
+    return bReq - aReq;
+  });
 
   return (
     <div className="flex flex-col gap-4">

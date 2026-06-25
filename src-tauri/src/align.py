@@ -138,7 +138,8 @@ def main():
 
     progress("postprocessing", "Processing results…", 0.90)
 
-    results = []
+    # First pass: collect per-line avg log-prob scores
+    raw_entries = []
     tok_idx = 0
     for i, line in enumerate(lines):
         n = tokens_per_line[i]
@@ -151,13 +152,30 @@ def main():
         start = line_toks[0]["start"]
         end = line_toks[-1]["end"]
         char_count = max(1, sum(len(w.get("text", "x")) for w in line_toks))
-        raw_score = sum(w.get("score", 0) for w in line_toks)
-        confidence = max(0.0, min(1.0, math.exp(raw_score / char_count)))
-        results.append({
+        avg_log_prob = sum(w.get("score", 0) for w in line_toks) / char_count
+        raw_entries.append({
             "index": line["index"],
-            "start": round(start, 3),
-            "end": round(end, 3),
-            "confidence": round(confidence, 4),
+            "start": start,
+            "end": end,
+            "avg_log_prob": avg_log_prob,
+        })
+
+    # Second pass: min-max normalize so scores are relative to this batch
+    if raw_entries:
+        scores = [e["avg_log_prob"] for e in raw_entries]
+        lo, hi = min(scores), max(scores)
+        score_range = hi - lo if hi > lo else 1.0
+    else:
+        lo, score_range = 0.0, 1.0
+
+    results = []
+    for e in raw_entries:
+        confidence = (e["avg_log_prob"] - lo) / score_range
+        results.append({
+            "index": e["index"],
+            "start": round(e["start"], 3),
+            "end": round(e["end"], 3),
+            "confidence": round(max(0.0, min(1.0, confidence)), 4),
         })
 
     progress("done", "Alignment complete", 1.0)

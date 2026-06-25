@@ -8,10 +8,14 @@
     "opener:default",
     "dialog:allow-open",
     "dialog:allow-save",
-    "fs:allow-read-text-file",
-    "fs:allow-write-text-file",
     "fs:allow-read-file",
-    "fs:allow-write-file",
-    "fs:scope-home-recursive"
+    "fs:scope-audio-recursive",
+    "fs:scope-download-recursive",
+    "fs:scope-document-recursive",
+    "fs:scope-desktop-recursive",
+    "fs:scope-video-recursive",
+    "fs:scope-temp-recursive",
+    "fs:scope-appcache-recursive",
+    "deep-link:default"
   ]
 }
