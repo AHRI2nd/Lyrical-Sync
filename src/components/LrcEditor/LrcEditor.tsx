@@ -20,6 +20,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   const {
     doc, activeLineId,
     addLine, insertLinesAfter, updateLine, deleteLine,
+    duplicateLine, mergeLineUp, splitLine, moveLine, scaleTimestamps,
     stampCurrentLine, setActiveLineId,
     aiSyncStatus, aiSyncMessage, aiSyncProgressStatus, aiDraftConfidence,
     runAiSync, cancelAiSync, clearAiDraft,
@@ -30,6 +31,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     useShallow((s) => ({
       doc: s.doc, activeLineId: s.activeLineId,
       addLine: s.addLine, insertLinesAfter: s.insertLinesAfter, updateLine: s.updateLine, deleteLine: s.deleteLine,
+      duplicateLine: s.duplicateLine, mergeLineUp: s.mergeLineUp, splitLine: s.splitLine, moveLine: s.moveLine, scaleTimestamps: s.scaleTimestamps,
       stampCurrentLine: s.stampCurrentLine, setActiveLineId: s.setActiveLineId,
       aiSyncStatus: s.aiSyncStatus, aiSyncMessage: s.aiSyncMessage, aiSyncProgressStatus: s.aiSyncProgressStatus, aiDraftConfidence: s.aiDraftConfidence,
       runAiSync: s.runAiSync, cancelAiSync: s.cancelAiSync, clearAiDraft: s.clearAiDraft,
@@ -59,6 +61,8 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
 
   // Time Shift state
   const [showTS, setShowTS] = useState(false);
+  const [showScale, setShowScale] = useState(false);
+  const [showValidation, setShowValidation] = useState(false);
 
   // 도구 오버플로우(찾기·구간오프셋)
   const [showTools, setShowTools] = useState(false);
@@ -80,6 +84,9 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   const [pendingTextEdit, setPendingTextEdit] = useState<{ id: string; text: string } | null>(null);
   const [pendingUnit, setPendingUnit] = useState<SyncUnit | null>(null);
   const [pendingAiSync, setPendingAiSync] = useState(false);
+  // 드래그 재정렬 상태
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   const charMode = syncMode === "char";
 
@@ -193,7 +200,16 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, id: string) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && e.shiftKey) {
+      // Shift+Enter = 커서 위치에서 줄 분할
+      e.preventDefault();
+      const caret = e.currentTarget.selectionStart ?? e.currentTarget.value.length;
+      const newId = splitLine(id, caret);
+      setActiveLineId(newId);
+      pendingFocusId.current = newId;
+      return;
+    }
+    if (e.key === "Enter") {
       e.preventDefault();
       const newId = insertLinesAfter(id, [""]);
       setActiveLineId(newId);
@@ -225,6 +241,31 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
 
   // 타임스탬프 검증 경고
   const warnings = useMemo(() => validateTimestamps(lines), [lines]);
+
+  // 완성도 통계: 텍스트 있는 줄 중 타임스탬프가 찍힌 비율
+  const stats = useMemo(() => {
+    const nonEmpty = lines.filter((l) => l.text.trim() !== "");
+    const stamped = nonEmpty.filter((l) => l.timestamp !== null).length;
+    return { total: nonEmpty.length, stamped, pct: nonEmpty.length ? Math.round((stamped / nonEmpty.length) * 100) : 0 };
+  }, [lines]);
+
+  // 이슈 목록: 경고(중복/순서) + 미입력(텍스트 있는데 타임스탬프 없음)
+  type Issue = { id: string; lineNo: number; text: string; type: "duplicate" | "outOfOrder" | "unstamped" };
+  const issues = useMemo(() => {
+    const out: Issue[] = [];
+    lines.forEach((l, i) => {
+      const w = warnings.get(l.id);
+      if (w) out.push({ id: l.id, lineNo: i + 1, text: l.text, type: w });
+      else if (l.text.trim() !== "" && l.timestamp === null) out.push({ id: l.id, lineNo: i + 1, text: l.text, type: "unstamped" });
+    });
+    return out;
+  }, [lines, warnings]);
+
+  const jumpToLine = (id: string) => {
+    setActiveLineId(id);
+    rowRefs.current.get(id)?.scrollIntoView({ block: "center" });
+    setShowValidation(false);
+  };
 
   // 매칭 줄 id 목록
   const matchIds = useMemo(() => {
@@ -351,10 +392,15 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 shrink-0">
           <h2 className="text-sm font-semibold text-zinc-300">{t.lyricsEditor}</h2>
-          {warnings.size > 0 && (
-            <span className="flex items-center gap-1 text-xs text-amber-400 bg-amber-900/20 border border-amber-800/50 rounded-full px-2 py-0.5">
-              ⚠ {warnings.size} {t.validationSummary}
-            </span>
+          {!charMode && stats.total > 0 && (
+            <button
+              onClick={() => setShowValidation(true)}
+              title={t.validationTitle}
+              className="flex items-center gap-1.5 text-xs rounded-full border px-2 py-0.5 transition-colors border-zinc-700 hover:bg-zinc-800"
+            >
+              <span className={stats.pct === 100 ? "text-emerald-400" : "text-zinc-400"}>{stats.pct}%</span>
+              {warnings.size > 0 && <span className="text-amber-400">⚠ {warnings.size}</span>}
+            </button>
           )}
         </div>
         <div className="flex gap-2 items-center flex-wrap justify-end">
@@ -457,7 +503,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           <div className="relative" ref={toolsRef}>
             <button
               onClick={() => setShowTools((v) => !v)}
-              className={`px-3 py-1 text-xs rounded-lg transition-colors ${showTools || showFR || showTS ? "bg-zinc-700 text-white" : "text-zinc-400 hover:bg-zinc-800 hover:text-white"}`}
+              className={`px-3 py-1 text-xs rounded-lg transition-colors ${showTools || showFR || showTS || showScale ? "bg-zinc-700 text-white" : "text-zinc-400 hover:bg-zinc-800 hover:text-white"}`}
             >
               {t.editorTools}
             </button>
@@ -474,6 +520,12 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                   className={`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showTS ? "bg-sky-600 text-white" : "hover:bg-zinc-700 text-zinc-200"}`}
                 >
                   {t.timeShift}
+                </button>
+                <button
+                  onClick={() => { setShowScale((v) => !v); setShowTools(false); }}
+                  className={`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showScale ? "bg-sky-600 text-white" : "hover:bg-zinc-700 text-zinc-200"}`}
+                >
+                  {t.tsScale}
                 </button>
               </div>
             )}
@@ -517,6 +569,13 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           defaultFrom={(activeLineId ? lines.findIndex((l) => l.id === activeLineId) : 0) + 1}
           onApply={handleShiftApply}
           onClose={() => setShowTS(false)}
+        />
+      )}
+
+      {showScale && (
+        <ScaleBar
+          onApply={(factor) => { scaleTimestamps(factor); setShowScale(false); }}
+          onClose={() => setShowScale(false)}
         />
       )}
 
@@ -585,17 +644,39 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                   if (idx !== -1) setMatchPos(idx);
                 }
               }}
+              onDragOver={(e) => { if (dragIdx !== null) { e.preventDefault(); if (dragOverIdx !== idx) setDragOverIdx(idx); } }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (dragIdx !== null && dragIdx !== idx) moveLine(dragIdx, idx);
+                setDragIdx(null); setDragOverIdx(null);
+              }}
               className={`group/row flex items-center gap-2 rounded-lg px-2 py-1 transition-colors cursor-pointer ${
-                isCurrentMatch
+                dragIdx !== null && dragOverIdx === idx && dragIdx !== idx
+                  ? "outline outline-1 outline-indigo-400 bg-indigo-900/10"
+                  : isCurrentMatch
                   ? "bg-amber-900/30 ring-1 ring-amber-500"
                   : isActive
                   ? "bg-indigo-900/40 ring-1 ring-indigo-500"
                   : isMatch
                   ? "bg-amber-900/10 ring-1 ring-amber-800"
                   : "hover:bg-zinc-800"
-              }`}
+              } ${dragIdx === idx ? "opacity-40" : ""}`}
             >
-              <span className="text-zinc-600 text-xs w-6 shrink-0 text-right select-none">
+              <span
+                draggable
+                onDragStart={(e) => { e.stopPropagation(); setDragIdx(idx); }}
+                onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
+                onClick={(e) => e.stopPropagation()}
+                title={t.reorderLine}
+                className="shrink-0 cursor-grab active:cursor-grabbing text-zinc-600 hover:text-zinc-300 opacity-0 group-hover/row:opacity-100 transition-opacity"
+              >
+                <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true">
+                  <circle cx="2.5" cy="2" r="1.2" /><circle cx="7.5" cy="2" r="1.2" />
+                  <circle cx="2.5" cy="7" r="1.2" /><circle cx="7.5" cy="7" r="1.2" />
+                  <circle cx="2.5" cy="12" r="1.2" /><circle cx="7.5" cy="12" r="1.2" />
+                </svg>
+              </span>
+              <span className="text-zinc-600 text-xs w-5 shrink-0 text-right select-none">
                 {idx + 1}
               </span>
 
@@ -665,6 +746,34 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
               />
 
               <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (idx === 0) return;
+                  const pid = mergeLineUp(line.id);
+                  if (pid) { setActiveLineId(pid); pendingFocusId.current = pid; }
+                }}
+                disabled={idx === 0}
+                className="shrink-0 text-zinc-600 hover:text-indigo-300 px-1 opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity disabled:opacity-0"
+                title={t.mergeLineUp}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M8 7l4-4 4 4" /><path d="M12 3v8" /><path d="M5 21h14" /><path d="M5 15h14" />
+                </svg>
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const nid = duplicateLine(line.id);
+                  setActiveLineId(nid); pendingFocusId.current = nid;
+                }}
+                className="shrink-0 text-zinc-600 hover:text-indigo-300 px-1 opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
+                title={t.duplicateLine}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                </svg>
+              </button>
+              <button
                 onClick={(e) => { e.stopPropagation(); deleteLine(line.id); }}
                 className="shrink-0 text-zinc-600 hover:text-rose-400 text-sm px-1 opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
                 title={t.deleteLine}
@@ -707,6 +816,14 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           cancelLabel={t.charSync.retokenizeCancel}
           onOk={() => { setPendingAiSync(false); runAiSyncNow(); }}
           onCancel={() => setPendingAiSync(false)}
+        />
+      )}
+      {showValidation && (
+        <ValidationPanel
+          stats={stats}
+          issues={issues}
+          onJump={jumpToLine}
+          onClose={() => setShowValidation(false)}
         />
       )}
     </div>
@@ -940,6 +1057,113 @@ function TimeShiftBar({
       <button
         onClick={handleApply}
         disabled={delta === 0}
+        className="px-3 py-1 rounded-lg bg-sky-700 hover:bg-sky-600 text-white disabled:opacity-40 transition-colors"
+      >
+        {t.timeShiftApply}
+      </button>
+      <button onClick={onClose} className="w-6 h-6 flex items-center justify-center rounded text-zinc-500 hover:text-white hover:bg-zinc-700 transition-colors">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+  );
+}
+
+function ValidationPanel({ stats, issues, onJump, onClose }: {
+  stats: { total: number; stamped: number; pct: number };
+  issues: { id: string; lineNo: number; text: string; type: "duplicate" | "outOfOrder" | "unstamped" }[];
+  onJump: (id: string) => void;
+  onClose: () => void;
+}) {
+  const { t } = useI18nStore();
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+
+  const label = (ty: string) =>
+    ty === "duplicate" ? t.warnDuplicate : ty === "outOfOrder" ? t.warnOutOfOrder : t.validationUnstamped;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden flex flex-col max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-3 border-b border-zinc-800 flex items-center justify-between shrink-0">
+          <span className="font-semibold text-zinc-100">{t.validationTitle}</span>
+          <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors text-lg leading-none">✕</button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 px-5 py-4 shrink-0">
+          {[
+            { v: `${stats.pct}%`, l: t.validationStatComplete, hl: stats.pct === 100 },
+            { v: String(stats.stamped), l: t.validationStatStamped, hl: false },
+            { v: String(stats.total), l: t.validationStatLines, hl: false },
+          ].map((c, i) => (
+            <div key={i} className="bg-zinc-800 rounded-lg p-2.5 flex flex-col">
+              <span className={`text-xl font-semibold tabular-nums ${c.hl ? "text-emerald-400" : "text-zinc-100"}`}>{c.v}</span>
+              <span className="text-[11px] text-zinc-500 mt-0.5">{c.l}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="overflow-y-auto px-3 pb-3 flex flex-col gap-0.5">
+          {issues.length === 0 ? (
+            <p className="text-center text-sm text-emerald-400 py-6">{t.validationNoIssues}</p>
+          ) : (
+            issues.map((iss) => (
+              <button
+                key={iss.id}
+                onClick={() => onJump(iss.id)}
+                className="flex items-center gap-2 text-left px-2.5 py-1.5 rounded-lg hover:bg-zinc-800 transition-colors"
+              >
+                <span className="text-zinc-600 text-xs w-7 shrink-0 text-right tabular-nums">{iss.lineNo}</span>
+                <span className={`text-[11px] shrink-0 px-1.5 py-0.5 rounded ${iss.type === "unstamped" ? "bg-zinc-700/60 text-zinc-300" : "bg-amber-900/40 text-amber-300"}`}>{label(iss.type)}</span>
+                <span className="text-sm text-zinc-300 truncate flex-1">{iss.text || <span className="text-zinc-600">—</span>}</span>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ScaleBar({ onApply, onClose }: { onApply: (factor: number) => void; onClose: () => void }) {
+  const { t } = useI18nStore();
+  const [factor, setFactor] = useState(1.0);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      else if (e.key === "Enter" && factor > 0 && factor !== 1) onApply(factor);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose, onApply, factor]);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-xs">
+      <span className="text-zinc-400 shrink-0">{t.tsScaleFactor}</span>
+      <div className="flex items-center gap-1">
+        <button onClick={() => setFactor((v) => Math.max(0.1, Math.round((v - 0.01) * 1000) / 1000))} className="w-6 h-6 flex items-center justify-center rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors">−</button>
+        <input
+          type="number"
+          step={0.01}
+          min={0.1}
+          value={factor}
+          onChange={(e) => setFactor(Math.max(0.1, parseFloat(e.target.value) || 1))}
+          className="w-20 px-2 py-1 bg-zinc-900 border border-zinc-600 rounded-lg text-white text-center focus:outline-none focus:border-sky-500 transition-colors"
+        />
+        <button onClick={() => setFactor((v) => Math.round((v + 0.01) * 1000) / 1000)} className="w-6 h-6 flex items-center justify-center rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors">+</button>
+        <span className="text-zinc-500">×</span>
+      </div>
+
+      <span className="text-zinc-500 shrink-0">{t.tsScaleHint}</span>
+
+      <div className="w-px h-4 bg-zinc-700 shrink-0" />
+
+      <button
+        onClick={() => onApply(factor)}
+        disabled={!(factor > 0) || factor === 1}
         className="px-3 py-1 rounded-lg bg-sky-700 hover:bg-sky-600 text-white disabled:opacity-40 transition-colors"
       >
         {t.timeShiftApply}
