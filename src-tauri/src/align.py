@@ -16,6 +16,55 @@ def progress(status: str, message: str = "", percent: float = 0.0):
           file=sys.stderr, flush=True)
 
 
+def detect_vocal_segments(waveform, sr=16000, hop=0.01, win=0.025,
+                          rel_thresh=0.06, merge_gap=0.25, min_dur=0.15):
+    """Energy-based voice activity on an (ideally isolated) vocal waveform.
+    Returns [[start_sec, end_sec], …] of vocal-active regions. Best-effort:
+    any failure yields [] so the caller falls back to its offset heuristic.
+    The MMS aligner feeds audio at 16 kHz mono, hence the default sr."""
+    try:
+        import numpy as np
+        x = np.asarray(waveform, dtype=np.float32).reshape(-1)
+        if x.size == 0:
+            return []
+        hop_n = max(1, int(sr * hop))
+        win_n = max(hop_n, int(sr * win))
+        n_frames = 1 + max(0, (x.size - win_n) // hop_n)
+        if n_frames <= 0:
+            return []
+        rms = np.empty(n_frames, dtype=np.float32)
+        for i in range(n_frames):
+            s = i * hop_n
+            frame = x[s:s + win_n]
+            rms[i] = np.sqrt(np.mean(frame * frame) + 1e-12)
+        peak = float(rms.max())
+        if peak <= 0:
+            return []
+        active = rms > peak * rel_thresh
+
+        segs = []
+        start = None
+        for i, a in enumerate(active):
+            t = i * hop_n / sr
+            if a and start is None:
+                start = t
+            elif not a and start is not None:
+                segs.append([start, t])
+                start = None
+        if start is not None:
+            segs.append([start, n_frames * hop_n / sr])
+
+        merged = []
+        for s, e in segs:
+            if merged and s - merged[-1][1] <= merge_gap:
+                merged[-1][1] = e
+            else:
+                merged.append([s, e])
+        return [[round(s, 3), round(e, 3)] for s, e in merged if (e - s) >= min_dur]
+    except Exception:
+        return []
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--models-dir", required=True)
@@ -23,7 +72,13 @@ def main():
     parser.add_argument("--lines", required=True)
     parser.add_argument("--language", default="eng",
                         help="ISO 639-3 language code (eng/kor/jpn/…)")
+    parser.add_argument("--separated", default="false",
+                        help="'true' if --audio is an isolated vocal stem (enables VAD)")
+    parser.add_argument("--vad", default="true",
+                        help="'true' to compute vocal-activity segments (needs --separated)")
     args = parser.parse_args()
+    separated = args.separated == "true"
+    vad_enabled = args.vad == "true"
 
     try:
         lines = json.loads(args.lines)  # [{"index": int, "text": str}]
@@ -178,8 +233,16 @@ def main():
             "confidence": round(max(0.0, min(1.0, confidence)), 4),
         })
 
+    # ── Vocal activity (only meaningful on an isolated vocal stem) ────────────
+    # Used downstream to place blank-line / vocal-resume timestamps precisely.
+    vocal_segments = detect_vocal_segments(audio_waveform) if (separated and vad_enabled) else []
+
     progress("done", "Alignment complete", 1.0)
-    print(json.dumps(results), flush=True)
+    print(json.dumps({
+        "lines": results,
+        "vocal_segments": vocal_segments,
+        "separated": separated,
+    }), flush=True)
 
 
 if __name__ == "__main__":

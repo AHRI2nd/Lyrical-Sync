@@ -1,16 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
+import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { serializeLrc } from "../../utils/lrcParser";
 import { LrcLibModal } from "../LrcLib/LrcLibModal";
+import { LrcLibPublishModal } from "../LrcLib/LrcLibPublishModal";
 
 export function MetaEditor() {
-  const { doc, setMetadata, applyOffset, loadFromRawText } = useLrcStore();
+  // currentTime 등에 리렌더되지 않도록 필요한 필드만 구독
+  const { doc, setMetadata, applyOffset, loadFromRawText } = useLrcStore(
+    useShallow((s) => ({
+      doc: s.doc, setMetadata: s.setMetadata, applyOffset: s.applyOffset, loadFromRawText: s.loadFromRawText,
+    }))
+  );
   const { t } = useI18nStore();
   const { metadata } = doc;
 
   const [showRawEditor, setShowRawEditor] = useState(false);
   const [showLrcLib, setShowLrcLib] = useState(false);
+  const [showPublish, setShowPublish] = useState(false);
 
   // 오프셋 입력은 로컬 문자열로 관리해 ""·"-"·음수 입력을 허용 (숫자 0 고정 방지)
   const [offsetStr, setOffsetStr] = useState(String(metadata.offset));
@@ -33,6 +41,13 @@ export function MetaEditor() {
             className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 transition-colors"
           >
             <DownloadIcon /> LRCLIB
+          </button>
+          <button
+            onClick={() => setShowPublish(true)}
+            title={t.lrclibPublish.button}
+            className="p-1.5 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-indigo-300 transition-colors"
+          >
+            <UploadIcon />
           </button>
           <button
             onClick={() => setShowRawEditor(true)}
@@ -93,6 +108,7 @@ export function MetaEditor() {
         />
       )}
       {showLrcLib && <LrcLibModal onClose={() => setShowLrcLib(false)} />}
+      {showPublish && <LrcLibPublishModal onClose={() => setShowPublish(false)} />}
     </div>
   );
 }
@@ -123,6 +139,14 @@ function DownloadIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 3v12M8 11l4 4 4-4M5 20h14" />
+    </svg>
+  );
+}
+
+function UploadIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 21V9M8 13l4-4 4 4M5 4h14" />
     </svg>
   );
 }

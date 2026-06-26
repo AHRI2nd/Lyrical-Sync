@@ -1,17 +1,25 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, lazy, Suspense } from "react";
 import { AudioPlayer } from "./components/AudioPlayer/AudioPlayer";
 import { MetaEditor } from "./components/MetaEditor/MetaEditor";
 import { LrcEditor } from "./components/LrcEditor/LrcEditor";
-import { PreviewModal } from "./components/Preview/PreviewModal";
-import { SettingsModal } from "./components/Settings/SettingsModal";
+// 모달은 시작 시 불필요 → 지연 로드(초기 번들·파싱 절감)
+const PreviewModal = lazy(() => import("./components/Preview/PreviewModal").then((m) => ({ default: m.PreviewModal })));
+const SettingsModal = lazy(() => import("./components/Settings/SettingsModal").then((m) => ({ default: m.SettingsModal })));
 import { ModeSelectButton } from "./components/Service/ModeSelectButton";
-import { SpotifySearchModal } from "./components/Service/SpotifySearchModal";
+const SpotifySearchModal = lazy(() => import("./components/Service/SpotifySearchModal").then((m) => ({ default: m.SpotifySearchModal })));
 import { useLrcStore } from "./stores/useLrcStore";
+import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "./stores/useI18nStore";
 import { useSettingsStore } from "./stores/useSettingsStore";
 import { useServiceStore } from "./stores/useServiceStore";
 import { audioControls } from "./utils/audioControls";
 import { serviceControls } from "./utils/serviceControls";
+import { anyModalOpen } from "./utils/modalGuard";
+import { safeUnlisten } from "./utils/safeUnlisten";
+import { matchAction, normalizeKeybindings, keyLabel, PLAYBACK_ACTIONS } from "./utils/keybindings";
+import { toast } from "./stores/useToastStore";
+import { ToastContainer } from "./components/Toast/ToastContainer";
+import { type RecoverySnapshot, loadRecoverySnapshot, saveRecoverySnapshot, clearRecoverySnapshot } from "./utils/recovery";
 import { initSpotifyPlayer } from "./utils/spotifyPlayer";
 import { type Lang } from "./i18n/translations";
 import { checkForUpdate, RELEASES_URL } from "./utils/updateCheck";
@@ -26,66 +34,68 @@ const LYRICS_EXTS = ["lrc", "srt"];
 const fileExt = (p: string) => p.split(".").pop()?.toLowerCase() ?? "";
 
 function useGlobalKeys() {
-  const { stampAndAdvance, goToPreviousLine, undo, redo } = useLrcStore();
+  // 액션은 안정 참조 → 셀렉터로 좁혀 currentTime 등 매 프레임 갱신에 리렌더되지 않게
+  const { stampAndAdvance, goToPreviousLine, undo, redo } = useLrcStore(
+    useShallow((s) => ({
+      stampAndAdvance: s.stampAndAdvance,
+      goToPreviousLine: s.goToPreviousLine,
+      undo: s.undo,
+      redo: s.redo,
+    }))
+  );
+  const syncMode = useLrcStore((s) => s.syncMode);
+  const keybindings = useSettingsStore((s) => s.keybindings);
   const isLoggedInForKeys = useServiceStore((s) => s.isLoggedIn);
   const spotifyModeForKeys = useSettingsStore((s) => s.spotifyMode);
   const isServiceMode = isLoggedInForKeys && spotifyModeForKeys;
 
   useEffect(() => {
     const controls = isServiceMode ? serviceControls : audioControls;
+    const kb = normalizeKeybindings(keybindings);
     const handler = (e: KeyboardEvent) => {
       const inInput =
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement;
 
+      // Cmd/Ctrl+Z 실행취소/다시실행 (재설정 불가, 예약)
       const isMod = e.ctrlKey || e.metaKey;
       if (isMod && e.code === "KeyZ") {
-        if (inInput) return;
+        if (inInput || anyModalOpen()) return;
         e.preventDefault();
         if (e.shiftKey) redo();
         else undo();
         return;
       }
-
+      // 수식자 조합은 사용자 단축키 대상 아님
       if (e.ctrlKey || e.altKey || e.metaKey) return;
 
-      const digitMap: Record<string, number> = {
-        Digit1: 1, Numpad1: 1,
-        Digit2: 2, Numpad2: 2,
-        Digit3: 3, Numpad3: 3,
-        Digit4: 4, Numpad4: 4,
-        Digit5: 5, Numpad5: 5,
-        Digit6: 6, Numpad6: 6,
-      };
-      const digit = digitMap[e.code];
+      const action = matchAction(e.code, kb);
+      if (!action || inInput) return;
 
-      if (digit && !inInput) {
+      // 재생 트랜스포트: 줄/글자 모드 공통(모달 열려도 미디어 제어 허용)
+      if (PLAYBACK_ACTIONS.includes(action)) {
         e.preventDefault();
-        if (digit === 1) controls.skip(-5);
-        else if (digit === 2) controls.skip(-1);
-        else if (digit === 3) controls.togglePlay();
-        else if (digit === 4) controls.skip(1);
-        else if (digit === 5) controls.skip(5);
-        else if (digit === 6) controls.stopAndReset();
+        if (action === "skipBack5") controls.skip(-5);
+        else if (action === "skipBack1") controls.skip(-1);
+        else if (action === "playPause") controls.togglePlay();
+        else if (action === "skipFwd1") controls.skip(1);
+        else if (action === "skipFwd5") controls.skip(5);
+        else if (action === "stop") controls.stopAndReset();
         return;
       }
 
-      if (e.code === "Space" && !inInput) {
+      // stamp/prevLine: 글자 모드에선 CharSyncView가 처리, 모달 뒤에선 차단
+      if (action === "stamp" || action === "prevLine") {
+        if (syncMode === "char" || anyModalOpen()) return;
         e.preventDefault();
-        stampAndAdvance();
-        return;
-      }
-
-      if (e.code === "Backspace" && !inInput) {
-        e.preventDefault();
-        goToPreviousLine();
-        return;
+        if (action === "stamp") stampAndAdvance();
+        else goToPreviousLine();
       }
     };
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [stampAndAdvance, goToPreviousLine, undo, redo, isServiceMode]);
+  }, [stampAndAdvance, goToPreviousLine, undo, redo, isServiceMode, syncMode, keybindings]);
 }
 
 // 저장 경로(lrcPath)가 지정된 파일에 한해, 변경 후 일정 시간 멈추면 자동 저장.
@@ -99,12 +109,25 @@ function useAutoSave() {
   useEffect(() => {
     if (!autoSave || !lrcPath || !isDirty) return;
     const id = setTimeout(() => {
-      // 디스크 쓰기 실패(권한/경로 등) 시 미처리 거부 방지
-      useLrcStore.getState().saveLrc().catch(() => {});
+      // 자동저장: 성공은 조용히, 실패만 토스트로 알림
+      useLrcStore.getState().saveLrc().catch(() => {
+        toast.error(useI18nStore.getState().t.toast.saveFailed);
+      });
     }, 1500);
     return () => clearTimeout(id);
     // doc 변경마다 타이머 리셋 → 입력이 멈춘 뒤에만 저장(디바운스)
   }, [autoSave, lrcPath, isDirty, doc]);
+
+  // 미저장 작업 자동 복구 스냅샷: dirty면 디바운스로 저장, 저장되면(dirty 해제) 제거.
+  // 저장 경로가 없어도 보호되므로 autoSave와 독립적으로 동작.
+  useEffect(() => {
+    if (!isDirty) { clearRecoverySnapshot(); return; }
+    const id = setTimeout(() => {
+      const st = useLrcStore.getState();
+      saveRecoverySnapshot(st.doc, st.lrcPath, st.audioPath);
+    }, 2000);
+    return () => clearTimeout(id);
+  }, [isDirty, doc]);
 }
 
 function useAutoUpdateCheck(onUpdateAvailable: (version: string) => void, enabled: boolean) {
@@ -136,21 +159,36 @@ function App() {
   useGlobalKeys();
   useAutoSave();
 
+  // 시작 시(이펙트 실행 전) 스냅샷을 캡처 — dirty 해제 이펙트가 지우기 전에 확보
+  const [recovery, setRecovery] = useState<RecoverySnapshot | null>(() => {
+    const snap = loadRecoverySnapshot();
+    return snap && snap.doc.lines.length > 0 ? snap : null;
+  });
   const [showHelp, setShowHelp] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<"general" | "models" | "spotify" | "youtube">("general");
   const [showNewConfirm, setShowNewConfirm] = useState(false);
   const [showFormatChooser, setShowFormatChooser] = useState(false);
+  const [showElrcNotice, setShowElrcNotice] = useState(false);
+  const pendingSaveRef = useRef<(() => Promise<boolean>) | null>(null);
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const [showSpotifySearch, setShowSpotifySearch] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [dropConflict, setDropConflict] = useState<
     { audio?: string; lyrics?: string; audioConflict: boolean; lyricsConflict: boolean } | null
   >(null);
-  const { lrcPath, isDirty, openLrc, openAudio, saveLrc, saveLrcAs, newLrc, undo, redo, _history, _future } = useLrcStore();
+  // 셀렉터로 좁혀 재생 중 currentTime 갱신마다 App 전체가 리렌더되지 않게 함
+  const { lrcPath, isDirty, openLrc, openAudio, saveLrc, saveLrcAs, newLrc, undo, redo, _history, _future } = useLrcStore(
+    useShallow((s) => ({
+      lrcPath: s.lrcPath, isDirty: s.isDirty,
+      openLrc: s.openLrc, openAudio: s.openAudio, saveLrc: s.saveLrc, saveLrcAs: s.saveLrcAs, newLrc: s.newLrc,
+      undo: s.undo, redo: s.redo, _history: s._history, _future: s._future,
+    }))
+  );
+  const hasGlyphSync = useLrcStore((s) => s.doc.lines.some((l) => l.syllables?.some((sy) => sy.time !== null)));
   const { t } = useI18nStore();
-  const { autoCheckUpdate, uiScale, spotifyMode, youtubeMode, setSpotifyMode, setYoutubeMode } = useSettingsStore();
+  const { autoCheckUpdate, uiScale, spotifyMode, youtubeMode, setSpotifyMode, setYoutubeMode, showElrcSaveNotice, setShowElrcSaveNotice } = useSettingsStore();
   const { isLoggedIn, handleCallback, tryRestoreSession, pausePlayback } = useServiceStore();
   const [ytdlpInstalled, setYtdlpInstalled] = useState(false);
 
@@ -174,12 +212,12 @@ function App() {
         // OAuth failed — user can retry from settings
       }
     }).then((fn) => {
-      if (cancelled) fn();
+      if (cancelled) safeUnlisten(fn);
       else unlistenFn = fn;
-    });
+    }).catch(() => {});
     return () => {
       cancelled = true;
-      unlistenFn?.();
+      safeUnlisten(unlistenFn);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -204,16 +242,38 @@ function App() {
     }
   };
 
-  const handleSave = () => {
-    if (lrcPath) saveLrc();
-    else setShowFormatChooser(true);
+  // 저장 결과를 토스트로 알림(취소 시 무알림, 실패 시 에러)
+  const runSave = (p: Promise<boolean>) => {
+    p.then((written) => { if (written) toast.success(t.toast.saved); })
+     .catch(() => toast.error(t.toast.saveFailed));
   };
+
+  // 글자/단어 동기화가 있어 E-LRC로 저장될 LRC 저장은 알림 팝업을 거쳐 실행
+  const requestSaveLrc = (fn: () => Promise<boolean>) => {
+    if (hasGlyphSync && showElrcSaveNotice) {
+      pendingSaveRef.current = fn;
+      setShowElrcNotice(true);
+    } else {
+      runSave(fn());
+    }
+  };
+
+  const handleSave = () => {
+    if (lrcPath) {
+      if (lrcPath.toLowerCase().endsWith(".lrc")) requestSaveLrc(() => saveLrc());
+      else runSave(saveLrc());
+    } else {
+      setShowFormatChooser(true);
+    }
+  };
+
+  const handleOpenLrc = () => openLrc().catch(() => toast.error(t.toast.openFailed));
 
   // 드롭된 파일을 실제로 연다 (오디오 → 오디오 경로, lrc/srt → 가사)
   const applyDrop = (d: { audio?: string; lyrics?: string }) => {
     const st = useLrcStore.getState();
     if (d.audio) st.setAudioPath(d.audio);
-    if (d.lyrics) st.loadLyricsPath(d.lyrics).catch(() => {});
+    if (d.lyrics) st.loadLyricsPath(d.lyrics).catch(() => toast.error(t.toast.openFailed));
   };
 
   // 파일 드래그앤드롭 열기 (Tauri 네이티브 드롭 이벤트 → 파일 경로 제공)
@@ -247,8 +307,9 @@ function App() {
           applyDrop({ audio, lyrics });
         }
       })
-      .then((fn) => { if (cancelled) fn(); else unlisten = fn; });
-    return () => { cancelled = true; unlisten?.(); };
+      .then((fn) => { if (cancelled) safeUnlisten(fn); else unlisten = fn; })
+      .catch(() => {});
+    return () => { cancelled = true; safeUnlisten(unlisten); };
   }, []);
 
   // yt-dlp 설치 여부 (모드 메뉴의 YouTube 활성화 판단)
@@ -262,8 +323,8 @@ function App() {
     let unlisten: (() => void) | null = null;
     listen<{ done: boolean }>("ytdlp-install-progress", (e) => {
       if (active && e.payload.done) check();
-    }).then((fn) => { unlisten = fn; if (!active) fn(); });
-    return () => { active = false; unlisten?.(); };
+    }).then((fn) => { unlisten = fn; if (!active) safeUnlisten(fn); }).catch(() => {});
+    return () => { active = false; safeUnlisten(unlisten); };
   }, []);
 
   // 모드 전환 (ModeSelectButton과 동일한 동작 — 전환 시 재생 정지)
@@ -289,11 +350,11 @@ function App() {
   useMacMenu(
     {
       newFile: handleNewLrc,
-      openLrc,
+      openLrc: handleOpenLrc,
       openAudio,
       save: handleSave,
-      saveAsLrc: () => saveLrcAs("lrc"),
-      saveAsSrt: () => saveLrcAs("srt"),
+      saveAsLrc: () => requestSaveLrc(() => saveLrcAs("lrc")),
+      saveAsSrt: () => runSave(saveLrcAs("srt")),
       undo,
       redo,
       togglePlay: () => playbackControls.togglePlay(),
@@ -340,7 +401,7 @@ function App() {
           <div className="w-px h-5 bg-zinc-700 mx-0.5" />
           {/* 파일 액션 그룹 */}
           <IconBtn onClick={handleNewLrc} title={t.newFileBtn}><NewFileIcon /></IconBtn>
-          <IconBtn onClick={openLrc} title={t.openLrc}><OpenFolderIcon /></IconBtn>
+          <IconBtn onClick={handleOpenLrc} title={t.openLrc}><OpenFolderIcon /></IconBtn>
           <IconBtn onClick={handleSave} accent title={t.save} tooltipAlign="right"><SaveIcon /></IconBtn>
           <IconBtn onClick={() => setShowFormatChooser(true)} title={t.saveAs} tooltipAlign="right"><SaveAsIcon /></IconBtn>
           <div className="w-px h-5 bg-zinc-700 mx-0.5" />
@@ -349,13 +410,19 @@ function App() {
       </header>
 
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
-      {showPreview && <PreviewModal onClose={() => setShowPreview(false)} />}
+      {showPreview && (
+        <Suspense fallback={null}>
+          <PreviewModal onClose={() => setShowPreview(false)} />
+        </Suspense>
+      )}
       {showSettings && (
-        <SettingsModal
-          onClose={() => setShowSettings(false)}
-          onUpdateFound={(v) => { setShowSettings(false); setUpdateVersion(v); }}
-          initialTab={settingsInitialTab}
-        />
+        <Suspense fallback={null}>
+          <SettingsModal
+            onClose={() => setShowSettings(false)}
+            onUpdateFound={(v) => { setShowSettings(false); setUpdateVersion(v); }}
+            initialTab={settingsInitialTab}
+          />
+        </Suspense>
       )}
       {updateVersion && (
         <ConfirmModal
@@ -365,6 +432,20 @@ function App() {
           cancelLabel={t.updateLater}
           onOk={() => { setUpdateVersion(null); openUrl(RELEASES_URL); }}
           onCancel={() => setUpdateVersion(null)}
+        />
+      )}
+      {recovery && (
+        <ConfirmModal
+          title={t.recovery.title}
+          message={`${t.recovery.message}${recovery.doc.metadata.title ? `\n\n「${recovery.doc.metadata.title}」 · ${recovery.doc.lines.length}${t.recovery.lines}` : ""}`}
+          okLabel={t.recovery.restore}
+          cancelLabel={t.recovery.discard}
+          onOk={() => {
+            useLrcStore.getState().restoreDoc(recovery.doc, recovery.lrcPath, recovery.audioPath);
+            clearRecoverySnapshot();
+            setRecovery(null);
+          }}
+          onCancel={() => { clearRecoverySnapshot(); setRecovery(null); }}
         />
       )}
       {showNewConfirm && (
@@ -379,12 +460,30 @@ function App() {
       )}
       {showFormatChooser && (
         <SaveFormatModal
-          onSelect={(format) => { setShowFormatChooser(false); saveLrcAs(format); }}
+          onSelect={(format) => {
+            setShowFormatChooser(false);
+            if (format === "lrc") requestSaveLrc(() => saveLrcAs("lrc"));
+            else runSave(saveLrcAs(format));
+          }}
           onCancel={() => setShowFormatChooser(false)}
         />
       )}
+      {showElrcNotice && (
+        <ELrcNoticeModal
+          onConfirm={(dontShowAgain) => {
+            if (dontShowAgain) setShowElrcSaveNotice(false);
+            setShowElrcNotice(false);
+            const fn = pendingSaveRef.current;
+            pendingSaveRef.current = null;
+            if (fn) runSave(fn());
+          }}
+          onCancel={() => { setShowElrcNotice(false); pendingSaveRef.current = null; }}
+        />
+      )}
       {showSpotifySearch && (
-        <SpotifySearchModal onClose={() => setShowSpotifySearch(false)} />
+        <Suspense fallback={null}>
+          <SpotifySearchModal onClose={() => setShowSpotifySearch(false)} />
+        </Suspense>
       )}
       {dropConflict && (
         <ConfirmModal
@@ -440,12 +539,15 @@ function App() {
           ?
         </button>
       </div>
+
+      <ToastContainer />
     </div>
   );
 }
 
 function HelpModal({ onClose }: { onClose: () => void }) {
   const { t, lang } = useI18nStore();
+  const kb = normalizeKeybindings(useSettingsStore((s) => s.keybindings));
 
   const guideFileSuffix = lang === "ko" ? "ko" : lang === "ja" ? "ja" : "en";
   const aiGuideUrl = `https://ahri2nd.xyz/posts/lyrical-sync-ai-installation-guide-${guideFileSuffix}/`;
@@ -457,20 +559,21 @@ function HelpModal({ onClose }: { onClose: () => void }) {
     {
       title: t.helpGroupPlayback,
       items: [
-        { key: "1", desc: t.shortcutDescs.s1 },
-        { key: "2", desc: t.shortcutDescs.s2 },
-        { key: "3", desc: t.shortcutDescs.s3 },
-        { key: "4", desc: t.shortcutDescs.s4 },
-        { key: "5", desc: t.shortcutDescs.s5 },
-        { key: "6", desc: t.shortcutDescs.s6 },
+        { key: keyLabel(kb.skipBack5), desc: t.shortcutDescs.s1 },
+        { key: keyLabel(kb.skipBack1), desc: t.shortcutDescs.s2 },
+        { key: keyLabel(kb.playPause), desc: t.shortcutDescs.s3 },
+        { key: keyLabel(kb.skipFwd1), desc: t.shortcutDescs.s4 },
+        { key: keyLabel(kb.skipFwd5), desc: t.shortcutDescs.s5 },
+        { key: keyLabel(kb.stop), desc: t.shortcutDescs.s6 },
       ],
     },
     {
       title: t.helpGroupEdit,
       items: [
-        { key: "Space", desc: t.shortcutDescs.space },
-        { key: "Backspace", desc: t.shortcutDescs.backspace },
+        { key: keyLabel(kb.stamp), desc: t.shortcutDescs.space },
+        { key: keyLabel(kb.prevLine), desc: t.shortcutDescs.backspace },
         { key: "Enter", desc: t.shortcutDescs.enter },
+        { key: "⇧ Enter", desc: t.shortcutDescs.splitLine },
         { key: "Ctrl/⌘ Z", desc: t.shortcutDescs.undo },
         { key: "Ctrl/⌘ ⇧ Z", desc: t.shortcutDescs.redo },
         { key: "Ctrl/⌘ F", desc: t.shortcutDescs.find },
@@ -483,6 +586,17 @@ function HelpModal({ onClose }: { onClose: () => void }) {
         { key: t.shortcutDescs.tsStampKey, desc: t.shortcutDescs.tsStampDesc },
         { key: t.shortcutDescs.lineClickKey, desc: t.shortcutDescs.lineClickDesc },
         { key: t.shortcutDescs.markerClickKey, desc: t.shortcutDescs.markerClickDesc },
+      ],
+    },
+    {
+      title: t.helpGroupCharSync,
+      items: [
+        { key: keyLabel(kb.stamp), desc: t.shortcutDescs.csStamp },
+        { key: "← / →", desc: t.shortcutDescs.csMove },
+        { key: t.shortcutDescs.csNudgeKey, desc: t.shortcutDescs.csNudgeDesc },
+        { key: t.shortcutDescs.csDragKey, desc: t.shortcutDescs.csDragDesc },
+        { key: t.shortcutDescs.csClickKey, desc: t.shortcutDescs.csClickDesc },
+        { key: t.shortcutDescs.csClearKey, desc: t.shortcutDescs.csClearDesc },
       ],
     },
   ];
@@ -707,7 +821,7 @@ function ConfirmModal({
 function SaveFormatModal({
   onSelect, onCancel,
 }: {
-  onSelect: (format: "lrc" | "srt") => void;
+  onSelect: (format: "lrc" | "srt" | "vtt" | "ass") => void;
   onCancel: () => void;
 }) {
   const { t } = useI18nStore();
@@ -719,6 +833,9 @@ function SaveFormatModal({
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onCancel]);
+
+  const optClass =
+    "flex flex-col items-start gap-0.5 px-4 py-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-indigo-500 transition-colors text-left";
 
   return (
     <div
@@ -733,19 +850,21 @@ function SaveFormatModal({
           <span className="font-semibold text-zinc-100">{t.saveFormatTitle}</span>
         </div>
         <div className="flex flex-col gap-2 px-5 py-4">
-          <button
-            onClick={() => onSelect("lrc")}
-            className="flex flex-col items-start gap-0.5 px-4 py-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-indigo-500 transition-colors text-left"
-          >
+          <button onClick={() => onSelect("lrc")} className={optClass}>
             <span className="text-sm font-semibold text-white">LRC <span className="text-zinc-500 font-normal">(.lrc)</span></span>
             <span className="text-xs text-zinc-400">{t.saveFormatLrcDesc}</span>
           </button>
-          <button
-            onClick={() => onSelect("srt")}
-            className="flex flex-col items-start gap-0.5 px-4 py-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-indigo-500 transition-colors text-left"
-          >
+          <button onClick={() => onSelect("srt")} className={optClass}>
             <span className="text-sm font-semibold text-white">SubRip <span className="text-zinc-500 font-normal">(.srt)</span></span>
             <span className="text-xs text-zinc-400">{t.saveFormatSrtDesc}</span>
+          </button>
+          <button onClick={() => onSelect("vtt")} className={optClass}>
+            <span className="text-sm font-semibold text-white">WebVTT <span className="text-zinc-500 font-normal">(.vtt)</span></span>
+            <span className="text-xs text-zinc-400">{t.saveFormatVttDesc}</span>
+          </button>
+          <button onClick={() => onSelect("ass")} className={optClass}>
+            <span className="text-sm font-semibold text-white">ASS <span className="text-zinc-500 font-normal">(.ass)</span></span>
+            <span className="text-xs text-zinc-400">{t.saveFormatAssDesc}</span>
           </button>
         </div>
         <div className="flex justify-end px-5 pb-4">
@@ -754,6 +873,61 @@ function SaveFormatModal({
             className="px-4 py-1.5 text-sm rounded-lg text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
           >
             {t.rawEditorCancel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ELrcNoticeModal({
+  onConfirm, onCancel,
+}: {
+  onConfirm: (dontShowAgain: boolean) => void;
+  onCancel: () => void;
+}) {
+  const { t } = useI18nStore();
+  const [dontShowAgain, setDontShowAgain] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+      else if (e.key === "Enter") onConfirm(dontShowAgain);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onCancel, onConfirm, dontShowAgain]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onCancel}
+    >
+      <div
+        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 py-4 border-b border-zinc-800">
+          <span className="font-semibold text-zinc-100">{t.elrcNotice.title}</span>
+        </div>
+        <div className="px-5 py-4">
+          <p className="text-sm text-zinc-300 leading-relaxed">{t.elrcNotice.message}</p>
+        </div>
+        <div className="flex items-center justify-between gap-3 px-5 pb-4">
+          <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={dontShowAgain}
+              onChange={(e) => setDontShowAgain(e.target.checked)}
+              className="accent-indigo-600 w-3.5 h-3.5"
+            />
+            {t.elrcNotice.dontShowAgain}
+          </label>
+          <button
+            onClick={() => onConfirm(dontShowAgain)}
+            className="px-4 py-1.5 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium transition-colors"
+          >
+            {t.elrcNotice.confirm}
           </button>
         </div>
       </div>

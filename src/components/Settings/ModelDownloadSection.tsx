@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { safeUnlisten } from "../../utils/safeUnlisten";
 import { type Translations } from "../../i18n/translations";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { toast } from "../../stores/useToastStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import {
   CATEGORY_ORDER,
@@ -100,7 +102,7 @@ function ActionButton({
 
 export function ModelDownloadSection() {
   const { t, lang } = useI18nStore();
-  const { modelsDir, setModelsDir } = useSettingsStore();
+  const { modelsDir, setModelsDir, useVocalSeparation, setUseVocalSeparation, useVad, setUseVad } = useSettingsStore();
 
   const [states, setStates] = useState<Record<string, ModelState>>(() =>
     Object.fromEntries(
@@ -189,8 +191,8 @@ export function ModelDownloadSection() {
           },
         };
       });
-    }).then((fn) => { unlistenRef.current = fn; });
-    return () => { unlistenRef.current?.(); };
+    }).then((fn) => { unlistenRef.current = fn; }).catch(() => {});
+    return () => { safeUnlisten(unlistenRef.current); };
   }, []);
 
   const handleInstall = async (model: ModelDef) => {
@@ -201,14 +203,19 @@ export function ModelDownloadSection() {
     try {
       await invoke("download_model", {
         modelId: model.id,
-        files: model.files.map((f) => ({ url: f.url, filename: f.filename })),
+        files: model.files.map((f) => ({ url: f.url, filename: f.filename, sha256: f.sha256 ?? null })),
       });
+      toast.success(t.toast.modelDownloaded.replace("{name}", model.name));
     } catch (e) {
       if (String(e) === "cancelled") {
         setStates((prev) => ({
           ...prev,
           [model.id]: { status: "not-installed", progress: 0, _completedBytes: 0, _curFileIndex: -1, _curFileTotal: 0 },
         }));
+      } else {
+        // 취소가 아닌 실제 실패(네트워크·해시 불일치 등): 에러 상태 + 알림
+        setStates((prev) => ({ ...prev, [model.id]: { status: "error", progress: 0, error: String(e) } }));
+        toast.error(t.toast.modelDownloadFailed.replace("{name}", model.name));
       }
     }
   };
@@ -254,7 +261,7 @@ export function ModelDownloadSection() {
   const grouped = CATEGORY_ORDER.map((cat) => ({
     cat,
     models: MODEL_DEFS.filter((m) => m.category === cat).sort((a, b) => Number(b.required) - Number(a.required)),
-  })).sort((a, b) => {
+  })).filter((g) => g.models.length > 0).sort((a, b) => {
     const aReq = a.models.some((m) => m.required) ? 1 : 0;
     const bReq = b.models.some((m) => m.required) ? 1 : 0;
     return bReq - aReq;
@@ -309,6 +316,47 @@ export function ModelDownloadSection() {
           </span>
           <span className="text-zinc-500">설치 시 품질 향상</span>
         </span>
+      </div>
+
+      <div className="border-t border-zinc-800" />
+
+      {/* 정렬에 사용 (선택) */}
+      <div className="flex flex-col gap-2">
+        <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">{t.aiUsageTitle}</span>
+        {(() => {
+          const demucsInstalled = states["demucs-htdemucs"]?.status === "installed";
+          const sepActive = useVocalSeparation && demucsInstalled;
+          return (
+            <div className="flex flex-col gap-2">
+              <label className={`flex items-start gap-2 text-sm ${demucsInstalled ? "text-zinc-200 cursor-pointer" : "text-zinc-600 cursor-not-allowed"}`}>
+                <input
+                  type="checkbox"
+                  className="mt-0.5 accent-indigo-600 w-3.5 h-3.5 shrink-0"
+                  checked={sepActive}
+                  disabled={!demucsInstalled}
+                  onChange={(e) => setUseVocalSeparation(e.target.checked)}
+                />
+                <span className="flex flex-col">
+                  <span>{t.aiUsageSeparation}</span>
+                  <span className="text-xs text-zinc-500">{demucsInstalled ? t.aiUsageSeparationDesc : t.aiUsageNeedModel}</span>
+                </span>
+              </label>
+              <label className={`flex items-start gap-2 text-sm ${sepActive ? "text-zinc-200 cursor-pointer" : "text-zinc-600 cursor-not-allowed"}`}>
+                <input
+                  type="checkbox"
+                  className="mt-0.5 accent-indigo-600 w-3.5 h-3.5 shrink-0"
+                  checked={useVad && sepActive}
+                  disabled={!sepActive}
+                  onChange={(e) => setUseVad(e.target.checked)}
+                />
+                <span className="flex flex-col">
+                  <span>{t.aiUsageVad}</span>
+                  <span className="text-xs text-zinc-500">{sepActive ? t.aiUsageVadDesc : t.aiUsageNeedSeparation}</span>
+                </span>
+              </label>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Model list */}

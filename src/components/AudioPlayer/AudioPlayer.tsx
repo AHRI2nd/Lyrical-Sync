@@ -1,15 +1,19 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "wavesurfer.js/dist/plugins/regions.esm.js";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useLrcStore } from "../../stores/useLrcStore";
+import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { toast } from "../../stores/useToastStore";
 import { type Translations } from "../../i18n/translations";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { audioControls } from "../../utils/audioControls";
+import { activateSpotifyPlayer } from "../../utils/spotifyPlayer";
+import { safeUnlisten } from "../../utils/safeUnlisten";
 import { formatDisplayTime } from "../../utils/lrcParser";
 import { ServicePlayerPanel } from "../Service/ServicePlayerPanel";
 
@@ -40,6 +44,7 @@ interface AudioPlayerProps {
 export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlayerProps = {}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
+  const peaksRef = useRef<number[] | null>(null);
   const regionsRef = useRef<ReturnType<typeof RegionsPlugin.create> | null>(null);
   const isLoopingRef = useRef(false);
   const playbackRateRef = useRef(1.0);
@@ -60,7 +65,13 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   const [showRemaining, setShowRemaining] = useState(false);
   const [showNoTrackAlert, setShowNoTrackAlert] = useState(false);
 
-  const { audioPath, setCurrentTime, setIsPlaying, setDuration, openAudio, setAudioPath } = useLrcStore();
+  // 자체 로컬 상태(currentTimeLocal 등)로 UI를 그리므로 스토어 currentTime은 구독하지 않음
+  const { audioPath, setCurrentTime, setIsPlaying, setDuration, openAudio, setAudioPath } = useLrcStore(
+    useShallow((s) => ({
+      audioPath: s.audioPath, setCurrentTime: s.setCurrentTime, setIsPlaying: s.setIsPlaying,
+      setDuration: s.setDuration, openAudio: s.openAudio, setAudioPath: s.setAudioPath,
+    }))
+  );
   const lines = useLrcStore((s) => s.doc.lines);
   const activeLineId = useLrcStore((s) => s.activeLineId);
   const [showMarkers, setShowMarkers] = useState(true);
@@ -82,8 +93,8 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       (e) => {
         if (e.payload.done) setYtLoading(false);
       }
-    ).then((fn) => { unlisten = fn; });
-    return () => { unlisten?.(); };
+    ).then((fn) => { unlisten = fn; }).catch(() => {});
+    return () => { safeUnlisten(unlisten); };
   }, []);
 
   const handleYtLoad = async () => {
@@ -146,11 +157,22 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       }
     });
 
+    // Spotify 서비스 모드에선 로컬 파형이 전역 재생상태(currentTime/isPlaying/duration)를
+    // 덮어쓰지 않도록 차단(Spotify가 단일 소스). 로컬 UI 상태(*Local)는 항상 갱신.
+    const inService = () =>
+      useServiceStore.getState().isLoggedIn && useSettingsStore.getState().spotifyMode;
+
     ws.on("ready", () => {
       const d = ws.getDuration();
       setDurationLocal(d);
-      setDuration(d);
+      if (!inService()) setDuration(d);
       setIsAudioReady(true);
+      // 글자 동기화 레인 파형용 정규화 peaks 캐시
+      try {
+        peaksRef.current = ws.exportPeaks({ channels: 1, maxLength: 4000 })[0] ?? null;
+      } catch {
+        peaksRef.current = null;
+      }
       // 새 오디오 로드 시 미디어 엘리먼트가 배속을 1.0으로 초기화하므로 재적용
       if (playbackRateRef.current !== 1.0) {
         ws.setPlaybackRate(playbackRateRef.current);
@@ -158,21 +180,21 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     });
     ws.on("audioprocess", (t) => {
       setCurrentTimeLocal(t);
-      setCurrentTime(t);
+      if (!inService()) setCurrentTime(t);
     });
     ws.on("seeking", (t) => {
       setCurrentTimeLocal(t);
-      setCurrentTime(t);
+      if (!inService()) setCurrentTime(t);
     });
-    ws.on("play", () => { setIsPlaying(true); setIsPlayingLocal(true); });
-    ws.on("pause", () => { setIsPlaying(false); setIsPlayingLocal(false); });
+    ws.on("play", () => { setIsPlayingLocal(true); if (!inService()) setIsPlaying(true); });
+    ws.on("pause", () => { setIsPlayingLocal(false); if (!inService()) setIsPlaying(false); });
     ws.on("finish", () => {
       if (isLoopingRef.current) {
         ws.seekTo(0);
         ws.play();
       } else {
-        setIsPlaying(false);
         setIsPlayingLocal(false);
+        if (!inService()) setIsPlaying(false);
       }
     });
 
@@ -199,6 +221,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       setCurrentTimeLocal(0);
       setCurrentTime(0);
     };
+    audioControls.getPeaks = () => peaksRef.current;
     audioControls.seekTo = (seconds: number) => {
       const ws = wsRef.current;
       if (!ws) return;
@@ -209,6 +232,11 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   });
 
   const blobUrlRef = useRef<string | null>(null);
+
+  // 언마운트 시 마지막 Blob URL 해제 (경로 변경 시엔 아래 로드 effect가 직전 URL을 해제)
+  useEffect(() => () => {
+    if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+  }, []);
 
   useEffect(() => {
     if (!wsRef.current || !audioPath) return;
@@ -224,18 +252,18 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     const needsTranscode = isAiff && isWindows;
 
     const getBytes = async (): Promise<Uint8Array> => {
-      if (needsTranscode) {
-        const wavPath = await invoke<string>("decode_audio_to_wav", { path: audioPath });
-        return readFile(wavPath);
-      }
+      // Windows AIFF는 임시 WAV로 트랜스코딩(임시 폴더는 fs 스코프 밖)
+      const path = needsTranscode
+        ? await invoke<string>("decode_audio_to_wav", { path: audioPath })
+        : audioPath;
       try {
-        // 빠른 경로: 홈 디렉터리 내 파일은 plugin readFile (바이너리 채널)
-        return await readFile(audioPath);
+        // 빠른 경로: fs 스코프(미디어 디렉터리) 내 파일은 plugin readFile (바이너리 채널)
+        return await readFile(path);
       } catch {
-        // fs 스코프($HOME/**) 밖 파일(예: Windows D:\, macOS /Volumes)은 거부되므로
-        // 스코프 제약이 없는 커스텀 커맨드로 폴백
-        const arr = await invoke<number[]>("read_audio_file", { path: audioPath });
-        return new Uint8Array(arr);
+        // 스코프 밖 파일(임시 폴더, 외장 드라이브 등)은 거부되므로
+        // 스코프 제약이 없는 커스텀 커맨드로 폴백 (raw 바이너리 반환)
+        const buf = await invoke<ArrayBuffer>("read_audio_file", { path });
+        return new Uint8Array(buf);
       }
     };
 
@@ -248,9 +276,31 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       const blob = new Blob([bytes], { type: mimeType });
       const url = URL.createObjectURL(blob);
       blobUrlRef.current = url;
-      wsRef.current.load(url);
-    }).catch(console.error);
+      return wsRef.current.load(url);
+    }).catch((e) => {
+      // 새 로드로 인한 중단(AbortError)은 무시, 실제 디코드/읽기 실패만 알림
+      if (cancelled || (e && (e as Error).name === "AbortError")) return;
+      toast.error(useI18nStore.getState().t.toast.audioLoadFailed);
+    });
 
+    return () => { cancelled = true; };
+  }, [audioPath]);
+
+  // 오디오 열면 파일 태그(ID3 등)에서 메타데이터를 읽어 비어 있는 필드만 자동 채움
+  useEffect(() => {
+    if (!audioPath) return;
+    let cancelled = false;
+    invoke<{ title: string; artist: string; album: string }>("read_audio_metadata", { path: audioPath })
+      .then((m) => {
+        if (cancelled) return;
+        const cur = useLrcStore.getState().doc.metadata;
+        const patch: { title?: string; artist?: string; album?: string } = {};
+        if (!cur.title.trim() && m.title) patch.title = m.title;
+        if (!cur.artist.trim() && m.artist) patch.artist = m.artist;
+        if (!cur.album.trim() && m.album) patch.album = m.album;
+        if (Object.keys(patch).length > 0) useLrcStore.getState().setMetadata(patch);
+      })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [audioPath]);
 
@@ -273,6 +323,13 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, [showMore]);
+
+  // 마커는 줄 id·타임스탬프·줄번호(인덱스)에만 의존 → 텍스트 편집(타임스탬프 불변)으로는
+  // region을 재생성하지 않도록 시그니처로 의존성을 좁힘(키 입력마다 전체 region 재생성 방지).
+  const markerSig = useMemo(
+    () => lines.map((l, i) => (l.timestamp !== null ? `${l.id}:${l.timestamp}:${i}` : "")).filter(Boolean).join("|"),
+    [lines]
+  );
 
   // 가사 타임스탬프 마커를 파형에 동기화
   useEffect(() => {
@@ -312,7 +369,26 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         r.element.appendChild(label);
       }
     });
-  }, [lines, activeLineId, isAudioReady, showMarkers]);
+    // lines/activeLineId는 closure 최신값 사용. markerSig(마커 위치 변경)에만 재생성 →
+    // 활성 줄만 바뀔 땐 아래 별도 effect가 스타일만 토글(전체 region 재생성 회피).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markerSig, isAudioReady, showMarkers]);
+
+  // 활성 줄 변경: region을 다시 만들지 않고 색/라벨 스타일만 갱신
+  useEffect(() => {
+    const regions = regionsRef.current;
+    if (!regions || !isAudioReady || !showMarkers) return;
+    const activeRegionId = activeLineId ? `lyric:${activeLineId}` : null;
+    regions.getRegions().forEach((r) => {
+      const isActive = r.id === activeRegionId;
+      r.setOptions({ color: isActive ? "#ea580c" : "rgba(217, 119, 6, 0.8)" });
+      const label = r.element?.querySelector<HTMLElement>(".lyric-marker-num");
+      if (label) {
+        label.className = isActive ? "lyric-marker-num" : "lyric-marker-num dim";
+        label.style.background = isActive ? "#ea580c" : "#b45309";
+      }
+    });
+  }, [activeLineId, isAudioReady, showMarkers, markerSig]);
 
   const progress = duration > 0 ? currentTime / duration : 0;
 
@@ -386,8 +462,10 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   const handleLoadCurrent = async () => {
     try {
       const track = await fetchCurrentlyPlaying();
-      if (track) await transferPlaybackToApp();
-      else setShowNoTrackAlert(true);
+      if (track) {
+        await activateSpotifyPlayer(); // 사용자 제스처에서 오디오 잠금 해제(SDK 기기로 재생 위함)
+        await transferPlaybackToApp();
+      } else setShowNoTrackAlert(true);
     } catch { setShowNoTrackAlert(true); }
   };
 
@@ -856,6 +934,9 @@ function YouTubeModal({
   onCancel: () => void;
   onClose: () => void;
 }) {
+  const youtubeDisclaimerAccepted = useSettingsStore((s) => s.youtubeDisclaimerAccepted);
+  const setYoutubeDisclaimerAccepted = useSettingsStore((s) => s.setYoutubeDisclaimerAccepted);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !ytLoading) onClose();
@@ -888,6 +969,26 @@ function YouTubeModal({
           )}
         </div>
 
+        {!youtubeDisclaimerAccepted ? (
+          /* 최초 1회 면책 동의 게이트 */
+          <div className="p-5 flex flex-col gap-4">
+            <p className="text-sm leading-relaxed text-zinc-300">{t.youtubeDisclaimer}</p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
+              >
+                {t.youtubeCancel}
+              </button>
+              <button
+                onClick={() => setYoutubeDisclaimerAccepted(true)}
+                className="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-500 text-white transition-colors"
+              >
+                {t.youtubeAgree}
+              </button>
+            </div>
+          </div>
+        ) : (
         <div className="p-5 flex flex-col gap-4">
           <div className="flex gap-2">
             <input
@@ -909,6 +1010,10 @@ function YouTubeModal({
           {ytError && (
             <span className="text-xs text-red-400 break-all">{ytError}</span>
           )}
+
+          <p className="text-[11px] leading-relaxed text-zinc-500 border-t border-zinc-800 pt-3">
+            {t.youtubeDisclaimer}
+          </p>
 
           <div className="flex justify-end gap-2">
             {ytLoading ? (
@@ -937,6 +1042,7 @@ function YouTubeModal({
             )}
           </div>
         </div>
+        )}
       </div>
     </div>
   );

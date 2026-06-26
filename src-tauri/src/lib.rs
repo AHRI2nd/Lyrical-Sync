@@ -58,6 +58,9 @@ impl Default for ModelsDirState {
 struct FileSpec {
     url: String,
     filename: String,
+    /// 선택적 SHA-256 (소문자 hex). 지정 시 다운로드 후 무결성 검증, 불일치하면 파일 삭제·실패.
+    #[serde(default)]
+    sha256: Option<String>,
 }
 
 #[derive(Serialize, Clone)]
@@ -96,8 +99,11 @@ async fn write_lrc_file(path: String, content: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn read_audio_file(path: String) -> Result<Vec<u8>, String> {
-    std::fs::read(&path).map_err(|e| e.to_string())
+async fn read_audio_file(path: String) -> Result<tauri::ipc::Response, String> {
+    // 바이트를 JSON(number[]) 대신 raw 바이너리로 반환 → 대용량 오디오도 빠름
+    std::fs::read(&path)
+        .map(tauri::ipc::Response::new)
+        .map_err(|e| e.to_string())
 }
 
 /// AIFF 등 WebView2 미지원 포맷을 WAV로 트랜스코딩해 임시 파일 경로를 반환합니다.
@@ -173,6 +179,28 @@ async fn decode_audio_to_wav(path: String) -> Result<String, String> {
     }
 
     Ok(temp_path.to_string_lossy().into_owned())
+}
+
+#[derive(serde::Serialize)]
+struct AudioMetadata {
+    title: String,
+    artist: String,
+    album: String,
+}
+
+/// 오디오 파일 태그(ID3/Vorbis/MP4 등)에서 제목·아티스트·앨범을 읽습니다.
+/// 태그가 없거나 읽기 실패 시 빈 문자열을 돌려줍니다(프런트에서 빈 필드만 채움).
+#[tauri::command]
+fn read_audio_metadata(path: String) -> Result<AudioMetadata, String> {
+    use lofty::file::TaggedFileExt;
+    use lofty::tag::Accessor;
+    let tagged = lofty::read_from_path(&path).map_err(|e| e.to_string())?;
+    let tag = tagged.primary_tag().or_else(|| tagged.first_tag());
+    let s = |o: Option<std::borrow::Cow<str>>| o.map(|c| c.trim().to_string()).unwrap_or_default();
+    Ok(match tag {
+        Some(t) => AudioMetadata { title: s(t.title()), artist: s(t.artist()), album: s(t.album()) },
+        None => AudioMetadata { title: String::new(), artist: String::new(), album: String::new() },
+    })
 }
 
 // ─── Model management commands ────────────────────────────────────────────────
@@ -252,6 +280,9 @@ async fn download_model(
         let mut downloaded: u64 = 0;
 
         use tokio::io::AsyncWriteExt;
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        let verify = spec.sha256.as_deref().map(str::trim).filter(|s| !s.is_empty());
         let mut file = tokio::fs::File::create(&dest).await.map_err(|e| e.to_string())?;
 
         loop {
@@ -265,6 +296,7 @@ async fn download_model(
             match resp.chunk().await {
                 Ok(Some(chunk)) => {
                     file.write_all(&chunk).await.map_err(|e| e.to_string())?;
+                    if verify.is_some() { hasher.update(&chunk); }
                     downloaded += chunk.len() as u64;
                     let _ = app.emit(
                         "model-download-progress",
@@ -281,6 +313,19 @@ async fn download_model(
                 }
                 Ok(None) => {
                     file.flush().await.map_err(|e| e.to_string())?;
+                    // 무결성 검증 (sha256 지정된 파일만)
+                    if let Some(expected) = verify {
+                        let got = format!("{:x}", hasher.finalize());
+                        if !got.eq_ignore_ascii_case(expected) {
+                            drop(file);
+                            let _ = tokio::fs::remove_file(&dest).await;
+                            dl_state.cancels.lock().unwrap().remove(&model_id);
+                            return Err(format!(
+                                "체크섬 불일치 ({}): 예상 {} / 실제 {}",
+                                spec.filename, expected, got
+                            ));
+                        }
+                    }
                     break;
                 }
                 Err(e) => {
@@ -502,7 +547,7 @@ async fn download_embedded_python(app: AppHandle) -> Result<(), String> {
 
     // Extract tarball
     let status = tokio::process::Command::new("tar")
-        .args(["-xzf", tarball_path.to_str().unwrap(), "-C", dir.to_str().unwrap()])
+        .arg("-xzf").arg(&tarball_path).arg("-C").arg(&dir)
         .status()
         .await
         .map_err(|e| e.to_string())?;
@@ -516,7 +561,7 @@ async fn download_embedded_python(app: AppHandle) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
         let _ = tokio::process::Command::new("xattr")
-            .args(["-rd", "com.apple.quarantine", dir.to_str().unwrap()])
+            .arg("-rd").arg("com.apple.quarantine").arg(&dir)
             .status()
             .await;
     }
@@ -730,7 +775,7 @@ async fn install_python_packages(app: AppHandle) -> Result<(), String> {
 
         let child2 = python_cmd(&python)
             .arg("-u")
-            .arg(script_path.to_str().unwrap())
+            .arg(&script_path)
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .spawn()
@@ -784,6 +829,8 @@ async fn run_alignment(
     audio_path: String,
     lines_json: String,
     language: String,
+    use_separation: bool,
+    use_vad: bool,
 ) -> Result<String, String> {
     // Use the app-embedded Python (downloaded once via Settings > AI Models)
     let python_exe = embedded_python_exe(&app)?;
@@ -817,7 +864,7 @@ async fn run_alignment(
     let vocals_tmp_path = std::env::temp_dir().join("lyrical_sync_vocals.wav");
     let audio_for_align: String;
 
-    if demucs_model.exists() {
+    if use_separation && demucs_model.exists() {
         let sep_script_path = std::env::temp_dir().join("lyrical_sync_separate.py");
         tokio::fs::write(&sep_script_path, SEPARATE_SCRIPT)
             .await
@@ -825,7 +872,7 @@ async fn run_alignment(
 
         let mut sep_child = python_cmd_inference(&python_str)
             .args([
-                sep_script_path.to_str().unwrap(),
+                sep_script_path.to_string_lossy().as_ref(),
                 "--model-path", &demucs_model.to_string_lossy(),
                 "--audio",      &audio_path,
                 "--output",     &vocals_tmp_path.to_string_lossy().as_ref(),
@@ -868,14 +915,19 @@ async fn run_alignment(
         audio_for_align = audio_path.clone();
     }
 
-    let script_str = align_script_path.to_str().unwrap();
+    let script_str = align_script_path.to_string_lossy().into_owned();
+    // VAD on the audio is only meaningful when it's the isolated vocal stem
+    let separated_flag = if audio_for_align != audio_path { "true" } else { "false" };
+    let vad_flag = if use_vad { "true" } else { "false" };
     let mut child = python_cmd_inference(&python_str)
         .args([
-            script_str,
+            script_str.as_str(),
             "--models-dir", &models_dir_str,
             "--audio",      &audio_for_align,
             "--lines",      &lines_json,
             "--language",   &language,
+            "--separated",  separated_flag,
+            "--vad",        vad_flag,
         ])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -1055,12 +1107,15 @@ async fn download_ytdlp(app: AppHandle) -> Result<(), String> {
     let mut downloaded: u64 = 0;
 
     use tokio::io::AsyncWriteExt;
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
     let mut file = tokio::fs::File::create(&dest).await.map_err(|e| e.to_string())?;
 
     loop {
         match resp.chunk().await {
             Ok(Some(chunk)) => {
                 file.write_all(&chunk).await.map_err(|e| e.to_string())?;
+                hasher.update(&chunk);
                 downloaded += chunk.len() as u64;
                 let _ = app.emit("ytdlp-install-progress", YtdlpInstallProgress {
                     downloaded, total, done: false,
@@ -1075,6 +1130,33 @@ async fn download_ytdlp(app: AppHandle) -> Result<(), String> {
                 let _ = tokio::fs::remove_file(&dest).await;
                 return Err(e.to_string());
             }
+        }
+    }
+
+    // 무결성 검증: 같은 릴리즈의 SHA2-256SUMS에서 자산 해시를 받아 대조.
+    // SUMS를 받을 수 있으면 엄격히 검증(불일치=실패), 못 받으면 best-effort로 통과.
+    let actual = format!("{:x}", hasher.finalize());
+    let expected: Option<String> = async {
+        let r = client
+            .get("https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS")
+            .header("User-Agent", "lyrical-sync/1.0")
+            .send()
+            .await
+            .ok()?;
+        if !r.status().is_success() { return None; }
+        let text = r.text().await.ok()?;
+        text.lines().find_map(|l| {
+            let mut it = l.split_whitespace();
+            let hash = it.next()?;
+            let name = it.next()?;
+            if name == remote_name { Some(hash.to_string()) } else { None }
+        })
+    }
+    .await;
+    if let Some(exp) = expected {
+        if !actual.eq_ignore_ascii_case(&exp) {
+            let _ = tokio::fs::remove_file(&dest).await;
+            return Err(format!("yt-dlp 체크섬 불일치: 예상 {exp} / 실제 {actual}"));
         }
     }
 
@@ -1163,7 +1245,7 @@ async fn ytdlp_load_audio(
     let mut cmd = tokio::process::Command::new(&exe);
     cmd.arg("--no-playlist")
         .arg("-f").arg(format)
-        .arg("-o").arg(output_tpl.to_str().unwrap())
+        .arg("-o").arg(&output_tpl)
         .arg("--newline")
         .arg("--no-part");
 
@@ -1254,6 +1336,7 @@ pub fn run() {
             write_lrc_file,
             read_audio_file,
             decode_audio_to_wav,
+            read_audio_metadata,
             set_models_dir_override,
             get_models_dir,
             check_model_files,
@@ -1275,7 +1358,134 @@ pub fn run() {
             download_ytdlp,
             ytdlp_load_audio,
             cancel_ytdlp_load,
+            lrclib_publish,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+// ─── LRCLIB publish (가사 기여) ─────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct LrclibChallenge {
+    prefix: String,
+    target: String,
+}
+
+fn hex_to_bytes(s: &str) -> Vec<u8> {
+    (0..s.len())
+        .step_by(2)
+        .filter_map(|i| s.get(i..i + 2).and_then(|b| u8::from_str_radix(b, 16).ok()))
+        .collect()
+}
+
+/// SHA-256(prefix+nonce) ≤ target (big-endian 32바이트 비교)
+fn nonce_meets_target(hash: &[u8], target: &[u8]) -> bool {
+    for i in 0..target.len().min(hash.len()) {
+        if hash[i] > target[i] {
+            return false;
+        } else if hash[i] < target[i] {
+            return true;
+        }
+    }
+    true
+}
+
+/// 동기화 가사를 LRCLIB에 업로드(기여). PoW 챌린지를 풀어 토큰을 만든 뒤 publish.
+#[tauri::command]
+async fn lrclib_publish(
+    track_name: String,
+    artist_name: String,
+    album_name: String,
+    duration: f64,
+    plain_lyrics: String,
+    synced_lyrics: String,
+) -> Result<(), String> {
+    use sha2::{Digest, Sha256};
+    let client = reqwest::Client::new();
+
+    // 1) 챌린지 요청
+    let ch: LrclibChallenge = client
+        .post("https://lrclib.net/api/request-challenge")
+        .header("User-Agent", "lyrical-sync")
+        .send()
+        .await
+        .map_err(|e| format!("챌린지 요청 실패: {e}"))?
+        .json()
+        .await
+        .map_err(|e| format!("챌린지 파싱 실패: {e}"))?;
+
+    // 2) PoW 풀기 (CPU 집약 → 블로킹 스레드)
+    let prefix = ch.prefix;
+    let target = hex_to_bytes(&ch.target);
+    let token = tokio::task::spawn_blocking(move || {
+        let mut nonce: u64 = 0;
+        loop {
+            let hash = Sha256::digest(format!("{prefix}{nonce}").as_bytes());
+            if nonce_meets_target(&hash, &target) {
+                return format!("{prefix}:{nonce}");
+            }
+            nonce += 1;
+        }
+    })
+    .await
+    .map_err(|e| format!("PoW 실패: {e}"))?;
+
+    // 3) 업로드
+    let body = serde_json::json!({
+        "trackName": track_name,
+        "artistName": artist_name,
+        "albumName": album_name,
+        "duration": duration,
+        "plainLyrics": plain_lyrics,
+        "syncedLyrics": synced_lyrics,
+    });
+    let resp = client
+        .post("https://lrclib.net/api/publish")
+        .header("X-Publish-Token", token)
+        .header("User-Agent", "lyrical-sync")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("업로드 요청 실패: {e}"))?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("업로드 실패 ({status}): {text}"));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_ytdlp_progress_extracts_fields() {
+        let p = parse_ytdlp_progress("[download]  45.3% of 5.00MiB at 1.20MiB/s ETA 00:03")
+            .expect("should parse progress line");
+        assert!((p.percent - 45.3_f32).abs() < 0.01_f32);
+        assert_eq!(p.speed, "1.20MiB/s");
+        assert_eq!(p.eta, "00:03");
+        assert!(!p.done);
+    }
+
+    #[test]
+    fn parse_ytdlp_progress_ignores_non_progress() {
+        assert!(parse_ytdlp_progress("[info] Downloading webpage").is_none());
+        assert!(parse_ytdlp_progress("just some text").is_none());
+        assert!(parse_ytdlp_progress("[download] Destination: out.mp3").is_none());
+    }
+
+    #[test]
+    fn hex_to_bytes_parses_pairs() {
+        assert_eq!(hex_to_bytes("00ff10"), vec![0u8, 255, 16]);
+    }
+
+    #[test]
+    fn nonce_target_comparison() {
+        assert!(nonce_meets_target(&[0x00, 0x10], &[0x00, 0x20])); // hash < target
+        assert!(!nonce_meets_target(&[0x00, 0x30], &[0x00, 0x20])); // hash > target
+        assert!(nonce_meets_target(&[0x00, 0x20], &[0x00, 0x20])); // equal
+    }
 }
