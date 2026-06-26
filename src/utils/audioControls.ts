@@ -5,4 +5,6 @@ export const audioControls = {
   skip: (_delta: number) => {},
   stopAndReset: () => {},
   seekTo: (_seconds: number) => {},
+  // 전체 트랙의 정규화 파형 peaks (없으면 null). 글자 동기화 레인 파형용.
+  getPeaks: (): number[] | null => null,
 };

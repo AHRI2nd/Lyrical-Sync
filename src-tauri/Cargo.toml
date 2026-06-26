@@ -1,6 +1,6 @@
 [package]
 name = "lyrical-sync"
-version = "0.5.0"
+version = "0.5.1"
 description = "LRC file creator and editor"
 authors = []
 edition = "2021"
@@ -24,3 +24,6 @@ symphonia = { version = "0.5", features = ["aiff", "pcm"] }
 hound = "3"
 reqwest = { version = "0.12", default-features = false, features = ["native-tls", "json"] }
 tokio = { version = "1", features = ["fs", "process", "io-util", "time", "rt"] }
+sha2 = "0.10"
+keyring = { version = "3", features = ["apple-native", "windows-native"] }
+lofty = "0.22"

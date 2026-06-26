@@ -14,6 +14,14 @@ export interface SpotifyTrack {
   durationMs: number;
 }
 
+export interface SpotifyDevice {
+  id: string;
+  name: string;
+  type: string;
+  is_active: boolean;
+  volume_percent: number | null;
+}
+
 interface TokenResponse {
   accessToken: string;
   refreshToken?: string;
@@ -22,6 +30,9 @@ interface TokenResponse {
 
 // Module-level RAF handle — not stored in Zustand since it doesn't drive UI
 let interpolationRaf: number | null = null;
+// 진행 중인 토큰 갱신 promise — 동시 ensureToken 호출이 같은 refresh 토큰으로
+// 중복 갱신해 로테이팅 토큰이 무효화(invalid_grant)되는 레이스를 방지.
+let refreshPromise: Promise<void> | null = null;
 
 interface ServiceState {
   // Auth
@@ -33,6 +44,9 @@ interface ServiceState {
 
   // SDK / playback
   deviceId: string | null;
+  /** 최근 Web Playback SDK 오류(초기화/인증/계정/재생). null=정상 */
+  playerError: string | null;
+  setPlayerError: (msg: string | null) => void;
   isReady: boolean;
   isPlaying: boolean;
   isLooping: boolean;
@@ -65,6 +79,9 @@ interface ServiceState {
   playTrack: (uri: string) => Promise<void>;
   pausePlayback: () => Promise<void>;
   fetchCurrentlyPlaying: () => Promise<SpotifyTrack | null>;
+  // 기기 선택
+  fetchDevices: () => Promise<SpotifyDevice[]>;
+  transferToDevice: (deviceId: string, play: boolean) => Promise<void>;
 
   _startInterpolation: () => void;
   _stopInterpolation: () => void;
@@ -77,6 +94,7 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
   _pendingCodeVerifier: null,
   _pendingOAuthState: null,
   deviceId: null,
+  playerError: null,
   isReady: false,
   isPlaying: false,
   isLooping: false,
@@ -101,7 +119,6 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
     // Start local HTTP listener before opening the browser so the callback is captured
     await invoke("start_oauth_listener");
     const authUrl = buildAuthUrl(clientId, codeChallenge, state);
-    console.log("[Spotify OAuth URL]", authUrl);
     await openUrl(authUrl);
   },
 
@@ -151,24 +168,43 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
   },
 
   refreshAccessToken: async () => {
-    const clientId = useSettingsStore.getState().spotifyClientId.trim();
-    const storedToken: string | null = await invoke("load_refresh_token");
-    if (!storedToken) throw new Error("no_refresh_token");
+    // 이미 갱신 중이면 그 promise를 공유(중복 갱신 방지)
+    if (refreshPromise) return refreshPromise;
+    refreshPromise = (async () => {
+      try {
+        const clientId = useSettingsStore.getState().spotifyClientId.trim();
+        const storedToken: string | null = await invoke("load_refresh_token");
+        if (!storedToken) throw new Error("no_refresh_token");
 
-    const resp: TokenResponse = await invoke("refresh_spotify_token", {
-      refreshToken: storedToken,
-      clientId,
-    });
+        let resp: TokenResponse;
+        try {
+          resp = await invoke("refresh_spotify_token", {
+            refreshToken: storedToken,
+            clientId,
+          });
+        } catch (e) {
+          // 리프레시 토큰 만료/취소(invalid_grant) → 저장 토큰 폐기 + 로그아웃해 재로그인 유도.
+          // 재시도하지 않음(Spotify 권장 처리). 2026-07-20부터 리프레시 토큰은 6개월 후 만료.
+          if (String(e).includes("invalid_grant")) {
+            get().logout();
+          }
+          throw e;
+        }
 
-    if (resp.refreshToken) {
-      await invoke("save_refresh_token", { token: resp.refreshToken });
-    }
+        if (resp.refreshToken) {
+          await invoke("save_refresh_token", { token: resp.refreshToken });
+        }
 
-    set({
-      isLoggedIn: true,
-      accessToken: resp.accessToken,
-      tokenExpiresAt: Date.now() + resp.expiresIn * 1000,
-    });
+        set({
+          isLoggedIn: true,
+          accessToken: resp.accessToken,
+          tokenExpiresAt: Date.now() + resp.expiresIn * 1000,
+        });
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+    return refreshPromise;
   },
 
   toggleLoop: async () => {
@@ -214,8 +250,10 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
     return token;
   },
 
+  setPlayerError: (msg) => set({ playerError: msg }),
+
   onPlayerReady: (deviceId: string) => {
-    set({ deviceId, isReady: true });
+    set({ deviceId, isReady: true, playerError: null });
   },
 
   onPlayerStateChanged: (state: Spotify.PlaybackState) => {
@@ -251,14 +289,19 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
         title: track.name,
         artist: track.artists.map((a) => a.name).join(", "),
         album: track.album.name,
-      });
+      }, true); // 서비스 자동 동기화 → dirty 미표시
     }
   },
 
   transferPlaybackToApp: async () => {
-    const { deviceId, ensureToken } = get();
-    if (!deviceId) return;
-    const token = await ensureToken();
+    // SDK 'ready'가 아직 안 왔을 수 있으니 deviceId를 잠깐 대기(최대 ~3초)
+    let deviceId = get().deviceId;
+    for (let i = 0; i < 12 && !deviceId; i++) {
+      await new Promise((r) => setTimeout(r, 250));
+      deviceId = get().deviceId;
+    }
+    if (!deviceId) return; // SDK 기기 미준비(playerError 참고) → 기존 기기 유지
+    const token = await get().ensureToken();
     await fetch("https://api.spotify.com/v1/me/player", {
       method: "PUT",
       headers: {
@@ -266,6 +309,25 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ device_ids: [deviceId], play: true }),
+    });
+  },
+
+  fetchDevices: async () => {
+    const token = await get().ensureToken();
+    const resp = await fetch("https://api.spotify.com/v1/me/player/devices", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    return (data.devices ?? []) as SpotifyDevice[];
+  },
+
+  transferToDevice: async (deviceId, play) => {
+    const token = await get().ensureToken();
+    await fetch("https://api.spotify.com/v1/me/player", {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ device_ids: [deviceId], play }),
     });
   },
 

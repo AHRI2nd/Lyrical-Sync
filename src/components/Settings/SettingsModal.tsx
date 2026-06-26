@@ -5,11 +5,13 @@ import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { checkForUpdate } from "../../utils/updateCheck";
+import { safeUnlisten } from "../../utils/safeUnlisten";
+import { KeybindingsSection } from "./KeybindingsSection";
 import { ModelDownloadSection } from "./ModelDownloadSection";
 import { YtdlpSection } from "./YtdlpSection";
 
 type CheckState = "idle" | "checking" | "upToDate";
-type Tab = "general" | "models" | "spotify" | "youtube";
+type Tab = "general" | "shortcuts" | "models" | "spotify" | "youtube";
 
 export function SettingsModal({
   onClose,
@@ -22,8 +24,8 @@ export function SettingsModal({
 }) {
   const { t, lang } = useI18nStore();
   const {
-    autoCheckUpdate, autoSave, uiScale, blankLineOffset, spotifyClientId, spotifyMode,
-    setAutoCheckUpdate, setAutoSave, setUiScale, setBlankLineOffset, setSpotifyClientId, setSpotifyMode,
+    autoCheckUpdate, autoSave, uiScale, blankLineOffset, showElrcSaveNotice, lyricsFontScale, showGlyphTimeMarkers, spotifyClientId, spotifyMode,
+    setAutoCheckUpdate, setAutoSave, setUiScale, setBlankLineOffset, setShowElrcSaveNotice, setLyricsFontScale, setShowGlyphTimeMarkers, setSpotifyClientId, setSpotifyMode,
   } = useSettingsStore();
 
   const guideSuffix = lang === "ko" ? "ko" : lang === "ja" ? "ja" : "en";
@@ -82,6 +84,9 @@ export function SettingsModal({
         <div className="flex border-b border-zinc-800 shrink-0">
           <TabBtn active={tab === "general"} onClick={() => setTab("general")}>
             {t.settingsTabGeneral}
+          </TabBtn>
+          <TabBtn active={tab === "shortcuts"} onClick={() => setTab("shortcuts")}>
+            {t.settingsTabShortcuts}
           </TabBtn>
           <TabBtn active={tab === "models"} onClick={() => setTab("models")}>
             {t.settingsTabModels}
@@ -163,6 +168,32 @@ export function SettingsModal({
 
               <div className="border-t border-zinc-800" />
 
+              {/* Enhanced LRC 저장 알림 */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-zinc-200">{t.settingsElrcNotice}</span>
+                  <button
+                    onClick={() => setShowElrcSaveNotice(!showElrcSaveNotice)}
+                    className={[
+                      "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
+                      showElrcSaveNotice ? "bg-indigo-600" : "bg-zinc-600",
+                    ].join(" ")}
+                    role="switch"
+                    aria-checked={showElrcSaveNotice}
+                  >
+                    <span
+                      className={[
+                        "absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                        showElrcSaveNotice ? "translate-x-[22px]" : "translate-x-0.5",
+                      ].join(" ")}
+                    />
+                  </button>
+                </div>
+                <p className="text-xs text-zinc-500">{t.settingsElrcNoticeDesc}</p>
+              </div>
+
+              <div className="border-t border-zinc-800" />
+
               {/* Blank line offset */}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
@@ -219,6 +250,69 @@ export function SettingsModal({
                   <span>130%</span>
                 </div>
               </div>
+
+              <div className="border-t border-zinc-800" />
+
+              {/* Lyrics font size */}
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-zinc-200">{t.settingsLyricsFontSize}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm tabular-nums text-zinc-300 w-10 text-right">
+                      {Math.round(lyricsFontScale * 100)}%
+                    </span>
+                    <button
+                      onClick={() => setLyricsFontScale(1.0)}
+                      disabled={lyricsFontScale === 1.0}
+                      className="px-2 py-0.5 text-xs rounded text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {t.settingsUiScaleReset}
+                    </button>
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  min={0.8}
+                  max={1.5}
+                  step={0.05}
+                  value={lyricsFontScale}
+                  onChange={(e) => setLyricsFontScale(Number(e.target.value))}
+                  className="range-slim w-full"
+                  style={{ background: `linear-gradient(to right, #6366f1 ${Math.round(((lyricsFontScale - 0.8) / 0.7) * 100)}%, #3f3f46 ${Math.round(((lyricsFontScale - 0.8) / 0.7) * 100)}%)` }}
+                />
+              </div>
+
+              <div className="border-t border-zinc-800" />
+
+              {/* Glyph time markers */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-zinc-200">{t.settingsGlyphMarkers}</span>
+                  <button
+                    onClick={() => setShowGlyphTimeMarkers(!showGlyphTimeMarkers)}
+                    className={[
+                      "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
+                      showGlyphTimeMarkers ? "bg-indigo-600" : "bg-zinc-600",
+                    ].join(" ")}
+                    role="switch"
+                    aria-checked={showGlyphTimeMarkers}
+                  >
+                    <span
+                      className={[
+                        "absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                        showGlyphTimeMarkers ? "translate-x-[22px]" : "translate-x-0.5",
+                      ].join(" ")}
+                    />
+                  </button>
+                </div>
+                <p className="text-xs text-zinc-500">{t.settingsGlyphMarkersDesc}</p>
+              </div>
+            </div>
+          )}
+
+          {tab === "shortcuts" && (
+            <div className="p-5">
+              <KeybindingsSection />
             </div>
           )}
 
@@ -307,9 +401,9 @@ function PythonEnvSection() {
           setDownloading(false);
           refresh();
         }
-      }).then((fn) => { unlisten = fn; });
+      }).then((fn) => { unlisten = fn; }).catch(() => {});
     });
-    return () => { unlisten?.(); };
+    return () => { safeUnlisten(unlisten); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -323,9 +417,9 @@ function PythonEnvSection() {
         } else if (e.payload.line) {
           setInstallLog((prev) => [...prev, e.payload.line]);
         }
-      }).then((fn) => { unlisten = fn; });
+      }).then((fn) => { unlisten = fn; }).catch(() => {});
     });
-    return () => { unlisten?.(); };
+    return () => { safeUnlisten(unlisten); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
