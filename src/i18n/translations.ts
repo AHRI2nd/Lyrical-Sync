@@ -311,6 +311,7 @@ export interface Translations {
   aiSyncGlyphWarnMsg: string;
   aiSyncGlyphWarnOk: string;
   aiSyncNoAudio: string;
+  aiSyncModeUnsupported: string;
   aiSyncDone: string;
   aiSyncError: string;
   aiSyncStatusLoadingModel: string;
@@ -762,6 +763,7 @@ const ko: Translations = {
   aiSyncGlyphWarnMsg: "AI 정렬은 줄 단위로 다시 정렬하므로 기존 글자/단어 동기화가 모두 삭제됩니다. 계속할까요?",
   aiSyncGlyphWarnOk: "계속",
   aiSyncNoAudio: "오디오 파일을 먼저 열어주세요",
+  aiSyncModeUnsupported: "파일 모드에서만 AI 자동 동기화를 사용할 수 있습니다",
   aiSyncDone: "AI 싱크 완료",
   aiSyncError: "AI 싱크 오류",
   aiSyncStatusLoadingModel: "모델 로딩 중...",
@@ -1213,6 +1215,7 @@ const en: Translations = {
   aiSyncGlyphWarnMsg: "AI alignment re-aligns line by line, so all existing character/word sync will be removed. Continue?",
   aiSyncGlyphWarnOk: "Continue",
   aiSyncNoAudio: "Please open an audio file first",
+  aiSyncModeUnsupported: "AI auto sync is only available in File mode",
   aiSyncDone: "AI Sync complete",
   aiSyncError: "AI Sync error",
   aiSyncStatusLoadingModel: "Loading model...",
@@ -1663,6 +1666,7 @@ const ja: Translations = {
   aiSyncGlyphWarnMsg: "AI 整列は行単位で再整列するため、既存の文字/単語同期がすべて削除されます。続行しますか？",
   aiSyncGlyphWarnOk: "続行",
   aiSyncNoAudio: "先に音声ファイルを開いてください",
+  aiSyncModeUnsupported: "AI自動同期はファイルモードでのみ使用できます",
   aiSyncDone: "AI同期完了",
   aiSyncError: "AI同期エラー",
   aiSyncStatusLoadingModel: "モデル読み込み中...",
