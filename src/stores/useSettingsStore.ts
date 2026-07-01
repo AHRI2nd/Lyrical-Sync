@@ -14,10 +14,6 @@ interface SettingsState {
   showGlyphTimeMarkers: boolean;
   /** 전역 단축키 바인딩(action → KeyboardEvent.code) */
   keybindings: Record<KeyAction, string>;
-  /** Spotify Developer App client_id (사용자 직접 입력) */
-  spotifyClientId: string;
-  /** Spotify 모드 활성화 여부 (로그인 상태와 독립적으로 UI 전환) */
-  spotifyMode: boolean;
   setAutoSave: (v: boolean) => void;
   setUiScale: (v: number) => void;
   setShowElrcSaveNotice: (v: boolean) => void;
@@ -25,8 +21,6 @@ interface SettingsState {
   setShowGlyphTimeMarkers: (v: boolean) => void;
   setKeybinding: (action: KeyAction, code: string) => void;
   resetKeybindings: () => void;
-  setSpotifyClientId: (v: string) => void;
-  setSpotifyMode: (v: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -38,8 +32,6 @@ export const useSettingsStore = create<SettingsState>()(
       lyricsFontScale: 1.0,
       showGlyphTimeMarkers: true,
       keybindings: { ...DEFAULT_KEYBINDINGS },
-      spotifyClientId: "",
-      spotifyMode: false,
       setAutoSave: (v) => set({ autoSave: v }),
       setUiScale: (v) => set({ uiScale: v }),
       setShowElrcSaveNotice: (v) => set({ showElrcSaveNotice: v }),
@@ -48,8 +40,6 @@ export const useSettingsStore = create<SettingsState>()(
       setKeybinding: (action, code) =>
         set((s) => ({ keybindings: { ...s.keybindings, [action]: code } })),
       resetKeybindings: () => set({ keybindings: { ...DEFAULT_KEYBINDINGS } }),
-      setSpotifyClientId: (v) => set({ spotifyClientId: v }),
-      setSpotifyMode: (v) => set({ spotifyMode: v }),
     }),
     { name: "lyrical-sync-settings" }
   )

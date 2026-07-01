@@ -7,13 +7,8 @@ import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { toast } from "../../stores/useToastStore";
-import { type Translations } from "../../i18n/translations";
-import { useServiceStore } from "../../stores/useServiceStore";
-import { useSettingsStore } from "../../stores/useSettingsStore";
 import { audioControls } from "../../utils/audioControls";
-import { activateSpotifyPlayer } from "../../utils/spotifyPlayer";
 import { formatDisplayTime } from "../../utils/lrcParser";
-import { ServicePlayerPanel } from "../Service/ServicePlayerPanel";
 import { TrackInfoHeader } from "./TrackInfoHeader";
 import { SeekBar } from "./SeekBar";
 
@@ -36,12 +31,7 @@ const ZOOM_PX_MAX = 500;
 const zoomLevelToPixels = (level: number) =>
   Math.round(ZOOM_PX_MIN * Math.pow(ZOOM_PX_MAX / ZOOM_PX_MIN, level / 100));
 
-interface AudioPlayerProps {
-  onSpotifySearch?: () => void;
-  onSpotifyNoClientId?: () => void;
-}
-
-export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlayerProps = {}) {
+export function AudioPlayer() {
   const containerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
   const peaksRef = useRef<number[] | null>(null);
@@ -59,7 +49,6 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   const [isLooping, setIsLooping] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1.0);
   const [viewMode, setViewMode] = useState<"waveform" | "bar">("waveform");
-  const [showNoTrackAlert, setShowNoTrackAlert] = useState(false);
 
   // 자체 로컬 상태(currentTimeLocal 등)로 UI를 그리므로 스토어 currentTime은 구독하지 않음
   const { audioPath, setCurrentTime, setIsPlaying, setDuration, openAudio } = useLrcStore(
@@ -74,9 +63,6 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   const [showMarkers, setShowMarkers] = useState(true);
   const [showMore, setShowMore] = useState(false);
   const { t } = useI18nStore();
-  const { isLoggedIn, startLogin, fetchCurrentlyPlaying, transferPlaybackToApp } = useServiceStore();
-  const { spotifyMode, spotifyClientId } = useSettingsStore();
-  const isServiceMode = isLoggedIn && spotifyMode;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -105,15 +91,10 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       }
     });
 
-    // Spotify 서비스 모드에선 로컬 파형이 전역 재생상태(currentTime/isPlaying/duration)를
-    // 덮어쓰지 않도록 차단(Spotify가 단일 소스). 로컬 UI 상태(*Local)는 항상 갱신.
-    const inService = () =>
-      useServiceStore.getState().isLoggedIn && useSettingsStore.getState().spotifyMode;
-
     ws.on("ready", () => {
       const d = ws.getDuration();
       setDurationLocal(d);
-      if (!inService()) setDuration(d);
+      setDuration(d);
       setIsAudioReady(true);
       // 글자 동기화 레인 파형용 정규화 peaks 캐시
       try {
@@ -128,21 +109,21 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     });
     ws.on("audioprocess", (t) => {
       setCurrentTimeLocal(t);
-      if (!inService()) setCurrentTime(t);
+      setCurrentTime(t);
     });
     ws.on("seeking", (t) => {
       setCurrentTimeLocal(t);
-      if (!inService()) setCurrentTime(t);
+      setCurrentTime(t);
     });
-    ws.on("play", () => { setIsPlayingLocal(true); if (!inService()) setIsPlaying(true); });
-    ws.on("pause", () => { setIsPlayingLocal(false); if (!inService()) setIsPlaying(false); });
+    ws.on("play", () => { setIsPlayingLocal(true); setIsPlaying(true); });
+    ws.on("pause", () => { setIsPlayingLocal(false); setIsPlaying(false); });
     ws.on("finish", () => {
       if (isLoopingRef.current) {
         ws.seekTo(0);
         ws.play();
       } else {
         setIsPlayingLocal(false);
-        if (!inService()) setIsPlaying(false);
+        setIsPlaying(false);
       }
     });
 
@@ -379,46 +360,17 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     });
   }, []);
 
-  const handleSpotifyLogin = async () => {
-    if (!spotifyClientId.trim()) {
-      onSpotifyNoClientId?.();
-      return;
-    }
-    try { await startLogin(); } catch { /* error shown in settings */ }
-  };
-
-  const handleLoadCurrent = async () => {
-    try {
-      const track = await fetchCurrentlyPlaying();
-      if (track) {
-        await activateSpotifyPlayer(); // 사용자 제스처에서 오디오 잠금 해제(SDK 기기로 재생 위함)
-        await transferPlaybackToApp();
-      } else setShowNoTrackAlert(true);
-    } catch { setShowNoTrackAlert(true); }
-  };
-
   return (
-    <>
-      {showNoTrackAlert && (
-        <NoTrackAlert t={t} onClose={() => setShowNoTrackAlert(false)} />
-      )}
     <div className="flex flex-col gap-3 p-4 bg-zinc-900 rounded-xl border border-zinc-700">
       {/* WaveSurfer container must always remain in the DOM while the component
           is mounted — removing it detaches the canvas and breaks the instance
-          when switching back from Spotify mode. Hide with display:none instead. */}
+          when switching view modes. Hide with display:none instead. */}
       <div
         ref={containerRef}
         className="w-full rounded-lg overflow-hidden bg-zinc-800 cursor-pointer"
-        style={{ minHeight: 80, display: (isServiceMode || viewMode === "bar") ? "none" : "" }}
+        style={{ minHeight: 80, display: viewMode === "bar" ? "none" : "" }}
       />
 
-      {isServiceMode ? (
-        <ServicePlayerPanel
-          onSpotifySearch={onSpotifySearch}
-          onLoadCurrent={handleLoadCurrent}
-        />
-      ) : (
-      <>
       {viewMode === "bar" && (
         <TrackInfoHeader
           icon={<FileGlyph />}
@@ -513,38 +465,12 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         </div>
 
       {/* 열기 버튼 */}
-      {spotifyMode ? (
-        !isLoggedIn ? (
-          <button
-            onClick={handleSpotifyLogin}
-            className="w-full py-1.5 rounded-lg bg-green-700 hover:bg-green-600 text-white text-sm transition-colors text-center truncate"
-          >
-            {t.spotifyConnect}
-          </button>
-        ) : (
-          <div className="flex gap-2">
-            <button
-              onClick={handleLoadCurrent}
-              className="flex-1 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm transition-colors text-center truncate"
-            >
-              {t.spotifyLoadCurrent}
-            </button>
-            <button
-              onClick={onSpotifySearch}
-              className="flex-1 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm transition-colors text-center truncate"
-            >
-              {t.spotifySearchTrack}
-            </button>
-          </div>
-        )
-      ) : (
-        <button
-          onClick={openAudio}
-          className="w-full py-2 rounded-lg border border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800 text-zinc-300 text-sm transition-colors text-center truncate"
-        >
-          {t.openAudio}
-        </button>
-      )}
+      <button
+        onClick={openAudio}
+        className="w-full py-2 rounded-lg border border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800 text-zinc-300 text-sm transition-colors text-center truncate"
+      >
+        {t.openAudio}
+      </button>
 
       {/* 볼륨 (스피커 아이콘 + 슬림 슬라이더) */}
       <div className="flex items-center gap-2.5 text-zinc-400" title={`${t.volume} ${Math.round(volume * 100)}%`}>
@@ -603,10 +529,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       {!audioPath && (
         <p className="text-center text-zinc-500 text-sm">{t.noAudio}</p>
       )}
-      </>
-      )}
     </div>
-    </>
   );
 }
 
@@ -764,40 +687,5 @@ function popToggleCls(active: boolean): string {
     "w-8 h-8 flex items-center justify-center rounded-lg transition-colors",
     active ? "bg-indigo-500 text-white hover:bg-indigo-400" : "bg-zinc-700 text-zinc-200 hover:bg-zinc-600",
   ].join(" ");
-}
-
-function NoTrackAlert({ t, onClose }: { t: Translations; onClose: () => void }) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape" || e.key === "Enter") onClose(); };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="px-5 py-4 border-b border-zinc-800">
-          <span className="font-semibold text-zinc-100">{t.spotifyNoTrackAlertTitle}</span>
-        </div>
-        <div className="px-5 py-4">
-          <p className="text-sm text-zinc-300 whitespace-pre-line">{t.spotifyNoTrackAlertMessage}</p>
-        </div>
-        <div className="flex justify-end px-5 pb-4">
-          <button
-            onClick={onClose}
-            className="px-5 py-1.5 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100 transition-colors"
-          >
-            {t.spotifyNoTrackAlertOk}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 }
 

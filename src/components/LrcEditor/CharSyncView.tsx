@@ -2,12 +2,10 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "rea
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
-import { useServiceStore } from "../../stores/useServiceStore";
 import { tokenizeText, isStampable, formatTimestamp, clampToNeighbors } from "../../utils/lrcParser";
 import { anyModalOpen } from "../../utils/modalGuard";
 import { matchAction, normalizeKeybindings } from "../../utils/keybindings";
 import { audioControls } from "../../utils/audioControls";
-import { serviceControls } from "../../utils/serviceControls";
 import type { LrcLine, LrcSyllable } from "../../types/lrc";
 
 // 줄 타임스탬프가 없을 때 글자를 펼칠 기본 시간 창(초)
@@ -49,11 +47,9 @@ export function CharSyncView() {
   const commitSyllables = useLrcStore((s) => s.commitSyllables);
   const clearLineSyllables = useLrcStore((s) => s.clearLineSyllables);
   const { t } = useI18nStore();
-  const spotifyMode = useSettingsStore((s) => s.spotifyMode);
   const lyricsFontScale = useSettingsStore((s) => s.lyricsFontScale);
   const showGlyphTimeMarkers = useSettingsStore((s) => s.showGlyphTimeMarkers);
-  const serviceLoggedIn = useServiceStore((s) => s.isLoggedIn);
-  const controls = serviceLoggedIn && spotifyMode ? serviceControls : audioControls;
+  const controls = audioControls;
 
   const lines = doc.lines;
   const lineIdx = activeLineId ? lines.findIndex((l) => l.id === activeLineId) : 0;
@@ -236,9 +232,7 @@ export function CharSyncView() {
     for (let i = idx + 1; i < syl.length; i++) { if (syl[i].time !== null) { hi = syl[i].time as number; break; } }
     const nt = Math.max(lo, Math.min(hi, Math.max(0, (s.time as number) + delta)));
     commitSyllables(ln.id, syl.map((x, i) => (i === idx ? { ...x, time: nt } : x)));
-    const ctrl = useServiceStore.getState().isLoggedIn && useSettingsStore.getState().spotifyMode
-      ? serviceControls : audioControls;
-    ctrl.seekTo(nt);
+    audioControls.seekTo(nt);
   };
 
   // ←→=글자 이동(Shift=미세조정, 고정) · stamp/prevLine=사용자 단축키

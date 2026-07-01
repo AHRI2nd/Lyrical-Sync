@@ -3,10 +3,8 @@ import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
-import { useServiceStore } from "../../stores/useServiceStore";
 import { formatDisplayTime, formatTimestamp, parseTimestampInput, validateTimestamps, type SyncUnit } from "../../utils/lrcParser";
 import { audioControls } from "../../utils/audioControls";
-import { serviceControls } from "../../utils/serviceControls";
 import { CharSyncView } from "./CharSyncView";
 
 export function LrcEditor({ onPreview }: { onPreview: () => void }) {
@@ -31,11 +29,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     }))
   );
   const { t } = useI18nStore();
-  const { spotifyMode, lyricsFontScale } = useSettingsStore();
-  const serviceLoggedIn = useServiceStore((s) => s.isLoggedIn);
-  // 실제 Spotify 모드(로그인 + spotifyMode 활성)일 때만 서비스 모드로 간주.
-  const isServiceMode = serviceLoggedIn && spotifyMode;
-  const serviceActive = isServiceMode;
+  const { lyricsFontScale } = useSettingsStore();
   const { lines } = doc;
 
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
@@ -245,7 +239,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     setActiveLineId(id);
     const ln = lines.find((l) => l.id === id);
     if (ln && ln.timestamp !== null) {
-      (serviceActive ? serviceControls : audioControls).seekTo(ln.timestamp);
+      audioControls.seekTo(ln.timestamp);
     }
     if (showFR) {
       const mi = matchIds.indexOf(id);

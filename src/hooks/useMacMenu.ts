@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Menu, Submenu, MenuItem, PredefinedMenuItem, CheckMenuItem } from "@tauri-apps/api/menu";
+import { Menu, Submenu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu";
 import type { Translations } from "../i18n/translations";
 
 // 메뉴 액션 핸들러 — App에서 현재 상태에 묶인 콜백을 넘긴다.
@@ -15,8 +15,6 @@ export interface MacMenuHandlers {
   togglePlay: () => void;
   skip: (delta: number) => void;
   stop: () => void;
-  modeFile: () => void;
-  modeSpotify: () => void;
   openSettings: () => void;
   openPreview: () => void;
   openHelp: () => void;
@@ -24,7 +22,6 @@ export interface MacMenuHandlers {
 
 export interface MacMenuState {
   t: Translations;
-  spotifyMode: boolean;
 }
 
 const isMac =
@@ -38,7 +35,7 @@ export function useMacMenu(handlers: MacMenuHandlers, state: MacMenuState) {
   hRef.current = handlers;
   const h = () => hRef.current;
 
-  const { t, spotifyMode } = state;
+  const { t } = state;
 
   useEffect(() => {
     if (!isMac) return;
@@ -109,22 +106,6 @@ export function useMacMenu(handlers: MacMenuHandlers, state: MacMenuState) {
         ],
       });
 
-      const modeMenu = await Submenu.new({
-        text: t.menu.mode,
-        items: [
-          await CheckMenuItem.new({
-            text: t.modeFile,
-            checked: !spotifyMode,
-            action: () => h().modeFile(),
-          }),
-          await CheckMenuItem.new({
-            text: "Spotify",
-            checked: spotifyMode,
-            action: () => h().modeSpotify(),
-          }),
-        ],
-      });
-
       const viewMenu = await Submenu.new({
         text: t.menu.view,
         items: [await item(t.previewBtn, () => h().openPreview())],
@@ -136,7 +117,7 @@ export function useMacMenu(handlers: MacMenuHandlers, state: MacMenuState) {
       });
 
       const menu = await Menu.new({
-        items: [appMenu, fileMenu, editMenu, playMenu, modeMenu, viewMenu, helpMenu],
+        items: [appMenu, fileMenu, editMenu, playMenu, viewMenu, helpMenu],
       });
 
       if (cancelled) return;
@@ -146,6 +127,6 @@ export function useMacMenu(handlers: MacMenuHandlers, state: MacMenuState) {
     return () => {
       cancelled = true;
     };
-    // 라벨(언어)·모드 체크 표시가 바뀌면 메뉴 재구성
-  }, [t, spotifyMode]);
+    // 라벨(언어)이 바뀌면 메뉴 재구성
+  }, [t]);
 }

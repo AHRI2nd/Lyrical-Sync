@@ -220,7 +220,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   setMetadata: (meta, silent = false) =>
     set((s) => ({
       doc: { ...s.doc, metadata: { ...s.doc.metadata, ...meta } },
-      // silent: 서비스(Spotify) 자동 동기화 등 사용자 편집이 아닌 갱신은 dirty로 표시하지 않음
+      // silent: 자동 채움 등 사용자 편집이 아닌 갱신은 dirty로 표시하지 않음
       isDirty: silent ? s.isDirty : true,
     })),
 

@@ -1,6 +1,3 @@
-mod service_auth;
-use service_auth::*;
-
 use serde::Deserialize;
 
 // ─── LRC / audio commands ────────────────────────────────────────
@@ -134,12 +131,6 @@ pub fn run() {
             read_audio_file,
             decode_audio_to_wav,
             read_audio_metadata,
-            start_oauth_listener,
-            exchange_spotify_token,
-            refresh_spotify_token,
-            save_refresh_token,
-            load_refresh_token,
-            clear_refresh_token,
             lrclib_publish,
         ])
         .run(tauri::generate_context!())
