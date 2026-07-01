@@ -1,5 +1,7 @@
 mod service_auth;
 use service_auth::*;
+mod now_playing;
+use now_playing::*;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -1366,6 +1368,9 @@ pub fn run() {
             ytdlp_load_audio,
             cancel_ytdlp_load,
             lrclib_publish,
+            get_now_playing,
+            now_playing_toggle_play_pause,
+            now_playing_seek,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -17,6 +17,7 @@ import { activateSpotifyPlayer } from "../../utils/spotifyPlayer";
 import { safeUnlisten } from "../../utils/safeUnlisten";
 import { formatDisplayTime } from "../../utils/lrcParser";
 import { ServicePlayerPanel } from "../Service/ServicePlayerPanel";
+import { DevicePlayerPanel } from "../Service/DevicePlayerPanel";
 
 const AUDIO_MIME: Record<string, string> = {
   mp3: "audio/mpeg", flac: "audio/flac", wav: "audio/wav",
@@ -79,7 +80,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   const [showMore, setShowMore] = useState(false);
   const { t } = useI18nStore();
   const { isLoggedIn, startLogin, fetchCurrentlyPlaying, transferPlaybackToApp } = useServiceStore();
-  const { spotifyMode, spotifyClientId, youtubeMode, ytdlpAudioQuality, ytdlpCookiesFile, ytdlpProxy } = useSettingsStore();
+  const { spotifyMode, spotifyClientId, youtubeMode, deviceMode, ytdlpAudioQuality, ytdlpCookiesFile, ytdlpProxy } = useSettingsStore();
   const isServiceMode = isLoggedIn && spotifyMode;
 
   const [ytUrl, setYtUrl] = useState("");
@@ -166,10 +167,12 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       }
     });
 
-    // Spotify 서비스 모드에선 로컬 파형이 전역 재생상태(currentTime/isPlaying/duration)를
-    // 덮어쓰지 않도록 차단(Spotify가 단일 소스). 로컬 UI 상태(*Local)는 항상 갱신.
-    const inService = () =>
-      useServiceStore.getState().isLoggedIn && useSettingsStore.getState().spotifyMode;
+    // Spotify/기기 감지 모드에선 로컬 파형이 전역 재생상태(currentTime/isPlaying/duration)를
+    // 덮어쓰지 않도록 차단(해당 모드가 단일 소스). 로컬 UI 상태(*Local)는 항상 갱신.
+    const inService = () => {
+      const settings = useSettingsStore.getState();
+      return (useServiceStore.getState().isLoggedIn && settings.spotifyMode) || settings.deviceMode;
+    };
 
     ws.on("ready", () => {
       const d = ws.getDuration();
@@ -502,7 +505,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       <div
         ref={containerRef}
         className="w-full rounded-lg overflow-hidden bg-zinc-800 cursor-pointer"
-        style={{ minHeight: 80, display: (isServiceMode || viewMode === "bar") ? "none" : "" }}
+        style={{ minHeight: 80, display: (isServiceMode || deviceMode || viewMode === "bar") ? "none" : "" }}
       />
 
       {isServiceMode ? (
@@ -510,6 +513,8 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           onSpotifySearch={onSpotifySearch}
           onLoadCurrent={handleLoadCurrent}
         />
+      ) : deviceMode ? (
+        <DevicePlayerPanel />
       ) : (
       <>
       {viewMode === "bar" && (
