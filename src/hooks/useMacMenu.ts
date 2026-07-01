@@ -17,7 +17,6 @@ export interface MacMenuHandlers {
   stop: () => void;
   modeFile: () => void;
   modeSpotify: () => void;
-  modeYouTube: () => void;
   openSettings: () => void;
   openPreview: () => void;
   openHelp: () => void;
@@ -26,8 +25,6 @@ export interface MacMenuHandlers {
 export interface MacMenuState {
   t: Translations;
   spotifyMode: boolean;
-  youtubeMode: boolean;
-  ytdlpInstalled: boolean;
 }
 
 const isMac =
@@ -41,7 +38,7 @@ export function useMacMenu(handlers: MacMenuHandlers, state: MacMenuState) {
   hRef.current = handlers;
   const h = () => hRef.current;
 
-  const { t, spotifyMode, youtubeMode, ytdlpInstalled } = state;
+  const { t, spotifyMode } = state;
 
   useEffect(() => {
     if (!isMac) return;
@@ -117,19 +114,13 @@ export function useMacMenu(handlers: MacMenuHandlers, state: MacMenuState) {
         items: [
           await CheckMenuItem.new({
             text: t.modeFile,
-            checked: !spotifyMode && !youtubeMode,
+            checked: !spotifyMode,
             action: () => h().modeFile(),
           }),
           await CheckMenuItem.new({
             text: "Spotify",
-            checked: spotifyMode && !youtubeMode,
+            checked: spotifyMode,
             action: () => h().modeSpotify(),
-          }),
-          await CheckMenuItem.new({
-            text: t.modeYouTube,
-            checked: youtubeMode,
-            enabled: ytdlpInstalled,
-            action: () => h().modeYouTube(),
           }),
         ],
       });
@@ -155,6 +146,6 @@ export function useMacMenu(handlers: MacMenuHandlers, state: MacMenuState) {
     return () => {
       cancelled = true;
     };
-    // 라벨(언어)·모드 체크 표시·YouTube 활성 여부가 바뀌면 메뉴 재구성
-  }, [t, spotifyMode, youtubeMode, ytdlpInstalled]);
+    // 라벨(언어)·모드 체크 표시가 바뀌면 메뉴 재구성
+  }, [t, spotifyMode]);
 }

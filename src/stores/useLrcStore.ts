@@ -3,26 +3,8 @@ import { LrcDocument, LrcLine, LrcMetadata, LrcSyllable, defaultDocument } from 
 import { parseLrc, serializeLrc, type SyncUnit } from "../utils/lrcParser";
 import { serializeSrt, parseSrt } from "../utils/srtConverter";
 import { serializeVtt, serializeAss } from "../utils/exportFormats";
-import { toast } from "./useToastStore";
-import { useI18nStore } from "./useI18nStore";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
-
-type AiSyncStatus = "idle" | "running" | "done" | "error";
-
-interface AlignmentResult {
-  index: number;
-  start: number;
-  end: number;
-  confidence: number;
-}
-
-interface AlignmentProgressEvent {
-  status: string;
-  message: string;
-  percent: number;
-}
 
 interface LrcStore {
   doc: LrcDocument;
@@ -98,17 +80,6 @@ interface LrcStore {
   newLrc: () => void;
   replaceInLines: (find: string, replace: string, caseSensitive: boolean) => number;
   shiftTimeRange: (fromIdx: number, toIdx: number, deltaSeconds: number) => void;
-
-  // AI Auto Sync
-  aiSyncStatus: AiSyncStatus;
-  aiSyncMessage: string;
-  /** Python progress status code (e.g. "loading_model", "analyzing", "error") */
-  aiSyncProgressStatus: string;
-  /** lineId → confidence (0–1). null = no AI draft active */
-  aiDraftConfidence: Record<string, number> | null;
-  runAiSync: (language: string, blankLineOffset: number, useSeparation: boolean, useVad: boolean) => Promise<void>;
-  cancelAiSync: () => void;
-  clearAiDraft: () => void;
 }
 
 let nextId = 1;
@@ -138,11 +109,6 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   activeLineId: null,
   isPlaying: false,
   duration: 0,
-
-  aiSyncStatus: "idle",
-  aiSyncMessage: "",
-  aiSyncProgressStatus: "",
-  aiDraftConfidence: null,
 
   syncMode: "line",
   syncUnit: "char",
@@ -214,7 +180,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   setActiveLineId: (id) => set({ activeLineId: id }),
 
   stampAndAdvance: () => {
-    const { activeLineId, currentTime, doc, aiDraftConfidence, _history } = get();
+    const { activeLineId, currentTime, doc, _history } = get();
     const lines = doc.lines;
     if (lines.length === 0) return;
 
@@ -230,19 +196,11 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     );
     const next = stamped[idx + 1];
 
-    // Remove AI confidence for manually stamped line
-    let newConfidence = aiDraftConfidence;
-    if (newConfidence && activeLineId in newConfidence) {
-      newConfidence = { ...newConfidence };
-      delete newConfidence[activeLineId];
-    }
-
     // 실제 스탬프할 때만 히스토리 기록
     set({
       _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [],
       doc: { ...doc, lines: stamped },
       activeLineId: next ? next.id : activeLineId,
-      aiDraftConfidence: newConfidence,
       isDirty: true,
     });
   },
@@ -403,13 +361,8 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   },
 
   stampCurrentLine: (id) => {
-    const { currentTime, doc, aiDraftConfidence, _history } = get();
+    const { currentTime, doc, _history } = get();
     set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [] });
-    let newConfidence = aiDraftConfidence;
-    if (newConfidence && id in newConfidence) {
-      newConfidence = { ...newConfidence };
-      delete newConfidence[id];
-    }
     set({
       doc: {
         ...doc,
@@ -417,7 +370,6 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
           l.id === id ? { ...l, timestamp: currentTime } : l
         ),
       },
-      aiDraftConfidence: newConfidence,
       isDirty: true,
     });
   },
@@ -607,130 +559,5 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines: newLines }, isDirty: true });
     return count;
   },
-
-  runAiSync: async (language, blankLineOffset, useSeparation, useVad) => {
-    const { audioPath, doc } = get();
-    if (!audioPath) return;
-
-    set({ aiSyncStatus: "running", aiSyncMessage: "" });
-
-    const unlisten = await listen<AlignmentProgressEvent>("alignment-progress", (e) => {
-      set({ aiSyncProgressStatus: e.payload.status, aiSyncMessage: e.payload.message });
-    });
-
-    try {
-      // Only pass non-empty lines to Python; track their original indices
-      const nonBlank = doc.lines
-        .map((line, idx) => ({ line, idx }))
-        .filter(({ line }) => line.text.trim() !== "");
-
-      const linesInput = nonBlank.map(({ line, idx }) => ({
-        index: idx,
-        text: line.text,
-      }));
-
-      const resultJson = await invoke<string>("run_alignment", {
-        audioPath,
-        linesJson: JSON.stringify(linesInput),
-        language,
-        useSeparation,
-        useVad,
-      });
-
-      // align.py는 { lines, vocal_segments, separated } 객체를 반환(구버전은 배열).
-      const parsed = JSON.parse(resultJson);
-      const results: AlignmentResult[] = Array.isArray(parsed) ? parsed : parsed.lines;
-      const vocalSegments: [number, number][] = Array.isArray(parsed) ? [] : (parsed.vocal_segments ?? []);
-      const separated: boolean = Array.isArray(parsed) ? false : !!parsed.separated;
-      const byIndex = new Map(results.map((r) => [r.index, r]));
-
-      // 간주 뒤 보컬이 다시 시작하는 지점(분리 스템 VAD). prevEnd 직후 첫 보컬 구간 시작.
-      const vocalResumeAfter = (t: number): number | null => {
-        if (!separated || vocalSegments.length === 0) return null;
-        for (const [s] of vocalSegments) {
-          if (s > t + 0.1) return s; // 실제 공백 뒤 재개만(이전 줄 꼬리 제외)
-        }
-        return null;
-      };
-
-      // 정렬된 줄 [start,end]이 보컬 활동 구간과 얼마나 겹치는지(0~1).
-      // VAD 없으면 1(페널티 없음). 겹침이 낮으면 보컬 없는 구간에 잘못 찍혔을 가능성.
-      const vocalOverlapRatio = (start: number, end: number): number => {
-        if (!separated || vocalSegments.length === 0) return 1;
-        const dur = Math.max(end - start, 0.05);
-        let ov = 0;
-        for (const [s, e] of vocalSegments) {
-          if (s > end) break; // 정렬되어 있어 조기 종료 가능
-          ov += Math.max(0, Math.min(end, e) - Math.max(start, s));
-        }
-        return Math.max(0, Math.min(1, ov / dur));
-      };
-
-      const confidence: Record<string, number> = {};
-      const newLines = doc.lines.map((line, idx) => {
-        const r = byIndex.get(idx);
-        if (r) {
-          // VAD 보정: 보컬 활동과 겹침이 낮은 줄(=무보컬 구간 오정렬 의심)은 신뢰도 하향.
-          // 타임스탬프는 유지하고 배지 색만 낮춰 "검토 필요"로 표시(자동 이동은 정확성 위험으로 미적용).
-          const ratio = vocalOverlapRatio(r.start, r.end);
-          const adjusted = r.confidence * (0.4 + 0.6 * ratio);
-          confidence[line.id] = Math.round(adjusted * 1000) / 1000;
-          // AI가 줄 단위로 재정렬 → 기존 글자 동기화는 무효화
-          return { ...line, timestamp: r.start, syllables: undefined };
-        }
-        return line;
-      });
-
-      // 빈 줄(문단 구분선) 타임스탬프 배치:
-      //  - 분리 스템 VAD가 있으면 간주 뒤 "보컬 재개 지점"에 정밀 배치
-      //  - 없으면(또는 부적합) 이전 줄 end + offset 휴리스틱
-      //  항상 다음 비공백 줄 시작을 넘지 않도록 클램프.
-      for (let i = 0; i < newLines.length; i++) {
-        if (doc.lines[i].text.trim() !== "") continue;
-        let prevEnd = 0;
-        let nextStart: number | null = null;
-        for (let j = i - 1; j >= 0; j--) {
-          const r = byIndex.get(j);
-          if (r) { prevEnd = r.end; break; }
-        }
-        for (let j = i + 1; j < newLines.length; j++) {
-          const r = byIndex.get(j);
-          if (r) { nextStart = r.start; break; }
-        }
-        const resume = vocalResumeAfter(prevEnd);
-        const useResume = resume !== null && (nextStart === null || resume < nextStart);
-        const desired = useResume ? (resume as number) : prevEnd + blankLineOffset;
-        const ts = nextStart !== null ? Math.min(desired, nextStart) : desired;
-        newLines[i] = { ...newLines[i], timestamp: Math.round(ts * 1000) / 1000 };
-        confidence[doc.lines[i].id] = 1.0;
-      }
-
-      const { _history } = get();
-      set({
-        _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [],
-        doc: { ...doc, lines: newLines },
-        aiSyncStatus: "done",
-        aiSyncProgressStatus: "done",
-        aiDraftConfidence: confidence,
-        isDirty: true,
-      });
-      toast.success(useI18nStore.getState().t.toast.aiSyncDone);
-    } catch (err) {
-      const msg = String(err);
-      if (msg === "cancelled") {
-        set({ aiSyncStatus: "idle", aiSyncMessage: "", aiSyncProgressStatus: "" });
-      } else {
-        set({ aiSyncStatus: "error", aiSyncProgressStatus: "error", aiSyncMessage: msg });
-        toast.error(useI18nStore.getState().t.toast.aiSyncFailed);
-      }
-    } finally {
-      unlisten();
-    }
-  },
-
-  cancelAiSync: () => {
-    invoke("cancel_alignment").catch(() => {});
-  },
-
-  clearAiDraft: () => set({ aiDraftConfidence: null }),
 }));
+
