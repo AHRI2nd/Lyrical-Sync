@@ -8,7 +8,7 @@ import { useDeviceStore } from "../../stores/useDeviceStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { audioControls } from "../../utils/audioControls";
 
-const IS_WINDOWS = navigator.platform.startsWith("Win");
+const SUPPORTS_DEVICE_MODE = navigator.platform.startsWith("Win") || navigator.platform.startsWith("Mac");
 
 export function ModeSelectButton() {
   const [open, setOpen] = useState(false);
@@ -134,7 +134,7 @@ export function ModeSelectButton() {
             icon={<YouTubeIcon />}
             onClick={ytdlpInstalled ? selectYouTube : () => {}}
           />
-          {IS_WINDOWS && (
+          {SUPPORTS_DEVICE_MODE && (
             <ModeOption
               label={t.modeDevice}
               active={deviceMode}
