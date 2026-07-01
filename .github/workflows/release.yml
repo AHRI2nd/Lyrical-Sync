@@ -164,7 +164,10 @@ jobs:
           cp "$MSI_PATH" "$NEW_PATH"
           gh release upload "$TAG" "$NEW_PATH" --repo "$REPO" --clobber
 
-          # 실제 업로드된 옛 msi/.sig 자산명을 목록에서 찾아 삭제(추측 이름 사용 금지)
+          # GitHub가 업로드 시 파일명을 어떻게 정리(공백 -> 점 등)했는지 목록에서 다시 조회해
+          # 실제 자산명을 확인한다(로컬 파일명을 그대로 신뢰하지 않음 — 새 이름도 마찬가지).
+          ACTUAL_NEW_NAME=$(gh release view "$TAG" --repo "$REPO" --json assets \
+            --jq '.assets[].name' | grep -F "_setup.msi" | grep -v '\.sig$' || true)
           OLD_ASSET_NAME=$(gh release view "$TAG" --repo "$REPO" --json assets \
             --jq '.assets[].name' | grep -F "_en-US.msi" | grep -v '\.sig$' || true)
           OLD_SIG_NAME=$(gh release view "$TAG" --repo "$REPO" --json assets \
@@ -177,9 +180,10 @@ jobs:
             gh release delete-asset "$TAG" "$OLD_SIG_NAME" --repo "$REPO" --yes
           fi
 
-          # latest.json이 삭제된 옛 msi 파일명을 계속 참조하지 않도록 갱신
-          if [ -n "$OLD_ASSET_NAME" ]; then
+          # latest.json이 삭제된 옛 msi 파일명을 계속 참조하지 않도록 갱신(실제 업로드된
+          # 이름 기준으로 치환 — 로컬 파일명을 쓰면 공백/점 불일치로 링크가 깨진다)
+          if [ -n "$OLD_ASSET_NAME" ] && [ -n "$ACTUAL_NEW_NAME" ]; then
             gh release download "$TAG" --repo "$REPO" -p latest.json -O latest.json --clobber
-            sed -i.bak "s|$OLD_ASSET_NAME|$NEW_NAME|g" latest.json
+            sed -i.bak "s|$OLD_ASSET_NAME|$ACTUAL_NEW_NAME|g" latest.json
             gh release upload "$TAG" latest.json --repo "$REPO" --clobber
           fi
