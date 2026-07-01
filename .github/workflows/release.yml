@@ -27,6 +27,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 태그 푸시로 실행된 경우 tauri.conf.json의 버전과 태그가 어긋나면 즉시 실패시킨다.
+      # (병합 전 커밋에서 실수로 실행돼 버전이 안 맞는 드래프트가 조용히 만들어지는 사고 방지)
+      - name: Verify tag matches app version
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          set -e
+          VERSION=$(jq -r .version src-tauri/tauri.conf.json)
+          TAG_NAME="${{ github.ref_name }}"
+          if [ "v${VERSION}" != "$TAG_NAME" ]; then
+            echo "::error::Tag ${TAG_NAME} does not match tauri.conf.json version (v${VERSION}). Refusing to build a mislabeled release."
+            exit 1
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -118,6 +132,12 @@ jobs:
 
       # WiX(MSI)는 파일명 끝에 언어 코드(_en-US.msi)를 붙이는 옵션밖에 없어 Tauri 설정으로
       # 바꿀 수 없음. NSIS(_x64-setup.exe)와 명명을 맞추기 위해 업로드된 자산을 재명명.
+      #
+      # 주의: GitHub는 업로드 시 자산 파일명의 공백을 점(.)으로 치환한다. 로컬 디스크의
+      # 파일명(공백 포함)을 그대로 삭제 대상 이름으로 쓰면 실제 자산명과 안 맞아 삭제가
+      # 조용히 실패한다(예전에 이 문제로 _en-US.msi가 안 지워지고 남아있던 적 있음) — 반드시
+      # 릴리스에 실제로 올라간 자산 목록에서 이름을 찾아 사용한다. latest.json도 옛 파일명을
+      # 참조하므로 같이 갱신하지 않으면 업데이터가 삭제된 자산을 가리키게 된다.
       - name: Rename MSI asset (_en-US.msi -> _setup.msi)
         if: runner.os == 'Windows'
         shell: bash
@@ -125,6 +145,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
+          REPO="${{ github.repository }}"
           VERSION=$(jq -r .version src-tauri/tauri.conf.json)
           TAG="v${VERSION}"
           MSI_PATH=$(find src-tauri/target -type f -path "*/bundle/msi/*.msi" | head -1)
@@ -132,13 +153,33 @@ jobs:
             echo "MSI file not found, skipping rename"
             exit 0
           fi
-          OLD_NAME=$(basename "$MSI_PATH")
-          NEW_NAME=$(echo "$OLD_NAME" | sed -E 's/_[a-z]{2}-[A-Z]{2}\.msi$/_setup.msi/')
-          NEW_PATH="$(dirname "$MSI_PATH")/$NEW_NAME"
-          if [ "$OLD_NAME" = "$NEW_NAME" ]; then
+          LOCAL_NAME=$(basename "$MSI_PATH")
+          NEW_NAME=$(echo "$LOCAL_NAME" | sed -E 's/_[a-z]{2}-[A-Z]{2}\.msi$/_setup.msi/')
+          if [ "$LOCAL_NAME" = "$NEW_NAME" ]; then
             echo "Filename already matches expected pattern, skipping"
             exit 0
           fi
+
+          NEW_PATH="$(dirname "$MSI_PATH")/$NEW_NAME"
           cp "$MSI_PATH" "$NEW_PATH"
-          gh release upload "$TAG" "$NEW_PATH" --repo "${{ github.repository }}" --clobber
-          gh release delete-asset "$TAG" "$OLD_NAME" --repo "${{ github.repository }}" --yes || true
+          gh release upload "$TAG" "$NEW_PATH" --repo "$REPO" --clobber
+
+          # 실제 업로드된 옛 msi/.sig 자산명을 목록에서 찾아 삭제(추측 이름 사용 금지)
+          OLD_ASSET_NAME=$(gh release view "$TAG" --repo "$REPO" --json assets \
+            --jq '.assets[].name' | grep -F "_en-US.msi" | grep -v '\.sig$' || true)
+          OLD_SIG_NAME=$(gh release view "$TAG" --repo "$REPO" --json assets \
+            --jq '.assets[].name' | grep -F "_en-US.msi.sig" || true)
+
+          if [ -n "$OLD_ASSET_NAME" ]; then
+            gh release delete-asset "$TAG" "$OLD_ASSET_NAME" --repo "$REPO" --yes
+          fi
+          if [ -n "$OLD_SIG_NAME" ]; then
+            gh release delete-asset "$TAG" "$OLD_SIG_NAME" --repo "$REPO" --yes
+          fi
+
+          # latest.json이 삭제된 옛 msi 파일명을 계속 참조하지 않도록 갱신
+          if [ -n "$OLD_ASSET_NAME" ]; then
+            gh release download "$TAG" --repo "$REPO" -p latest.json -O latest.json --clobber
+            sed -i.bak "s|$OLD_ASSET_NAME|$NEW_NAME|g" latest.json
+            gh release upload "$TAG" latest.json --repo "$REPO" --clobber
+          fi
