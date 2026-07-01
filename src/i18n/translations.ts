@@ -368,6 +368,9 @@ export interface Translations {
   modeFile: string;
   modeYouTube: string;
   modeComingSoon: string;
+  modeDevice: string;
+  deviceSourceApp: string;
+  deviceWaiting: string;
   spotifyLoadCurrent: string;
   spotifyNoTrackAlertTitle: string;
   spotifyNoTrackAlertMessage: string;
@@ -815,6 +818,9 @@ const ko: Translations = {
   modeFile: "파일",
   modeYouTube: "YouTube",
   modeComingSoon: "(미설치)",
+  modeDevice: "기기 감지",
+  deviceSourceApp: "출처",
+  deviceWaiting: "재생 중인 항목을 기다리는 중…",
   spotifyLoadCurrent: "재생 중인 곡",
   spotifyNoTrackAlertTitle: "재생 중인 곡 없음",
   spotifyNoTrackAlertMessage: "현재 Spotify에서 재생 중인 곡이 없습니다.\nSpotify 앱에서 곡을 재생한 후 다시 시도하거나, 직접 검색하세요.",
@@ -1263,6 +1269,9 @@ const en: Translations = {
   modeFile: "File",
   modeYouTube: "YouTube",
   modeComingSoon: "(Not installed)",
+  modeDevice: "Device Detection",
+  deviceSourceApp: "Source",
+  deviceWaiting: "Waiting for playback…",
   spotifyLoadCurrent: "Current track",
   spotifyNoTrackAlertTitle: "No track playing",
   spotifyNoTrackAlertMessage: "No track is currently playing on Spotify.\nPlay a track in the Spotify app and try again, or search directly.",
@@ -1710,6 +1719,9 @@ const ja: Translations = {
   modeFile: "ファイル",
   modeYouTube: "YouTube",
   modeComingSoon: "(未インストール)",
+  modeDevice: "デバイス検出",
+  deviceSourceApp: "出典",
+  deviceWaiting: "再生中の項目を待っています…",
   spotifyLoadCurrent: "再生中の曲",
   spotifyNoTrackAlertTitle: "再生中の曲なし",
   spotifyNoTrackAlertMessage: "現在Spotifyで再生中の曲がありません。\nSpotifyアプリで曲を再生してから再試行するか、直接検索してください。",

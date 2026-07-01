@@ -29,3 +29,6 @@ keyring = { version = "3", features = ["apple-native", "windows-native"] }
 lofty = "0.22"
 tauri-plugin-updater = "2.10.1"
 tauri-plugin-process = "2.3.1"
+
+[target."cfg(windows)".dependencies]
+windows = { version = "0.62.2", features = ["Media_Control", "Foundation", "Foundation_Collections", "Win32_System_Com"] }

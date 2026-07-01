@@ -29,6 +29,8 @@ interface SettingsState {
   spotifyMode: boolean;
   /** YouTube 모드 활성화 여부 */
   youtubeMode: boolean;
+  /** 기기 감지 모드 활성화 여부(Windows SMTC로 로컬 재생 중인 미디어 감지, Windows 전용) */
+  deviceMode: boolean;
   /** yt-dlp 오디오 품질 */
   ytdlpAudioQuality: "best" | "192" | "128";
   /** yt-dlp 쿠키 파일 경로 (로그인 필요 콘텐츠용) */
@@ -52,6 +54,7 @@ interface SettingsState {
   setSpotifyClientId: (v: string) => void;
   setSpotifyMode: (v: boolean) => void;
   setYoutubeMode: (v: boolean) => void;
+  setDeviceMode: (v: boolean) => void;
   setYtdlpAudioQuality: (v: "best" | "192" | "128") => void;
   setYtdlpCookiesFile: (v: string) => void;
   setYtdlpProxy: (v: string) => void;
@@ -75,6 +78,7 @@ export const useSettingsStore = create<SettingsState>()(
       spotifyClientId: "",
       spotifyMode: false,
       youtubeMode: false,
+      deviceMode: false,
       ytdlpAudioQuality: "best",
       ytdlpCookiesFile: "",
       ytdlpProxy: "",
@@ -95,6 +99,7 @@ export const useSettingsStore = create<SettingsState>()(
       setSpotifyClientId: (v) => set({ spotifyClientId: v }),
       setSpotifyMode: (v) => set({ spotifyMode: v }),
       setYoutubeMode: (v) => set({ youtubeMode: v }),
+      setDeviceMode: (v) => set({ deviceMode: v }),
       setYtdlpAudioQuality: (v) => set({ ytdlpAudioQuality: v }),
       setYtdlpCookiesFile: (v) => set({ ytdlpCookiesFile: v }),
       setYtdlpProxy: (v) => set({ ytdlpProxy: v }),

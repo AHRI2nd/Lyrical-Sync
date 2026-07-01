@@ -14,6 +14,8 @@ import { useSettingsStore } from "./stores/useSettingsStore";
 import { useServiceStore } from "./stores/useServiceStore";
 import { audioControls } from "./utils/audioControls";
 import { serviceControls } from "./utils/serviceControls";
+import { deviceControls } from "./utils/deviceControls";
+import { useDeviceStore } from "./stores/useDeviceStore";
 import { anyModalOpen } from "./utils/modalGuard";
 import { safeUnlisten } from "./utils/safeUnlisten";
 import { matchAction, normalizeKeybindings, keyLabel, PLAYBACK_ACTIONS } from "./utils/keybindings";
@@ -48,10 +50,11 @@ function useGlobalKeys() {
   const keybindings = useSettingsStore((s) => s.keybindings);
   const isLoggedInForKeys = useServiceStore((s) => s.isLoggedIn);
   const spotifyModeForKeys = useSettingsStore((s) => s.spotifyMode);
+  const deviceModeForKeys = useSettingsStore((s) => s.deviceMode);
   const isServiceMode = isLoggedInForKeys && spotifyModeForKeys;
 
   useEffect(() => {
-    const controls = isServiceMode ? serviceControls : audioControls;
+    const controls = deviceModeForKeys ? deviceControls : isServiceMode ? serviceControls : audioControls;
     const kb = normalizeKeybindings(keybindings);
     const handler = (e: KeyboardEvent) => {
       const inInput =
@@ -96,7 +99,7 @@ function useGlobalKeys() {
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [stampAndAdvance, goToPreviousLine, undo, redo, isServiceMode, syncMode, keybindings]);
+  }, [stampAndAdvance, goToPreviousLine, undo, redo, isServiceMode, deviceModeForKeys, syncMode, keybindings]);
 }
 
 // 저장 경로(lrcPath)가 지정된 파일에 한해, 변경 후 일정 시간 멈추면 자동 저장.
@@ -178,11 +181,19 @@ function App() {
   );
   const hasGlyphSync = useLrcStore((s) => s.doc.lines.some((l) => l.syllables?.some((sy) => sy.time !== null)));
   const { t } = useI18nStore();
-  const { autoCheckUpdate, uiScale, spotifyMode, youtubeMode, setSpotifyMode, setYoutubeMode, showElrcSaveNotice, setShowElrcSaveNotice } = useSettingsStore();
+  const { autoCheckUpdate, uiScale, spotifyMode, youtubeMode, deviceMode, setSpotifyMode, setYoutubeMode, setDeviceMode, showElrcSaveNotice, setShowElrcSaveNotice } = useSettingsStore();
   const { isLoggedIn, handleCallback, tryRestoreSession, pausePlayback } = useServiceStore();
   const [ytdlpInstalled, setYtdlpInstalled] = useState(false);
 
   useAutoUpdateCheck(autoCheckUpdate);
+
+  // 기기 감지 모드 진입/이탈에 따라 SMTC 폴링 시작/정지
+  useEffect(() => {
+    const store = useDeviceStore.getState();
+    if (deviceMode) store.startPolling();
+    else store.stopPolling();
+    return () => store.stopPolling();
+  }, [deviceMode]);
 
   // Restore saved Spotify session on mount
   useEffect(() => {
@@ -318,24 +329,26 @@ function App() {
   }, []);
 
   // 모드 전환 (ModeSelectButton과 동일한 동작 — 전환 시 재생 정지)
-  const selectModeFile = () => {
+  const stopCurrentPlaybackForModeSwitch = () => {
     if (spotifyMode && isLoggedIn) pausePlayback();
     else audioControls.pause();
-    setSpotifyMode(false); setYoutubeMode(false);
+  };
+  const selectModeFile = () => {
+    stopCurrentPlaybackForModeSwitch();
+    setSpotifyMode(false); setYoutubeMode(false); setDeviceMode(false);
   };
   const selectModeSpotify = () => {
     audioControls.pause();
-    setSpotifyMode(true); setYoutubeMode(false);
+    setSpotifyMode(true); setYoutubeMode(false); setDeviceMode(false);
   };
   const selectModeYouTube = () => {
-    if (spotifyMode && isLoggedIn) pausePlayback();
-    else audioControls.pause();
-    setSpotifyMode(false); setYoutubeMode(true);
+    stopCurrentPlaybackForModeSwitch();
+    setSpotifyMode(false); setYoutubeMode(true); setDeviceMode(false);
   };
 
-  // 재생 컨트롤은 현재 모드(로컬/Spotify)에 맞게 선택
+  // 재생 컨트롤은 현재 모드(로컬/Spotify/기기 감지)에 맞게 선택
   const isServiceMode = isLoggedIn && spotifyMode;
-  const playbackControls = isServiceMode ? serviceControls : audioControls;
+  const playbackControls = deviceMode ? deviceControls : isServiceMode ? serviceControls : audioControls;
 
   useMacMenu(
     {

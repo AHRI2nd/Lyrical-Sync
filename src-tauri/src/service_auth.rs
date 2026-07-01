@@ -17,7 +17,13 @@ fn token_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
 const KEYRING_SERVICE: &str = "Lyrical Sync";
 const KEYRING_USER: &str = "spotify_refresh_token";
 
+// `npm run tauri dev`는 재빌드마다 서명(identity)이 바뀌어 매번 키체인 접근 허가를
+// 새로 물어봄 → 개발 빌드에서는 키체인을 건너뛰고 평문 파일로만 저장(배포용 release
+// 빌드는 서명이 안정적이므로 키체인을 그대로 사용).
 fn keyring_entry() -> Result<keyring::Entry, keyring::Error> {
+    if cfg!(debug_assertions) {
+        return Err(keyring::Error::NoEntry);
+    }
     keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
 }
 
