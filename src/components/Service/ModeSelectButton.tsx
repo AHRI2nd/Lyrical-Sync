@@ -4,8 +4,11 @@ import { listen } from "@tauri-apps/api/event";
 import { safeUnlisten } from "../../utils/safeUnlisten";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
+import { useDeviceStore } from "../../stores/useDeviceStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { audioControls } from "../../utils/audioControls";
+
+const SUPPORTS_DEVICE_MODE = navigator.platform.startsWith("Win") || navigator.platform.startsWith("Mac");
 
 export function ModeSelectButton() {
   const [open, setOpen] = useState(false);
@@ -14,12 +17,15 @@ export function ModeSelectButton() {
   const { t } = useI18nStore();
   const spotifyMode = useSettingsStore((s) => s.spotifyMode);
   const youtubeMode = useSettingsStore((s) => s.youtubeMode);
+  const deviceMode = useSettingsStore((s) => s.deviceMode);
   const setSpotifyMode = useSettingsStore((s) => s.setSpotifyMode);
   const setYoutubeMode = useSettingsStore((s) => s.setYoutubeMode);
+  const setDeviceMode = useSettingsStore((s) => s.setDeviceMode);
   const isLoggedIn = useServiceStore((s) => s.isLoggedIn);
   const isReady = useServiceStore((s) => s.isReady);
   const trackName = useServiceStore((s) => s.trackName);
   const pausePlayback = useServiceStore((s) => s.pausePlayback);
+  const deviceTrackName = useDeviceStore((s) => s.trackName);
 
   const checkYtdlp = () => {
     invoke<string | null>("check_ytdlp").then((v) => setYtdlpInstalled(v !== null)).catch(() => {});
@@ -47,7 +53,9 @@ export function ModeSelectButton() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const currentLabel = youtubeMode
+  const currentLabel = deviceMode
+    ? deviceTrackName || t.modeDevice
+    : youtubeMode
     ? t.modeYouTube
     : spotifyMode
     ? isReady && trackName
@@ -55,7 +63,9 @@ export function ModeSelectButton() {
       : "Spotify"
     : t.modeFile;
 
-  const currentColor = youtubeMode
+  const currentColor = deviceMode
+    ? "bg-indigo-700 hover:bg-indigo-600 text-white"
+    : youtubeMode
     ? "bg-red-700 hover:bg-red-600 text-white"
     : spotifyMode
     ? isLoggedIn && isReady
@@ -65,19 +75,27 @@ export function ModeSelectButton() {
       : "bg-zinc-700 hover:bg-zinc-600 text-zinc-100"
     : "bg-zinc-700 hover:bg-zinc-600 text-zinc-100";
 
-  const selectFile = () => {
+  // 모드 이탈 시 이전 재생 정지(공통 헬퍼)
+  const stopCurrentPlayback = () => {
     if (spotifyMode && isLoggedIn) pausePlayback();
     else audioControls.pause();
-    setSpotifyMode(false); setYoutubeMode(false); setOpen(false);
+  };
+
+  const selectFile = () => {
+    stopCurrentPlayback();
+    setSpotifyMode(false); setYoutubeMode(false); setDeviceMode(false); setOpen(false);
   };
   const selectSpotify = () => {
     audioControls.pause();
-    setSpotifyMode(true); setYoutubeMode(false); setOpen(false);
+    setSpotifyMode(true); setYoutubeMode(false); setDeviceMode(false); setOpen(false);
   };
   const selectYouTube = () => {
-    if (spotifyMode && isLoggedIn) pausePlayback();
-    else audioControls.pause();
-    setSpotifyMode(false); setYoutubeMode(true); setOpen(false);
+    stopCurrentPlayback();
+    setSpotifyMode(false); setYoutubeMode(true); setDeviceMode(false); setOpen(false);
+  };
+  const selectDevice = () => {
+    stopCurrentPlayback();
+    setSpotifyMode(false); setYoutubeMode(false); setDeviceMode(true); setOpen(false);
   };
 
   return (
@@ -88,8 +106,9 @@ export function ModeSelectButton() {
       >
         <span className="text-zinc-400 font-normal">{t.modeSelect}</span>
         <span className="text-[10px] text-zinc-500">|</span>
-        {spotifyMode && !youtubeMode && <SpotifyIcon />}
+        {spotifyMode && !youtubeMode && !deviceMode && <SpotifyIcon />}
         {youtubeMode && <YouTubeIcon />}
+        {deviceMode && <DeviceIcon />}
         <span className="max-w-[100px] truncate">{currentLabel}</span>
         <ChevronIcon open={open} />
       </button>
@@ -98,13 +117,13 @@ export function ModeSelectButton() {
         <div className="absolute right-0 top-full mt-1 w-48 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-50 overflow-hidden py-1">
           <ModeOption
             label={t.modeFile}
-            active={!spotifyMode && !youtubeMode}
+            active={!spotifyMode && !youtubeMode && !deviceMode}
             icon={<FileIcon />}
             onClick={selectFile}
           />
           <ModeOption
             label="Spotify"
-            active={spotifyMode && !youtubeMode}
+            active={spotifyMode && !youtubeMode && !deviceMode}
             icon={<SpotifyIcon />}
             onClick={selectSpotify}
           />
@@ -115,6 +134,14 @@ export function ModeSelectButton() {
             icon={<YouTubeIcon />}
             onClick={ytdlpInstalled ? selectYouTube : () => {}}
           />
+          {SUPPORTS_DEVICE_MODE && (
+            <ModeOption
+              label={t.modeDevice}
+              active={deviceMode}
+              icon={<DeviceIcon />}
+              onClick={selectDevice}
+            />
+          )}
         </div>
       )}
     </div>
@@ -183,6 +210,16 @@ function YouTubeIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
       <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+    </svg>
+  );
+}
+
+function DeviceIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="3" width="20" height="14" rx="2" />
+      <line x1="8" y1="21" x2="16" y2="21" />
+      <line x1="12" y1="17" x2="12" y2="21" />
     </svg>
   );
 }

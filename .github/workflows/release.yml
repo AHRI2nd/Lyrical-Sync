@@ -72,21 +72,52 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_KEY_PATH: ${{ runner.temp }}/apple_api_key.p8
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: v__VERSION__
           releaseName: 'Lyrical Sync v__VERSION__'
           releaseDraft: true
           prerelease: false
-          args: --target ${{ matrix.target }}
+          args: --target ${{ matrix.target }} --config src-tauri/tauri.updater.conf.json
 
       - name: Build & release (Windows)
         if: runner.os == 'Windows'
         uses: tauri-apps/tauri-action@v0.5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: v__VERSION__
           releaseName: 'Lyrical Sync v__VERSION__'
           releaseDraft: true
           prerelease: false
-          args: --target ${{ matrix.target }}
+          args: --target ${{ matrix.target }} --config src-tauri/tauri.updater.conf.json
+
+      # WiX(MSI)는 파일명 끝에 언어 코드(_en-US.msi)를 붙이는 옵션밖에 없어 Tauri 설정으로
+      # 바꿀 수 없음. NSIS(_x64-setup.exe)와 명명을 맞추기 위해 업로드된 자산을 재명명.
+      - name: Rename MSI asset (_en-US.msi -> _setup.msi)
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          VERSION=$(jq -r .version src-tauri/tauri.conf.json)
+          TAG="v${VERSION}"
+          MSI_PATH=$(find src-tauri/target -type f -path "*/bundle/msi/*.msi" | head -1)
+          if [ -z "$MSI_PATH" ]; then
+            echo "MSI file not found, skipping rename"
+            exit 0
+          fi
+          OLD_NAME=$(basename "$MSI_PATH")
+          NEW_NAME=$(echo "$OLD_NAME" | sed -E 's/_[a-z]{2}-[A-Z]{2}\.msi$/_setup.msi/')
+          NEW_PATH="$(dirname "$MSI_PATH")/$NEW_NAME"
+          if [ "$OLD_NAME" = "$NEW_NAME" ]; then
+            echo "Filename already matches expected pattern, skipping"
+            exit 0
+          fi
+          cp "$MSI_PATH" "$NEW_PATH"
+          gh release upload "$TAG" "$NEW_PATH" --repo "${{ github.repository }}" --clobber
+          gh release delete-asset "$TAG" "$OLD_NAME" --repo "${{ github.repository }}" --yes || true

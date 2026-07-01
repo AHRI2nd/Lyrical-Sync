@@ -203,12 +203,20 @@ export interface Translations {
   confirmNewMessage: string;
   confirmNewOk: string;
   confirmNewCancel: string;
-  // Update notification
-  updateTitle: string;
-  updateNewVersion: string;
-  updatePrompt: string;
-  updateYes: string;
-  updateLater: string;
+  // In-app updater
+  updater: {
+    title: string;
+    readyTitle: string;
+    errorTitle: string;
+    newVersion: string;
+    downloading: string;
+    readyMessage: string;
+    later: string;
+    update: string;
+    restart: string;
+    close: string;
+    busyHint: string;
+  };
   // Settings modal
   settingsTitle: string;
   settingsTabGeneral: string;
@@ -360,6 +368,9 @@ export interface Translations {
   modeFile: string;
   modeYouTube: string;
   modeComingSoon: string;
+  modeDevice: string;
+  deviceSourceApp: string;
+  deviceWaiting: string;
   spotifyLoadCurrent: string;
   spotifyNoTrackAlertTitle: string;
   spotifyNoTrackAlertMessage: string;
@@ -647,11 +658,19 @@ const ko: Translations = {
   confirmNewMessage: "저장되지 않은 변경 사항이 있습니다. 계속하면 현재 내용이 삭제됩니다.",
   confirmNewOk: "새로 만들기",
   confirmNewCancel: "취소",
-  updateTitle: "업데이트 알림",
-  updateNewVersion: "새 버전",
-  updatePrompt: "이 출시되었습니다. 릴리즈 페이지로 이동하시겠습니까?",
-  updateYes: "이동",
-  updateLater: "나중에",
+  updater: {
+    title: "업데이트 알림",
+    readyTitle: "업데이트 준비 완료",
+    errorTitle: "업데이트 실패",
+    newVersion: "새 버전이 있습니다:",
+    downloading: "다운로드 중...",
+    readyMessage: "설치가 완료되었습니다. 재시작하면 적용됩니다.",
+    later: "나중에",
+    update: "업데이트",
+    restart: "재시작",
+    close: "닫기",
+    busyHint: "AI 정렬·다운로드 작업이 진행 중이라 지금은 업데이트할 수 없습니다.",
+  },
   settingsTitle: "설정",
   settingsTabGeneral: "일반",
   settingsTabShortcuts: "단축키",
@@ -799,6 +818,9 @@ const ko: Translations = {
   modeFile: "파일",
   modeYouTube: "YouTube",
   modeComingSoon: "(미설치)",
+  modeDevice: "기기 감지",
+  deviceSourceApp: "출처",
+  deviceWaiting: "재생 중인 항목을 기다리는 중…",
   spotifyLoadCurrent: "재생 중인 곡",
   spotifyNoTrackAlertTitle: "재생 중인 곡 없음",
   spotifyNoTrackAlertMessage: "현재 Spotify에서 재생 중인 곡이 없습니다.\nSpotify 앱에서 곡을 재생한 후 다시 시도하거나, 직접 검색하세요.",
@@ -1087,11 +1109,19 @@ const en: Translations = {
   confirmNewMessage: "You have unsaved changes. Continuing will discard the current content.",
   confirmNewOk: "New File",
   confirmNewCancel: "Cancel",
-  updateTitle: "Update Available",
-  updateNewVersion: "New version",
-  updatePrompt: "is available. Go to the release page?",
-  updateYes: "Go",
-  updateLater: "Later",
+  updater: {
+    title: "Update Available",
+    readyTitle: "Update Ready",
+    errorTitle: "Update Failed",
+    newVersion: "A new version is available:",
+    downloading: "Downloading...",
+    readyMessage: "Installed. Restart to apply the update.",
+    later: "Later",
+    update: "Update",
+    restart: "Restart",
+    close: "Close",
+    busyHint: "Update is unavailable while AI alignment or a download is in progress.",
+  },
   settingsTitle: "Settings",
   settingsTabGeneral: "General",
   settingsTabShortcuts: "Shortcuts",
@@ -1239,6 +1269,9 @@ const en: Translations = {
   modeFile: "File",
   modeYouTube: "YouTube",
   modeComingSoon: "(Not installed)",
+  modeDevice: "Device Detection",
+  deviceSourceApp: "Source",
+  deviceWaiting: "Waiting for playback…",
   spotifyLoadCurrent: "Current track",
   spotifyNoTrackAlertTitle: "No track playing",
   spotifyNoTrackAlertMessage: "No track is currently playing on Spotify.\nPlay a track in the Spotify app and try again, or search directly.",
@@ -1526,11 +1559,19 @@ const ja: Translations = {
   confirmNewMessage: "保存されていない変更があります。続行すると現在の内容が削除されます。",
   confirmNewOk: "新規作成",
   confirmNewCancel: "キャンセル",
-  updateTitle: "アップデート通知",
-  updateNewVersion: "新バージョン",
-  updatePrompt: "がリリースされました。リリースページに移動しますか？",
-  updateYes: "移動",
-  updateLater: "あとで",
+  updater: {
+    title: "アップデート通知",
+    readyTitle: "アップデート準備完了",
+    errorTitle: "アップデート失敗",
+    newVersion: "新しいバージョンがあります:",
+    downloading: "ダウンロード中...",
+    readyMessage: "インストールが完了しました。再起動すると適用されます。",
+    later: "あとで",
+    update: "アップデート",
+    restart: "再起動",
+    close: "閉じる",
+    busyHint: "AI整列またはダウンロードの実行中はアップデートできません。",
+  },
   settingsTitle: "設定",
   settingsTabGeneral: "一般",
   settingsTabShortcuts: "ショートカット",
@@ -1678,6 +1719,9 @@ const ja: Translations = {
   modeFile: "ファイル",
   modeYouTube: "YouTube",
   modeComingSoon: "(未インストール)",
+  modeDevice: "デバイス検出",
+  deviceSourceApp: "出典",
+  deviceWaiting: "再生中の項目を待っています…",
   spotifyLoadCurrent: "再生中の曲",
   spotifyNoTrackAlertTitle: "再生中の曲なし",
   spotifyNoTrackAlertMessage: "現在Spotifyで再生中の曲がありません。\nSpotifyアプリで曲を再生してから再試行するか、直接検索してください。",

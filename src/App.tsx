@@ -14,6 +14,8 @@ import { useSettingsStore } from "./stores/useSettingsStore";
 import { useServiceStore } from "./stores/useServiceStore";
 import { audioControls } from "./utils/audioControls";
 import { serviceControls } from "./utils/serviceControls";
+import { deviceControls } from "./utils/deviceControls";
+import { useDeviceStore } from "./stores/useDeviceStore";
 import { anyModalOpen } from "./utils/modalGuard";
 import { safeUnlisten } from "./utils/safeUnlisten";
 import { matchAction, normalizeKeybindings, keyLabel, PLAYBACK_ACTIONS } from "./utils/keybindings";
@@ -22,7 +24,8 @@ import { ToastContainer } from "./components/Toast/ToastContainer";
 import { type RecoverySnapshot, loadRecoverySnapshot, saveRecoverySnapshot, clearRecoverySnapshot } from "./utils/recovery";
 import { initSpotifyPlayer } from "./utils/spotifyPlayer";
 import { type Lang } from "./i18n/translations";
-import { checkForUpdate, RELEASES_URL } from "./utils/updateCheck";
+import { useUpdaterStore } from "./stores/useUpdaterStore";
+import { UpdateModal } from "./components/Update/UpdateModal";
 import { useMacMenu } from "./hooks/useMacMenu";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { listen } from "@tauri-apps/api/event";
@@ -47,10 +50,11 @@ function useGlobalKeys() {
   const keybindings = useSettingsStore((s) => s.keybindings);
   const isLoggedInForKeys = useServiceStore((s) => s.isLoggedIn);
   const spotifyModeForKeys = useSettingsStore((s) => s.spotifyMode);
+  const deviceModeForKeys = useSettingsStore((s) => s.deviceMode);
   const isServiceMode = isLoggedInForKeys && spotifyModeForKeys;
 
   useEffect(() => {
-    const controls = isServiceMode ? serviceControls : audioControls;
+    const controls = deviceModeForKeys ? deviceControls : isServiceMode ? serviceControls : audioControls;
     const kb = normalizeKeybindings(keybindings);
     const handler = (e: KeyboardEvent) => {
       const inInput =
@@ -95,7 +99,7 @@ function useGlobalKeys() {
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [stampAndAdvance, goToPreviousLine, undo, redo, isServiceMode, syncMode, keybindings]);
+  }, [stampAndAdvance, goToPreviousLine, undo, redo, isServiceMode, deviceModeForKeys, syncMode, keybindings]);
 }
 
 // 저장 경로(lrcPath)가 지정된 파일에 한해, 변경 후 일정 시간 멈추면 자동 저장.
@@ -130,22 +134,12 @@ function useAutoSave() {
   }, [isDirty, doc]);
 }
 
-function useAutoUpdateCheck(onUpdateAvailable: (version: string) => void, enabled: boolean) {
-  const cbRef = useRef(onUpdateAvailable);
-  cbRef.current = onUpdateAvailable;
-
+// 시작 시 조용히(silent) 확인 — 새 버전이 있을 때만 스토어 상태가 "available"로 바뀌어
+// UpdateModal이 자동으로 뜸. 없거나 실패해도 아무 알림 없음(기존 동작과 동일).
+function useAutoUpdateCheck(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const version = await checkForUpdate();
-        if (version && !cancelled) cbRef.current(version);
-      } catch {
-        // silently ignore network errors
-      }
-    })();
-    return () => { cancelled = true; };
+    useUpdaterStore.getState().checkForUpdate(true);
   }, [enabled]);
 }
 
@@ -172,7 +166,6 @@ function App() {
   const [showFormatChooser, setShowFormatChooser] = useState(false);
   const [showElrcNotice, setShowElrcNotice] = useState(false);
   const pendingSaveRef = useRef<(() => Promise<boolean>) | null>(null);
-  const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const [showSpotifySearch, setShowSpotifySearch] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [dropConflict, setDropConflict] = useState<
@@ -188,17 +181,28 @@ function App() {
   );
   const hasGlyphSync = useLrcStore((s) => s.doc.lines.some((l) => l.syllables?.some((sy) => sy.time !== null)));
   const { t } = useI18nStore();
-  const { autoCheckUpdate, uiScale, spotifyMode, youtubeMode, setSpotifyMode, setYoutubeMode, showElrcSaveNotice, setShowElrcSaveNotice } = useSettingsStore();
+  const { autoCheckUpdate, uiScale, spotifyMode, youtubeMode, deviceMode, setSpotifyMode, setYoutubeMode, setDeviceMode, showElrcSaveNotice, setShowElrcSaveNotice } = useSettingsStore();
   const { isLoggedIn, handleCallback, tryRestoreSession, pausePlayback } = useServiceStore();
   const [ytdlpInstalled, setYtdlpInstalled] = useState(false);
 
-  useAutoUpdateCheck((v) => setUpdateVersion(v), autoCheckUpdate);
+  useAutoUpdateCheck(autoCheckUpdate);
 
-  // Restore saved Spotify session on mount
+  // 기기 감지 모드 진입/이탈에 따라 SMTC 폴링 시작/정지
   useEffect(() => {
-    tryRestoreSession();
+    const store = useDeviceStore.getState();
+    if (deviceMode) store.startPolling();
+    else store.stopPolling();
+    return () => store.stopPolling();
+  }, [deviceMode]);
+
+  // Spotify 모드에 진입했을 때만(저장된 세션이 있을 수 있는 경우) 키체인 조회 시도.
+  // 앱 시작 시 무조건 조회하면 Spotify를 한 번도 안 쓴 사용자도 매번 키체인 접근이
+  // 발생하므로, 실제로 모드에 들어갈 때만 지연 호출(설정에 spotifyMode가 저장돼 있어
+  // 재시작 시 바로 true일 수도 있음 — 그 경우도 이 effect가 커버).
+  useEffect(() => {
+    if (spotifyMode && !isLoggedIn) tryRestoreSession();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [spotifyMode]);
 
   // Listen for OAuth callback from local HTTP listener
   useEffect(() => {
@@ -328,24 +332,26 @@ function App() {
   }, []);
 
   // 모드 전환 (ModeSelectButton과 동일한 동작 — 전환 시 재생 정지)
-  const selectModeFile = () => {
+  const stopCurrentPlaybackForModeSwitch = () => {
     if (spotifyMode && isLoggedIn) pausePlayback();
     else audioControls.pause();
-    setSpotifyMode(false); setYoutubeMode(false);
+  };
+  const selectModeFile = () => {
+    stopCurrentPlaybackForModeSwitch();
+    setSpotifyMode(false); setYoutubeMode(false); setDeviceMode(false);
   };
   const selectModeSpotify = () => {
     audioControls.pause();
-    setSpotifyMode(true); setYoutubeMode(false);
+    setSpotifyMode(true); setYoutubeMode(false); setDeviceMode(false);
   };
   const selectModeYouTube = () => {
-    if (spotifyMode && isLoggedIn) pausePlayback();
-    else audioControls.pause();
-    setSpotifyMode(false); setYoutubeMode(true);
+    stopCurrentPlaybackForModeSwitch();
+    setSpotifyMode(false); setYoutubeMode(true); setDeviceMode(false);
   };
 
-  // 재생 컨트롤은 현재 모드(로컬/Spotify)에 맞게 선택
+  // 재생 컨트롤은 현재 모드(로컬/Spotify/기기 감지)에 맞게 선택
   const isServiceMode = isLoggedIn && spotifyMode;
-  const playbackControls = isServiceMode ? serviceControls : audioControls;
+  const playbackControls = deviceMode ? deviceControls : isServiceMode ? serviceControls : audioControls;
 
   useMacMenu(
     {
@@ -419,21 +425,12 @@ function App() {
         <Suspense fallback={null}>
           <SettingsModal
             onClose={() => setShowSettings(false)}
-            onUpdateFound={(v) => { setShowSettings(false); setUpdateVersion(v); }}
+            onUpdateFound={() => setShowSettings(false)}
             initialTab={settingsInitialTab}
           />
         </Suspense>
       )}
-      {updateVersion && (
-        <ConfirmModal
-          title={t.updateTitle}
-          message={`${t.updateNewVersion} ${updateVersion} ${t.updatePrompt}`}
-          okLabel={t.updateYes}
-          cancelLabel={t.updateLater}
-          onOk={() => { setUpdateVersion(null); openUrl(RELEASES_URL); }}
-          onCancel={() => setUpdateVersion(null)}
-        />
-      )}
+      <UpdateModal />
       {recovery && (
         <ConfirmModal
           title={t.recovery.title}
