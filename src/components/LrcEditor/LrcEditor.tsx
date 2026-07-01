@@ -43,12 +43,16 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     }))
   );
   const { t, lang } = useI18nStore();
-  const { blankLineOffset, spotifyMode, lyricsFontScale, useVocalSeparation, useVad } = useSettingsStore();
+  const { blankLineOffset, spotifyMode, deviceMode, lyricsFontScale, useVocalSeparation, useVad } = useSettingsStore();
   const serviceLoggedIn = useServiceStore((s) => s.isLoggedIn);
   // 실제 Spotify 모드(로그인 + spotifyMode 활성)일 때만 서비스 모드로 간주.
   // 단순 계정 연결만으로 AI 싱크를 막지 않도록 isReady 대신 spotifyMode 기준 사용.
   const isServiceMode = serviceLoggedIn && spotifyMode;
   const serviceActive = isServiceMode;
+  // AI 자동 동기화는 로컬 오디오가 있는 파일/YouTube 모드에서만 의미가 있음.
+  // Spotify는 로그인 전이어도, 기기 감지는 항상 로컬 오디오가 없으므로 둘 다 차단
+  // (로그인 여부로 판단하는 isServiceMode와 달리 spotifyMode 자체로 판단).
+  const aiSyncModeUnsupported = spotifyMode || deviceMode;
   const { lines } = doc;
 
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
@@ -488,22 +492,22 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           <div className="relative group">
             <button
               onClick={isRunning ? undefined : handleAiSync}
-              disabled={isRunning || !canRunAi || !audioPath || isServiceMode}
+              disabled={isRunning || !canRunAi || !audioPath || aiSyncModeUnsupported}
               className={[
                 "px-3 py-1 text-xs rounded-lg transition-colors",
                 isRunning
                   ? "bg-indigo-800 text-indigo-300 cursor-not-allowed"
-                  : canRunAi && audioPath && !isServiceMode
+                  : canRunAi && audioPath && !aiSyncModeUnsupported
                   ? "bg-indigo-600 hover:bg-indigo-500 text-white"
                   : "bg-zinc-700 text-zinc-500 cursor-not-allowed",
               ].join(" ")}
             >
               {isRunning ? t.aiSyncRunning : t.aiAutoSync}
             </button>
-            {!isRunning && (isServiceMode || !canRunAi || !audioPath) && (
+            {!isRunning && (aiSyncModeUnsupported || !canRunAi || !audioPath) && (
               <div className="absolute top-full right-0 mt-1.5 hidden group-hover:block z-20 w-60 bg-zinc-800 border border-zinc-600 text-xs text-zinc-300 rounded-lg px-3 py-2 shadow-xl pointer-events-none">
-                {isServiceMode ? (
-                  t.spotifyServiceModeInfo
+                {aiSyncModeUnsupported ? (
+                  t.aiSyncModeUnsupported
                 ) : !canRunAi ? (
                   <>
                     <p className="font-medium text-zinc-200 mb-1">{t.aiSyncNoModel}</p>
