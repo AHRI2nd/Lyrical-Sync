@@ -1,5 +1,4 @@
 import { useRef, useEffect, useCallback, useState, useMemo } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
@@ -8,12 +7,7 @@ import { useServiceStore } from "../../stores/useServiceStore";
 import { formatDisplayTime, formatTimestamp, parseTimestampInput, validateTimestamps, type SyncUnit } from "../../utils/lrcParser";
 import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
-import { MODEL_DEFS } from "../../utils/modelDefs";
 import { CharSyncView } from "./CharSyncView";
-import { safeUnlisten } from "../../utils/safeUnlisten";
-
-// ISO 639-3 codes used by ctc-forced-aligner / MMS model
-const LANG_CODE: Record<string, string> = { ko: "kor", en: "eng", ja: "jpn" };
 
 export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   // currentTime은 푸터에서만 쓰므로 구독에서 제외 → 재생 중 줄 목록이 매 프레임 리렌더되지 않음
@@ -23,10 +17,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     duplicateLine, mergeLineUp, splitLine, moveLine, scaleTimestamps,
     deleteLines, shiftLines, clearTimestamps,
     stampCurrentLine, setActiveLineId,
-    aiSyncStatus, aiSyncMessage, aiSyncProgressStatus, aiDraftConfidence,
-    runAiSync, cancelAiSync, clearAiDraft,
     replaceInLines, shiftTimeRange,
-    audioPath,
     syncMode, syncUnit, setSyncMode, setSyncUnit, clearLineSyllables,
   } = useLrcStore(
     useShallow((s) => ({
@@ -35,18 +26,14 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
       duplicateLine: s.duplicateLine, mergeLineUp: s.mergeLineUp, splitLine: s.splitLine, moveLine: s.moveLine, scaleTimestamps: s.scaleTimestamps,
       deleteLines: s.deleteLines, shiftLines: s.shiftLines, clearTimestamps: s.clearTimestamps,
       stampCurrentLine: s.stampCurrentLine, setActiveLineId: s.setActiveLineId,
-      aiSyncStatus: s.aiSyncStatus, aiSyncMessage: s.aiSyncMessage, aiSyncProgressStatus: s.aiSyncProgressStatus, aiDraftConfidence: s.aiDraftConfidence,
-      runAiSync: s.runAiSync, cancelAiSync: s.cancelAiSync, clearAiDraft: s.clearAiDraft,
       replaceInLines: s.replaceInLines, shiftTimeRange: s.shiftTimeRange,
-      audioPath: s.audioPath,
       syncMode: s.syncMode, syncUnit: s.syncUnit, setSyncMode: s.setSyncMode, setSyncUnit: s.setSyncUnit, clearLineSyllables: s.clearLineSyllables,
     }))
   );
-  const { t, lang } = useI18nStore();
-  const { blankLineOffset, spotifyMode, lyricsFontScale, useVocalSeparation, useVad } = useSettingsStore();
+  const { t } = useI18nStore();
+  const { spotifyMode, lyricsFontScale } = useSettingsStore();
   const serviceLoggedIn = useServiceStore((s) => s.isLoggedIn);
   // 실제 Spotify 모드(로그인 + spotifyMode 활성)일 때만 서비스 모드로 간주.
-  // 단순 계정 연결만으로 AI 싱크를 막지 않도록 isReady 대신 spotifyMode 기준 사용.
   const isServiceMode = serviceLoggedIn && spotifyMode;
   const serviceActive = isServiceMode;
   const { lines } = doc;
@@ -54,9 +41,6 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const pendingFocusId = useRef<string | null>(null);
-
-  const [pythonReady, setPythonReady] = useState(false);
-  const [missingModels, setMissingModels] = useState<string[]>([]);
 
   // Find/Replace state
   const [showFR, setShowFR] = useState(false);
@@ -88,7 +72,6 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   // 글자 동기화된 줄의 텍스트 수정 경고 / 단위 변경 경고
   const [pendingTextEdit, setPendingTextEdit] = useState<{ id: string; text: string } | null>(null);
   const [pendingUnit, setPendingUnit] = useState<SyncUnit | null>(null);
-  const [pendingAiSync, setPendingAiSync] = useState(false);
   // 드래그 재정렬 상태
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
@@ -144,43 +127,6 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     tsEditCancel.current = true;
     setEditingTsId(null);
   };
-
-  const checkAiRequirements = useCallback(async () => {
-    try {
-      const v = await invoke<{ packagesReady: boolean }>("get_python_env_info");
-      setPythonReady(v.packagesReady);
-    } catch {
-      setPythonReady(false);
-    }
-    const missing: string[] = [];
-    for (const model of MODEL_DEFS.filter((m) => m.required)) {
-      try {
-        const results = await invoke<boolean[]>("check_model_files", { filenames: model.files.map((f) => f.filename) });
-        if (!results.every(Boolean)) missing.push(model.name);
-      } catch {
-        missing.push(model.name);
-      }
-    }
-    setMissingModels(missing);
-  }, []);
-
-  useEffect(() => { checkAiRequirements(); }, [checkAiRequirements]);
-
-  useEffect(() => {
-    let unlistenModel: (() => void) | null = null;
-    let unlistenPip: (() => void) | null = null;
-    import("@tauri-apps/api/event").then(({ listen }) => {
-      listen<{ done: boolean }>("model-download-progress", (e) => {
-        if (e.payload.done) checkAiRequirements();
-      }).then((fn) => { unlistenModel = fn; }).catch(() => {});
-      listen<{ done: boolean }>("pip-install-progress", (e) => {
-        if (e.payload.done) checkAiRequirements();
-      }).then((fn) => { unlistenPip = fn; }).catch(() => {});
-    });
-    return () => { safeUnlisten(unlistenModel); safeUnlisten(unlistenPip); };
-  }, [checkAiRequirements]);
-
-  const canRunAi = pythonReady && missingModels.length === 0;
 
   useEffect(() => {
     if (!activeLineId) return;
@@ -399,34 +345,6 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     setShowTS(false);
   }, [shiftTimeRange]);
 
-  const runAiSyncNow = () => {
-    const language = LANG_CODE[lang] ?? "eng";
-    runAiSync(language, blankLineOffset, useVocalSeparation, useVad);
-  };
-  const handleAiSync = () => {
-    // AI 정렬은 줄 단위 재정렬 → 기존 글자/단어 동기화가 삭제됨. 있으면 먼저 확인.
-    const hasGlyph = lines.some((l) => l.syllables?.some((s) => s.time !== null));
-    if (hasGlyph) { setPendingAiSync(true); return; }
-    runAiSyncNow();
-  };
-
-  const isRunning = aiSyncStatus === "running";
-
-  const PROGRESS_STATUS_MAP: Record<string, string> = {
-    loading_model: t.aiSyncStatusLoadingModel,
-    loading_audio: t.aiSyncStatusLoadingAudio,
-    analyzing: t.aiSyncStatusAnalyzing,
-    aligning: t.aiSyncStatusAligning,
-    postprocessing: t.aiSyncStatusPostprocessing,
-    separating: t.aiSyncStatusAnalyzing,
-    done: t.aiSyncStatusDone,
-  };
-
-  const displayMessage = aiSyncStatus === "error"
-    ? aiSyncMessage
-    : (PROGRESS_STATUS_MAP[aiSyncProgressStatus] ?? aiSyncMessage);
-
-
   return (
     <div className="flex flex-col gap-2 p-4 bg-zinc-900 rounded-xl border border-zinc-700 flex-1 min-h-0">
       <div className="flex items-center justify-between">
@@ -455,9 +373,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
             </button>
             <button
               onClick={(e) => { setSyncMode("char"); e.currentTarget.blur(); }}
-              disabled={isRunning}
-              title={isRunning ? t.aiSyncRunning : undefined}
-              className={`px-2.5 py-1 text-xs rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${charMode ? "bg-indigo-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
+              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${charMode ? "bg-indigo-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
             >
               {t.charSync.modeChar}
             </button>
@@ -484,61 +400,6 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           )}
 
           {!charMode && (<>
-          {/* AI Auto Sync */}
-          <div className="relative group">
-            <button
-              onClick={isRunning ? undefined : handleAiSync}
-              disabled={isRunning || !canRunAi || !audioPath || isServiceMode}
-              className={[
-                "px-3 py-1 text-xs rounded-lg transition-colors",
-                isRunning
-                  ? "bg-indigo-800 text-indigo-300 cursor-not-allowed"
-                  : canRunAi && audioPath && !isServiceMode
-                  ? "bg-indigo-600 hover:bg-indigo-500 text-white"
-                  : "bg-zinc-700 text-zinc-500 cursor-not-allowed",
-              ].join(" ")}
-            >
-              {isRunning ? t.aiSyncRunning : t.aiAutoSync}
-            </button>
-            {!isRunning && (isServiceMode || !canRunAi || !audioPath) && (
-              <div className="absolute top-full right-0 mt-1.5 hidden group-hover:block z-20 w-60 bg-zinc-800 border border-zinc-600 text-xs text-zinc-300 rounded-lg px-3 py-2 shadow-xl pointer-events-none">
-                {isServiceMode ? (
-                  t.spotifyServiceModeInfo
-                ) : !canRunAi ? (
-                  <>
-                    <p className="font-medium text-zinc-200 mb-1">{t.aiSyncNoModel}</p>
-                    <ul className="flex flex-col gap-0.5 text-zinc-400">
-                      {!pythonReady && <li>· {t.settingsVenvTitle}</li>}
-                      {missingModels.map((name) => <li key={name}>· {name}</li>)}
-                    </ul>
-                  </>
-                ) : (
-                  t.aiSyncNoAudio
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Cancel (only while running) */}
-          {isRunning && (
-            <button
-              onClick={cancelAiSync}
-              className="px-3 py-1 text-xs rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors"
-            >
-              {t.aiSyncCancel}
-            </button>
-          )}
-
-          {/* Clear AI draft */}
-          {aiDraftConfidence && !isRunning && (
-            <button
-              onClick={clearAiDraft}
-              className="px-3 py-1 text-xs rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors"
-            >
-              {t.aiSyncClear}
-            </button>
-          )}
-
           {/* 도구 오버플로우: 찾기/바꾸기 · 구간 오프셋 */}
           <div className="relative" ref={toolsRef}>
             <button
@@ -591,18 +452,6 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
       {charMode && <CharSyncView />}
 
       {!charMode && (<>
-      {/* AI progress message */}
-      {(isRunning || aiSyncStatus === "error") && displayMessage && (
-        <div className={[
-          "text-xs px-2 py-1 rounded",
-          aiSyncStatus === "error"
-            ? "text-red-300 bg-red-900/30"
-            : "text-indigo-300 bg-indigo-900/30",
-        ].join(" ")}>
-          {displayMessage}
-        </div>
-      )}
-
       {showTS && (
         <TimeShiftBar
           lineCount={lines.length}
@@ -664,17 +513,9 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
         )}
         {lines.map((line, idx) => {
           const isActive = line.id === activeLineId;
-          const confidence = aiDraftConfidence?.[line.id];
           const hasGlyphSync = !!line.syllables?.some((s) => s.time !== null);
 
-          // Timestamp button colour varies by AI confidence
-          const tsClass = confidence !== undefined
-            ? confidence >= 0.7
-              ? "bg-emerald-900/50 text-emerald-300 hover:bg-emerald-800/60"
-              : confidence >= 0.5
-              ? "bg-yellow-900/50 text-yellow-300 hover:bg-yellow-800/60"
-              : "bg-red-900/50 text-red-300 hover:bg-red-800/60"
-            : line.timestamp !== null
+          const tsClass = line.timestamp !== null
             ? "bg-zinc-700 text-indigo-300 hover:bg-zinc-600"
             : "bg-zinc-800 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300";
 
@@ -851,16 +692,6 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           cancelLabel={t.charSync.retokenizeCancel}
           onOk={confirmUnitChange}
           onCancel={() => setPendingUnit(null)}
-        />
-      )}
-      {pendingAiSync && (
-        <MiniConfirm
-          title={t.aiSyncGlyphWarnTitle}
-          message={t.aiSyncGlyphWarnMsg}
-          okLabel={t.aiSyncGlyphWarnOk}
-          cancelLabel={t.charSync.retokenizeCancel}
-          onOk={() => { setPendingAiSync(false); runAiSyncNow(); }}
-          onCancel={() => setPendingAiSync(false)}
         />
       )}
       {showValidation && (

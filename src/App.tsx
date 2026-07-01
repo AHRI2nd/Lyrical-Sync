@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, lazy, Suspense } from "react";
+import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { AudioPlayer } from "./components/AudioPlayer/AudioPlayer";
 import { MetaEditor } from "./components/MetaEditor/MetaEditor";
 import { LrcEditor } from "./components/LrcEditor/LrcEditor";
@@ -21,12 +21,9 @@ import { toast } from "./stores/useToastStore";
 import { ToastContainer } from "./components/Toast/ToastContainer";
 import { type RecoverySnapshot, loadRecoverySnapshot, saveRecoverySnapshot, clearRecoverySnapshot } from "./utils/recovery";
 import { initSpotifyPlayer } from "./utils/spotifyPlayer";
-import { type Lang } from "./i18n/translations";
-import { checkForUpdate, RELEASES_URL } from "./utils/updateCheck";
 import { useMacMenu } from "./hooks/useMacMenu";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 
 const AUDIO_EXTS = ["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff", "aif"];
@@ -130,31 +127,6 @@ function useAutoSave() {
   }, [isDirty, doc]);
 }
 
-function useAutoUpdateCheck(onUpdateAvailable: (version: string) => void, enabled: boolean) {
-  const cbRef = useRef(onUpdateAvailable);
-  cbRef.current = onUpdateAvailable;
-
-  useEffect(() => {
-    if (!enabled) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const version = await checkForUpdate();
-        if (version && !cancelled) cbRef.current(version);
-      } catch {
-        // silently ignore network errors
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [enabled]);
-}
-
-const LANG_LABELS: { lang: Lang; label: string }[] = [
-  { lang: "ko", label: "한국어" },
-  { lang: "en", label: "English" },
-  { lang: "ja", label: "日本語" },
-];
-
 function App() {
   useGlobalKeys();
   useAutoSave();
@@ -167,12 +139,11 @@ function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [settingsInitialTab, setSettingsInitialTab] = useState<"general" | "models" | "spotify" | "youtube">("general");
+  const [settingsInitialTab, setSettingsInitialTab] = useState<"general" | "spotify">("general");
   const [showNewConfirm, setShowNewConfirm] = useState(false);
   const [showFormatChooser, setShowFormatChooser] = useState(false);
   const [showElrcNotice, setShowElrcNotice] = useState(false);
   const pendingSaveRef = useRef<(() => Promise<boolean>) | null>(null);
-  const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const [showSpotifySearch, setShowSpotifySearch] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [dropConflict, setDropConflict] = useState<
@@ -188,17 +159,16 @@ function App() {
   );
   const hasGlyphSync = useLrcStore((s) => s.doc.lines.some((l) => l.syllables?.some((sy) => sy.time !== null)));
   const { t } = useI18nStore();
-  const { autoCheckUpdate, uiScale, spotifyMode, youtubeMode, setSpotifyMode, setYoutubeMode, showElrcSaveNotice, setShowElrcSaveNotice } = useSettingsStore();
+  const { uiScale, spotifyMode, setSpotifyMode, showElrcSaveNotice, setShowElrcSaveNotice } = useSettingsStore();
   const { isLoggedIn, handleCallback, tryRestoreSession, pausePlayback } = useServiceStore();
-  const [ytdlpInstalled, setYtdlpInstalled] = useState(false);
 
-  useAutoUpdateCheck((v) => setUpdateVersion(v), autoCheckUpdate);
-
-  // Restore saved Spotify session on mount
+  // Spotify 모드에 진입했을 때만(저장된 세션이 있을 수 있는 경우) 키체인 조회 시도.
+  // 앱 시작 시 무조건 조회하면 Spotify를 한 번도 안 쓴 사용자도 매번 키체인 접근이
+  // 발생하므로, 실제로 모드에 들어갈 때만 지연 호출.
   useEffect(() => {
-    tryRestoreSession();
+    if (spotifyMode && !isLoggedIn) tryRestoreSession();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [spotifyMode]);
 
   // Listen for OAuth callback from local HTTP listener
   useEffect(() => {
@@ -312,35 +282,15 @@ function App() {
     return () => { cancelled = true; safeUnlisten(unlisten); };
   }, []);
 
-  // yt-dlp 설치 여부 (모드 메뉴의 YouTube 활성화 판단)
-  useEffect(() => {
-    let active = true;
-    const check = () =>
-      invoke<string | null>("check_ytdlp")
-        .then((v) => { if (active) setYtdlpInstalled(v !== null); })
-        .catch(() => {});
-    check();
-    let unlisten: (() => void) | null = null;
-    listen<{ done: boolean }>("ytdlp-install-progress", (e) => {
-      if (active && e.payload.done) check();
-    }).then((fn) => { unlisten = fn; if (!active) safeUnlisten(fn); }).catch(() => {});
-    return () => { active = false; safeUnlisten(unlisten); };
-  }, []);
-
   // 모드 전환 (ModeSelectButton과 동일한 동작 — 전환 시 재생 정지)
   const selectModeFile = () => {
     if (spotifyMode && isLoggedIn) pausePlayback();
     else audioControls.pause();
-    setSpotifyMode(false); setYoutubeMode(false);
+    setSpotifyMode(false);
   };
   const selectModeSpotify = () => {
     audioControls.pause();
-    setSpotifyMode(true); setYoutubeMode(false);
-  };
-  const selectModeYouTube = () => {
-    if (spotifyMode && isLoggedIn) pausePlayback();
-    else audioControls.pause();
-    setSpotifyMode(false); setYoutubeMode(true);
+    setSpotifyMode(true);
   };
 
   // 재생 컨트롤은 현재 모드(로컬/Spotify)에 맞게 선택
@@ -362,12 +312,11 @@ function App() {
       stop: () => playbackControls.stopAndReset(),
       modeFile: selectModeFile,
       modeSpotify: selectModeSpotify,
-      modeYouTube: selectModeYouTube,
       openSettings: () => { setSettingsInitialTab("general"); setShowSettings(true); },
       openPreview: () => setShowPreview(true),
       openHelp: () => setShowHelp(true),
     },
-    { t, spotifyMode, youtubeMode, ytdlpInstalled }
+    { t, spotifyMode }
   );
 
   const title = lrcPath
@@ -404,8 +353,6 @@ function App() {
           <IconBtn onClick={handleOpenLrc} title={t.openLrc}><OpenFolderIcon /></IconBtn>
           <IconBtn onClick={handleSave} accent title={t.save} tooltipAlign="right"><SaveIcon /></IconBtn>
           <IconBtn onClick={() => setShowFormatChooser(true)} title={t.saveAs} tooltipAlign="right"><SaveAsIcon /></IconBtn>
-          <div className="w-px h-5 bg-zinc-700 mx-0.5" />
-          <LangDropdown />
         </div>
       </header>
 
@@ -419,20 +366,9 @@ function App() {
         <Suspense fallback={null}>
           <SettingsModal
             onClose={() => setShowSettings(false)}
-            onUpdateFound={(v) => { setShowSettings(false); setUpdateVersion(v); }}
             initialTab={settingsInitialTab}
           />
         </Suspense>
-      )}
-      {updateVersion && (
-        <ConfirmModal
-          title={t.updateTitle}
-          message={`${t.updateNewVersion} ${updateVersion} ${t.updatePrompt}`}
-          okLabel={t.updateYes}
-          cancelLabel={t.updateLater}
-          onOk={() => { setUpdateVersion(null); openUrl(RELEASES_URL); }}
-          onCancel={() => setUpdateVersion(null)}
-        />
       )}
       {recovery && (
         <ConfirmModal
@@ -550,10 +486,8 @@ function HelpModal({ onClose }: { onClose: () => void }) {
   const kb = normalizeKeybindings(useSettingsStore((s) => s.keybindings));
 
   const guideFileSuffix = lang === "ko" ? "ko" : lang === "ja" ? "ja" : "en";
-  const aiGuideUrl = `https://ahri2nd.xyz/posts/lyrical-sync-ai-installation-guide-${guideFileSuffix}/`;
   const spotifyGuideUrl = `https://ahri2nd.xyz/posts/lyrical-sync-spotify-guide-${guideFileSuffix}/`;
-  const youtubeGuideUrl = `https://ahri2nd.xyz/posts/lyrical-sync-youtube-guide-${guideFileSuffix}/`;
-  const [tab, setTab] = useState<"shortcuts" | "ai" | "spotify" | "youtube">("shortcuts");
+  const [tab, setTab] = useState<"shortcuts" | "spotify">("shortcuts");
 
   const shortcutGroups = [
     {
@@ -611,9 +545,7 @@ function HelpModal({ onClose }: { onClose: () => void }) {
 
   const tabs = [
     { id: "shortcuts" as const, label: t.helpTabShortcuts },
-    { id: "ai" as const, label: t.helpTabAi },
     { id: "spotify" as const, label: t.helpTabSpotify },
-    { id: "youtube" as const, label: t.helpTabYouTube },
   ];
 
   return (
@@ -677,28 +609,6 @@ function HelpModal({ onClose }: { onClose: () => void }) {
             </div>
           )}
 
-          {tab === "ai" && (
-            <div className="flex flex-col gap-4">
-              <button
-                onClick={() => openUrl(aiGuideUrl)}
-                className="self-start text-xs text-indigo-400 hover:text-indigo-300 transition-colors underline underline-offset-2"
-              >
-                {t.helpViewGuide}
-              </button>
-              {t.helpAiSteps.map(({ title, desc }, i) => (
-                <div key={i} className="flex gap-3">
-                  <span className="shrink-0 w-5 h-5 rounded-full bg-indigo-600 text-white text-xs flex items-center justify-center font-bold mt-0.5">
-                    {i + 1}
-                  </span>
-                  <div>
-                    <p className="text-sm font-medium text-zinc-100 mb-0.5">{title}</p>
-                    <p className="text-xs text-zinc-400 leading-relaxed">{desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
           {tab === "spotify" && (
             <div className="flex flex-col gap-4">
               <button
@@ -710,28 +620,6 @@ function HelpModal({ onClose }: { onClose: () => void }) {
               {t.helpSpotifySteps.map(({ title, desc }, i) => (
                 <div key={i} className="flex gap-3">
                   <span className="shrink-0 w-5 h-5 rounded-full bg-green-700 text-white text-xs flex items-center justify-center font-bold mt-0.5">
-                    {i + 1}
-                  </span>
-                  <div>
-                    <p className="text-sm font-medium text-zinc-100 mb-0.5">{title}</p>
-                    <p className="text-xs text-zinc-400 leading-relaxed">{desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {tab === "youtube" && (
-            <div className="flex flex-col gap-4">
-              <button
-                onClick={() => openUrl(youtubeGuideUrl)}
-                className="self-start text-xs text-red-400 hover:text-red-300 transition-colors underline underline-offset-2"
-              >
-                {t.helpViewGuide}
-              </button>
-              {t.helpYoutubeSteps.map(({ title, desc }, i) => (
-                <div key={i} className="flex gap-3">
-                  <span className="shrink-0 w-5 h-5 rounded-full bg-red-700 text-white text-xs flex items-center justify-center font-bold mt-0.5">
                     {i + 1}
                   </span>
                   <div>
@@ -1029,61 +917,6 @@ function RedoIcon() {
   );
 }
 
-function LangDropdown() {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const { lang, setLang } = useI18nStore();
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const handleSelect = useCallback((l: Lang) => { setLang(l); setOpen(false); }, [setLang]);
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-8 h-8 flex items-center justify-center rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100 transition-colors"
-      >
-        <GlobeIcon />
-      </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-1 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-50 overflow-hidden py-1 min-w-[110px]">
-          {LANG_LABELS.map(({ lang: l, label }) => (
-            <button
-              key={l}
-              onClick={() => handleSelect(l)}
-              className={[
-                "w-full flex items-center justify-between px-3 py-2 text-xs transition-colors",
-                lang === l
-                  ? "text-white bg-zinc-700"
-                  : "text-zinc-300 hover:bg-zinc-700 hover:text-white",
-              ].join(" ")}
-            >
-              <span>{label}</span>
-              {lang === l && <span className="text-indigo-400">✓</span>}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function GlobeIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <line x1="2" y1="12" x2="22" y2="12" />
-      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-    </svg>
-  );
-}
 
 function GearIcon() {
   return (
