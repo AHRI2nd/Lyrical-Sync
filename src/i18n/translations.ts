@@ -16,7 +16,6 @@ export interface Translations {
   redo: string;
   // Help modal
   helpTitle: string;
-  helpTabShortcuts: string;
   shortcutsTitle: string;
   shortcutNote: string;
   helpGroupPlayback: string;
@@ -76,7 +75,6 @@ export interface Translations {
     syncedOnly: string; plainOnly: string;
     preview: string; confirm: string;
     instrumental: string; noLyrics: string; synced: string; plain: string;
-    previewTitle: string; close: string;
   };
   lrclibPublish: {
     button: string;
@@ -113,8 +111,6 @@ export interface Translations {
   tooltipMarkers: string;
   playerMore: string;
   playerSpeed: string;
-  tooltipSpeedDown: string;
-  tooltipSpeedUp: string;
   tooltipViewWaveform: string;
   tooltipViewSeekBar: string;
   // LrcEditor
@@ -132,7 +128,6 @@ export interface Translations {
   tsScale: string;
   tsScaleFactor: string;
   tsScaleHint: string;
-  timeShiftTooltip: string;
   timeShiftFrom: string;
   timeShiftTo: string;
   timeShiftDelta: string;
@@ -140,7 +135,6 @@ export interface Translations {
   timeShiftSec: string;
   warnOutOfOrder: string;
   warnDuplicate: string;
-  validationSummary: string;
   validationTitle: string;
   validationStatComplete: string;
   validationStatStamped: string;
@@ -148,7 +142,6 @@ export interface Translations {
   validationUnstamped: string;
   validationNoIssues: string;
   noLines: string;
-  stampTooltip: string;
   linePlaceholder: string;
   deleteLine: string;
   duplicateLine: string;
@@ -166,12 +159,10 @@ export interface Translations {
   metaArtist: { label: string; placeholder: string };
   metaAlbum: { label: string; placeholder: string };
   metaBy: { label: string; placeholder: string };
-  metaOffset: string;
   metaOffsetShort: string;
   applyOffset: string;
   applyOffsetTooltip: string;
   viewAll: string;
-  importSrt: string;
   rawEditorTitle: string;
   rawEditorApply: string;
   rawEditorCancel: string;
@@ -249,7 +240,6 @@ const ko: Translations = {
   undo: "실행 취소",
   redo: "다시 실행",
   helpTitle: "도움말",
-  helpTabShortcuts: "단축키",
   shortcutsTitle: "단축키 안내",
   shortcutNote: "* 인풋 포커스 중일 때는 단축키가 동작하지 않습니다.",
   helpGroupPlayback: "재생 · 탐색",
@@ -344,8 +334,6 @@ const ko: Translations = {
     noLyrics: "가사 없음",
     synced: "동기화",
     plain: "가사",
-    previewTitle: "가사 미리보기",
-    close: "닫기",
   },
   lrclibPublish: {
     button: "LRCLIB에 업로드",
@@ -381,8 +369,6 @@ const ko: Translations = {
   tooltipMarkers: "가사 마커 표시",
   playerMore: "더보기 (반복·마커·배속)",
   playerSpeed: "배속",
-  tooltipSpeedDown: "배속 감소",
-  tooltipSpeedUp: "배속 증가",
   tooltipViewWaveform: "파형",
   tooltipViewSeekBar: "재생바",
   lyricsEditor: "가사 편집",
@@ -399,7 +385,6 @@ const ko: Translations = {
   tsScale: "타임스탬프 스케일",
   tsScaleFactor: "배율",
   tsScaleHint: "전체 타임스탬프 ×배율 (예: 1.05 = 5% 느리게)",
-  timeShiftTooltip: "선택한 줄 범위의 타임스탬프를 일괄로 앞뒤로 이동합니다",
   timeShiftFrom: "시작",
   timeShiftTo: "끝",
   timeShiftDelta: "이동량",
@@ -407,7 +392,6 @@ const ko: Translations = {
   timeShiftSec: "초",
   warnOutOfOrder: "이전 줄보다 타임스탬프가 빠릅니다 (순서 역전)",
   warnDuplicate: "다른 줄과 타임스탬프가 중복됩니다",
-  validationSummary: "타임스탬프 문제",
   validationTitle: "검증 / 통계",
   validationStatComplete: "완성도",
   validationStatStamped: "찍힘",
@@ -415,7 +399,6 @@ const ko: Translations = {
   validationUnstamped: "타임스탬프 미입력",
   validationNoIssues: "모든 줄이 올바르게 입력되었습니다",
   noLines: "「+ 줄 추가」 버튼으로 가사를 입력하세요",
-  stampTooltip: "클릭하여 현재 시간을 타임스탬프로 설정",
   linePlaceholder: "가사를 입력하세요...",
   deleteLine: "줄 삭제",
   duplicateLine: "줄 복제",
@@ -432,12 +415,10 @@ const ko: Translations = {
   metaArtist: { label: "아티스트 (ar)", placeholder: "아티스트 이름" },
   metaAlbum: { label: "앨범 (al)", placeholder: "앨범 이름" },
   metaBy: { label: "작성자 (by)", placeholder: "LRC 작성자" },
-  metaOffset: "오프셋 ms (offset)",
   metaOffsetShort: "오프셋",
   applyOffset: "적용",
   applyOffsetTooltip: "모든 타임스탬프에 오프셋을 더한 후 오프셋을 0으로 초기화합니다",
   viewAll: "전체보기",
-  importSrt: "SRT 가져오기",
   rawEditorTitle: "LRC 전체 편집",
   rawEditorApply: "적용",
   rawEditorCancel: "취소",
@@ -513,7 +494,6 @@ const en: Translations = {
   undo: "Undo",
   redo: "Redo",
   helpTitle: "Help",
-  helpTabShortcuts: "Shortcuts",
   shortcutsTitle: "Keyboard Shortcuts",
   shortcutNote: "* Shortcuts are disabled while an input is focused.",
   helpGroupPlayback: "Playback",
@@ -608,8 +588,6 @@ const en: Translations = {
     noLyrics: "No lyrics",
     synced: "Synced",
     plain: "Plain",
-    previewTitle: "Lyrics preview",
-    close: "Close",
   },
   lrclibPublish: {
     button: "Publish to LRCLIB",
@@ -645,8 +623,6 @@ const en: Translations = {
   tooltipMarkers: "Show lyric markers",
   playerMore: "More (loop · markers · speed)",
   playerSpeed: "Speed",
-  tooltipSpeedDown: "Slower",
-  tooltipSpeedUp: "Faster",
   tooltipViewWaveform: "Waveform",
   tooltipViewSeekBar: "Seek bar",
 
@@ -664,7 +640,6 @@ const en: Translations = {
   tsScale: "Timestamp scale",
   tsScaleFactor: "Factor",
   tsScaleHint: "All timestamps × factor (e.g. 1.05 = 5% slower)",
-  timeShiftTooltip: "Shift timestamps of a selected line range forward or backward",
   timeShiftFrom: "From",
   timeShiftTo: "To",
   timeShiftDelta: "Shift",
@@ -672,7 +647,6 @@ const en: Translations = {
   timeShiftSec: "s",
   warnOutOfOrder: "Timestamp is earlier than the previous line (out of order)",
   warnDuplicate: "Timestamp duplicates another line",
-  validationSummary: "timestamp issue(s)",
   validationTitle: "Validation / Stats",
   validationStatComplete: "Complete",
   validationStatStamped: "Stamped",
@@ -680,7 +654,6 @@ const en: Translations = {
   validationUnstamped: "No timestamp",
   validationNoIssues: "All lines look good",
   noLines: "Press \"+ Add Line\" to start entering lyrics",
-  stampTooltip: "Click to set current time as timestamp",
   linePlaceholder: "Enter lyrics...",
   deleteLine: "Delete line",
   duplicateLine: "Duplicate line",
@@ -697,12 +670,10 @@ const en: Translations = {
   metaArtist: { label: "Artist (ar)", placeholder: "Artist name" },
   metaAlbum: { label: "Album (al)", placeholder: "Album name" },
   metaBy: { label: "Author (by)", placeholder: "LRC author" },
-  metaOffset: "Offset ms (offset)",
   metaOffsetShort: "Offset",
   applyOffset: "Apply",
   applyOffsetTooltip: "Add offset to all timestamps, then reset offset to 0",
   viewAll: "View All",
-  importSrt: "Import SRT",
   rawEditorTitle: "Edit Full LRC",
   rawEditorApply: "Apply Changes",
   rawEditorCancel: "Discard",
@@ -778,7 +749,6 @@ const ja: Translations = {
   undo: "元に戻す",
   redo: "やり直す",
   helpTitle: "ヘルプ",
-  helpTabShortcuts: "ショートカット",
   shortcutsTitle: "キーボードショートカット",
   shortcutNote: "* 入力欄にフォーカス中はショートカットが無効になります。",
   helpGroupPlayback: "再生・移動",
@@ -873,8 +843,6 @@ const ja: Translations = {
     noLyrics: "歌詞なし",
     synced: "同期",
     plain: "歌詞",
-    previewTitle: "歌詞プレビュー",
-    close: "閉じる",
   },
   lrclibPublish: {
     button: "LRCLIBに公開",
@@ -910,8 +878,6 @@ const ja: Translations = {
   tooltipMarkers: "歌詞マーカー表示",
   playerMore: "その他（リピート・マーカー・速度）",
   playerSpeed: "再生速度",
-  tooltipSpeedDown: "遅くする",
-  tooltipSpeedUp: "速くする",
   tooltipViewWaveform: "波形",
   tooltipViewSeekBar: "シーク",
   lyricsEditor: "歌詞編集",
@@ -928,7 +894,6 @@ const ja: Translations = {
   tsScale: "タイムスタンプ倍率",
   tsScaleFactor: "倍率",
   tsScaleHint: "全タイムスタンプ × 倍率（例: 1.05 = 5%遅く）",
-  timeShiftTooltip: "選択した行範囲のタイムスタンプを前後に一括移動します",
   timeShiftFrom: "開始",
   timeShiftTo: "終了",
   timeShiftDelta: "移動量",
@@ -936,7 +901,6 @@ const ja: Translations = {
   timeShiftSec: "秒",
   warnOutOfOrder: "前の行よりタイムスタンプが早いです（順序逆転）",
   warnDuplicate: "他の行とタイムスタンプが重複しています",
-  validationSummary: "タイムスタンプの問題",
   validationTitle: "検証 / 統計",
   validationStatComplete: "完成度",
   validationStatStamped: "記録済み",
@@ -944,7 +908,6 @@ const ja: Translations = {
   validationUnstamped: "タイムスタンプ未入力",
   validationNoIssues: "すべての行が正しく入力されています",
   noLines: "「+ 行を追加」ボタンで歌詞を入力してください",
-  stampTooltip: "クリックして現在時刻をタイムスタンプに設定",
   linePlaceholder: "歌詞を入力してください...",
   deleteLine: "行を削除",
   duplicateLine: "行を複製",
@@ -961,12 +924,10 @@ const ja: Translations = {
   metaArtist: { label: "アーティスト (ar)", placeholder: "アーティスト名" },
   metaAlbum: { label: "アルバム (al)", placeholder: "アルバム名" },
   metaBy: { label: "作成者 (by)", placeholder: "LRC作成者" },
-  metaOffset: "オフセット ms (offset)",
   metaOffsetShort: "オフセット",
   applyOffset: "適用",
   applyOffsetTooltip: "全タイムスタンプにオフセットを加算し、オフセットを0にリセットします",
   viewAll: "全体表示",
-  importSrt: "SRT読み込み",
   rawEditorTitle: "LRC全体を編集",
   rawEditorApply: "適用",
   rawEditorCancel: "キャンセル",
