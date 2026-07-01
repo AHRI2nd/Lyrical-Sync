@@ -1,8 +1,8 @@
-import { useState } from "react";
 import { useDeviceStore } from "../../stores/useDeviceStore";
 import { deviceControls } from "../../utils/deviceControls";
-import { formatDisplayTime } from "../../utils/lrcParser";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { TrackInfoHeader } from "../AudioPlayer/TrackInfoHeader";
+import { SeekBar } from "../AudioPlayer/SeekBar";
 
 // Windows SMTC로 감지한 로컬 재생 정보 패널. Spotify 원격 제어와 달리 임의의 다른 앱
 // 세션을 다루므로(Spotify 데스크톱, Apple Music, 브라우저 등) 소스 앱을 표시하고,
@@ -10,64 +10,27 @@ import { useI18nStore } from "../../stores/useI18nStore";
 export function DevicePlayerPanel() {
   const { t } = useI18nStore();
   const { isPlaying, positionMs, durationMs, trackName, artistName, albumName, sourceApp, hasSession } = useDeviceStore();
-  const [hoverRatio, setHoverRatio] = useState<number | null>(null);
 
   const positionSec = positionMs / 1000;
   const durationSec = durationMs / 1000;
-  const progress = durationMs > 0 ? positionMs / durationMs : 0;
-
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (durationMs <= 0) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-    deviceControls.seekTo(ratio * durationSec);
-  };
 
   return (
     <div className="flex flex-col gap-3 min-h-[80px] justify-center">
-      {hasSession ? (
-        <div className="flex items-center gap-3 min-w-0 px-1">
-          <div className="w-10 h-10 rounded bg-indigo-500/15 flex items-center justify-center shrink-0 text-indigo-300">
-            <DeviceGlyph />
-          </div>
-          <div className="flex flex-col min-w-0">
-            <span className="text-sm font-medium text-zinc-100 truncate">{trackName}</span>
-            <span className="text-xs text-zinc-400 truncate">{artistName}{albumName ? ` · ${albumName}` : ""}</span>
-            {sourceApp && (
-              <span className="text-[10px] text-zinc-600 truncate">{t.deviceSourceApp}: {sourceApp}</span>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="h-10 flex items-center px-1">
-          <span className="text-xs text-zinc-500">{t.deviceWaiting}</span>
-        </div>
-      )}
+      <TrackInfoHeader
+        icon={<DeviceGlyph />}
+        iconBgClass="bg-indigo-500/15 text-indigo-300"
+        title={hasSession ? trackName : ""}
+        subtitle={artistName + (albumName ? ` · ${albumName}` : "")}
+        extraLine={sourceApp ? `${t.deviceSourceApp}: ${sourceApp}` : undefined}
+        emptyMessage={t.deviceWaiting}
+      />
 
-      {/* 진행 바 */}
-      <div
-        className="relative h-1.5 bg-zinc-800 rounded-full cursor-pointer group"
-        onClick={handleSeek}
-        onMouseMove={(e) => {
-          const rect = e.currentTarget.getBoundingClientRect();
-          setHoverRatio(Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)));
-        }}
-        onMouseLeave={() => setHoverRatio(null)}
-      >
-        <div className="absolute inset-y-0 left-0 bg-indigo-500 rounded-full" style={{ width: `${progress * 100}%` }} />
-        {hoverRatio !== null && (
-          <div
-            className="absolute -top-6 -translate-x-1/2 text-[10px] text-zinc-300 bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 pointer-events-none whitespace-nowrap"
-            style={{ left: `${hoverRatio * 100}%` }}
-          >
-            {formatDisplayTime(hoverRatio * durationSec)}
-          </div>
-        )}
-      </div>
-      <div className="flex justify-between text-[10px] text-zinc-500 tabular-nums px-0.5 -mt-1.5">
-        <span>{formatDisplayTime(positionSec)}</span>
-        <span>{formatDisplayTime(durationSec)}</span>
-      </div>
+      <SeekBar
+        position={positionSec}
+        duration={durationSec}
+        onSeek={(s) => deviceControls.seekTo(s)}
+        accentClass="bg-indigo-500"
+      />
 
       {/* 컨트롤 */}
       <div className="flex items-center justify-center gap-0.5">
