@@ -1,0 +1,1 @@
+Vendored from https://github.com/ungive/mediaremote-adapter @ 3ac3d4bdf862c7b5399b4fba4df5689f5c38609a
