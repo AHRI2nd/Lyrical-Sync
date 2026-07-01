@@ -11,6 +11,7 @@ import { toast } from "../../stores/useToastStore";
 import { type Translations } from "../../i18n/translations";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
+import { useBusyStore } from "../../stores/useBusyStore";
 import { audioControls } from "../../utils/audioControls";
 import { activateSpotifyPlayer } from "../../utils/spotifyPlayer";
 import { safeUnlisten } from "../../utils/safeUnlisten";
@@ -82,9 +83,17 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   const isServiceMode = isLoggedIn && spotifyMode;
 
   const [ytUrl, setYtUrl] = useState("");
-  const [ytLoading, setYtLoading] = useState(false);
+  const [ytLoading, setYtLoadingRaw] = useState(false);
   const [ytError, setYtError] = useState<string | null>(null);
   const [ytModalOpen, setYtModalOpen] = useState(false);
+
+  // 업데이트 다운로드/재시작이 yt-dlp 다운로드와 겹치지 않도록 busy 상태를 함께 표시
+  const YT_BUSY_ID = "youtube-download";
+  const setYtLoading = (v: boolean) => {
+    setYtLoadingRaw(v);
+    if (v) useBusyStore.getState().markBusy(YT_BUSY_ID);
+    else useBusyStore.getState().clearBusy(YT_BUSY_ID);
+  };
 
   useEffect(() => {
     let unlisten: (() => void) | null = null;

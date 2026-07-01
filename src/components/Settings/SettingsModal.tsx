@@ -4,7 +4,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
-import { checkForUpdate } from "../../utils/updateCheck";
+import { useUpdaterStore } from "../../stores/useUpdaterStore";
 import { safeUnlisten } from "../../utils/safeUnlisten";
 import { KeybindingsSection } from "./KeybindingsSection";
 import { ModelDownloadSection } from "./ModelDownloadSection";
@@ -19,7 +19,7 @@ export function SettingsModal({
   initialTab = "general",
 }: {
   onClose: () => void;
-  onUpdateFound: (version: string) => void;
+  onUpdateFound: () => void;
   initialTab?: Tab;
 }) {
   const { t, lang } = useI18nStore();
@@ -45,15 +45,12 @@ export function SettingsModal({
 
   const handleCheckNow = async () => {
     setCheckState("checking");
-    try {
-      const version = await checkForUpdate();
-      if (version) {
-        onClose();
-        onUpdateFound(version);
-      } else {
-        setCheckState("upToDate");
-      }
-    } catch {
+    await useUpdaterStore.getState().checkForUpdate(false);
+    const status = useUpdaterStore.getState().status;
+    if (status === "available") {
+      onClose();
+      onUpdateFound();
+    } else {
       setCheckState("upToDate");
     }
   };

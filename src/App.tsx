@@ -22,7 +22,8 @@ import { ToastContainer } from "./components/Toast/ToastContainer";
 import { type RecoverySnapshot, loadRecoverySnapshot, saveRecoverySnapshot, clearRecoverySnapshot } from "./utils/recovery";
 import { initSpotifyPlayer } from "./utils/spotifyPlayer";
 import { type Lang } from "./i18n/translations";
-import { checkForUpdate, RELEASES_URL } from "./utils/updateCheck";
+import { useUpdaterStore } from "./stores/useUpdaterStore";
+import { UpdateModal } from "./components/Update/UpdateModal";
 import { useMacMenu } from "./hooks/useMacMenu";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { listen } from "@tauri-apps/api/event";
@@ -130,22 +131,12 @@ function useAutoSave() {
   }, [isDirty, doc]);
 }
 
-function useAutoUpdateCheck(onUpdateAvailable: (version: string) => void, enabled: boolean) {
-  const cbRef = useRef(onUpdateAvailable);
-  cbRef.current = onUpdateAvailable;
-
+// 시작 시 조용히(silent) 확인 — 새 버전이 있을 때만 스토어 상태가 "available"로 바뀌어
+// UpdateModal이 자동으로 뜸. 없거나 실패해도 아무 알림 없음(기존 동작과 동일).
+function useAutoUpdateCheck(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const version = await checkForUpdate();
-        if (version && !cancelled) cbRef.current(version);
-      } catch {
-        // silently ignore network errors
-      }
-    })();
-    return () => { cancelled = true; };
+    useUpdaterStore.getState().checkForUpdate(true);
   }, [enabled]);
 }
 
@@ -172,7 +163,6 @@ function App() {
   const [showFormatChooser, setShowFormatChooser] = useState(false);
   const [showElrcNotice, setShowElrcNotice] = useState(false);
   const pendingSaveRef = useRef<(() => Promise<boolean>) | null>(null);
-  const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const [showSpotifySearch, setShowSpotifySearch] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [dropConflict, setDropConflict] = useState<
@@ -192,7 +182,7 @@ function App() {
   const { isLoggedIn, handleCallback, tryRestoreSession, pausePlayback } = useServiceStore();
   const [ytdlpInstalled, setYtdlpInstalled] = useState(false);
 
-  useAutoUpdateCheck((v) => setUpdateVersion(v), autoCheckUpdate);
+  useAutoUpdateCheck(autoCheckUpdate);
 
   // Restore saved Spotify session on mount
   useEffect(() => {
@@ -419,21 +409,12 @@ function App() {
         <Suspense fallback={null}>
           <SettingsModal
             onClose={() => setShowSettings(false)}
-            onUpdateFound={(v) => { setShowSettings(false); setUpdateVersion(v); }}
+            onUpdateFound={() => setShowSettings(false)}
             initialTab={settingsInitialTab}
           />
         </Suspense>
       )}
-      {updateVersion && (
-        <ConfirmModal
-          title={t.updateTitle}
-          message={`${t.updateNewVersion} ${updateVersion} ${t.updatePrompt}`}
-          okLabel={t.updateYes}
-          cancelLabel={t.updateLater}
-          onOk={() => { setUpdateVersion(null); openUrl(RELEASES_URL); }}
-          onCancel={() => setUpdateVersion(null)}
-        />
-      )}
+      <UpdateModal />
       {recovery && (
         <ConfirmModal
           title={t.recovery.title}
