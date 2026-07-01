@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Lyrical Sync",
-  "version": "0.5.1",
-  "identifier": "com.lyricalsync.app",
+  "version": "0.5.2",
+  "identifier": "com.arisair.lyricalsync",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
