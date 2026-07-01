@@ -195,11 +195,14 @@ function App() {
     return () => store.stopPolling();
   }, [deviceMode]);
 
-  // Restore saved Spotify session on mount
+  // Spotify 모드에 진입했을 때만(저장된 세션이 있을 수 있는 경우) 키체인 조회 시도.
+  // 앱 시작 시 무조건 조회하면 Spotify를 한 번도 안 쓴 사용자도 매번 키체인 접근이
+  // 발생하므로, 실제로 모드에 들어갈 때만 지연 호출(설정에 spotifyMode가 저장돼 있어
+  // 재시작 시 바로 true일 수도 있음 — 그 경우도 이 effect가 커버).
   useEffect(() => {
-    tryRestoreSession();
+    if (spotifyMode && !isLoggedIn) tryRestoreSession();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [spotifyMode]);
 
   // Listen for OAuth callback from local HTTP listener
   useEffect(() => {
