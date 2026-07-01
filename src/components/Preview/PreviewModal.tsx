@@ -1,27 +1,18 @@
 import { useEffect, useRef, useMemo, useCallback, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
-import { useSettingsStore } from "../../stores/useSettingsStore";
-import { useServiceStore } from "../../stores/useServiceStore";
 import { audioControls } from "../../utils/audioControls";
-import { serviceControls } from "../../utils/serviceControls";
 import { formatDisplayTime, formatTimestamp, parseTimestampInput, isStampable } from "../../utils/lrcParser";
 import type { LrcSyllable } from "../../types/lrc";
 
 export function PreviewModal({ onClose }: { onClose: () => void }) {
   const { doc, currentTime, duration, isPlaying, updateLine } = useLrcStore();
-  const spotifyMode = useSettingsStore((s) => s.spotifyMode);
-  const serviceLoggedIn = useServiceStore((s) => s.isLoggedIn);
-  const servicePositionMs = useServiceStore((s) => s.positionMs);
-  const serviceDurationMs = useServiceStore((s) => s.durationMs);
-  const serviceIsPlaying = useServiceStore((s) => s.isPlaying);
   const { t } = useI18nStore();
   const activeLineRef = useRef<HTMLDivElement>(null);
-  const isServiceMode = serviceLoggedIn && spotifyMode;
-  const controls = isServiceMode ? serviceControls : audioControls;
-  const playbackTime = isServiceMode ? servicePositionMs / 1000 : currentTime;
-  const playbackDuration = isServiceMode ? serviceDurationMs / 1000 : duration;
-  const playbackIsPlaying = isServiceMode ? serviceIsPlaying : isPlaying;
+  const controls = audioControls;
+  const playbackTime = currentTime;
+  const playbackDuration = duration;
+  const playbackIsPlaying = isPlaying;
 
   // 인라인 타임스탬프 편집 상태
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -97,9 +88,9 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
   // 줄 클릭 시 시크(+정지 상태면 재생). 재생 상태는 fresh로 읽어 목록 메모 의존성에서 제외
   const seekToLine = useCallback((ts: number) => {
     controls.seekTo(ts);
-    const playing = isServiceMode ? useServiceStore.getState().isPlaying : useLrcStore.getState().isPlaying;
+    const playing = useLrcStore.getState().isPlaying;
     if (!playing) controls.togglePlay();
-  }, [controls, isServiceMode]);
+  }, [controls]);
 
   // 줄 목록을 메모화 → 부모가 매 프레임(currentTime) 리렌더돼도 활성 줄 전환·편집 시에만 재구성.
   // 활성 줄의 가라오케 채움은 KaraokeText가 시간을 자체 구독해 갱신.
@@ -162,7 +153,7 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
           {isActive ? (
             <span className="relative inline-block">
               {hasGlyphSync && line.syllables ? (
-                <KaraokeText syllables={line.syllables} lineEnd={lineEnd} isServiceMode={isServiceMode} />
+                <KaraokeText syllables={line.syllables} lineEnd={lineEnd} />
               ) : (
                 line.text || " "
               )}
@@ -174,7 +165,7 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
         </div>
       </div>
     );
-  }), [doc.lines, activeIdx, lineEnds, editingId, editValue, startEdit, commitEdit, seekToLine, isServiceMode]);
+  }), [doc.lines, activeIdx, lineEnds, editingId, editValue, startEdit, commitEdit, seekToLine]);
 
   const hasTimestamps = doc.lines.some((l) => l.timestamp !== null);
 
@@ -271,15 +262,12 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
 // 글자 단위 가라오케 채움: 각 글자를 시작~다음 시각 사이 진행도로 좌→우 채움
 // 시간을 자체 구독 → 부모(미리보기 목록)가 매 프레임 리렌더되지 않아도 활성 줄만 채움 갱신
 function KaraokeText({
-  syllables, lineEnd, isServiceMode,
+  syllables, lineEnd,
 }: {
   syllables: LrcSyllable[];
   lineEnd: number;
-  isServiceMode: boolean;
 }) {
-  const ct = useLrcStore((s) => s.currentTime);
-  const pos = useServiceStore((s) => s.positionMs);
-  const currentTime = isServiceMode ? pos / 1000 : ct;
+  const currentTime = useLrcStore((s) => s.currentTime);
   return (
     <>
       {syllables.map((s, i) => {

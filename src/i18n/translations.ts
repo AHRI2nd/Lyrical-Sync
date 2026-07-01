@@ -17,8 +17,6 @@ export interface Translations {
   // Help modal
   helpTitle: string;
   helpTabShortcuts: string;
-  helpTabAi: string;
-  helpTabSpotify: string;
   shortcutsTitle: string;
   shortcutNote: string;
   helpGroupPlayback: string;
@@ -36,7 +34,7 @@ export interface Translations {
     csClearKey: string; csClearDesc: string; csNudgeKey: string; csNudgeDesc: string;
   };
   menu: {
-    file: string; edit: string; playback: string; mode: string; view: string; help: string;
+    file: string; edit: string; playback: string; view: string; help: string;
     settings: string; saveAsLrc: string; saveAsSrt: string;
     playPause: string; skipBack5: string; skipBack1: string;
     skipFwd1: string; skipFwd5: string; stop: string;
@@ -71,16 +69,6 @@ export interface Translations {
     endCell: string;
     glyphProgress: string;
   };
-  devicePicker: {
-    button: string;
-    title: string;
-    refresh: string;
-    loading: string;
-    empty: string;
-    active: string;
-    close: string;
-    hint: string;
-  };
   lrclib: {
     button: string; title: string;
     fieldTitle: string; fieldArtist: string; fieldAlbum: string;
@@ -110,12 +98,6 @@ export interface Translations {
     close: string;
     cancel: string;
   };
-  helpAiSteps: { title: string; desc: string }[];
-  helpSpotifySteps: { title: string; desc: string }[];
-  helpYoutubeSteps: { title: string; desc: string }[];
-  helpViewGuide: string;
-  helpTabYouTube: string;
-  settingsViewGuide: string;
   // AudioPlayer
   openAudio: string;
   zoom: string;
@@ -203,19 +185,10 @@ export interface Translations {
   confirmNewMessage: string;
   confirmNewOk: string;
   confirmNewCancel: string;
-  // Update notification
-  updateTitle: string;
-  updateNewVersion: string;
-  updatePrompt: string;
-  updateYes: string;
-  updateLater: string;
   // Settings modal
   settingsTitle: string;
   settingsTabGeneral: string;
   settingsTabShortcuts: string;
-  settingsTabModels: string;
-  settingsAutoUpdate: string;
-  settingsAutoUpdateDesc: string;
   settingsAutoSave: string;
   settingsAutoSaveDesc: string;
   settingsElrcNotice: string;
@@ -241,10 +214,6 @@ export interface Translations {
     saveFailed: string;
     openFailed: string;
     audioLoadFailed: string;
-    aiSyncDone: string;
-    aiSyncFailed: string;
-    modelDownloaded: string;
-    modelDownloadFailed: string;
   };
   keys: {
     title: string;
@@ -262,141 +231,8 @@ export interface Translations {
     stamp: string;
     prevLine: string;
   };
-  settingsCheckNow: string;
-  settingsChecking: string;
-  settingsUpToDate: string;
   settingsUiScale: string;
   settingsUiScaleReset: string;
-  // Model download
-  modelCategoryDemucs: string;
-  modelCategoryCTC: string;
-  modelCategoryWav2vec2: string;
-  modelInstall: string;
-  modelInstalling: string;
-  modelInstalled: string;
-  modelDelete: string;
-  modelCancel: string;
-  modelStoragePath: string;
-  modelMb: string;
-  modelErrorPrefix: string;
-  modelRequired: string;
-  modelOptional: string;
-  aiUsageTitle: string;
-  aiUsageSeparation: string;
-  aiUsageSeparationDesc: string;
-  aiUsageVad: string;
-  aiUsageVadDesc: string;
-  aiUsageNeedModel: string;
-  aiUsageNeedSeparation: string;
-  modelChangeDir: string;
-  modelResetDir: string;
-  modelCopyPath: string;
-  modelInstalledVariants: string;
-  modelNoneInstalled: string;
-  // AI Auto Sync
-  aiAutoSync: string;
-  aiSyncRunning: string;
-  aiSyncCancel: string;
-  aiSyncClear: string;
-  aiSyncNoModel: string;
-  aiSyncGlyphWarnTitle: string;
-  aiSyncGlyphWarnMsg: string;
-  aiSyncGlyphWarnOk: string;
-  aiSyncNoAudio: string;
-  aiSyncDone: string;
-  aiSyncError: string;
-  aiSyncStatusLoadingModel: string;
-  aiSyncStatusLoadingAudio: string;
-  aiSyncStatusAnalyzing: string;
-  aiSyncStatusAligning: string;
-  aiSyncStatusDone: string;
-  aiSyncConfidenceHigh: string;
-  aiSyncConfidenceLow: string;
-  aiSyncConfidenceLabel: string;
-  aiSyncStatusPostprocessing: string;
-  aiSyncBlankOffset: string;
-  aiSyncBlankOffsetDesc: string;
-  settingsVenvTitle: string;
-  settingsVenvReady: string;
-  settingsVenvNoPackages: string;
-  settingsVenvNotCreated: string;
-  settingsVenvCreate: string;
-  settingsVenvCreating: string;
-  settingsVenvInstallTitle: string;
-  settingsVenvRefresh: string;
-  settingsVenvChecking: string;
-  settingsVenvInstallBtn: string;
-  settingsVenvInstalling: string;
-  settingsVenvCmdWarning: string;
-  // Spotify
-  settingsTabSpotify: string;
-  spotifyClientId: string;
-  spotifyClientIdDesc: string;
-  spotifyClientIdPlaceholder: string;
-  spotifyClientIdSave: string;
-  spotifyClientIdSaved: string;
-  spotifyConnect: string;
-  spotifyConnecting: string;
-  spotifyConnected: string;
-  spotifyOpenInSpotify: string;
-  spotifyLogout: string;
-  spotifyNoClientId: string;
-  spotifyNoClientIdDesc: string;
-  spotifyPremiumRequired: string;
-  spotifyCurrentlyPlaying: string;
-  spotifyLoadThisTrack: string;
-  spotifyLoadYes: string;
-  spotifyLoadNo: string;
-  spotifySearchTitle: string;
-  spotifySearchPlaceholder: string;
-  spotifyMyPlaylists: string;
-  spotifyNoResults: string;
-  spotifyServiceModeInfo: string;
-  spotifyBackToFileMode: string;
-  spotifyNoTrackTitle: string;
-  spotifyNoTrackMessage: string;
-  spotifySearchTrack: string;
-  modeSelect: string;
-  modeFile: string;
-  modeYouTube: string;
-  modeComingSoon: string;
-  spotifyLoadCurrent: string;
-  spotifyNoTrackAlertTitle: string;
-  spotifyNoTrackAlertMessage: string;
-  spotifyNoTrackAlertOk: string;
-  settingsTabYouTube: string;
-  ytdlpTitle: string;
-  ytdlpInstalled: string;
-  ytdlpNotInstalled: string;
-  ytdlpVersion: string;
-  ytdlpDownload: string;
-  ytdlpUpdate: string;
-  ytdlpDownloading: string;
-  ytdlpRefresh: string;
-  ytdlpAudioQuality: string;
-  ytdlpQualityBest: string;
-  ytdlpQuality192: string;
-  ytdlpQuality128: string;
-  ytdlpCookiesFile: string;
-  ytdlpCookiesFileDesc: string;
-  ytdlpCookiesSelect: string;
-  ytdlpCookiesClear: string;
-  ytdlpProxy: string;
-  ytdlpProxyPlaceholder: string;
-  ytdlpProxySave: string;
-  ytdlpInfoText: string;
-  youtubeUrlPlaceholder: string;
-  youtubeDisclaimer: string;
-  youtubeLoad: string;
-  youtubeAgree: string;
-  youtubeLoading: string;
-  youtubeCancel: string;
-  youtubeNotInstalled: string;
-  youtubeOpenLink: string;
-  youtubeModalTitle: string;
-  youtubeModeLabel: string;
-  youtubeModeOn: string;
-  youtubeModeOff: string;
 }
 
 const ko: Translations = {
@@ -414,8 +250,6 @@ const ko: Translations = {
   redo: "다시 실행",
   helpTitle: "도움말",
   helpTabShortcuts: "단축키",
-  helpTabAi: "AI 사용법",
-  helpTabSpotify: "Spotify",
   shortcutsTitle: "단축키 안내",
   shortcutNote: "* 인풋 포커스 중일 때는 단축키가 동작하지 않습니다.",
   helpGroupPlayback: "재생 · 탐색",
@@ -456,7 +290,7 @@ const ko: Translations = {
     csNudgeDesc: "현재 글자 시각을 ±0.05초 미세조정",
   },
   menu: {
-    file: "파일", edit: "편집", playback: "재생", mode: "모드", view: "보기", help: "도움말",
+    file: "파일", edit: "편집", playback: "재생", view: "보기", help: "도움말",
     settings: "설정…", saveAsLrc: "LRC로 저장…", saveAsSrt: "SRT로 저장…",
     playPause: "재생 / 일시정지", skipBack5: "5초 뒤로", skipBack1: "1초 뒤로",
     skipFwd1: "1초 앞으로", skipFwd5: "5초 앞으로", stop: "정지",
@@ -490,16 +324,6 @@ const ko: Translations = {
     badge: "글자 동기화됨",
     endCell: "다음 줄로 (여기까지 칠하거나 클릭)",
     glyphProgress: "현재 줄의 글자 동기화 진행도",
-  },
-  devicePicker: {
-    button: "재생 기기",
-    title: "재생 기기 선택",
-    refresh: "새로고침",
-    loading: "기기 목록 불러오는 중…",
-    empty: "사용 가능한 기기가 없습니다. Spotify 앱이 실행 중인지 확인하세요.",
-    active: "재생 중",
-    close: "닫기",
-    hint: "기기를 선택하면 해당 기기에서 재생됩니다.",
   },
   lrclib: {
     button: "LRCLIB 불러오기",
@@ -543,27 +367,6 @@ const ko: Translations = {
     close: "닫기",
     cancel: "취소",
   },
-  helpAiSteps: [
-    { title: "Python 환경 설치", desc: "설정(⚙) → AI 환경 탭에서 내장 Python을 다운로드하고 패키지를 설치합니다." },
-    { title: "모델 다운로드", desc: "설정 → AI 모델 탭에서 필수 모델 ctc-mms-300m(1.2 GB)을 다운로드합니다." },
-    { title: "AI 자동 싱크 실행", desc: "가사를 입력한 후 LRC 에디터 상단의 'AI 자동 싱크' 버튼을 클릭합니다. 언어를 선택하면 자동으로 타임스탬프가 생성됩니다." },
-    { title: "결과 확인 및 보정", desc: "신뢰도 배지가 낮은 줄은 수동으로 타임스탬프를 찍어 보정하세요. Space 키로 재생 중 실시간 스탬핑도 가능합니다." },
-  ],
-  helpSpotifySteps: [
-    { title: "Client ID 준비", desc: "Spotify Developer Dashboard(developer.spotify.com)에서 앱을 만들고 Redirect URI에 http://127.0.0.1:54321/callback 을 추가합니다." },
-    { title: "Client ID 입력", desc: "설정(⚙) → Spotify 탭에서 발급받은 Client ID를 입력하고 저장합니다." },
-    { title: "연결 및 곡 선택", desc: "상단 Spotify 버튼을 클릭해 로그인합니다. 현재 재생 중인 곡을 불러오거나 검색으로 곡을 선택하면 자동으로 Spotify 모드로 전환됩니다." },
-    { title: "제한 사항", desc: "Spotify 모드에서는 파형 시각화, 배속 조절, AI Sync를 사용할 수 없습니다. Spotify Premium 계정이 필요합니다." },
-  ],
-  helpYoutubeSteps: [
-    { title: "yt-dlp 설치", desc: "설정(⚙) → YouTube 탭에서 yt-dlp를 다운로드합니다. Python 없이 독립 실행됩니다." },
-    { title: "YouTube 모드 활성화", desc: "설정 → YouTube 탭의 모드 토글을 켜거나, 상단 모드 선택 버튼에서 YouTube를 선택합니다." },
-    { title: "URL 입력 및 오디오 로드", desc: "파형 영역 하단의 'YouTube 링크' 버튼을 클릭해 URL을 입력합니다. 다운로드 완료 후 파형이 자동 표시됩니다." },
-    { title: "타임스탬프 작업", desc: "파일 모드와 동일하게 파형 시각화, 배속 조절, AI 자동 싱크를 모두 사용할 수 있습니다." },
-  ],
-  helpViewGuide: "자세한 가이드 보기 →",
-  helpTabYouTube: "YouTube",
-  settingsViewGuide: "설치 가이드 →",
   openAudio: "오디오 열기",
   zoom: "줌",
   volume: "볼륨",
@@ -647,17 +450,9 @@ const ko: Translations = {
   confirmNewMessage: "저장되지 않은 변경 사항이 있습니다. 계속하면 현재 내용이 삭제됩니다.",
   confirmNewOk: "새로 만들기",
   confirmNewCancel: "취소",
-  updateTitle: "업데이트 알림",
-  updateNewVersion: "새 버전",
-  updatePrompt: "이 출시되었습니다. 릴리즈 페이지로 이동하시겠습니까?",
-  updateYes: "이동",
-  updateLater: "나중에",
   settingsTitle: "설정",
   settingsTabGeneral: "일반",
   settingsTabShortcuts: "단축키",
-  settingsTabModels: "AI 모델",
-  settingsAutoUpdate: "자동 업데이트 확인",
-  settingsAutoUpdateDesc: "앱 시작 시 최신 버전을 자동으로 확인합니다.",
   settingsAutoSave: "자동 저장",
   settingsAutoSaveDesc: "저장 위치가 지정된 파일은 변경 후 잠시 멈추면 자동으로 저장합니다.",
   settingsElrcNotice: "Enhanced LRC 저장 알림",
@@ -683,10 +478,6 @@ const ko: Translations = {
     saveFailed: "저장에 실패했습니다",
     openFailed: "파일을 열지 못했습니다",
     audioLoadFailed: "오디오를 불러오지 못했습니다",
-    aiSyncDone: "AI 정렬이 완료되었습니다",
-    aiSyncFailed: "AI 정렬에 실패했습니다",
-    modelDownloaded: "{name} 다운로드 완료",
-    modelDownloadFailed: "{name} 다운로드 실패",
   },
   keys: {
     title: "단축키",
@@ -704,138 +495,8 @@ const ko: Translations = {
     stamp: "타임스탬프 찍기 / 다음",
     prevLine: "이전 줄 / 글자",
   },
-  settingsCheckNow: "지금 확인",
-  settingsChecking: "확인 중...",
-  settingsUpToDate: "최신 버전입니다.",
   settingsUiScale: "UI 크기",
   settingsUiScaleReset: "초기화",
-  modelCategoryDemucs: "음성 분리",
-  modelCategoryCTC: "강제 정렬 (CTC)",
-  modelCategoryWav2vec2: "타임스탬프 정렬",
-  modelInstall: "설치",
-  modelInstalling: "설치 중...",
-  modelInstalled: "설치됨",
-  modelDelete: "삭제",
-  modelCancel: "취소",
-  modelStoragePath: "저장 위치",
-  modelMb: "MB",
-  modelErrorPrefix: "오류",
-  modelRequired: "필수",
-  modelOptional: "선택",
-  aiUsageTitle: "정렬에 사용",
-  aiUsageSeparation: "보컬 분리 (Demucs)",
-  aiUsageSeparationDesc: "정렬 전 보컬을 분리해 정확도를 높입니다 (느려짐)",
-  aiUsageVad: "보컬 활동 감지 (VAD)",
-  aiUsageVadDesc: "빈 줄을 보컬 재개 지점에 배치하고 무보컬 구간 오정렬을 표시",
-  aiUsageNeedModel: "Demucs 모델 미설치 — 설치 후 사용 가능",
-  aiUsageNeedSeparation: "보컬 분리를 켜야 사용할 수 있습니다",
-  modelChangeDir: "위치 변경",
-  modelResetDir: "기본으로",
-  modelCopyPath: "복사",
-  modelInstalledVariants: "설치됨",
-  modelNoneInstalled: "없음",
-  aiAutoSync: "AI 자동 싱크",
-  aiSyncRunning: "분석 중...",
-  aiSyncCancel: "취소",
-  aiSyncClear: "초안 지우기",
-  aiSyncNoModel: "다음 필수 항목이 설치되지 않았습니다:",
-  aiSyncGlyphWarnTitle: "글자 동기화가 삭제됩니다",
-  aiSyncGlyphWarnMsg: "AI 정렬은 줄 단위로 다시 정렬하므로 기존 글자/단어 동기화가 모두 삭제됩니다. 계속할까요?",
-  aiSyncGlyphWarnOk: "계속",
-  aiSyncNoAudio: "오디오 파일을 먼저 열어주세요",
-  aiSyncDone: "AI 싱크 완료",
-  aiSyncError: "AI 싱크 오류",
-  aiSyncStatusLoadingModel: "모델 로딩 중...",
-  aiSyncStatusLoadingAudio: "오디오 로딩 중...",
-  aiSyncStatusAnalyzing: "오디오 분석 중...",
-  aiSyncStatusAligning: "가사 정렬 중...",
-  aiSyncStatusDone: "정렬 완료",
-  aiSyncConfidenceHigh: "높음",
-  aiSyncConfidenceLow: "낮음",
-  aiSyncConfidenceLabel: "신뢰도",
-  aiSyncStatusPostprocessing: "결과 처리 중...",
-  aiSyncBlankOffset: "빈 줄 오프셋 (초)",
-  aiSyncBlankOffsetDesc: "빈 줄의 타임스탬프를 앞 가사 끝 시점에서 얼마나 뒤로 설정할지 지정합니다.",
-  settingsVenvTitle: "AI Python 환경",
-  settingsVenvReady: "준비됨",
-  settingsVenvNoPackages: "패키지 미설치",
-  settingsVenvNotCreated: "Python 미설치",
-  settingsVenvCreate: "Python 다운로드 (~20 MB)",
-  settingsVenvCreating: "다운로드 중...",
-  settingsVenvInstallTitle: "패키지 설치 명령 (터미널에서 실행)",
-  settingsVenvRefresh: "새로고침",
-  settingsVenvChecking: "확인 중...",
-  settingsVenvInstallBtn: "패키지 자동 설치",
-  settingsVenvInstalling: "설치 중...",
-  settingsVenvCmdWarning: "설치에 수 분이 소요될 수 있습니다. 완료될 때까지 창을 닫지 마세요.",
-  settingsTabSpotify: "Spotify",
-  spotifyClientId: "Client ID",
-  spotifyClientIdDesc: "Spotify Developer 대시보드에서 앱을 만들고 Client ID를 입력하세요. Redirect URI에 http://127.0.0.1:8888/callback 을 추가해야 합니다.",
-  spotifyClientIdPlaceholder: "Spotify Client ID를 입력하세요",
-  spotifyClientIdSave: "저장",
-  spotifyClientIdSaved: "저장됨",
-  spotifyConnect: "Spotify 연결",
-  spotifyConnecting: "연결 중...",
-  spotifyConnected: "연결됨",
-  spotifyOpenInSpotify: "Spotify에서 열기",
-  spotifyLogout: "로그아웃",
-  spotifyNoClientId: "Client ID가 입력되지 않았습니다",
-  spotifyNoClientIdDesc: "아래에 Spotify Client ID를 입력한 후 연결하세요.",
-  spotifyPremiumRequired: "Spotify Premium 계정이 필요합니다",
-  spotifyCurrentlyPlaying: "현재 재생 중인 곡",
-  spotifyLoadThisTrack: "이 곡으로 작업하시겠습니까?",
-  spotifyLoadYes: "불러오기",
-  spotifyLoadNo: "다른 곡 선택",
-  spotifySearchTitle: "Spotify에서 곡 선택",
-  spotifySearchPlaceholder: "곡, 아티스트 검색...",
-  spotifyMyPlaylists: "내 플레이리스트",
-  spotifyNoResults: "검색 결과가 없습니다",
-  spotifyServiceModeInfo: "Spotify 모드에서는 파형 시각화, 배속 조절, AI Sync를 사용할 수 없습니다.",
-  spotifyBackToFileMode: "파일 모드로 돌아가기",
-  spotifyNoTrackTitle: "재생 중인 곡 없음",
-  spotifyNoTrackMessage: "Spotify에서 곡을 검색하거나 파일 모드로 돌아가세요.",
-  spotifySearchTrack: "곡 검색",
-  modeSelect: "모드",
-  modeFile: "파일",
-  modeYouTube: "YouTube",
-  modeComingSoon: "(미설치)",
-  spotifyLoadCurrent: "재생 중인 곡",
-  spotifyNoTrackAlertTitle: "재생 중인 곡 없음",
-  spotifyNoTrackAlertMessage: "현재 Spotify에서 재생 중인 곡이 없습니다.\nSpotify 앱에서 곡을 재생한 후 다시 시도하거나, 직접 검색하세요.",
-  spotifyNoTrackAlertOk: "확인",
-  settingsTabYouTube: "YouTube",
-  ytdlpTitle: "yt-dlp",
-  ytdlpInstalled: "설치됨",
-  ytdlpNotInstalled: "미설치",
-  ytdlpVersion: "버전",
-  ytdlpDownload: "yt-dlp 다운로드",
-  ytdlpUpdate: "업데이트",
-  ytdlpDownloading: "다운로드 중...",
-  ytdlpRefresh: "새로고침",
-  ytdlpAudioQuality: "오디오 품질",
-  ytdlpQualityBest: "최고 품질 (bestaudio)",
-  ytdlpQuality192: "192 kbps",
-  ytdlpQuality128: "128 kbps",
-  ytdlpCookiesFile: "쿠키 파일 (선택)",
-  ytdlpCookiesFileDesc: "로그인이 필요한 영상(연령 제한 등)에 사용할 브라우저 쿠키 파일",
-  ytdlpCookiesSelect: "파일 선택",
-  ytdlpCookiesClear: "지우기",
-  ytdlpProxy: "프록시 (선택)",
-  ytdlpProxyPlaceholder: "http://host:port",
-  ytdlpProxySave: "저장",
-  ytdlpInfoText: "YouTube 영상의 오디오를 임시 파일로 불러와 파형 시각화 및 타임스탬프 작업에 사용합니다.",
-  youtubeUrlPlaceholder: "YouTube URL 입력...",
-  youtubeDisclaimer: "저작권이 있는 콘텐츠의 다운로드는 거주 국가의 법률과 YouTube 약관의 적용을 받습니다. 본인이 권리를 갖거나 허용된 범위(예: 개인적·비상업적 이용) 내에서만 사용하세요. 사용에 대한 책임은 전적으로 사용자에게 있습니다.",
-  youtubeLoad: "불러오기",
-  youtubeAgree: "동의하고 계속",
-  youtubeLoading: "불러오는 중...",
-  youtubeCancel: "취소",
-  youtubeNotInstalled: "yt-dlp 설치 필요 (설정 → YouTube)",
-  youtubeOpenLink: "YouTube 링크",
-  youtubeModalTitle: "YouTube 오디오 불러오기",
-  youtubeModeLabel: "YouTube 모드",
-  youtubeModeOn: "YouTube 플레이어 사용 중",
-  youtubeModeOff: "일반 오디오 파일 모드",
 };
 
 const en: Translations = {
@@ -853,8 +514,6 @@ const en: Translations = {
   redo: "Redo",
   helpTitle: "Help",
   helpTabShortcuts: "Shortcuts",
-  helpTabAi: "AI Guide",
-  helpTabSpotify: "Spotify",
   shortcutsTitle: "Keyboard Shortcuts",
   shortcutNote: "* Shortcuts are disabled while an input is focused.",
   helpGroupPlayback: "Playback",
@@ -895,7 +554,7 @@ const en: Translations = {
     csNudgeDesc: "Nudge the current glyph's time by ±0.05s",
   },
   menu: {
-    file: "File", edit: "Edit", playback: "Playback", mode: "Mode", view: "View", help: "Help",
+    file: "File", edit: "Edit", playback: "Playback", view: "View", help: "Help",
     settings: "Settings…", saveAsLrc: "Save as LRC…", saveAsSrt: "Save as SRT…",
     playPause: "Play / Pause", skipBack5: "Back 5s", skipBack1: "Back 1s",
     skipFwd1: "Forward 1s", skipFwd5: "Forward 5s", stop: "Stop",
@@ -929,16 +588,6 @@ const en: Translations = {
     badge: "Character-synced",
     endCell: "Next line (paint here or click)",
     glyphProgress: "Glyphs synced in this line",
-  },
-  devicePicker: {
-    button: "Playback device",
-    title: "Select playback device",
-    refresh: "Refresh",
-    loading: "Loading devices…",
-    empty: "No devices available. Make sure the Spotify app is running.",
-    active: "Active",
-    close: "Close",
-    hint: "Pick a device to play on it.",
   },
   lrclib: {
     button: "Fetch from LRCLIB",
@@ -982,27 +631,6 @@ const en: Translations = {
     close: "Close",
     cancel: "Cancel",
   },
-  helpAiSteps: [
-    { title: "Install Python Environment", desc: "Go to Settings(⚙) → AI Environment tab to download the bundled Python and install packages." },
-    { title: "Download Model", desc: "Go to Settings → AI Models tab and download the required model ctc-mms-300m (1.2 GB)." },
-    { title: "Run AI Auto Sync", desc: "After entering lyrics, click the 'AI Auto Sync' button at the top of the LRC editor. Select a language and timestamps will be generated automatically." },
-    { title: "Review & Correct", desc: "Manually stamp lines with low confidence badges. You can also stamp in real time with the Space key during playback." },
-  ],
-  helpSpotifySteps: [
-    { title: "Get a Client ID", desc: "Create an app on the Spotify Developer Dashboard (developer.spotify.com) and add http://127.0.0.1:54321/callback as a Redirect URI." },
-    { title: "Enter Client ID", desc: "Go to Settings(⚙) → Spotify tab, enter your Client ID and save." },
-    { title: "Connect & Select a Track", desc: "Click the Spotify button in the header to log in. Load the currently playing track or search for one — the app will switch to Spotify mode automatically." },
-    { title: "Limitations", desc: "Waveform, speed control, and AI Sync are unavailable in Spotify mode. Spotify Premium is required." },
-  ],
-  helpYoutubeSteps: [
-    { title: "Install yt-dlp", desc: "Go to Settings(⚙) → YouTube tab and download yt-dlp. No Python required — it runs as a standalone binary." },
-    { title: "Enable YouTube Mode", desc: "Turn on the mode toggle in Settings → YouTube tab, or select YouTube from the mode selector button in the header." },
-    { title: "Enter URL & Load Audio", desc: "Click the 'YouTube Link' button below the waveform and enter a URL. The waveform will appear automatically after download." },
-    { title: "Timestamp Editing", desc: "All features work the same as file mode: waveform, speed control, and AI Auto Sync are all available." },
-  ],
-  helpViewGuide: "View full guide →",
-  helpTabYouTube: "YouTube",
-  settingsViewGuide: "Installation Guide →",
   openAudio: "Open Audio",
   zoom: "Zoom",
   volume: "Volume",
@@ -1087,17 +715,9 @@ const en: Translations = {
   confirmNewMessage: "You have unsaved changes. Continuing will discard the current content.",
   confirmNewOk: "New File",
   confirmNewCancel: "Cancel",
-  updateTitle: "Update Available",
-  updateNewVersion: "New version",
-  updatePrompt: "is available. Go to the release page?",
-  updateYes: "Go",
-  updateLater: "Later",
   settingsTitle: "Settings",
   settingsTabGeneral: "General",
   settingsTabShortcuts: "Shortcuts",
-  settingsTabModels: "AI Models",
-  settingsAutoUpdate: "Auto-check for updates",
-  settingsAutoUpdateDesc: "Automatically check for new versions on startup.",
   settingsAutoSave: "Auto-save",
   settingsAutoSaveDesc: "Files with a save location are saved automatically a moment after you stop editing.",
   settingsElrcNotice: "Enhanced LRC save notice",
@@ -1123,10 +743,6 @@ const en: Translations = {
     saveFailed: "Failed to save",
     openFailed: "Couldn't open file",
     audioLoadFailed: "Couldn't load audio",
-    aiSyncDone: "AI alignment complete",
-    aiSyncFailed: "AI alignment failed",
-    modelDownloaded: "{name} downloaded",
-    modelDownloadFailed: "{name} download failed",
   },
   keys: {
     title: "Keyboard shortcuts",
@@ -1144,138 +760,8 @@ const en: Translations = {
     stamp: "Stamp / next",
     prevLine: "Previous line / glyph",
   },
-  settingsCheckNow: "Check Now",
-  settingsChecking: "Checking...",
-  settingsUpToDate: "You're up to date.",
   settingsUiScale: "UI Scale",
   settingsUiScaleReset: "Reset",
-  modelCategoryDemucs: "Source Separation",
-  modelCategoryCTC: "Forced Alignment (CTC)",
-  modelCategoryWav2vec2: "Timestamp Alignment",
-  modelInstall: "Install",
-  modelInstalling: "Installing...",
-  modelInstalled: "Installed",
-  modelDelete: "Delete",
-  modelCancel: "Cancel",
-  modelStoragePath: "Storage path",
-  modelMb: "MB",
-  modelErrorPrefix: "Error",
-  modelRequired: "Required",
-  modelOptional: "Optional",
-  aiUsageTitle: "Use for alignment",
-  aiUsageSeparation: "Vocal separation (Demucs)",
-  aiUsageSeparationDesc: "Isolate vocals before alignment for better accuracy (slower)",
-  aiUsageVad: "Vocal activity detection (VAD)",
-  aiUsageVadDesc: "Place blank lines at vocal resume and flag misaligned silent regions",
-  aiUsageNeedModel: "Demucs model not installed — install to enable",
-  aiUsageNeedSeparation: "Requires vocal separation to be enabled",
-  modelChangeDir: "Change location",
-  modelResetDir: "Reset to default",
-  modelCopyPath: "Copy",
-  modelInstalledVariants: "Installed",
-  modelNoneInstalled: "None",
-  aiAutoSync: "AI Auto Sync",
-  aiSyncRunning: "Analyzing...",
-  aiSyncCancel: "Cancel",
-  aiSyncClear: "Clear Draft",
-  aiSyncNoModel: "Required items not installed:",
-  aiSyncGlyphWarnTitle: "Character sync will be cleared",
-  aiSyncGlyphWarnMsg: "AI alignment re-aligns line by line, so all existing character/word sync will be removed. Continue?",
-  aiSyncGlyphWarnOk: "Continue",
-  aiSyncNoAudio: "Please open an audio file first",
-  aiSyncDone: "AI Sync complete",
-  aiSyncError: "AI Sync error",
-  aiSyncStatusLoadingModel: "Loading model...",
-  aiSyncStatusLoadingAudio: "Loading audio...",
-  aiSyncStatusAnalyzing: "Analyzing audio...",
-  aiSyncStatusAligning: "Aligning lyrics...",
-  aiSyncStatusDone: "Alignment complete",
-  aiSyncConfidenceHigh: "High",
-  aiSyncConfidenceLow: "Low",
-  aiSyncConfidenceLabel: "confidence",
-  aiSyncStatusPostprocessing: "Processing results...",
-  aiSyncBlankOffset: "Blank line offset (s)",
-  aiSyncBlankOffsetDesc: "How many seconds after the previous lyric's end to set blank line timestamps.",
-  settingsVenvTitle: "AI Python Environment",
-  settingsVenvReady: "Ready",
-  settingsVenvNoPackages: "Packages missing",
-  settingsVenvNotCreated: "Python not downloaded",
-  settingsVenvCreate: "Download Python (~20 MB)",
-  settingsVenvCreating: "Downloading...",
-  settingsVenvInstallTitle: "Install packages (run in terminal)",
-  settingsVenvRefresh: "Refresh",
-  settingsVenvChecking: "Checking...",
-  settingsVenvInstallBtn: "Auto-install packages",
-  settingsVenvInstalling: "Installing...",
-  settingsVenvCmdWarning: "Installation may take several minutes. Please do not close this window.",
-  settingsTabSpotify: "Spotify",
-  spotifyClientId: "Client ID",
-  spotifyClientIdDesc: "Create an app on the Spotify Developer Dashboard and enter your Client ID. Add http://127.0.0.1:8888/callback as a Redirect URI.",
-  spotifyClientIdPlaceholder: "Enter your Spotify Client ID",
-  spotifyClientIdSave: "Save",
-  spotifyClientIdSaved: "Saved",
-  spotifyConnect: "Connect Spotify",
-  spotifyConnecting: "Connecting...",
-  spotifyConnected: "Connected",
-  spotifyOpenInSpotify: "Open in Spotify",
-  spotifyLogout: "Log out",
-  spotifyNoClientId: "No Client ID entered",
-  spotifyNoClientIdDesc: "Enter your Spotify Client ID below to connect.",
-  spotifyPremiumRequired: "Spotify Premium account required",
-  spotifyCurrentlyPlaying: "Currently playing",
-  spotifyLoadThisTrack: "Work on this track?",
-  spotifyLoadYes: "Load",
-  spotifyLoadNo: "Choose another",
-  spotifySearchTitle: "Select a track from Spotify",
-  spotifySearchPlaceholder: "Search tracks, artists...",
-  spotifyMyPlaylists: "My Playlists",
-  spotifyNoResults: "No results found",
-  spotifyServiceModeInfo: "Waveform, speed control, and AI Sync are not available in Spotify mode.",
-  spotifyBackToFileMode: "Back to File Mode",
-  spotifyNoTrackTitle: "No track playing",
-  spotifyNoTrackMessage: "Search for a track on Spotify or go back to file mode.",
-  spotifySearchTrack: "Search tracks",
-  modeSelect: "Mode",
-  modeFile: "File",
-  modeYouTube: "YouTube",
-  modeComingSoon: "(Not installed)",
-  spotifyLoadCurrent: "Current track",
-  spotifyNoTrackAlertTitle: "No track playing",
-  spotifyNoTrackAlertMessage: "No track is currently playing on Spotify.\nPlay a track in the Spotify app and try again, or search directly.",
-  spotifyNoTrackAlertOk: "OK",
-  settingsTabYouTube: "YouTube",
-  ytdlpTitle: "yt-dlp",
-  ytdlpInstalled: "Installed",
-  ytdlpNotInstalled: "Not installed",
-  ytdlpVersion: "Version",
-  ytdlpDownload: "Download yt-dlp",
-  ytdlpUpdate: "Update",
-  ytdlpDownloading: "Downloading...",
-  ytdlpRefresh: "Refresh",
-  ytdlpAudioQuality: "Audio quality",
-  ytdlpQualityBest: "Best quality (bestaudio)",
-  ytdlpQuality192: "192 kbps",
-  ytdlpQuality128: "128 kbps",
-  ytdlpCookiesFile: "Cookies file (Optional)",
-  ytdlpCookiesFileDesc: "Cookies file for age-restricted or login-required content",
-  ytdlpCookiesSelect: "Select file",
-  ytdlpCookiesClear: "Clear",
-  ytdlpProxy: "Proxy (Optional)",
-  ytdlpProxyPlaceholder: "http://host:port",
-  ytdlpProxySave: "Save",
-  ytdlpInfoText: "Downloads audio from YouTube videos to a temporary file for waveform visualization and timestamp editing.",
-  youtubeUrlPlaceholder: "Enter YouTube URL...",
-  youtubeDisclaimer: "Downloading copyrighted content is subject to the laws of your country and YouTube's Terms of Service. Use only content you own or are otherwise permitted to use (e.g. personal, non-commercial use). You are solely responsible for your use.",
-  youtubeLoad: "Load",
-  youtubeAgree: "Agree & continue",
-  youtubeLoading: "Loading...",
-  youtubeCancel: "Cancel",
-  youtubeNotInstalled: "yt-dlp required (Settings → YouTube)",
-  youtubeOpenLink: "YouTube Link",
-  youtubeModalTitle: "Load YouTube Audio",
-  youtubeModeLabel: "YouTube Mode",
-  youtubeModeOn: "YouTube player active",
-  youtubeModeOff: "Normal audio file mode",
 };
 
 const ja: Translations = {
@@ -1293,8 +779,6 @@ const ja: Translations = {
   redo: "やり直す",
   helpTitle: "ヘルプ",
   helpTabShortcuts: "ショートカット",
-  helpTabAi: "AI使い方",
-  helpTabSpotify: "Spotify",
   shortcutsTitle: "キーボードショートカット",
   shortcutNote: "* 入力欄にフォーカス中はショートカットが無効になります。",
   helpGroupPlayback: "再生・移動",
@@ -1335,7 +819,7 @@ const ja: Translations = {
     csNudgeDesc: "現在の文字の時刻を ±0.05秒 微調整",
   },
   menu: {
-    file: "ファイル", edit: "編集", playback: "再生", mode: "モード", view: "表示", help: "ヘルプ",
+    file: "ファイル", edit: "編集", playback: "再生", view: "表示", help: "ヘルプ",
     settings: "設定…", saveAsLrc: "LRCで保存…", saveAsSrt: "SRTで保存…",
     playPause: "再生 / 一時停止", skipBack5: "5秒戻る", skipBack1: "1秒戻る",
     skipFwd1: "1秒進む", skipFwd5: "5秒進む", stop: "停止",
@@ -1369,16 +853,6 @@ const ja: Translations = {
     badge: "文字同期済み",
     endCell: "次の行へ（ここまで塗るかクリック）",
     glyphProgress: "この行の文字同期の進捗",
-  },
-  devicePicker: {
-    button: "再生デバイス",
-    title: "再生デバイスを選択",
-    refresh: "更新",
-    loading: "デバイスを読み込み中…",
-    empty: "利用可能なデバイスがありません。Spotifyアプリが起動しているか確認してください。",
-    active: "再生中",
-    close: "閉じる",
-    hint: "デバイスを選ぶとそのデバイスで再生します。",
   },
   lrclib: {
     button: "LRCLIBから取得",
@@ -1422,27 +896,6 @@ const ja: Translations = {
     close: "閉じる",
     cancel: "キャンセル",
   },
-  helpAiSteps: [
-    { title: "Python環境のインストール", desc: "設定(⚙) → AI環境タブで内蔵Pythonをダウンロードし、パッケージをインストールします。" },
-    { title: "モデルのダウンロード", desc: "設定 → AIモデルタブで必須モデル ctc-mms-300m（1.2 GB）をダウンロードします。" },
-    { title: "AI自動シンク実行", desc: "歌詞を入力後、LRCエディタ上部の「AI自動シンク」ボタンをクリックします。言語を選択するとタイムスタンプが自動生成されます。" },
-    { title: "結果の確認と修正", desc: "信頼度バッジが低い行は手動でスタンプして修正してください。再生中にSpaceキーでリアルタイムスタンプも可能です。" },
-  ],
-  helpSpotifySteps: [
-    { title: "Client IDの準備", desc: "Spotify Developer Dashboard（developer.spotify.com）でアプリを作成し、Redirect URIに http://127.0.0.1:54321/callback を追加します。" },
-    { title: "Client IDの入力", desc: "設定(⚙) → SpotifyタブでClient IDを入力して保存します。" },
-    { title: "接続と曲の選択", desc: "ヘッダーのSpotifyボタンをクリックしてログインします。再生中の曲を読み込むか検索で選択すると、自動的にSpotifyモードに切り替わります。" },
-    { title: "制限事項", desc: "Spotifyモードでは波形表示・速度調整・AI Syncは利用できません。Spotify Premiumが必要です。" },
-  ],
-  helpYoutubeSteps: [
-    { title: "yt-dlp のインストール", desc: "設定(⚙) → YouTubeタブで yt-dlp をダウンロードします。Python 不要のスタンドアロンバイナリです。" },
-    { title: "YouTubeモードの有効化", desc: "設定 → YouTubeタブのモードトグルをオンにするか、ヘッダーのモード選択ボタンから YouTube を選択します。" },
-    { title: "URLの入力と読み込み", desc: "波形エリア下部の「YouTubeリンク」ボタンをクリックしてURLを入力します。ダウンロード完了後、波形が自動表示されます。" },
-    { title: "タイムスタンプ編集", desc: "ファイルモードと同様に、波形表示・速度調整・AI自動シンクがすべて利用できます。" },
-  ],
-  helpViewGuide: "詳細ガイドを見る →",
-  helpTabYouTube: "YouTube",
-  settingsViewGuide: "インストールガイド →",
   openAudio: "音声を開く",
   zoom: "ズーム",
   volume: "音量",
@@ -1526,17 +979,9 @@ const ja: Translations = {
   confirmNewMessage: "保存されていない変更があります。続行すると現在の内容が削除されます。",
   confirmNewOk: "新規作成",
   confirmNewCancel: "キャンセル",
-  updateTitle: "アップデート通知",
-  updateNewVersion: "新バージョン",
-  updatePrompt: "がリリースされました。リリースページに移動しますか？",
-  updateYes: "移動",
-  updateLater: "あとで",
   settingsTitle: "設定",
   settingsTabGeneral: "一般",
   settingsTabShortcuts: "ショートカット",
-  settingsTabModels: "AIモデル",
-  settingsAutoUpdate: "自動更新確認",
-  settingsAutoUpdateDesc: "アプリ起動時に最新バージョンを自動で確認します。",
   settingsAutoSave: "自動保存",
   settingsAutoSaveDesc: "保存先が指定されたファイルは、編集を止めると少し後に自動保存されます。",
   settingsElrcNotice: "Enhanced LRC 保存通知",
@@ -1562,10 +1007,6 @@ const ja: Translations = {
     saveFailed: "保存に失敗しました",
     openFailed: "ファイルを開けませんでした",
     audioLoadFailed: "オーディオを読み込めませんでした",
-    aiSyncDone: "AI 整列が完了しました",
-    aiSyncFailed: "AI 整列に失敗しました",
-    modelDownloaded: "{name} のダウンロード完了",
-    modelDownloadFailed: "{name} のダウンロード失敗",
   },
   keys: {
     title: "ショートカット",
@@ -1583,138 +1024,8 @@ const ja: Translations = {
     stamp: "タイムスタンプ / 次へ",
     prevLine: "前の行 / 文字",
   },
-  settingsCheckNow: "今すぐ確認",
-  settingsChecking: "確認中...",
-  settingsUpToDate: "最新バージョンです。",
   settingsUiScale: "UIサイズ",
   settingsUiScaleReset: "リセット",
-  modelCategoryDemucs: "音源分離",
-  modelCategoryCTC: "強制アライメント (CTC)",
-  modelCategoryWav2vec2: "タイムスタンプ整列",
-  modelInstall: "インストール",
-  modelInstalling: "インストール中...",
-  modelInstalled: "インストール済み",
-  modelDelete: "削除",
-  modelCancel: "キャンセル",
-  modelStoragePath: "保存場所",
-  modelMb: "MB",
-  modelErrorPrefix: "エラー",
-  modelRequired: "必須",
-  modelOptional: "任意",
-  aiUsageTitle: "整列に使用",
-  aiUsageSeparation: "ボーカル分離 (Demucs)",
-  aiUsageSeparationDesc: "整列前にボーカルを分離して精度を向上（遅くなります）",
-  aiUsageVad: "ボーカル活動検出 (VAD)",
-  aiUsageVadDesc: "空行をボーカル再開地点に配置し、無ボーカル区間の誤整列を表示",
-  aiUsageNeedModel: "Demucs モデル未インストール — インストールで有効化",
-  aiUsageNeedSeparation: "ボーカル分離を有効にする必要があります",
-  modelChangeDir: "場所を変更",
-  modelResetDir: "デフォルトに戻す",
-  modelCopyPath: "コピー",
-  modelInstalledVariants: "インストール済み",
-  modelNoneInstalled: "なし",
-  aiAutoSync: "AI自動シンク",
-  aiSyncRunning: "解析中...",
-  aiSyncCancel: "キャンセル",
-  aiSyncClear: "下書きを消去",
-  aiSyncNoModel: "以下の必須項目がインストールされていません:",
-  aiSyncGlyphWarnTitle: "文字同期が削除されます",
-  aiSyncGlyphWarnMsg: "AI 整列は行単位で再整列するため、既存の文字/単語同期がすべて削除されます。続行しますか？",
-  aiSyncGlyphWarnOk: "続行",
-  aiSyncNoAudio: "先に音声ファイルを開いてください",
-  aiSyncDone: "AI同期完了",
-  aiSyncError: "AI同期エラー",
-  aiSyncStatusLoadingModel: "モデル読み込み中...",
-  aiSyncStatusLoadingAudio: "音声読み込み中...",
-  aiSyncStatusAnalyzing: "音声解析中...",
-  aiSyncStatusAligning: "歌詞アライメント中...",
-  aiSyncStatusDone: "アライメント完了",
-  aiSyncConfidenceHigh: "高",
-  aiSyncConfidenceLow: "低",
-  aiSyncConfidenceLabel: "信頼度",
-  aiSyncStatusPostprocessing: "結果処理中...",
-  aiSyncBlankOffset: "空白行オフセット（秒）",
-  aiSyncBlankOffsetDesc: "空白行のタイムスタンプを前の歌詞の終了時点から何秒後に設定するかを指定します。",
-  settingsVenvTitle: "AI Python環境",
-  settingsVenvReady: "準備完了",
-  settingsVenvNoPackages: "パッケージ未インストール",
-  settingsVenvNotCreated: "Python未ダウンロード",
-  settingsVenvCreate: "Pythonをダウンロード (約20MB)",
-  settingsVenvCreating: "ダウンロード中...",
-  settingsVenvInstallTitle: "パッケージインストールコマンド（ターミナルで実行）",
-  settingsVenvRefresh: "更新",
-  settingsVenvChecking: "確認中...",
-  settingsVenvInstallBtn: "パッケージ自動インストール",
-  settingsVenvInstalling: "インストール中...",
-  settingsVenvCmdWarning: "インストールには数分かかる場合があります。完了するまでウィンドウを閉じないでください。",
-  settingsTabSpotify: "Spotify",
-  spotifyClientId: "クライアントID",
-  spotifyClientIdDesc: "Spotify Developerダッシュボードでアプリを作成し、クライアントIDを入力してください。リダイレクトURIにhttp://127.0.0.1:8888/callbackを追加する必要があります。",
-  spotifyClientIdPlaceholder: "Spotify クライアントIDを入力",
-  spotifyClientIdSave: "保存",
-  spotifyClientIdSaved: "保存済み",
-  spotifyConnect: "Spotify に接続",
-  spotifyConnecting: "接続中...",
-  spotifyConnected: "接続済み",
-  spotifyOpenInSpotify: "Spotifyで開く",
-  spotifyLogout: "ログアウト",
-  spotifyNoClientId: "クライアントIDが未入力です",
-  spotifyNoClientIdDesc: "下のフィールドにSpotifyクライアントIDを入力して接続してください。",
-  spotifyPremiumRequired: "Spotify Premiumアカウントが必要です",
-  spotifyCurrentlyPlaying: "再生中の曲",
-  spotifyLoadThisTrack: "この曲で作業しますか？",
-  spotifyLoadYes: "読み込む",
-  spotifyLoadNo: "別の曲を選択",
-  spotifySearchTitle: "Spotifyから曲を選択",
-  spotifySearchPlaceholder: "曲名、アーティストを検索...",
-  spotifyMyPlaylists: "マイプレイリスト",
-  spotifyNoResults: "検索結果がありません",
-  spotifyServiceModeInfo: "Spotifyモードでは波形表示・速度調整・AI Syncは利用できません。",
-  spotifyBackToFileMode: "ファイルモードに戻る",
-  spotifyNoTrackTitle: "再生中の曲なし",
-  spotifyNoTrackMessage: "Spotifyで曲を検索するか、ファイルモードに戻ってください。",
-  spotifySearchTrack: "曲を検索",
-  modeSelect: "モード",
-  modeFile: "ファイル",
-  modeYouTube: "YouTube",
-  modeComingSoon: "(未インストール)",
-  spotifyLoadCurrent: "再生中の曲",
-  spotifyNoTrackAlertTitle: "再生中の曲なし",
-  spotifyNoTrackAlertMessage: "現在Spotifyで再生中の曲がありません。\nSpotifyアプリで曲を再生してから再試行するか、直接検索してください。",
-  spotifyNoTrackAlertOk: "OK",
-  settingsTabYouTube: "YouTube",
-  ytdlpTitle: "yt-dlp",
-  ytdlpInstalled: "インストール済み",
-  ytdlpNotInstalled: "未インストール",
-  ytdlpVersion: "バージョン",
-  ytdlpDownload: "yt-dlpをダウンロード",
-  ytdlpUpdate: "アップデート",
-  ytdlpDownloading: "ダウンロード中...",
-  ytdlpRefresh: "更新",
-  ytdlpAudioQuality: "音声品質",
-  ytdlpQualityBest: "最高品質 (bestaudio)",
-  ytdlpQuality192: "192 kbps",
-  ytdlpQuality128: "128 kbps",
-  ytdlpCookiesFile: "クッキーファイル (オプション)",
-  ytdlpCookiesFileDesc: "年齢制限やログインが必要な動画に使用するブラウザのクッキーファイル",
-  ytdlpCookiesSelect: "ファイルを選択",
-  ytdlpCookiesClear: "クリア",
-  ytdlpProxy: "プロキシ (オプション)",
-  ytdlpProxyPlaceholder: "http://host:port",
-  ytdlpProxySave: "保存",
-  ytdlpInfoText: "YouTube動画の音声を一時ファイルとして読み込み、波形表示とタイムスタンプ編集に使用します。",
-  youtubeUrlPlaceholder: "YouTube URLを入力...",
-  youtubeDisclaimer: "著作権で保護されたコンテンツのダウンロードは、お住まいの国の法律および YouTube の利用規約の対象となります。ご自身が権利を有するか、許可された範囲（個人的・非商用利用など）でのみ使用してください。使用に関する責任はすべて利用者にあります。",
-  youtubeLoad: "読み込む",
-  youtubeAgree: "同意して続行",
-  youtubeLoading: "読み込み中...",
-  youtubeCancel: "キャンセル",
-  youtubeNotInstalled: "yt-dlpが必要です（設定 → YouTube）",
-  youtubeOpenLink: "YouTubeリンク",
-  youtubeModalTitle: "YouTubeオーディオを読み込む",
-  youtubeModeLabel: "YouTubeモード",
-  youtubeModeOn: "YouTubeプレイヤー使用中",
-  youtubeModeOff: "通常のオーディオファイルモード",
 };
 
 export const translations: Record<Lang, Translations> = { ko, en, ja };

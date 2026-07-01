@@ -1,6 +1,6 @@
-// 파일/Spotify/YouTube/기기 감지 모드가 공유하는 트랙 정보 헤더(아이콘 또는 앨범아트 + 제목/부제 + 보조줄).
-// 파형 표시 상태에서는 이 자리에 파형이 대신 렌더링되므로(AudioPlayer.tsx), 이 컴포넌트는
-// "재생바 표시" 상태 또는 파형이 없는 원격 재생 모드(Spotify/기기 감지)에서만 쓰인다.
+// 트랙 정보 헤더(아이콘 또는 앨범아트 + 제목/부제 + 보조줄).
+// 파형 표시 상태에서는 이 자리에 파형이 대신 렌더링되므로(AudioPlayer.tsx),
+// "재생바 표시" 뷰(viewMode="bar")에서만 쓰인다.
 interface TrackInfoHeaderProps {
   icon: React.ReactNode;
   iconBgClass: string;

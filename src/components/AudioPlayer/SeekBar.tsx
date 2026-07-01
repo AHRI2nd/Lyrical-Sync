@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatDisplayTime } from "../../utils/lrcParser";
 
-// 파일/Spotify/YouTube/기기 감지 모드가 공유하는 얇은 탐색 바(기기 감지 모드 스타일을 그대로 일반화).
+// 파형 대신 표시하는 "재생바" 뷰(viewMode="bar")에서 쓰는 얇은 탐색 바.
 interface SeekBarProps {
   position: number; // seconds
   duration: number; // seconds
