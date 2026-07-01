@@ -3,9 +3,10 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { serviceControls } from "../../utils/serviceControls";
 import { setSpotifyVolume } from "../../utils/spotifyPlayer";
-import { formatDisplayTime } from "../../utils/lrcParser";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { DevicePickerModal } from "./DevicePickerModal";
+import { TrackInfoHeader } from "../AudioPlayer/TrackInfoHeader";
+import { SeekBar } from "../AudioPlayer/SeekBar";
 
 interface ServicePlayerPanelProps {
   onSpotifySearch?: () => void;
@@ -25,130 +26,34 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
     ? `https://open.spotify.com/track/${trackUri.split(":")[2]}`
     : null;
 
-  const [hoverRatio, setHoverRatio] = useState<number | null>(null);
-  const [showRemaining, setShowRemaining] = useState(false);
   const [volume, setVolume] = useState(1.0);
   const [showDevices, setShowDevices] = useState(false);
 
   const positionSec = positionMs / 1000;
   const durationSec = durationMs / 1000;
-  const progress = durationMs > 0 ? positionMs / durationMs : 0;
 
   return (
     <div className="flex flex-col gap-3 w-full select-none">
 
-      {/* Seek bar (bar-mode style) */}
-      <div
-        className="w-full rounded-xl bg-zinc-800 flex flex-col justify-center px-5"
-        style={{ minHeight: 80, paddingTop: 14, paddingBottom: 14, gap: 10 }}
-      >
-        {/* Track */}
-        <div
-          className="relative group cursor-pointer"
-          style={{ paddingTop: 6, paddingBottom: 6 }}
-          onMouseMove={(e) => {
-            const rect = e.currentTarget.getBoundingClientRect();
-            setHoverRatio(Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)));
-          }}
-          onMouseLeave={() => setHoverRatio(null)}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            const rect = e.currentTarget.getBoundingClientRect();
-            const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-            serviceControls.seekTo(ratio * durationSec);
-          }}
-        >
-          {/* Hover tooltip */}
-          {hoverRatio !== null && durationSec > 0 && (
-            <div
-              className="absolute font-mono text-[10px] bg-zinc-700 text-zinc-200 px-1.5 py-0.5 rounded pointer-events-none -translate-x-1/2 whitespace-nowrap z-10"
-              style={{
-                bottom: "calc(100% - 2px)",
-                left: `${Math.max(8, Math.min(92, hoverRatio * 100))}%`,
-              }}
-            >
-              {formatDisplayTime(hoverRatio * durationSec)}
-            </div>
-          )}
-
-          {/* Track bar */}
-          <div
-            className="rounded-full relative transition-all duration-150 bg-zinc-700"
-            style={{ height: hoverRatio !== null ? 6 : 4, overflow: "visible" }}
-          >
-            {hoverRatio !== null && (
-              <div
-                className="absolute inset-y-0 left-0 bg-zinc-500 rounded-full"
-                style={{ width: `${hoverRatio * 100}%` }}
-              />
-            )}
-            <div
-              className="absolute inset-y-0 left-0 bg-green-500 rounded-full"
-              style={{ width: `${progress * 100}%` }}
-            />
-            <div
-              className="absolute top-1/2 -translate-y-1/2 rounded-full bg-white shadow-lg border-2 border-green-400 transition-all duration-150"
-              style={{
-                width: hoverRatio !== null ? 14 : 10,
-                height: hoverRatio !== null ? 14 : 10,
-                left: `calc(${progress * 100}% - ${hoverRatio !== null ? 7 : 5}px)`,
-                opacity: hoverRatio !== null ? 1 : 0.7,
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Time display */}
-        <div className="flex justify-between items-center">
-          <span className="text-xs font-mono text-zinc-300 tabular-nums">
-            {formatDisplayTime(positionSec)}
-          </span>
-          <button
-            onClick={() => setShowRemaining((p) => !p)}
-            className="text-xs font-mono text-zinc-500 hover:text-zinc-300 transition-colors tabular-nums"
-          >
-            {durationSec > 0
-              ? showRemaining
-                ? `−${formatDisplayTime(Math.max(0, durationSec - positionSec))}`
-                : formatDisplayTime(durationSec)
-              : "—"}
-          </button>
-        </div>
-      </div>
-
       {/* Track info — 클릭 시 Spotify에서 열기(출처표시) */}
-      {trackName ? (
-        <button
-          type="button"
-          onClick={() => { if (trackUrl) openUrl(trackUrl); }}
-          disabled={!trackUrl}
-          title={trackUrl ? t.spotifyOpenInSpotify : undefined}
-          className="group/track flex items-center gap-3 min-w-0 px-1 text-left w-full enabled:hover:bg-zinc-800/40 rounded-lg py-1 -my-1 transition-colors disabled:cursor-default"
-        >
-          {albumArtUrl && (
-            <img
-              src={albumArtUrl}
-              alt={albumName}
-              className="w-10 h-10 rounded shrink-0 object-cover"
-            />
-          )}
-          <div className="flex flex-col min-w-0">
-            <span className="text-sm font-medium text-zinc-100 truncate group-enabled/track:group-hover/track:underline">
-              {trackName}
-              {trackUrl && (
-                <svg className="inline-block ml-1 mb-0.5 opacity-0 group-hover/track:opacity-60" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M7 7h10v10" /><path d="M7 17 17 7" />
-                </svg>
-              )}
-            </span>
-            <span className="text-xs text-zinc-400 truncate">{artistName}</span>
-          </div>
-        </button>
-      ) : (
-        <div className="h-10 flex items-center px-1">
-          <span className="text-xs text-zinc-500">{t.spotifyConnected}</span>
-        </div>
-      )}
+      <TrackInfoHeader
+        icon={<SpotifyGlyph />}
+        iconBgClass="bg-green-500/15 text-green-400"
+        imageUrl={albumArtUrl || undefined}
+        title={trackName}
+        subtitle={artistName + (albumName ? ` · ${albumName}` : "")}
+        emptyMessage={t.spotifyConnected}
+        onClick={trackUrl ? () => openUrl(trackUrl) : undefined}
+        linkHint={!!trackUrl}
+      />
+
+      {/* Seek bar */}
+      <SeekBar
+        position={positionSec}
+        duration={durationSec}
+        onSeek={(s) => serviceControls.seekTo(s)}
+        accentClass="bg-green-500"
+      />
 
       {/* 재생 컨트롤 한 줄: 정지(좌) · 전송(중앙) · 반복(우) */}
       <div className="flex items-center gap-0.5">
@@ -219,6 +124,14 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
       {showDevices && <DevicePickerModal onClose={() => setShowDevices(false)} />}
 
     </div>
+  );
+}
+
+function SpotifyGlyph() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z" />
+    </svg>
   );
 }
 
