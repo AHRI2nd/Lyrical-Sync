@@ -59,10 +59,11 @@ jobs:
         shell: bash
         run: echo "${{ secrets.APPLE_API_KEY }}" > "${{ runner.temp }}/apple_api_key.p8"
 
-      # 동봉된 mediaremote-adapter/MediaRemoteAdapter.framework는 로컬에서 ad-hoc 서명된
-      # 채로 커밋돼 있어, Tauri 번들러가 만드는 .app 서명이 이 중첩 리소스까지 재서명해주지
-      # 않으면 공증(notarization)이 "서명 안 된 바이너리"로 거부된다. tauri-action이 앱을
-      # 빌드하기 전에 우리 Developer ID로 미리 서명해둔다.
+      # 동봉된 mediaremote-adapter/MediaRemoteAdapter.framework(단일 바이너리 — perl 스크립트가
+      # Versions/ 심볼릭 링크 구조 없이 이 파일을 직접 dlopen하므로 macOS 프레임워크 번들 관례를
+      # 따를 필요가 없다)는 로컬에서 ad-hoc 서명된 채로 커밋돼 있어, Tauri 번들러가 만드는 .app
+      # 서명이 이 중첩 리소스까지 재서명해주지 않으면 공증(notarization)이 "서명 안 된 바이너리"로
+      # 거부된다. tauri-action이 앱을 빌드하기 전에 우리 Developer ID로 미리 서명해둔다.
       - name: Import Apple certificate
         if: runner.os == 'macOS'
         uses: apple-actions/import-codesign-certs@v3
@@ -70,14 +71,14 @@ jobs:
           p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
           p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
 
-      - name: Sign bundled mediaremote-adapter framework
+      - name: Sign bundled mediaremote-adapter binary
         if: runner.os == 'macOS'
         shell: bash
         run: |
           set -e
-          FW="src-tauri/resources/mediaremote-adapter/MediaRemoteAdapter.framework"
-          codesign --force --sign "${{ secrets.APPLE_SIGNING_IDENTITY }}" --options runtime --timestamp "$FW"
-          codesign --verify --deep --strict --verbose=2 "$FW"
+          BIN="src-tauri/resources/mediaremote-adapter/MediaRemoteAdapter.framework/MediaRemoteAdapter"
+          codesign --force --sign "${{ secrets.APPLE_SIGNING_IDENTITY }}" --options runtime --timestamp "$BIN"
+          codesign --verify --strict --verbose=2 "$BIN"
 
       - name: Build & release (macOS)
         if: runner.os == 'macOS'
