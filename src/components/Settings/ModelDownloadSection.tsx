@@ -7,6 +7,7 @@ import { type Translations } from "../../i18n/translations";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { toast } from "../../stores/useToastStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
+import { useBusyStore } from "../../stores/useBusyStore";
 import {
   CATEGORY_ORDER,
   MODEL_DEFS,
@@ -196,6 +197,8 @@ export function ModelDownloadSection() {
   }, []);
 
   const handleInstall = async (model: ModelDef) => {
+    const busyId = `model-download:${model.id}`;
+    useBusyStore.getState().markBusy(busyId);
     setStates((prev) => ({
       ...prev,
       [model.id]: { status: "downloading", progress: 0, _completedBytes: 0, _curFileIndex: -1, _curFileTotal: 0 },
@@ -217,6 +220,8 @@ export function ModelDownloadSection() {
         setStates((prev) => ({ ...prev, [model.id]: { status: "error", progress: 0, error: String(e) } }));
         toast.error(t.toast.modelDownloadFailed.replace("{name}", model.name));
       }
+    } finally {
+      useBusyStore.getState().clearBusy(busyId);
     }
   };
 

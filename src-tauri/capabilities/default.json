@@ -16,6 +16,8 @@
     "fs:scope-video-recursive",
     "fs:scope-temp-recursive",
     "fs:scope-appcache-recursive",
-    "deep-link:default"
+    "deep-link:default",
+    "updater:default",
+    "process:default"
   ]
 }

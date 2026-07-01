@@ -1,5 +1,7 @@
 mod service_auth;
 use service_auth::*;
+mod now_playing;
+use now_playing::*;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -1331,6 +1333,13 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_process::init())
+        .setup(|app| {
+            // 업데이터는 데스크톱 전용(모바일 타깃엔 없음)
+            #[cfg(desktop)]
+            app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             read_lrc_file,
             write_lrc_file,
@@ -1359,6 +1368,9 @@ pub fn run() {
             ytdlp_load_audio,
             cancel_ytdlp_load,
             lrclib_publish,
+            get_now_playing,
+            now_playing_toggle_play_pause,
+            now_playing_seek,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

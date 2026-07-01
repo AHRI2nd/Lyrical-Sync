@@ -11,11 +11,15 @@ import { toast } from "../../stores/useToastStore";
 import { type Translations } from "../../i18n/translations";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
+import { useBusyStore } from "../../stores/useBusyStore";
 import { audioControls } from "../../utils/audioControls";
 import { activateSpotifyPlayer } from "../../utils/spotifyPlayer";
 import { safeUnlisten } from "../../utils/safeUnlisten";
 import { formatDisplayTime } from "../../utils/lrcParser";
 import { ServicePlayerPanel } from "../Service/ServicePlayerPanel";
+import { DevicePlayerPanel } from "../Service/DevicePlayerPanel";
+import { TrackInfoHeader } from "./TrackInfoHeader";
+import { SeekBar } from "./SeekBar";
 
 const AUDIO_MIME: Record<string, string> = {
   mp3: "audio/mpeg", flac: "audio/flac", wav: "audio/wav",
@@ -49,9 +53,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   const isLoopingRef = useRef(false);
   const playbackRateRef = useRef(1.0);
   const zoomDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const seekBarRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLDivElement>(null);
-  const isSeeking = useRef(false);
   const [isPlaying, setIsPlayingLocal] = useState(false);
   const [isAudioReady, setIsAudioReady] = useState(false);
   const [duration, setDurationLocal] = useState(0);
@@ -61,8 +63,6 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   const [isLooping, setIsLooping] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1.0);
   const [viewMode, setViewMode] = useState<"waveform" | "bar">("waveform");
-  const [hoverRatio, setHoverRatio] = useState<number | null>(null);
-  const [showRemaining, setShowRemaining] = useState(false);
   const [showNoTrackAlert, setShowNoTrackAlert] = useState(false);
 
   // 자체 로컬 상태(currentTimeLocal 등)로 UI를 그리므로 스토어 currentTime은 구독하지 않음
@@ -73,18 +73,27 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     }))
   );
   const lines = useLrcStore((s) => s.doc.lines);
+  const metadata = useLrcStore((s) => s.doc.metadata);
   const activeLineId = useLrcStore((s) => s.activeLineId);
   const [showMarkers, setShowMarkers] = useState(true);
   const [showMore, setShowMore] = useState(false);
   const { t } = useI18nStore();
   const { isLoggedIn, startLogin, fetchCurrentlyPlaying, transferPlaybackToApp } = useServiceStore();
-  const { spotifyMode, spotifyClientId, youtubeMode, ytdlpAudioQuality, ytdlpCookiesFile, ytdlpProxy } = useSettingsStore();
+  const { spotifyMode, spotifyClientId, youtubeMode, deviceMode, ytdlpAudioQuality, ytdlpCookiesFile, ytdlpProxy } = useSettingsStore();
   const isServiceMode = isLoggedIn && spotifyMode;
 
   const [ytUrl, setYtUrl] = useState("");
-  const [ytLoading, setYtLoading] = useState(false);
+  const [ytLoading, setYtLoadingRaw] = useState(false);
   const [ytError, setYtError] = useState<string | null>(null);
   const [ytModalOpen, setYtModalOpen] = useState(false);
+
+  // 업데이트 다운로드/재시작이 yt-dlp 다운로드와 겹치지 않도록 busy 상태를 함께 표시
+  const YT_BUSY_ID = "youtube-download";
+  const setYtLoading = (v: boolean) => {
+    setYtLoadingRaw(v);
+    if (v) useBusyStore.getState().markBusy(YT_BUSY_ID);
+    else useBusyStore.getState().clearBusy(YT_BUSY_ID);
+  };
 
   useEffect(() => {
     let unlisten: (() => void) | null = null;
@@ -157,10 +166,12 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       }
     });
 
-    // Spotify 서비스 모드에선 로컬 파형이 전역 재생상태(currentTime/isPlaying/duration)를
-    // 덮어쓰지 않도록 차단(Spotify가 단일 소스). 로컬 UI 상태(*Local)는 항상 갱신.
-    const inService = () =>
-      useServiceStore.getState().isLoggedIn && useSettingsStore.getState().spotifyMode;
+    // Spotify/기기 감지 모드에선 로컬 파형이 전역 재생상태(currentTime/isPlaying/duration)를
+    // 덮어쓰지 않도록 차단(해당 모드가 단일 소스). 로컬 UI 상태(*Local)는 항상 갱신.
+    const inService = () => {
+      const settings = useSettingsStore.getState();
+      return (useServiceStore.getState().isLoggedIn && settings.spotifyMode) || settings.deviceMode;
+    };
 
     ws.on("ready", () => {
       const d = ws.getDuration();
@@ -390,26 +401,6 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     });
   }, [activeLineId, isAudioReady, showMarkers, markerSig]);
 
-  const progress = duration > 0 ? currentTime / duration : 0;
-
-  const seekToRatio = useCallback((clientX: number) => {
-    if (!seekBarRef.current || !duration) return;
-    const rect = seekBarRef.current.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    audioControls.seekTo(ratio * duration);
-  }, [duration]);
-
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => { if (isSeeking.current) seekToRatio(e.clientX); };
-    const onUp = () => { isSeeking.current = false; };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-  }, [seekToRatio]);
-
   const togglePlay = useCallback(() => wsRef.current?.playPause(), []);
 
   const skip = useCallback((delta: number) => {
@@ -493,7 +484,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       <div
         ref={containerRef}
         className="w-full rounded-lg overflow-hidden bg-zinc-800 cursor-pointer"
-        style={{ minHeight: 80, display: (isServiceMode || viewMode === "bar") ? "none" : "" }}
+        style={{ minHeight: 80, display: (isServiceMode || deviceMode || viewMode === "bar") ? "none" : "" }}
       />
 
       {isServiceMode ? (
@@ -501,89 +492,27 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           onSpotifySearch={onSpotifySearch}
           onLoadCurrent={handleLoadCurrent}
         />
+      ) : deviceMode ? (
+        <DevicePlayerPanel />
       ) : (
       <>
       {viewMode === "bar" && (
-        <div
-          className="w-full rounded-xl bg-zinc-800 select-none flex flex-col justify-center px-5"
-          style={{ minHeight: 80, paddingTop: 14, paddingBottom: 14, gap: 10 }}
-        >
-          {/* 트랙 영역 */}
-          <div
-            ref={seekBarRef}
-            className="relative group cursor-pointer"
-            style={{ paddingTop: 6, paddingBottom: 6 }}
-            onMouseMove={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              setHoverRatio(Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)));
-            }}
-            onMouseLeave={() => setHoverRatio(null)}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              isSeeking.current = true;
-              seekToRatio(e.clientX);
-            }}
-          >
-            {/* 호버 시간 툴팁 */}
-            {hoverRatio !== null && duration > 0 && (
-              <div
-                className="absolute font-mono text-[10px] bg-zinc-700 text-zinc-200 px-1.5 py-0.5 rounded pointer-events-none -translate-x-1/2 whitespace-nowrap z-10"
-                style={{
-                  bottom: "calc(100% - 2px)",
-                  left: `${Math.max(8, Math.min(92, hoverRatio * 100))}%`,
-                }}
-              >
-                {formatDisplayTime(hoverRatio * duration)}
-              </div>
-            )}
+        <TrackInfoHeader
+          icon={youtubeMode ? <YouTubeGlyph /> : <FileGlyph />}
+          iconBgClass={youtubeMode ? "bg-red-500/15 text-red-400" : "bg-indigo-500/15 text-indigo-300"}
+          title={metadata.title || (audioPath ? (audioPath.split(/[\\/]/).pop() ?? "") : "")}
+          subtitle={[metadata.artist, metadata.album].filter(Boolean).join(" · ")}
+          emptyMessage={t.noAudio}
+        />
+      )}
 
-            {/* 트랙 */}
-            <div
-              className="rounded-full relative transition-all duration-150 bg-zinc-700"
-              style={{ height: hoverRatio !== null ? 6 : 4, overflow: "visible" }}
-            >
-              {/* 호버 위치 미리보기 */}
-              {hoverRatio !== null && (
-                <div
-                  className="absolute inset-y-0 left-0 bg-zinc-500 rounded-full"
-                  style={{ width: `${hoverRatio * 100}%` }}
-                />
-              )}
-              {/* 재생 진행 */}
-              <div
-                className="absolute inset-y-0 left-0 bg-indigo-500 rounded-full"
-                style={{ width: `${progress * 100}%` }}
-              />
-              {/* 썸 */}
-              <div
-                className="absolute top-1/2 -translate-y-1/2 rounded-full bg-white shadow-lg border-2 border-indigo-400 transition-all duration-150"
-                style={{
-                  width: hoverRatio !== null ? 14 : 10,
-                  height: hoverRatio !== null ? 14 : 10,
-                  left: `calc(${progress * 100}% - ${hoverRatio !== null ? 7 : 5}px)`,
-                  opacity: hoverRatio !== null ? 1 : 0.7,
-                }}
-              />
-            </div>
-          </div>
-
-          {/* 시간 표시 */}
-          <div className="flex justify-between items-center">
-            <span className="text-xs font-mono text-zinc-300 tabular-nums">
-              {formatDisplayTime(currentTime)}
-            </span>
-            <button
-              onClick={() => setShowRemaining((p) => !p)}
-              className="text-xs font-mono text-zinc-500 hover:text-zinc-300 transition-colors tabular-nums"
-            >
-              {duration > 0
-                ? showRemaining
-                  ? `−${formatDisplayTime(Math.max(0, duration - currentTime))}`
-                  : formatDisplayTime(duration)
-                : "—"}
-            </button>
-          </div>
-        </div>
+      {viewMode === "bar" && (
+        <SeekBar
+          position={currentTime}
+          duration={duration}
+          onSeek={audioControls.seekTo}
+          accentClass={youtubeMode ? "bg-red-500" : "bg-indigo-500"}
+        />
       )}
 
       {/* 시간 표시 (파형 모드에서만) */}
@@ -911,6 +840,23 @@ function popToggleCls(active: boolean): string {
     "w-8 h-8 flex items-center justify-center rounded-lg transition-colors",
     active ? "bg-indigo-500 text-white hover:bg-indigo-400" : "bg-zinc-700 text-zinc-200 hover:bg-zinc-600",
   ].join(" ");
+}
+
+function FileGlyph() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+    </svg>
+  );
+}
+
+function YouTubeGlyph() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+    </svg>
+  );
 }
 
 function YouTubeLinkIcon() {
