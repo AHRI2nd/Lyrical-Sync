@@ -138,12 +138,16 @@ jobs:
 
       - name: Build .pkg installer
         shell: bash
+        env:
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
           APP="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Lyrical Sync.app"
-          # lsof로 확인한 결과 productbuild가 신뢰 타임스탬프 서버(RFC3161) 접속을 시도하며
-          # 걸려있었음(기본 동작, man productbuild 참고). GitHub 러너에서 그 특정 엔드포인트
-          # 응답이 없어 무한 대기 → 애초에 네트워크를 안 타도록 타임스탬프를 끔.
-          # App Store Connect 업로드 자체는 별도 검증을 거치므로 pkg 자체 타임스탬프는 불필요.
+          # 이전 단계(Rust 빌드 등)로 몇 분 지나는 동안 키체인 언락/기본 지정 상태가
+          # 유실됐을 가능성에 대비해 여기서 다시 명시적으로 걸어줌.
+          KEYCHAIN_PATH="$RUNNER_TEMP/appstore-signing.keychain-db"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security default-keychain -s "$KEYCHAIN_PATH"
+          # RFC3161 타임스탬프 서버 접속(기본 동작)도 network hang 가능성이 있어 꺼둠.
           productbuild --component "$APP" /Applications \
             --sign "${{ secrets.APPLE_INSTALLER_IDENTITY }}" \
             --timestamp=none \
