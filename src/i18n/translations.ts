@@ -76,26 +76,6 @@ export interface Translations {
     preview: string; confirm: string;
     instrumental: string; noLyrics: string; synced: string; plain: string;
   };
-  lrclibPublish: {
-    button: string;
-    title: string;
-    duration: string;
-    syncedLines: string;
-    missing: string;
-    needTitle: string;
-    needArtist: string;
-    needDuration: string;
-    needSync: string;
-    hint: string;
-    warning: string;
-    confirm: string;
-    publish: string;
-    publishing: string;
-    success: string;
-    failed: string;
-    close: string;
-    cancel: string;
-  };
   // AudioPlayer
   openAudio: string;
   zoom: string;
@@ -335,26 +315,6 @@ const ko: Translations = {
     synced: "동기화",
     plain: "가사",
   },
-  lrclibPublish: {
-    button: "LRCLIB에 업로드",
-    title: "LRCLIB에 가사 기여",
-    duration: "길이",
-    syncedLines: "동기화 줄",
-    missing: "업로드하려면 다음이 필요합니다:",
-    needTitle: "제목",
-    needArtist: "아티스트",
-    needDuration: "오디오 길이(오디오를 열어주세요)",
-    needSync: "타임스탬프가 있는 동기화 가사",
-    hint: "현재 곡 정보·동기화 가사를 LRCLIB에 공개 기여합니다. 정확한 제목·아티스트·길이를 확인하세요.",
-    warning: "LRCLIB는 누구나 볼 수 있는 공개 데이터베이스입니다. 부정확하거나 테스트용 가사를 올리면 다른 사용자에게 영향을 주며 되돌리기 어렵습니다. 또한 가사는 저작권의 대상일 수 있으니 본인이 권리를 갖거나 허용된 경우에만 기여하세요. 제목·아티스트·가사가 정확한지 다시 확인하셨나요?",
-    confirm: "확인했으며 업로드",
-    publish: "업로드",
-    publishing: "업로드 중… (작업 증명 계산, 수 초 소요)",
-    success: "업로드 완료! 기여해 주셔서 감사합니다.",
-    failed: "업로드 실패",
-    close: "닫기",
-    cancel: "취소",
-  },
   openAudio: "오디오 열기",
   zoom: "줌",
   volume: "볼륨",
@@ -588,26 +548,6 @@ const en: Translations = {
     noLyrics: "No lyrics",
     synced: "Synced",
     plain: "Plain",
-  },
-  lrclibPublish: {
-    button: "Publish to LRCLIB",
-    title: "Contribute lyrics to LRCLIB",
-    duration: "Duration",
-    syncedLines: "Synced lines",
-    missing: "To publish, you need:",
-    needTitle: "Title",
-    needArtist: "Artist",
-    needDuration: "Audio duration (open an audio file)",
-    needSync: "Synced lyrics with timestamps",
-    hint: "Publicly contribute the current song info and synced lyrics to LRCLIB. Double-check the title, artist, and duration.",
-    warning: "LRCLIB is a public database visible to everyone. Uploading inaccurate or test lyrics affects other users and is hard to undo. Lyrics may also be copyrighted — only contribute content you own or are permitted to share. Have you double-checked the title, artist, and lyrics?",
-    confirm: "I've checked — upload",
-    publish: "Publish",
-    publishing: "Publishing… (computing proof-of-work, a few seconds)",
-    success: "Published! Thanks for contributing.",
-    failed: "Publish failed",
-    close: "Close",
-    cancel: "Cancel",
   },
   openAudio: "Open Audio",
   zoom: "Zoom",
@@ -843,26 +783,6 @@ const ja: Translations = {
     noLyrics: "歌詞なし",
     synced: "同期",
     plain: "歌詞",
-  },
-  lrclibPublish: {
-    button: "LRCLIBに公開",
-    title: "LRCLIBに歌詞を貢献",
-    duration: "長さ",
-    syncedLines: "同期行",
-    missing: "公開するには以下が必要です：",
-    needTitle: "タイトル",
-    needArtist: "アーティスト",
-    needDuration: "音声の長さ（音声を開いてください）",
-    needSync: "タイムスタンプ付きの同期歌詞",
-    hint: "現在の曲情報・同期歌詞をLRCLIBに公開貢献します。タイトル・アーティスト・長さを確認してください。",
-    warning: "LRCLIBは誰でも閲覧できる公開データベースです。不正確またはテスト用の歌詞を投稿すると他のユーザーに影響し、取り消しが困難です。また歌詞は著作権の対象となる場合があるため、ご自身が権利を有するか許可された場合のみ投稿してください。タイトル・アーティスト・歌詞を再確認しましたか？",
-    confirm: "確認のうえ公開",
-    publish: "公開",
-    publishing: "公開中…（証明計算、数秒かかります）",
-    success: "公開しました！ご貢献ありがとうございます。",
-    failed: "公開に失敗しました",
-    close: "閉じる",
-    cancel: "キャンセル",
   },
   openAudio: "音声を開く",
   zoom: "ズーム",

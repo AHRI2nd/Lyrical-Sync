@@ -8,10 +8,23 @@
 	<key>NSPrivacyTrackingDomains</key>
 	<array/>
 
-	<!-- 이 앱은 사용자 데이터를 수집하지 않습니다. LRCLIB(lrclib.net) 호출은
-	     제목/아티스트/앨범/길이/가사 텍스트만 전송하며 사용자를 식별하지 않습니다. -->
+	<!-- LRCLIB(lrclib.net) 가사 검색 시 사용자가 입력한 곡 제목/아티스트/앨범 검색어가
+	     제3자 서버로 전송됨. 계정·기기 식별자와 연결되지 않고 앱 기능(가사 검색) 용도로만 사용. -->
 	<key>NSPrivacyCollectedDataTypes</key>
-	<array/>
+	<array>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeSearchHistory</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+	</array>
 
 	<!-- Required Reason API 사용 내역:
 	     - File timestamp APIs: 오디오/LRC 파일의 수정 시각 비교(자동 저장·복구 스냅샷 판단)에 사용.
