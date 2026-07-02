@@ -137,6 +137,7 @@ jobs:
           APP="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Lyrical Sync.app"
           codesign --force --deep --options runtime \
             --entitlements src-tauri/entitlements.plist \
+            --identifier com.arisair.lyrical-sync \
             -s "${{ secrets.APPLE_DISTRIBUTION_IDENTITY }}" \
             "$APP"
           codesign --verify --deep --strict "$APP"
