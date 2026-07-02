@@ -180,9 +180,13 @@ jobs:
           kill -9 "$PB_PID" 2>/dev/null || true
           exit 1
 
+      # altool은 --apiKeyPath로 지정한 임의 경로를 무시하고, AuthKey_<KeyID>.p8라는
+      # 정해진 파일명으로 ~/private_keys 등 고정된 디렉터리에서만 키를 찾는다.
       - name: Write App Store Connect API key file
         shell: bash
-        run: echo "${{ secrets.APPLE_API_KEY }}" > "${{ runner.temp }}/apple_api_key.p8"
+        run: |
+          mkdir -p "$HOME/private_keys"
+          echo "${{ secrets.APPLE_API_KEY }}" > "$HOME/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8"
 
       # App Store 업로드는 공증(notarytool) 대상이 아님 — altool의 --upload-app으로
       # App Store Connect에 직접 업로드하면 Apple 심사팀이 그 빌드를 검토.
@@ -193,8 +197,12 @@ jobs:
             -f "Lyrical Sync.pkg" \
             -t macos \
             --apiKey "${{ secrets.APPLE_API_KEY_ID }}" \
-            --apiIssuer "${{ secrets.APPLE_API_ISSUER }}" \
-            --apiKeyPath "${{ runner.temp }}/apple_api_key.p8"
+            --apiIssuer "${{ secrets.APPLE_API_ISSUER }}"
+
+      - name: Clean up API key file
+        if: always()
+        shell: bash
+        run: rm -f "$HOME/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8"
 
       # self-hosted 러너(실사용 Mac)의 시스템 기본 키체인을 원래대로 복원.
       # 성공/실패와 무관하게 항상 실행(if: always()).
