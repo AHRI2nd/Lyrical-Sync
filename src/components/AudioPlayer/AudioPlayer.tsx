@@ -377,7 +377,7 @@ export function AudioPlayer() {
           iconBgClass="bg-indigo-500/15 text-indigo-300"
           title={metadata.title || (audioPath ? (audioPath.split(/[\\/]/).pop() ?? "") : "")}
           subtitle={[metadata.artist, metadata.album].filter(Boolean).join(" · ")}
-          emptyMessage={t.noAudio}
+          emptyMessage={t.noAudioShort}
         />
       )}
 
