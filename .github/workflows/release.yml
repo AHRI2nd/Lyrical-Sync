@@ -62,6 +62,16 @@ jobs:
           # GUI 프롬프트를 기다리며 무한 대기(headless CI에서 영영 안 끝남).
           security default-keychain -s "$KEYCHAIN_PATH"
 
+          # Apple 중간 인증서(WWDR CA) 체인이 없으면 productbuild가 신뢰 체인을
+          # 완성 못 해 같은 방식으로 무한 대기함(codesign은 이 문제를 덜 타서
+          # 먼저 성공해버려 원인 파악이 헷갈림). 어느 세대(G3~G6)가 필요한지
+          # 몰라도 되게 전부 받아서 임포트.
+          for gen in G3 G4 G5 G6; do
+            curl -fsSL "https://www.apple.com/certificateauthority/AppleWWDRCA${gen}.cer" \
+              -o "$RUNNER_TEMP/AppleWWDRCA${gen}.cer"
+            security import "$RUNNER_TEMP/AppleWWDRCA${gen}.cer" -k "$KEYCHAIN_PATH"
+          done
+
           echo "${{ secrets.APPLE_DISTRIBUTION_P12 }}" | base64 --decode > "$RUNNER_TEMP/distribution.p12"
           echo "${{ secrets.APPLE_INSTALLER_P12 }}" | base64 --decode > "$RUNNER_TEMP/installer.p12"
 
