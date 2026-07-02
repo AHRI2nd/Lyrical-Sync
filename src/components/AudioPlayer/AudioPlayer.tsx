@@ -502,7 +502,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           iconBgClass={youtubeMode ? "bg-red-500/15 text-red-400" : "bg-indigo-500/15 text-indigo-300"}
           title={metadata.title || (audioPath ? (audioPath.split(/[\\/]/).pop() ?? "") : "")}
           subtitle={[metadata.artist, metadata.album].filter(Boolean).join(" · ")}
-          emptyMessage={t.noAudio}
+          emptyMessage={t.noAudioShort}
         />
       )}
 
