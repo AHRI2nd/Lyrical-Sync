@@ -14,12 +14,14 @@ permissions:
 
 jobs:
   release:
-    # productbuild --sign이 macos-latest(현재 macOS 15/Sequoia 러너)에서
+    # productbuild --sign이 GitHub 호스티드 macOS 러너(macos-latest·macos-14 둘 다)에서
     # SecurityServer::generateSignature의 mach_msg 호출에서 원인불명으로 무한 대기함
-    # (WWDR 중간 인증서, productsign 트러스트 부여, --timestamp=none 전부 무효 —
-    # 즉 우리 서명 설정 문제가 아니라 러너 자체의 레거시 CDSA 서명 경로 버그로 추정).
-    # 더 안정적인 이전 러너 이미지로 고정해 재현되는지 테스트.
-    runs-on: macos-14
+    # (WWDR 중간 인증서, productsign 트러스트 부여, --timestamp=none, p12 병합, 키체인
+    # 재언락까지 전부 무효 — 호스티드 러너의 레거시 CDSA 서명 경로 버그로 판단).
+    # self-hosted 러너로 전환. 이 워크플로는 workflow_dispatch/태그 푸시로만
+    # 트리거되고(쓰기 권한자만 가능) PR 이벤트를 타지 않으므로 Public 저장소에서도
+    # self-hosted 사용이 안전함 — build.yml처럼 PR 트리거가 있는 워크플로에는 쓰지 말 것.
+    runs-on: [self-hosted, macOS]
     timeout-minutes: 30
 
     steps:
@@ -58,6 +60,10 @@ jobs:
         env:
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
+          # self-hosted 러너(실사용 Mac)이므로 default keychain을 바꾸기 전에
+          # 원래 값을 저장해뒀다가 "Restore default keychain" 단계에서 되돌림.
+          security default-keychain | tr -d ' "' > "$RUNNER_TEMP/original-default-keychain.txt" || true
+
           KEYCHAIN_PATH="$RUNNER_TEMP/appstore-signing.keychain-db"
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
@@ -188,3 +194,18 @@ jobs:
             --apiKey "${{ secrets.APPLE_API_KEY_ID }}" \
             --apiIssuer "${{ secrets.APPLE_API_ISSUER }}" \
             --apiKeyPath "${{ runner.temp }}/apple_api_key.p8"
+
+      # self-hosted 러너(실사용 Mac)의 시스템 기본 키체인을 원래대로 복원.
+      # 성공/실패와 무관하게 항상 실행(if: always()).
+      - name: Restore default keychain
+        if: always()
+        shell: bash
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/appstore-signing.keychain-db"
+          if [ -f "$RUNNER_TEMP/original-default-keychain.txt" ]; then
+            ORIGINAL=$(cat "$RUNNER_TEMP/original-default-keychain.txt")
+            if [ -n "$ORIGINAL" ]; then
+              security default-keychain -s "$ORIGINAL" || true
+            fi
+          fi
+          security delete-keychain "$KEYCHAIN_PATH" || true
