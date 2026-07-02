@@ -135,12 +135,17 @@ jobs:
         shell: bash
         run: |
           APP="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Lyrical Sync.app"
+          # lsof로 확인한 결과 productbuild가 신뢰 타임스탬프 서버(RFC3161) 접속을 시도하며
+          # 걸려있었음(기본 동작, man productbuild 참고). GitHub 러너에서 그 특정 엔드포인트
+          # 응답이 없어 무한 대기 → 애초에 네트워크를 안 타도록 타임스탬프를 끔.
+          # App Store Connect 업로드 자체는 별도 검증을 거치므로 pkg 자체 타임스탬프는 불필요.
           productbuild --component "$APP" /Applications \
             --sign "${{ secrets.APPLE_INSTALLER_IDENTITY }}" \
+            --timestamp=none \
             "Lyrical Sync.pkg" &
           PB_PID=$!
 
-          # 이전 두 시도(WWDR 중간 인증서, productsign 트러스트 추가)로도 원인 불명 무한
+          # 만약을 대비해 타임아웃 진단 래퍼는 유지 — 다른 원인 무한
           # 대기가 재현됨 — 추측 대신 60초 내로 안 끝나면 스택 샘플을 찍어서 정확히
           # 뭘 기다리는지(네트워크? SecurityAgent UI? 다른 프로세스?) 확인하고 실패시킴.
           for i in $(seq 1 60); do
@@ -152,7 +157,7 @@ jobs:
           done
 
           echo "::error::productbuild이 60초 내로 끝나지 않음 — 스택 샘플 채취"
-          sample "$PB_PID" -o "$RUNNER_TEMP/productbuild-sample.txt" || true
+          sample "$PB_PID" 5 -file "$RUNNER_TEMP/productbuild-sample.txt" || true
           cat "$RUNNER_TEMP/productbuild-sample.txt" || true
           echo "=== lsof (열려 있는 파일/소켓) ==="
           lsof -p "$PB_PID" || true
