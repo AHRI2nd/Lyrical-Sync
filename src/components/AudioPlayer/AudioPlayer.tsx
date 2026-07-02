@@ -431,7 +431,7 @@ export function AudioPlayer() {
           <MoreIcon />
         </CtrlBtn>
         {showMore && (
-          <div className="absolute right-0 bottom-full mb-2 z-40 w-56 bg-zinc-800 border border-zinc-700 rounded-xl shadow-2xl p-3 flex flex-col gap-2.5">
+          <div className="absolute right-0 top-full mt-2 z-40 w-56 bg-zinc-800 border border-zinc-700 rounded-xl shadow-2xl p-3 flex flex-col gap-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-zinc-300">{t.tooltipLoop}</span>
                 <button onClick={toggleLoop} className={popToggleCls(isLooping)} title={t.tooltipLoop}>
