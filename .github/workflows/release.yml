@@ -160,10 +160,11 @@ jobs:
             "Lyrical Sync.pkg" &
           PB_PID=$!
 
-          # 만약을 대비해 타임아웃 진단 래퍼는 유지 — 다른 원인 무한
-          # 대기가 재현됨 — 추측 대신 60초 내로 안 끝나면 스택 샘플을 찍어서 정확히
-          # 뭘 기다리는지(네트워크? SecurityAgent UI? 다른 프로세스?) 확인하고 실패시킴.
-          for i in $(seq 1 60); do
+          # self-hosted 러너(실제 GUI 세션)에서는 이 지점에서 macOS가 "키체인 항상 허용"
+          # 확인 다이얼로그를 실제로 띄운다(헤드리스 GitHub 호스티드 러너에서는 이걸
+          # 표시할 방법이 없어 그냥 영원히 대기했던 것 — 원인 확정). 다이얼로그를 보고
+          # 클릭할 시간을 넉넉히 줌.
+          for i in $(seq 1 240); do
             if ! kill -0 "$PB_PID" 2>/dev/null; then
               wait "$PB_PID"
               exit $?
@@ -171,7 +172,7 @@ jobs:
             sleep 1
           done
 
-          echo "::error::productbuild이 60초 내로 끝나지 않음 — 스택 샘플 채취"
+          echo "::error::productbuild이 240초 내로 끝나지 않음 — 스택 샘플 채취"
           sample "$PB_PID" 5 -file "$RUNNER_TEMP/productbuild-sample.txt" || true
           cat "$RUNNER_TEMP/productbuild-sample.txt" || true
           echo "=== lsof (열려 있는 파일/소켓) ==="
