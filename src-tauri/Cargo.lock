@@ -1761,6 +1761,8 @@ version = "0.6.101"
 dependencies = [
  "hound",
  "lofty",
+ "objc2",
+ "objc2-foundation",
  "serde",
  "serde_json",
  "symphonia",

@@ -21,3 +21,5 @@ serde_json = "1"
 symphonia = { version = "0.5", features = ["aiff", "pcm"] }
 hound = "3"
 lofty = "0.22"
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSURL", "NSData", "NSArray", "NSString", "NSError"] }

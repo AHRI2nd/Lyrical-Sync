@@ -8,12 +8,25 @@ export interface RecoverySnapshot {
   doc: LrcDocument;
   lrcPath: string | null;
   audioPath: string | null;
+  // App Sandbox 보안 스코프 북마크(base64) — 재시작 후 lrcPath/audioPath 접근 권한 복원용.
+  // 없으면(null) 구버전 스냅샷이거나 북마크 생성 실패 — 원래 경로로 best-effort 시도.
+  lrcBookmark: string | null;
+  audioBookmark: string | null;
   savedAt: number;
 }
 
-export function saveRecoverySnapshot(doc: LrcDocument, lrcPath: string | null, audioPath: string | null): void {
+export function saveRecoverySnapshot(
+  doc: LrcDocument,
+  lrcPath: string | null,
+  audioPath: string | null,
+  lrcBookmark: string | null = null,
+  audioBookmark: string | null = null
+): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify({ doc, lrcPath, audioPath, savedAt: Date.now() }));
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({ doc, lrcPath, audioPath, lrcBookmark, audioBookmark, savedAt: Date.now() })
+    );
   } catch {
     // 용량 초과 등 — 복구는 best-effort
   }

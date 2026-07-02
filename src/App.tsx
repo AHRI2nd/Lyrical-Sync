@@ -18,6 +18,7 @@ import { ToastContainer } from "./components/Toast/ToastContainer";
 import { type RecoverySnapshot, loadRecoverySnapshot, saveRecoverySnapshot, clearRecoverySnapshot } from "./utils/recovery";
 import { useMacMenu } from "./hooks/useMacMenu";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { invoke } from "@tauri-apps/api/core";
 
 const AUDIO_EXTS = ["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff", "aif"];
 const LYRICS_EXTS = ["lrc", "srt"];
@@ -111,7 +112,7 @@ function useAutoSave() {
     if (!isDirty) { clearRecoverySnapshot(); return; }
     const id = setTimeout(() => {
       const st = useLrcStore.getState();
-      saveRecoverySnapshot(st.doc, st.lrcPath, st.audioPath);
+      saveRecoverySnapshot(st.doc, st.lrcPath, st.audioPath, st.lrcBookmark, st.audioBookmark);
     }, 2000);
     return () => clearTimeout(id);
   }, [isDirty, doc]);
@@ -302,8 +303,24 @@ function App() {
           message={`${t.recovery.message}${recovery.doc.metadata.title ? `\n\n「${recovery.doc.metadata.title}」 · ${recovery.doc.lines.length}${t.recovery.lines}` : ""}`}
           okLabel={t.recovery.restore}
           cancelLabel={t.recovery.discard}
-          onOk={() => {
-            useLrcStore.getState().restoreDoc(recovery.doc, recovery.lrcPath, recovery.audioPath);
+          onOk={async () => {
+            let lrcPath = recovery.lrcPath;
+            let audioPath = recovery.audioPath;
+            if (recovery.lrcBookmark) {
+              try {
+                lrcPath = await invoke<string>("resolve_security_bookmark", { bookmark: recovery.lrcBookmark });
+              } catch {
+                // 북마크 해석 실패 — 원래 경로로 best-effort 시도
+              }
+            }
+            if (recovery.audioBookmark) {
+              try {
+                audioPath = await invoke<string>("resolve_security_bookmark", { bookmark: recovery.audioBookmark });
+              } catch {
+                // 북마크 해석 실패 — 원래 경로로 best-effort 시도
+              }
+            }
+            useLrcStore.getState().restoreDoc(recovery.doc, lrcPath, audioPath, recovery.lrcBookmark, recovery.audioBookmark);
             clearRecoverySnapshot();
             setRecovery(null);
           }}
