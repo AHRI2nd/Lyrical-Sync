@@ -15,6 +15,7 @@ permissions:
 jobs:
   release:
     runs-on: macos-latest
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
@@ -56,6 +57,10 @@ jobs:
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          # productbuild --sign은 codesign과 달리 search list 전체가 아니라
+          # default keychain을 우선 참조함 — 지정 안 하면 인증서를 못 찾고
+          # GUI 프롬프트를 기다리며 무한 대기(headless CI에서 영영 안 끝남).
+          security default-keychain -s "$KEYCHAIN_PATH"
 
           echo "${{ secrets.APPLE_DISTRIBUTION_P12 }}" | base64 --decode > "$RUNNER_TEMP/distribution.p12"
           echo "${{ secrets.APPLE_INSTALLER_P12 }}" | base64 --decode > "$RUNNER_TEMP/installer.p12"
