@@ -121,6 +121,7 @@ export interface Translations {
   zoom: string;
   volume: string;
   noAudio: string;
+  noAudioShort: string;
   tooltipSkipBack5: string;
   tooltipSkipBack1: string;
   tooltipPlayPause: string;
@@ -580,6 +581,7 @@ const ko: Translations = {
   zoom: "줌",
   volume: "볼륨",
   noAudio: "오디오 파일을 열어 파형을 표시합니다",
+  noAudioShort: "열린 오디오 파일 없음",
   tooltipSkipBack5: "[1] −5초",
   tooltipSkipBack1: "[2] −1초",
   tooltipPlayPause: "[3] 재생/일시정지",
@@ -1031,6 +1033,7 @@ const en: Translations = {
   zoom: "Zoom",
   volume: "Volume",
   noAudio: "Open an audio file to display the waveform",
+  noAudioShort: "No audio file open",
   tooltipSkipBack5: "[1] −5s",
   tooltipSkipBack1: "[2] −1s",
   tooltipPlayPause: "[3] Play/Pause",
@@ -1483,6 +1486,7 @@ const ja: Translations = {
   zoom: "ズーム",
   volume: "音量",
   noAudio: "音声ファイルを開いて波形を表示します",
+  noAudioShort: "開いている音声ファイルなし",
   tooltipSkipBack5: "[1] −5秒",
   tooltipSkipBack1: "[2] −1秒",
   tooltipPlayPause: "[3] 再生/一時停止",
