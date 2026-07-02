@@ -8,11 +8,6 @@
     "dialog:allow-open",
     "dialog:allow-save",
     "fs:allow-read-file",
-    "fs:scope-audio-recursive",
-    "fs:scope-download-recursive",
-    "fs:scope-document-recursive",
-    "fs:scope-desktop-recursive",
-    "fs:scope-video-recursive",
     "fs:scope-temp-recursive"
   ]
 }

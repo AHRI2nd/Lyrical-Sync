@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+
+	<!-- 이 앱은 사용자 데이터를 수집하지 않습니다. LRCLIB(lrclib.net) 호출은
+	     제목/아티스트/앨범/길이/가사 텍스트만 전송하며 사용자를 식별하지 않습니다. -->
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+
+	<!-- Required Reason API 사용 내역:
+	     - File timestamp APIs: 오디오/LRC 파일의 수정 시각 비교(자동 저장·복구 스냅샷 판단)에 사용.
+	       사유 코드 C617.1(사용자가 앱에서 명시적으로 요청한 파일에 한해 타임스탬프 확인). -->
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

@@ -1,7 +1,8 @@
-name: Release
+name: App Store Release
 
-# 서명·공증 시크릿은 버전 태그(vX.Y.Z) 푸시에서만 접근 가능하도록 트리거를 좁힘.
-# main 브랜치의 일반 빌드는 build.yml(서명 없음)이 담당.
+# Mac App Store 제출 빌드. dev-next/main의 Developer ID 직접배포 파이프라인과는
+# 완전히 별개 — 여기서는 Apple Distribution 인증서로 서명하고 .pkg로 패키징해
+# App Store Connect에 업로드합니다(공증/notarization 불필요 — Apple 심사가 대체).
 on:
   push:
     tags:
@@ -9,20 +10,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   release:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            target: aarch64-apple-darwin
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +28,7 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: aarch64-apple-darwin
 
       - name: Add cargo to PATH
         shell: bash
@@ -46,47 +38,103 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          key: ${{ matrix.target }}
+          key: aarch64-apple-darwin
 
       - name: Install frontend deps
         run: npm ci
 
-      # macOS 전용: App Store Connect API Key(.p8 내용)를 파일로 기록.
-      # APPLE_API_KEY 시크릿에는 .p8 파일 내용 전체가, APPLE_API_KEY_ID 시크릿에는
-      # 실제 Key ID가 들어 있음(Tauri가 기대하는 이름과 반대이므로 아래에서 재매핑).
-      - name: Write Apple API key file
-        if: runner.os == 'macOS'
+      # Apple Distribution(앱 서명용) + 3rd Party Mac Developer Installer(pkg 서명용)
+      # 두 인증서를 같은 임시 키체인에 임포트. 둘 다 .p12로 내보내 base64 인코딩해
+      # 시크릿에 저장(예: `base64 -i cert.p12 | pbcopy`). 액션 대신 security CLI를
+      # 직접 써서 두 인증서가 확실히 같은 키체인에 들어가도록 함.
+      - name: Import signing certificates
+        shell: bash
+        env:
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/appstore-signing.keychain-db"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          echo "${{ secrets.APPLE_DISTRIBUTION_P12 }}" | base64 --decode > "$RUNNER_TEMP/distribution.p12"
+          echo "${{ secrets.APPLE_INSTALLER_P12 }}" | base64 --decode > "$RUNNER_TEMP/installer.p12"
+
+          security import "$RUNNER_TEMP/distribution.p12" -k "$KEYCHAIN_PATH" \
+            -P "${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}" -T /usr/bin/codesign
+          security import "$RUNNER_TEMP/installer.p12" -k "$KEYCHAIN_PATH" \
+            -P "${{ secrets.APPLE_INSTALLER_P12_PASSWORD }}" -T /usr/bin/productbuild
+
+          security set-key-partition-list -S apple-tool:,apple:,codesign:,productbuild: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | sed 's/"//g')
+
+          rm -f "$RUNNER_TEMP/distribution.p12" "$RUNNER_TEMP/installer.p12"
+
+      # App Store Connect에서 등록한 Mac App Store Provisioning Profile.
+      # `security cms -D -i profile.provisionprofile` 로 App Sandbox 등 엔타이틀먼트가
+      # 일치하는지 사전에 로컬에서 확인해두는 걸 권장.
+      - name: Install provisioning profile
+        shell: bash
+        run: |
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          echo "${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}" | base64 --decode > \
+            "$HOME/Library/MobileDevice/Provisioning Profiles/lyrical-sync.provisionprofile"
+
+      - name: Verify tag matches app version
+        shell: bash
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          CONF_VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          if [ "$TAG_VERSION" != "$CONF_VERSION" ]; then
+            echo "::error::태그(v$TAG_VERSION)와 tauri.conf.json의 version($CONF_VERSION)이 다릅니다."
+            exit 1
+          fi
+        if: github.event_name == 'push'
+
+      - name: Build unsigned app bundle
+        run: npx tauri build --bundles app --target aarch64-apple-darwin
+
+      - name: Embed provisioning profile
+        shell: bash
+        run: |
+          APP="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Lyrical Sync.app"
+          cp "$HOME/Library/MobileDevice/Provisioning Profiles/lyrical-sync.provisionprofile" \
+            "$APP/Contents/embedded.provisionprofile"
+
+      # tauri build 자체는 서명 아이덴티티를 넘기지 않으면 ad-hoc 서명만 하고
+      # entitlements를 코드사인에 포함하지 않으므로, 여기서 별도로 재서명한다.
+      - name: Codesign with entitlements
+        shell: bash
+        run: |
+          APP="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Lyrical Sync.app"
+          codesign --force --deep --options runtime \
+            --entitlements src-tauri/entitlements.plist \
+            -s "${{ secrets.APPLE_DISTRIBUTION_IDENTITY }}" \
+            "$APP"
+          codesign --verify --deep --strict "$APP"
+          codesign -d --entitlements - "$APP"
+
+      - name: Build .pkg installer
+        shell: bash
+        run: |
+          APP="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Lyrical Sync.app"
+          productbuild --component "$APP" /Applications \
+            --sign "${{ secrets.APPLE_INSTALLER_IDENTITY }}" \
+            "Lyrical Sync.pkg"
+
+      - name: Write App Store Connect API key file
         shell: bash
         run: echo "${{ secrets.APPLE_API_KEY }}" > "${{ runner.temp }}/apple_api_key.p8"
 
-      - name: Build & release (macOS)
-        if: runner.os == 'macOS'
-        uses: tauri-apps/tauri-action@v0.5
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_API_KEY_PATH: ${{ runner.temp }}/apple_api_key.p8
-        with:
-          tagName: v__VERSION__
-          releaseName: 'Lyrical Sync v__VERSION__'
-          releaseDraft: true
-          prerelease: false
-          args: --target ${{ matrix.target }}
-
-      - name: Build & release (Windows)
-        if: runner.os == 'Windows'
-        uses: tauri-apps/tauri-action@v0.5
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: v__VERSION__
-          releaseName: 'Lyrical Sync v__VERSION__'
-          releaseDraft: true
-          prerelease: false
-          args: --target ${{ matrix.target }}
+      # App Store 업로드는 공증(notarytool) 대상이 아님 — altool의 --upload-app으로
+      # App Store Connect에 직접 업로드하면 Apple 심사팀이 그 빌드를 검토.
+      - name: Upload to App Store Connect
+        shell: bash
+        run: |
+          xcrun altool --upload-app \
+            -f "Lyrical Sync.pkg" \
+            -t macos \
+            --apiKey "${{ secrets.APPLE_API_KEY_ID }}" \
+            --apiIssuer "${{ secrets.APPLE_API_ISSUER }}" \
+            --apiKeyPath "${{ runner.temp }}/apple_api_key.p8"
