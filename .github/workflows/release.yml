@@ -137,7 +137,27 @@ jobs:
           APP="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Lyrical Sync.app"
           productbuild --component "$APP" /Applications \
             --sign "${{ secrets.APPLE_INSTALLER_IDENTITY }}" \
-            "Lyrical Sync.pkg"
+            "Lyrical Sync.pkg" &
+          PB_PID=$!
+
+          # 이전 두 시도(WWDR 중간 인증서, productsign 트러스트 추가)로도 원인 불명 무한
+          # 대기가 재현됨 — 추측 대신 60초 내로 안 끝나면 스택 샘플을 찍어서 정확히
+          # 뭘 기다리는지(네트워크? SecurityAgent UI? 다른 프로세스?) 확인하고 실패시킴.
+          for i in $(seq 1 60); do
+            if ! kill -0 "$PB_PID" 2>/dev/null; then
+              wait "$PB_PID"
+              exit $?
+            fi
+            sleep 1
+          done
+
+          echo "::error::productbuild이 60초 내로 끝나지 않음 — 스택 샘플 채취"
+          sample "$PB_PID" -o "$RUNNER_TEMP/productbuild-sample.txt" || true
+          cat "$RUNNER_TEMP/productbuild-sample.txt" || true
+          echo "=== lsof (열려 있는 파일/소켓) ==="
+          lsof -p "$PB_PID" || true
+          kill -9 "$PB_PID" 2>/dev/null || true
+          exit 1
 
       - name: Write App Store Connect API key file
         shell: bash
