@@ -6,6 +6,16 @@ import { serializeVtt, serializeAss } from "../utils/exportFormats";
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 
+// App Sandbox 보안 스코프 북마크 생성(best-effort) — 크래시 복구 후 파일 접근 권한 복원용.
+// 실패해도(구버전 macOS, 권한 문제 등) 조용히 null 반환 — 복구 기능만 못 쓸 뿐 파일 열기 자체는 계속 동작.
+async function createBookmark(path: string): Promise<string | null> {
+  try {
+    return await invoke<string>("create_security_bookmark", { path });
+  } catch {
+    return null;
+  }
+}
+
 interface LrcStore {
   doc: LrcDocument;
   _history: LrcDocument[];
@@ -14,6 +24,9 @@ interface LrcStore {
   redo: () => void;
   audioPath: string | null;
   lrcPath: string | null;
+  // App Sandbox 보안 스코프 북마크(base64) — 크래시 복구 스냅샷에 실어 재시작 후 접근 권한 복원용.
+  audioBookmark: string | null;
+  lrcBookmark: string | null;
   currentTime: number;
   isDirty: boolean;
   activeLineId: string | null;
@@ -66,7 +79,13 @@ interface LrcStore {
   applyOffset: () => void;
   loadFromRawText: (raw: string) => void;
   /** 자동 복구: 스냅샷 문서·경로를 통째로 복원(미저장 상태로) */
-  restoreDoc: (doc: LrcDocument, lrcPath: string | null, audioPath: string | null) => void;
+  restoreDoc: (
+    doc: LrcDocument,
+    lrcPath: string | null,
+    audioPath: string | null,
+    lrcBookmark?: string | null,
+    audioBookmark?: string | null
+  ) => void;
 
   setAudioPath: (path: string | null) => void;
   openAudio: () => Promise<void>;
@@ -104,6 +123,8 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   _future: [],
   audioPath: null,
   lrcPath: null,
+  audioBookmark: null,
+  lrcBookmark: null,
   currentTime: 0,
   isDirty: false,
   activeLineId: null,
@@ -385,7 +406,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     set({ doc: parsed, activeLineId: firstId, isDirty: true });
   },
 
-  restoreDoc: (doc, lrcPath, audioPath) => {
+  restoreDoc: (doc, lrcPath, audioPath, lrcBookmark = null, audioBookmark = null) => {
     // 줄 id를 새로 부여해 nextId 카운터와 충돌 없게 함
     let id = 1;
     const lines = doc.lines.map((l) => ({ ...l, id: String(id++) }));
@@ -394,6 +415,8 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
       doc: { ...doc, lines },
       lrcPath,
       audioPath,
+      lrcBookmark,
+      audioBookmark,
       activeLineId: lines[0]?.id ?? null,
       isDirty: true, // 복구된 작업은 아직 미저장
       _history: [],
@@ -426,7 +449,15 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     });
   },
 
-  setAudioPath: (path) => set({ audioPath: path }),
+  setAudioPath: (path) => {
+    set({ audioPath: path, audioBookmark: null });
+    if (path) {
+      createBookmark(path).then((bookmark) => {
+        // 그 사이 다른 파일로 바뀌었으면 덮어쓰지 않음
+        if (get().audioPath === path) set({ audioBookmark: bookmark });
+      });
+    }
+  },
 
   openAudio: async () => {
     const selected = await open({
@@ -434,7 +465,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
       filters: [{ name: "Audio", extensions: ["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff", "aif"] }],
     });
     if (typeof selected === "string") {
-      set({ audioPath: selected });
+      get().setAudioPath(selected);
     }
   },
 
@@ -447,7 +478,10 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     doc.lines = doc.lines.map((l) => ({ ...l, id: String(id++) }));
     nextId = id;
     const firstId = doc.lines[0]?.id ?? null;
-    set({ doc, lrcPath: path, isDirty: false, activeLineId: firstId, _history: [], _future: [] });
+    set({ doc, lrcPath: path, lrcBookmark: null, isDirty: false, activeLineId: firstId, _history: [], _future: [] });
+    createBookmark(path).then((bookmark) => {
+      if (get().lrcPath === path) set({ lrcBookmark: bookmark });
+    });
   },
 
   // LRCLIB 등 외부에서 가져온 가사 적용. 라인은 교체하되 메타데이터는 보존:
@@ -471,6 +505,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     set({
       doc: { ...parsed, metadata },
       lrcPath: null,
+      lrcBookmark: null,
       isDirty: true,
       activeLineId: firstId,
       _history: [],
@@ -516,14 +551,19 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
         : serializeLrc(doc, enhanced ?? true);
       await invoke("write_lrc_file", { path, content });
       // 보조 포맷 저장 시엔 작업 파일 경로(lrcPath)·dirty 상태를 바꾸지 않음
-      if (format === "lrc" || format === "srt") set({ lrcPath: path, isDirty: false });
+      if (format === "lrc" || format === "srt") {
+        set({ lrcPath: path, lrcBookmark: null, isDirty: false });
+        createBookmark(path).then((bookmark) => {
+          if (get().lrcPath === path) set({ lrcBookmark: bookmark });
+        });
+      }
       return true;
     }
     return false; // 사용자가 저장 다이얼로그 취소
   },
 
   newLrc: () =>
-    set({ doc: defaultDocument(), lrcPath: null, isDirty: false, activeLineId: null, _history: [], _future: [] }),
+    set({ doc: defaultDocument(), lrcPath: null, lrcBookmark: null, isDirty: false, activeLineId: null, _history: [], _future: [] }),
 
   shiftTimeRange: (fromIdx, toIdx, deltaSeconds) => {
     if (deltaSeconds === 0) return;

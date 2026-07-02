@@ -1,3 +1,6 @@
+mod bookmark;
+use bookmark::{create_security_bookmark, resolve_security_bookmark};
+
 // ─── LRC / audio commands ────────────────────────────────────────
 
 #[tauri::command]
@@ -128,6 +131,8 @@ pub fn run() {
             read_audio_file,
             decode_audio_to_wav,
             read_audio_metadata,
+            create_security_bookmark,
+            resolve_security_bookmark,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
