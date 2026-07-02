@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Mac App Store 배포 필수: App Sandbox 활성화 -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+
+	<!-- LRCLIB(lrclib.net) 가사 검색·기여 API 호출 -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+
+	<!-- 열기/저장 다이얼로그, 드래그앤드롭으로 선택한 오디오/LRC 파일 접근 -->
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+</dict>
+</plist>
