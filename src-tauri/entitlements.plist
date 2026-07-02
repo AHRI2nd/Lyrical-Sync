@@ -6,12 +6,21 @@
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
 
-	<!-- LRCLIB(lrclib.net) 가사 검색·기여 API 호출 -->
+	<!-- LRCLIB(lrclib.net) 가사 검색 API 호출 -->
 	<key>com.apple.security.network.client</key>
 	<true/>
 
 	<!-- 열기/저장 다이얼로그, 드래그앤드롭으로 선택한 오디오/LRC 파일 접근 -->
 	<key>com.apple.security.files.user-selected.read-write</key>
 	<true/>
+
+	<!-- 수동 codesign(Xcode 자동 서명이 아님)이라 프로비저닝 프로파일과 매칭되는
+	     식별자를 직접 명시해야 함 — 안 넣으면 ITMS-90886(서명에 application-identifier
+	     누락)으로 TestFlight 사용 불가 경고 발생. Mac_App_Store_...provisionprofile의
+	     Entitlements를 `security cms -D -i <profile>`로 확인한 값과 동일해야 함. -->
+	<key>com.apple.application-identifier</key>
+	<string>7N6XWH2333.com.arisair.lyrical-sync</string>
+	<key>com.apple.developer.team-identifier</key>
+	<string>7N6XWH2333</string>
 </dict>
 </plist>
