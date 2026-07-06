@@ -8,7 +8,6 @@ import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { toast } from "../../stores/useToastStore";
-import { type Translations } from "../../i18n/translations";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useBusyStore } from "../../stores/useBusyStore";
@@ -20,6 +19,12 @@ import { ServicePlayerPanel } from "../Service/ServicePlayerPanel";
 import { DevicePlayerPanel } from "../Service/DevicePlayerPanel";
 import { TrackInfoHeader } from "./TrackInfoHeader";
 import { SeekBar } from "./SeekBar";
+import { NoTrackAlert } from "./NoTrackAlert";
+import { YouTubeModal } from "./YouTubeModal";
+import {
+  PlayIcon, PauseIcon, StopIcon, SkipBackIcon, SkipFwdIcon, TriLeftIcon, TriRightIcon,
+  VolumeIcon, ZoomIcon, MarkerIcon, LoopIcon, MoreIcon, FileGlyph, YouTubeGlyph, YouTubeLinkIcon,
+} from "./icons";
 
 const AUDIO_MIME: Record<string, string> = {
   mp3: "audio/mpeg", flac: "audio/flac", wav: "audio/wav",
@@ -732,114 +737,6 @@ function CtrlBtn({
   );
 }
 
-function PlayIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M8 5v14l11-7z" />
-    </svg>
-  );
-}
-
-function PauseIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-    </svg>
-  );
-}
-
-function StopIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M6 6h12v12H6z" />
-    </svg>
-  );
-}
-
-function SkipBackIcon() {
-  // 채워진 이중 삼각형 (◀◀ 되감기)
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M11 6 L11 18 L4 12 Z M18 6 L18 18 L11 12 Z" />
-    </svg>
-  );
-}
-
-
-function SkipFwdIcon() {
-  // 채워진 이중 삼각형 (▶▶ 빨리감기)
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M6 6 L6 18 L13 12 Z M13 6 L13 18 L20 12 Z" />
-    </svg>
-  );
-}
-
-function TriLeftIcon() {
-  // 채워진 홑 삼각형 (◀ ±1)
-  return (
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M15 6 L15 18 L7 12 Z" />
-    </svg>
-  );
-}
-
-function TriRightIcon() {
-  // 채워진 홑 삼각형 (▶ ±1)
-  return (
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M9 6 L9 18 L17 12 Z" />
-    </svg>
-  );
-}
-
-function VolumeIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M4 9v6h4l5 4V5L8 9H4z" />
-      <path d="M16 8.5a4.5 4.5 0 0 1 0 7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function ZoomIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="10" cy="10" r="6" />
-      <line x1="20" y1="20" x2="15" y2="15" />
-      <line x1="10" y1="7" x2="10" y2="13" />
-      <line x1="7" y1="10" x2="13" y2="10" />
-    </svg>
-  );
-}
-
-function MarkerIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <line x1="6" y1="4" x2="6" y2="20" />
-      <line x1="12" y1="4" x2="12" y2="20" />
-      <line x1="18" y1="4" x2="18" y2="20" />
-    </svg>
-  );
-}
-
-function LoopIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
-    </svg>
-  );
-}
-
-function MoreIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-      <circle cx="5" cy="12" r="2" />
-      <circle cx="12" cy="12" r="2" />
-      <circle cx="19" cy="12" r="2" />
-    </svg>
-  );
-}
 
 // 오버플로우 팝오버 내 토글 버튼 스타일
 function popToggleCls(active: boolean): string {
@@ -847,193 +744,5 @@ function popToggleCls(active: boolean): string {
     "w-8 h-8 flex items-center justify-center rounded-lg transition-colors",
     active ? "bg-indigo-500 text-white hover:bg-indigo-400" : "bg-zinc-700 text-zinc-200 hover:bg-zinc-600",
   ].join(" ");
-}
-
-function FileGlyph() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-    </svg>
-  );
-}
-
-function YouTubeGlyph() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
-    </svg>
-  );
-}
-
-function YouTubeLinkIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
-    </svg>
-  );
-}
-
-function YouTubeModal({
-  t, ytUrl, ytLoading, ytError,
-  onChangeUrl, onLoad, onCancel, onClose,
-}: {
-  t: Translations;
-  ytUrl: string;
-  ytLoading: boolean;
-  ytError: string | null;
-  onChangeUrl: (v: string) => void;
-  onLoad: () => void;
-  onCancel: () => void;
-  onClose: () => void;
-}) {
-  const youtubeDisclaimerAccepted = useSettingsStore((s) => s.youtubeDisclaimerAccepted);
-  const setYoutubeDisclaimerAccepted = useSettingsStore((s) => s.setYoutubeDisclaimerAccepted);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !ytLoading) onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [ytLoading, onClose]);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
-          <div className="flex items-center gap-2">
-            <span className="text-red-500"><YouTubeLinkIcon /></span>
-            <span className="font-semibold text-zinc-100 text-sm">{t.youtubeModalTitle}</span>
-          </div>
-          {!ytLoading && (
-            <button
-              onClick={onClose}
-              aria-label={t.close}
-              className="text-zinc-500 hover:text-white transition-colors text-lg leading-none"
-            >
-              ✕
-            </button>
-          )}
-        </div>
-
-        {!youtubeDisclaimerAccepted ? (
-          /* 최초 1회 면책 동의 게이트 */
-          <div className="p-5 flex flex-col gap-4">
-            <p className="text-sm leading-relaxed text-zinc-300">{t.youtubeDisclaimer}</p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={onClose}
-                className="px-4 py-2 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
-              >
-                {t.youtubeCancel}
-              </button>
-              <button
-                onClick={() => setYoutubeDisclaimerAccepted(true)}
-                className="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-500 text-white transition-colors"
-              >
-                {t.youtubeAgree}
-              </button>
-            </div>
-          </div>
-        ) : (
-        <div className="p-5 flex flex-col gap-4">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={ytUrl}
-              onChange={(e) => onChangeUrl(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !ytLoading && ytUrl.trim()) onLoad(); }}
-              placeholder={t.youtubeUrlPlaceholder}
-              disabled={ytLoading}
-              autoFocus
-              className="flex-1 min-w-0 px-3 py-2 text-sm bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-red-500 font-mono disabled:opacity-50"
-            />
-          </div>
-
-          {ytLoading && (
-            <span className="text-xs text-zinc-400">{t.youtubeLoading}</span>
-          )}
-
-          {ytError && (
-            <span className="text-xs text-red-400 break-all">{ytError}</span>
-          )}
-
-          <p className="text-[11px] leading-relaxed text-zinc-500 border-t border-zinc-800 pt-3">
-            {t.youtubeDisclaimer}
-          </p>
-
-          <div className="flex justify-end gap-2">
-            {ytLoading ? (
-              <button
-                onClick={onCancel}
-                className="px-4 py-2 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
-              >
-                {t.youtubeCancel}
-              </button>
-            ) : (
-              <>
-                <button
-                  onClick={onClose}
-                  className="px-4 py-2 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
-                >
-                  {t.youtubeCancel}
-                </button>
-                <button
-                  onClick={onLoad}
-                  disabled={!ytUrl.trim()}
-                  className="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
-                >
-                  {t.youtubeLoad}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function NoTrackAlert({ t, onClose }: { t: Translations; onClose: () => void }) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape" || e.key === "Enter") onClose(); };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="px-5 py-4 border-b border-zinc-800">
-          <span className="font-semibold text-zinc-100">{t.spotifyNoTrackAlertTitle}</span>
-        </div>
-        <div className="px-5 py-4">
-          <p className="text-sm text-zinc-300 whitespace-pre-line">{t.spotifyNoTrackAlertMessage}</p>
-        </div>
-        <div className="flex justify-end px-5 pb-4">
-          <button
-            onClick={onClose}
-            className="px-5 py-1.5 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100 transition-colors"
-          >
-            {t.spotifyNoTrackAlertOk}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 }
 
