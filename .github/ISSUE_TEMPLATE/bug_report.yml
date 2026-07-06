@@ -1,0 +1,88 @@
+name: "🐛 버그 신고 / Bug Report"
+description: "Lyrical Sync 사용 중 발견한 문제를 신고합니다 / Report a problem with Lyrical Sync"
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        문제를 신고해 주셔서 감사합니다. 아래 항목을 최대한 채워주시면 빠르게 확인하는 데 도움이 됩니다.
+        Thanks for taking the time to report this. Filling in as much as you can helps us investigate faster.
+
+  - type: dropdown
+    id: channel
+    attributes:
+      label: "배포 채널 / Distribution Channel"
+      description: "어떤 버전을 사용 중이신가요? / Which version are you using?"
+      options:
+        - "Mac App Store (Lyrical Sync)"
+        - "GitHub 직접 배포 (dev-next / main)"
+        - "잘 모르겠음 / Not sure"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: "앱 버전 / App Version"
+      description: "앱 정보 또는 About 화면에서 확인 / Check the app's About/version info"
+      placeholder: "예 / e.g. 0.6.101"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: "macOS 버전 / macOS Version"
+      placeholder: "예 / e.g. macOS 15.1 Sequoia"
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: "재현 방법 / Steps to Reproduce"
+      description: "순서대로 적어주세요 / List the steps in order"
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: false
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: "예상 동작 / Expected Behavior"
+    validations:
+      required: false
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: "실제 동작 / Actual Behavior"
+    validations:
+      required: false
+
+  - type: input
+    id: audio-format
+    attributes:
+      label: "관련 오디오/가사 파일 포맷 (해당 시) / Audio or Lyrics File Format (if relevant)"
+      placeholder: "예 / e.g. MP3, FLAC, AIFF / LRC, SRT"
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: "추가 정보 / Additional Context"
+      description: "스크린샷, 에러 메시지, 로그 등을 첨부해 주세요 / Attach screenshots, error messages, or logs"
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: "확인사항 / Checklist"
+      options:
+        - label: "기존 이슈를 검색해서 중복이 아님을 확인했습니다 / I searched existing issues and this isn't a duplicate"
+          required: true
