@@ -804,6 +804,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                 disabled={idx === 0}
                 className="shrink-0 text-zinc-600 hover:text-indigo-300 px-1 opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity disabled:opacity-0"
                 title={t.mergeLineUp}
+                aria-label={t.mergeLineUp}
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M8 7l4-4 4 4" /><path d="M12 3v8" /><path d="M5 21h14" /><path d="M5 15h14" />
@@ -817,6 +818,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                 }}
                 className="shrink-0 text-zinc-600 hover:text-indigo-300 px-1 opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
                 title={t.duplicateLine}
+                aria-label={t.duplicateLine}
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" />
@@ -826,6 +828,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                 onClick={(e) => { e.stopPropagation(); deleteLine(line.id); }}
                 className="shrink-0 text-zinc-600 hover:text-rose-400 text-sm px-1 opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
                 title={t.deleteLine}
+                aria-label={t.deleteLine}
               >
                 ✕
               </button>
@@ -989,10 +992,10 @@ function FindReplaceBar({
           {countLabel}
         </span>
         {/* 이전/다음 */}
-        <button onClick={onPrev} disabled={matchCount === 0} className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 transition-colors" title="이전 (Shift+Enter)">
+        <button onClick={onPrev} disabled={matchCount === 0} className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 transition-colors" title="이전 (Shift+Enter)" aria-label="이전 (Shift+Enter)">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="18 15 12 9 6 15"/></svg>
         </button>
-        <button onClick={onNext} disabled={matchCount === 0} className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 transition-colors" title="다음 (Enter)">
+        <button onClick={onNext} disabled={matchCount === 0} className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 transition-colors" title="다음 (Enter)" aria-label="다음 (Enter)">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
         {/* 닫기 */}
@@ -1138,7 +1141,7 @@ function ValidationPanel({ stats, issues, onJump, onClose }: {
       <div className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden flex flex-col max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-3 border-b border-zinc-800 flex items-center justify-between shrink-0">
           <span className="font-semibold text-zinc-100">{t.validationTitle}</span>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors text-lg leading-none">✕</button>
+          <button onClick={onClose} aria-label={t.close} className="text-zinc-500 hover:text-white transition-colors text-lg leading-none">✕</button>
         </div>
 
         <div className="grid grid-cols-3 gap-2 px-5 py-4 shrink-0">

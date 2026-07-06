@@ -115,6 +115,7 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
         <button
           onClick={() => setShowDevices(true)}
           title={t.devicePicker.button}
+          aria-label={t.devicePicker.button}
           className="shrink-0 px-3 py-2 rounded-lg border border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800 text-zinc-300 transition-colors flex items-center justify-center"
         >
           <DevicesIcon />
@@ -158,6 +159,7 @@ function CtrlBtn({
     <button
       onClick={onClick}
       title={title}
+      aria-label={title}
       className={[
         "flex items-center justify-center text-sm transition-colors",
         accent

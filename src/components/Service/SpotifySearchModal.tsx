@@ -167,7 +167,7 @@ export function SpotifySearchModal({ onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800 shrink-0">
           <span className="font-semibold text-zinc-100">{t.spotifySearchTitle}</span>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors text-lg leading-none">✕</button>
+          <button onClick={onClose} aria-label={t.close} className="text-zinc-500 hover:text-white transition-colors text-lg leading-none">✕</button>
         </div>
 
         {/* Tabs */}

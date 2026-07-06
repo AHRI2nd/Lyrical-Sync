@@ -410,6 +410,7 @@ export function CharSyncView() {
         <button
           onClick={(e) => { gotoLine(lineIdx - 1); e.currentTarget.blur(); }}
           disabled={lineIdx <= 0}
+          aria-label={t.charSync.prevLine}
           className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 transition-colors"
         >
           ‹
@@ -429,6 +430,7 @@ export function CharSyncView() {
         <button
           onClick={(e) => { gotoLine(lineIdx + 1); e.currentTarget.blur(); }}
           disabled={lineIdx >= lines.length - 1}
+          aria-label={t.charSync.nextLine}
           className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 transition-colors"
         >
           ›
@@ -525,6 +527,7 @@ export function CharSyncView() {
           <button
             onClick={(e) => { setZoomStep(-1); e.currentTarget.blur(); }}
             disabled={zoom <= 1}
+            aria-label={t.zoomOut}
             className="w-5 h-5 flex items-center justify-center rounded hover:bg-zinc-800 hover:text-white disabled:opacity-30 transition-colors"
           >
             −
@@ -533,6 +536,7 @@ export function CharSyncView() {
           <button
             onClick={(e) => { setZoomStep(1); e.currentTarget.blur(); }}
             disabled={zoom >= 8}
+            aria-label={t.zoomIn}
             className="w-5 h-5 flex items-center justify-center rounded hover:bg-zinc-800 hover:text-white disabled:opacity-30 transition-colors"
           >
             +
@@ -612,6 +616,7 @@ const LineDots = memo(function LineDots({
             key={l.id}
             onClick={() => onSelect(l.id)}
             title={`${i + 1}. ${l.text}`}
+            aria-label={`${i + 1}. ${l.text}`}
             className={`shrink-0 rounded-full transition-all ${color} ${
               active ? "w-2.5 h-2.5 ring-2 ring-indigo-400/60" : "w-2 h-2 opacity-70 hover:opacity-100"
             }`}

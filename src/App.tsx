@@ -524,6 +524,7 @@ function App() {
         <button
           onClick={() => { setSettingsInitialTab("general"); setShowSettings(true); }}
           title={t.settingsTitle}
+          aria-label={t.settingsTitle}
           className="w-8 h-8 rounded-full bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white transition-colors flex items-center justify-center shadow-lg"
         >
           <GearIcon />
@@ -531,6 +532,7 @@ function App() {
         <button
           onClick={() => setShowHelp(true)}
           title={t.shortcutsTitle}
+          aria-label={t.shortcutsTitle}
           className="w-8 h-8 rounded-full bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white text-sm font-bold transition-colors flex items-center justify-center shadow-lg"
         >
           ?
@@ -627,6 +629,7 @@ function HelpModal({ onClose }: { onClose: () => void }) {
           <span className="font-semibold text-zinc-100">{t.helpTitle}</span>
           <button
             onClick={onClose}
+            aria-label={t.close}
             className="text-zinc-500 hover:text-white transition-colors text-lg leading-none"
           >
             ✕
@@ -950,6 +953,7 @@ function IconBtn({
       <button
         onClick={onClick}
         disabled={disabled}
+        aria-label={title}
         className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
           accent
             ? "bg-indigo-600 hover:bg-indigo-500 text-white"

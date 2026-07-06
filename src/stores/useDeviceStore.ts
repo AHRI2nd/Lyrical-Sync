@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { useLrcStore } from "./useLrcStore";
 import { useSettingsStore } from "./useSettingsStore";
+import { useI18nStore } from "./useI18nStore";
+import { toast } from "./useToastStore";
 
 // Windows SMTC(System Media Transport Controls)로 이 PC에서 재생 중인 미디어를
 // 소스 앱 무관하게(Spotify 데스크톱, Apple Music, 브라우저 재생 등) 감지.
@@ -38,6 +40,9 @@ interface DeviceState {
 
 let pollingInterval: ReturnType<typeof setInterval> | null = null;
 let interpolationRaf: number | null = null;
+// 실패 스트릭당 1회만 알림 — 폴링은 계속하되(모드가 켜져 있는 한), 성공하면 리셋돼
+// 다음에 다시 끊기면 재알림된다.
+let hasNotifiedFailure = false;
 
 export const useDeviceStore = create<DeviceState>((set, get) => ({
   isPlaying: false,
@@ -53,6 +58,7 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
 
   startPolling: () => {
     if (pollingInterval !== null) return;
+    hasNotifiedFailure = false;
     pollOnce();
     pollingInterval = setInterval(pollOnce, 1000);
   },
@@ -99,6 +105,7 @@ async function pollOnce(): Promise<void> {
   }
   try {
     const info = await invoke<NowPlayingInfo | null>("get_now_playing");
+    hasNotifiedFailure = false;
     const store = useDeviceStore.getState();
     if (!info) {
       if (store.hasSession) useDeviceStore.setState({ hasSession: false, isPlaying: false });
@@ -135,6 +142,11 @@ async function pollOnce(): Promise<void> {
       if (useSettingsStore.getState().deviceMode) useLrcStore.getState().setCurrentTime(positionMs / 1000);
     }
   } catch {
-    // 무시 — 다음 폴링에서 재시도(플랫폼 미지원 시 항상 null 반환이라 여기 안 옴)
+    // 어댑터 호출 자체가 실패(예: macOS 업데이트로 비공식 우회 경로가 막힘) — 폴링은
+    // 모드가 켜져 있는 한 계속 재시도하되, 알림은 실패 스트릭당 1회만 띄운다.
+    if (!hasNotifiedFailure) {
+      hasNotifiedFailure = true;
+      toast.error(useI18nStore.getState().t.toast.deviceUnavailable);
+    }
   }
 }
