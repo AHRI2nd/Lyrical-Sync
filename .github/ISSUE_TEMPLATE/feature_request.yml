@@ -1,0 +1,33 @@
+name: "💡 건의 사항 / Feature Request"
+description: "새로운 기능이나 개선 아이디어를 제안합니다 / Suggest a new feature or improvement"
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        제안해 주셔서 감사합니다! 아래 항목을 채워주시면 검토하는 데 도움이 됩니다.
+        Thanks for the suggestion! Filling in the details below helps us evaluate it.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: "어떤 불편함/아쉬운 점이 있나요? / What problem or gap does this address?"
+      description: "겪고 있는 상황을 설명해 주세요 / Describe the situation you're running into"
+    validations:
+      required: false
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: "제안하는 내용 / Proposed Solution"
+      description: "원하는 기능이나 동작 방식을 자유롭게 적어주세요 / Describe the feature or behavior you'd like"
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: "추가 정보 / Additional Context"
+      description: "참고 이미지, 유사 앱 사례 등 / Reference images, examples from other apps, etc."
+    validations:
+      required: false
