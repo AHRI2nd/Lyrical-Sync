@@ -250,7 +250,11 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   }, []);
 
   useEffect(() => {
-    if (!wsRef.current || !audioPath) return;
+    // Spotify/기기 감지 모드에서는 로컬 오디오를 재생하지 않는다. audioPath는 파일 모드
+    // 때의 값이 모드 전환 후에도 스토어에 남아있을 수 있어(전환 시 일부러 안 지움 —
+    // 파일 모드로 돌아오면 다시 쓰도록), 여기서 걸러야 크래시 복구 후 엉뚱한 파일을
+    // 다시 로드 시도하는 걸 막을 수 있다.
+    if (!wsRef.current || !audioPath || spotifyMode || deviceMode) return;
     let cancelled = false;
 
     setIsAudioReady(false);
@@ -295,11 +299,13 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     });
 
     return () => { cancelled = true; };
-  }, [audioPath]);
+  }, [audioPath, spotifyMode, deviceMode]);
 
   // 오디오 열면 파일 태그(ID3 등)에서 메타데이터를 읽어 비어 있는 필드만 자동 채움
   useEffect(() => {
-    if (!audioPath) return;
+    // 위와 동일한 이유로 Spotify/기기 모드에서는 건너뜀 — 안 그러면 크래시 복구 후
+    // 남아있던 예전 로컬 파일의 태그로 지금 작업 중인 문서의 메타데이터가 덮어써질 수 있다.
+    if (!audioPath || spotifyMode || deviceMode) return;
     let cancelled = false;
     invoke<{ title: string; artist: string; album: string }>("read_audio_metadata", { path: audioPath })
       .then((m) => {
@@ -313,7 +319,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [audioPath]);
+  }, [audioPath, spotifyMode, deviceMode]);
 
   // 오디오 로드 완료 시 현재 zoom 값 적용 (슬라이더 조작 중 zoom은 debounce로 직접 처리)
   useEffect(() => {
@@ -559,13 +565,13 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           <div className="absolute right-0 top-full mt-2 z-40 w-56 bg-zinc-800 border border-zinc-700 rounded-xl shadow-2xl p-3 flex flex-col gap-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-zinc-300">{t.tooltipLoop}</span>
-                <button onClick={toggleLoop} className={popToggleCls(isLooping)} title={t.tooltipLoop}>
+                <button onClick={toggleLoop} className={popToggleCls(isLooping)} title={t.tooltipLoop} aria-label={t.tooltipLoop} aria-pressed={isLooping}>
                   <LoopIcon />
                 </button>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-zinc-300">{t.tooltipMarkers}</span>
-                <button onClick={() => setShowMarkers((v) => !v)} className={popToggleCls(showMarkers)} title={t.tooltipMarkers}>
+                <button onClick={() => setShowMarkers((v) => !v)} className={popToggleCls(showMarkers)} title={t.tooltipMarkers} aria-label={t.tooltipMarkers} aria-pressed={showMarkers}>
                   <MarkerIcon />
                 </button>
               </div>
@@ -709,6 +715,7 @@ function CtrlBtn({
     <button
       onClick={onClick}
       title={title}
+      aria-label={title}
       disabled={disabled}
       className={[
         "flex items-center justify-center text-sm transition-colors",
@@ -908,6 +915,7 @@ function YouTubeModal({
           {!ytLoading && (
             <button
               onClick={onClose}
+              aria-label={t.close}
               className="text-zinc-500 hover:text-white transition-colors text-lg leading-none"
             >
               ✕

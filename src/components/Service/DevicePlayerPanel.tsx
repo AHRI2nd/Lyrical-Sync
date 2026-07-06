@@ -66,6 +66,7 @@ function CtrlBtn({
     <button
       onClick={onClick}
       title={title}
+      aria-label={title}
       className={`flex items-center justify-center h-8 px-2.5 rounded-lg transition-colors ${
         accent ? "bg-indigo-600 hover:bg-indigo-500 text-white" : "text-zinc-400 hover:bg-zinc-800 hover:text-white"
       }`}

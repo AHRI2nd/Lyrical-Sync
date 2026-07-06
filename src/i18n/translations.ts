@@ -1,6 +1,8 @@
 export type Lang = "ko" | "en" | "ja";
 
 export interface Translations {
+  // Common
+  close: string;
   // Header
   newFileTitle: string;
   newFileBtn: string;
@@ -70,6 +72,8 @@ export interface Translations {
     badge: string;
     endCell: string;
     glyphProgress: string;
+    prevLine: string;
+    nextLine: string;
   };
   devicePicker: {
     button: string;
@@ -119,6 +123,8 @@ export interface Translations {
   // AudioPlayer
   openAudio: string;
   zoom: string;
+  zoomIn: string;
+  zoomOut: string;
   volume: string;
   noAudio: string;
   noAudioShort: string;
@@ -254,6 +260,7 @@ export interface Translations {
     aiSyncFailed: string;
     modelDownloaded: string;
     modelDownloadFailed: string;
+    deviceUnavailable: string;
   };
   keys: {
     title: string;
@@ -413,6 +420,7 @@ export interface Translations {
 }
 
 const ko: Translations = {
+  close: "닫기",
   newFileTitle: "새 LRC 파일",
   newFileBtn: "새로 만들기",
   openLrc: "가사 열기",
@@ -503,6 +511,8 @@ const ko: Translations = {
     badge: "글자 동기화됨",
     endCell: "다음 줄로 (여기까지 칠하거나 클릭)",
     glyphProgress: "현재 줄의 글자 동기화 진행도",
+    prevLine: "이전 줄",
+    nextLine: "다음 줄",
   },
   devicePicker: {
     button: "재생 기기",
@@ -579,6 +589,8 @@ const ko: Translations = {
   settingsViewGuide: "설치 가이드 →",
   openAudio: "오디오 열기",
   zoom: "줌",
+  zoomIn: "확대",
+  zoomOut: "축소",
   volume: "볼륨",
   noAudio: "오디오 파일을 열어 파형을 표시합니다",
   noAudioShort: "열린 오디오 파일 없음",
@@ -709,6 +721,7 @@ const ko: Translations = {
     aiSyncFailed: "AI 정렬에 실패했습니다",
     modelDownloaded: "{name} 다운로드 완료",
     modelDownloadFailed: "{name} 다운로드 실패",
+    deviceUnavailable: "기기 감지를 사용할 수 없습니다",
   },
   keys: {
     title: "단축키",
@@ -865,6 +878,7 @@ const ko: Translations = {
 };
 
 const en: Translations = {
+  close: "Close",
   newFileTitle: "New LRC File",
   newFileBtn: "New",
   openLrc: "Open Lyrics",
@@ -955,6 +969,8 @@ const en: Translations = {
     badge: "Character-synced",
     endCell: "Next line (paint here or click)",
     glyphProgress: "Glyphs synced in this line",
+    prevLine: "Previous line",
+    nextLine: "Next line",
   },
   devicePicker: {
     button: "Playback device",
@@ -1031,6 +1047,8 @@ const en: Translations = {
   settingsViewGuide: "Installation Guide →",
   openAudio: "Open Audio",
   zoom: "Zoom",
+  zoomIn: "Zoom in",
+  zoomOut: "Zoom out",
   volume: "Volume",
   noAudio: "Open an audio file to display the waveform",
   noAudioShort: "No audio file open",
@@ -1162,6 +1180,7 @@ const en: Translations = {
     aiSyncFailed: "AI alignment failed",
     modelDownloaded: "{name} downloaded",
     modelDownloadFailed: "{name} download failed",
+    deviceUnavailable: "Device detection is unavailable",
   },
   keys: {
     title: "Keyboard shortcuts",
@@ -1318,6 +1337,7 @@ const en: Translations = {
 };
 
 const ja: Translations = {
+  close: "閉じる",
   newFileTitle: "新規LRCファイル",
   newFileBtn: "新規作成",
   openLrc: "歌詞を開く",
@@ -1408,6 +1428,8 @@ const ja: Translations = {
     badge: "文字同期済み",
     endCell: "次の行へ（ここまで塗るかクリック）",
     glyphProgress: "この行の文字同期の進捗",
+    prevLine: "前の行",
+    nextLine: "次の行",
   },
   devicePicker: {
     button: "再生デバイス",
@@ -1484,6 +1506,8 @@ const ja: Translations = {
   settingsViewGuide: "インストールガイド →",
   openAudio: "音声を開く",
   zoom: "ズーム",
+  zoomIn: "拡大",
+  zoomOut: "縮小",
   volume: "音量",
   noAudio: "音声ファイルを開いて波形を表示します",
   noAudioShort: "開いている音声ファイルなし",
@@ -1614,6 +1638,7 @@ const ja: Translations = {
     aiSyncFailed: "AI 整列に失敗しました",
     modelDownloaded: "{name} のダウンロード完了",
     modelDownloadFailed: "{name} のダウンロード失敗",
+    deviceUnavailable: "デバイス検出を利用できません",
   },
   keys: {
     title: "ショートカット",

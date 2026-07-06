@@ -327,6 +327,7 @@ function PreviewBtn({
     <button
       onClick={onClick}
       title={title}
+      aria-label={title}
       className={[
         "flex items-center justify-center text-sm transition-colors",
         accent

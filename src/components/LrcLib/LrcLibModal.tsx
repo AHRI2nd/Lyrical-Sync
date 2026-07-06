@@ -96,7 +96,7 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800 shrink-0">
           <span className="font-semibold text-zinc-100">{t.lrclib.title}</span>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors text-lg leading-none">✕</button>
+          <button onClick={onClose} aria-label={t.close} className="text-zinc-500 hover:text-white transition-colors text-lg leading-none">✕</button>
         </div>
 
         {/* 검색 필드 */}
@@ -166,7 +166,7 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
                 >
                   {t.lrclib.confirm}
                 </button>
-                <button onClick={() => setPreview(null)} className="text-zinc-500 hover:text-white transition-colors text-lg leading-none">✕</button>
+                <button onClick={() => setPreview(null)} aria-label={t.close} className="text-zinc-500 hover:text-white transition-colors text-lg leading-none">✕</button>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto px-5 py-4">

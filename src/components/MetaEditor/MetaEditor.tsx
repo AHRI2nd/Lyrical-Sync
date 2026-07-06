@@ -45,6 +45,7 @@ export function MetaEditor() {
           <button
             onClick={() => setShowPublish(true)}
             title={t.lrclibPublish.button}
+            aria-label={t.lrclibPublish.button}
             className="p-1.5 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-indigo-300 transition-colors"
           >
             <UploadIcon />
@@ -52,6 +53,7 @@ export function MetaEditor() {
           <button
             onClick={() => setShowRawEditor(true)}
             title={t.viewAll}
+            aria-label={t.viewAll}
             className="p-1.5 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors"
           >
             <CodeIcon />
@@ -198,6 +200,7 @@ function RawEditorModal({
           <span className="font-semibold text-zinc-100">{t.rawEditorTitle}</span>
           <button
             onClick={onClose}
+            aria-label={t.close}
             className="text-zinc-500 hover:text-white transition-colors text-lg leading-none"
           >
             ✕

@@ -71,6 +71,7 @@ export function SettingsModal({
           <span className="font-semibold text-zinc-100">{t.settingsTitle}</span>
           <button
             onClick={onClose}
+            aria-label={t.close}
             className="text-zinc-500 hover:text-white transition-colors text-lg leading-none"
           >
             ✕

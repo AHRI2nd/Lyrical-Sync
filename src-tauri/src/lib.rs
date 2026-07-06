@@ -266,6 +266,41 @@ async fn download_model(
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
 
+        // 여러 파일 중 일부만 실패했다가 재시도하는 경우, 이미 온전히 받아진 파일은
+        // 다시 받지 않고 건너뛴다(체크섬 지정 시 일치 확인, 없으면 존재만 확인 —
+        // check_model_files와 동일 기준). 안 그러면 마지막 파일 하나만 실패해도
+        // 이미 받은 대용량 파일들까지 매번 처음부터 다시 받게 된다.
+        if dest.exists() {
+            let existing_valid = match spec.sha256.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+                Some(expected) => {
+                    use sha2::{Digest, Sha256};
+                    tokio::fs::read(&dest).await.ok().map(|bytes| {
+                        let got = format!("{:x}", Sha256::digest(&bytes));
+                        got.eq_ignore_ascii_case(expected)
+                    }).unwrap_or(false)
+                }
+                None => true,
+            };
+            if existing_valid {
+                let size = tokio::fs::metadata(&dest).await.map(|m| m.len()).unwrap_or(0);
+                let _ = app.emit(
+                    "model-download-progress",
+                    DownloadProgressEvent {
+                        model_id: model_id.clone(),
+                        file_index: i,
+                        file_count,
+                        downloaded: size,
+                        total: size,
+                        done: false,
+                        error: None,
+                    },
+                );
+                continue;
+            }
+            // 손상/불일치 — 지우고 정상적으로 다시 받는다.
+            let _ = tokio::fs::remove_file(&dest).await;
+        }
+
         let mut resp = client
             .get(&spec.url)
             .send()
@@ -1267,8 +1302,23 @@ async fn ytdlp_load_audio(
 
     let mut child = cmd.spawn().map_err(|e| format!("yt-dlp 실행 실패: {e}"))?;
     let stdout = child.stdout.take().unwrap();
+    let stderr = child.stderr.take().unwrap();
 
     use tokio::io::{AsyncBufReadExt, BufReader};
+
+    // stderr는 실패 원인 파악용으로 병행해서 끝까지 비워야 한다(안 읽으면 파이프가 차서
+    // 자식 프로세스가 멈출 수 있음). 마지막 몇 줄만 보관해 에러 메시지에 붙인다.
+    let stderr_tail = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let stderr_tail_c = stderr_tail.clone();
+    let stderr_task = tokio::spawn(async move {
+        let mut reader = BufReader::new(stderr).lines();
+        while let Ok(Some(line)) = reader.next_line().await {
+            let mut tail = stderr_tail_c.lock().unwrap();
+            tail.push(line);
+            if tail.len() > 5 { tail.remove(0); }
+        }
+    });
+
     let mut reader = BufReader::new(stdout).lines();
 
     let cancel_flag = ytdlp_state.cancel_flag.clone();
@@ -1292,13 +1342,19 @@ async fn ytdlp_load_audio(
     }
 
     let status = child.wait().await.map_err(|e| e.to_string())?;
+    let _ = stderr_task.await;
 
     if cancel_flag.load(Ordering::Relaxed) {
         let _ = tokio::fs::remove_dir_all(&cache_dir).await;
         return Err("cancelled".into());
     }
     if !status.success() {
-        return Err(format!("yt-dlp 오류 (종료 코드 {:?})", status.code()));
+        let detail = stderr_tail.lock().unwrap().join(" / ");
+        return Err(if detail.is_empty() {
+            format!("yt-dlp 오류 (종료 코드 {:?})", status.code())
+        } else {
+            format!("yt-dlp 오류 (종료 코드 {:?}): {detail}", status.code())
+        });
     }
 
     let file_path = if let Some(ref p) = dest_path {
