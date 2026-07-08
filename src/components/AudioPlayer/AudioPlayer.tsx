@@ -21,6 +21,7 @@ import { TrackInfoHeader } from "./TrackInfoHeader";
 import { SeekBar } from "./SeekBar";
 import { NoTrackAlert } from "./NoTrackAlert";
 import { YouTubeModal } from "./YouTubeModal";
+import { CtrlBtn } from "./CtrlBtn";
 import {
   PlayIcon, PauseIcon, StopIcon, SkipBackIcon, SkipFwdIcon, TriLeftIcon, TriRightIcon,
   VolumeIcon, ZoomIcon, MarkerIcon, LoopIcon, MoreIcon, FileGlyph, YouTubeGlyph, YouTubeLinkIcon,
@@ -705,38 +706,6 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     </>
   );
 }
-
-function CtrlBtn({
-  onClick, title, children, active, accent, disabled,
-}: {
-  onClick: () => void;
-  title?: string;
-  children: React.ReactNode;
-  active?: boolean;
-  accent?: boolean;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      title={title}
-      aria-label={title}
-      disabled={disabled}
-      className={[
-        "flex items-center justify-center text-sm transition-colors",
-        "disabled:opacity-30 disabled:cursor-not-allowed",
-        accent
-          ? "w-9 h-9 rounded-full bg-indigo-500 hover:bg-indigo-400 active:bg-indigo-600 text-white"
-          : active
-            ? "h-9 px-2 rounded-lg bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25"
-            : "h-9 px-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white",
-      ].join(" ")}
-    >
-      {children}
-    </button>
-  );
-}
-
 
 // 오버플로우 팝오버 내 토글 버튼 스타일
 function popToggleCls(active: boolean): string {

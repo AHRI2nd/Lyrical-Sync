@@ -1,14 +1,14 @@
-export function PlayIcon() {
+export function PlayIcon({ size = 16 }: { size?: number }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
       <path d="M8 5v14l11-7z" />
     </svg>
   );
 }
 
-export function PauseIcon() {
+export function PauseIcon({ size = 16 }: { size?: number }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
       <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
     </svg>
   );
@@ -22,19 +22,19 @@ export function StopIcon() {
   );
 }
 
-export function SkipBackIcon() {
+export function SkipBackIcon({ size = 13 }: { size?: number }) {
   // 채워진 이중 삼각형 (◀◀ 되감기)
   return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
       <path d="M11 6 L11 18 L4 12 Z M18 6 L18 18 L11 12 Z" />
     </svg>
   );
 }
 
-export function SkipFwdIcon() {
+export function SkipFwdIcon({ size = 13 }: { size?: number }) {
   // 채워진 이중 삼각형 (▶▶ 빨리감기)
   return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
       <path d="M6 6 L6 18 L13 12 Z M13 6 L13 18 L20 12 Z" />
     </svg>
   );
@@ -88,9 +88,9 @@ export function MarkerIcon() {
   );
 }
 
-export function LoopIcon() {
+export function LoopIcon({ size = 15 }: { size?: number }) {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
       <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
     </svg>
   );

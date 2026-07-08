@@ -7,10 +7,27 @@ import { useI18nStore } from "../../stores/useI18nStore";
 import { DevicePickerModal } from "./DevicePickerModal";
 import { TrackInfoHeader } from "../AudioPlayer/TrackInfoHeader";
 import { SeekBar } from "../AudioPlayer/SeekBar";
+import { CtrlBtn } from "../AudioPlayer/CtrlBtn";
+import {
+  PlayIcon, PauseIcon, StopIcon, SkipBackIcon, SkipFwdIcon, TriLeftIcon, TriRightIcon,
+  VolumeIcon, LoopIcon,
+} from "../AudioPlayer/icons";
 
 interface ServicePlayerPanelProps {
   onSpotifySearch?: () => void;
   onLoadCurrent?: () => void;
+}
+
+// Spotify 브랜드 색(green)으로 고정한 CtrlBtn — 공용 컴포넌트에 매 호출부마다
+// 색상 클래스를 반복해서 넘기지 않도록 하는 래퍼.
+function SpotifyCtrlBtn(props: Omit<React.ComponentProps<typeof CtrlBtn>, "accentClass" | "activeClass">) {
+  return (
+    <CtrlBtn
+      {...props}
+      accentClass="w-9 h-9 rounded-full bg-green-600 hover:bg-green-500 active:bg-green-700 text-white"
+      activeClass="h-9 px-2 rounded-lg bg-green-500/15 text-green-400 hover:bg-green-500/25"
+    />
+  );
 }
 
 export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePlayerPanelProps = {}) {
@@ -57,29 +74,29 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
 
       {/* 재생 컨트롤 한 줄: 정지(좌) · 전송(중앙) · 반복(우) */}
       <div className="flex items-center gap-0.5">
-        <CtrlBtn onClick={() => serviceControls.stopAndReset()} title={t.tooltipStop}>
+        <SpotifyCtrlBtn onClick={() => serviceControls.stopAndReset()} title={t.tooltipStop}>
           <StopIcon />
-        </CtrlBtn>
+        </SpotifyCtrlBtn>
         <div className="flex-1 flex items-center justify-center gap-0.5">
-          <CtrlBtn onClick={() => serviceControls.skip(-5)} title={t.tooltipSkipBack5}>
+          <SpotifyCtrlBtn onClick={() => serviceControls.skip(-5)} title={t.tooltipSkipBack5}>
             <SkipBackIcon /><span className="text-[10px] font-bold ml-0.5">5</span>
-          </CtrlBtn>
-          <CtrlBtn onClick={() => serviceControls.skip(-1)} title={t.tooltipSkipBack1}>
+          </SpotifyCtrlBtn>
+          <SpotifyCtrlBtn onClick={() => serviceControls.skip(-1)} title={t.tooltipSkipBack1}>
             <TriLeftIcon /><span className="text-[10px] font-bold ml-0.5">1</span>
-          </CtrlBtn>
-          <CtrlBtn onClick={() => serviceControls.togglePlay()} title={t.tooltipPlayPause} accent>
+          </SpotifyCtrlBtn>
+          <SpotifyCtrlBtn onClick={() => serviceControls.togglePlay()} title={t.tooltipPlayPause} accent>
             {isPlaying ? <PauseIcon /> : <PlayIcon />}
-          </CtrlBtn>
-          <CtrlBtn onClick={() => serviceControls.skip(1)} title={t.tooltipSkipFwd1}>
+          </SpotifyCtrlBtn>
+          <SpotifyCtrlBtn onClick={() => serviceControls.skip(1)} title={t.tooltipSkipFwd1}>
             <span className="text-[10px] font-bold mr-0.5">1</span><TriRightIcon />
-          </CtrlBtn>
-          <CtrlBtn onClick={() => serviceControls.skip(5)} title={t.tooltipSkipFwd5}>
+          </SpotifyCtrlBtn>
+          <SpotifyCtrlBtn onClick={() => serviceControls.skip(5)} title={t.tooltipSkipFwd5}>
             <span className="text-[10px] font-bold mr-0.5">5</span><SkipFwdIcon />
-          </CtrlBtn>
+          </SpotifyCtrlBtn>
         </div>
-        <CtrlBtn onClick={() => toggleLoop().catch(() => {})} title={t.tooltipLoop} active={isLooping}>
-          <LoopIcon />
-        </CtrlBtn>
+        <SpotifyCtrlBtn onClick={() => toggleLoop().catch(() => {})} title={t.tooltipLoop} active={isLooping}>
+          <LoopIcon size={14} />
+        </SpotifyCtrlBtn>
       </div>
 
       {/* Volume */}
@@ -144,65 +161,4 @@ function DevicesIcon() {
       <line x1="7" y1="17" x2="11" y2="17" />
     </svg>
   );
-}
-
-function CtrlBtn({
-  onClick, title, children, accent, active,
-}: {
-  onClick: () => void;
-  title?: string;
-  children: React.ReactNode;
-  accent?: boolean;
-  active?: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      title={title}
-      aria-label={title}
-      className={[
-        "flex items-center justify-center text-sm transition-colors",
-        accent
-          ? "w-9 h-9 rounded-full bg-green-600 hover:bg-green-500 active:bg-green-700 text-white"
-          : active
-            ? "h-9 px-2 rounded-lg bg-green-500/15 text-green-400 hover:bg-green-500/25"
-            : "h-9 px-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white",
-      ].join(" ")}
-    >
-      {children}
-    </button>
-  );
-}
-
-function PlayIcon() {
-  return <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>;
-}
-function PauseIcon() {
-  return <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>;
-}
-function StopIcon() {
-  return <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z" /></svg>;
-}
-function SkipBackIcon() {
-  return <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M11 6 L11 18 L4 12 Z M18 6 L18 18 L11 12 Z" /></svg>;
-}
-function SkipFwdIcon() {
-  return <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6 L6 18 L13 12 Z M13 6 L13 18 L20 12 Z" /></svg>;
-}
-function TriLeftIcon() {
-  return <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M15 6 L15 18 L7 12 Z" /></svg>;
-}
-function TriRightIcon() {
-  return <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M9 6 L9 18 L17 12 Z" /></svg>;
-}
-function VolumeIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M4 9v6h4l5 4V5L8 9H4z" />
-      <path d="M16 8.5a4.5 4.5 0 0 1 0 7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-function LoopIcon() {
-  return <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" /></svg>;
 }
