@@ -3,6 +3,19 @@ import { deviceControls } from "../../utils/deviceControls";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { TrackInfoHeader } from "../AudioPlayer/TrackInfoHeader";
 import { SeekBar } from "../AudioPlayer/SeekBar";
+import { CtrlBtn } from "../AudioPlayer/CtrlBtn";
+import { PlayIcon, PauseIcon, SkipBackIcon, SkipFwdIcon } from "../AudioPlayer/icons";
+
+// Device 패널의 컴팩트 컨트롤(원형 accent 없이 h-8 사각 버튼)로 고정한 CtrlBtn.
+function DeviceCtrlBtn(props: Omit<React.ComponentProps<typeof CtrlBtn>, "accentClass" | "baseClass">) {
+  return (
+    <CtrlBtn
+      {...props}
+      accentClass="h-8 px-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white"
+      baseClass="h-8 px-2.5 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white"
+    />
+  );
+}
 
 // Windows SMTC로 감지한 로컬 재생 정보 패널. Spotify 원격 제어와 달리 임의의 다른 앱
 // 세션을 다루므로(Spotify 데스크톱, Apple Music, 브라우저 등) 소스 앱을 표시하고,
@@ -34,45 +47,23 @@ export function DevicePlayerPanel() {
 
       {/* 컨트롤 */}
       <div className="flex items-center justify-center gap-0.5">
-        <CtrlBtn onClick={() => deviceControls.skip(-5)} title={t.tooltipSkipBack5}>
-          <SkipBackIcon /><span className="text-[10px] font-bold ml-0.5">5</span>
-        </CtrlBtn>
-        <CtrlBtn onClick={() => deviceControls.skip(-1)} title={t.tooltipSkipBack1}>
-          <SkipBackIcon /><span className="text-[10px] font-bold ml-0.5">1</span>
-        </CtrlBtn>
-        <CtrlBtn onClick={deviceControls.togglePlay} title={t.tooltipPlayPause} accent>
-          {isPlaying ? <PauseIcon /> : <PlayIcon />}
-        </CtrlBtn>
-        <CtrlBtn onClick={() => deviceControls.skip(1)} title={t.tooltipSkipFwd1}>
-          <span className="text-[10px] font-bold mr-0.5">1</span><SkipFwdIcon />
-        </CtrlBtn>
-        <CtrlBtn onClick={() => deviceControls.skip(5)} title={t.tooltipSkipFwd5}>
-          <span className="text-[10px] font-bold mr-0.5">5</span><SkipFwdIcon />
-        </CtrlBtn>
+        <DeviceCtrlBtn onClick={() => deviceControls.skip(-5)} title={t.tooltipSkipBack5}>
+          <SkipBackIcon size={12} /><span className="text-[10px] font-bold ml-0.5">5</span>
+        </DeviceCtrlBtn>
+        <DeviceCtrlBtn onClick={() => deviceControls.skip(-1)} title={t.tooltipSkipBack1}>
+          <SkipBackIcon size={12} /><span className="text-[10px] font-bold ml-0.5">1</span>
+        </DeviceCtrlBtn>
+        <DeviceCtrlBtn onClick={deviceControls.togglePlay} title={t.tooltipPlayPause} accent>
+          {isPlaying ? <PauseIcon size={14} /> : <PlayIcon size={14} />}
+        </DeviceCtrlBtn>
+        <DeviceCtrlBtn onClick={() => deviceControls.skip(1)} title={t.tooltipSkipFwd1}>
+          <span className="text-[10px] font-bold mr-0.5">1</span><SkipFwdIcon size={12} />
+        </DeviceCtrlBtn>
+        <DeviceCtrlBtn onClick={() => deviceControls.skip(5)} title={t.tooltipSkipFwd5}>
+          <span className="text-[10px] font-bold mr-0.5">5</span><SkipFwdIcon size={12} />
+        </DeviceCtrlBtn>
       </div>
     </div>
-  );
-}
-
-function CtrlBtn({
-  onClick, title, accent, children,
-}: {
-  onClick: () => void;
-  title: string;
-  accent?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      title={title}
-      aria-label={title}
-      className={`flex items-center justify-center h-8 px-2.5 rounded-lg transition-colors ${
-        accent ? "bg-indigo-600 hover:bg-indigo-500 text-white" : "text-zinc-400 hover:bg-zinc-800 hover:text-white"
-      }`}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -84,17 +75,4 @@ function DeviceGlyph() {
       <line x1="12" y1="17" x2="12" y2="21" />
     </svg>
   );
-}
-
-function PlayIcon() {
-  return <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>;
-}
-function PauseIcon() {
-  return <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>;
-}
-function SkipBackIcon() {
-  return <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M11 6 L11 18 L4 12 Z M18 6 L18 18 L11 12 Z" /></svg>;
-}
-function SkipFwdIcon() {
-  return <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6 L6 18 L13 12 Z M13 6 L13 18 L20 12 Z" /></svg>;
 }
