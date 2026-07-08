@@ -21,6 +21,8 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 import { useLrcStore } from "./useLrcStore";
 import type { LrcLine, LrcDocument } from "../types/lrc";
 import { saveRecoverySnapshot, loadRecoverySnapshot, clearRecoverySnapshot } from "../utils/recovery";
+import { invoke } from "@tauri-apps/api/core";
+import { save } from "@tauri-apps/plugin-dialog";
 
 const reset = (lines: LrcLine[], offset = 0) =>
   useLrcStore.setState({
@@ -267,5 +269,108 @@ describe("recovery snapshot & restoreDoc", () => {
     expect(st.audioPath).toBe("/a.mp3");
     expect(st.isDirty).toBe(true);
     expect(st.doc.lines[0].id).toBe("1");
+  });
+});
+
+describe("useLrcStore — security-scoped bookmarks (App Sandbox)", () => {
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+
+  beforeEach(() => {
+    reset([]);
+    useLrcStore.setState({ audioPath: null, audioBookmark: null, lrcPath: null, lrcBookmark: null });
+    vi.mocked(invoke).mockReset();
+    vi.mocked(save).mockReset();
+  });
+
+  it("setAudioPath sets the path immediately and resolves the bookmark asynchronously", async () => {
+    vi.mocked(invoke).mockImplementation((cmd: unknown) =>
+      cmd === "create_security_bookmark" ? Promise.resolve("bm-a") : Promise.resolve(undefined)
+    );
+    useLrcStore.getState().setAudioPath("/a.mp3");
+    expect(useLrcStore.getState().audioPath).toBe("/a.mp3");
+    expect(useLrcStore.getState().audioBookmark).toBeNull();
+
+    await flush();
+    expect(useLrcStore.getState().audioBookmark).toBe("bm-a");
+  });
+
+  it("does not let a stale bookmark overwrite a newer path (race guard)", async () => {
+    let resolveA!: (v: string) => void;
+    vi.mocked(invoke).mockImplementation((cmd: unknown, args?: unknown) => {
+      if (cmd !== "create_security_bookmark") return Promise.resolve(undefined);
+      const path = (args as { path?: string } | undefined)?.path;
+      if (path === "/a.mp3") return new Promise((r) => { resolveA = r; });
+      return Promise.resolve("bm-b");
+    });
+
+    useLrcStore.getState().setAudioPath("/a.mp3"); // slow bookmark creation
+    useLrcStore.getState().setAudioPath("/b.mp3"); // switches before A resolves
+    await flush();
+    expect(useLrcStore.getState().audioBookmark).toBe("bm-b");
+
+    resolveA("bm-a"); // late resolution for the now-stale path
+    await flush();
+    expect(useLrcStore.getState().audioPath).toBe("/b.mp3");
+    expect(useLrcStore.getState().audioBookmark).toBe("bm-b"); // unchanged by the stale resolve
+  });
+
+  it("setAudioPath(null) clears the bookmark without invoking bookmark creation", () => {
+    useLrcStore.setState({ audioPath: "/old.mp3", audioBookmark: "bm-old" });
+    useLrcStore.getState().setAudioPath(null);
+    expect(useLrcStore.getState().audioPath).toBeNull();
+    expect(useLrcStore.getState().audioBookmark).toBeNull();
+    expect(invoke).not.toHaveBeenCalledWith("create_security_bookmark", expect.anything());
+  });
+
+  it("loadLyricsPath resolves lrcBookmark after loading the file", async () => {
+    vi.mocked(invoke).mockImplementation((cmd: unknown) => {
+      if (cmd === "read_lrc_file") return Promise.resolve("[00:01.00]hello");
+      if (cmd === "create_security_bookmark") return Promise.resolve("bm-lrc");
+      return Promise.resolve(undefined);
+    });
+    await useLrcStore.getState().loadLyricsPath("/song.lrc");
+    expect(useLrcStore.getState().lrcPath).toBe("/song.lrc");
+
+    await flush();
+    expect(useLrcStore.getState().lrcBookmark).toBe("bm-lrc");
+  });
+
+  it("saveLrcAs resolves lrcBookmark for the newly saved lrc path", async () => {
+    vi.mocked(save).mockResolvedValue("/new.lrc");
+    vi.mocked(invoke).mockImplementation((cmd: unknown) => {
+      if (cmd === "write_lrc_file") return Promise.resolve(undefined);
+      if (cmd === "create_security_bookmark") return Promise.resolve("bm-new");
+      return Promise.resolve(undefined);
+    });
+    const written = await useLrcStore.getState().saveLrcAs("lrc");
+    expect(written).toBe(true);
+    expect(useLrcStore.getState().lrcPath).toBe("/new.lrc");
+
+    await flush();
+    expect(useLrcStore.getState().lrcBookmark).toBe("bm-new");
+  });
+
+  it("restoreDoc sets bookmarks directly from parameters", () => {
+    const doc: LrcDocument = {
+      metadata: { title: "T", artist: "", album: "", by: "", offset: 0 },
+      lines: [{ id: "x", timestamp: null, text: "hi" }],
+      extraTags: {},
+    };
+    useLrcStore.getState().restoreDoc(doc, "/p.lrc", "/a.mp3", "bm-lrc", "bm-audio");
+    const st = useLrcStore.getState();
+    expect(st.lrcBookmark).toBe("bm-lrc");
+    expect(st.audioBookmark).toBe("bm-audio");
+  });
+
+  it("restoreDoc defaults bookmarks to null when omitted", () => {
+    const doc: LrcDocument = {
+      metadata: { title: "T", artist: "", album: "", by: "", offset: 0 },
+      lines: [{ id: "x", timestamp: null, text: "hi" }],
+      extraTags: {},
+    };
+    useLrcStore.getState().restoreDoc(doc, "/p.lrc", "/a.mp3");
+    const st = useLrcStore.getState();
+    expect(st.lrcBookmark).toBeNull();
+    expect(st.audioBookmark).toBeNull();
   });
 });
