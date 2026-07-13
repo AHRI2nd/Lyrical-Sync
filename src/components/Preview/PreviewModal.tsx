@@ -157,6 +157,7 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
 
         <div
           className={`flex-1 leading-snug ${textSizeClass} ${line.timestamp !== null ? "cursor-pointer" : "select-none"}`}
+          style={isActive ? { textShadow: "0 0 26px rgba(99,102,241,0.28)" } : undefined}
           onClick={() => { if (line.timestamp !== null) seekToLine(line.timestamp); }}
         >
           {isActive ? (
@@ -166,7 +167,10 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
               ) : (
                 line.text || " "
               )}
-              <span className="absolute -bottom-1 left-0 right-0 h-0.5 rounded-full bg-indigo-500 opacity-80" />
+              <span
+                className="absolute -bottom-1.5 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-400 to-transparent"
+                style={{ boxShadow: "0 0 12px 1px rgba(99,102,241,0.55)" }}
+              />
             </span>
           ) : (
             line.text || " "
@@ -205,11 +209,11 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
       {/* 상단 바 */}
       <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-zinc-800/60">
         <div className="flex flex-col gap-0.5 min-w-0">
-          <span className="text-white font-semibold text-base truncate leading-tight">
+          <span className="text-white font-serif text-lg tracking-tight truncate leading-tight">
             {doc.metadata.title || t.previewUntitled}
           </span>
           {doc.metadata.artist && (
-            <span className="text-zinc-400 text-sm truncate leading-tight">
+            <span className="text-zinc-400 font-serif italic text-sm truncate leading-tight">
               {doc.metadata.artist}
             </span>
           )}
@@ -252,12 +256,12 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
       >
         {doc.lines.length === 0 ? (
           <div className="flex items-center justify-center h-full">
-            <span className="text-zinc-600 text-lg">{t.previewNoLyrics}</span>
+            <span className="text-zinc-600 font-serif italic text-lg">{t.previewNoLyrics}</span>
           </div>
         ) : (
-          <div className="flex flex-col gap-4 max-w-2xl mx-auto">
+          <div className="flex flex-col gap-4 max-w-2xl mx-auto font-serif">
             {!hasTimestamps && (
-              <p className="text-zinc-700 text-sm text-center mb-2">{t.previewNoTimestamps}</p>
+              <p className="text-zinc-700 text-sm text-center mb-2 not-italic font-sans">{t.previewNoTimestamps}</p>
             )}
             {linesContent}
             <div className="h-24 shrink-0" />
