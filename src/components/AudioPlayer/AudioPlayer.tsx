@@ -3,31 +3,26 @@ import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "wavesurfer.js/dist/plugins/regions.esm.js";
 // 스펙트로그램 플러그인(~36KB)은 토글로 켰을 때만 필요 → 동적 임포트로 초기 번들에서 제외
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { toast } from "../../stores/useToastStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
-import { useBusyStore } from "../../stores/useBusyStore";
 import { audioControls } from "../../utils/audioControls";
 import { readAudioBytes } from "../../utils/readAudioBytes";
 import { activateSpotifyPlayer } from "../../utils/spotifyPlayer";
-import { safeUnlisten } from "../../utils/safeUnlisten";
 import { formatDisplayTime } from "../../utils/lrcParser";
 import { ServicePlayerPanel } from "../Service/ServicePlayerPanel";
 import { DevicePlayerPanel } from "../Service/DevicePlayerPanel";
 import { TrackInfoHeader } from "./TrackInfoHeader";
 import { SeekBar } from "./SeekBar";
 import { NoTrackAlert } from "./NoTrackAlert";
+import { useYouTubeLoad } from "./useYouTubeLoad";
+import { TransportControls } from "./TransportControls";
 // YouTube 모드일 때만 필요 → 지연 로드(초기 번들 절감)
 const YouTubeModal = lazy(() => import("./YouTubeModal").then((m) => ({ default: m.YouTubeModal })));
-import { CtrlBtn } from "./CtrlBtn";
-import {
-  PlayIcon, PauseIcon, StopIcon, SkipBackIcon, SkipFwdIcon, TriLeftIcon, TriRightIcon,
-  VolumeIcon, ZoomIcon, MarkerIcon, LoopIcon, SpectrogramIcon, MoreIcon, FileGlyph, YouTubeGlyph, YouTubeLinkIcon,
-} from "./icons";
+import { VolumeIcon, ZoomIcon, FileGlyph, YouTubeGlyph, YouTubeLinkIcon } from "./icons";
 
 const AUDIO_MIME: Record<string, string> = {
   mp3: "audio/mpeg", flac: "audio/flac", wav: "audio/wav",
@@ -62,7 +57,6 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   const isLoopingRef = useRef(false);
   const playbackRateRef = useRef(1.0);
   const zoomDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const moreRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlayingLocal] = useState(false);
   const [isAudioReady, setIsAudioReady] = useState(false);
   const [duration, setDurationLocal] = useState(0);
@@ -85,71 +79,19 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   const metadata = useLrcStore((s) => s.doc.metadata);
   const activeLineId = useLrcStore((s) => s.activeLineId);
   const [showMarkers, setShowMarkers] = useState(true);
-  const [showMore, setShowMore] = useState(false);
   const { t } = useI18nStore();
   const { isLoggedIn, startLogin, fetchCurrentlyPlaying, transferPlaybackToApp } = useServiceStore();
   const {
-    spotifyMode, spotifyClientId, youtubeMode, deviceMode, ytdlpAudioQuality, ytdlpCookiesFile, ytdlpProxy,
+    spotifyMode, spotifyClientId, youtubeMode, deviceMode,
     showSpectrogram, setShowSpectrogram,
   } = useSettingsStore();
   const isServiceMode = isLoggedIn && spotifyMode;
 
-  const [ytUrl, setYtUrl] = useState("");
-  const [ytLoading, setYtLoadingRaw] = useState(false);
-  const [ytError, setYtError] = useState<string | null>(null);
-  const [ytModalOpen, setYtModalOpen] = useState(false);
-
-  // 업데이트 다운로드/재시작이 yt-dlp 다운로드와 겹치지 않도록 busy 상태를 함께 표시
-  const YT_BUSY_ID = "youtube-download";
-  const setYtLoading = (v: boolean) => {
-    setYtLoadingRaw(v);
-    if (v) useBusyStore.getState().markBusy(YT_BUSY_ID);
-    else useBusyStore.getState().clearBusy(YT_BUSY_ID);
-  };
-
-  useEffect(() => {
-    let unlisten: (() => void) | null = null;
-    listen<{ percent: number; speed: string; eta: string; done: boolean }>(
-      "ytdlp-audio-progress",
-      (e) => {
-        if (e.payload.done) setYtLoading(false);
-      }
-    ).then((fn) => { unlisten = fn; }).catch(() => {});
-    return () => { safeUnlisten(unlisten); };
-  }, []);
-
-  const handleYtLoad = async () => {
-    const url = ytUrl.trim();
-    if (!url) return;
-    setYtLoading(true);
-    setYtError(null);
-    try {
-      const path = await invoke<string>("ytdlp_load_audio", {
-        url,
-        quality: ytdlpAudioQuality,
-        cookiesFile: ytdlpCookiesFile,
-        proxy: ytdlpProxy,
-      });
-      setAudioPath(path);
-      setYtModalOpen(false);
-      setYtUrl("");
-    } catch (e) {
-      setYtError(String(e));
-    } finally {
-      setYtLoading(false);
-    }
-  };
-
-  const handleYtCancel = () => {
-    invoke("cancel_ytdlp_load").catch(() => {});
-    setYtLoading(false);
-  };
-
-  const handleYtModalClose = () => {
-    if (ytLoading) return;
-    setYtModalOpen(false);
-    setYtError(null);
-  };
+  const {
+    ytUrl, ytLoading, ytError, ytModalOpen,
+    setYtUrl, setYtError, setYtModalOpen,
+    handleYtLoad, handleYtCancel, handleYtModalClose,
+  } = useYouTubeLoad(setAudioPath);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -340,16 +282,6 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   useEffect(() => {
     wsRef.current?.setVolume(volume);
   }, [volume]);
-
-  // 보조기능 오버플로우(⋯) 바깥 클릭 시 닫기
-  useEffect(() => {
-    if (!showMore) return;
-    const h = (e: MouseEvent) => {
-      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setShowMore(false);
-    };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [showMore]);
 
   // 마커는 줄 id·타임스탬프·줄번호(인덱스)에만 의존 → 텍스트 편집(타임스탬프 불변)으로는
   // region을 재생성하지 않도록 시그니처로 의존성을 좁힘(키 입력마다 전체 region 재생성 방지).
@@ -567,77 +499,25 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         </div>
       )}
 
-      {/* 재생 컨트롤 한 줄: 정지(좌) · 전송(중앙) · 더보기(우). relative를 행 전체에
-          두어 팝오버가 좁은 카드 폭(우측 정렬) 안에 들어오게 함 */}
-      <div className="relative flex items-center gap-0.5" ref={moreRef}>
-        <CtrlBtn onClick={stopAndReset} title={t.tooltipStop}>
-          <StopIcon />
-        </CtrlBtn>
-
-        <div className="flex-1 flex items-center justify-center gap-0.5">
-          <CtrlBtn onClick={() => skip(-5)} title={t.tooltipSkipBack5}>
-            <SkipBackIcon /><span className="text-[10px] font-bold ml-0.5">5</span>
-          </CtrlBtn>
-          <CtrlBtn onClick={() => skip(-1)} title={t.tooltipSkipBack1}>
-            <TriLeftIcon /><span className="text-[10px] font-bold ml-0.5">1</span>
-          </CtrlBtn>
-          <CtrlBtn onClick={togglePlay} disabled={!audioPath} title={t.tooltipPlayPause} accent>
-            {isPlaying ? <PauseIcon /> : <PlayIcon />}
-          </CtrlBtn>
-          <CtrlBtn onClick={() => skip(1)} title={t.tooltipSkipFwd1}>
-            <span className="text-[10px] font-bold mr-0.5">1</span><TriRightIcon />
-          </CtrlBtn>
-          <CtrlBtn onClick={() => skip(5)} title={t.tooltipSkipFwd5}>
-            <span className="text-[10px] font-bold mr-0.5">5</span><SkipFwdIcon />
-          </CtrlBtn>
-        </div>
-
-        <CtrlBtn
-          onClick={() => setShowMore((v) => !v)}
-          title={t.playerMore}
-          active={showMore || isLooping || playbackRate !== 1.0 || showSpectrogram}
-        >
-          <MoreIcon />
-        </CtrlBtn>
-        {showMore && (
-          <div className="absolute right-0 top-full mt-2 z-40 w-56 bg-zinc-800 border border-zinc-700 rounded-xl shadow-2xl p-3 flex flex-col gap-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-300">{t.tooltipLoop}</span>
-                <button onClick={toggleLoop} className={popToggleCls(isLooping)} title={t.tooltipLoop} aria-label={t.tooltipLoop} aria-pressed={isLooping}>
-                  <LoopIcon />
-                </button>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-300">{t.tooltipMarkers}</span>
-                <button onClick={() => setShowMarkers((v) => !v)} className={popToggleCls(showMarkers)} title={t.tooltipMarkers} aria-label={t.tooltipMarkers} aria-pressed={showMarkers}>
-                  <MarkerIcon />
-                </button>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-300">{t.tooltipSpectrogram}</span>
-                <button onClick={() => setShowSpectrogram(!showSpectrogram)} className={popToggleCls(showSpectrogram)} title={t.tooltipSpectrogram} aria-label={t.tooltipSpectrogram} aria-pressed={showSpectrogram}>
-                  <SpectrogramIcon />
-                </button>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-300">{t.playerSpeed}</span>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => adjustSpeed(-1)}
-                    disabled={playbackRate <= SPEED_STEPS[0]}
-                    className="w-6 h-6 flex items-center justify-center rounded-md bg-zinc-700 hover:bg-zinc-600 disabled:opacity-30 text-zinc-200 text-sm font-bold leading-none transition-colors"
-                  >−</button>
-                  <span className="w-12 text-center text-xs font-mono text-zinc-200 tabular-nums">{playbackRate.toFixed(2)}×</span>
-                  <button
-                    onClick={() => adjustSpeed(1)}
-                    disabled={playbackRate >= SPEED_STEPS[SPEED_STEPS.length - 1]}
-                    className="w-6 h-6 flex items-center justify-center rounded-md bg-zinc-700 hover:bg-zinc-600 disabled:opacity-30 text-zinc-200 text-sm font-bold leading-none transition-colors"
-                  >+</button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+      <TransportControls
+        t={t}
+        audioPath={audioPath}
+        isPlaying={isPlaying}
+        togglePlay={togglePlay}
+        skip={skip}
+        stopAndReset={stopAndReset}
+        isLooping={isLooping}
+        onToggleLoop={toggleLoop}
+        showMarkers={showMarkers}
+        onToggleMarkers={() => setShowMarkers((v) => !v)}
+        showSpectrogram={showSpectrogram}
+        onToggleSpectrogram={() => setShowSpectrogram(!showSpectrogram)}
+        playbackRate={playbackRate}
+        speedMin={SPEED_STEPS[0]}
+        speedMax={SPEED_STEPS[SPEED_STEPS.length - 1]}
+        onSpeedDown={() => adjustSpeed(-1)}
+        onSpeedUp={() => adjustSpeed(1)}
+      />
 
       {/* 열기 버튼 */}
       {spotifyMode ? (
@@ -743,13 +623,5 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     </div>
     </>
   );
-}
-
-// 오버플로우 팝오버 내 토글 버튼 스타일
-function popToggleCls(active: boolean): string {
-  return [
-    "w-8 h-8 flex items-center justify-center rounded-lg transition-colors",
-    active ? "bg-indigo-500 text-white hover:bg-indigo-400" : "bg-zinc-700 text-zinc-200 hover:bg-zinc-600",
-  ].join(" ");
 }
 
