@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "wavesurfer.js/dist/plugins/regions.esm.js";
+import SpectrogramPlugin from "wavesurfer.js/dist/plugins/spectrogram.esm.js";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useLrcStore } from "../../stores/useLrcStore";
@@ -24,7 +25,7 @@ import { YouTubeModal } from "./YouTubeModal";
 import { CtrlBtn } from "./CtrlBtn";
 import {
   PlayIcon, PauseIcon, StopIcon, SkipBackIcon, SkipFwdIcon, TriLeftIcon, TriRightIcon,
-  VolumeIcon, ZoomIcon, MarkerIcon, LoopIcon, MoreIcon, FileGlyph, YouTubeGlyph, YouTubeLinkIcon,
+  VolumeIcon, ZoomIcon, MarkerIcon, LoopIcon, SpectrogramIcon, MoreIcon, FileGlyph, YouTubeGlyph, YouTubeLinkIcon,
 } from "./icons";
 
 const AUDIO_MIME: Record<string, string> = {
@@ -53,6 +54,7 @@ interface AudioPlayerProps {
 
 export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlayerProps = {}) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const spectrogramContainerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
   const peaksRef = useRef<number[] | null>(null);
   const regionsRef = useRef<ReturnType<typeof RegionsPlugin.create> | null>(null);
@@ -85,7 +87,10 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   const [showMore, setShowMore] = useState(false);
   const { t } = useI18nStore();
   const { isLoggedIn, startLogin, fetchCurrentlyPlaying, transferPlaybackToApp } = useServiceStore();
-  const { spotifyMode, spotifyClientId, youtubeMode, deviceMode, ytdlpAudioQuality, ytdlpCookiesFile, ytdlpProxy } = useSettingsStore();
+  const {
+    spotifyMode, spotifyClientId, youtubeMode, deviceMode, ytdlpAudioQuality, ytdlpCookiesFile, ytdlpProxy,
+    showSpectrogram, setShowSpectrogram,
+  } = useSettingsStore();
   const isServiceMode = isLoggedIn && spotifyMode;
 
   const [ytUrl, setYtUrl] = useState("");
@@ -411,6 +416,16 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     });
   }, [activeLineId, isAudioReady, showMarkers, markerSig]);
 
+  // 스펙트로그램 플러그인은 켰을 때만 생성(FFT 계산 낭비 방지), 끄면 destroy()로 완전히 정리
+  useEffect(() => {
+    const ws = wsRef.current;
+    if (!ws || !showSpectrogram || !spectrogramContainerRef.current) return;
+    const plugin = ws.registerPlugin(
+      SpectrogramPlugin.create({ container: spectrogramContainerRef.current, height: 80, labels: false, scale: "mel" })
+    );
+    return () => plugin.destroy();
+  }, [showSpectrogram]);
+
   const togglePlay = useCallback(() => wsRef.current?.playPause(), []);
 
   const skip = useCallback((delta: number) => {
@@ -498,6 +513,11 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         className="w-full rounded-lg overflow-hidden bg-zinc-800 cursor-pointer"
         style={{ minHeight: 80, display: (isServiceMode || deviceMode || viewMode === "bar") ? "none" : "" }}
       />
+      <div
+        ref={spectrogramContainerRef}
+        className="w-full rounded-lg overflow-hidden bg-zinc-800"
+        style={{ minHeight: 80, display: (isServiceMode || deviceMode || viewMode === "bar" || !showSpectrogram) ? "none" : "" }}
+      />
 
       {isServiceMode ? (
         <ServicePlayerPanel
@@ -563,7 +583,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         <CtrlBtn
           onClick={() => setShowMore((v) => !v)}
           title={t.playerMore}
-          active={showMore || isLooping || playbackRate !== 1.0}
+          active={showMore || isLooping || playbackRate !== 1.0 || showSpectrogram}
         >
           <MoreIcon />
         </CtrlBtn>
@@ -579,6 +599,12 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
                 <span className="text-xs text-zinc-300">{t.tooltipMarkers}</span>
                 <button onClick={() => setShowMarkers((v) => !v)} className={popToggleCls(showMarkers)} title={t.tooltipMarkers} aria-label={t.tooltipMarkers} aria-pressed={showMarkers}>
                   <MarkerIcon />
+                </button>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-zinc-300">{t.tooltipSpectrogram}</span>
+                <button onClick={() => setShowSpectrogram(!showSpectrogram)} className={popToggleCls(showSpectrogram)} title={t.tooltipSpectrogram} aria-label={t.tooltipSpectrogram} aria-pressed={showSpectrogram}>
+                  <SpectrogramIcon />
                 </button>
               </div>
               <div className="flex items-center justify-between">
