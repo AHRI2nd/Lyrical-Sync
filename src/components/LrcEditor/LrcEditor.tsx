@@ -18,6 +18,7 @@ import { TimeShiftBar } from "./TimeShiftBar";
 import { ValidationPanel } from "./ValidationPanel";
 import { ScaleBar } from "./ScaleBar";
 import { LoopIcon } from "../AudioPlayer/icons";
+import { AutoSpotModal } from "../AudioPlayer/AutoSpotModal";
 
 // ISO 639-3 codes used by ctc-forced-aligner / MMS model
 const LANG_CODE: Record<string, string> = { ko: "kor", en: "eng", ja: "jpn" };
@@ -77,6 +78,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   // Time Shift state
   const [showTS, setShowTS] = useState(false);
   const [showScale, setShowScale] = useState(false);
+  const [showAutoSpot, setShowAutoSpot] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
   // 줄 다중선택(일괄 작업)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -556,7 +558,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           <div className="relative" ref={toolsRef}>
             <button
               onClick={() => setShowTools((v) => !v)}
-              className={`px-3 py-1 text-xs rounded-lg transition-colors ${showTools || showFR || showTS || showScale ? "bg-zinc-700 text-white" : "text-zinc-400 hover:bg-zinc-800 hover:text-white"}`}
+              className={`px-3 py-1 text-xs rounded-lg transition-colors ${showTools || showFR || showTS || showScale || showAutoSpot ? "bg-zinc-700 text-white" : "text-zinc-400 hover:bg-zinc-800 hover:text-white"}`}
             >
               {t.editorTools}
             </button>
@@ -579,6 +581,12 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                   className={`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showScale ? "bg-sky-600 text-white" : "hover:bg-zinc-700 text-zinc-200"}`}
                 >
                   {t.tsScale}
+                </button>
+                <button
+                  onClick={() => { setShowAutoSpot(true); setShowTools(false); }}
+                  className="text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors hover:bg-zinc-700 text-zinc-200"
+                >
+                  {t.autoSpot}
                 </button>
               </div>
             )}
@@ -908,6 +916,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           onClose={() => setShowValidation(false)}
         />
       )}
+      {showAutoSpot && <AutoSpotModal onClose={() => setShowAutoSpot(false)} />}
     </div>
   );
 }
