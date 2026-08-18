@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState, useMemo } from "react";
+import { useRef, useEffect, useCallback, useState, useMemo, lazy, Suspense } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
@@ -9,7 +9,6 @@ import { formatDisplayTime, formatTimestamp, parseTimestampInput, validateTimest
 import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
 import { MODEL_DEFS } from "../../utils/modelDefs";
-import { CharSyncView } from "./CharSyncView";
 import { safeUnlisten } from "../../utils/safeUnlisten";
 import { CurrentTimeFooter } from "./CurrentTimeFooter";
 import { MiniConfirm } from "./MiniConfirm";
@@ -18,7 +17,9 @@ import { TimeShiftBar } from "./TimeShiftBar";
 import { ValidationPanel } from "./ValidationPanel";
 import { ScaleBar } from "./ScaleBar";
 import { LoopIcon } from "../AudioPlayer/icons";
-import { AutoSpotModal } from "../AudioPlayer/AutoSpotModal";
+// 글자 동기화 뷰·자동 스팟팅 모달은 각각 모드 전환/버튼 클릭 시에만 필요 → 지연 로드
+const CharSyncView = lazy(() => import("./CharSyncView").then((m) => ({ default: m.CharSyncView })));
+const AutoSpotModal = lazy(() => import("../AudioPlayer/AutoSpotModal").then((m) => ({ default: m.AutoSpotModal })));
 
 // ISO 639-3 codes used by ctc-forced-aligner / MMS model
 const LANG_CODE: Record<string, string> = { ko: "kor", en: "eng", ja: "jpn" };
@@ -609,7 +610,11 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
         </div>
       </div>
 
-      {charMode && <CharSyncView />}
+      {charMode && (
+        <Suspense fallback={null}>
+          <CharSyncView />
+        </Suspense>
+      )}
 
       {!charMode && (<>
       {/* AI progress message */}
@@ -916,7 +921,11 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           onClose={() => setShowValidation(false)}
         />
       )}
-      {showAutoSpot && <AutoSpotModal onClose={() => setShowAutoSpot(false)} />}
+      {showAutoSpot && (
+        <Suspense fallback={null}>
+          <AutoSpotModal onClose={() => setShowAutoSpot(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }

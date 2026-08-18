@@ -29,7 +29,7 @@ import { useMacMenu } from "./hooks/useMacMenu";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { HelpModal } from "./components/AppShell/HelpModal";
+const HelpModal = lazy(() => import("./components/AppShell/HelpModal").then((m) => ({ default: m.HelpModal })));
 import { ConfirmModal } from "./components/AppShell/ConfirmModal";
 import { SaveFormatModal } from "./components/AppShell/SaveFormatModal";
 import { ELrcNoticeModal } from "./components/AppShell/ELrcNoticeModal";
@@ -416,7 +416,11 @@ function App() {
         </div>
       </header>
 
-      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
+      {showHelp && (
+        <Suspense fallback={null}>
+          <HelpModal onClose={() => setShowHelp(false)} />
+        </Suspense>
+      )}
       {showPreview && (
         <Suspense fallback={null}>
           <PreviewModal onClose={() => setShowPreview(false)} />
