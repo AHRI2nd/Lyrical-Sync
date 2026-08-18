@@ -67,6 +67,10 @@ interface LrcStore {
   setLines: (lines: LrcLine[]) => void;
   addLine: (text?: string) => void;
   insertLinesAfter: (afterId: string, texts: string[]) => string;
+  /** 무음 기반 자동 스팟팅: 감지된 구간마다 빈 텍스트 stamped line을 시간순으로 삽입.
+   *  타임스탬프 없는(=아직 안 찍은) 기존 줄은 정렬 기준에서 제외되어 위치가 바뀌지 않음.
+   *  반환값: 삽입된 줄 수 */
+  addLinesFromSpeechSegments: (segments: { start: number; end: number }[]) => number;
   updateLine: (id: string, patch: Partial<Omit<LrcLine, "id">>) => void;
   deleteLine: (id: string) => void;
   /** 줄 복제(텍스트만, 타임스탬프 없이 바로 아래에). 새 줄 id 반환 */
@@ -296,6 +300,22 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     lines.splice(idx + 1, 0, ...newLines);
     set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, isDirty: true });
     return lastId;
+  },
+
+  addLinesFromSpeechSegments: (segments) => {
+    if (segments.length === 0) return 0;
+    const { doc, _history } = get();
+    let lines = doc.lines;
+    for (const seg of segments) {
+      const ts = Math.round(seg.start * 1000) / 1000;
+      const newLine: LrcLine = { id: genId(), timestamp: ts, text: "" };
+      // 이미 타임스탬프가 찍힌 줄만 정렬 기준으로 삼음 — 미입력 줄은 건너뛰어 위치 유지
+      const idx = lines.findIndex((l) => l.timestamp !== null && (l.timestamp as number) > ts);
+      const insertAt = idx === -1 ? lines.length : idx;
+      lines = [...lines.slice(0, insertAt), newLine, ...lines.slice(insertAt)];
+    }
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, isDirty: true });
+    return segments.length;
   },
 
   updateLine: (id, patch) =>

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "wavesurfer.js/dist/plugins/regions.esm.js";
-import { readFile } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useLrcStore } from "../../stores/useLrcStore";
@@ -12,6 +11,7 @@ import { useServiceStore } from "../../stores/useServiceStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useBusyStore } from "../../stores/useBusyStore";
 import { audioControls } from "../../utils/audioControls";
+import { readAudioBytes } from "../../utils/readAudioBytes";
 import { activateSpotifyPlayer } from "../../utils/spotifyPlayer";
 import { safeUnlisten } from "../../utils/safeUnlisten";
 import { formatDisplayTime } from "../../utils/lrcParser";
@@ -285,34 +285,13 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     setIsAudioReady(false);
 
     const ext = audioPath.split(".").pop()?.toLowerCase() ?? "";
-    const isAiff = ext === "aiff" || ext === "aif";
-    // AIFF transcoding is only needed for Windows WebView2 (macOS supports AIFF natively).
-    // Also, on macOS the temp dir (/var/folders/…) is outside $HOME so readFile would fail.
-    const isWindows = navigator.platform.startsWith("Win");
-    const needsTranscode = isAiff && isWindows;
 
-    const getBytes = async (): Promise<Uint8Array> => {
-      // Windows AIFF는 임시 WAV로 트랜스코딩(임시 폴더는 fs 스코프 밖)
-      const path = needsTranscode
-        ? await invoke<string>("decode_audio_to_wav", { path: audioPath })
-        : audioPath;
-      try {
-        // 빠른 경로: fs 스코프(미디어 디렉터리) 내 파일은 plugin readFile (바이너리 채널)
-        return await readFile(path);
-      } catch {
-        // 스코프 밖 파일(임시 폴더, 외장 드라이브 등)은 거부되므로
-        // 스코프 제약이 없는 커스텀 커맨드로 폴백 (raw 바이너리 반환)
-        const buf = await invoke<ArrayBuffer>("read_audio_file", { path });
-        return new Uint8Array(buf);
-      }
-    };
-
-    getBytes().then((bytes) => {
+    readAudioBytes(audioPath).then(({ bytes, transcoded }) => {
       if (cancelled || !wsRef.current) return;
 
       if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
 
-      const mimeType = needsTranscode ? "audio/wav" : (AUDIO_MIME[ext] ?? "audio/*");
+      const mimeType = transcoded ? "audio/wav" : (AUDIO_MIME[ext] ?? "audio/*");
       const blob = new Blob([bytes], { type: mimeType });
       const url = URL.createObjectURL(blob);
       blobUrlRef.current = url;
