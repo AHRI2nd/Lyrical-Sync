@@ -198,6 +198,23 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     ws.on("audioprocess", (t) => {
       setCurrentTimeLocal(t);
       if (!inService()) setCurrentTime(t);
+      // 줄 반복: 반복 대상 줄의 구간(다음 스탬프 줄 시작, 없으면 끝까지) 끝에 닿으면
+      // 줄 시작으로 되돌아감. 매 프레임 스토어에서 직접 읽어 클로저 staleness 회피.
+      const { loopLineId, doc } = useLrcStore.getState();
+      if (loopLineId) {
+        const idx = doc.lines.findIndex((l) => l.id === loopLineId);
+        const line = idx >= 0 ? doc.lines[idx] : null;
+        if (line && line.timestamp !== null) {
+          let end = ws.getDuration();
+          for (let i = idx + 1; i < doc.lines.length; i++) {
+            if (doc.lines[i].timestamp !== null) { end = doc.lines[i].timestamp as number; break; }
+          }
+          if (t >= end) {
+            const d = ws.getDuration();
+            if (d > 0) ws.seekTo(Math.max(0, Math.min(1, line.timestamp / d)));
+          }
+        }
+      }
     });
     ws.on("seeking", (t) => {
       setCurrentTimeLocal(t);
@@ -225,6 +242,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     audioControls.skip = (delta: number) => {
       const ws = wsRef.current;
       if (!ws) return;
+      if (useLrcStore.getState().loopLineId) useLrcStore.getState().setLoopLine(null);
       const d = ws.getDuration();
       if (!d) return;
       const t = Math.max(0, Math.min(d, ws.getCurrentTime() + delta));
@@ -233,6 +251,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     audioControls.stopAndReset = () => {
       const ws = wsRef.current;
       if (!ws) return;
+      if (useLrcStore.getState().loopLineId) useLrcStore.getState().setLoopLine(null);
       ws.pause();
       ws.seekTo(0);
       setCurrentTimeLocal(0);
@@ -418,6 +437,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   const skip = useCallback((delta: number) => {
     const ws = wsRef.current;
     if (!ws) return;
+    if (useLrcStore.getState().loopLineId) useLrcStore.getState().setLoopLine(null);
     const d = ws.getDuration();
     if (!d) return;
     const t = Math.max(0, Math.min(d, ws.getCurrentTime() + delta));
@@ -427,6 +447,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   const stopAndReset = useCallback(() => {
     const ws = wsRef.current;
     if (!ws) return;
+    if (useLrcStore.getState().loopLineId) useLrcStore.getState().setLoopLine(null);
     ws.pause();
     ws.seekTo(0);
     setCurrentTimeLocal(0);

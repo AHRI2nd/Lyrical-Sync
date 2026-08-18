@@ -17,6 +17,7 @@ import { FindReplaceBar } from "./FindReplaceBar";
 import { TimeShiftBar } from "./TimeShiftBar";
 import { ValidationPanel } from "./ValidationPanel";
 import { ScaleBar } from "./ScaleBar";
+import { LoopIcon } from "../AudioPlayer/icons";
 
 // ISO 639-3 codes used by ctc-forced-aligner / MMS model
 const LANG_CODE: Record<string, string> = { ko: "kor", en: "eng", ja: "jpn" };
@@ -34,6 +35,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     replaceInLines, shiftTimeRange,
     audioPath,
     syncMode, syncUnit, setSyncMode, setSyncUnit, clearLineSyllables,
+    loopLineId, setLoopLine,
   } = useLrcStore(
     useShallow((s) => ({
       doc: s.doc, activeLineId: s.activeLineId,
@@ -46,6 +48,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
       replaceInLines: s.replaceInLines, shiftTimeRange: s.shiftTimeRange,
       audioPath: s.audioPath,
       syncMode: s.syncMode, syncUnit: s.syncUnit, setSyncMode: s.setSyncMode, setSyncUnit: s.setSyncUnit, clearLineSyllables: s.clearLineSyllables,
+      loopLineId: s.loopLineId, setLoopLine: s.setLoopLine,
     }))
   );
   const { t, lang } = useI18nStore();
@@ -764,6 +767,27 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                   </button>
                 )}
               </div>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (loopLineId === line.id) { setLoopLine(null); return; }
+                  if (line.timestamp === null) return;
+                  setLoopLine(line.id);
+                  (serviceActive ? serviceControls : audioControls).seekTo(line.timestamp);
+                }}
+                disabled={line.timestamp === null}
+                title={t.loopLine}
+                aria-label={t.loopLine}
+                aria-pressed={loopLineId === line.id}
+                className={`shrink-0 px-1 transition-opacity disabled:opacity-0 ${
+                  loopLineId === line.id
+                    ? "text-indigo-400 opacity-100"
+                    : "text-zinc-600 hover:text-indigo-300 opacity-0 group-hover/row:opacity-100 focus:opacity-100"
+                }`}
+              >
+                <LoopIcon size={12} />
+              </button>
 
               {hasGlyphSync && (
                 <span
