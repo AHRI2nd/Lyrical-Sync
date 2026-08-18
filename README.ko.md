@@ -63,16 +63,6 @@
 
 [Releases](../../releases) 페이지에서 최신 `.dmg` 설치 파일을 받아 Lyrical Sync를 응용 프로그램 폴더로 드래그합니다.
 
-> **서명되지 않은 앱 경고**
->
-> 설치 후 터미널에서 다음 명령을 실행하세요:
->
-> ```bash
-> xattr -cr /Applications/Lyrical\ Sync.app
-> ```
->
-> 그다음 앱을 정상적으로 엽니다.
-
 ### Windows
 
 [Releases](../../releases) 페이지에서 최신 `.msi` 또는 `_x64-setup.exe` 설치 파일을 받아 실행합니다.
