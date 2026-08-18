@@ -5,6 +5,7 @@ import { serializeSrt, parseSrt } from "../utils/srtConverter";
 import { serializeVtt, serializeAss } from "../utils/exportFormats";
 import { toast } from "./useToastStore";
 import { useI18nStore } from "./useI18nStore";
+import { useSettingsStore } from "./useSettingsStore";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
@@ -508,16 +509,17 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     });
   },
 
-  setAudioPath: (path) => set({ audioPath: path }),
+  setAudioPath: (path) => {
+    set({ audioPath: path });
+    if (path) useSettingsStore.getState().addRecentFile({ audioPath: path, lrcPath: get().lrcPath });
+  },
 
   openAudio: async () => {
     const selected = await open({
       multiple: false,
       filters: [{ name: "Audio", extensions: ["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff", "aif"] }],
     });
-    if (typeof selected === "string") {
-      set({ audioPath: selected });
-    }
+    if (typeof selected === "string") get().setAudioPath(selected);
   },
 
   // 경로로 가사 로드 (확장자로 LRC/SRT 분기). 다이얼로그/드래그앤드롭 공용.
@@ -530,6 +532,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     nextId = id;
     const firstId = doc.lines[0]?.id ?? null;
     set({ doc, lrcPath: path, isDirty: false, activeLineId: firstId, loopLineId: null, _history: [], _future: [] });
+    useSettingsStore.getState().addRecentFile({ lrcPath: path, audioPath: get().audioPath });
   },
 
   // LRCLIB 등 외부에서 가져온 가사 적용. 라인은 교체하되 메타데이터는 보존:

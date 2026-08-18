@@ -36,6 +36,7 @@ import { ELrcNoticeModal } from "./components/AppShell/ELrcNoticeModal";
 import { IconBtn } from "./components/AppShell/IconBtn";
 import { LangDropdown } from "./components/AppShell/LangDropdown";
 import { NewFileIcon, OpenFolderIcon, SaveIcon, SaveAsIcon, UndoIcon, RedoIcon, GearIcon } from "./components/AppShell/icons";
+import { RecentFilesMenu } from "./components/AppShell/RecentFilesMenu";
 
 const AUDIO_EXTS = ["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff", "aif"];
 const LYRICS_EXTS = ["lrc", "srt"];
@@ -407,6 +408,7 @@ function App() {
           {/* 파일 액션 그룹 */}
           <IconBtn onClick={handleNewLrc} title={t.newFileBtn}><NewFileIcon /></IconBtn>
           <IconBtn onClick={handleOpenLrc} title={t.openLrc}><OpenFolderIcon /></IconBtn>
+          <RecentFilesMenu />
           <IconBtn onClick={handleSave} accent title={t.save} tooltipAlign="right"><SaveIcon /></IconBtn>
           <IconBtn onClick={() => setShowFormatChooser(true)} title={t.saveAs} tooltipAlign="right"><SaveAsIcon /></IconBtn>
           <div className="w-px h-5 bg-zinc-700 mx-0.5" />

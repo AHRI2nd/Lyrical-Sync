@@ -39,6 +39,8 @@ interface SettingsState {
   ytdlpProxy: string;
   /** YouTube 다운로드 면책 고지에 1회 동의했는지 */
   youtubeDisclaimerAccepted: boolean;
+  /** 최근 연 파일(가사/오디오) 목록, 최신순 최대 8개 */
+  recentFiles: RecentFileEntry[];
   setAutoCheckUpdate: (v: boolean) => void;
   setAutoSave: (v: boolean) => void;
   setUiScale: (v: number) => void;
@@ -59,7 +61,18 @@ interface SettingsState {
   setYtdlpCookiesFile: (v: string) => void;
   setYtdlpProxy: (v: string) => void;
   setYoutubeDisclaimerAccepted: (v: boolean) => void;
+  /** 최근 파일 항목 추가(같은 조합이 이미 있으면 맨 앞으로 이동, 최대 8개 유지) */
+  addRecentFile: (entry: { lrcPath: string | null; audioPath: string | null }) => void;
+  clearRecentFiles: () => void;
 }
+
+export interface RecentFileEntry {
+  lrcPath: string | null;
+  audioPath: string | null;
+  openedAt: number;
+}
+
+const MAX_RECENT_FILES = 8;
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
@@ -83,6 +96,7 @@ export const useSettingsStore = create<SettingsState>()(
       ytdlpCookiesFile: "",
       ytdlpProxy: "",
       youtubeDisclaimerAccepted: false,
+      recentFiles: [],
       setAutoCheckUpdate: (v) => set({ autoCheckUpdate: v }),
       setAutoSave: (v) => set({ autoSave: v }),
       setUiScale: (v) => set({ uiScale: v }),
@@ -104,6 +118,14 @@ export const useSettingsStore = create<SettingsState>()(
       setYtdlpCookiesFile: (v) => set({ ytdlpCookiesFile: v }),
       setYtdlpProxy: (v) => set({ ytdlpProxy: v }),
       setYoutubeDisclaimerAccepted: (v) => set({ youtubeDisclaimerAccepted: v }),
+      addRecentFile: (entry) =>
+        set((s) => {
+          if (!entry.lrcPath && !entry.audioPath) return s;
+          const sameEntry = (f: RecentFileEntry) => f.lrcPath === entry.lrcPath && f.audioPath === entry.audioPath;
+          const next = [{ ...entry, openedAt: Date.now() }, ...s.recentFiles.filter((f) => !sameEntry(f))];
+          return { recentFiles: next.slice(0, MAX_RECENT_FILES) };
+        }),
+      clearRecentFiles: () => set({ recentFiles: [] }),
     }),
     { name: "lyrical-sync-settings" }
   )
