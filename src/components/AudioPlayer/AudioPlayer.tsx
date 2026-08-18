@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo, lazy, Suspense } from "react";
 import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "wavesurfer.js/dist/plugins/regions.esm.js";
-import SpectrogramPlugin from "wavesurfer.js/dist/plugins/spectrogram.esm.js";
+// 스펙트로그램 플러그인(~36KB)은 토글로 켰을 때만 필요 → 동적 임포트로 초기 번들에서 제외
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useLrcStore } from "../../stores/useLrcStore";
@@ -21,7 +21,8 @@ import { DevicePlayerPanel } from "../Service/DevicePlayerPanel";
 import { TrackInfoHeader } from "./TrackInfoHeader";
 import { SeekBar } from "./SeekBar";
 import { NoTrackAlert } from "./NoTrackAlert";
-import { YouTubeModal } from "./YouTubeModal";
+// YouTube 모드일 때만 필요 → 지연 로드(초기 번들 절감)
+const YouTubeModal = lazy(() => import("./YouTubeModal").then((m) => ({ default: m.YouTubeModal })));
 import { CtrlBtn } from "./CtrlBtn";
 import {
   PlayIcon, PauseIcon, StopIcon, SkipBackIcon, SkipFwdIcon, TriLeftIcon, TriRightIcon,
@@ -416,14 +417,23 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     });
   }, [activeLineId, isAudioReady, showMarkers, markerSig]);
 
-  // 스펙트로그램 플러그인은 켰을 때만 생성(FFT 계산 낭비 방지), 끄면 destroy()로 완전히 정리
+  // 스펙트로그램 플러그인(~36KB)은 켰을 때만 동적 임포트+생성(초기 번들·FFT 계산 낭비 방지),
+  // 끄면 destroy()로 완전히 정리
   useEffect(() => {
     const ws = wsRef.current;
     if (!ws || !showSpectrogram || !spectrogramContainerRef.current) return;
-    const plugin = ws.registerPlugin(
-      SpectrogramPlugin.create({ container: spectrogramContainerRef.current, height: 80, labels: false, scale: "mel" })
-    );
-    return () => plugin.destroy();
+    let cancelled = false;
+    let plugin: InstanceType<typeof import("wavesurfer.js/dist/plugins/spectrogram.esm.js").default> | null = null;
+    import("wavesurfer.js/dist/plugins/spectrogram.esm.js").then(({ default: SpectrogramPlugin }) => {
+      if (cancelled || !wsRef.current || !spectrogramContainerRef.current) return;
+      plugin = wsRef.current.registerPlugin(
+        SpectrogramPlugin.create({ container: spectrogramContainerRef.current, height: 80, labels: false, scale: "mel" })
+      );
+    });
+    return () => {
+      cancelled = true;
+      plugin?.destroy();
+    };
   }, [showSpectrogram]);
 
   const togglePlay = useCallback(() => wsRef.current?.playPause(), []);
@@ -493,16 +503,18 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         <NoTrackAlert t={t} onClose={() => setShowNoTrackAlert(false)} />
       )}
       {ytModalOpen && (
-        <YouTubeModal
-          t={t}
-          ytUrl={ytUrl}
-          ytLoading={ytLoading}
-          ytError={ytError}
-          onChangeUrl={(v) => { setYtUrl(v); setYtError(null); }}
-          onLoad={handleYtLoad}
-          onCancel={handleYtCancel}
-          onClose={handleYtModalClose}
-        />
+        <Suspense fallback={null}>
+          <YouTubeModal
+            t={t}
+            ytUrl={ytUrl}
+            ytLoading={ytLoading}
+            ytError={ytError}
+            onChangeUrl={(v) => { setYtUrl(v); setYtError(null); }}
+            onLoad={handleYtLoad}
+            onCancel={handleYtCancel}
+            onClose={handleYtModalClose}
+          />
+        </Suspense>
       )}
     <div className="flex flex-col gap-3 p-4 bg-zinc-900 rounded-xl border border-zinc-700">
       {/* WaveSurfer container must always remain in the DOM while the component
