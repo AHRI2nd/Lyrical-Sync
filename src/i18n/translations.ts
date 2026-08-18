@@ -7,6 +7,8 @@ export interface Translations {
   newFileTitle: string;
   newFileBtn: string;
   openLrc: string;
+  recentFiles: string;
+  clearRecentFiles: string;
   save: string;
   saveAs: string;
   saveFormatTitle: string;
@@ -439,6 +441,8 @@ const ko: Translations = {
   newFileTitle: "새 LRC 파일",
   newFileBtn: "새로 만들기",
   openLrc: "가사 열기",
+  recentFiles: "최근 파일",
+  clearRecentFiles: "최근 파일 목록 지우기",
   save: "저장",
   saveAs: "다른 이름으로 저장",
   saveFormatTitle: "저장 형식 선택",
@@ -912,6 +916,8 @@ const en: Translations = {
   newFileTitle: "New LRC File",
   newFileBtn: "New",
   openLrc: "Open Lyrics",
+  recentFiles: "Recent Files",
+  clearRecentFiles: "Clear recent files",
   save: "Save",
   saveAs: "Save As",
   saveFormatTitle: "Choose Save Format",
@@ -1386,6 +1392,8 @@ const ja: Translations = {
   newFileTitle: "新規LRCファイル",
   newFileBtn: "新規作成",
   openLrc: "歌詞を開く",
+  recentFiles: "最近使ったファイル",
+  clearRecentFiles: "最近使ったファイルをクリア",
   save: "保存",
   saveAs: "名前を付けて保存",
   saveFormatTitle: "保存形式を選択",
