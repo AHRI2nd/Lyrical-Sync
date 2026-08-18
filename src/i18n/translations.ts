@@ -138,6 +138,7 @@ export interface Translations {
   tooltipStop: string;
   tooltipLoop: string;
   tooltipMarkers: string;
+  tooltipSpectrogram: string;
   playerMore: string;
   playerSpeed: string;
   tooltipSpeedDown: string;
@@ -621,6 +622,7 @@ const ko: Translations = {
   tooltipStop: "[6] 처음으로",
   tooltipLoop: "반복재생",
   tooltipMarkers: "가사 마커 표시",
+  tooltipSpectrogram: "스펙트로그램 표시",
   playerMore: "더보기 (반복·마커·배속)",
   playerSpeed: "배속",
   tooltipSpeedDown: "배속 감소",
@@ -1096,6 +1098,7 @@ const en: Translations = {
   tooltipStop: "[6] Reset",
   tooltipLoop: "Loop",
   tooltipMarkers: "Show lyric markers",
+  tooltipSpectrogram: "Show spectrogram",
   playerMore: "More (loop · markers · speed)",
   playerSpeed: "Speed",
   tooltipSpeedDown: "Slower",
@@ -1572,6 +1575,7 @@ const ja: Translations = {
   tooltipStop: "[6] 最初へ",
   tooltipLoop: "リピート",
   tooltipMarkers: "歌詞マーカー表示",
+  tooltipSpectrogram: "スペクトログラム表示",
   playerMore: "その他（リピート・マーカー・速度）",
   playerSpeed: "再生速度",
   tooltipSpeedDown: "遅くする",

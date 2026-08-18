@@ -96,6 +96,17 @@ export function LoopIcon({ size = 15 }: { size?: number }) {
   );
 }
 
+export function SpectrogramIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <line x1="4" y1="18" x2="4" y2="10" />
+      <line x1="9" y1="18" x2="9" y2="5" />
+      <line x1="14" y1="18" x2="14" y2="13" />
+      <line x1="19" y1="18" x2="19" y2="8" />
+    </svg>
+  );
+}
+
 export function MoreIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
