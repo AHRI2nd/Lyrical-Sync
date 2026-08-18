@@ -45,6 +45,11 @@ interface LrcStore {
   stampAndAdvance: () => void;
   goToPreviousLine: () => void;
 
+  // 줄 반복 재생: 재생 위치가 해당 줄 구간(다음 스탬프 줄 또는 끝까지) 끝에 닿으면
+  // 줄 시작으로 되돌아감(AudioPlayer의 audioprocess 핸들러에서 처리)
+  loopLineId: string | null;
+  setLoopLine: (id: string | null) => void;
+
   // 글자/단어 동기화 (Enhanced LRC) 편집 모드
   syncMode: "line" | "char";
   syncUnit: SyncUnit;
@@ -138,6 +143,8 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   activeLineId: null,
   isPlaying: false,
   duration: 0,
+  loopLineId: null,
+  setLoopLine: (id) => set({ loopLineId: id }),
 
   aiSyncStatus: "idle",
   aiSyncMessage: "",
@@ -301,10 +308,13 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     })),
 
   deleteLine: (id) => {
-    const { doc, _history, activeLineId } = get();
+    const { doc, _history, activeLineId, loopLineId } = get();
     const lines = doc.lines.filter((l) => l.id !== id);
     const newActiveLineId = activeLineId === id ? (lines[0]?.id ?? null) : activeLineId;
-    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, activeLineId: newActiveLineId, isDirty: true });
+    set({
+      _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines },
+      activeLineId: newActiveLineId, loopLineId: loopLineId === id ? null : loopLineId, isDirty: true,
+    });
   },
 
   duplicateLine: (id) => {
@@ -375,10 +385,13 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   deleteLines: (ids) => {
     if (ids.length === 0) return;
     const idSet = new Set(ids);
-    const { doc, _history, activeLineId } = get();
+    const { doc, _history, activeLineId, loopLineId } = get();
     const lines = doc.lines.filter((l) => !idSet.has(l.id));
     const newActiveLineId = activeLineId && idSet.has(activeLineId) ? (lines[0]?.id ?? null) : activeLineId;
-    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, activeLineId: newActiveLineId, isDirty: true });
+    set({
+      _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines },
+      activeLineId: newActiveLineId, loopLineId: loopLineId && idSet.has(loopLineId) ? null : loopLineId, isDirty: true,
+    });
   },
 
   shiftLines: (ids, delta) => {
@@ -430,7 +443,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     parsed.lines = parsed.lines.map((l) => ({ ...l, id: String(id++) }));
     nextId = id;
     const firstId = parsed.lines[0]?.id ?? null;
-    set({ doc: parsed, activeLineId: firstId, isDirty: true });
+    set({ doc: parsed, activeLineId: firstId, loopLineId: null, isDirty: true });
   },
 
   restoreDoc: (doc, lrcPath, audioPath) => {
@@ -443,6 +456,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
       lrcPath,
       audioPath,
       activeLineId: lines[0]?.id ?? null,
+      loopLineId: null,
       isDirty: true, // 복구된 작업은 아직 미저장
       _history: [],
       _future: [],
@@ -495,7 +509,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     doc.lines = doc.lines.map((l) => ({ ...l, id: String(id++) }));
     nextId = id;
     const firstId = doc.lines[0]?.id ?? null;
-    set({ doc, lrcPath: path, isDirty: false, activeLineId: firstId, _history: [], _future: [] });
+    set({ doc, lrcPath: path, isDirty: false, activeLineId: firstId, loopLineId: null, _history: [], _future: [] });
   },
 
   // LRCLIB 등 외부에서 가져온 가사 적용. 라인은 교체하되 메타데이터는 보존:
@@ -521,6 +535,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
       lrcPath: null,
       isDirty: true,
       activeLineId: firstId,
+      loopLineId: null,
       _history: [],
       _future: [],
     });
@@ -571,7 +586,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   },
 
   newLrc: () =>
-    set({ doc: defaultDocument(), lrcPath: null, isDirty: false, activeLineId: null, _history: [], _future: [] }),
+    set({ doc: defaultDocument(), lrcPath: null, isDirty: false, activeLineId: null, loopLineId: null, _history: [], _future: [] }),
 
   shiftTimeRange: (fromIdx, toIdx, deltaSeconds) => {
     if (deltaSeconds === 0) return;

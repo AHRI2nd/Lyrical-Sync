@@ -178,6 +178,7 @@ export interface Translations {
   deleteLine: string;
   duplicateLine: string;
   mergeLineUp: string;
+  loopLine: string;
   reorderLine: string;
   bulkSelected: string;
   bulkShift: string;
@@ -643,6 +644,7 @@ const ko: Translations = {
   deleteLine: "줄 삭제",
   duplicateLine: "줄 복제",
   mergeLineUp: "위 줄과 병합",
+  loopLine: "이 줄 반복재생",
   reorderLine: "드래그하여 순서 변경",
   bulkSelected: "줄 선택됨",
   bulkShift: "이동",
@@ -1102,6 +1104,7 @@ const en: Translations = {
   deleteLine: "Delete line",
   duplicateLine: "Duplicate line",
   mergeLineUp: "Merge with line above",
+  loopLine: "Loop this line",
   reorderLine: "Drag to reorder",
   bulkSelected: "selected",
   bulkShift: "Shift",
@@ -1560,6 +1563,7 @@ const ja: Translations = {
   deleteLine: "行を削除",
   duplicateLine: "行を複製",
   mergeLineUp: "上の行と結合",
+  loopLine: "この行をリピート",
   reorderLine: "ドラッグで並べ替え",
   bulkSelected: "行を選択中",
   bulkShift: "移動",

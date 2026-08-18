@@ -269,3 +269,38 @@ describe("recovery snapshot & restoreDoc", () => {
     expect(st.doc.lines[0].id).toBe("1");
   });
 });
+
+describe("useLrcStore — loop line", () => {
+  beforeEach(() => reset([{ id: "1", timestamp: 1, text: "a" }, { id: "2", timestamp: 2, text: "b" }]));
+
+  it("setLoopLine sets and clears the loop target", () => {
+    useLrcStore.getState().setLoopLine("1");
+    expect(useLrcStore.getState().loopLineId).toBe("1");
+    useLrcStore.getState().setLoopLine(null);
+    expect(useLrcStore.getState().loopLineId).toBeNull();
+  });
+
+  it("deleteLine clears loopLineId if the looping line is removed", () => {
+    useLrcStore.getState().setLoopLine("1");
+    useLrcStore.getState().deleteLine("1");
+    expect(useLrcStore.getState().loopLineId).toBeNull();
+  });
+
+  it("deleteLine leaves loopLineId untouched for an unrelated line", () => {
+    useLrcStore.getState().setLoopLine("2");
+    useLrcStore.getState().deleteLine("1");
+    expect(useLrcStore.getState().loopLineId).toBe("2");
+  });
+
+  it("deleteLines clears loopLineId if the looping line is among the deleted", () => {
+    useLrcStore.getState().setLoopLine("2");
+    useLrcStore.getState().deleteLines(["1", "2"]);
+    expect(useLrcStore.getState().loopLineId).toBeNull();
+  });
+
+  it("newLrc/loadFromRawText/restoreDoc reset loopLineId", () => {
+    useLrcStore.getState().setLoopLine("1");
+    useLrcStore.getState().newLrc();
+    expect(useLrcStore.getState().loopLineId).toBeNull();
+  });
+});
