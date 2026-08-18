@@ -5,7 +5,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
-import { formatDisplayTime, formatTimestamp, parseTimestampInput, validateTimestamps, type SyncUnit } from "../../utils/lrcParser";
+import { formatTimestamp, parseTimestampInput, validateTimestamps, type SyncUnit } from "../../utils/lrcParser";
 import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
 import { MODEL_DEFS } from "../../utils/modelDefs";
@@ -16,7 +16,10 @@ import { FindReplaceBar } from "./FindReplaceBar";
 import { TimeShiftBar } from "./TimeShiftBar";
 import { ValidationPanel } from "./ValidationPanel";
 import { ScaleBar } from "./ScaleBar";
-import { LoopIcon } from "../AudioPlayer/icons";
+import { LrcLineRow } from "./LrcLineRow";
+import { SyncModeToggle } from "./SyncModeToggle";
+import { EditorToolsMenu } from "./EditorToolsMenu";
+import { BulkActionsBar } from "./BulkActionsBar";
 // 글자 동기화 뷰·자동 스팟팅 모달은 각각 모드 전환/버튼 클릭 시에만 필요 → 지연 로드
 const CharSyncView = lazy(() => import("./CharSyncView").then((m) => ({ default: m.CharSyncView })));
 const AutoSpotModal = lazy(() => import("../AudioPlayer/AutoSpotModal").then((m) => ({ default: m.AutoSpotModal })));
@@ -85,9 +88,6 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selAnchor, setSelAnchor] = useState<string | null>(null);
 
-  // 도구 오버플로우(찾기·구간오프셋)
-  const [showTools, setShowTools] = useState(false);
-  const toolsRef = useRef<HTMLDivElement>(null);
   const [findText, setFindText] = useState("");
   const [replaceText, setReplaceText] = useState("");
   const [caseSensitive, setCaseSensitive] = useState(false);
@@ -358,16 +358,6 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  // 도구 오버플로우 바깥 클릭 시 닫기
-  useEffect(() => {
-    if (!showTools) return;
-    const h = (e: MouseEvent) => {
-      if (toolsRef.current && !toolsRef.current.contains(e.target as Node)) setShowTools(false);
-    };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [showTools]);
-
   const handleAddLine = useCallback(() => {
     addLine();
     const allLines = useLrcStore.getState().doc.lines;
@@ -461,43 +451,10 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
         </div>
         <div className="flex gap-2 items-center flex-wrap justify-end">
 
-          {/* 줄 ↔ 글자 동기화 모드 토글 */}
-          <div className="inline-flex bg-zinc-800 rounded-lg p-0.5">
-            <button
-              onClick={(e) => { setSyncMode("line"); e.currentTarget.blur(); }}
-              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${!charMode ? "bg-indigo-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
-            >
-              {t.charSync.modeLine}
-            </button>
-            <button
-              onClick={(e) => { setSyncMode("char"); e.currentTarget.blur(); }}
-              disabled={isRunning}
-              title={isRunning ? t.aiSyncRunning : undefined}
-              className={`px-2.5 py-1 text-xs rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${charMode ? "bg-indigo-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
-            >
-              {t.charSync.modeChar}
-            </button>
-          </div>
-
-          {charMode && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-zinc-500">{t.charSync.unitLabel}</span>
-              <div className="inline-flex bg-zinc-800 rounded-lg p-0.5">
-                <button
-                  onClick={(e) => { handleUnitChange("char"); e.currentTarget.blur(); }}
-                  className={`px-2.5 py-1 text-xs rounded-md transition-colors ${syncUnit === "char" ? "bg-zinc-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
-                >
-                  {t.charSync.unitChar}
-                </button>
-                <button
-                  onClick={(e) => { handleUnitChange("word"); e.currentTarget.blur(); }}
-                  className={`px-2.5 py-1 text-xs rounded-md transition-colors ${syncUnit === "word" ? "bg-zinc-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
-                >
-                  {t.charSync.unitWord}
-                </button>
-              </div>
-            </div>
-          )}
+          <SyncModeToggle
+            t={t} charMode={charMode} onSetSyncMode={setSyncMode}
+            syncUnit={syncUnit} onUnitChange={handleUnitChange} isRunning={isRunning}
+          />
 
           {!charMode && (<>
           {/* AI Auto Sync */}
@@ -555,43 +512,13 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
             </button>
           )}
 
-          {/* 도구 오버플로우: 찾기/바꾸기 · 구간 오프셋 */}
-          <div className="relative" ref={toolsRef}>
-            <button
-              onClick={() => setShowTools((v) => !v)}
-              className={`px-3 py-1 text-xs rounded-lg transition-colors ${showTools || showFR || showTS || showScale || showAutoSpot ? "bg-zinc-700 text-white" : "text-zinc-400 hover:bg-zinc-800 hover:text-white"}`}
-            >
-              {t.editorTools}
-            </button>
-            {showTools && (
-              <div className="absolute right-0 top-full mt-1.5 z-40 w-44 bg-zinc-800 border border-zinc-700 rounded-xl shadow-2xl p-1.5 flex flex-col gap-0.5">
-                <button
-                  onClick={() => { setShowFR((v) => !v); setShowTools(false); setTimeout(() => findInputRef.current?.focus(), 0); }}
-                  className={`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showFR ? "bg-amber-600 text-white" : "hover:bg-zinc-700 text-zinc-200"}`}
-                >
-                  {t.findReplace}
-                </button>
-                <button
-                  onClick={() => { setShowTS((v) => !v); setShowTools(false); }}
-                  className={`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showTS ? "bg-sky-600 text-white" : "hover:bg-zinc-700 text-zinc-200"}`}
-                >
-                  {t.timeShift}
-                </button>
-                <button
-                  onClick={() => { setShowScale((v) => !v); setShowTools(false); }}
-                  className={`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showScale ? "bg-sky-600 text-white" : "hover:bg-zinc-700 text-zinc-200"}`}
-                >
-                  {t.tsScale}
-                </button>
-                <button
-                  onClick={() => { setShowAutoSpot(true); setShowTools(false); }}
-                  className="text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors hover:bg-zinc-700 text-zinc-200"
-                >
-                  {t.autoSpot}
-                </button>
-              </div>
-            )}
-          </div>
+          <EditorToolsMenu
+            t={t} showFR={showFR} showTS={showTS} showScale={showScale} showAutoSpot={showAutoSpot}
+            onToggleFR={() => { setShowFR((v) => !v); setTimeout(() => findInputRef.current?.focus(), 0); }}
+            onToggleTS={() => setShowTS((v) => !v)}
+            onToggleScale={() => setShowScale((v) => !v)}
+            onOpenAutoSpot={() => setShowAutoSpot(true)}
+          />
           </>)}
           <button
             onClick={onPreview}
@@ -645,19 +572,14 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
         />
       )}
 
-      {selectedIds.size > 0 && (
-        <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-zinc-800 border border-sky-700/50 rounded-lg text-xs">
-          <span className="text-sky-300 font-medium shrink-0">{selectedIds.size} {t.bulkSelected}</span>
-          <div className="w-px h-4 bg-zinc-700 shrink-0" />
-          <span className="text-zinc-400 shrink-0">{t.bulkShift}</span>
-          <button onClick={() => shiftLines([...selectedIds], -0.1)} className="px-2 py-1 rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-200 transition-colors">−0.1s</button>
-          <button onClick={() => shiftLines([...selectedIds], 0.1)} className="px-2 py-1 rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-200 transition-colors">+0.1s</button>
-          <div className="w-px h-4 bg-zinc-700 shrink-0" />
-          <button onClick={() => clearTimestamps([...selectedIds])} className="px-2.5 py-1 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-200 transition-colors">{t.bulkClearTs}</button>
-          <button onClick={() => { deleteLines([...selectedIds]); setSelectedIds(new Set()); }} className="px-2.5 py-1 rounded-lg bg-rose-700 hover:bg-rose-600 text-white transition-colors">{t.bulkDelete}</button>
-          <button onClick={() => setSelectedIds(new Set())} className="ml-auto px-2.5 py-1 rounded-lg text-zinc-400 hover:bg-zinc-700 hover:text-white transition-colors">{t.bulkDeselect}</button>
-        </div>
-      )}
+      <BulkActionsBar
+        t={t} count={selectedIds.size}
+        onShiftMinus={() => shiftLines([...selectedIds], -0.1)}
+        onShiftPlus={() => shiftLines([...selectedIds], 0.1)}
+        onClearTs={() => clearTimestamps([...selectedIds])}
+        onDelete={() => { deleteLines([...selectedIds]); setSelectedIds(new Set()); }}
+        onDeselect={() => setSelectedIds(new Set())}
+      />
 
       {showFR && (
         <FindReplaceBar
@@ -691,191 +613,68 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
         {lines.map((line, idx) => {
           const isActive = line.id === activeLineId;
           const confidence = aiDraftConfidence?.[line.id];
-          const hasGlyphSync = !!line.syllables?.some((s) => s.time !== null);
-
-          // Timestamp button colour varies by AI confidence
-          const tsClass = confidence !== undefined
-            ? confidence >= 0.7
-              ? "bg-emerald-900/50 text-emerald-300 hover:bg-emerald-800/60"
-              : confidence >= 0.5
-              ? "bg-yellow-900/50 text-yellow-300 hover:bg-yellow-800/60"
-              : "bg-red-900/50 text-red-300 hover:bg-red-800/60"
-            : line.timestamp !== null
-            ? "bg-zinc-700 text-indigo-300 hover:bg-zinc-600"
-            : "bg-zinc-800 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300";
-
           const isMatch = showFR && matchIds.includes(line.id);
           const isCurrentMatch = showFR && matchIds[matchPos] === line.id;
           const warning = warnings.get(line.id);
 
           return (
-            <div
+            <LrcLineRow
               key={line.id}
-              ref={setRowRef(line.id)}
-              onClick={(e) => handleRowClick(e, line.id, idx)}
+              t={t}
+              line={line}
+              idx={idx}
+              isActive={isActive}
+              isSelected={selectedIds.has(line.id)}
+              confidence={confidence}
+              isMatch={isMatch}
+              isCurrentMatch={isCurrentMatch}
+              warning={warning}
+              loopLineId={loopLineId}
+              lyricsFontScale={lyricsFontScale}
+              dragIdx={dragIdx}
+              dragOverIdx={dragOverIdx}
+              onDragStart={(e) => { e.stopPropagation(); setDragIdx(idx); }}
+              onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
               onDragOver={(e) => { if (dragIdx !== null) { e.preventDefault(); if (dragOverIdx !== idx) setDragOverIdx(idx); } }}
               onDrop={(e) => {
                 e.preventDefault();
                 if (dragIdx !== null && dragIdx !== idx) moveLine(dragIdx, idx);
                 setDragIdx(null); setDragOverIdx(null);
               }}
-              className={`group/row flex items-center gap-2 rounded-lg px-2 py-1 transition-colors cursor-pointer ${
-                dragIdx !== null && dragOverIdx === idx && dragIdx !== idx
-                  ? "outline outline-1 outline-indigo-400 bg-indigo-900/10"
-                  : selectedIds.has(line.id)
-                  ? "bg-sky-900/30 ring-1 ring-sky-600/60"
-                  : isCurrentMatch
-                  ? "bg-amber-900/30 ring-1 ring-amber-500"
-                  : isActive
-                  ? "bg-indigo-900/40 ring-1 ring-indigo-500"
-                  : isMatch
-                  ? "bg-amber-900/10 ring-1 ring-amber-800"
-                  : "hover:bg-zinc-800"
-              } ${dragIdx === idx ? "opacity-40" : ""}`}
-            >
-              <span
-                draggable
-                onDragStart={(e) => { e.stopPropagation(); setDragIdx(idx); }}
-                onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
-                onClick={(e) => e.stopPropagation()}
-                title={t.reorderLine}
-                className="shrink-0 cursor-grab active:cursor-grabbing text-zinc-600 hover:text-zinc-300 opacity-0 group-hover/row:opacity-100 transition-opacity"
-              >
-                <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true">
-                  <circle cx="2.5" cy="2" r="1.2" /><circle cx="7.5" cy="2" r="1.2" />
-                  <circle cx="2.5" cy="7" r="1.2" /><circle cx="7.5" cy="7" r="1.2" />
-                  <circle cx="2.5" cy="12" r="1.2" /><circle cx="7.5" cy="12" r="1.2" />
-                </svg>
-              </span>
-              <span className="text-zinc-600 text-xs w-5 shrink-0 text-right select-none">
-                {idx + 1}
-              </span>
-
-              <div className="shrink-0">
-                {editingTsId === line.id ? (
-                  // 좌클릭 시 인라인 편집: 숫자키로 MM:SS.xx 직접 입력
-                  <input
-                    autoFocus
-                    type="text"
-                    value={editTsValue}
-                    onClick={(e) => e.stopPropagation()}
-                    onFocus={(e) => e.target.select()}
-                    onChange={(e) => setEditTsValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") { e.preventDefault(); commitTsEdit(line.id); }
-                      else if (e.key === "Escape") { e.preventDefault(); cancelTsEdit(); }
-                    }}
-                    onBlur={() => commitTsEdit(line.id)}
-                    placeholder="MM:SS.xx"
-                    className="font-mono text-xs px-2 py-0.5 rounded w-24 bg-zinc-700 text-indigo-200 border border-indigo-500 focus:outline-none placeholder-zinc-500"
-                  />
-                ) : (
-                  // 좌클릭 → 시간 직접 편집 / 우클릭 → 현재 재생 시간으로 설정
-                  <button
-                    onClick={(e) => { e.stopPropagation(); startTsEdit(line.id, line.timestamp); }}
-                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); stampCurrentLine(line.id); }}
-                    className={`font-mono text-xs px-2 py-0.5 rounded transition-colors ${tsClass}`}
-                  >
-                    {line.timestamp !== null ? formatDisplayTime(line.timestamp) : "-:--:--.---"}
-                  </button>
-                )}
-              </div>
-
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (loopLineId === line.id) { setLoopLine(null); return; }
-                  if (line.timestamp === null) return;
-                  setLoopLine(line.id);
-                  (serviceActive ? serviceControls : audioControls).seekTo(line.timestamp);
-                }}
-                disabled={line.timestamp === null}
-                title={t.loopLine}
-                aria-label={t.loopLine}
-                aria-pressed={loopLineId === line.id}
-                className={`shrink-0 px-1 transition-opacity disabled:opacity-0 ${
-                  loopLineId === line.id
-                    ? "text-indigo-400 opacity-100"
-                    : "text-zinc-600 hover:text-indigo-300 opacity-0 group-hover/row:opacity-100 focus:opacity-100"
-                }`}
-              >
-                <LoopIcon size={12} />
-              </button>
-
-              {hasGlyphSync && (
-                <span
-                  title={t.charSync.badge}
-                  className="shrink-0 flex items-center justify-center w-5 h-5 rounded bg-indigo-500/15 text-indigo-300"
-                >
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                    <path d="M5 8v8M12 5v14M19 8v8" />
-                  </svg>
-                </span>
-              )}
-
-              {warning && (
-                <div className="relative group/warn shrink-0">
-                  <span className="text-amber-400 text-sm leading-none cursor-help">⚠</span>
-                  <div className={`pointer-events-none absolute left-0 hidden group-hover/warn:block z-30 ${idx < 2 ? "top-full mt-1.5" : "bottom-full mb-1.5"}`}>
-                    <div className="bg-zinc-800 border border-amber-700/60 text-amber-200 text-xs rounded-lg px-2.5 py-1.5 shadow-xl whitespace-nowrap">
-                      {warning === "duplicate" ? t.warnDuplicate : t.warnOutOfOrder}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <input
-                ref={setInputRef(line.id)}
-                type="text"
-                value={line.text}
-                onChange={(e) => handleTextChange(line.id, e.target.value)}
-                onKeyDown={(e) => handleKeyDown(e, line.id)}
-                onFocus={() => setActiveLineId(line.id)}
-                onPaste={(e) => handlePaste(e, line.id, line.text)}
-                className="flex-1 bg-transparent text-white text-sm placeholder-zinc-600 focus:outline-none"
-                style={{ fontSize: `${0.875 * lyricsFontScale}rem` }}
-                placeholder={t.linePlaceholder}
-              />
-
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (idx === 0) return;
-                  const pid = mergeLineUp(line.id);
-                  if (pid) { setActiveLineId(pid); pendingFocusId.current = pid; }
-                }}
-                disabled={idx === 0}
-                className="shrink-0 text-zinc-600 hover:text-indigo-300 px-1 opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity disabled:opacity-0"
-                title={t.mergeLineUp}
-                aria-label={t.mergeLineUp}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M8 7l4-4 4 4" /><path d="M12 3v8" /><path d="M5 21h14" /><path d="M5 15h14" />
-                </svg>
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const nid = duplicateLine(line.id);
-                  setActiveLineId(nid); pendingFocusId.current = nid;
-                }}
-                className="shrink-0 text-zinc-600 hover:text-indigo-300 px-1 opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
-                title={t.duplicateLine}
-                aria-label={t.duplicateLine}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" />
-                </svg>
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); deleteLine(line.id); }}
-                className="shrink-0 text-zinc-600 hover:text-rose-400 text-sm px-1 opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
-                title={t.deleteLine}
-                aria-label={t.deleteLine}
-              >
-                ✕
-              </button>
-            </div>
+              editingTsId={editingTsId}
+              editTsValue={editTsValue}
+              onEditTsChange={setEditTsValue}
+              onStartTsEdit={() => startTsEdit(line.id, line.timestamp)}
+              onCommitTsEdit={() => commitTsEdit(line.id)}
+              onCancelTsEdit={cancelTsEdit}
+              onStampCurrentLine={() => stampCurrentLine(line.id)}
+              onRowClick={(e) => handleRowClick(e, line.id, idx)}
+              onToggleLoop={(e) => {
+                e.stopPropagation();
+                if (loopLineId === line.id) { setLoopLine(null); return; }
+                if (line.timestamp === null) return;
+                setLoopLine(line.id);
+                (serviceActive ? serviceControls : audioControls).seekTo(line.timestamp);
+              }}
+              onTextChange={(value) => handleTextChange(line.id, value)}
+              onKeyDown={(e) => handleKeyDown(e, line.id)}
+              onPaste={(e) => handlePaste(e, line.id, line.text)}
+              onFocus={() => setActiveLineId(line.id)}
+              onMergeUp={(e) => {
+                e.stopPropagation();
+                if (idx === 0) return;
+                const pid = mergeLineUp(line.id);
+                if (pid) { setActiveLineId(pid); pendingFocusId.current = pid; }
+              }}
+              onDuplicate={(e) => {
+                e.stopPropagation();
+                const nid = duplicateLine(line.id);
+                setActiveLineId(nid); pendingFocusId.current = nid;
+              }}
+              onDelete={(e) => { e.stopPropagation(); deleteLine(line.id); }}
+              inputRef={setInputRef(line.id)}
+              rowRef={setRowRef(line.id)}
+            />
           );
         })}
       </div>
