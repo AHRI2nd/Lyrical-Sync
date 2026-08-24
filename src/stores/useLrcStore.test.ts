@@ -374,3 +374,71 @@ describe("useLrcStore — security-scoped bookmarks (App Sandbox)", () => {
     expect(st.audioBookmark).toBeNull();
   });
 });
+
+describe("useLrcStore — loop line", () => {
+  beforeEach(() => reset([{ id: "1", timestamp: 1, text: "a" }, { id: "2", timestamp: 2, text: "b" }]));
+
+  it("setLoopLine sets and clears the loop target", () => {
+    useLrcStore.getState().setLoopLine("1");
+    expect(useLrcStore.getState().loopLineId).toBe("1");
+    useLrcStore.getState().setLoopLine(null);
+    expect(useLrcStore.getState().loopLineId).toBeNull();
+  });
+
+  it("deleteLine clears loopLineId if the looping line is removed", () => {
+    useLrcStore.getState().setLoopLine("1");
+    useLrcStore.getState().deleteLine("1");
+    expect(useLrcStore.getState().loopLineId).toBeNull();
+  });
+
+  it("deleteLine leaves loopLineId untouched for an unrelated line", () => {
+    useLrcStore.getState().setLoopLine("2");
+    useLrcStore.getState().deleteLine("1");
+    expect(useLrcStore.getState().loopLineId).toBe("2");
+  });
+
+  it("deleteLines clears loopLineId if the looping line is among the deleted", () => {
+    useLrcStore.getState().setLoopLine("2");
+    useLrcStore.getState().deleteLines(["1", "2"]);
+    expect(useLrcStore.getState().loopLineId).toBeNull();
+  });
+
+  it("newLrc/loadFromRawText/restoreDoc reset loopLineId", () => {
+    useLrcStore.getState().setLoopLine("1");
+    useLrcStore.getState().newLrc();
+    expect(useLrcStore.getState().loopLineId).toBeNull();
+  });
+});
+
+describe("useLrcStore — addLinesFromSpeechSegments", () => {
+  beforeEach(() => reset([]));
+
+  it("inserts a blank stamped line per segment, sorted by start time", () => {
+    const count = useLrcStore.getState().addLinesFromSpeechSegments([
+      { start: 2, end: 3 },
+      { start: 0.5, end: 1 },
+    ]);
+    expect(count).toBe(2);
+    const ls = lines();
+    expect(ls.map((l) => l.timestamp)).toEqual([0.5, 2]);
+    expect(ls.every((l) => l.text === "")).toBe(true);
+  });
+
+  it("interleaves new segments among already-stamped lines by time", () => {
+    reset([{ id: "1", timestamp: 0, text: "first" }, { id: "2", timestamp: 5, text: "last" }]);
+    useLrcStore.getState().addLinesFromSpeechSegments([{ start: 2, end: 2.5 }]);
+    expect(lines().map((l) => l.text)).toEqual(["first", "", "last"]);
+  });
+
+  it("does not reorder existing unstamped lines", () => {
+    reset([{ id: "1", timestamp: null, text: "typed first" }, { id: "2", timestamp: null, text: "typed second" }]);
+    useLrcStore.getState().addLinesFromSpeechSegments([{ start: 1, end: 1.5 }]);
+    // 미입력 줄은 정렬 기준에서 제외 → 새 줄은 맨 뒤로 붙고 기존 순서는 그대로
+    expect(lines().map((l) => l.text)).toEqual(["typed first", "typed second", ""]);
+  });
+
+  it("returns 0 and does not touch history for an empty segment list", () => {
+    useLrcStore.getState().addLinesFromSpeechSegments([]);
+    expect(lines()).toEqual([]);
+  });
+});

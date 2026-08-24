@@ -1,19 +1,20 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "wavesurfer.js/dist/plugins/regions.esm.js";
-import { readFile } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { useSettingsStore } from "../../stores/useSettingsStore";
 import { toast } from "../../stores/useToastStore";
 import { audioControls } from "../../utils/audioControls";
+import { readAudioBytes } from "../../utils/readAudioBytes";
 import { formatDisplayTime } from "../../utils/lrcParser";
 import { TrackInfoHeader } from "./TrackInfoHeader";
 import { SeekBar } from "./SeekBar";
 import {
   FileGlyph, PlayIcon, PauseIcon, StopIcon, SkipBackIcon, SkipFwdIcon, TriLeftIcon, TriRightIcon,
-  VolumeIcon, ZoomIcon, MarkerIcon, LoopIcon, MoreIcon,
+  VolumeIcon, ZoomIcon, MarkerIcon, LoopIcon, SpectrogramIcon, MoreIcon,
 } from "./icons";
 
 const AUDIO_MIME: Record<string, string> = {
@@ -37,6 +38,7 @@ const zoomLevelToPixels = (level: number) =>
 
 export function AudioPlayer() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const spectrogramContainerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
   const peaksRef = useRef<number[] | null>(null);
   const regionsRef = useRef<ReturnType<typeof RegionsPlugin.create> | null>(null);
@@ -67,6 +69,7 @@ export function AudioPlayer() {
   const [showMarkers, setShowMarkers] = useState(true);
   const [showMore, setShowMore] = useState(false);
   const { t } = useI18nStore();
+  const { showSpectrogram, setShowSpectrogram } = useSettingsStore();
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -114,6 +117,23 @@ export function AudioPlayer() {
     ws.on("audioprocess", (t) => {
       setCurrentTimeLocal(t);
       setCurrentTime(t);
+      // 줄 반복: 반복 대상 줄의 구간(다음 스탬프 줄 시작, 없으면 끝까지) 끝에 닿으면
+      // 줄 시작으로 되돌아감. 매 프레임 스토어에서 직접 읽어 클로저 staleness 회피.
+      const { loopLineId, doc } = useLrcStore.getState();
+      if (loopLineId) {
+        const idx = doc.lines.findIndex((l) => l.id === loopLineId);
+        const line = idx >= 0 ? doc.lines[idx] : null;
+        if (line && line.timestamp !== null) {
+          let end = ws.getDuration();
+          for (let i = idx + 1; i < doc.lines.length; i++) {
+            if (doc.lines[i].timestamp !== null) { end = doc.lines[i].timestamp as number; break; }
+          }
+          if (t >= end) {
+            const d = ws.getDuration();
+            if (d > 0) ws.seekTo(Math.max(0, Math.min(1, line.timestamp / d)));
+          }
+        }
+      }
     });
     ws.on("seeking", (t) => {
       setCurrentTimeLocal(t);
@@ -141,6 +161,7 @@ export function AudioPlayer() {
     audioControls.skip = (delta: number) => {
       const ws = wsRef.current;
       if (!ws) return;
+      if (useLrcStore.getState().loopLineId) useLrcStore.getState().setLoopLine(null);
       const d = ws.getDuration();
       if (!d) return;
       const t = Math.max(0, Math.min(d, ws.getCurrentTime() + delta));
@@ -149,6 +170,7 @@ export function AudioPlayer() {
     audioControls.stopAndReset = () => {
       const ws = wsRef.current;
       if (!ws) return;
+      if (useLrcStore.getState().loopLineId) useLrcStore.getState().setLoopLine(null);
       ws.pause();
       ws.seekTo(0);
       setCurrentTimeLocal(0);
@@ -178,34 +200,13 @@ export function AudioPlayer() {
     setIsAudioReady(false);
 
     const ext = audioPath.split(".").pop()?.toLowerCase() ?? "";
-    const isAiff = ext === "aiff" || ext === "aif";
-    // AIFF transcoding is only needed for Windows WebView2 (macOS supports AIFF natively).
-    // Also, on macOS the temp dir (/var/folders/…) is outside $HOME so readFile would fail.
-    const isWindows = navigator.platform.startsWith("Win");
-    const needsTranscode = isAiff && isWindows;
 
-    const getBytes = async (): Promise<Uint8Array> => {
-      // Windows AIFF는 임시 WAV로 트랜스코딩(임시 폴더는 fs 스코프 밖)
-      const path = needsTranscode
-        ? await invoke<string>("decode_audio_to_wav", { path: audioPath })
-        : audioPath;
-      try {
-        // 빠른 경로: fs 스코프(미디어 디렉터리) 내 파일은 plugin readFile (바이너리 채널)
-        return await readFile(path);
-      } catch {
-        // 스코프 밖 파일(임시 폴더, 외장 드라이브 등)은 거부되므로
-        // 스코프 제약이 없는 커스텀 커맨드로 폴백 (raw 바이너리 반환)
-        const buf = await invoke<ArrayBuffer>("read_audio_file", { path });
-        return new Uint8Array(buf);
-      }
-    };
-
-    getBytes().then((bytes) => {
+    readAudioBytes(audioPath).then(({ bytes, transcoded }) => {
       if (cancelled || !wsRef.current) return;
 
       if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
 
-      const mimeType = needsTranscode ? "audio/wav" : (AUDIO_MIME[ext] ?? "audio/*");
+      const mimeType = transcoded ? "audio/wav" : (AUDIO_MIME[ext] ?? "audio/*");
       const blob = new Blob([bytes], { type: mimeType });
       const url = URL.createObjectURL(blob);
       blobUrlRef.current = url;
@@ -323,11 +324,31 @@ export function AudioPlayer() {
     });
   }, [activeLineId, isAudioReady, showMarkers, markerSig]);
 
+  // 스펙트로그램 플러그인(~36KB)은 켰을 때만 동적 임포트+생성(초기 번들·FFT 계산 낭비 방지),
+  // 끄면 destroy()로 완전히 정리
+  useEffect(() => {
+    const ws = wsRef.current;
+    if (!ws || !showSpectrogram || !spectrogramContainerRef.current) return;
+    let cancelled = false;
+    let plugin: InstanceType<typeof import("wavesurfer.js/dist/plugins/spectrogram.esm.js").default> | null = null;
+    import("wavesurfer.js/dist/plugins/spectrogram.esm.js").then(({ default: SpectrogramPlugin }) => {
+      if (cancelled || !wsRef.current || !spectrogramContainerRef.current) return;
+      plugin = wsRef.current.registerPlugin(
+        SpectrogramPlugin.create({ container: spectrogramContainerRef.current, height: 80, labels: false, scale: "mel" })
+      );
+    });
+    return () => {
+      cancelled = true;
+      plugin?.destroy();
+    };
+  }, [showSpectrogram]);
+
   const togglePlay = useCallback(() => wsRef.current?.playPause(), []);
 
   const skip = useCallback((delta: number) => {
     const ws = wsRef.current;
     if (!ws) return;
+    if (useLrcStore.getState().loopLineId) useLrcStore.getState().setLoopLine(null);
     const d = ws.getDuration();
     if (!d) return;
     const t = Math.max(0, Math.min(d, ws.getCurrentTime() + delta));
@@ -337,6 +358,7 @@ export function AudioPlayer() {
   const stopAndReset = useCallback(() => {
     const ws = wsRef.current;
     if (!ws) return;
+    if (useLrcStore.getState().loopLineId) useLrcStore.getState().setLoopLine(null);
     ws.pause();
     ws.seekTo(0);
     setCurrentTimeLocal(0);
@@ -373,6 +395,11 @@ export function AudioPlayer() {
         ref={containerRef}
         className="w-full rounded-lg overflow-hidden bg-zinc-800 cursor-pointer"
         style={{ minHeight: 80, display: viewMode === "bar" ? "none" : "" }}
+      />
+      <div
+        ref={spectrogramContainerRef}
+        className="w-full rounded-lg overflow-hidden bg-zinc-800"
+        style={{ minHeight: 80, display: (viewMode === "bar" || !showSpectrogram) ? "none" : "" }}
       />
 
       {viewMode === "bar" && (
@@ -430,7 +457,7 @@ export function AudioPlayer() {
         <CtrlBtn
           onClick={() => setShowMore((v) => !v)}
           title={t.playerMore}
-          active={showMore || isLooping || playbackRate !== 1.0}
+          active={showMore || isLooping || playbackRate !== 1.0 || showSpectrogram}
         >
           <MoreIcon />
         </CtrlBtn>
@@ -446,6 +473,12 @@ export function AudioPlayer() {
                 <span className="text-xs text-zinc-300">{t.tooltipMarkers}</span>
                 <button onClick={() => setShowMarkers((v) => !v)} className={popToggleCls(showMarkers)} title={t.tooltipMarkers}>
                   <MarkerIcon />
+                </button>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-zinc-300">{t.tooltipSpectrogram}</span>
+                <button onClick={() => setShowSpectrogram(!showSpectrogram)} className={popToggleCls(showSpectrogram)} title={t.tooltipSpectrogram}>
+                  <SpectrogramIcon />
                 </button>
               </div>
               <div className="flex items-center justify-between">
