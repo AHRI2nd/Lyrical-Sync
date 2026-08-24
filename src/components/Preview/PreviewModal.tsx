@@ -7,10 +7,33 @@ import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
 import { formatDisplayTime, formatTimestamp, parseTimestampInput, isStampable } from "../../utils/lrcParser";
 import type { LrcSyllable } from "../../types/lrc";
+import { GearIcon } from "../AppShell/icons";
 
-export function PreviewModal({ onClose }: { onClose: () => void }) {
+// "#rrggbb" → "rgba(r,g,b,alpha)" — 사용자 지정 색상에 투명도를 적용할 때 사용
+// (previewActiveColor/previewAccentColor는 hex 문자열로 저장되므로 Tailwind 클래스로는 표현 불가)
+function hexToRgba(hex: string, alpha: number): string {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (!m) return `rgba(255,255,255,${alpha})`;
+  const [r, g, b] = [m[1], m[2], m[3]].map((h) => parseInt(h, 16));
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// 비활성 줄의 거리별 흐림 정도(기존 text-zinc-300/500/700 근사) — previewActiveColor를
+// 기준으로 opacity만 낮춰 파생하므로 사용자가 활성 색을 바꿔도 톤이 일관됨
+const DIST_OPACITY: Record<number, number> = { 0: 1, 1: 0.75, 2: 0.45 };
+const DIST_OPACITY_FAR = 0.22;
+
+// 거리별 글꼴 크기(기존 text-2xl/xl/lg/base의 rem 값) × previewFontScale
+const DIST_FONT_REM: Record<number, number> = { 0: 1.5, 1: 1.25, 2: 1.125 };
+const DIST_FONT_REM_FAR = 1;
+
+export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => void; onOpenStyleSettings: () => void }) {
   const { doc, currentTime, duration, isPlaying, updateLine } = useLrcStore();
   const spotifyMode = useSettingsStore((s) => s.spotifyMode);
+  const previewFontScale = useSettingsStore((s) => s.previewFontScale);
+  const previewActiveColor = useSettingsStore((s) => s.previewActiveColor);
+  const previewAccentColor = useSettingsStore((s) => s.previewAccentColor);
+  const previewGlowEnabled = useSettingsStore((s) => s.previewGlowEnabled);
   const serviceLoggedIn = useServiceStore((s) => s.isLoggedIn);
   const servicePositionMs = useServiceStore((s) => s.positionMs);
   const serviceDurationMs = useServiceStore((s) => s.durationMs);
@@ -109,22 +132,16 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
     const hasGlyphSync = !!line.syllables?.some((s) => s.time !== null);
     const lineEnd = lineEnds[i];
 
-    const dimClass = isActive
-      ? "text-white"
-      : dist === 1 ? "text-zinc-300"
-      : dist === 2 ? "text-zinc-500"
-      : "text-zinc-700";
-    const textSizeClass = isActive
-      ? "text-2xl font-bold"
-      : dist === 1 ? "text-xl font-medium"
-      : dist === 2 ? "text-lg"
-      : "text-base";
+    const lineColor = hexToRgba(previewActiveColor, isActive ? 1 : (DIST_OPACITY[dist] ?? DIST_OPACITY_FAR));
+    const fontWeightClass = isActive ? "font-bold" : dist === 1 ? "font-medium" : "";
+    const fontRem = (DIST_FONT_REM[dist] ?? DIST_FONT_REM_FAR) * previewFontScale;
 
     return (
       <div
         key={line.id}
         ref={isActive ? activeLineRef : null}
-        className={`flex items-baseline gap-4 transition-all duration-300 ${dimClass}`}
+        className="flex items-baseline gap-4 transition-all duration-300"
+        style={{ color: lineColor }}
       >
         <div className="w-20 shrink-0 flex justify-end">
           {editingId === line.id ? (
@@ -156,34 +173,43 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div
-          className={`flex-1 leading-snug ${textSizeClass} ${line.timestamp !== null ? "cursor-pointer" : "select-none"}`}
-          style={isActive ? { textShadow: "0 0 26px rgba(99,102,241,0.28)" } : undefined}
+          className={`flex-1 leading-snug ${fontWeightClass} ${line.timestamp !== null ? "cursor-pointer" : "select-none"}`}
+          style={{
+            fontSize: `${fontRem}rem`,
+            textShadow: isActive && previewGlowEnabled ? `0 0 26px ${hexToRgba(previewAccentColor, 0.28)}` : undefined,
+          }}
           onClick={() => { if (line.timestamp !== null) seekToLine(line.timestamp); }}
         >
           {isActive ? (
             <span className="relative inline-block">
               {hasGlyphSync && line.syllables ? (
-                <KaraokeText syllables={line.syllables} lineEnd={lineEnd} isServiceMode={isServiceMode} />
+                <KaraokeText syllables={line.syllables} lineEnd={lineEnd} isServiceMode={isServiceMode} activeColor={previewActiveColor} />
               ) : (
                 line.text || " "
               )}
               <span
-                className="absolute -bottom-1.5 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-400 to-transparent"
-                style={{ boxShadow: "0 0 12px 1px rgba(99,102,241,0.55)" }}
+                className="absolute -bottom-1.5 left-0 right-0 h-px"
+                style={{
+                  background: `linear-gradient(90deg, transparent, ${previewAccentColor}, transparent)`,
+                  boxShadow: previewGlowEnabled ? `0 0 12px 1px ${hexToRgba(previewAccentColor, 0.55)}` : undefined,
+                }}
               />
             </span>
           ) : (
             line.text || " "
           )}
           {line.translation && (
-            <div className={`text-sm font-sans not-italic mt-0.5 ${isActive ? "text-indigo-200/70" : "text-zinc-600"}`}>
+            <div
+              className="text-sm font-sans not-italic mt-0.5"
+              style={{ color: isActive ? hexToRgba(previewAccentColor, 0.7) : hexToRgba(previewActiveColor, 0.35) }}
+            >
               {line.translation}
             </div>
           )}
         </div>
       </div>
     );
-  }), [doc.lines, activeIdx, lineEnds, editingId, editValue, startEdit, commitEdit, seekToLine, isServiceMode]);
+  }), [doc.lines, activeIdx, lineEnds, editingId, editValue, startEdit, commitEdit, seekToLine, isServiceMode, previewFontScale, previewActiveColor, previewAccentColor, previewGlowEnabled]);
 
   const hasTimestamps = doc.lines.some((l) => l.timestamp !== null);
 
@@ -246,12 +272,22 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
           </span>
         </div>
 
-        <button
-          onClick={onClose}
-          className="shrink-0 px-3 py-1.5 rounded-lg text-sm bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors"
-        >
-          {t.previewClose}
-        </button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={onOpenStyleSettings}
+            title={t.previewStyleSettingsTooltip}
+            aria-label={t.previewStyleSettingsTooltip}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors"
+          >
+            <GearIcon />
+          </button>
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-lg text-sm bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors"
+          >
+            {t.previewClose}
+          </button>
+        </div>
       </div>
 
       {/* 가사 영역 */}
@@ -280,11 +316,12 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
 // 글자 단위 가라오케 채움: 각 글자를 시작~다음 시각 사이 진행도로 좌→우 채움
 // 시간을 자체 구독 → 부모(미리보기 목록)가 매 프레임 리렌더되지 않아도 활성 줄만 채움 갱신
 function KaraokeText({
-  syllables, lineEnd, isServiceMode,
+  syllables, lineEnd, isServiceMode, activeColor,
 }: {
   syllables: LrcSyllable[];
   lineEnd: number;
   isServiceMode: boolean;
+  activeColor: string;
 }) {
   const ct = useLrcStore((s) => s.currentTime);
   const pos = useServiceStore((s) => s.positionMs);
@@ -309,7 +346,7 @@ function KaraokeText({
           <span
             key={i}
             style={{
-              background: `linear-gradient(90deg, #ffffff ${pct}%, #6b7280 ${pct}%)`,
+              background: `linear-gradient(90deg, ${activeColor} ${pct}%, #6b7280 ${pct}%)`,
               WebkitBackgroundClip: "text",
               backgroundClip: "text",
               WebkitTextFillColor: "transparent",

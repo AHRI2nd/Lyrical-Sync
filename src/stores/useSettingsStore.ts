@@ -23,6 +23,14 @@ interface SettingsState {
   showSpellCheck: boolean;
   /** 각 가사 줄에 2차(번역) 텍스트 보조 입력창 표시 */
   showTranslationLines: boolean;
+  /** 미리보기(가라오케) 글꼴 크기 배율 (0.8 ~ 1.5, 기본값: 1.0) */
+  previewFontScale: number;
+  /** 미리보기 활성 줄 텍스트 색상(카라오케 그라디언트 시작색 겸용) */
+  previewActiveColor: string;
+  /** 미리보기 언더라인 글로우 + 카라오케 그라디언트 끝색 */
+  previewAccentColor: string;
+  /** 미리보기 활성 줄 글로우 효과 사용 여부 */
+  previewGlowEnabled: boolean;
   /** AI 정렬 시 Demucs 보컬 분리 사용(설치돼 있을 때). false면 원본 오디오로 정렬 */
   useVocalSeparation: boolean;
   /** AI 정렬 시 보컬 활동 감지(VAD) 사용 — 빈 줄 정밀 배치 + 신뢰도 보정. 보컬 분리 필요 */
@@ -58,6 +66,10 @@ interface SettingsState {
   setShowSpectrogram: (v: boolean) => void;
   setShowSpellCheck: (v: boolean) => void;
   setShowTranslationLines: (v: boolean) => void;
+  setPreviewFontScale: (v: number) => void;
+  setPreviewActiveColor: (v: string) => void;
+  setPreviewAccentColor: (v: string) => void;
+  setPreviewGlowEnabled: (v: boolean) => void;
   setUseVocalSeparation: (v: boolean) => void;
   setUseVad: (v: boolean) => void;
   setKeybinding: (action: KeyAction, code: string) => void;
@@ -97,6 +109,10 @@ export const useSettingsStore = create<SettingsState>()(
       showSpectrogram: false,
       showSpellCheck: false,
       showTranslationLines: false,
+      previewFontScale: 1.0,
+      previewActiveColor: "#ffffff",
+      previewAccentColor: "#6366f1",
+      previewGlowEnabled: true,
       useVocalSeparation: true,
       useVad: true,
       keybindings: { ...DEFAULT_KEYBINDINGS },
@@ -120,6 +136,10 @@ export const useSettingsStore = create<SettingsState>()(
       setShowSpectrogram: (v) => set({ showSpectrogram: v }),
       setShowSpellCheck: (v) => set({ showSpellCheck: v }),
       setShowTranslationLines: (v) => set({ showTranslationLines: v }),
+      setPreviewFontScale: (v) => set({ previewFontScale: v }),
+      setPreviewActiveColor: (v) => set({ previewActiveColor: v }),
+      setPreviewAccentColor: (v) => set({ previewAccentColor: v }),
+      setPreviewGlowEnabled: (v) => set({ previewGlowEnabled: v }),
       setUseVocalSeparation: (v) => set({ useVocalSeparation: v }),
       setUseVad: (v) => set({ useVad: v }),
       setKeybinding: (action, code) =>

@@ -9,8 +9,9 @@ import { YtdlpSection } from "./YtdlpSection";
 import { PythonEnvSection } from "./PythonEnvSection";
 import { SpotifySection } from "./SpotifySection";
 import { GeneralSettingsTab, type CheckState } from "./GeneralSettingsTab";
+import { PreviewSettingsTab } from "./PreviewSettingsTab";
 
-type Tab = "general" | "shortcuts" | "models" | "spotify" | "youtube";
+export type Tab = "general" | "shortcuts" | "preview" | "models" | "spotify" | "youtube";
 
 export function SettingsModal({
   onClose,
@@ -80,6 +81,9 @@ export function SettingsModal({
           <TabBtn active={tab === "shortcuts"} onClick={() => setTab("shortcuts")}>
             {t.settingsTabShortcuts}
           </TabBtn>
+          <TabBtn active={tab === "preview"} onClick={() => setTab("preview")}>
+            {t.settingsTabPreview}
+          </TabBtn>
           <TabBtn active={tab === "models"} onClick={() => setTab("models")}>
             {t.settingsTabModels}
           </TabBtn>
@@ -102,6 +106,8 @@ export function SettingsModal({
               <KeybindingsSection />
             </div>
           )}
+
+          {tab === "preview" && <PreviewSettingsTab />}
 
           {tab === "models" && (
             <div className="p-5 flex flex-col gap-5">
