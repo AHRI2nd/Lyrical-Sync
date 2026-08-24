@@ -131,6 +131,42 @@ describe("useLrcStore — history & raw load", () => {
     expect(lines()).toHaveLength(1);
   });
 
+  it("history entries are labeled by the action that produced them", () => {
+    reset([]);
+    useLrcStore.getState().addLine("x");
+    const history = useLrcStore.getState()._history;
+    expect(history[history.length - 1]?.label).toBe("addLine");
+  });
+
+  it("jumpToHistory(index) is a no-op when index === current position", () => {
+    reset([]);
+    useLrcStore.getState().addLine("x");
+    const before = useLrcStore.getState().doc;
+    useLrcStore.getState().jumpToHistory(useLrcStore.getState()._history.length);
+    expect(useLrcStore.getState().doc).toBe(before);
+  });
+
+  it("jumpToHistory can jump back multiple steps at once, and forward again", () => {
+    reset([]);
+    useLrcStore.getState().addLine("a");
+    useLrcStore.getState().addLine("b");
+    useLrcStore.getState().addLine("c");
+    expect(lines()).toHaveLength(3);
+
+    useLrcStore.getState().jumpToHistory(0); // back to the very start
+    expect(lines()).toHaveLength(0);
+    expect(useLrcStore.getState()._future).toHaveLength(3);
+
+    useLrcStore.getState().jumpToHistory(2); // forward two steps
+    expect(lines()).toHaveLength(2);
+    expect(useLrcStore.getState()._history).toHaveLength(2);
+    expect(useLrcStore.getState()._future).toHaveLength(1);
+
+    // still redoable after a jump (not a dead end)
+    useLrcStore.getState().redo();
+    expect(lines()).toHaveLength(3);
+  });
+
   it("stampAndAdvance with no active line records no history (no empty undo)", () => {
     reset([{ id: "1", timestamp: null, text: "a" }]);
     useLrcStore.setState({ activeLineId: null });
