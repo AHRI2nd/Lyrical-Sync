@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
+import { useMacroStore } from "../../stores/useMacroStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { serializeLrc } from "../../utils/lrcParser";
@@ -16,6 +17,7 @@ export function MetaEditor() {
   );
   const { t } = useI18nStore();
   const { metadata } = doc;
+  const recordMacroStep = useMacroStore((s) => s.recordStep);
 
   const [showRawEditor, setShowRawEditor] = useState(false);
   const [showLrcLib, setShowLrcLib] = useState(false);
@@ -87,7 +89,7 @@ export function MetaEditor() {
         />
         <span className="text-[11px] text-zinc-500 shrink-0">ms</span>
         <button
-          onClick={applyOffset}
+          onClick={() => { applyOffset(); recordMacroStep({ action: "applyOffset", params: {} }); }}
           disabled={!offsetChanged}
           title={t.applyOffsetTooltip}
           className={`shrink-0 px-2 py-1.5 text-xs rounded-lg border transition-colors ${

@@ -216,6 +216,21 @@ export interface Translations {
   batchRunning: string;
   batchSummaryDone: string;
   batchSummaryError: string;
+  macroRecord: string;
+  macroRecording: string;
+  macroStartRecording: string;
+  macroStopRecording: string;
+  macroStepsRecorded: string;
+  macroNamePlaceholder: string;
+  macroUntitled: string;
+  macroSave: string;
+  macroDiscard: string;
+  macroManagerTitle: string;
+  macroManagerHint: string;
+  macroNoMacros: string;
+  macroRename: string;
+  macroReplay: string;
+  macroReplayed: string;
   timeShiftTooltip: string;
   timeShiftFrom: string;
   timeShiftTo: string;
@@ -766,6 +781,21 @@ const ko: Translations = {
   batchRunning: "처리 중...",
   batchSummaryDone: "개 완료",
   batchSummaryError: "개 실패",
+  macroRecord: "매크로 녹화",
+  macroRecording: "녹화 중",
+  macroStartRecording: "매크로 녹화 시작",
+  macroStopRecording: "매크로 녹화 중지",
+  macroStepsRecorded: "개 동작 기록됨",
+  macroNamePlaceholder: "매크로 이름",
+  macroUntitled: "이름 없는 매크로",
+  macroSave: "저장",
+  macroDiscard: "버리기",
+  macroManagerTitle: "매크로",
+  macroManagerHint: "스케일·오프셋·찾아바꾸기·선택 줄 이동/지우기/삭제 등 편집 동작을 기록해뒀다가 다른 곡에도 그대로 재생합니다. 줄 삭제 같은 개별 줄 지정 동작이 아니라, 항상 재생 시점에 선택된 줄(또는 전체)을 대상으로 다시 해석됩니다.",
+  macroNoMacros: "저장된 매크로가 없습니다",
+  macroRename: "이름 변경",
+  macroReplay: "재생",
+  macroReplayed: "매크로를 재생했습니다",
   timeShiftTooltip: "선택한 줄 범위의 타임스탬프를 일괄로 앞뒤로 이동합니다",
   timeShiftFrom: "시작",
   timeShiftTo: "끝",
@@ -1310,6 +1340,21 @@ const en: Translations = {
   batchRunning: "Processing...",
   batchSummaryDone: "done",
   batchSummaryError: "failed",
+  macroRecord: "Record Macro",
+  macroRecording: "Recording",
+  macroStartRecording: "Start recording a macro",
+  macroStopRecording: "Stop recording",
+  macroStepsRecorded: "step(s) recorded",
+  macroNamePlaceholder: "Macro name",
+  macroUntitled: "Untitled Macro",
+  macroSave: "Save",
+  macroDiscard: "Discard",
+  macroManagerTitle: "Macros",
+  macroManagerHint: "Records edit actions like scale, offset, find & replace, and shift/clear/delete on selected lines, then replays them on any song. Selection-scoped steps are always re-resolved against whatever's selected (or all lines) at replay time, not specific line ids.",
+  macroNoMacros: "No saved macros",
+  macroRename: "Rename",
+  macroReplay: "Replay",
+  macroReplayed: "Macro replayed",
   timeShiftTooltip: "Shift timestamps of a selected line range forward or backward",
   timeShiftFrom: "From",
   timeShiftTo: "To",
@@ -1853,6 +1898,21 @@ const ja: Translations = {
   batchRunning: "処理中...",
   batchSummaryDone: "件完了",
   batchSummaryError: "件失敗",
+  macroRecord: "マクロ録画",
+  macroRecording: "録画中",
+  macroStartRecording: "マクロ録画を開始",
+  macroStopRecording: "録画を停止",
+  macroStepsRecorded: "個の操作を記録",
+  macroNamePlaceholder: "マクロ名",
+  macroUntitled: "名称未設定マクロ",
+  macroSave: "保存",
+  macroDiscard: "破棄",
+  macroManagerTitle: "マクロ",
+  macroManagerHint: "スケール・オフセット・検索置換・選択行の移動/削除などの編集操作を記録し、他の曲でも再生できます。選択範囲ベースのステップは、記録時のIDではなく再生時点の選択(または全行)に対して常に再解釈されます。",
+  macroNoMacros: "保存されたマクロはありません",
+  macroRename: "名前を変更",
+  macroReplay: "再生",
+  macroReplayed: "マクロを再生しました",
   timeShiftTooltip: "選択した行範囲のタイムスタンプを前後に一括移動します",
   timeShiftFrom: "開始",
   timeShiftTo: "終了",
