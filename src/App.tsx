@@ -398,7 +398,9 @@ function App() {
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <span className="text-zinc-400 text-sm truncate">
             {title}
-            {isDirty && <span className="text-rose-400 ml-1">●</span>}
+            {isDirty && (
+              <span className="text-rose-400 ml-1 text-xs align-middle" title={t.unsavedChanges}>●</span>
+            )}
           </span>
           <div className="flex gap-1 shrink-0">
             <IconBtn onClick={undo} disabled={_history.length === 0} title={t.undo}><UndoIcon /></IconBtn>
