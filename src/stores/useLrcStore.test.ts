@@ -23,6 +23,7 @@ import type { LrcLine, LrcDocument } from "../types/lrc";
 import { saveRecoverySnapshot, loadRecoverySnapshot, clearRecoverySnapshot } from "../utils/recovery";
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
+import { useSettingsStore } from "./useSettingsStore";
 
 const reset = (lines: LrcLine[], offset = 0) =>
   useLrcStore.setState({
@@ -322,6 +323,17 @@ describe("useLrcStore — security-scoped bookmarks (App Sandbox)", () => {
     expect(invoke).not.toHaveBeenCalledWith("create_security_bookmark", expect.anything());
   });
 
+  it("setAudioPath records the path + resolved bookmark into recentFiles", async () => {
+    useSettingsStore.setState({ recentFiles: [] });
+    vi.mocked(invoke).mockImplementation((cmd: unknown) =>
+      cmd === "create_security_bookmark" ? Promise.resolve("bm-a") : Promise.resolve(undefined)
+    );
+    useLrcStore.getState().setAudioPath("/a.mp3");
+    await flush();
+    const files = useSettingsStore.getState().recentFiles;
+    expect(files[0]).toMatchObject({ audioPath: "/a.mp3", lrcPath: null, audioBookmark: "bm-a" });
+  });
+
   it("loadLyricsPath resolves lrcBookmark after loading the file", async () => {
     vi.mocked(invoke).mockImplementation((cmd: unknown) => {
       if (cmd === "read_lrc_file") return Promise.resolve("[00:01.00]hello");
@@ -333,6 +345,19 @@ describe("useLrcStore — security-scoped bookmarks (App Sandbox)", () => {
 
     await flush();
     expect(useLrcStore.getState().lrcBookmark).toBe("bm-lrc");
+  });
+
+  it("loadLyricsPath records the path + resolved bookmark into recentFiles", async () => {
+    useSettingsStore.setState({ recentFiles: [] });
+    vi.mocked(invoke).mockImplementation((cmd: unknown) => {
+      if (cmd === "read_lrc_file") return Promise.resolve("[00:01.00]hello");
+      if (cmd === "create_security_bookmark") return Promise.resolve("bm-lrc");
+      return Promise.resolve(undefined);
+    });
+    await useLrcStore.getState().loadLyricsPath("/song.lrc");
+    await flush();
+    const files = useSettingsStore.getState().recentFiles;
+    expect(files[0]).toMatchObject({ lrcPath: "/song.lrc", audioPath: null, lrcBookmark: "bm-lrc" });
   });
 
   it("saveLrcAs resolves lrcBookmark for the newly saved lrc path", async () => {

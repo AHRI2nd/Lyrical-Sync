@@ -5,6 +5,7 @@ import { serializeSrt, parseSrt } from "../utils/srtConverter";
 import { serializeVtt, serializeAss } from "../utils/exportFormats";
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
+import { useSettingsStore } from "./useSettingsStore";
 
 // App Sandbox 보안 스코프 북마크 생성(best-effort) — 크래시 복구 후 파일 접근 권한 복원용.
 // 실패해도(구버전 macOS, 권한 문제 등) 조용히 null 반환 — 복구 기능만 못 쓸 뿐 파일 열기 자체는 계속 동작.
@@ -489,6 +490,10 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
       createBookmark(path).then((bookmark) => {
         // 그 사이 다른 파일로 바뀌었으면 덮어쓰지 않음
         if (get().audioPath === path) set({ audioBookmark: bookmark });
+        useSettingsStore.getState().addRecentFile({
+          audioPath: path, lrcPath: get().lrcPath,
+          audioBookmark: bookmark, lrcBookmark: get().lrcBookmark,
+        });
       });
     }
   },
@@ -515,6 +520,10 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     set({ doc, lrcPath: path, lrcBookmark: null, isDirty: false, activeLineId: firstId, loopLineId: null, _history: [], _future: [] });
     createBookmark(path).then((bookmark) => {
       if (get().lrcPath === path) set({ lrcBookmark: bookmark });
+      useSettingsStore.getState().addRecentFile({
+        lrcPath: path, audioPath: get().audioPath,
+        lrcBookmark: bookmark, audioBookmark: get().audioBookmark,
+      });
     });
   },
 
