@@ -12,6 +12,8 @@ import { FindReplaceBar } from "./FindReplaceBar";
 import { TimeShiftBar } from "./TimeShiftBar";
 import { ValidationPanel } from "./ValidationPanel";
 import { ScaleBar } from "./ScaleBar";
+import { LoopIcon } from "../AudioPlayer/icons";
+import { AutoSpotModal } from "../AudioPlayer/AutoSpotModal";
 
 export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   // currentTime은 푸터에서만 쓰므로 구독에서 제외 → 재생 중 줄 목록이 매 프레임 리렌더되지 않음
@@ -23,6 +25,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     stampCurrentLine, setActiveLineId,
     replaceInLines, shiftTimeRange,
     syncMode, syncUnit, setSyncMode, setSyncUnit, clearLineSyllables,
+    loopLineId, setLoopLine,
   } = useLrcStore(
     useShallow((s) => ({
       doc: s.doc, activeLineId: s.activeLineId,
@@ -32,6 +35,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
       stampCurrentLine: s.stampCurrentLine, setActiveLineId: s.setActiveLineId,
       replaceInLines: s.replaceInLines, shiftTimeRange: s.shiftTimeRange,
       syncMode: s.syncMode, syncUnit: s.syncUnit, setSyncMode: s.setSyncMode, setSyncUnit: s.setSyncUnit, clearLineSyllables: s.clearLineSyllables,
+      loopLineId: s.loopLineId, setLoopLine: s.setLoopLine,
     }))
   );
   const { t } = useI18nStore();
@@ -48,6 +52,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   // Time Shift state
   const [showTS, setShowTS] = useState(false);
   const [showScale, setShowScale] = useState(false);
+  const [showAutoSpot, setShowAutoSpot] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
   // 줄 다중선택(일괄 작업)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -404,7 +409,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           <div className="relative" ref={toolsRef}>
             <button
               onClick={() => setShowTools((v) => !v)}
-              className={`px-3 py-1 text-xs rounded-lg transition-colors ${showTools || showFR || showTS || showScale ? "bg-zinc-700 text-white" : "text-zinc-400 hover:bg-zinc-800 hover:text-white"}`}
+              className={`px-3 py-1 text-xs rounded-lg transition-colors ${showTools || showFR || showTS || showScale || showAutoSpot ? "bg-zinc-700 text-white" : "text-zinc-400 hover:bg-zinc-800 hover:text-white"}`}
             >
               {t.editorTools}
             </button>
@@ -427,6 +432,12 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                   className={`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showScale ? "bg-sky-600 text-white" : "hover:bg-zinc-700 text-zinc-200"}`}
                 >
                   {t.tsScale}
+                </button>
+                <button
+                  onClick={() => { setShowAutoSpot(true); setShowTools(false); }}
+                  className="text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors hover:bg-zinc-700 text-zinc-200"
+                >
+                  {t.autoSpot}
                 </button>
               </div>
             )}
@@ -596,6 +607,27 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                 )}
               </div>
 
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (loopLineId === line.id) { setLoopLine(null); return; }
+                  if (line.timestamp === null) return;
+                  setLoopLine(line.id);
+                  audioControls.seekTo(line.timestamp);
+                }}
+                disabled={line.timestamp === null}
+                title={t.loopLine}
+                aria-label={t.loopLine}
+                aria-pressed={loopLineId === line.id}
+                className={`shrink-0 px-1 transition-opacity disabled:opacity-0 ${
+                  loopLineId === line.id
+                    ? "text-indigo-400 opacity-100"
+                    : "text-zinc-600 hover:text-indigo-300 opacity-0 group-hover/row:opacity-100 focus:opacity-100"
+                }`}
+              >
+                <LoopIcon size={12} />
+              </button>
+
               {hasGlyphSync && (
                 <span
                   title={t.charSync.badge}
@@ -702,6 +734,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           onClose={() => setShowValidation(false)}
         />
       )}
+      {showAutoSpot && <AutoSpotModal onClose={() => setShowAutoSpot(false)} />}
     </div>
   );
 }

@@ -5,6 +5,8 @@ export interface Translations {
   newFileTitle: string;
   newFileBtn: string;
   openLrc: string;
+  recentFiles: string;
+  clearRecentFiles: string;
   save: string;
   saveAs: string;
   saveFormatTitle: string;
@@ -90,6 +92,7 @@ export interface Translations {
   tooltipStop: string;
   tooltipLoop: string;
   tooltipMarkers: string;
+  tooltipSpectrogram: string;
   playerMore: string;
   playerSpeed: string;
   tooltipViewWaveform: string;
@@ -109,6 +112,20 @@ export interface Translations {
   tsScale: string;
   tsScaleFactor: string;
   tsScaleHint: string;
+  autoSpot: string;
+  autoSpotTitle: string;
+  autoSpotHint: string;
+  autoSpotNeedsAudio: string;
+  autoSpotDecoding: string;
+  autoSpotDecodeError: string;
+  autoSpotThreshold: string;
+  autoSpotMinSilence: string;
+  autoSpotMinSpeech: string;
+  autoSpotPadding: string;
+  autoSpotSegmentsFound: string;
+  autoSpotAddedLabel: string;
+  autoSpotApply: string;
+  autoSpotCancel: string;
   timeShiftFrom: string;
   timeShiftTo: string;
   timeShiftDelta: string;
@@ -127,6 +144,7 @@ export interface Translations {
   deleteLine: string;
   duplicateLine: string;
   mergeLineUp: string;
+  loopLine: string;
   reorderLine: string;
   bulkSelected: string;
   bulkShift: string;
@@ -211,6 +229,8 @@ const ko: Translations = {
   newFileTitle: "새 LRC 파일",
   newFileBtn: "새로 만들기",
   openLrc: "가사 열기",
+  recentFiles: "최근 파일",
+  clearRecentFiles: "최근 파일 목록 지우기",
   save: "저장",
   saveAs: "다른 이름으로 저장",
   saveFormatTitle: "저장 형식 선택",
@@ -329,6 +349,7 @@ const ko: Translations = {
   tooltipStop: "[6] 처음으로",
   tooltipLoop: "반복재생",
   tooltipMarkers: "가사 마커 표시",
+  tooltipSpectrogram: "스펙트로그램 표시",
   playerMore: "더보기 (반복·마커·배속)",
   playerSpeed: "배속",
   tooltipViewWaveform: "파형",
@@ -347,6 +368,20 @@ const ko: Translations = {
   tsScale: "타임스탬프 스케일",
   tsScaleFactor: "배율",
   tsScaleHint: "전체 타임스탬프 ×배율 (예: 1.05 = 5% 느리게)",
+  autoSpot: "자동 스팟팅",
+  autoSpotTitle: "무음 기반 자동 스팟팅",
+  autoSpotHint: "오디오에서 발화로 보이는 구간을 찾아 빈 텍스트 줄로 배치합니다. 정밀한 음성 인식이 아니라 음량 임계값 기반이므로, 배치 후 직접 검토하며 텍스트를 채워주세요.",
+  autoSpotNeedsAudio: "오디오 파일을 먼저 열어주세요",
+  autoSpotDecoding: "오디오 분석 중…",
+  autoSpotDecodeError: "오디오를 분석하지 못했습니다",
+  autoSpotThreshold: "임계값",
+  autoSpotMinSilence: "최소 무음 길이",
+  autoSpotMinSpeech: "최소 발화 길이",
+  autoSpotPadding: "여유(패딩)",
+  autoSpotSegmentsFound: "개 구간 감지됨",
+  autoSpotAddedLabel: "개 줄 추가됨",
+  autoSpotApply: "적용",
+  autoSpotCancel: "취소",
   timeShiftFrom: "시작",
   timeShiftTo: "끝",
   timeShiftDelta: "이동량",
@@ -365,6 +400,7 @@ const ko: Translations = {
   deleteLine: "줄 삭제",
   duplicateLine: "줄 복제",
   mergeLineUp: "위 줄과 병합",
+  loopLine: "이 줄 반복재생",
   reorderLine: "드래그하여 순서 변경",
   bulkSelected: "줄 선택됨",
   bulkShift: "이동",
@@ -446,6 +482,8 @@ const en: Translations = {
   newFileTitle: "New LRC File",
   newFileBtn: "New",
   openLrc: "Open Lyrics",
+  recentFiles: "Recent Files",
+  clearRecentFiles: "Clear recent files",
   save: "Save",
   saveAs: "Save As",
   saveFormatTitle: "Choose Save Format",
@@ -564,6 +602,7 @@ const en: Translations = {
   tooltipStop: "[6] Reset",
   tooltipLoop: "Loop",
   tooltipMarkers: "Show lyric markers",
+  tooltipSpectrogram: "Show spectrogram",
   playerMore: "More (loop · markers · speed)",
   playerSpeed: "Speed",
   tooltipViewWaveform: "Waveform",
@@ -583,6 +622,20 @@ const en: Translations = {
   tsScale: "Timestamp scale",
   tsScaleFactor: "Factor",
   tsScaleHint: "All timestamps × factor (e.g. 1.05 = 5% slower)",
+  autoSpot: "Auto-Spot",
+  autoSpotTitle: "Silence-Based Auto-Spotting",
+  autoSpotHint: "Finds stretches that sound like speech and lays down blank text lines over them. This is a volume-threshold heuristic, not real speech recognition — review and fill in the text afterward.",
+  autoSpotNeedsAudio: "Open an audio file first",
+  autoSpotDecoding: "Analyzing audio…",
+  autoSpotDecodeError: "Couldn't analyze the audio",
+  autoSpotThreshold: "Threshold",
+  autoSpotMinSilence: "Min. silence",
+  autoSpotMinSpeech: "Min. speech",
+  autoSpotPadding: "Padding",
+  autoSpotSegmentsFound: "segments found",
+  autoSpotAddedLabel: "lines added",
+  autoSpotApply: "Apply",
+  autoSpotCancel: "Cancel",
   timeShiftFrom: "From",
   timeShiftTo: "To",
   timeShiftDelta: "Shift",
@@ -601,6 +654,7 @@ const en: Translations = {
   deleteLine: "Delete line",
   duplicateLine: "Duplicate line",
   mergeLineUp: "Merge with line above",
+  loopLine: "Loop this line",
   reorderLine: "Drag to reorder",
   bulkSelected: "selected",
   bulkShift: "Shift",
@@ -682,6 +736,8 @@ const ja: Translations = {
   newFileTitle: "新規LRCファイル",
   newFileBtn: "新規作成",
   openLrc: "歌詞を開く",
+  recentFiles: "最近使ったファイル",
+  clearRecentFiles: "最近使ったファイルをクリア",
   save: "保存",
   saveAs: "名前を付けて保存",
   saveFormatTitle: "保存形式を選択",
@@ -800,6 +856,7 @@ const ja: Translations = {
   tooltipStop: "[6] 最初へ",
   tooltipLoop: "リピート",
   tooltipMarkers: "歌詞マーカー表示",
+  tooltipSpectrogram: "スペクトログラム表示",
   playerMore: "その他（リピート・マーカー・速度）",
   playerSpeed: "再生速度",
   tooltipViewWaveform: "波形",
@@ -818,6 +875,20 @@ const ja: Translations = {
   tsScale: "タイムスタンプ倍率",
   tsScaleFactor: "倍率",
   tsScaleHint: "全タイムスタンプ × 倍率（例: 1.05 = 5%遅く）",
+  autoSpot: "自動スポッティング",
+  autoSpotTitle: "無音ベース自動スポッティング",
+  autoSpotHint: "音声から発話に聞こえる区間を検出し、空のテキスト行を配置します。正確な音声認識ではなく音量しきい値ベースなので、配置後は内容を確認しながらテキストを入力してください。",
+  autoSpotNeedsAudio: "先に音声ファイルを開いてください",
+  autoSpotDecoding: "音声を分析中…",
+  autoSpotDecodeError: "音声を分析できませんでした",
+  autoSpotThreshold: "しきい値",
+  autoSpotMinSilence: "最小無音長",
+  autoSpotMinSpeech: "最小発話長",
+  autoSpotPadding: "余白(パディング)",
+  autoSpotSegmentsFound: "区間検出",
+  autoSpotAddedLabel: "行追加",
+  autoSpotApply: "適用",
+  autoSpotCancel: "キャンセル",
   timeShiftFrom: "開始",
   timeShiftTo: "終了",
   timeShiftDelta: "移動量",
@@ -836,6 +907,7 @@ const ja: Translations = {
   deleteLine: "行を削除",
   duplicateLine: "行を複製",
   mergeLineUp: "上の行と結合",
+  loopLine: "この行をリピート",
   reorderLine: "ドラッグで並べ替え",
   bulkSelected: "行を選択中",
   bulkShift: "移動",

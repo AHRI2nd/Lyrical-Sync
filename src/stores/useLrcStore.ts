@@ -40,6 +40,11 @@ interface LrcStore {
   stampAndAdvance: () => void;
   goToPreviousLine: () => void;
 
+  // 줄 반복 재생: 재생 위치가 해당 줄 구간(다음 스탬프 줄 또는 끝까지) 끝에 닿으면
+  // 줄 시작으로 되돌아감(AudioPlayer의 audioprocess 핸들러에서 처리)
+  loopLineId: string | null;
+  setLoopLine: (id: string | null) => void;
+
   // 글자/단어 동기화 (Enhanced LRC) 편집 모드
   syncMode: "line" | "char";
   syncUnit: SyncUnit;
@@ -57,6 +62,10 @@ interface LrcStore {
   setLines: (lines: LrcLine[]) => void;
   addLine: (text?: string) => void;
   insertLinesAfter: (afterId: string, texts: string[]) => string;
+  /** 무음 기반 자동 스팟팅: 감지된 구간마다 빈 텍스트 stamped line을 시간순으로 삽입.
+   *  타임스탬프 없는(=아직 안 찍은) 기존 줄은 정렬 기준에서 제외되어 위치가 바뀌지 않음.
+   *  반환값: 삽입된 줄 수 */
+  addLinesFromSpeechSegments: (segments: { start: number; end: number }[]) => number;
   updateLine: (id: string, patch: Partial<Omit<LrcLine, "id">>) => void;
   deleteLine: (id: string) => void;
   /** 줄 복제(텍스트만, 타임스탬프 없이 바로 아래에). 새 줄 id 반환 */
@@ -130,6 +139,8 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   activeLineId: null,
   isPlaying: false,
   duration: 0,
+  loopLineId: null,
+  setLoopLine: (id) => set({ loopLineId: id }),
 
   syncMode: "line",
   syncUnit: "char",
@@ -270,6 +281,22 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     return lastId;
   },
 
+  addLinesFromSpeechSegments: (segments) => {
+    if (segments.length === 0) return 0;
+    const { doc, _history } = get();
+    let lines = doc.lines;
+    for (const seg of segments) {
+      const ts = Math.round(seg.start * 1000) / 1000;
+      const newLine: LrcLine = { id: genId(), timestamp: ts, text: "" };
+      // 이미 타임스탬프가 찍힌 줄만 정렬 기준으로 삼음 — 미입력 줄은 건너뛰어 위치 유지
+      const idx = lines.findIndex((l) => l.timestamp !== null && (l.timestamp as number) > ts);
+      const insertAt = idx === -1 ? lines.length : idx;
+      lines = [...lines.slice(0, insertAt), newLine, ...lines.slice(insertAt)];
+    }
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, isDirty: true });
+    return segments.length;
+  },
+
   updateLine: (id, patch) =>
     set((s) => ({
       doc: {
@@ -280,10 +307,13 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     })),
 
   deleteLine: (id) => {
-    const { doc, _history, activeLineId } = get();
+    const { doc, _history, activeLineId, loopLineId } = get();
     const lines = doc.lines.filter((l) => l.id !== id);
     const newActiveLineId = activeLineId === id ? (lines[0]?.id ?? null) : activeLineId;
-    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, activeLineId: newActiveLineId, isDirty: true });
+    set({
+      _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines },
+      activeLineId: newActiveLineId, loopLineId: loopLineId === id ? null : loopLineId, isDirty: true,
+    });
   },
 
   duplicateLine: (id) => {
@@ -354,10 +384,13 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   deleteLines: (ids) => {
     if (ids.length === 0) return;
     const idSet = new Set(ids);
-    const { doc, _history, activeLineId } = get();
+    const { doc, _history, activeLineId, loopLineId } = get();
     const lines = doc.lines.filter((l) => !idSet.has(l.id));
     const newActiveLineId = activeLineId && idSet.has(activeLineId) ? (lines[0]?.id ?? null) : activeLineId;
-    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, activeLineId: newActiveLineId, isDirty: true });
+    set({
+      _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines },
+      activeLineId: newActiveLineId, loopLineId: loopLineId && idSet.has(loopLineId) ? null : loopLineId, isDirty: true,
+    });
   },
 
   shiftLines: (ids, delta) => {
@@ -403,7 +436,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     parsed.lines = parsed.lines.map((l) => ({ ...l, id: String(id++) }));
     nextId = id;
     const firstId = parsed.lines[0]?.id ?? null;
-    set({ doc: parsed, activeLineId: firstId, isDirty: true });
+    set({ doc: parsed, activeLineId: firstId, loopLineId: null, isDirty: true });
   },
 
   restoreDoc: (doc, lrcPath, audioPath, lrcBookmark = null, audioBookmark = null) => {
@@ -418,6 +451,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
       lrcBookmark,
       audioBookmark,
       activeLineId: lines[0]?.id ?? null,
+      loopLineId: null,
       isDirty: true, // 복구된 작업은 아직 미저장
       _history: [],
       _future: [],
@@ -478,7 +512,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     doc.lines = doc.lines.map((l) => ({ ...l, id: String(id++) }));
     nextId = id;
     const firstId = doc.lines[0]?.id ?? null;
-    set({ doc, lrcPath: path, lrcBookmark: null, isDirty: false, activeLineId: firstId, _history: [], _future: [] });
+    set({ doc, lrcPath: path, lrcBookmark: null, isDirty: false, activeLineId: firstId, loopLineId: null, _history: [], _future: [] });
     createBookmark(path).then((bookmark) => {
       if (get().lrcPath === path) set({ lrcBookmark: bookmark });
     });
@@ -508,6 +542,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
       lrcBookmark: null,
       isDirty: true,
       activeLineId: firstId,
+      loopLineId: null,
       _history: [],
       _future: [],
     });
@@ -563,7 +598,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   },
 
   newLrc: () =>
-    set({ doc: defaultDocument(), lrcPath: null, lrcBookmark: null, isDirty: false, activeLineId: null, _history: [], _future: [] }),
+    set({ doc: defaultDocument(), lrcPath: null, lrcBookmark: null, isDirty: false, activeLineId: null, loopLineId: null, _history: [], _future: [] }),
 
   shiftTimeRange: (fromIdx, toIdx, deltaSeconds) => {
     if (deltaSeconds === 0) return;

@@ -97,10 +97,21 @@ export function MarkerIcon() {
   );
 }
 
-export function LoopIcon() {
+export function LoopIcon({ size = 15 }: { size?: number }) {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
       <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
+    </svg>
+  );
+}
+
+export function SpectrogramIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <line x1="4" y1="18" x2="4" y2="10" />
+      <line x1="9" y1="18" x2="9" y2="5" />
+      <line x1="14" y1="18" x2="14" y2="13" />
+      <line x1="19" y1="18" x2="19" y2="8" />
     </svg>
   );
 }
