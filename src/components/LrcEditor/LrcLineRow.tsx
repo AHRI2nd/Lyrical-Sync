@@ -9,10 +9,10 @@ import { LoopIcon } from "../AudioPlayer/icons";
 // 이 컴포넌트는 순수 렌더링(+ line 자체에서 파생되는 hasGlyphSync/tsClass만 내부 계산).
 export function LrcLineRow({
   t, line, idx, isActive, isSelected, confidence, isMatch, isCurrentMatch, warning,
-  loopLineId, lyricsFontScale, showSpellCheck,
+  loopLineId, lyricsFontScale, showSpellCheck, showTranslationLines,
   dragIdx, dragOverIdx, onDragStart, onDragEnd, onDragOver, onDrop,
   editingTsId, editTsValue, onEditTsChange, onStartTsEdit, onCommitTsEdit, onCancelTsEdit, onStampCurrentLine,
-  onRowClick, onToggleLoop, onTextChange, onKeyDown, onPaste, onFocus,
+  onRowClick, onToggleLoop, onTextChange, onTranslationChange, onKeyDown, onPaste, onFocus,
   onMergeUp, onDuplicate, onDelete,
   inputRef, rowRef,
 }: {
@@ -28,6 +28,7 @@ export function LrcLineRow({
   loopLineId: string | null;
   lyricsFontScale: number;
   showSpellCheck: boolean;
+  showTranslationLines: boolean;
 
   dragIdx: number | null;
   dragOverIdx: number | null;
@@ -47,6 +48,7 @@ export function LrcLineRow({
   onRowClick: (e: React.MouseEvent) => void;
   onToggleLoop: (e: React.MouseEvent) => void;
   onTextChange: (value: string) => void;
+  onTranslationChange: (value: string) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   onPaste: (e: React.ClipboardEvent<HTMLInputElement>) => void;
   onFocus: () => void;
@@ -71,6 +73,7 @@ export function LrcLineRow({
     : "bg-zinc-800 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300";
 
   return (
+    <>
     <div
       ref={rowRef}
       onClick={onRowClick}
@@ -219,5 +222,18 @@ export function LrcLineRow({
         ✕
       </button>
     </div>
+    {showTranslationLines && (
+      <div className="flex items-center pl-11 pr-2 -mt-0.5 pb-0.5">
+        <input
+          type="text"
+          value={line.translation ?? ""}
+          onChange={(e) => onTranslationChange(e.target.value)}
+          placeholder={t.translationPlaceholder}
+          spellCheck={showSpellCheck}
+          className="flex-1 bg-transparent text-indigo-300/70 text-xs italic placeholder-zinc-700 focus:outline-none"
+        />
+      </div>
+    )}
+    </>
   );
 }

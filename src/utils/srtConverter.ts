@@ -40,7 +40,7 @@ export function serializeSrt(doc: LrcDocument, lastCueEnd?: number): string {
     .slice()
     .sort((a, b) => (a.timestamp as number) - (b.timestamp as number));
 
-  const cues: { start: number; end: number; text: string }[] = [];
+  const cues: { start: number; end: number; text: string; translation?: string }[] = [];
   for (let i = 0; i < timed.length; i++) {
     const line = timed[i];
     if (line.text.trim() === "") continue; // 빈 줄 = 경계 전용
@@ -54,14 +54,14 @@ export function serializeSrt(doc: LrcDocument, lastCueEnd?: number): string {
     } else {
       end = start + 4;
     }
-    cues.push({ start, end, text: line.text });
+    cues.push({ start, end, text: line.text, translation: line.translation });
   }
 
   return (
     cues
       .map(
         (c, i) =>
-          `${i + 1}\n${formatSrtTime(c.start)} --> ${formatSrtTime(c.end)}\n${c.text}`
+          `${i + 1}\n${formatSrtTime(c.start)} --> ${formatSrtTime(c.end)}\n${c.text}${c.translation ? `\n${c.translation}` : ""}`
       )
       .join("\n\n") + "\n"
   );

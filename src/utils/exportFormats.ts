@@ -34,14 +34,15 @@ function vttTime(seconds: number): string {
   return `${p2(Math.floor(ms / 3600000))}:${p2(Math.floor(ms / 60000) % 60)}:${p2(Math.floor(ms / 1000) % 60)}.${p3(ms % 1000)}`;
 }
 
-// 글자/단어 동기화가 있으면 VTT 인라인 타임스탬프(<HH:MM:SS.mmm>)로 카라오케 표현
+// 글자/단어 동기화가 있으면 VTT 인라인 타임스탬프(<HH:MM:SS.mmm>)로 카라오케 표현.
+// 번역 줄이 있으면 WebVTT가 기본 지원하는 개행으로 본문 아래에 덧붙임.
 function vttText(line: LrcLine): string {
-  if (line.syllables?.some((s) => s.time !== null)) {
-    return line.syllables
-      .map((s) => (s.time !== null ? `<${vttTime(s.time)}>` : "") + s.text)
-      .join("");
-  }
-  return line.text;
+  const main = line.syllables?.some((s) => s.time !== null)
+    ? line.syllables
+        .map((s) => (s.time !== null ? `<${vttTime(s.time)}>` : "") + s.text)
+        .join("")
+    : line.text;
+  return line.translation ? `${main}\n${line.translation}` : main;
 }
 
 export function serializeVtt(doc: LrcDocument, lastCueEnd?: number): string {
@@ -58,9 +59,11 @@ function assTime(seconds: number): string {
   return `${Math.floor(cs / 360000)}:${p2(Math.floor(cs / 6000) % 60)}:${p2(Math.floor(cs / 100) % 60)}.${p2(cs % 100)}`;
 }
 
-// ASS 텍스트: 글자 동기화가 있으면 \k(센티초 지속) 카라오케 태그로
+// ASS 텍스트: 글자 동기화가 있으면 \k(센티초 지속) 카라오케 태그로.
+// 번역 줄이 있으면 ASS의 줄바꿈 태그 \N으로 본문 아래에 덧붙임.
 function assText(line: LrcLine, cueEnd: number): string {
   const syl = line.syllables;
+  let main: string;
   if (syl?.some((s) => s.time !== null)) {
     let out = "";
     for (let i = 0; i < syl.length; i++) {
@@ -73,9 +76,11 @@ function assText(line: LrcLine, cueEnd: number): string {
       const durCs = Math.max(0, Math.round((nextT - (s.time as number)) * 100));
       out += `{\\k${durCs}}${s.text}`;
     }
-    return out;
+    main = out;
+  } else {
+    main = line.text;
   }
-  return line.text;
+  return line.translation ? `${main}\\N${line.translation}` : main;
 }
 
 export function serializeAss(doc: LrcDocument, lastCueEnd?: number): string {
