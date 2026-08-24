@@ -16,6 +16,7 @@ export interface Translations {
   saveFormatSrtDesc: string;
   saveFormatVttDesc: string;
   saveFormatAssDesc: string;
+  unsavedChanges: string;
   undo: string;
   redo: string;
   historyPanelTitle: string;
@@ -516,6 +517,7 @@ const ko: Translations = {
   saveFormatSrtDesc: "영상 자막 파일",
   saveFormatVttDesc: "웹 영상 자막 (HTML5)",
   saveFormatAssDesc: "노래방 영상 자막 (글자 동기화 \\k)",
+  unsavedChanges: "저장되지 않은 변경사항이 있습니다",
   undo: "실행 취소",
   redo: "다시 실행",
   historyPanelTitle: "편집 히스토리",
@@ -1074,6 +1076,7 @@ const en: Translations = {
   saveFormatSrtDesc: "Video subtitle file",
   saveFormatVttDesc: "Web video captions (HTML5)",
   saveFormatAssDesc: "Karaoke video subtitle (per-glyph \\k)",
+  unsavedChanges: "You have unsaved changes",
   undo: "Undo",
   redo: "Redo",
   historyPanelTitle: "Edit history",
@@ -1633,6 +1636,7 @@ const ja: Translations = {
   saveFormatSrtDesc: "動画字幕ファイル",
   saveFormatVttDesc: "Web動画字幕 (HTML5)",
   saveFormatAssDesc: "カラオケ動画字幕 (文字同期 \\k)",
+  unsavedChanges: "未保存の変更があります",
   undo: "元に戻す",
   redo: "やり直す",
   historyPanelTitle: "編集履歴",
