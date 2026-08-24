@@ -1,11 +1,10 @@
-import { useRef, useEffect, useCallback, useState, useMemo } from "react";
+import { useRef, useEffect, useCallback, useState, useMemo, lazy, Suspense } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { formatDisplayTime, formatTimestamp, parseTimestampInput, validateTimestamps, type SyncUnit } from "../../utils/lrcParser";
 import { audioControls } from "../../utils/audioControls";
-import { CharSyncView } from "./CharSyncView";
 import { CurrentTimeFooter } from "./CurrentTimeFooter";
 import { MiniConfirm } from "./MiniConfirm";
 import { FindReplaceBar } from "./FindReplaceBar";
@@ -13,7 +12,9 @@ import { TimeShiftBar } from "./TimeShiftBar";
 import { ValidationPanel } from "./ValidationPanel";
 import { ScaleBar } from "./ScaleBar";
 import { LoopIcon } from "../AudioPlayer/icons";
-import { AutoSpotModal } from "../AudioPlayer/AutoSpotModal";
+// 글자 동기화 뷰·자동 스팟팅 모달은 각각 모드 전환/버튼 클릭 시에만 필요 → 지연 로드
+const CharSyncView = lazy(() => import("./CharSyncView").then((m) => ({ default: m.CharSyncView })));
+const AutoSpotModal = lazy(() => import("../AudioPlayer/AutoSpotModal").then((m) => ({ default: m.AutoSpotModal })));
 
 export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   // currentTime은 푸터에서만 쓰므로 구독에서 제외 → 재생 중 줄 목록이 매 프레임 리렌더되지 않음
@@ -460,7 +461,11 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
         </div>
       </div>
 
-      {charMode && <CharSyncView />}
+      {charMode && (
+        <Suspense fallback={null}>
+          <CharSyncView />
+        </Suspense>
+      )}
 
       {!charMode && (<>
       {showTS && (
@@ -734,7 +739,11 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           onClose={() => setShowValidation(false)}
         />
       )}
-      {showAutoSpot && <AutoSpotModal onClose={() => setShowAutoSpot(false)} />}
+      {showAutoSpot && (
+        <Suspense fallback={null}>
+          <AutoSpotModal onClose={() => setShowAutoSpot(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }

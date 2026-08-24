@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { serializeLrc } from "../../utils/lrcParser";
-import { LrcLibModal } from "../LrcLib/LrcLibModal";
+// 검색/불러오기 모달은 버튼 클릭 시에만 필요 → 지연 로드(초기 번들 절감)
+const LrcLibModal = lazy(() => import("../LrcLib/LrcLibModal").then((m) => ({ default: m.LrcLibModal })));
 
 export function MetaEditor() {
   // currentTime 등에 리렌더되지 않도록 필요한 필드만 구독
@@ -98,7 +99,11 @@ export function MetaEditor() {
           onClose={() => setShowRawEditor(false)}
         />
       )}
-      {showLrcLib && <LrcLibModal onClose={() => setShowLrcLib(false)} />}
+      {showLrcLib && (
+        <Suspense fallback={null}>
+          <LrcLibModal onClose={() => setShowLrcLib(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }
