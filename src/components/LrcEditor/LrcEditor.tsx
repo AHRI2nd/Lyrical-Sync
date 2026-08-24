@@ -23,6 +23,7 @@ import { BulkActionsBar } from "./BulkActionsBar";
 // 글자 동기화 뷰·자동 스팟팅 모달은 각각 모드 전환/버튼 클릭 시에만 필요 → 지연 로드
 const CharSyncView = lazy(() => import("./CharSyncView").then((m) => ({ default: m.CharSyncView })));
 const AutoSpotModal = lazy(() => import("../AudioPlayer/AutoSpotModal").then((m) => ({ default: m.AutoSpotModal })));
+const BpmSnapModal = lazy(() => import("../AudioPlayer/BpmSnapModal").then((m) => ({ default: m.BpmSnapModal })));
 
 // ISO 639-3 codes used by ctc-forced-aligner / MMS model
 const LANG_CODE: Record<string, string> = { ko: "kor", en: "eng", ja: "jpn" };
@@ -83,6 +84,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   const [showTS, setShowTS] = useState(false);
   const [showScale, setShowScale] = useState(false);
   const [showAutoSpot, setShowAutoSpot] = useState(false);
+  const [showBpmSnap, setShowBpmSnap] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
   // 줄 다중선택(일괄 작업)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -519,6 +521,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
             onToggleScale={() => setShowScale((v) => !v)}
             onOpenAutoSpot={() => setShowAutoSpot(true)}
             onToggleTranslation={() => setShowTranslationLines(!showTranslationLines)}
+            onOpenBpmSnap={() => setShowBpmSnap(true)}
           />
           </>)}
           <button
@@ -727,6 +730,11 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
       {showAutoSpot && (
         <Suspense fallback={null}>
           <AutoSpotModal onClose={() => setShowAutoSpot(false)} />
+        </Suspense>
+      )}
+      {showBpmSnap && (
+        <Suspense fallback={null}>
+          <BpmSnapModal onClose={() => setShowBpmSnap(false)} selectedIds={[...selectedIds]} />
         </Suspense>
       )}
     </div>

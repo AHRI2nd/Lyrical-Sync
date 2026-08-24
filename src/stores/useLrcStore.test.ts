@@ -270,6 +270,31 @@ describe("useLrcStore — bulk line actions", () => {
     useLrcStore.getState().clearTimestamps(["2"]);
     expect(lines().map((l) => l.timestamp)).toEqual([1, null]);
   });
+
+  it("snapLinesToBeatGrid snaps only selected timestamps to the nearest beat", () => {
+    // 120 BPM = 0.5s 주기, offset 0 → 0.24 -> 0, 1.76 -> 2.0
+    reset([mk("1", "a", 0.24), mk("2", "b", 1.76), mk("3", "c", 3)]);
+    useLrcStore.getState().snapLinesToBeatGrid(["1", "2"], 120, 0);
+    expect(lines().map((l) => l.timestamp)).toEqual([0, 2, 3]);
+  });
+
+  it("snapLinesToBeatGrid affects every timestamped line when ids is empty", () => {
+    reset([mk("1", "a", 0.24), mk("2", "b", null)]);
+    useLrcStore.getState().snapLinesToBeatGrid([], 120, 0);
+    expect(lines().map((l) => l.timestamp)).toEqual([0, null]);
+  });
+
+  it("snapLinesToBeatGrid drops syllables on lines that actually move, records no history if nothing moves", () => {
+    reset([{ id: "1", timestamp: 0, text: "ab", syllables: [{ text: "a", time: 0 }] }]);
+    const h0 = useLrcStore.getState()._history.length;
+    useLrcStore.getState().snapLinesToBeatGrid(["1"], 120, 0); // already on-grid → no-op
+    expect(useLrcStore.getState()._history.length).toBe(h0);
+    expect(lines()[0].syllables).toBeDefined();
+
+    useLrcStore.getState().snapLinesToBeatGrid(["1"], 100, 0.1); // now actually moves
+    expect(useLrcStore.getState()._history.length).toBe(h0 + 1);
+    expect(lines()[0].syllables).toBeUndefined();
+  });
 });
 
 describe("recovery snapshot & restoreDoc", () => {

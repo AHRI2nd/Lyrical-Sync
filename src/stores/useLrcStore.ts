@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { LrcDocument, LrcLine, LrcMetadata, LrcSyllable, defaultDocument } from "../types/lrc";
 import { type HistoryEntry, type HistoryLabel } from "../types/history";
 import { parseLrc, serializeLrc, type SyncUnit } from "../utils/lrcParser";
+import { nearestBeat } from "../utils/bpmDetect";
 import { serializeSrt, parseSrt } from "../utils/srtConverter";
 import { serializeVtt, serializeAss } from "../utils/exportFormats";
 import { toast } from "./useToastStore";
@@ -94,6 +95,9 @@ interface LrcStore {
   shiftLines: (ids: string[], delta: number) => void;
   /** 여러 줄의 타임스탬프·글자 동기화 제거(텍스트 유지) */
   clearTimestamps: (ids: string[]) => void;
+  /** ids(비어있으면 전체)의 타임스탬프를 bpm/offsetSec 비트 그리드로 스냅.
+   *  스냅으로 실제 이동한 줄은 글자 동기화가 균일 이동이 아니게 되므로 함께 제거 */
+  snapLinesToBeatGrid: (ids: string[], bpm: number, offsetSec: number) => void;
   stampCurrentLine: (id: string) => void;
   applyOffset: () => void;
   loadFromRawText: (raw: string) => void;
@@ -468,6 +472,25 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     const idSet = new Set(ids);
     const { doc } = get();
     const lines = doc.lines.map((l) => (idSet.has(l.id) ? { ...l, timestamp: null, syllables: undefined } : l));
+    set({ doc: { ...doc, lines }, isDirty: true });
+  },
+
+  snapLinesToBeatGrid: (ids, bpm, offsetSec) => {
+    if (!(bpm > 0)) return;
+    const { doc } = get();
+    const idSet = ids.length > 0 ? new Set(ids) : null;
+    let changed = false;
+    const lines = doc.lines.map((l) => {
+      if (l.timestamp === null) return l;
+      if (idSet && !idSet.has(l.id)) return l;
+      const snapped = nearestBeat(l.timestamp, bpm, offsetSec);
+      if (snapped === l.timestamp) return l;
+      changed = true;
+      // 스냅은 줄마다 비균일하게 이동하므로 기존 글자 동기화 토큰 시각은 더 이상 유효하지 않음
+      return { ...l, timestamp: snapped, syllables: undefined };
+    });
+    if (!changed) return;
+    pushHistory("snapBeatGrid");
     set({ doc: { ...doc, lines }, isDirty: true });
   },
 
