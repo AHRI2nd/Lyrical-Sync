@@ -30,12 +30,13 @@ import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 const HelpModal = lazy(() => import("./components/AppShell/HelpModal").then((m) => ({ default: m.HelpModal })));
+const BatchToolModal = lazy(() => import("./components/BatchTools/BatchToolModal").then((m) => ({ default: m.BatchToolModal })));
 import { ConfirmModal } from "./components/AppShell/ConfirmModal";
 import { SaveFormatModal } from "./components/AppShell/SaveFormatModal";
 import { ELrcNoticeModal } from "./components/AppShell/ELrcNoticeModal";
 import { IconBtn } from "./components/AppShell/IconBtn";
 import { LangDropdown } from "./components/AppShell/LangDropdown";
-import { NewFileIcon, OpenFolderIcon, SaveIcon, SaveAsIcon, UndoIcon, RedoIcon, GearIcon } from "./components/AppShell/icons";
+import { NewFileIcon, OpenFolderIcon, SaveIcon, SaveAsIcon, UndoIcon, RedoIcon, GearIcon, BatchIcon } from "./components/AppShell/icons";
 import { RecentFilesMenu } from "./components/AppShell/RecentFilesMenu";
 import { HistoryPanel } from "./components/AppShell/HistoryPanel";
 
@@ -160,6 +161,7 @@ function App() {
     return snap && snap.doc.lines.length > 0 ? snap : null;
   });
   const [showHelp, setShowHelp] = useState(false);
+  const [showBatchTool, setShowBatchTool] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<"general" | "preview" | "models" | "spotify" | "youtube">("general");
@@ -423,6 +425,11 @@ function App() {
           <HelpModal onClose={() => setShowHelp(false)} />
         </Suspense>
       )}
+      {showBatchTool && (
+        <Suspense fallback={null}>
+          <BatchToolModal onClose={() => setShowBatchTool(false)} />
+        </Suspense>
+      )}
       {showPreview && (
         <Suspense fallback={null}>
           <PreviewModal
@@ -538,6 +545,14 @@ function App() {
           className="w-8 h-8 rounded-full bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white transition-colors flex items-center justify-center shadow-lg"
         >
           <GearIcon />
+        </button>
+        <button
+          onClick={() => setShowBatchTool(true)}
+          title={t.batchTitle}
+          aria-label={t.batchTitle}
+          className="w-8 h-8 rounded-full bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white transition-colors flex items-center justify-center shadow-lg"
+        >
+          <BatchIcon />
         </button>
         <button
           onClick={() => setShowHelp(true)}

@@ -198,6 +198,24 @@ export interface Translations {
   bpmConfidence: string;
   bpmAppliedAll: string;
   bpmAppliedCount: string;
+  batchTitle: string;
+  batchHint: string;
+  batchSelectFiles: string;
+  batchNoFiles: string;
+  batchNoAudioMatch: string;
+  batchStatusPending: string;
+  batchStatusProcessing: string;
+  batchStatusDone: string;
+  batchStatusError: string;
+  batchOpOffset: string;
+  batchOpConvert: string;
+  batchOpTag: string;
+  batchOffsetLabel: string;
+  batchTagHint: string;
+  batchRun: string;
+  batchRunning: string;
+  batchSummaryDone: string;
+  batchSummaryError: string;
   timeShiftTooltip: string;
   timeShiftFrom: string;
   timeShiftTo: string;
@@ -730,6 +748,24 @@ const ko: Translations = {
   bpmConfidence: "신뢰도",
   bpmAppliedAll: "전체 줄에 적용했습니다",
   bpmAppliedCount: "줄에 적용했습니다",
+  batchTitle: "일괄 처리",
+  batchHint: "여러 LRC/SRT 파일을 선택해 오프셋 적용·포맷 변환·태그 채우기 중 하나를 한 번에 적용합니다. 현재 열려있는 문서와는 무관하게 파일을 직접 읽고 씁니다.",
+  batchSelectFiles: "파일 선택...",
+  batchNoFiles: "선택된 파일이 없습니다",
+  batchNoAudioMatch: "매칭된 오디오 없음",
+  batchStatusPending: "대기",
+  batchStatusProcessing: "처리 중",
+  batchStatusDone: "완료",
+  batchStatusError: "오류",
+  batchOpOffset: "오프셋 적용",
+  batchOpConvert: "포맷 변환",
+  batchOpTag: "태그 채우기",
+  batchOffsetLabel: "이동할 시간",
+  batchTagHint: "입력한 필드만 덮어씁니다. LRC 파일에만 적용되며(SRT는 태그 개념이 없어 제외), 오디오 파일 자체의 태그는 변경하지 않습니다.",
+  batchRun: "실행",
+  batchRunning: "처리 중...",
+  batchSummaryDone: "개 완료",
+  batchSummaryError: "개 실패",
   timeShiftTooltip: "선택한 줄 범위의 타임스탬프를 일괄로 앞뒤로 이동합니다",
   timeShiftFrom: "시작",
   timeShiftTo: "끝",
@@ -1256,6 +1292,24 @@ const en: Translations = {
   bpmConfidence: "Confidence",
   bpmAppliedAll: "Applied to all lines",
   bpmAppliedCount: "line(s) snapped",
+  batchTitle: "Batch Tool",
+  batchHint: "Select multiple LRC/SRT files and apply one of offset shift, format conversion, or tag filling to all of them at once. Reads and writes files directly, independent of the currently open document.",
+  batchSelectFiles: "Select Files...",
+  batchNoFiles: "No files selected",
+  batchNoAudioMatch: "No matching audio",
+  batchStatusPending: "Pending",
+  batchStatusProcessing: "Processing",
+  batchStatusDone: "Done",
+  batchStatusError: "Error",
+  batchOpOffset: "Apply Offset",
+  batchOpConvert: "Convert Format",
+  batchOpTag: "Fill Tags",
+  batchOffsetLabel: "Shift by",
+  batchTagHint: "Only fields you enter are overwritten. Applies to LRC files only (SRT has no tag concept), and never touches the audio file's own tags.",
+  batchRun: "Run",
+  batchRunning: "Processing...",
+  batchSummaryDone: "done",
+  batchSummaryError: "failed",
   timeShiftTooltip: "Shift timestamps of a selected line range forward or backward",
   timeShiftFrom: "From",
   timeShiftTo: "To",
@@ -1781,6 +1835,24 @@ const ja: Translations = {
   bpmConfidence: "信頼度",
   bpmAppliedAll: "全ての行に適用しました",
   bpmAppliedCount: "行に適用しました",
+  batchTitle: "一括処理",
+  batchHint: "複数のLRC/SRTファイルを選択し、オフセット適用・フォーマット変換・タグ入力のいずれかを一括適用します。現在開いているドキュメントとは無関係にファイルを直接読み書きします。",
+  batchSelectFiles: "ファイルを選択...",
+  batchNoFiles: "選択されたファイルはありません",
+  batchNoAudioMatch: "一致する音声なし",
+  batchStatusPending: "待機中",
+  batchStatusProcessing: "処理中",
+  batchStatusDone: "完了",
+  batchStatusError: "エラー",
+  batchOpOffset: "オフセット適用",
+  batchOpConvert: "フォーマット変換",
+  batchOpTag: "タグ入力",
+  batchOffsetLabel: "移動する時間",
+  batchTagHint: "入力した項目のみ上書きします。LRCファイルのみ対象(SRTにはタグの概念がないため対象外)で、音声ファイル自体のタグは変更しません。",
+  batchRun: "実行",
+  batchRunning: "処理中...",
+  batchSummaryDone: "件完了",
+  batchSummaryError: "件失敗",
   timeShiftTooltip: "選択した行範囲のタイムスタンプを前後に一括移動します",
   timeShiftFrom: "開始",
   timeShiftTo: "終了",
