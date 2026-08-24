@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
+import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { ChevronDownIcon } from "./icons";
 
@@ -9,9 +10,11 @@ export function HistoryPanel() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const { t } = useI18nStore();
-  const { _history, _future, jumpToHistory } = useLrcStore((s) => ({
-    _history: s._history, _future: s._future, jumpToHistory: s.jumpToHistory,
-  }));
+  const { _history, _future, jumpToHistory } = useLrcStore(
+    useShallow((s) => ({
+      _history: s._history, _future: s._future, jumpToHistory: s.jumpToHistory,
+    }))
+  );
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -51,7 +54,7 @@ export function HistoryPanel() {
         disabled={disabled}
         title={t.historyPanelTitle}
         aria-label={t.historyPanelTitle}
-        className="w-4 h-8 flex items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-800 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        className="w-6 h-8 flex items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-800 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
       >
         <ChevronDownIcon />
       </button>
