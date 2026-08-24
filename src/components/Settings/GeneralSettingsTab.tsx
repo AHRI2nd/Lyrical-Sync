@@ -12,8 +12,8 @@ export function GeneralSettingsTab({
 }) {
   const { t } = useI18nStore();
   const {
-    autoCheckUpdate, autoSave, uiScale, blankLineOffset, showElrcSaveNotice, lyricsFontScale, showGlyphTimeMarkers,
-    setAutoCheckUpdate, setAutoSave, setUiScale, setBlankLineOffset, setShowElrcSaveNotice, setLyricsFontScale, setShowGlyphTimeMarkers,
+    autoCheckUpdate, autoSave, uiScale, blankLineOffset, showElrcSaveNotice, lyricsFontScale, showGlyphTimeMarkers, showSpellCheck,
+    setAutoCheckUpdate, setAutoSave, setUiScale, setBlankLineOffset, setShowElrcSaveNotice, setLyricsFontScale, setShowGlyphTimeMarkers, setShowSpellCheck,
   } = useSettingsStore();
 
   const scalePercent = Math.round(uiScale * 100);
@@ -223,6 +223,32 @@ export function GeneralSettingsTab({
           </button>
         </div>
         <p className="text-xs text-zinc-500">{t.settingsGlyphMarkersDesc}</p>
+      </div>
+
+      <div className="border-t border-zinc-800" />
+
+      {/* Spell check */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-zinc-200">{t.settingsSpellCheck}</span>
+          <button
+            onClick={() => setShowSpellCheck(!showSpellCheck)}
+            className={[
+              "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
+              showSpellCheck ? "bg-indigo-600" : "bg-zinc-600",
+            ].join(" ")}
+            role="switch"
+            aria-checked={showSpellCheck}
+          >
+            <span
+              className={[
+                "absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                showSpellCheck ? "translate-x-[22px]" : "translate-x-0.5",
+              ].join(" ")}
+            />
+          </button>
+        </div>
+        <p className="text-xs text-zinc-500">{t.settingsSpellCheckDesc}</p>
       </div>
     </div>
   );

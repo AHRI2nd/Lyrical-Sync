@@ -19,6 +19,8 @@ interface SettingsState {
   showGlyphTimeMarkers: boolean;
   /** 파형 대신/함께 스펙트로그램 표시 (음높이·배음 구조를 볼 때 유용) */
   showSpectrogram: boolean;
+  /** 가사 줄 입력창에 브라우저 기본 맞춤법 검사 사용 */
+  showSpellCheck: boolean;
   /** AI 정렬 시 Demucs 보컬 분리 사용(설치돼 있을 때). false면 원본 오디오로 정렬 */
   useVocalSeparation: boolean;
   /** AI 정렬 시 보컬 활동 감지(VAD) 사용 — 빈 줄 정밀 배치 + 신뢰도 보정. 보컬 분리 필요 */
@@ -52,6 +54,7 @@ interface SettingsState {
   setLyricsFontScale: (v: number) => void;
   setShowGlyphTimeMarkers: (v: boolean) => void;
   setShowSpectrogram: (v: boolean) => void;
+  setShowSpellCheck: (v: boolean) => void;
   setUseVocalSeparation: (v: boolean) => void;
   setUseVad: (v: boolean) => void;
   setKeybinding: (action: KeyAction, code: string) => void;
@@ -89,6 +92,7 @@ export const useSettingsStore = create<SettingsState>()(
       lyricsFontScale: 1.0,
       showGlyphTimeMarkers: true,
       showSpectrogram: false,
+      showSpellCheck: false,
       useVocalSeparation: true,
       useVad: true,
       keybindings: { ...DEFAULT_KEYBINDINGS },
@@ -110,6 +114,7 @@ export const useSettingsStore = create<SettingsState>()(
       setLyricsFontScale: (v) => set({ lyricsFontScale: v }),
       setShowGlyphTimeMarkers: (v) => set({ showGlyphTimeMarkers: v }),
       setShowSpectrogram: (v) => set({ showSpectrogram: v }),
+      setShowSpellCheck: (v) => set({ showSpellCheck: v }),
       setUseVocalSeparation: (v) => set({ useVocalSeparation: v }),
       setUseVad: (v) => set({ useVad: v }),
       setKeybinding: (action, code) =>

@@ -256,6 +256,8 @@ export interface Translations {
   settingsLyricsFontSize: string;
   settingsGlyphMarkers: string;
   settingsGlyphMarkersDesc: string;
+  settingsSpellCheck: string;
+  settingsSpellCheckDesc: string;
   elrcNotice: {
     title: string;
     message: string;
@@ -735,6 +737,8 @@ const ko: Translations = {
   settingsLyricsFontSize: "가사 글꼴 크기",
   settingsGlyphMarkers: "글자 시간 마커 표시",
   settingsGlyphMarkersDesc: "글자 동기화 모드에서 각 글자 아래에 찍힌 시간을 점선으로 표시합니다.",
+  settingsSpellCheck: "맞춤법 검사",
+  settingsSpellCheckDesc: "가사 입력창에 브라우저 기본 맞춤법 검사를 사용합니다. 전용 교정기가 아니라 일반 사전 기반 검사이며, 음역/비표준 가사에서는 오탐이 많을 수 있습니다.",
   elrcNotice: {
     title: "Enhanced LRC로 저장",
     message: "글자/단어 동기화가 포함되어 있어 이 파일은 Enhanced LRC(.lrc)로 저장됩니다. 일부 플레이어는 글자 단위 타이밍 태그를 지원하지 않을 수 있습니다.",
@@ -1212,6 +1216,8 @@ const en: Translations = {
   settingsLyricsFontSize: "Lyrics font size",
   settingsGlyphMarkers: "Show glyph time markers",
   settingsGlyphMarkersDesc: "Show the stamped time under each glyph with dotted lines in character sync mode.",
+  settingsSpellCheck: "Spell check",
+  settingsSpellCheckDesc: "Use the browser's built-in spell checker on the lyric text field. This is a generic dictionary checker, not a lyrics-aware proofreader, and may flag many false positives on phonetic or non-standard lyrics.",
   elrcNotice: {
     title: "Save as Enhanced LRC",
     message: "This file contains word/character sync, so it will be saved as Enhanced LRC (.lrc). Some players may not support per-glyph timing tags.",
@@ -1688,6 +1694,8 @@ const ja: Translations = {
   settingsLyricsFontSize: "歌詞のフォントサイズ",
   settingsGlyphMarkers: "文字タイムマーカーを表示",
   settingsGlyphMarkersDesc: "文字同期モードで各文字の下に記録した時刻を点線で表示します。",
+  settingsSpellCheck: "スペルチェック",
+  settingsSpellCheckDesc: "歌詞入力欄でブラウザ標準のスペルチェックを使用します。専用の校正機能ではなく一般的な辞書ベースのチェックのため、音訳や非標準的な歌詞では誤検出が多くなることがあります。",
   elrcNotice: {
     title: "Enhanced LRC で保存",
     message: "文字/単語同期が含まれているため、このファイルは Enhanced LRC（.lrc）として保存されます。一部のプレーヤーは文字単位のタイミングタグに対応していない場合があります。",

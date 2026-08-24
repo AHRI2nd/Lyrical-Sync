@@ -9,7 +9,7 @@ import { LoopIcon } from "../AudioPlayer/icons";
 // 이 컴포넌트는 순수 렌더링(+ line 자체에서 파생되는 hasGlyphSync/tsClass만 내부 계산).
 export function LrcLineRow({
   t, line, idx, isActive, isSelected, confidence, isMatch, isCurrentMatch, warning,
-  loopLineId, lyricsFontScale,
+  loopLineId, lyricsFontScale, showSpellCheck,
   dragIdx, dragOverIdx, onDragStart, onDragEnd, onDragOver, onDrop,
   editingTsId, editTsValue, onEditTsChange, onStartTsEdit, onCommitTsEdit, onCancelTsEdit, onStampCurrentLine,
   onRowClick, onToggleLoop, onTextChange, onKeyDown, onPaste, onFocus,
@@ -27,6 +27,7 @@ export function LrcLineRow({
   warning: "duplicate" | "outOfOrder" | undefined;
   loopLineId: string | null;
   lyricsFontScale: number;
+  showSpellCheck: boolean;
 
   dragIdx: number | null;
   dragOverIdx: number | null;
@@ -182,6 +183,7 @@ export function LrcLineRow({
         onKeyDown={onKeyDown}
         onFocus={onFocus}
         onPaste={onPaste}
+        spellCheck={showSpellCheck}
         className="flex-1 bg-transparent text-white text-sm placeholder-zinc-600 focus:outline-none"
         style={{ fontSize: `${0.875 * lyricsFontScale}rem` }}
         placeholder={t.linePlaceholder}
