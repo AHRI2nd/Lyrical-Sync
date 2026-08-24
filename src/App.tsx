@@ -162,7 +162,7 @@ function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [settingsInitialTab, setSettingsInitialTab] = useState<"general" | "models" | "spotify" | "youtube">("general");
+  const [settingsInitialTab, setSettingsInitialTab] = useState<"general" | "preview" | "models" | "spotify" | "youtube">("general");
   const [showNewConfirm, setShowNewConfirm] = useState(false);
   const [showFormatChooser, setShowFormatChooser] = useState(false);
   const [showElrcNotice, setShowElrcNotice] = useState(false);
@@ -425,7 +425,10 @@ function App() {
       )}
       {showPreview && (
         <Suspense fallback={null}>
-          <PreviewModal onClose={() => setShowPreview(false)} />
+          <PreviewModal
+            onClose={() => setShowPreview(false)}
+            onOpenStyleSettings={() => { setSettingsInitialTab("preview"); setShowSettings(true); }}
+          />
         </Suspense>
       )}
       {showSettings && (

@@ -257,7 +257,13 @@ export interface Translations {
   settingsTitle: string;
   settingsTabGeneral: string;
   settingsTabShortcuts: string;
+  settingsTabPreview: string;
   settingsTabModels: string;
+  previewFontScaleLabel: string;
+  previewActiveColorLabel: string;
+  previewAccentColorLabel: string;
+  previewGlowLabel: string;
+  previewStyleSettingsTooltip: string;
   settingsAutoUpdate: string;
   settingsAutoUpdateDesc: string;
   settingsAutoSave: string;
@@ -765,7 +771,13 @@ const ko: Translations = {
   settingsTitle: "설정",
   settingsTabGeneral: "일반",
   settingsTabShortcuts: "단축키",
+  settingsTabPreview: "미리보기",
   settingsTabModels: "AI 모델",
+  previewFontScaleLabel: "가사 글꼴 크기",
+  previewActiveColorLabel: "활성 줄 색상",
+  previewAccentColorLabel: "강조 색상",
+  previewGlowLabel: "글로우 효과",
+  previewStyleSettingsTooltip: "미리보기 스타일 설정",
   settingsAutoUpdate: "자동 업데이트 확인",
   settingsAutoUpdateDesc: "앱 시작 시 최신 버전을 자동으로 확인합니다.",
   settingsAutoSave: "자동 저장",
@@ -1271,7 +1283,13 @@ const en: Translations = {
   settingsTitle: "Settings",
   settingsTabGeneral: "General",
   settingsTabShortcuts: "Shortcuts",
+  settingsTabPreview: "Preview",
   settingsTabModels: "AI Models",
+  previewFontScaleLabel: "Lyrics font size",
+  previewActiveColorLabel: "Active line color",
+  previewAccentColorLabel: "Accent color",
+  previewGlowLabel: "Glow effect",
+  previewStyleSettingsTooltip: "Preview style settings",
   settingsAutoUpdate: "Auto-check for updates",
   settingsAutoUpdateDesc: "Automatically check for new versions on startup.",
   settingsAutoSave: "Auto-save",
@@ -1776,7 +1794,13 @@ const ja: Translations = {
   settingsTitle: "設定",
   settingsTabGeneral: "一般",
   settingsTabShortcuts: "ショートカット",
+  settingsTabPreview: "プレビュー",
   settingsTabModels: "AIモデル",
+  previewFontScaleLabel: "歌詞フォントサイズ",
+  previewActiveColorLabel: "アクティブ行の色",
+  previewAccentColorLabel: "アクセントカラー",
+  previewGlowLabel: "グロー効果",
+  previewStyleSettingsTooltip: "プレビュースタイル設定",
   settingsAutoUpdate: "自動更新確認",
   settingsAutoUpdateDesc: "アプリ起動時に最新バージョンを自動で確認します。",
   settingsAutoSave: "自動保存",
