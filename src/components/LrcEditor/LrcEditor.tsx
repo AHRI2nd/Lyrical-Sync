@@ -61,7 +61,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     }))
   );
   const { t, lang } = useI18nStore();
-  const { blankLineOffset, spotifyMode, deviceMode, lyricsFontScale, useVocalSeparation, useVad, showSpellCheck, showTranslationLines, setShowTranslationLines } = useSettingsStore();
+  const { blankLineOffset, spotifyMode, deviceMode, lyricsFontScale, useVocalSeparation, useVad, showSpellCheck, showTranslationLines } = useSettingsStore();
   const serviceLoggedIn = useServiceStore((s) => s.isLoggedIn);
   // 실제 Spotify 모드(로그인 + spotifyMode 활성)일 때만 서비스 모드로 간주.
   // 단순 계정 연결만으로 AI 싱크를 막지 않도록 isReady 대신 spotifyMode 기준 사용.
@@ -521,12 +521,11 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           )}
 
           <EditorToolsMenu
-            t={t} showFR={showFR} showTS={showTS} showScale={showScale} showAutoSpot={showAutoSpot} showTranslation={showTranslationLines}
+            t={t} showFR={showFR} showTS={showTS} showScale={showScale} showAutoSpot={showAutoSpot}
             onToggleFR={() => { setShowFR((v) => !v); setTimeout(() => findInputRef.current?.focus(), 0); }}
             onToggleTS={() => setShowTS((v) => !v)}
             onToggleScale={() => setShowScale((v) => !v)}
             onOpenAutoSpot={() => setShowAutoSpot(true)}
-            onToggleTranslation={() => setShowTranslationLines(!showTranslationLines)}
             onOpenBpmSnap={() => setShowBpmSnap(true)}
             onOpenMacros={() => setShowMacroManager(true)}
           />
