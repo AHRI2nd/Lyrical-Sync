@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
+import { ConfirmModal } from "../AppShell/ConfirmModal";
 
 export type CheckState = "idle" | "checking" | "upToDate";
 
@@ -12,11 +14,20 @@ export function GeneralSettingsTab({
 }) {
   const { t } = useI18nStore();
   const {
-    autoCheckUpdate, autoSave, uiScale, blankLineOffset, showElrcSaveNotice, lyricsFontScale, showGlyphTimeMarkers, showSpellCheck,
-    setAutoCheckUpdate, setAutoSave, setUiScale, setBlankLineOffset, setShowElrcSaveNotice, setLyricsFontScale, setShowGlyphTimeMarkers, setShowSpellCheck,
+    autoCheckUpdate, autoSave, uiScale, blankLineOffset, showElrcSaveNotice, lyricsFontScale, showGlyphTimeMarkers, showSpellCheck, showTranslationLines,
+    setAutoCheckUpdate, setAutoSave, setUiScale, setBlankLineOffset, setShowElrcSaveNotice, setLyricsFontScale, setShowGlyphTimeMarkers, setShowSpellCheck, setShowTranslationLines,
   } = useSettingsStore();
 
   const scalePercent = Math.round(uiScale * 100);
+
+  // 켜기 전에 한 번 경고: 번역 줄은 표준 LRC 규격에 없는 확장 표기(같은 타임스탬프의
+  // "/" 접두사 줄)라, 저장한 파일이 다른 LRC 플레이어/도구와 호환되지 않을 수 있음.
+  // 끄는 쪽은 항상 안전하므로 경고 없이 바로 반영.
+  const [showTranslationWarning, setShowTranslationWarning] = useState(false);
+  const handleToggleTranslation = () => {
+    if (showTranslationLines) setShowTranslationLines(false);
+    else setShowTranslationWarning(true);
+  };
 
   return (
     <div className="p-5 flex flex-col gap-5">
@@ -250,6 +261,43 @@ export function GeneralSettingsTab({
         </div>
         <p className="text-xs text-zinc-500">{t.settingsSpellCheckDesc}</p>
       </div>
+
+      <div className="border-t border-zinc-800" />
+
+      {/* Translation lines */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-zinc-200">{t.translationToggle}</span>
+          <button
+            onClick={handleToggleTranslation}
+            className={[
+              "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
+              showTranslationLines ? "bg-indigo-600" : "bg-zinc-600",
+            ].join(" ")}
+            role="switch"
+            aria-checked={showTranslationLines}
+          >
+            <span
+              className={[
+                "absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                showTranslationLines ? "translate-x-[22px]" : "translate-x-0.5",
+              ].join(" ")}
+            />
+          </button>
+        </div>
+        <p className="text-xs text-zinc-500">{t.settingsTranslationDesc}</p>
+      </div>
+
+      {showTranslationWarning && (
+        <ConfirmModal
+          title={t.translationWarningTitle}
+          message={t.translationWarningMessage}
+          okLabel={t.translationWarningOk}
+          cancelLabel={t.translationWarningCancel}
+          onOk={() => { setShowTranslationLines(true); setShowTranslationWarning(false); }}
+          onCancel={() => setShowTranslationWarning(false)}
+        />
+      )}
     </div>
   );
 }

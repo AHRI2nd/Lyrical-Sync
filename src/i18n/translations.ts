@@ -173,6 +173,11 @@ export interface Translations {
   autoSpot: string;
   translationToggle: string;
   translationPlaceholder: string;
+  settingsTranslationDesc: string;
+  translationWarningTitle: string;
+  translationWarningMessage: string;
+  translationWarningOk: string;
+  translationWarningCancel: string;
   autoSpotTitle: string;
   autoSpotHint: string;
   autoSpotNeedsAudio: string;
@@ -738,6 +743,11 @@ const ko: Translations = {
   tsScaleHint: "전체 타임스탬프 ×배율 (예: 1.05 = 5% 느리게)",
   autoSpot: "자동 스팟팅",
   translationToggle: "번역 줄 표시",
+  settingsTranslationDesc: "가사 줄마다 2차(번역) 텍스트 보조 입력창을 표시합니다. 표준 LRC 규격에 없는 확장 표기라, 켜서 저장한 파일은 다른 LRC 플레이어·도구와 호환되지 않을 수 있습니다.",
+  translationWarningTitle: "번역 줄은 표준 LRC 형식이 아닙니다",
+  translationWarningMessage: "번역 줄을 켜면 저장되는 LRC 파일에 표준 규격에 없는 확장 표기(같은 타임스탬프에 \"/\"로 시작하는 두 번째 줄)가 포함됩니다.\n이 앱에서는 다시 정상적으로 불러올 수 있지만, 다른 LRC 플레이어나 도구에서는 번역 줄이 별도의 가사 줄로 잘못 표시되거나 호환되지 않을 수 있습니다.\n계속하시겠습니까?",
+  translationWarningOk: "이해했습니다, 켜기",
+  translationWarningCancel: "취소",
   translationPlaceholder: "번역 (선택)",
   autoSpotTitle: "무음 기반 자동 스팟팅",
   autoSpotHint: "오디오에서 발화로 보이는 구간을 찾아 빈 텍스트 줄로 배치합니다. 정밀한 음성 인식이 아니라 음량 임계값 기반이므로, 배치 후 직접 검토하며 텍스트를 채워주세요.",
@@ -1298,6 +1308,11 @@ const en: Translations = {
   tsScaleHint: "All timestamps × factor (e.g. 1.05 = 5% slower)",
   autoSpot: "Auto-Spot",
   translationToggle: "Show translation lines",
+  settingsTranslationDesc: "Show a secondary (translation) text input under each lyric line. This is an extension not part of the standard LRC spec, so files saved with it on may not be compatible with other LRC players or tools.",
+  translationWarningTitle: "Translation lines aren't standard LRC",
+  translationWarningMessage: "Turning this on adds a non-standard extension to saved LRC files (a second line starting with \"/\" at the same timestamp).\nThis app can read it back correctly, but other LRC players or tools may show it as a separate, garbled lyric line or fail to parse the file.\nContinue?",
+  translationWarningOk: "Understood, turn it on",
+  translationWarningCancel: "Cancel",
   translationPlaceholder: "Translation (optional)",
   autoSpotTitle: "Silence-Based Auto-Spotting",
   autoSpotHint: "Finds stretches that sound like speech and lays down blank text lines over them. This is a volume-threshold heuristic, not real speech recognition — review and fill in the text afterward.",
@@ -1857,6 +1872,11 @@ const ja: Translations = {
   tsScaleHint: "全タイムスタンプ × 倍率（例: 1.05 = 5%遅く）",
   autoSpot: "自動スポッティング",
   translationToggle: "翻訳行を表示",
+  settingsTranslationDesc: "各歌詞行の下に2次(翻訳)テキスト入力欄を表示します。標準LRC規格にない拡張表記のため、オンにして保存したファイルは他のLRCプレイヤーやツールと互換性がない場合があります。",
+  translationWarningTitle: "翻訳行は標準LRC形式ではありません",
+  translationWarningMessage: "この機能をオンにすると、保存されるLRCファイルに標準規格にない拡張表記(同じタイムスタンプで\"/\"から始まる2行目)が含まれます。\n本アプリでは正しく読み込めますが、他のLRCプレイヤーやツールでは別の歌詞行として誤表示されたり、互換性がない場合があります。\n続行しますか？",
+  translationWarningOk: "理解しました、オンにする",
+  translationWarningCancel: "キャンセル",
   translationPlaceholder: "翻訳（任意）",
   autoSpotTitle: "無音ベース自動スポッティング",
   autoSpotHint: "音声から発話に聞こえる区間を検出し、空のテキスト行を配置します。正確な音声認識ではなく音量しきい値ベースなので、配置後は内容を確認しながらテキストを入力してください。",
