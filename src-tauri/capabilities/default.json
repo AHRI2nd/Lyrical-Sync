@@ -9,6 +9,7 @@
     "dialog:allow-open",
     "dialog:allow-save",
     "fs:allow-read-file",
+    "fs:allow-read-dir",
     "fs:scope-audio-recursive",
     "fs:scope-download-recursive",
     "fs:scope-document-recursive",
