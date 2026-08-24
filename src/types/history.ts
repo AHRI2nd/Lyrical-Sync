@@ -23,7 +23,8 @@ export type HistoryLabel =
   | "applyOffset"
   | "shiftTimeRange"
   | "replaceAll"
-  | "aiSync";
+  | "aiSync"
+  | "snapBeatGrid";
 
 export interface HistoryEntry {
   doc: LrcDocument;

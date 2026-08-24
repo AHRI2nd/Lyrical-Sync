@@ -5,7 +5,7 @@ import { type Translations } from "../../i18n/translations";
 // 열림 상태와 바깥 클릭 감지는 이 컴포넌트가 자체 소유.
 export function EditorToolsMenu({
   t, showFR, showTS, showScale, showAutoSpot, showTranslation,
-  onToggleFR, onToggleTS, onToggleScale, onOpenAutoSpot, onToggleTranslation,
+  onToggleFR, onToggleTS, onToggleScale, onOpenAutoSpot, onToggleTranslation, onOpenBpmSnap,
 }: {
   t: Translations;
   showFR: boolean;
@@ -18,6 +18,7 @@ export function EditorToolsMenu({
   onToggleScale: () => void;
   onOpenAutoSpot: () => void;
   onToggleTranslation: () => void;
+  onOpenBpmSnap: () => void;
 }) {
   const [showTools, setShowTools] = useState(false);
   const toolsRef = useRef<HTMLDivElement>(null);
@@ -64,6 +65,12 @@ export function EditorToolsMenu({
             className="text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors hover:bg-zinc-700 text-zinc-200"
           >
             {t.autoSpot}
+          </button>
+          <button
+            onClick={() => { onOpenBpmSnap(); setShowTools(false); }}
+            className="text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors hover:bg-zinc-700 text-zinc-200"
+          >
+            {t.bpmLabel}
           </button>
           <div className="my-0.5 border-t border-zinc-700" />
           <button

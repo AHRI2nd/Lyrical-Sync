@@ -24,7 +24,7 @@ export interface Translations {
     | "commitSyllables" | "clearSyllables" | "stampLine" | "setLines" | "addLine"
     | "insertLines" | "addLinesFromSpeech" | "deleteLine" | "duplicateLine" | "mergeLine"
     | "splitLine" | "moveLine" | "scaleTimestamps" | "deleteLines" | "shiftLines"
-    | "clearTimestamps" | "loadDoc" | "applyOffset" | "shiftTimeRange" | "replaceAll" | "aiSync",
+    | "clearTimestamps" | "loadDoc" | "applyOffset" | "shiftTimeRange" | "replaceAll" | "aiSync" | "snapBeatGrid",
     string
   >;
   // Help modal
@@ -185,6 +185,19 @@ export interface Translations {
   autoSpotAddedLabel: string;
   autoSpotApply: string;
   autoSpotCancel: string;
+  bpmTitle: string;
+  bpmHint: string;
+  bpmDetecting: string;
+  bpmDetectFailed: string;
+  bpmDecodeError: string;
+  bpmLabel: string;
+  bpmOffset: string;
+  bpmTapTempo: string;
+  bpmScopeAll: string;
+  bpmScopeSelected: string;
+  bpmConfidence: string;
+  bpmAppliedAll: string;
+  bpmAppliedCount: string;
   timeShiftTooltip: string;
   timeShiftFrom: string;
   timeShiftTo: string;
@@ -496,6 +509,7 @@ const ko: Translations = {
       shiftTimeRange: "구간 시간 이동",
       replaceAll: "찾아바꾸기 ({count}곳)",
       aiSync: "AI 자동 동기화",
+      snapBeatGrid: "BPM 그리드 스냅",
   },
   helpTitle: "도움말",
   helpTabShortcuts: "단축키",
@@ -703,6 +717,19 @@ const ko: Translations = {
   autoSpotAddedLabel: "개 줄 추가됨",
   autoSpotApply: "적용",
   autoSpotCancel: "취소",
+  bpmTitle: "BPM 감지 + 비트 그리드 스냅",
+  bpmHint: "오디오에서 박자(BPM)를 추정합니다. 실제 음악 전체에 대한 자동 감지는 배박/절반박 오류가 흔하니, 값을 확인하거나 아래 탭 템포로 직접 보정한 뒤 적용하세요.",
+  bpmDetecting: "박자 감지 중...",
+  bpmDetectFailed: "박자를 감지하지 못했습니다. 탭 템포로 직접 입력해주세요.",
+  bpmDecodeError: "오디오 디코드에 실패했습니다.",
+  bpmLabel: "BPM",
+  bpmOffset: "첫 비트 시각",
+  bpmTapTempo: "탭 템포 (박자에 맞춰 클릭)",
+  bpmScopeAll: "전체 줄에 적용",
+  bpmScopeSelected: "선택한 줄에 적용",
+  bpmConfidence: "신뢰도",
+  bpmAppliedAll: "전체 줄에 적용했습니다",
+  bpmAppliedCount: "줄에 적용했습니다",
   timeShiftTooltip: "선택한 줄 범위의 타임스탬프를 일괄로 앞뒤로 이동합니다",
   timeShiftFrom: "시작",
   timeShiftTo: "끝",
@@ -1007,6 +1034,7 @@ const en: Translations = {
       shiftTimeRange: "Shift time range",
       replaceAll: "Find & replace ({count})",
       aiSync: "AI auto sync",
+      snapBeatGrid: "BPM grid snap",
   },
   helpTitle: "Help",
   helpTabShortcuts: "Shortcuts",
@@ -1215,6 +1243,19 @@ const en: Translations = {
   autoSpotAddedLabel: "lines added",
   autoSpotApply: "Apply",
   autoSpotCancel: "Cancel",
+  bpmTitle: "BPM Detection + Beat Grid Snap",
+  bpmHint: "Estimates the track's tempo (BPM). Automatic detection on a full music mix is prone to half/double-tempo errors — check the value or correct it with tap tempo below before applying.",
+  bpmDetecting: "Detecting tempo...",
+  bpmDetectFailed: "Couldn't detect a tempo. Try tap tempo instead.",
+  bpmDecodeError: "Failed to decode audio.",
+  bpmLabel: "BPM",
+  bpmOffset: "First beat time",
+  bpmTapTempo: "Tap Tempo (click along with the beat)",
+  bpmScopeAll: "Apply to all lines",
+  bpmScopeSelected: "Apply to selected lines",
+  bpmConfidence: "Confidence",
+  bpmAppliedAll: "Applied to all lines",
+  bpmAppliedCount: "line(s) snapped",
   timeShiftTooltip: "Shift timestamps of a selected line range forward or backward",
   timeShiftFrom: "From",
   timeShiftTo: "To",
@@ -1519,6 +1560,7 @@ const ja: Translations = {
       shiftTimeRange: "区間の時間移動",
       replaceAll: "検索と置換 ({count}件)",
       aiSync: "AI自動同期",
+      snapBeatGrid: "BPMグリッドスナップ",
   },
   helpTitle: "ヘルプ",
   helpTabShortcuts: "ショートカット",
@@ -1726,6 +1768,19 @@ const ja: Translations = {
   autoSpotAddedLabel: "行追加",
   autoSpotApply: "適用",
   autoSpotCancel: "キャンセル",
+  bpmTitle: "BPM検出 + ビートグリッドスナップ",
+  bpmHint: "音源からテンポ(BPM)を推定します。楽曲全体への自動検出は倍テンポ・半テンポの誤りが起きやすいので、値を確認するか下のタップテンポで補正してから適用してください。",
+  bpmDetecting: "テンポを検出中...",
+  bpmDetectFailed: "テンポを検出できませんでした。タップテンポで入力してください。",
+  bpmDecodeError: "音声のデコードに失敗しました。",
+  bpmLabel: "BPM",
+  bpmOffset: "最初のビート時刻",
+  bpmTapTempo: "タップテンポ（拍に合わせてクリック）",
+  bpmScopeAll: "全ての行に適用",
+  bpmScopeSelected: "選択した行に適用",
+  bpmConfidence: "信頼度",
+  bpmAppliedAll: "全ての行に適用しました",
+  bpmAppliedCount: "行に適用しました",
   timeShiftTooltip: "選択した行範囲のタイムスタンプを前後に一括移動します",
   timeShiftFrom: "開始",
   timeShiftTo: "終了",
