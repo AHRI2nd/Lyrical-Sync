@@ -57,7 +57,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     }))
   );
   const { t, lang } = useI18nStore();
-  const { blankLineOffset, spotifyMode, deviceMode, lyricsFontScale, useVocalSeparation, useVad, showSpellCheck } = useSettingsStore();
+  const { blankLineOffset, spotifyMode, deviceMode, lyricsFontScale, useVocalSeparation, useVad, showSpellCheck, showTranslationLines, setShowTranslationLines } = useSettingsStore();
   const serviceLoggedIn = useServiceStore((s) => s.isLoggedIn);
   // 실제 Spotify 모드(로그인 + spotifyMode 활성)일 때만 서비스 모드로 간주.
   // 단순 계정 연결만으로 AI 싱크를 막지 않도록 isReady 대신 spotifyMode 기준 사용.
@@ -513,11 +513,12 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           )}
 
           <EditorToolsMenu
-            t={t} showFR={showFR} showTS={showTS} showScale={showScale} showAutoSpot={showAutoSpot}
+            t={t} showFR={showFR} showTS={showTS} showScale={showScale} showAutoSpot={showAutoSpot} showTranslation={showTranslationLines}
             onToggleFR={() => { setShowFR((v) => !v); setTimeout(() => findInputRef.current?.focus(), 0); }}
             onToggleTS={() => setShowTS((v) => !v)}
             onToggleScale={() => setShowScale((v) => !v)}
             onOpenAutoSpot={() => setShowAutoSpot(true)}
+            onToggleTranslation={() => setShowTranslationLines(!showTranslationLines)}
           />
           </>)}
           <button
@@ -632,6 +633,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
               loopLineId={loopLineId}
               lyricsFontScale={lyricsFontScale}
               showSpellCheck={showSpellCheck}
+              showTranslationLines={showTranslationLines}
               dragIdx={dragIdx}
               dragOverIdx={dragOverIdx}
               onDragStart={(e) => { e.stopPropagation(); setDragIdx(idx); }}
@@ -658,6 +660,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                 (serviceActive ? serviceControls : audioControls).seekTo(line.timestamp);
               }}
               onTextChange={(value) => handleTextChange(line.id, value)}
+              onTranslationChange={(value) => updateLine(line.id, { translation: value })}
               onKeyDown={(e) => handleKeyDown(e, line.id)}
               onPaste={(e) => handlePaste(e, line.id, line.text)}
               onFocus={() => setActiveLineId(line.id)}
