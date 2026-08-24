@@ -37,6 +37,7 @@ import { IconBtn } from "./components/AppShell/IconBtn";
 import { LangDropdown } from "./components/AppShell/LangDropdown";
 import { NewFileIcon, OpenFolderIcon, SaveIcon, SaveAsIcon, UndoIcon, RedoIcon, GearIcon } from "./components/AppShell/icons";
 import { RecentFilesMenu } from "./components/AppShell/RecentFilesMenu";
+import { HistoryPanel } from "./components/AppShell/HistoryPanel";
 
 const AUDIO_EXTS = ["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff", "aif"];
 const LYRICS_EXTS = ["lrc", "srt"];
@@ -400,6 +401,7 @@ function App() {
           <div className="flex gap-1 shrink-0">
             <IconBtn onClick={undo} disabled={_history.length === 0} title={t.undo}><UndoIcon /></IconBtn>
             <IconBtn onClick={redo} disabled={_future.length === 0} title={t.redo}><RedoIcon /></IconBtn>
+            <HistoryPanel />
           </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
