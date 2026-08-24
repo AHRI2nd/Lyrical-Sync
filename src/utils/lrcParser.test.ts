@@ -83,6 +83,48 @@ describe("parseLrc — line level", () => {
   });
 });
 
+describe("parseLrc / serializeLrc — translation lines", () => {
+  it("merges a same-timestamp /-prefixed line into the previous line's translation", () => {
+    const d = parseLrc("[00:12.34]Hello world\n[00:12.34]/안녕 세상");
+    expect(d.lines).toHaveLength(1);
+    expect(d.lines[0].text).toBe("Hello world");
+    expect(d.lines[0].translation).toBe("안녕 세상");
+  });
+
+  it("merges a translation for an untimed line (no timestamp yet)", () => {
+    const d = parseLrc("Hello world\n/안녕 세상");
+    expect(d.lines).toHaveLength(1);
+    expect(d.lines[0].timestamp).toBeNull();
+    expect(d.lines[0].text).toBe("Hello world");
+    expect(d.lines[0].translation).toBe("안녕 세상");
+  });
+
+  it("round-trips a translation through serializeLrc → parseLrc", () => {
+    const original = parseLrc("[00:12.34]Hello world");
+    original.lines[0].translation = "안녕 세상";
+    const out = serializeLrc(original, false);
+    expect(out).toContain("[00:12.34]Hello world");
+    expect(out).toContain("[00:12.34]/안녕 세상");
+    const reparsed = parseLrc(out);
+    expect(reparsed.lines).toHaveLength(1);
+    expect(reparsed.lines[0].translation).toBe("안녕 세상");
+  });
+
+  it("does not merge into a chorus repeat (different timestamp sets)", () => {
+    // [t1][t2]text 뒤에 다른 타임스탬프의 "/" 줄이 오면 병합 대상이 아니므로 별도 줄로 남음
+    const d = parseLrc("[00:01.00][00:05.00]chorus\n[00:09.00]/not a translation");
+    expect(d.lines).toHaveLength(3);
+    expect(d.lines.every((l) => l.translation === undefined)).toBe(true);
+  });
+
+  it("a duplicate-timestamp original line without a / marker still warns as before (non-interference)", () => {
+    const d = parseLrc("[00:01.00]a\n[00:01.00]b");
+    expect(d.lines).toHaveLength(2);
+    expect(d.lines[0].translation).toBeUndefined();
+    expect(d.lines[1].translation).toBeUndefined();
+  });
+});
+
 describe("Enhanced LRC (A2) — char/word sync", () => {
   it("parses inline <mm:ss.xx> tags into syllables", () => {
     const d = parseLrc("[00:12.00]<00:12.00>너<00:12.24>의 손");

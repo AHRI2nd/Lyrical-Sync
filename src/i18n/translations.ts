@@ -170,6 +170,8 @@ export interface Translations {
   tsScaleFactor: string;
   tsScaleHint: string;
   autoSpot: string;
+  translationToggle: string;
+  translationPlaceholder: string;
   autoSpotTitle: string;
   autoSpotHint: string;
   autoSpotNeedsAudio: string;
@@ -680,6 +682,8 @@ const ko: Translations = {
   tsScaleFactor: "배율",
   tsScaleHint: "전체 타임스탬프 ×배율 (예: 1.05 = 5% 느리게)",
   autoSpot: "자동 스팟팅",
+  translationToggle: "번역 줄 표시",
+  translationPlaceholder: "번역 (선택)",
   autoSpotTitle: "무음 기반 자동 스팟팅",
   autoSpotHint: "오디오에서 발화로 보이는 구간을 찾아 빈 텍스트 줄로 배치합니다. 정밀한 음성 인식이 아니라 음량 임계값 기반이므로, 배치 후 직접 검토하며 텍스트를 채워주세요.",
   autoSpotNeedsAudio: "오디오 파일을 먼저 열어주세요",
@@ -1184,6 +1188,8 @@ const en: Translations = {
   tsScaleFactor: "Factor",
   tsScaleHint: "All timestamps × factor (e.g. 1.05 = 5% slower)",
   autoSpot: "Auto-Spot",
+  translationToggle: "Show translation lines",
+  translationPlaceholder: "Translation (optional)",
   autoSpotTitle: "Silence-Based Auto-Spotting",
   autoSpotHint: "Finds stretches that sound like speech and lays down blank text lines over them. This is a volume-threshold heuristic, not real speech recognition — review and fill in the text afterward.",
   autoSpotNeedsAudio: "Open an audio file first",
@@ -1687,6 +1693,8 @@ const ja: Translations = {
   tsScaleFactor: "倍率",
   tsScaleHint: "全タイムスタンプ × 倍率（例: 1.05 = 5%遅く）",
   autoSpot: "自動スポッティング",
+  translationToggle: "翻訳行を表示",
+  translationPlaceholder: "翻訳（任意）",
   autoSpotTitle: "無音ベース自動スポッティング",
   autoSpotHint: "音声から発話に聞こえる区間を検出し、空のテキスト行を配置します。正確な音声認識ではなく音量しきい値ベースなので、配置後は内容を確認しながらテキストを入力してください。",
   autoSpotNeedsAudio: "先に音声ファイルを開いてください",

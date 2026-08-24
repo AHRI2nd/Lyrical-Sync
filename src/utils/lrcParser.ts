@@ -145,9 +145,24 @@ export function validateTimestamps(lines: LrcLine[]): Map<string, LineWarning> {
   return warnings;
 }
 
+// 두 타임스탬프 집합이 (센티초 정밀도로) 동일한지 비교. null=무타임스탬프.
+function sameTimestamps(a: (number | null)[], b: (number | null)[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((t, i) => {
+    const u = b[i];
+    if (t === null || u === null) return t === null && u === null;
+    return Math.round(t * 100) === Math.round(u * 100);
+  });
+}
+
 export function parseLrc(raw: string): LrcDocument {
   const doc = defaultDocument();
   let lineId = 0;
+  // 직전 원본 줄이 만든 doc.lines 인덱스와 그 타임스탬프(들). 번역 줄("/"로 시작)이
+  // 직전 줄과 동일한 타임스탬프 집합을 공유하면 별도 엔트리 대신 translation으로 병합
+  // (표준 LRC엔 번역 개념이 없어 "동일 타임스탬프 + / 접두사"를 앱 자체 규약으로 사용).
+  let lastIndices: number[] | null = null;
+  let lastTimestamps: (number | null)[] | null = null;
 
   for (const rawLine of raw.split("\n")) {
     const line = rawLine.trim();
@@ -166,9 +181,18 @@ export function parseLrc(raw: string): LrcDocument {
       rest = rest.slice(tok[0].length);
     }
     if (timestamps.length > 0) {
+      if (rest.startsWith("/") && lastIndices && lastTimestamps && sameTimestamps(timestamps, lastTimestamps)) {
+        const translation = rest.slice(1);
+        for (const idx of lastIndices) doc.lines[idx] = { ...doc.lines[idx], translation };
+        lastIndices = null;
+        lastTimestamps = null;
+        continue;
+      }
       const syllables = parseInlineSyllables(rest);
       const text = syllables ? syllables.map((s) => s.text).join("") : rest.trim();
+      const indices: number[] = [];
       for (const ts of timestamps) {
+        indices.push(doc.lines.length);
         doc.lines.push({
           id: String(lineId++),
           timestamp: ts,
@@ -177,6 +201,8 @@ export function parseLrc(raw: string): LrcDocument {
           ...(syllables ? { syllables: syllables.map((s) => ({ ...s })) } : {}),
         });
       }
+      lastIndices = indices;
+      lastTimestamps = timestamps;
       continue;
     }
 
@@ -194,9 +220,24 @@ export function parseLrc(raw: string): LrcDocument {
       } else {
         doc.extraTags[key] = value;
       }
+      lastIndices = null;
+      lastTimestamps = null;
       continue;
     }
 
+    // 무타임스탬프 줄도 대칭적으로 번역 병합 지원(스탬프 전에 번역부터 입력한 경우 등) —
+    // 타임스탬프 게이트가 없어 "/"로 시작하는 원본 가사와 충돌할 여지는 있으나
+    // (동일 타임스탬프 줄에서와 마찬가지로) 드문 경우로 간주.
+    if (line.startsWith("/") && lastIndices && lastTimestamps && sameTimestamps([null], lastTimestamps)) {
+      const translation = line.slice(1);
+      doc.lines[lastIndices[0]] = { ...doc.lines[lastIndices[0]], translation };
+      lastIndices = null;
+      lastTimestamps = null;
+      continue;
+    }
+
+    lastIndices = [doc.lines.length];
+    lastTimestamps = [null];
     doc.lines.push({ id: String(lineId++), timestamp: null, text: line });
   }
 
@@ -237,10 +278,13 @@ export function serializeLrc(doc: LrcDocument, enhanced = true): string {
         out += s.text;
       }
       parts.push(out);
+      if (line.translation) parts.push(`[${formatTimestamp(lineTs)}]/${line.translation}`);
     } else if (line.timestamp !== null) {
       parts.push(`[${formatTimestamp(line.timestamp)}]${line.text}`);
+      if (line.translation) parts.push(`[${formatTimestamp(line.timestamp)}]/${line.translation}`);
     } else if (line.text) {
       parts.push(line.text);
+      if (line.translation) parts.push(`/${line.translation}`);
     }
   }
 

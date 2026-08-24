@@ -175,6 +175,11 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
           ) : (
             line.text || " "
           )}
+          {line.translation && (
+            <div className={`text-sm font-sans not-italic mt-0.5 ${isActive ? "text-indigo-200/70" : "text-zinc-600"}`}>
+              {line.translation}
+            </div>
+          )}
         </div>
       </div>
     );
