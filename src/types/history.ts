@@ -24,7 +24,9 @@ export type HistoryLabel =
   | "shiftTimeRange"
   | "replaceAll"
   | "aiSync"
-  | "snapBeatGrid";
+  | "snapBeatGrid"
+  | "editText"
+  | "editMetadata";
 
 export interface HistoryEntry {
   doc: LrcDocument;

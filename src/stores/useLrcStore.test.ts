@@ -27,6 +27,7 @@ const reset = (lines: LrcLine[], offset = 0) =>
     doc: { metadata: { title: "", artist: "", album: "", by: "", offset }, lines, extraTags: {} },
     _history: [],
     _future: [],
+    _lastEditKey: null,
     currentTime: 0,
     activeLineId: null,
     isDirty: false,
@@ -46,6 +47,64 @@ describe("useLrcStore — line actions", () => {
     reset([{ id: "1", timestamp: null, text: "a" }]);
     useLrcStore.getState().updateLine("1", { text: "b" });
     expect(lines()[0].text).toBe("b");
+  });
+
+  it("updateLine is undoable — first keystroke pushes history", () => {
+    reset([{ id: "1", timestamp: null, text: "a" }]);
+    const h0 = useLrcStore.getState()._history.length;
+    useLrcStore.getState().updateLine("1", { text: "ab" });
+    expect(useLrcStore.getState()._history.length).toBe(h0 + 1);
+    useLrcStore.getState().undo();
+    expect(lines()[0].text).toBe("a");
+  });
+
+  it("updateLine coalesces consecutive edits to the same field into one undo step", () => {
+    reset([{ id: "1", timestamp: null, text: "a" }]);
+    useLrcStore.getState().updateLine("1", { text: "ab" });
+    useLrcStore.getState().updateLine("1", { text: "abc" });
+    useLrcStore.getState().updateLine("1", { text: "abcd" });
+    expect(useLrcStore.getState()._history.length).toBe(1);
+    useLrcStore.getState().undo();
+    expect(lines()[0].text).toBe("a");
+  });
+
+  it("updateLine starts a new undo step after an intervening action", () => {
+    reset([{ id: "1", timestamp: null, text: "a" }, { id: "2", timestamp: null, text: "x" }]);
+    useLrcStore.getState().updateLine("1", { text: "ab" });
+    useLrcStore.getState().addLine("new");
+    useLrcStore.getState().updateLine("1", { text: "abc" });
+    expect(useLrcStore.getState()._history.length).toBe(3); // editText, addLine, editText
+    useLrcStore.getState().undo();
+    expect(lines().find((l) => l.id === "1")?.text).toBe("ab"); // only the second edit undone
+  });
+
+  it("updateLine starts a new undo step when switching fields on the same line", () => {
+    reset([{ id: "1", timestamp: 1, text: "a", translation: "x" }]);
+    useLrcStore.getState().updateLine("1", { text: "ab" });
+    useLrcStore.getState().updateLine("1", { translation: "y" });
+    expect(useLrcStore.getState()._history.length).toBe(2);
+  });
+
+  it("setMetadata is undoable and coalesces consecutive edits to the same fields", () => {
+    reset([]);
+    const h0 = useLrcStore.getState()._history.length;
+    useLrcStore.getState().setMetadata({ title: "T" });
+    useLrcStore.getState().setMetadata({ title: "Ti" });
+    useLrcStore.getState().setMetadata({ title: "Tit" });
+    expect(useLrcStore.getState()._history.length).toBe(h0 + 1);
+    expect(useLrcStore.getState().doc.metadata.title).toBe("Tit");
+    useLrcStore.getState().undo();
+    expect(useLrcStore.getState().doc.metadata.title).toBe("");
+  });
+
+  it("setMetadata(silent) never pushes history or marks dirty", () => {
+    reset([]);
+    useLrcStore.setState({ isDirty: false });
+    const h0 = useLrcStore.getState()._history.length;
+    useLrcStore.getState().setMetadata({ artist: "A" }, true);
+    expect(useLrcStore.getState()._history.length).toBe(h0);
+    expect(useLrcStore.getState().isDirty).toBe(false);
+    expect(useLrcStore.getState().doc.metadata.artist).toBe("A");
   });
 
   it("deleteLine removes and updates activeLineId", () => {
