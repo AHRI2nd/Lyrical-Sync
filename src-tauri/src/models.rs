@@ -79,6 +79,20 @@ pub async fn get_models_dir(
     Ok(dir.to_string_lossy().into_owned())
 }
 
+/// `filename`이 `..`/절대경로 등으로 `base` 밖을 벗어나지 않는지 검증한 뒤 합쳐진 경로를 반환합니다.
+/// (다운로드 대상 파일은 아직 존재하지 않을 수 있어 `canonicalize` 기반 검증 대신
+/// 경로 컴포넌트 자체를 허용목록 방식으로 검사합니다.)
+fn safe_join(base: &std::path::Path, filename: &str) -> Result<PathBuf, String> {
+    use std::path::Component;
+    let candidate = std::path::Path::new(filename);
+    for comp in candidate.components() {
+        if !matches!(comp, Component::Normal(_)) {
+            return Err(format!("잘못된 파일 경로: {filename}"));
+        }
+    }
+    Ok(base.join(candidate))
+}
+
 /// 각 파일이 models 디렉터리에 존재하는지 확인합니다.
 #[tauri::command]
 pub async fn check_model_files(
@@ -87,7 +101,10 @@ pub async fn check_model_files(
     filenames: Vec<String>,
 ) -> Result<Vec<bool>, String> {
     let base = models_dir(&app, &dir_state)?;
-    Ok(filenames.iter().map(|f| base.join(f).exists()).collect())
+    Ok(filenames
+        .iter()
+        .map(|f| safe_join(&base, f).map(|p| p.exists()).unwrap_or(false))
+        .collect())
 }
 
 /// 모델 파일 목록을 다운로드합니다. 진행 상황은 `model-download-progress` 이벤트로 전달됩니다.
@@ -112,7 +129,13 @@ pub async fn download_model(
             return Err("cancelled".into());
         }
 
-        let dest = base.join(&spec.filename);
+        let dest = match safe_join(&base, &spec.filename) {
+            Ok(p) => p,
+            Err(e) => {
+                dl_state.cancels.lock().unwrap().remove(&model_id);
+                return Err(e);
+            }
+        };
         if let Some(parent) = dest.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
@@ -272,7 +295,7 @@ pub async fn delete_model_files(
 ) -> Result<(), String> {
     let base = models_dir(&app, &dir_state)?;
     for f in &filenames {
-        let path = base.join(f);
+        let path = safe_join(&base, f)?;
         if path.exists() {
             std::fs::remove_file(&path).map_err(|e| e.to_string())?;
         }
