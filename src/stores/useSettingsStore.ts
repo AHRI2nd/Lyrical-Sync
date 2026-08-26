@@ -1,6 +1,31 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage, type StateStorage } from "zustand/middleware";
 import { type KeyAction, DEFAULT_KEYBINDINGS } from "../utils/keybindings";
+
+// 슬라이더 드래그처럼 짧은 시간에 set()이 연속 호출될 때마다 전체 설정 blob을
+// 매번 동기적으로 localStorage에 직렬화·쓰기하지 않도록, 실제 디스크 쓰기만 디바운스.
+// (인메모리 zustand 상태는 매 tick 그대로 갱신되므로 UI 반응성엔 영향 없음.)
+function debouncedLocalStorage(delayMs: number): StateStorage {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let pending: { key: string; value: string } | null = null;
+  return {
+    getItem: (key) => localStorage.getItem(key),
+    setItem: (key, value) => {
+      pending = { key, value };
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (pending) localStorage.setItem(pending.key, pending.value);
+        pending = null;
+        timer = null;
+      }, delayMs);
+    },
+    removeItem: (key) => {
+      if (timer) { clearTimeout(timer); timer = null; }
+      pending = null;
+      localStorage.removeItem(key);
+    },
+  };
+}
 
 interface SettingsState {
   autoCheckUpdate: boolean;
@@ -162,6 +187,6 @@ export const useSettingsStore = create<SettingsState>()(
         }),
       clearRecentFiles: () => set({ recentFiles: [] }),
     }),
-    { name: "lyrical-sync-settings" }
+    { name: "lyrical-sync-settings", storage: createJSONStorage(() => debouncedLocalStorage(300)) }
   )
 );
