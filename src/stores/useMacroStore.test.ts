@@ -149,3 +149,17 @@ describe("replayMacro", () => {
     expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(1);
   });
 });
+
+describe("persistence", () => {
+  it("never writes isRecording/currentSteps to disk — a crash mid-recording can't leave a stale flag on relaunch", () => {
+    useMacroStore.getState().startRecording();
+    useMacroStore.getState().recordStep({ action: "scaleTimestamps", params: { factor: 1.1 } });
+
+    const raw = localStorage.getItem("lyrical-sync-macros");
+    expect(raw).not.toBeNull();
+    const persisted = JSON.parse(raw as string).state;
+    expect(persisted).not.toHaveProperty("isRecording");
+    expect(persisted).not.toHaveProperty("currentSteps");
+    expect(persisted).toHaveProperty("savedMacros");
+  });
+});
