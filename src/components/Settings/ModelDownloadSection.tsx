@@ -174,7 +174,11 @@ export function ModelDownloadSection() {
         // Use the total model size estimate as the denominator for consistent overall progress.
         // Per-file Content-Length would cause tiny config files (~KB) to briefly show 99%
         // before the large model file starts downloading.
-        const staticEstimate = MODEL_DEFS.find((m) => m.id === p.modelId)!.totalSizeMb * 1024 * 1024;
+        const modelDef = MODEL_DEFS.find((m) => m.id === p.modelId);
+        // Stale/unmatched event (e.g. modelId from a version whose defs changed) — ignore
+        // rather than crash the whole state update.
+        if (!modelDef) return prev;
+        const staticEstimate = modelDef.totalSizeMb * 1024 * 1024;
         const denominator = staticEstimate > 0
           ? staticEstimate
           : Math.max(completedBytes + (p.total > 0 ? p.total : p.downloaded), 1);
