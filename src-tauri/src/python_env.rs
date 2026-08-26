@@ -229,6 +229,10 @@ try:
 
     subdirs = [d for d in os.listdir(extract_dir)
                if os.path.isdir(os.path.join(extract_dir, d))]
+    if not subdirs:
+        sys.stderr.write("[ctc] no source subdirectory found after extraction\n")
+        sys.stderr.flush()
+        sys.exit(1)
     src_dir = os.path.join(extract_dir, subdirs[0])
     sys.stdout.write("[ctc] source extracted to: " + src_dir + "\n")
     sys.stdout.flush()
