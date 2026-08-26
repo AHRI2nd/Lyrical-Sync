@@ -25,7 +25,8 @@ export interface Translations {
     | "commitSyllables" | "clearSyllables" | "stampLine" | "setLines" | "addLine"
     | "insertLines" | "addLinesFromSpeech" | "deleteLine" | "duplicateLine" | "mergeLine"
     | "splitLine" | "moveLine" | "scaleTimestamps" | "deleteLines" | "shiftLines"
-    | "clearTimestamps" | "loadDoc" | "applyOffset" | "shiftTimeRange" | "replaceAll" | "aiSync" | "snapBeatGrid",
+    | "clearTimestamps" | "loadDoc" | "applyOffset" | "shiftTimeRange" | "replaceAll" | "aiSync" | "snapBeatGrid"
+    | "editText" | "editMetadata",
     string
   >;
   // Help modal
@@ -550,6 +551,8 @@ const ko: Translations = {
       replaceAll: "찾아바꾸기 ({count}곳)",
       aiSync: "AI 자동 동기화",
       snapBeatGrid: "BPM 그리드 스냅",
+      editText: "가사 편집",
+      editMetadata: "메타데이터 편집",
   },
   helpTitle: "도움말",
   helpTabShortcuts: "단축키",
@@ -1114,6 +1117,8 @@ const en: Translations = {
       replaceAll: "Find & replace ({count})",
       aiSync: "AI auto sync",
       snapBeatGrid: "BPM grid snap",
+      editText: "Edit lyrics",
+      editMetadata: "Edit metadata",
   },
   helpTitle: "Help",
   helpTabShortcuts: "Shortcuts",
@@ -1679,6 +1684,8 @@ const ja: Translations = {
       replaceAll: "検索と置換 ({count}件)",
       aiSync: "AI自動同期",
       snapBeatGrid: "BPMグリッドスナップ",
+      editText: "歌詞編集",
+      editMetadata: "メタデータ編集",
   },
   helpTitle: "ヘルプ",
   helpTabShortcuts: "ショートカット",
