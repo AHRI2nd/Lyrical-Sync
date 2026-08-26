@@ -1,4 +1,5 @@
 import { useEffect, useRef, useMemo, useCallback, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -28,7 +29,15 @@ const DIST_FONT_REM: Record<number, number> = { 0: 1.5, 1: 1.25, 2: 1.125 };
 const DIST_FONT_REM_FAR = 1;
 
 export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => void; onOpenStyleSettings: () => void }) {
-  const { doc, currentTime, duration, isPlaying, updateLine } = useLrcStore();
+  const { doc, currentTime, duration, isPlaying, updateLine } = useLrcStore(
+    useShallow((s) => ({
+      doc: s.doc,
+      currentTime: s.currentTime,
+      duration: s.duration,
+      isPlaying: s.isPlaying,
+      updateLine: s.updateLine,
+    }))
+  );
   const spotifyMode = useSettingsStore((s) => s.spotifyMode);
   const previewFontScale = useSettingsStore((s) => s.previewFontScale);
   const previewActiveColor = useSettingsStore((s) => s.previewActiveColor);
