@@ -32,6 +32,7 @@ export const MODEL_DEFS: ModelDef[] = [
       {
         filename: "demucs/htdemucs.th",
         url: "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th",
+        sha256: "8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4",
       },
     ],
     totalSizeMb: 83,
