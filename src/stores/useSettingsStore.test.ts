@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 
 // zustand persist용 최소 localStorage 폴리필 (node 환경)
 if (typeof globalThis.localStorage === "undefined") {
@@ -62,5 +62,31 @@ describe("useSettingsStore — recent files", () => {
     useSettingsStore.getState().addRecentFile({ lrcPath: "/a.lrc", audioPath: null });
     useSettingsStore.getState().clearRecentFiles();
     expect(useSettingsStore.getState().recentFiles).toEqual([]);
+  });
+});
+
+describe("useSettingsStore — persisted writes are debounced", () => {
+  it("collapses rapid successive set() calls (e.g. a slider drag) into a single localStorage write", () => {
+    vi.useFakeTimers();
+    const setItemSpy = vi.spyOn(globalThis.localStorage, "setItem");
+    setItemSpy.mockClear();
+
+    useSettingsStore.getState().setUiScale(1.1);
+    useSettingsStore.getState().setUiScale(1.2);
+    useSettingsStore.getState().setUiScale(1.3);
+
+    // 인메모리 상태는 매 호출마다 즉시 반영 — UI 반응성엔 영향 없음
+    expect(useSettingsStore.getState().uiScale).toBe(1.3);
+    // 하지만 실제 디스크 쓰기는 디바운스 구간 동안 아직 발생하지 않아야 함
+    expect(setItemSpy).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(300);
+
+    expect(setItemSpy).toHaveBeenCalledTimes(1);
+    const written = setItemSpy.mock.calls[0][1];
+    expect(JSON.parse(written).state.uiScale).toBe(1.3);
+
+    setItemSpy.mockRestore();
+    vi.useRealTimers();
   });
 });
