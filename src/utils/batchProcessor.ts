@@ -105,20 +105,33 @@ async function applyTagsToFile(lrcPath: string, tags: { title?: string; artist?:
   await invoke("write_lrc_file", { path: lrcPath, content: serializeLrc({ ...doc, metadata }) });
 }
 
+const DEFAULT_CONCURRENCY = 4;
+
 export async function runBatchOperation(
   entries: BatchFileEntry[],
   operation: BatchOperation,
-  onProgress: (index: number, status: BatchFileEntry["status"], error?: string) => void
+  onProgress: (index: number, status: BatchFileEntry["status"], error?: string) => void,
+  options: { signal?: AbortSignal; concurrency?: number } = {}
 ): Promise<void> {
-  for (let i = 0; i < entries.length; i++) {
-    onProgress(i, "processing");
-    try {
-      if (operation.kind === "offset") await applyOffsetToFile(entries[i].lrcPath, operation.deltaSeconds);
-      else if (operation.kind === "convert") await convertFileFormat(entries[i].lrcPath, operation.format);
-      else await applyTagsToFile(entries[i].lrcPath, operation);
-      onProgress(i, "done");
-    } catch (err) {
-      onProgress(i, "error", String(err));
+  const { signal, concurrency = DEFAULT_CONCURRENCY } = options;
+  let cursor = 0;
+
+  const worker = async () => {
+    while (cursor < entries.length) {
+      if (signal?.aborted) return;
+      const i = cursor++;
+      onProgress(i, "processing");
+      try {
+        if (operation.kind === "offset") await applyOffsetToFile(entries[i].lrcPath, operation.deltaSeconds);
+        else if (operation.kind === "convert") await convertFileFormat(entries[i].lrcPath, operation.format);
+        else await applyTagsToFile(entries[i].lrcPath, operation);
+        onProgress(i, "done");
+      } catch (err) {
+        onProgress(i, "error", String(err));
+      }
     }
-  }
+  };
+
+  const workerCount = Math.max(1, Math.min(concurrency, entries.length));
+  await Promise.all(Array.from({ length: workerCount }, worker));
 }

@@ -52,7 +52,12 @@ describe("runBatchOperation", () => {
     invokeMock.mockImplementation((cmd: string) => (cmd === "read_lrc_file" ? Promise.resolve(LRC) : Promise.resolve()));
     const entries = [entry("/a.lrc"), entry("/b.lrc")];
     const progress: [number, string][] = [];
-    await runBatchOperation(entries, { kind: "offset", deltaSeconds: 1 }, (i, status) => progress.push([i, status]));
+    await runBatchOperation(
+      entries,
+      { kind: "offset", deltaSeconds: 1 },
+      (i, status) => progress.push([i, status]),
+      { concurrency: 1 }
+    );
 
     expect(progress).toEqual([[0, "processing"], [0, "done"], [1, "processing"], [1, "done"]]);
     const writeCalls = invokeMock.mock.calls.filter((c) => c[0] === "write_lrc_file");
@@ -79,7 +84,12 @@ describe("runBatchOperation", () => {
     });
     const entries = [entry("/bad.lrc"), entry("/good.lrc")];
     const progress: [number, string, string?][] = [];
-    await runBatchOperation(entries, { kind: "offset", deltaSeconds: 1 }, (i, status, error) => progress.push([i, status, error]));
+    await runBatchOperation(
+      entries,
+      { kind: "offset", deltaSeconds: 1 },
+      (i, status, error) => progress.push([i, status, error]),
+      { concurrency: 1 }
+    );
 
     expect(progress[1]).toEqual([0, "error", "Error: not found"]);
     expect(progress[2]).toEqual([1, "processing", undefined]);
@@ -100,5 +110,72 @@ describe("runBatchOperation", () => {
     const writeCall = invokeMock.mock.calls.find((c) => c[0] === "write_lrc_file");
     expect(writeCall?.[1].content).toContain("[ti:Song]");
     expect(writeCall?.[1].content).toContain("[ar:New Artist]");
+  });
+
+  function defer<T>() {
+    let resolve!: (v: T) => void;
+    const promise = new Promise<T>((res) => { resolve = res; });
+    return { promise, resolve };
+  }
+
+  async function flush(ticks = 5) {
+    for (let i = 0; i < ticks; i++) await new Promise((r) => setTimeout(r, 0));
+  }
+
+  it("only runs `concurrency` files at a time, starting the next as one finishes", async () => {
+    const gates = [defer<void>(), defer<void>(), defer<void>()];
+    let callIdx = 0;
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "read_lrc_file") return gates[callIdx++].promise.then(() => LRC);
+      return Promise.resolve();
+    });
+    const entries = [entry("/a.lrc"), entry("/b.lrc"), entry("/c.lrc")];
+    const progress: [number, string][] = [];
+    const resultPromise = runBatchOperation(
+      entries,
+      { kind: "offset", deltaSeconds: 1 },
+      (i, status) => progress.push([i, status]),
+      { concurrency: 2 }
+    );
+
+    // 동기 실행 구간에서 concurrency만큼만 즉시 시작되고 3번째는 대기해야 함
+    expect(progress).toEqual([[0, "processing"], [1, "processing"]]);
+
+    gates[0].resolve();
+    await flush();
+    expect(progress).toContainEqual([0, "done"]);
+    expect(progress).toContainEqual([2, "processing"]);
+
+    gates[1].resolve();
+    gates[2].resolve();
+    await resultPromise;
+    expect(progress).toContainEqual([1, "done"]);
+    expect(progress).toContainEqual([2, "done"]);
+  });
+
+  it("stops starting new files once aborted, letting in-flight ones finish", async () => {
+    const gates = [defer<void>(), defer<void>(), defer<void>()];
+    let callIdx = 0;
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "read_lrc_file") return gates[callIdx++].promise.then(() => LRC);
+      return Promise.resolve();
+    });
+    const entries = [entry("/a.lrc"), entry("/b.lrc"), entry("/c.lrc")];
+    const progress: [number, string][] = [];
+    const controller = new AbortController();
+    const resultPromise = runBatchOperation(
+      entries,
+      { kind: "offset", deltaSeconds: 1 },
+      (i, status) => progress.push([i, status]),
+      { concurrency: 1, signal: controller.signal }
+    );
+
+    expect(progress).toEqual([[0, "processing"]]);
+    controller.abort();
+    gates[0].resolve();
+    await resultPromise;
+
+    expect(progress).toEqual([[0, "processing"], [0, "done"]]);
+    expect(invokeMock.mock.calls.filter((c) => c[0] === "read_lrc_file")).toHaveLength(1);
   });
 });
