@@ -140,6 +140,18 @@ function useAutoSave() {
     }, 2000);
     return () => clearTimeout(id);
   }, [isDirty, doc]);
+
+  // 위 디바운스는 doc이 바뀔 때마다 리셋되므로 끊임없이 타이핑하는 구간에서는
+  // 한 번도 실행되지 못할 수 있다. dirty가 유지되는 동안 일정 간격으로 강제
+  // 플러시해 그런 연속 편집 구간에도 최소한의 복구 지점을 남긴다.
+  useEffect(() => {
+    if (!isDirty) return;
+    const id = setInterval(() => {
+      const st = useLrcStore.getState();
+      saveRecoverySnapshot(st.doc, st.lrcPath, st.audioPath);
+    }, 5000);
+    return () => clearInterval(id);
+  }, [isDirty]);
 }
 
 // 시작 시 조용히(silent) 확인 — 새 버전이 있을 때만 스토어 상태가 "available"로 바뀌어
