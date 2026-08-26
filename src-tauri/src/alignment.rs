@@ -57,7 +57,7 @@ pub async fn run_alignment(
     // Fresh cancel flag for this run
     let cancel = {
         let new_flag = Arc::new(AtomicBool::new(false));
-        *al_state.cancel_flag.lock().unwrap() = new_flag.clone();
+        *al_state.cancel_flag.lock().unwrap_or_else(|e| e.into_inner()) = new_flag.clone();
         new_flag
     };
 
@@ -208,5 +208,5 @@ pub async fn run_alignment(
 
 #[tauri::command]
 pub fn cancel_alignment(al_state: tauri::State<'_, AlignmentState>) {
-    al_state.cancel_flag.lock().unwrap().store(true, Ordering::Relaxed);
+    al_state.cancel_flag.lock().unwrap_or_else(|e| e.into_inner()).store(true, Ordering::Relaxed);
 }
