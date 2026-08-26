@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { findMatchingAudio, runBatchOperation, type BatchFileEntry, type BatchOperation } from "../../utils/batchProcessor";
@@ -11,6 +11,7 @@ export function BatchToolModal({ onClose }: { onClose: () => void }) {
   const [operation, setOperation] = useState<BatchOperation>({ kind: "offset", deltaSeconds: 0 });
   const [running, setRunning] = useState(false);
   const [summary, setSummary] = useState<{ done: number; error: number } | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape" && !running) onClose(); };
@@ -54,18 +55,28 @@ export function BatchToolModal({ onClose }: { onClose: () => void }) {
     setEntries((prev) => prev.map((e) => ({ ...e, status: "pending", error: undefined })));
     let done = 0;
     let error = 0;
-    await runBatchOperation(entries, operation, (index, status, err) => {
-      if (status === "done") done++;
-      if (status === "error") error++;
-      setEntries((prev) => {
-        const next = [...prev];
-        next[index] = { ...next[index], status, error: err };
-        return next;
-      });
-    });
+    const controller = new AbortController();
+    abortRef.current = controller;
+    await runBatchOperation(
+      entries,
+      operation,
+      (index, status, err) => {
+        if (status === "done") done++;
+        if (status === "error") error++;
+        setEntries((prev) => {
+          const next = [...prev];
+          next[index] = { ...next[index], status, error: err };
+          return next;
+        });
+      },
+      { signal: controller.signal }
+    );
+    abortRef.current = null;
     setRunning(false);
     setSummary({ done, error });
   };
+
+  const handleStop = () => abortRef.current?.abort();
 
   return (
     <div
@@ -119,13 +130,22 @@ export function BatchToolModal({ onClose }: { onClose: () => void }) {
             >
               {t.autoSpotCancel}
             </button>
-            <button
-              onClick={handleRun}
-              disabled={entries.length === 0 || running}
-              className="px-4 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
-            >
-              {running ? t.batchRunning : t.batchRun}
-            </button>
+            {running ? (
+              <button
+                onClick={handleStop}
+                className="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-500 text-white transition-colors"
+              >
+                {t.batchStop}
+              </button>
+            ) : (
+              <button
+                onClick={handleRun}
+                disabled={entries.length === 0}
+                className="px-4 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
+              >
+                {t.batchRun}
+              </button>
+            )}
           </div>
         </div>
       </div>
