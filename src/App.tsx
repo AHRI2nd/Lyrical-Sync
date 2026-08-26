@@ -24,7 +24,7 @@ import { ToastContainer } from "./components/Toast/ToastContainer";
 import { type RecoverySnapshot, loadRecoverySnapshot, saveRecoverySnapshot, clearRecoverySnapshot } from "./utils/recovery";
 import { initSpotifyPlayer } from "./utils/spotifyPlayer";
 import { useUpdaterStore } from "./stores/useUpdaterStore";
-import { UpdateModal } from "./components/Update/UpdateModal";
+const UpdateModal = lazy(() => import("./components/Update/UpdateModal").then((m) => ({ default: m.UpdateModal })));
 import { useMacMenu } from "./hooks/useMacMenu";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
@@ -461,7 +461,9 @@ function App() {
           />
         </Suspense>
       )}
-      <UpdateModal />
+      <Suspense fallback={null}>
+        <UpdateModal />
+      </Suspense>
       {recovery && (
         <ConfirmModal
           title={t.recovery.title}
