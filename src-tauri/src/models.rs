@@ -48,7 +48,7 @@ struct DownloadProgressEvent {
 }
 
 pub fn models_dir(app: &AppHandle, dir_state: &ModelsDirState) -> Result<PathBuf, String> {
-    let custom = dir_state.custom_path.lock().unwrap();
+    let custom = dir_state.custom_path.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(ref p) = *custom {
         return Ok(p.clone());
     }
@@ -64,7 +64,7 @@ pub fn set_models_dir_override(
     dir_state: tauri::State<'_, ModelsDirState>,
     path: Option<String>,
 ) -> Result<(), String> {
-    let mut custom = dir_state.custom_path.lock().unwrap();
+    let mut custom = dir_state.custom_path.lock().unwrap_or_else(|e| e.into_inner());
     *custom = path.filter(|p| !p.is_empty()).map(PathBuf::from);
     Ok(())
 }
@@ -117,7 +117,7 @@ pub async fn download_model(
     files: Vec<FileSpec>,
 ) -> Result<(), String> {
     let cancel = Arc::new(AtomicBool::new(false));
-    dl_state.cancels.lock().unwrap().insert(model_id.clone(), cancel.clone());
+    dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner()).insert(model_id.clone(), cancel.clone());
 
     let base = models_dir(&app, &dir_state)?;
     let file_count = files.len();
@@ -125,14 +125,14 @@ pub async fn download_model(
 
     for (i, spec) in files.iter().enumerate() {
         if cancel.load(Ordering::Relaxed) {
-            dl_state.cancels.lock().unwrap().remove(&model_id);
+            dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner()).remove(&model_id);
             return Err("cancelled".into());
         }
 
         let dest = match safe_join(&base, &spec.filename) {
             Ok(p) => p,
             Err(e) => {
-                dl_state.cancels.lock().unwrap().remove(&model_id);
+                dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner()).remove(&model_id);
                 return Err(e);
             }
         };
@@ -183,7 +183,7 @@ pub async fn download_model(
 
         if !resp.status().is_success() {
             let status = resp.status();
-            dl_state.cancels.lock().unwrap().remove(&model_id);
+            dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner()).remove(&model_id);
             return Err(format!("HTTP {status}"));
         }
 
@@ -200,7 +200,7 @@ pub async fn download_model(
             if cancel.load(Ordering::Relaxed) {
                 drop(file);
                 let _ = tokio::fs::remove_file(&dest).await;
-                dl_state.cancels.lock().unwrap().remove(&model_id);
+                dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner()).remove(&model_id);
                 return Err("cancelled".into());
             }
 
@@ -230,7 +230,7 @@ pub async fn download_model(
                         if !got.eq_ignore_ascii_case(expected) {
                             drop(file);
                             let _ = tokio::fs::remove_file(&dest).await;
-                            dl_state.cancels.lock().unwrap().remove(&model_id);
+                            dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner()).remove(&model_id);
                             return Err(format!(
                                 "체크섬 불일치 ({}): 예상 {} / 실제 {}",
                                 spec.filename, expected, got
@@ -254,7 +254,7 @@ pub async fn download_model(
                             error: Some(e.to_string()),
                         },
                     );
-                    dl_state.cancels.lock().unwrap().remove(&model_id);
+                    dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner()).remove(&model_id);
                     return Err(e.to_string());
                 }
             }
@@ -274,7 +274,7 @@ pub async fn download_model(
         },
     );
 
-    dl_state.cancels.lock().unwrap().remove(&model_id);
+    dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner()).remove(&model_id);
     Ok(())
 }
 
