@@ -221,6 +221,7 @@ export interface Translations {
   batchTagHint: string;
   batchRun: string;
   batchRunning: string;
+  batchStop: string;
   batchSummaryDone: string;
   batchSummaryError: string;
   macroRecord: string;
@@ -794,6 +795,7 @@ const ko: Translations = {
   batchTagHint: "입력한 필드만 덮어씁니다. LRC 파일에만 적용되며(SRT는 태그 개념이 없어 제외), 오디오 파일 자체의 태그는 변경하지 않습니다.",
   batchRun: "실행",
   batchRunning: "처리 중...",
+  batchStop: "중지",
   batchSummaryDone: "개 완료",
   batchSummaryError: "개 실패",
   macroRecord: "매크로 녹화",
@@ -1361,6 +1363,7 @@ const en: Translations = {
   batchTagHint: "Only fields you enter are overwritten. Applies to LRC files only (SRT has no tag concept), and never touches the audio file's own tags.",
   batchRun: "Run",
   batchRunning: "Processing...",
+  batchStop: "Stop",
   batchSummaryDone: "done",
   batchSummaryError: "failed",
   macroRecord: "Record Macro",
@@ -1927,6 +1930,7 @@ const ja: Translations = {
   batchTagHint: "入力した項目のみ上書きします。LRCファイルのみ対象(SRTにはタグの概念がないため対象外)で、音声ファイル自体のタグは変更しません。",
   batchRun: "実行",
   batchRunning: "処理中...",
+  batchStop: "停止",
   batchSummaryDone: "件完了",
   batchSummaryError: "件失敗",
   macroRecord: "マクロ録画",
