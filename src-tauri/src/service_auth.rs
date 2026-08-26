@@ -116,7 +116,8 @@ pub async fn refresh_spotify_token(
         .map_err(|e| format!("응답 파싱 실패: {e}"))
 }
 
-// 평문 파일 저장 (OS 키체인 사용 불가 시 폴백). unix는 0600.
+// 평문 파일 저장 (OS 키체인 사용 불가 시 폴백). unix는 0600, windows는 icacls로
+// 현재 사용자 전용 ACL(상속 제거 후 재부여)을 건다.
 fn save_token_file(app: &AppHandle, token: &str) -> Result<(), String> {
     let path = token_path(app)?;
     if let Some(parent) = path.parent() {
@@ -127,6 +128,15 @@ fn save_token_file(app: &AppHandle, token: &str) -> Result<(), String> {
     {
         use std::os::unix::fs::PermissionsExt;
         let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+    }
+    #[cfg(windows)]
+    {
+        if let (Some(path_str), Ok(user)) = (path.to_str(), std::env::var("USERNAME")) {
+            let grant = format!("{user}:F");
+            let _ = std::process::Command::new("icacls")
+                .args([path_str, "/inheritance:r", "/grant:r", grant.as_str()])
+                .output();
+        }
     }
     Ok(())
 }
