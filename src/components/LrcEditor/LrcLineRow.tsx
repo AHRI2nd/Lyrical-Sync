@@ -1,21 +1,10 @@
+import { memo } from "react";
 import { type LrcLine } from "../../types/lrc";
 import { type Translations } from "../../i18n/translations";
 import { formatDisplayTime } from "../../utils/lrcParser";
 import { LoopIcon } from "../AudioPlayer/icons";
 
-// LrcEditor 줄 하나의 렌더링: 드래그 재정렬 핸들·순번·타임스탬프(인라인 편집)·줄 반복
-// 토글·글자 동기화 배지·경고 아이콘·텍스트 입력·병합/복제/삭제 버튼.
-// 상호작용 상태(드래그·타임스탬프 편집 등)는 LrcEditor가 소유하고 이벤트 핸들러로 전달 —
-// 이 컴포넌트는 순수 렌더링(+ line 자체에서 파생되는 hasGlyphSync/tsClass만 내부 계산).
-export function LrcLineRow({
-  t, line, idx, isActive, isSelected, confidence, isMatch, isCurrentMatch, warning,
-  loopLineId, lyricsFontScale, showSpellCheck, showTranslationLines,
-  dragIdx, dragOverIdx, onDragStart, onDragEnd, onDragOver, onDrop,
-  editingTsId, editTsValue, onEditTsChange, onStartTsEdit, onCommitTsEdit, onCancelTsEdit, onStampCurrentLine,
-  onRowClick, onToggleLoop, onTextChange, onTranslationChange, onKeyDown, onPaste, onFocus,
-  onMergeUp, onDuplicate, onDelete,
-  inputRef, rowRef,
-}: {
+interface LrcLineRowProps {
   t: Translations;
   line: LrcLine;
   idx: number;
@@ -29,6 +18,8 @@ export function LrcLineRow({
   lyricsFontScale: number;
   showSpellCheck: boolean;
   showTranslationLines: boolean;
+  /** onToggleLoop 클로저가 재생 대상(오디오/서비스)을 고르는 데만 쓰임 — 리렌더 비교용 */
+  serviceActive: boolean;
 
   dragIdx: number | null;
   dragOverIdx: number | null;
@@ -45,7 +36,8 @@ export function LrcLineRow({
   onCancelTsEdit: () => void;
   onStampCurrentLine: () => void;
 
-  onRowClick: (e: React.MouseEvent) => void;
+  // LrcEditor가 useCallback으로 고정한 단일 참조 — 이 줄은 자신의 id/idx를 실어 호출한다
+  onRowClick: (e: React.MouseEvent, id: string, idx: number) => void;
   onToggleLoop: (e: React.MouseEvent) => void;
   onTextChange: (value: string) => void;
   onTranslationChange: (value: string) => void;
@@ -58,7 +50,21 @@ export function LrcLineRow({
 
   inputRef: (el: HTMLInputElement | null) => void;
   rowRef: (el: HTMLDivElement | null) => void;
-}) {
+}
+
+// LrcEditor 줄 하나의 렌더링: 드래그 재정렬 핸들·순번·타임스탬프(인라인 편집)·줄 반복
+// 토글·글자 동기화 배지·경고 아이콘·텍스트 입력·병합/복제/삭제 버튼.
+// 상호작용 상태(드래그·타임스탬프 편집 등)는 LrcEditor가 소유하고 이벤트 핸들러로 전달 —
+// 이 컴포넌트는 순수 렌더링(+ line 자체에서 파생되는 hasGlyphSync/tsClass만 내부 계산).
+function LrcLineRowImpl({
+  t, line, idx, isActive, isSelected, confidence, isMatch, isCurrentMatch, warning,
+  loopLineId, lyricsFontScale, showSpellCheck, showTranslationLines,
+  dragIdx, dragOverIdx, onDragStart, onDragEnd, onDragOver, onDrop,
+  editingTsId, editTsValue, onEditTsChange, onStartTsEdit, onCommitTsEdit, onCancelTsEdit, onStampCurrentLine,
+  onRowClick, onToggleLoop, onTextChange, onTranslationChange, onKeyDown, onPaste, onFocus,
+  onMergeUp, onDuplicate, onDelete,
+  inputRef, rowRef,
+}: LrcLineRowProps) {
   const hasGlyphSync = !!line.syllables?.some((s) => s.time !== null);
 
   // Timestamp button colour varies by AI confidence
@@ -76,7 +82,7 @@ export function LrcLineRow({
     <>
     <div
       ref={rowRef}
-      onClick={onRowClick}
+      onClick={(e) => onRowClick(e, line.id, idx)}
       onDragOver={onDragOver}
       onDrop={onDrop}
       className={`group/row flex items-center gap-2 rounded-lg px-2 py-1 transition-colors cursor-pointer ${
@@ -237,3 +243,39 @@ export function LrcLineRow({
     </>
   );
 }
+
+// 문서 편집 중 매 키 입력마다 부모(LrcEditor)가 전체를 리렌더하므로, 건드리지 않은 줄까지
+// 매번 다시 그리는 걸 막기 위해 React.memo로 감싼다. 이벤트 핸들러 prop들은 의도적으로
+// 비교에서 제외한다 — 전부 line.id/idx처럼 여기서 비교하는 값만 캡처하도록 확인된
+// 상태이므로(LrcEditor.tsx의 handleRowClick만 예외라 useCallback으로 참조를 고정해뒀다),
+// 매 렌더 새로 만들어지는 인라인 클로저의 "참조가 달라짐"을 리렌더 사유로 치지 않아도 안전하다.
+// editTsValue만 예외: 이 줄이 타임스탬프 인라인 편집 대상일 때만 비교한다 — 그렇지 않으면
+// 다른 줄의 타임스탬프를 편집하는 매 키 입력마다 모든 줄이 다시 렌더되는 문제가 되풀이된다.
+function areEqual(prev: LrcLineRowProps, next: LrcLineRowProps): boolean {
+  if (
+    prev.t !== next.t ||
+    prev.line !== next.line ||
+    prev.idx !== next.idx ||
+    prev.isActive !== next.isActive ||
+    prev.isSelected !== next.isSelected ||
+    prev.confidence !== next.confidence ||
+    prev.isMatch !== next.isMatch ||
+    prev.isCurrentMatch !== next.isCurrentMatch ||
+    prev.warning !== next.warning ||
+    prev.loopLineId !== next.loopLineId ||
+    prev.lyricsFontScale !== next.lyricsFontScale ||
+    prev.showSpellCheck !== next.showSpellCheck ||
+    prev.showTranslationLines !== next.showTranslationLines ||
+    prev.serviceActive !== next.serviceActive ||
+    prev.dragIdx !== next.dragIdx ||
+    prev.dragOverIdx !== next.dragOverIdx ||
+    prev.editingTsId !== next.editingTsId
+  ) {
+    return false;
+  }
+  const tsEditRelevant = prev.editingTsId === prev.line.id || next.editingTsId === next.line.id;
+  if (tsEditRelevant && prev.editTsValue !== next.editTsValue) return false;
+  return true;
+}
+
+export const LrcLineRow = memo(LrcLineRowImpl, areEqual);

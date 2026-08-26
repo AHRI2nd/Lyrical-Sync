@@ -93,7 +93,9 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   const [showValidation, setShowValidation] = useState(false);
   // 줄 다중선택(일괄 작업)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [selAnchor, setSelAnchor] = useState<string | null>(null);
+  // 렌더에 직접 반영되지 않는(shift-클릭 범위 선택 계산에만 쓰이는) 값이라 ref로 보관 —
+  // handleRowClick을 useCallback으로 안정화할 때 상태로 두면 의존성이 돼 참조가 계속 바뀜
+  const selAnchorRef = useRef<string | null>(null);
 
   const [findText, setFindText] = useState("");
   const [replaceText, setReplaceText] = useState("");
@@ -295,13 +297,18 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     setShowValidation(false);
   };
 
-  // 줄 클릭: Shift=범위 선택, Ctrl/⌘=토글, 일반=단일 선택+시크(기존 동작)
-  const handleRowClick = (e: React.MouseEvent, id: string, idx: number) => {
-    if (e.shiftKey && selAnchor) {
-      const aIdx = lines.findIndex((l) => l.id === selAnchor);
+  // 줄 클릭: Shift=범위 선택, Ctrl/⌘=토글, 일반=단일 선택+시크(기존 동작).
+  // LrcLineRow가 React.memo로 감싸여 있어 안 건드린 줄은 오래 리렌더되지 않을 수 있으므로,
+  // 이 핸들러는 useCallback으로 참조를 고정하고 매 렌더 바뀌는 값(lines/selAnchor/matchIds)은
+  // ref나 getState()로 그때그때 최신값을 읽는다 — 그래야 오래된 줄에 붙은 낡은 클로저를
+  // 클릭해도 항상 최신 선택/검색 상태를 참조한다.
+  const handleRowClick = useCallback((e: React.MouseEvent, id: string, idx: number) => {
+    const currentLines = useLrcStore.getState().doc.lines;
+    if (e.shiftKey && selAnchorRef.current) {
+      const aIdx = currentLines.findIndex((l) => l.id === selAnchorRef.current);
       if (aIdx >= 0) {
         const [lo, hi] = aIdx <= idx ? [aIdx, idx] : [idx, aIdx];
-        setSelectedIds(new Set(lines.slice(lo, hi + 1).map((l) => l.id)));
+        setSelectedIds(new Set(currentLines.slice(lo, hi + 1).map((l) => l.id)));
       }
       setActiveLineId(id);
       return;
@@ -312,23 +319,23 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
         if (n.has(id)) n.delete(id); else n.add(id);
         return n;
       });
-      setSelAnchor(id);
+      selAnchorRef.current = id;
       setActiveLineId(id);
       return;
     }
     // 일반 클릭: 다중선택 해제 + 기존 동작(활성/시크/찾기)
-    if (selectedIds.size > 0) setSelectedIds(new Set());
-    setSelAnchor(id);
+    setSelectedIds((prev) => (prev.size > 0 ? new Set() : prev));
+    selAnchorRef.current = id;
     setActiveLineId(id);
-    const ln = lines.find((l) => l.id === id);
+    const ln = currentLines.find((l) => l.id === id);
     if (ln && ln.timestamp !== null) {
       (serviceActive ? serviceControls : audioControls).seekTo(ln.timestamp);
     }
     if (showFR) {
-      const mi = matchIds.indexOf(id);
+      const mi = matchIdsRef.current.indexOf(id);
       if (mi !== -1) setMatchPos(mi);
     }
-  };
+  }, [showFR, serviceActive, setActiveLineId]);
 
   // 매칭 줄 id 목록
   const matchIds = useMemo(() => {
@@ -338,6 +345,11 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
       .filter((l) => (caseSensitive ? l.text : l.text.toLowerCase()).includes(needle))
       .map((l) => l.id);
   }, [lines, findText, caseSensitive]);
+  // handleRowClick을 안정된 참조로 유지하려고 matchIds를 의존성에 넣지 않는 대신 ref로 미러링
+  // (매 키 입력마다 lines가 바뀌어 matchIds도 매번 새 배열이 되므로, 그대로 의존성에 넣으면
+  // handleRowClick도 매번 바뀌어 모든 줄이 다시 렌더되는 원래 문제가 되풀이됨)
+  const matchIdsRef = useRef<string[]>(matchIds);
+  useEffect(() => { matchIdsRef.current = matchIds; }, [matchIds]);
 
   // matchPos 범위 보정
   useEffect(() => {
@@ -644,6 +656,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
               lyricsFontScale={lyricsFontScale}
               showSpellCheck={showSpellCheck}
               showTranslationLines={showTranslationLines}
+              serviceActive={serviceActive}
               dragIdx={dragIdx}
               dragOverIdx={dragOverIdx}
               onDragStart={(e) => { e.stopPropagation(); setDragIdx(idx); }}
@@ -661,7 +674,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
               onCommitTsEdit={() => commitTsEdit(line.id)}
               onCancelTsEdit={cancelTsEdit}
               onStampCurrentLine={() => stampCurrentLine(line.id)}
-              onRowClick={(e) => handleRowClick(e, line.id, idx)}
+              onRowClick={handleRowClick}
               onToggleLoop={(e) => {
                 e.stopPropagation();
                 if (loopLineId === line.id) { setLoopLine(null); return; }
