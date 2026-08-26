@@ -457,6 +457,13 @@ describe("useLrcStore — addLinesFromSpeechSegments", () => {
     useLrcStore.getState().addLinesFromSpeechSegments([]);
     expect(lines()).toEqual([]);
   });
+
+  it("inserts multiple segments landing in the same gap, in correct relative order", () => {
+    reset([{ id: "1", timestamp: 0, text: "a" }, { id: "2", timestamp: 10, text: "b" }]);
+    useLrcStore.getState().addLinesFromSpeechSegments([{ start: 5, end: 5.5 }, { start: 3, end: 3.5 }]);
+    expect(lines().map((l) => l.text)).toEqual(["a", "", "", "b"]);
+    expect(lines().map((l) => l.timestamp)).toEqual([0, 3, 5, 10]);
+  });
 });
 
 describe("useLrcStore — runAiSync blank-line timestamp placement", () => {
