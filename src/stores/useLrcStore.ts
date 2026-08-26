@@ -31,6 +31,9 @@ interface LrcStore {
   doc: LrcDocument;
   _history: HistoryEntry[];
   _future: HistoryEntry[];
+  /** 연속된 텍스트/메타데이터 편집을 하나의 undo 단위로 묶기 위한 내부 키.
+   *  updateLine/setMetadata만 읽고 쓴다 — 다른 모든 액션은 pushHistory를 통해 null로 리셋된다. */
+  _lastEditKey: string | null;
   undo: () => void;
   redo: () => void;
   /** 과거(_history)·현재·미래(_future)를 하나의 타임라인으로 보고 임의 시점으로 이동.
@@ -151,13 +154,16 @@ export const useLrcStore = create<LrcStore>((set, get) => {
   const pushHistory = (label: HistoryLabel, count?: number) => {
     const { doc, _history } = get();
     const entry: HistoryEntry = { doc, timestamp: Date.now(), label, count };
-    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), entry], _future: [] });
+    // 어떤 액션이든 새 히스토리 엔트리를 쌓으면 진행 중이던 텍스트 편집 묶음은 끝난 것으로 침 —
+    // updateLine/setMetadata가 자신의 set() 호출로 다시 값을 채워 넣지 않는 한 null로 남는다.
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), entry], _future: [], _lastEditKey: null });
   };
 
   return {
   doc: defaultDocument(),
   _history: [],
   _future: [],
+  _lastEditKey: null,
   audioPath: null,
   lrcPath: null,
   currentTime: 0,
@@ -219,6 +225,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
       _history: _history.slice(0, -1),
       _future: [futureEntry, ..._future].slice(0, MAX_HISTORY),
       isDirty: true,
+      _lastEditKey: null,
     });
   },
 
@@ -232,6 +239,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
       _history: [..._history, historyEntry].slice(-MAX_HISTORY),
       _future: _future.slice(1),
       isDirty: true,
+      _lastEditKey: null,
     });
   },
 
@@ -298,12 +306,22 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     if (idx > 0) set({ activeLineId: lines[idx - 1].id });
   },
 
-  setMetadata: (meta, silent = false) =>
-    set((s) => ({
-      doc: { ...s.doc, metadata: { ...s.doc.metadata, ...meta } },
-      // silent: 서비스(Spotify) 자동 동기화 등 사용자 편집이 아닌 갱신은 dirty로 표시하지 않음
-      isDirty: silent ? s.isDirty : true,
-    })),
+  setMetadata: (meta, silent = false) => {
+    // silent 갱신(서비스 자동 동기화 등)은 사용자 편집이 아니므로 undo 대상에서 제외.
+    // 사용자 입력은 같은 필드 조합을 연속으로 수정하는 동안(다른 액션이 끼어들기 전까지)
+    // 한 번의 undo 단위로 묶는다 — updateLine과 동일한 _lastEditKey 코얼레싱 패턴.
+    if (!silent) {
+      const key = `meta:${Object.keys(meta).sort().join(",")}`;
+      if (get()._lastEditKey !== key) pushHistory("editMetadata");
+      set((s) => ({
+        doc: { ...s.doc, metadata: { ...s.doc.metadata, ...meta } },
+        isDirty: true,
+        _lastEditKey: key,
+      }));
+    } else {
+      set((s) => ({ doc: { ...s.doc, metadata: { ...s.doc.metadata, ...meta } } }));
+    }
+  },
 
   setLines: (lines) => {
     pushHistory("setLines");
@@ -349,14 +367,20 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     return segments.length;
   },
 
-  updateLine: (id, patch) =>
+  updateLine: (id, patch) => {
+    // 매 키 입력마다 호출되므로, 같은 줄의 같은 필드를 연속으로 고치는 동안은(다른 액션이
+    // 끼어들기 전까지) 한 번의 undo 단위로 묶는다 — 글자 하나마다 undo가 쌓이는 걸 방지.
+    const key = `${id}:${Object.keys(patch).sort().join(",")}`;
+    if (get()._lastEditKey !== key) pushHistory("editText");
     set((s) => ({
       doc: {
         ...s.doc,
         lines: s.doc.lines.map((l) => (l.id === id ? { ...l, ...patch } : l)),
       },
       isDirty: true,
-    })),
+      _lastEditKey: key,
+    }));
+  },
 
   deleteLine: (id) => {
     pushHistory("deleteLine");
@@ -521,7 +545,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     parsed.lines = parsed.lines.map((l) => ({ ...l, id: String(id++) }));
     nextId = id;
     const firstId = parsed.lines[0]?.id ?? null;
-    set({ doc: parsed, activeLineId: firstId, loopLineId: null, isDirty: true });
+    set({ doc: parsed, activeLineId: firstId, loopLineId: null, isDirty: true, _lastEditKey: null });
   },
 
   restoreDoc: (doc, lrcPath, audioPath) => {
@@ -538,6 +562,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
       isDirty: true, // 복구된 작업은 아직 미저장
       _history: [],
       _future: [],
+      _lastEditKey: null,
     });
   },
 
@@ -588,7 +613,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     doc.lines = doc.lines.map((l) => ({ ...l, id: String(id++) }));
     nextId = id;
     const firstId = doc.lines[0]?.id ?? null;
-    set({ doc, lrcPath: path, isDirty: false, activeLineId: firstId, loopLineId: null, _history: [], _future: [] });
+    set({ doc, lrcPath: path, isDirty: false, activeLineId: firstId, loopLineId: null, _history: [], _future: [], _lastEditKey: null });
     useSettingsStore.getState().addRecentFile({ lrcPath: path, audioPath: get().audioPath });
   },
 
@@ -618,6 +643,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
       loopLineId: null,
       _history: [],
       _future: [],
+      _lastEditKey: null,
     });
   },
 
@@ -666,7 +692,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
   },
 
   newLrc: () =>
-    set({ doc: defaultDocument(), lrcPath: null, isDirty: false, activeLineId: null, loopLineId: null, _history: [], _future: [] }),
+    set({ doc: defaultDocument(), lrcPath: null, isDirty: false, activeLineId: null, loopLineId: null, _history: [], _future: [], _lastEditKey: null }),
 
   shiftTimeRange: (fromIdx, toIdx, deltaSeconds) => {
     if (deltaSeconds === 0) return;
