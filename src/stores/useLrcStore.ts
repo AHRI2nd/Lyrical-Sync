@@ -808,18 +808,32 @@ export const useLrcStore = create<LrcStore>((set, get) => {
       //  - 분리 스템 VAD가 있으면 간주 뒤 "보컬 재개 지점"에 정밀 배치
       //  - 없으면(또는 부적합) 이전 줄 end + offset 휴리스틱
       //  항상 다음 비공백 줄 시작을 넘지 않도록 클램프.
+      // 각 인덱스 기준 가장 가까운 이전/다음 정렬 줄의 end/start를 순방향·역방향
+      // 한 번씩만 훑어 미리 계산 — 빈 줄이 길게 이어질 때 매 줄마다 앞뒤로 다시
+      // 훑는 O(n²) 스캔을 피하기 위함.
+      const prevEndAt: (number | null)[] = new Array(newLines.length).fill(null);
+      {
+        let last: number | null = null;
+        for (let j = 0; j < newLines.length; j++) {
+          prevEndAt[j] = last;
+          const r = byIndex.get(j);
+          if (r) last = r.end;
+        }
+      }
+      const nextStartAt: (number | null)[] = new Array(newLines.length).fill(null);
+      {
+        let next: number | null = null;
+        for (let j = newLines.length - 1; j >= 0; j--) {
+          nextStartAt[j] = next;
+          const r = byIndex.get(j);
+          if (r) next = r.start;
+        }
+      }
+
       for (let i = 0; i < newLines.length; i++) {
         if (doc.lines[i].text.trim() !== "") continue;
-        let prevEnd = 0;
-        let nextStart: number | null = null;
-        for (let j = i - 1; j >= 0; j--) {
-          const r = byIndex.get(j);
-          if (r) { prevEnd = r.end; break; }
-        }
-        for (let j = i + 1; j < newLines.length; j++) {
-          const r = byIndex.get(j);
-          if (r) { nextStart = r.start; break; }
-        }
+        const prevEnd = prevEndAt[i] ?? 0;
+        const nextStart = nextStartAt[i];
         const resume = vocalResumeAfter(prevEnd);
         const useResume = resume !== null && (nextStart === null || resume < nextStart);
         const desired = useResume ? (resume as number) : prevEnd + blankLineOffset;
