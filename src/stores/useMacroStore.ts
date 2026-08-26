@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage, type StateStorage } from "zustand/middleware";
 import { useLrcStore } from "./useLrcStore";
 import type { MacroStep, SavedMacro } from "../types/macro";
 
@@ -22,6 +22,15 @@ interface MacroState {
 
 let nextSeq = 1;
 const genId = () => `${Date.now()}-${nextSeq++}`;
+
+// zustand persist 기본 storage(window.localStorage)는 모듈 로드 시점에 즉시 평가되므로,
+// 이 모듈이 window보다 먼저 임포트되는 환경(예: 테스트)에서 실패하면 이후로도 계속
+// storage-unavailable로 남는다. localStorage를 지연 참조하는 얇은 어댑터로 그 문제를 피한다.
+const lazyLocalStorage: StateStorage = {
+  getItem: (name) => localStorage.getItem(name),
+  setItem: (name, value) => localStorage.setItem(name, value),
+  removeItem: (name) => localStorage.removeItem(name),
+};
 
 export const useMacroStore = create<MacroState>()(
   persist(
@@ -86,6 +95,13 @@ export const useMacroStore = create<MacroState>()(
         }
       },
     }),
-    { name: "lyrical-sync-macros" }
+    {
+      name: "lyrical-sync-macros",
+      storage: createJSONStorage(() => lazyLocalStorage),
+      // isRecording/currentSteps는 세션 한정 상태 — 저장 대상에서 빼야
+      // 크래시 시 "녹화 중" 플래그가 다음 실행에 그대로 남아 이후 허용목록 동작이
+      // 죽은 세션의 currentSteps에 계속 쌓이는 문제가 생기지 않는다.
+      partialize: (state) => ({ savedMacros: state.savedMacros }),
+    }
   )
 );
