@@ -21,6 +21,7 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 import { useLrcStore } from "./useLrcStore";
 import type { LrcLine, LrcDocument } from "../types/lrc";
 import { saveRecoverySnapshot, loadRecoverySnapshot, clearRecoverySnapshot } from "../utils/recovery";
+import { invoke } from "@tauri-apps/api/core";
 
 const reset = (lines: LrcLine[], offset = 0) =>
   useLrcStore.setState({
@@ -455,5 +456,37 @@ describe("useLrcStore — addLinesFromSpeechSegments", () => {
   it("returns 0 and does not touch history for an empty segment list", () => {
     useLrcStore.getState().addLinesFromSpeechSegments([]);
     expect(lines()).toEqual([]);
+  });
+});
+
+describe("useLrcStore — runAiSync blank-line timestamp placement", () => {
+  beforeEach(() => reset([]));
+
+  it("places blank lines via prevEnd+offset/nextStart clamp, including a run of consecutive blanks and a trailing unbounded blank", async () => {
+    reset([
+      { id: "b0", timestamp: null, text: "" }, // 정렬 결과 이전 → prevEnd 기본값 0
+      { id: "l1", timestamp: null, text: "hello" },
+      { id: "b1", timestamp: null, text: "" }, // 연속 빈 줄 구간 시작
+      { id: "b2", timestamp: null, text: "" }, // 연속 빈 줄 구간 — 앞뒤 스캔이 더 멀리 가야 하는 경우
+      { id: "l2", timestamp: null, text: "world" },
+      { id: "b3", timestamp: null, text: "" }, // 정렬 결과 이후 → nextStart 없음(클램프 안 됨)
+    ]);
+    useLrcStore.setState({ audioPath: "/song.mp3" });
+
+    const results = [
+      { index: 1, start: 1.0, end: 1.5, confidence: 0.9 },
+      { index: 4, start: 3.0, end: 3.5, confidence: 0.9 },
+    ];
+    vi.mocked(invoke).mockImplementation((cmd: unknown) => {
+      if (cmd === "run_alignment") {
+        return Promise.resolve(JSON.stringify({ lines: results, vocal_segments: [], separated: false }));
+      }
+      return Promise.resolve(undefined);
+    });
+
+    await useLrcStore.getState().runAiSync("ko", 0.5, false, false);
+
+    expect(lines().map((l) => l.timestamp)).toEqual([0.5, 1.0, 2.0, 2.0, 3.0, 4.0]);
+    expect(useLrcStore.getState().aiSyncStatus).toBe("done");
   });
 });
