@@ -20,7 +20,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self' https://sdk.scdn.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.scdn.co https://*.spotifycdn.com; media-src 'self' blob:; font-src 'self' data:; connect-src 'self' https://lrclib.net https://api.github.com https://accounts.spotify.com https://api.spotify.com https://*.spotify.com https://*.scdn.co"
     }
   },
   "bundle": {
