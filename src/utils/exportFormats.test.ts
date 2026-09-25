@@ -32,6 +32,19 @@ describe("serializeVtt", () => {
     expect(out.match(/-->/g)?.length).toBe(2);
     expect(out).toContain("00:00:01.000 --> 00:00:03.000\nfirst"); // ends at blank boundary
   });
+
+  it("keeps simultaneous VTT cues positive-duration and ends them at the next later timestamp", () => {
+    const out = serializeVtt(docOf([
+      { id: "1", timestamp: 1, text: "first simultaneous line" },
+      { id: "2", timestamp: 1, text: "second simultaneous line" },
+      { id: "3", timestamp: 4, text: "later line" },
+    ]), 8);
+
+    expect(out.match(/00:00:01\.000 --> 00:00:04\.000/g)).toHaveLength(2);
+    expect(out).toContain("first simultaneous line");
+    expect(out).toContain("second simultaneous line");
+    expect(out).toContain("00:00:04.000 --> 00:00:08.000");
+  });
 });
 
 describe("serializeAss", () => {
@@ -52,5 +65,17 @@ describe("serializeAss", () => {
     ]), 2);
     // a: 1.0→1.5 = 50cs, b: 1.5→cueEnd(2.0) = 50cs
     expect(out).toContain("{\\k50}a{\\k50}b");
+  });
+
+  it("keeps simultaneous ASS cues positive-duration and ends them at the next later timestamp", () => {
+    const out = serializeAss(docOf([
+      { id: "1", timestamp: 1, text: "first simultaneous line" },
+      { id: "2", timestamp: 1, text: "second simultaneous line" },
+      { id: "3", timestamp: 4, text: "later line" },
+    ]), 8);
+
+    expect(out.match(/Dialogue: 0,0:00:01\.00,0:00:04\.00/g)).toHaveLength(2);
+    expect(out).toContain("first simultaneous line");
+    expect(out).toContain("second simultaneous line");
   });
 });

@@ -4,6 +4,20 @@ import { LrcDocument, LrcLine } from "../types/lrc";
 // (srtConverter와 동일한 규칙 — start=줄 시각, end=다음 시각 줄/총 길이/+4초)
 interface Cue { start: number; end: number; line: LrcLine; }
 
+export function nextCueEnd(
+  timed: readonly LrcLine[],
+  index: number,
+  start: number,
+  lastCueEnd?: number,
+): number {
+  for (let i = index + 1; i < timed.length; i++) {
+    const next = timed[i].timestamp;
+    if (next !== null && next > start) return next;
+  }
+  if (lastCueEnd !== undefined && lastCueEnd > start) return lastCueEnd;
+  return start + 4;
+}
+
 function buildCues(doc: LrcDocument, lastCueEnd?: number): Cue[] {
   const timed = doc.lines
     .filter((l) => l.timestamp !== null)
@@ -15,11 +29,7 @@ function buildCues(doc: LrcDocument, lastCueEnd?: number): Cue[] {
     const line = timed[i];
     if (line.text.trim() === "") continue; // 빈 줄 = 경계 전용
     const start = line.timestamp as number;
-    const next = timed[i + 1];
-    let end: number;
-    if (next) end = next.timestamp as number;
-    else if (lastCueEnd !== undefined && lastCueEnd > start) end = lastCueEnd;
-    else end = start + 4;
+    const end = nextCueEnd(timed, i, start, lastCueEnd);
     cues.push({ start, end, line });
   }
   return cues;
