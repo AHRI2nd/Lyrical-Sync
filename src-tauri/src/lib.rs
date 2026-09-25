@@ -33,9 +33,9 @@ async fn read_audio_file(path: String) -> Result<tauri::ipc::Response, String> {
         .map_err(|e| e.to_string())
 }
 
-/// AIFF 등 WebView2 미지원 포맷을 WAV로 트랜스코딩해 임시 파일 경로를 반환합니다.
+/// AIFF 등 WebView2 미지원 포맷을 WAV 바이트로 트랜스코딩합니다.
 #[tauri::command]
-async fn decode_audio_to_wav(path: String) -> Result<String, String> {
+async fn decode_audio_to_wav(path: String) -> Result<tauri::ipc::Response, String> {
     use symphonia::core::audio::SampleBuffer;
     use symphonia::core::codecs::DecoderOptions;
     use symphonia::core::formats::FormatOptions;
@@ -95,17 +95,18 @@ async fn decode_audio_to_wav(path: String) -> Result<String, String> {
         sample_format: hound::SampleFormat::Float,
     };
 
-    let temp_path = std::env::temp_dir().join("lyrical_sync_transcoded.wav");
+    let mut output = Vec::new();
     {
-        let mut writer =
-            hound::WavWriter::create(&temp_path, spec).map_err(|e| format!("WAV 생성 오류: {e}"))?;
+        let cursor = std::io::Cursor::new(&mut output);
+        let mut writer = hound::WavWriter::new(cursor, spec)
+            .map_err(|e| format!("WAV 생성 오류: {e}"))?;
         for &s in &samples {
             writer.write_sample(s).map_err(|e| format!("WAV 쓰기 오류: {e}"))?;
         }
         writer.finalize().map_err(|e| format!("WAV 완료 오류: {e}"))?;
     }
 
-    Ok(temp_path.to_string_lossy().into_owned())
+    Ok(tauri::ipc::Response::new(output))
 }
 
 #[derive(serde::Serialize)]
