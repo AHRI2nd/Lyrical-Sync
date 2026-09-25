@@ -268,8 +268,8 @@ pub async fn ytdlp_load_audio(
     cmd.creation_flags(0x08000000);
 
     let mut child = cmd.spawn().map_err(|e| format!("yt-dlp 실행 실패: {e}"))?;
-    let stdout = child.stdout.take().unwrap();
-    let stderr = child.stderr.take().unwrap();
+    let stdout = child.stdout.take().ok_or("yt-dlp stdout를 열 수 없습니다")?;
+    let stderr = child.stderr.take().ok_or("yt-dlp stderr를 열 수 없습니다")?;
 
     use tokio::io::{AsyncBufReadExt, BufReader};
 
@@ -280,7 +280,7 @@ pub async fn ytdlp_load_audio(
     let stderr_task = tokio::spawn(async move {
         let mut reader = BufReader::new(stderr).lines();
         while let Ok(Some(line)) = reader.next_line().await {
-            let mut tail = stderr_tail_c.lock().unwrap();
+            let mut tail = stderr_tail_c.lock().unwrap_or_else(|e| e.into_inner());
             tail.push(line);
             if tail.len() > 5 { tail.remove(0); }
         }
@@ -316,7 +316,7 @@ pub async fn ytdlp_load_audio(
         return Err("cancelled".into());
     }
     if !status.success() {
-        let detail = stderr_tail.lock().unwrap().join(" / ");
+        let detail = stderr_tail.lock().unwrap_or_else(|e| e.into_inner()).join(" / ");
         return Err(if detail.is_empty() {
             format!("yt-dlp 오류 (종료 코드 {:?})", status.code())
         } else {
