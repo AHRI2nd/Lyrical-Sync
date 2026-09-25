@@ -7,8 +7,8 @@ function yieldToMainThread(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-// 자동 스팟팅(RMS 에너지 분석)용 원본 PCM 샘플 추출. Wavesurfer의 exportPeaks()는
-// 픽셀당 min/max로 다운샘플된 값이라 20ms 윈도우 RMS 계산엔 정밀도가 부족해 별도 디코드.
+// 오디오 분석용 원본 PCM 샘플 추출. Wavesurfer의 exportPeaks()는 픽셀당 min/max로
+// 다운샘플된 값이라 BPM 분석 등에는 정밀도가 부족해 별도 디코드한다.
 export async function decodeAudioSamples(audioPath: string): Promise<{ samples: Float32Array; sampleRate: number }> {
   const { bytes } = await readAudioBytes(audioPath);
   const ctx = new AudioContext();

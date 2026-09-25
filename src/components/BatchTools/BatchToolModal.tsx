@@ -128,7 +128,7 @@ export function BatchToolModal({ onClose }: { onClose: () => void }) {
               disabled={running}
               className="px-4 py-2 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 disabled:opacity-40 text-zinc-300 transition-colors"
             >
-              {t.autoSpotCancel}
+              {t.cancelLabel}
             </button>
             {running ? (
               <button

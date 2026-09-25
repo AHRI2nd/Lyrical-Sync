@@ -3,6 +3,9 @@ export type Lang = "ko" | "en" | "ja";
 export interface Translations {
   // Common
   close: string;
+  cancelLabel: string;
+  applyLabel: string;
+  audioRequired: string;
   // Header
   newFileTitle: string;
   newFileBtn: string;
@@ -23,7 +26,7 @@ export interface Translations {
   historyCurrent: string;
   historyLabels: Record<
     | "commitSyllables" | "clearSyllables" | "stampLine" | "setLines" | "addLine"
-    | "insertLines" | "addLinesFromSpeech" | "deleteLine" | "duplicateLine" | "mergeLine"
+    | "insertLines" | "deleteLine" | "duplicateLine" | "mergeLine"
     | "splitLine" | "moveLine" | "scaleTimestamps" | "deleteLines" | "shiftLines"
     | "clearTimestamps" | "loadDoc" | "applyOffset" | "shiftTimeRange" | "replaceAll" | "aiSync" | "snapBeatGrid"
     | "editText" | "editMetadata",
@@ -171,7 +174,6 @@ export interface Translations {
   tsScale: string;
   tsScaleFactor: string;
   tsScaleHint: string;
-  autoSpot: string;
   translationToggle: string;
   translationPlaceholder: string;
   settingsTranslationDesc: string;
@@ -179,19 +181,6 @@ export interface Translations {
   translationWarningMessage: string;
   translationWarningOk: string;
   translationWarningCancel: string;
-  autoSpotTitle: string;
-  autoSpotHint: string;
-  autoSpotNeedsAudio: string;
-  autoSpotDecoding: string;
-  autoSpotDecodeError: string;
-  autoSpotThreshold: string;
-  autoSpotMinSilence: string;
-  autoSpotMinSpeech: string;
-  autoSpotPadding: string;
-  autoSpotSegmentsFound: string;
-  autoSpotAddedLabel: string;
-  autoSpotApply: string;
-  autoSpotCancel: string;
   bpmTitle: string;
   bpmHint: string;
   bpmDetecting: string;
@@ -497,6 +486,9 @@ export interface Translations {
 
 const ko: Translations = {
   close: "닫기",
+  cancelLabel: "취소",
+  applyLabel: "적용",
+  audioRequired: "오디오 파일을 먼저 열어주세요",
   newFileTitle: "새 LRC 파일",
   newFileBtn: "새로 만들기",
   openLrc: "가사 열기",
@@ -521,7 +513,6 @@ const ko: Translations = {
       setLines: "가사 줄 일괄 변경",
       addLine: "줄 추가",
       insertLines: "줄 삽입",
-      addLinesFromSpeech: "자동 스팟팅 줄 삽입",
       deleteLine: "줄 삭제",
       duplicateLine: "줄 복제",
       mergeLine: "줄 병합",
@@ -730,7 +721,6 @@ const ko: Translations = {
   tsScale: "타임스탬프 스케일",
   tsScaleFactor: "배율",
   tsScaleHint: "전체 타임스탬프 ×배율 (예: 1.05 = 5% 느리게)",
-  autoSpot: "자동 스팟팅",
   translationToggle: "번역 줄 표시",
   settingsTranslationDesc: "가사 줄마다 2차(번역) 텍스트 보조 입력창을 표시합니다. 표준 LRC 규격에 없는 확장 표기라, 켜서 저장한 파일은 다른 LRC 플레이어·도구와 호환되지 않을 수 있습니다.",
   translationWarningTitle: "번역 줄은 표준 LRC 형식이 아닙니다",
@@ -738,19 +728,6 @@ const ko: Translations = {
   translationWarningOk: "이해했습니다, 켜기",
   translationWarningCancel: "취소",
   translationPlaceholder: "번역 (선택)",
-  autoSpotTitle: "무음 기반 자동 스팟팅",
-  autoSpotHint: "오디오에서 발화로 보이는 구간을 찾아 빈 텍스트 줄로 배치합니다. 정밀한 음성 인식이 아니라 음량 임계값 기반이므로, 배치 후 직접 검토하며 텍스트를 채워주세요.",
-  autoSpotNeedsAudio: "오디오 파일을 먼저 열어주세요",
-  autoSpotDecoding: "오디오 분석 중…",
-  autoSpotDecodeError: "오디오를 분석하지 못했습니다",
-  autoSpotThreshold: "임계값",
-  autoSpotMinSilence: "최소 무음 길이",
-  autoSpotMinSpeech: "최소 발화 길이",
-  autoSpotPadding: "여유(패딩)",
-  autoSpotSegmentsFound: "개 구간 감지됨",
-  autoSpotAddedLabel: "개 줄 추가됨",
-  autoSpotApply: "적용",
-  autoSpotCancel: "취소",
   bpmTitle: "BPM 감지 + 비트 그리드 스냅",
   bpmHint: "오디오에서 박자(BPM)를 추정합니다. 실제 음악 전체에 대한 자동 감지는 배박/절반박 오류가 흔하니, 값을 확인하거나 아래 탭 템포로 직접 보정한 뒤 적용하세요.",
   bpmDetecting: "박자 감지 중...",
@@ -1049,6 +1026,9 @@ const ko: Translations = {
 
 const en: Translations = {
   close: "Close",
+  cancelLabel: "Cancel",
+  applyLabel: "Apply",
+  audioRequired: "Open an audio file first",
   newFileTitle: "New LRC File",
   newFileBtn: "New",
   openLrc: "Open Lyrics",
@@ -1073,7 +1053,6 @@ const en: Translations = {
       setLines: "Bulk edit lines",
       addLine: "Add line",
       insertLines: "Insert lines",
-      addLinesFromSpeech: "Insert auto-spotted lines",
       deleteLine: "Delete line",
       duplicateLine: "Duplicate line",
       mergeLine: "Merge line",
@@ -1283,7 +1262,6 @@ const en: Translations = {
   tsScale: "Timestamp scale",
   tsScaleFactor: "Factor",
   tsScaleHint: "All timestamps × factor (e.g. 1.05 = 5% slower)",
-  autoSpot: "Auto-Spot",
   translationToggle: "Show translation lines",
   settingsTranslationDesc: "Show a secondary (translation) text input under each lyric line. This is an extension not part of the standard LRC spec, so files saved with it on may not be compatible with other LRC players or tools.",
   translationWarningTitle: "Translation lines aren't standard LRC",
@@ -1291,19 +1269,6 @@ const en: Translations = {
   translationWarningOk: "Understood, turn it on",
   translationWarningCancel: "Cancel",
   translationPlaceholder: "Translation (optional)",
-  autoSpotTitle: "Silence-Based Auto-Spotting",
-  autoSpotHint: "Finds stretches that sound like speech and lays down blank text lines over them. This is a volume-threshold heuristic, not real speech recognition — review and fill in the text afterward.",
-  autoSpotNeedsAudio: "Open an audio file first",
-  autoSpotDecoding: "Analyzing audio…",
-  autoSpotDecodeError: "Couldn't analyze the audio",
-  autoSpotThreshold: "Threshold",
-  autoSpotMinSilence: "Min. silence",
-  autoSpotMinSpeech: "Min. speech",
-  autoSpotPadding: "Padding",
-  autoSpotSegmentsFound: "segments found",
-  autoSpotAddedLabel: "lines added",
-  autoSpotApply: "Apply",
-  autoSpotCancel: "Cancel",
   bpmTitle: "BPM Detection + Beat Grid Snap",
   bpmHint: "Estimates the track's tempo (BPM). Automatic detection on a full music mix is prone to half/double-tempo errors — check the value or correct it with tap tempo below before applying.",
   bpmDetecting: "Detecting tempo...",
@@ -1602,6 +1567,9 @@ const en: Translations = {
 
 const ja: Translations = {
   close: "閉じる",
+  cancelLabel: "キャンセル",
+  applyLabel: "適用",
+  audioRequired: "先に音声ファイルを開いてください",
   newFileTitle: "新規LRCファイル",
   newFileBtn: "新規作成",
   openLrc: "歌詞を開く",
@@ -1626,7 +1594,6 @@ const ja: Translations = {
       setLines: "歌詞行を一括変更",
       addLine: "行を追加",
       insertLines: "行を挿入",
-      addLinesFromSpeech: "自動スポッティング行挿入",
       deleteLine: "行を削除",
       duplicateLine: "行を複製",
       mergeLine: "行を結合",
@@ -1835,7 +1802,6 @@ const ja: Translations = {
   tsScale: "タイムスタンプ倍率",
   tsScaleFactor: "倍率",
   tsScaleHint: "全タイムスタンプ × 倍率（例: 1.05 = 5%遅く）",
-  autoSpot: "自動スポッティング",
   translationToggle: "翻訳行を表示",
   settingsTranslationDesc: "各歌詞行の下に2次(翻訳)テキスト入力欄を表示します。標準LRC規格にない拡張表記のため、オンにして保存したファイルは他のLRCプレイヤーやツールと互換性がない場合があります。",
   translationWarningTitle: "翻訳行は標準LRC形式ではありません",
@@ -1843,19 +1809,6 @@ const ja: Translations = {
   translationWarningOk: "理解しました、オンにする",
   translationWarningCancel: "キャンセル",
   translationPlaceholder: "翻訳（任意）",
-  autoSpotTitle: "無音ベース自動スポッティング",
-  autoSpotHint: "音声から発話に聞こえる区間を検出し、空のテキスト行を配置します。正確な音声認識ではなく音量しきい値ベースなので、配置後は内容を確認しながらテキストを入力してください。",
-  autoSpotNeedsAudio: "先に音声ファイルを開いてください",
-  autoSpotDecoding: "音声を分析中…",
-  autoSpotDecodeError: "音声を分析できませんでした",
-  autoSpotThreshold: "しきい値",
-  autoSpotMinSilence: "最小無音長",
-  autoSpotMinSpeech: "最小発話長",
-  autoSpotPadding: "余白(パディング)",
-  autoSpotSegmentsFound: "区間検出",
-  autoSpotAddedLabel: "行追加",
-  autoSpotApply: "適用",
-  autoSpotCancel: "キャンセル",
   bpmTitle: "BPM検出 + ビートグリッドスナップ",
   bpmHint: "音源からテンポ(BPM)を推定します。楽曲全体への自動検出は倍テンポ・半テンポの誤りが起きやすいので、値を確認するか下のタップテンポで補正してから適用してください。",
   bpmDetecting: "テンポを検出中...",

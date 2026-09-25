@@ -76,10 +76,6 @@ interface LrcStore {
   setLines: (lines: LrcLine[]) => void;
   addLine: (text?: string) => void;
   insertLinesAfter: (afterId: string, texts: string[]) => string;
-  /** 무음 기반 자동 스팟팅: 감지된 구간마다 빈 텍스트 stamped line을 시간순으로 삽입.
-   *  타임스탬프 없는(=아직 안 찍은) 기존 줄은 정렬 기준에서 제외되어 위치가 바뀌지 않음.
-   *  반환값: 삽입된 줄 수 */
-  addLinesFromSpeechSegments: (segments: { start: number; end: number }[]) => number;
   updateLine: (id: string, patch: Partial<Omit<LrcLine, "id">>) => void;
   deleteLine: (id: string) => void;
   /** 줄 복제(텍스트만, 타임스탬프 없이 바로 아래에). 새 줄 id 반환 */
@@ -368,31 +364,6 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     lines.splice(idx + 1, 0, ...newLines);
     set({ doc: { ...doc, lines }, isDirty: true });
     return lastId;
-  },
-
-  addLinesFromSpeechSegments: (segments) => {
-    if (segments.length === 0) return 0;
-    pushHistory("addLinesFromSpeech");
-    const { doc } = get();
-    const lines = doc.lines;
-    // 세그먼트를 시간순으로 미리 정렬한 뒤, 기존 줄 배열을 한 번만 순방향으로 훑으며
-    // 병합 삽입 — 세그먼트마다 findIndex + slice로 배열을 처음부터 다시 훑던 O(n·m)을
-    // O(n + m log m)으로 대체. 이미 타임스탬프가 찍힌 줄만 정렬 기준으로 삼는 규칙은
-    // 그대로: 미입력 줄은 건너뛰며(위치 유지) 순서에 영향을 주지 않는다.
-    const sorted = [...segments].sort((a, b) => a.start - b.start);
-    const merged: LrcLine[] = [];
-    let li = 0;
-    for (const seg of sorted) {
-      const ts = Math.round(seg.start * 1000) / 1000;
-      while (li < lines.length && !(lines[li].timestamp !== null && (lines[li].timestamp as number) > ts)) {
-        merged.push(lines[li]);
-        li++;
-      }
-      merged.push({ id: genId(), timestamp: ts, text: "" });
-    }
-    while (li < lines.length) { merged.push(lines[li]); li++; }
-    set({ doc: { ...doc, lines: merged }, isDirty: true });
-    return segments.length;
   },
 
   updateLine: (id, patch) => {
