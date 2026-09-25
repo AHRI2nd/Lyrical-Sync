@@ -5,7 +5,6 @@ import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
-import { useMacroStore } from "../../stores/useMacroStore";
 import { formatTimestamp, parseTimestampInput, validateTimestamps, type SyncUnit } from "../../utils/lrcParser";
 import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
@@ -21,12 +20,10 @@ import { LrcLineRow } from "./LrcLineRow";
 import { SyncModeToggle } from "./SyncModeToggle";
 import { EditorToolsMenu } from "./EditorToolsMenu";
 import { BulkActionsBar } from "./BulkActionsBar";
-import { MacroRecordButton } from "./MacroRecordButton";
 // 글자 동기화 뷰·자동 스팟팅 모달은 각각 모드 전환/버튼 클릭 시에만 필요 → 지연 로드
 const CharSyncView = lazy(() => import("./CharSyncView").then((m) => ({ default: m.CharSyncView })));
 const AutoSpotModal = lazy(() => import("../AudioPlayer/AutoSpotModal").then((m) => ({ default: m.AutoSpotModal })));
 const BpmSnapModal = lazy(() => import("../AudioPlayer/BpmSnapModal").then((m) => ({ default: m.BpmSnapModal })));
-const MacroManagerModal = lazy(() => import("./MacroManagerModal").then((m) => ({ default: m.MacroManagerModal })));
 
 // ISO 639-3 codes used by ctc-forced-aligner / MMS model
 const LANG_CODE: Record<string, string> = { ko: "kor", en: "eng", ja: "jpn" };
@@ -88,8 +85,6 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   const [showScale, setShowScale] = useState(false);
   const [showAutoSpot, setShowAutoSpot] = useState(false);
   const [showBpmSnap, setShowBpmSnap] = useState(false);
-  const [showMacroManager, setShowMacroManager] = useState(false);
-  const recordMacroStep = useMacroStore((s) => s.recordStep);
   const [showValidation, setShowValidation] = useState(false);
   // 줄 다중선택(일괄 작업)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -418,9 +413,8 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   const handleReplaceAll = useCallback(() => {
     if (!findText) return;
     replaceInLines(findText, replaceText, caseSensitive);
-    recordMacroStep({ action: "replaceAll", params: { find: findText, replace: replaceText, caseSensitive } });
     setMatchPos(0);
-  }, [findText, replaceText, caseSensitive, replaceInLines, recordMacroStep]);
+  }, [findText, replaceText, caseSensitive, replaceInLines]);
 
   const handleShiftApply = useCallback((fromIdx: number, toIdx: number, delta: number) => {
     shiftTimeRange(fromIdx, toIdx, delta);
@@ -541,9 +535,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
             onToggleScale={() => setShowScale((v) => !v)}
             onOpenAutoSpot={() => setShowAutoSpot(true)}
             onOpenBpmSnap={() => setShowBpmSnap(true)}
-            onOpenMacros={() => setShowMacroManager(true)}
           />
-          <MacroRecordButton />
           </>)}
           <button
             onClick={onPreview}
@@ -592,17 +584,17 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
 
       {showScale && (
         <ScaleBar
-          onApply={(factor) => { scaleTimestamps(factor); recordMacroStep({ action: "scaleTimestamps", params: { factor } }); setShowScale(false); }}
+          onApply={(factor) => { scaleTimestamps(factor); setShowScale(false); }}
           onClose={() => setShowScale(false)}
         />
       )}
 
       <BulkActionsBar
         t={t} count={selectedIds.size}
-        onShiftMinus={() => { shiftLines([...selectedIds], -0.1); recordMacroStep({ action: "shiftLines", params: { delta: -0.1 } }); }}
-        onShiftPlus={() => { shiftLines([...selectedIds], 0.1); recordMacroStep({ action: "shiftLines", params: { delta: 0.1 } }); }}
-        onClearTs={() => { clearTimestamps([...selectedIds]); recordMacroStep({ action: "clearTimestamps", params: {} }); }}
-        onDelete={() => { deleteLines([...selectedIds]); recordMacroStep({ action: "deleteLines", params: {} }); setSelectedIds(new Set()); }}
+        onShiftMinus={() => shiftLines([...selectedIds], -0.1)}
+        onShiftPlus={() => shiftLines([...selectedIds], 0.1)}
+        onClearTs={() => clearTimestamps([...selectedIds])}
+        onDelete={() => { deleteLines([...selectedIds]); setSelectedIds(new Set()); }}
         onDeselect={() => setSelectedIds(new Set())}
       />
 
@@ -757,11 +749,6 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
       {showBpmSnap && (
         <Suspense fallback={null}>
           <BpmSnapModal onClose={() => setShowBpmSnap(false)} selectedIds={[...selectedIds]} />
-        </Suspense>
-      )}
-      {showMacroManager && (
-        <Suspense fallback={null}>
-          <MacroManagerModal onClose={() => setShowMacroManager(false)} selectedIds={[...selectedIds]} />
         </Suspense>
       )}
     </div>
