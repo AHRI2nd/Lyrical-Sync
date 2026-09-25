@@ -111,9 +111,10 @@ export function parseSrt(raw: string): LrcDocument {
     const cue = cues[i];
     doc.lines.push({ id: String(lineId++), timestamp: cue.start, text: cue.text });
 
-    // 다음 cue가 있고, 종료 시각이 현재 시작보다 뒤·다음 시작보다 앞이면(갭 존재) 빈 줄 삽입
+    // 다음 cue와의 갭뿐 아니라 마지막 cue의 종료도 경계로 보존한다. 그래야 배치
+    // 오프셋 적용 뒤 마지막 자막이 임의의 4초 길이로 바뀌지 않는다.
     const next = cues[i + 1];
-    if (next && cs(cue.end) > cs(cue.start) && cs(cue.end) < cs(next.start)) {
+    if (cs(cue.end) > cs(cue.start) && (!next || cs(cue.end) < cs(next.start))) {
       doc.lines.push({ id: String(lineId++), timestamp: cue.end, text: "" });
     }
   }

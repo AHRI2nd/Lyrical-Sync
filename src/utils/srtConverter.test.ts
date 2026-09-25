@@ -13,9 +13,10 @@ describe("parseSrt", () => {
   it("parses cue start times and joins multi-line text", () => {
     const srt = "1\n00:00:01,000 --> 00:00:03,000\nHello\nworld\n";
     const d = parseSrt(srt);
-    expect(d.lines).toHaveLength(1);
+    expect(d.lines).toHaveLength(2);
     expect(d.lines[0].timestamp).toBe(1);
     expect(d.lines[0].text).toBe("Hello world");
+    expect(d.lines[1]).toMatchObject({ timestamp: 3, text: "" });
   });
 
   it("accepts both comma and dot fractional separators", () => {
@@ -32,6 +33,7 @@ describe("parseSrt", () => {
       [1, "first"],
       [3, ""],
       [5, "second"],
+      [7, ""],
     ]);
   });
 
@@ -40,7 +42,8 @@ describe("parseSrt", () => {
       "1\n00:00:01,000 --> 00:00:03,000\nfirst\n\n" +
       "2\n00:00:03,000 --> 00:00:05,000\nsecond\n";
     const d = parseSrt(srt);
-    expect(d.lines.map((l) => l.text)).toEqual(["first", "second"]);
+    // cue 사이에는 경계가 없고, 마지막 cue의 종료 경계만 보존된다.
+    expect(d.lines.map((l) => l.text)).toEqual(["first", "second", ""]);
   });
 });
 
@@ -78,5 +81,11 @@ describe("serializeSrt", () => {
     const back = serializeSrt(parseSrt(srt), 7);
     expect(back).toContain("00:00:01,000 --> 00:00:03,000");
     expect(back).toContain("00:00:05,000 --> 00:00:07,000");
+  });
+
+  it("round-trips a final cue using its original end as the boundary", () => {
+    const srt = "1\n00:00:10,000 --> 00:00:12,500\nlast\n";
+    const back = serializeSrt(parseSrt(srt));
+    expect(back).toContain("00:00:10,000 --> 00:00:12,500");
   });
 });

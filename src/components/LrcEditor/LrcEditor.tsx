@@ -61,7 +61,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     }))
   );
   const { t, lang } = useI18nStore();
-  const { blankLineOffset, spotifyMode, deviceMode, lyricsFontScale, useVocalSeparation, useVad, showSpellCheck, showTranslationLines } = useSettingsStore();
+  const { blankLineOffset, modelsDir, spotifyMode, deviceMode, lyricsFontScale, useVocalSeparation, useVad, showSpellCheck, showTranslationLines } = useSettingsStore();
   const serviceLoggedIn = useServiceStore((s) => s.isLoggedIn);
   // 실제 Spotify 모드(로그인 + spotifyMode 활성)일 때만 서비스 모드로 간주.
   // 단순 계정 연결만으로 AI 싱크를 막지 않도록 isReady 대신 spotifyMode 기준 사용.
@@ -171,6 +171,8 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   };
 
   const checkAiRequirements = useCallback(async () => {
+    // 앱 재시작 뒤에도 설정 화면을 열기 전에 커스텀 모델 경로를 Rust 상태에 반영한다.
+    await invoke("set_models_dir_override", { path: modelsDir || null }).catch(() => {});
     try {
       const v = await invoke<{ packagesReady: boolean }>("get_python_env_info");
       setPythonReady(v.packagesReady);
@@ -187,7 +189,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
       }
     }
     setMissingModels(missing);
-  }, []);
+  }, [modelsDir]);
 
   useEffect(() => { checkAiRequirements(); }, [checkAiRequirements]);
 
@@ -765,4 +767,3 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     </div>
   );
 }
-

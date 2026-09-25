@@ -29,6 +29,7 @@ import { useMacMenu } from "./hooks/useMacMenu";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 const HelpModal = lazy(() => import("./components/AppShell/HelpModal").then((m) => ({ default: m.HelpModal })));
 const BatchToolModal = lazy(() => import("./components/BatchTools/BatchToolModal").then((m) => ({ default: m.BatchToolModal })));
 import { ConfirmModal } from "./components/AppShell/ConfirmModal";
@@ -39,6 +40,7 @@ import { LangDropdown } from "./components/AppShell/LangDropdown";
 import { NewFileIcon, OpenFolderIcon, SaveIcon, SaveAsIcon, UndoIcon, RedoIcon, GearIcon, BatchIcon } from "./components/AppShell/icons";
 import { RecentFilesMenu } from "./components/AppShell/RecentFilesMenu";
 import { HistoryPanel } from "./components/AppShell/HistoryPanel";
+import type { RecentFileEntry } from "./stores/useSettingsStore";
 
 const AUDIO_EXTS = ["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff", "aif"];
 const LYRICS_EXTS = ["lrc", "srt"];
@@ -180,6 +182,7 @@ function App() {
   const [showNewConfirm, setShowNewConfirm] = useState(false);
   const [showFormatChooser, setShowFormatChooser] = useState(false);
   const [showElrcNotice, setShowElrcNotice] = useState(false);
+  const [pendingDocumentOpen, setPendingDocumentOpen] = useState<{ lyricsPath: string; audioPath?: string | null } | null>(null);
   const pendingSaveRef = useRef<(() => Promise<boolean>) | null>(null);
   const [showSpotifySearch, setShowSpotifySearch] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -187,10 +190,10 @@ function App() {
     { audio?: string; lyrics?: string; audioConflict: boolean; lyricsConflict: boolean } | null
   >(null);
   // 셀렉터로 좁혀 재생 중 currentTime 갱신마다 App 전체가 리렌더되지 않게 함
-  const { lrcPath, isDirty, openLrc, openAudio, saveLrc, saveLrcAs, newLrc, undo, redo, _history, _future } = useLrcStore(
+  const { lrcPath, isDirty, openAudio, saveLrc, saveLrcAs, newLrc, undo, redo, _history, _future } = useLrcStore(
     useShallow((s) => ({
       lrcPath: s.lrcPath, isDirty: s.isDirty,
-      openLrc: s.openLrc, openAudio: s.openAudio, saveLrc: s.saveLrc, saveLrcAs: s.saveLrcAs, newLrc: s.newLrc,
+      openAudio: s.openAudio, saveLrc: s.saveLrc, saveLrcAs: s.saveLrcAs, newLrc: s.newLrc,
       undo: s.undo, redo: s.redo, _history: s._history, _future: s._future,
     }))
   );
@@ -286,7 +289,33 @@ function App() {
     }
   };
 
-  const handleOpenLrc = () => openLrc().catch(() => toast.error(t.toast.openFailed));
+  const applyDocumentOpen = ({ lyricsPath, audioPath }: { lyricsPath: string; audioPath?: string | null }) => {
+    const st = useLrcStore.getState();
+    if (audioPath) st.setAudioPath(audioPath);
+    st.loadLyricsPath(lyricsPath).catch(() => toast.error(t.toast.openFailed));
+  };
+
+  const requestDocumentOpen = (entry: { lyricsPath: string; audioPath?: string | null }) => {
+    if (useLrcStore.getState().isDirty) setPendingDocumentOpen(entry);
+    else applyDocumentOpen(entry);
+  };
+
+  const handleOpenLrc = async () => {
+    try {
+      const selected = await openDialog({
+        multiple: false,
+        filters: [{ name: "Lyrics", extensions: ["lrc", "srt"] }],
+      });
+      if (typeof selected === "string") requestDocumentOpen({ lyricsPath: selected });
+    } catch {
+      toast.error(t.toast.openFailed);
+    }
+  };
+
+  const handleRecentOpen = (entry: RecentFileEntry) => {
+    if (entry.lrcPath) requestDocumentOpen({ lyricsPath: entry.lrcPath, audioPath: entry.audioPath });
+    else if (entry.audioPath) useLrcStore.getState().setAudioPath(entry.audioPath);
+  };
 
   // 드롭된 파일을 실제로 연다 (오디오 → 오디오 경로, lrc/srt → 가사)
   const applyDrop = (d: { audio?: string; lyrics?: string }) => {
@@ -348,7 +377,8 @@ function App() {
 
   // 모드 전환 (ModeSelectButton과 동일한 동작 — 전환 시 재생 정지)
   const stopCurrentPlaybackForModeSwitch = () => {
-    if (spotifyMode && isLoggedIn) pausePlayback();
+    if (deviceMode) deviceControls.stopAndReset();
+    else if (spotifyMode && isLoggedIn) pausePlayback();
     else audioControls.pause();
   };
   const selectModeFile = () => {
@@ -356,7 +386,7 @@ function App() {
     setSpotifyMode(false); setYoutubeMode(false); setDeviceMode(false);
   };
   const selectModeSpotify = () => {
-    audioControls.pause();
+    stopCurrentPlaybackForModeSwitch();
     setSpotifyMode(true); setYoutubeMode(false); setDeviceMode(false);
   };
   const selectModeYouTube = () => {
@@ -426,7 +456,7 @@ function App() {
           {/* 파일 액션 그룹 */}
           <IconBtn onClick={handleNewLrc} title={t.newFileBtn}><NewFileIcon /></IconBtn>
           <IconBtn onClick={handleOpenLrc} title={t.openLrc}><OpenFolderIcon /></IconBtn>
-          <RecentFilesMenu />
+          <RecentFilesMenu onOpen={handleRecentOpen} />
           <IconBtn onClick={handleSave} accent title={t.save} tooltipAlign="right"><SaveIcon /></IconBtn>
           <IconBtn onClick={() => setShowFormatChooser(true)} title={t.saveAs} tooltipAlign="right"><SaveAsIcon /></IconBtn>
           <div className="w-px h-5 bg-zinc-700 mx-0.5" />
@@ -486,6 +516,16 @@ function App() {
           cancelLabel={t.confirmNewCancel}
           onOk={() => { setShowNewConfirm(false); newLrc(); }}
           onCancel={() => setShowNewConfirm(false)}
+        />
+      )}
+      {pendingDocumentOpen && (
+        <ConfirmModal
+          title={t.drop.replaceTitle}
+          message={t.drop.replaceLyrics}
+          okLabel={t.drop.replaceOk}
+          cancelLabel={t.drop.replaceCancel}
+          onOk={() => { applyDocumentOpen(pendingDocumentOpen); setPendingDocumentOpen(null); }}
+          onCancel={() => setPendingDocumentOpen(null)}
         />
       )}
       {showFormatChooser && (

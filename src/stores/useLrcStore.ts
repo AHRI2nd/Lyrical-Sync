@@ -147,16 +147,36 @@ function serializeForPath(path: string, doc: LrcDocument, duration: number): str
 }
 
 const MAX_HISTORY = 50;
+// 비동기 정렬 결과가 새 문서나 이후 수동 편집을 덮어쓰지 않도록 실행 세대를 관리한다.
+let aiRunId = 0;
 
 export const useLrcStore = create<LrcStore>((set, get) => {
+  const resetAiState = () => ({
+    aiSyncStatus: "idle" as const,
+    aiSyncMessage: "",
+    aiSyncProgressStatus: "",
+    aiDraftConfidence: null,
+  });
+
+  const invalidateAiRun = () => {
+    aiRunId += 1;
+    if (get().aiSyncStatus === "running") {
+      void invoke("cancel_alignment").catch(() => {});
+    }
+    return resetAiState();
+  };
+
   // 현재 doc을 히스토리 엔트리로 만들어 _history에 쌓고 _future를 비움.
   // 각 mutating 액션이 실제로 doc을 바꾸기 "직전"에 호출 — pushHistory 이후의 set()으로 새 doc을 반영한다.
   const pushHistory = (label: HistoryLabel, count?: number) => {
+    // AI 결과 적용 자체는 현재 실행을 무효화하면 안 된다. 그 외의 편집은 AI 초안을
+    // 더 이상 적용할 수 없게 만든다.
+    const aiState = label === "aiSync" ? {} : invalidateAiRun();
     const { doc, _history } = get();
     const entry: HistoryEntry = { doc, timestamp: Date.now(), label, count };
     // 어떤 액션이든 새 히스토리 엔트리를 쌓으면 진행 중이던 텍스트 편집 묶음은 끝난 것으로 침 —
     // updateLine/setMetadata가 자신의 set() 호출로 다시 값을 채워 넣지 않는 한 null로 남는다.
-    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), entry], _future: [], _lastEditKey: null });
+    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), entry], _future: [], _lastEditKey: null, ...aiState });
   };
 
   return {
@@ -408,7 +428,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     pushHistory("duplicateLine");
     const newId = genId();
     // 텍스트만 복제 — 타임스탬프/글자 동기화는 비워 중복 시각을 만들지 않음
-    const copy: LrcLine = { id: newId, timestamp: null, text: doc.lines[idx].text };
+    const copy: LrcLine = { id: newId, timestamp: null, text: doc.lines[idx].text, translation: doc.lines[idx].translation };
     const lines = [...doc.lines];
     lines.splice(idx + 1, 0, copy);
     set({ doc: { ...doc, lines }, isDirty: true });
@@ -424,7 +444,11 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     const cur = doc.lines[idx];
     const sep = prev.text && cur.text ? " " : "";
     // 이전 줄 타임스탬프 유지, 텍스트 결합, 글자 동기화는 무효화(텍스트 변경)
-    const merged: LrcLine = { ...prev, text: prev.text + sep + cur.text, syllables: undefined };
+    const translationSep = prev.translation && cur.translation ? " " : "";
+    const translation = prev.translation || cur.translation
+      ? `${prev.translation ?? ""}${translationSep}${cur.translation ?? ""}`
+      : undefined;
+    const merged: LrcLine = { ...prev, text: prev.text + sep + cur.text, translation, syllables: undefined };
     const lines = [...doc.lines];
     lines.splice(idx - 1, 2, merged);
     set({ doc: { ...doc, lines }, activeLineId: prev.id, isDirty: true });
@@ -553,7 +577,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     parsed.lines = parsed.lines.map((l) => ({ ...l, id: String(id++) }));
     nextId = id;
     const firstId = parsed.lines[0]?.id ?? null;
-    set({ doc: parsed, activeLineId: firstId, loopLineId: null, isDirty: true, _lastEditKey: null });
+    set({ doc: parsed, activeLineId: firstId, loopLineId: null, isDirty: true, _lastEditKey: null, ...invalidateAiRun() });
   },
 
   restoreDoc: (doc, lrcPath, audioPath) => {
@@ -571,6 +595,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
       _history: [],
       _future: [],
       _lastEditKey: null,
+      ...invalidateAiRun(),
     });
   },
 
@@ -621,7 +646,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     doc.lines = doc.lines.map((l) => ({ ...l, id: String(id++) }));
     nextId = id;
     const firstId = doc.lines[0]?.id ?? null;
-    set({ doc, lrcPath: path, isDirty: false, activeLineId: firstId, loopLineId: null, _history: [], _future: [], _lastEditKey: null });
+    set({ doc, lrcPath: path, isDirty: false, activeLineId: firstId, loopLineId: null, _history: [], _future: [], _lastEditKey: null, ...invalidateAiRun() });
     useSettingsStore.getState().addRecentFile({ lrcPath: path, audioPath: get().audioPath });
   },
 
@@ -652,6 +677,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
       _history: [],
       _future: [],
       _lastEditKey: null,
+      ...invalidateAiRun(),
     });
   },
 
@@ -700,7 +726,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
   },
 
   newLrc: () =>
-    set({ doc: defaultDocument(), lrcPath: null, isDirty: false, activeLineId: null, loopLineId: null, _history: [], _future: [], _lastEditKey: null }),
+    set({ doc: defaultDocument(), lrcPath: null, isDirty: false, activeLineId: null, loopLineId: null, _history: [], _future: [], _lastEditKey: null, ...invalidateAiRun() }),
 
   shiftTimeRange: (fromIdx, toIdx, deltaSeconds) => {
     if (deltaSeconds === 0) return;
@@ -743,13 +769,17 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     const { audioPath, doc } = get();
     if (!audioPath) return;
 
-    set({ aiSyncStatus: "running", aiSyncMessage: "" });
-
-    const unlisten = await listen<AlignmentProgressEvent>("alignment-progress", (e) => {
-      set({ aiSyncProgressStatus: e.payload.status, aiSyncMessage: e.payload.message });
-    });
+    const runId = ++aiRunId;
+    set({ aiSyncStatus: "running", aiSyncMessage: "", aiSyncProgressStatus: "", _lastEditKey: null });
+    let unlisten: (() => void) | undefined;
 
     try {
+      unlisten = await listen<AlignmentProgressEvent>("alignment-progress", (e) => {
+        if (runId === aiRunId) {
+          set({ aiSyncProgressStatus: e.payload.status, aiSyncMessage: e.payload.message });
+        }
+      });
+
       // Only pass non-empty lines to Python; track their original indices
       const nonBlank = doc.lines
         .map((line, idx) => ({ line, idx }))
@@ -767,6 +797,9 @@ export const useLrcStore = create<LrcStore>((set, get) => {
         useSeparation,
         useVad,
       });
+
+      // 실행 중 새 문서를 열거나 사용자가 편집했다면, 오래된 결과는 적용하지 않는다.
+      if (runId !== aiRunId) return;
 
       // align.py는 { lines, vocal_segments, separated } 객체를 반환(구버전은 배열).
       const parsed = JSON.parse(resultJson);
@@ -860,6 +893,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
       });
       toast.success(useI18nStore.getState().t.toast.aiSyncDone);
     } catch (err) {
+      if (runId !== aiRunId) return;
       const msg = String(err);
       if (msg === "cancelled") {
         set({ aiSyncStatus: "idle", aiSyncMessage: "", aiSyncProgressStatus: "" });
@@ -868,12 +902,13 @@ export const useLrcStore = create<LrcStore>((set, get) => {
         toast.error(useI18nStore.getState().t.toast.aiSyncFailed);
       }
     } finally {
-      unlisten();
+      unlisten?.();
     }
   },
 
   cancelAiSync: () => {
-    invoke("cancel_alignment").catch(() => {});
+    invalidateAiRun();
+    set(resetAiState());
   },
 
   clearAiDraft: () => set({ aiDraftConfidence: null }),
