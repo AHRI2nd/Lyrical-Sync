@@ -1,21 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { type Translations } from "../../i18n/translations";
 
-// 도구 오버플로우: 찾기/바꾸기 · 시간 이동 · 타임스탬프 스케일 · 자동 스팟팅.
+// 도구 오버플로우: 찾기/바꾸기 · 시간 이동 · 타임스탬프 스케일 · BPM 스냅.
 // 열림 상태와 바깥 클릭 감지는 이 컴포넌트가 자체 소유.
 export function EditorToolsMenu({
-  t, showFR, showTS, showScale, showAutoSpot,
-  onToggleFR, onToggleTS, onToggleScale, onOpenAutoSpot, onOpenBpmSnap,
+  t, showFR, showTS, showScale,
+  onToggleFR, onToggleTS, onToggleScale, onOpenBpmSnap,
 }: {
   t: Translations;
   showFR: boolean;
   showTS: boolean;
   showScale: boolean;
-  showAutoSpot: boolean;
   onToggleFR: () => void;
   onToggleTS: () => void;
   onToggleScale: () => void;
-  onOpenAutoSpot: () => void;
   onOpenBpmSnap: () => void;
 }) {
   const [showTools, setShowTools] = useState(false);
@@ -34,7 +32,7 @@ export function EditorToolsMenu({
     <div className="relative" ref={toolsRef}>
       <button
         onClick={() => setShowTools((v) => !v)}
-        className={`px-3 py-1 text-xs rounded-lg transition-colors ${showTools || showFR || showTS || showScale || showAutoSpot ? "bg-zinc-700 text-white" : "text-zinc-400 hover:bg-zinc-800 hover:text-white"}`}
+        className={`px-3 py-1 text-xs rounded-lg transition-colors ${showTools || showFR || showTS || showScale ? "bg-zinc-700 text-white" : "text-zinc-400 hover:bg-zinc-800 hover:text-white"}`}
       >
         {t.editorTools}
       </button>
@@ -57,12 +55,6 @@ export function EditorToolsMenu({
             className={`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showScale ? "bg-sky-600 text-white" : "hover:bg-zinc-700 text-zinc-200"}`}
           >
             {t.tsScale}
-          </button>
-          <button
-            onClick={() => { onOpenAutoSpot(); setShowTools(false); }}
-            className="text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors hover:bg-zinc-700 text-zinc-200"
-          >
-            {t.autoSpot}
           </button>
           <button
             onClick={() => { onOpenBpmSnap(); setShowTools(false); }}

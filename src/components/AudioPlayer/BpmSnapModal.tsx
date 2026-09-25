@@ -93,7 +93,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
 
         <div className="p-5 flex flex-col gap-4">
           {!audioPath ? (
-            <p className="text-sm text-amber-400">{t.autoSpotNeedsAudio}</p>
+            <p className="text-sm text-amber-400">{t.audioRequired}</p>
           ) : loading ? (
             <p className="text-sm text-zinc-400">{t.bpmDetecting}</p>
           ) : (
@@ -159,7 +159,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
               onClick={onClose}
               className="px-4 py-2 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
             >
-              {t.autoSpotCancel}
+              {t.cancelLabel}
             </button>
             {audioPath && !loading && (
               <button
@@ -167,7 +167,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
                 disabled={!valid}
                 className="px-4 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
               >
-                {t.autoSpotApply}
+                {t.applyLabel}
               </button>
             )}
           </div>

@@ -9,7 +9,6 @@ export type HistoryLabel =
   | "setLines"
   | "addLine"
   | "insertLines"
-  | "addLinesFromSpeech"
   | "deleteLine"
   | "duplicateLine"
   | "mergeLine"
