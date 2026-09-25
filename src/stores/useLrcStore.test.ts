@@ -263,6 +263,12 @@ describe("useLrcStore — line manipulation", () => {
     expect(ls[1].timestamp).toBeNull();
   });
 
+  it("duplicateLine keeps the translation while clearing timing", () => {
+    reset([{ ...mk("1", "a", 1), translation: "번역" }]);
+    useLrcStore.getState().duplicateLine("1");
+    expect(lines()[1]).toMatchObject({ timestamp: null, text: "a", translation: "번역" });
+  });
+
   it("mergeLineUp combines into previous keeping its timestamp", () => {
     reset([mk("1", "hello", 1), mk("2", "world", 2)]);
     const pid = useLrcStore.getState().mergeLineUp("2");
@@ -271,6 +277,15 @@ describe("useLrcStore — line manipulation", () => {
     expect(ls[0].text).toBe("hello world");
     expect(ls[0].timestamp).toBe(1);
     expect(pid).toBe("1");
+  });
+
+  it("mergeLineUp combines translations instead of discarding the lower line", () => {
+    reset([
+      { ...mk("1", "hello", 1), translation: "안녕" },
+      { ...mk("2", "world", 2), translation: "세계" },
+    ]);
+    useLrcStore.getState().mergeLineUp("2");
+    expect(lines()[0].translation).toBe("안녕 세계");
   });
 
   it("mergeLineUp on the first line is a no-op", () => {
@@ -467,7 +482,10 @@ describe("useLrcStore — addLinesFromSpeechSegments", () => {
 });
 
 describe("useLrcStore — runAiSync blank-line timestamp placement", () => {
-  beforeEach(() => reset([]));
+  beforeEach(() => {
+    reset([]);
+    vi.mocked(invoke).mockReset();
+  });
 
   it("places blank lines via prevEnd+offset/nextStart clamp, including a run of consecutive blanks and a trailing unbounded blank", async () => {
     reset([
@@ -495,5 +513,25 @@ describe("useLrcStore — runAiSync blank-line timestamp placement", () => {
 
     expect(lines().map((l) => l.timestamp)).toEqual([0.5, 1.0, 2.0, 2.0, 3.0, 4.0]);
     expect(useLrcStore.getState().aiSyncStatus).toBe("done");
+  });
+
+  it("does not apply a completed result after the user starts a new document", async () => {
+    reset([{ id: "old", timestamp: null, text: "old lyric" }]);
+    useLrcStore.setState({ audioPath: "/song.mp3" });
+    let resolveAlignment!: (value: string) => void;
+    vi.mocked(invoke).mockImplementation((cmd: unknown) => {
+      if (cmd === "run_alignment") return new Promise<string>((resolve) => { resolveAlignment = resolve; });
+      return Promise.resolve(undefined);
+    });
+
+    const running = useLrcStore.getState().runAiSync("ko", 0.5, false, false);
+    await Promise.resolve();
+    useLrcStore.getState().newLrc();
+    resolveAlignment(JSON.stringify({ lines: [{ index: 0, start: 12, end: 13, confidence: 1 }], vocal_segments: [], separated: false }));
+    await running;
+
+    expect(lines()).toEqual([]);
+    expect(useLrcStore.getState().aiSyncStatus).toBe("idle");
+    expect(useLrcStore.getState().aiDraftConfidence).toBeNull();
   });
 });

@@ -220,6 +220,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   // 언마운트 시 마지막 Blob URL 해제 (경로 변경 시엔 아래 로드 effect가 직전 URL을 해제)
   useEffect(() => () => {
     if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+    if (zoomDebounceRef.current) clearTimeout(zoomDebounceRef.current);
   }, []);
 
   useEffect(() => {
@@ -231,6 +232,15 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     let cancelled = false;
 
     setIsAudioReady(false);
+    // ready 이벤트가 올 때까지 이전 트랙의 시간/재생 상태가 남아 있으면 스탬프와 UI가
+    // 잘못된 곡 기준으로 동작할 수 있다. 로드를 시작하는 즉시 둘 다 초기화한다.
+    setIsPlayingLocal(false);
+    setCurrentTimeLocal(0);
+    setDurationLocal(0);
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    peaksRef.current = null;
 
     const ext = audioPath.split(".").pop()?.toLowerCase() ?? "";
 
@@ -624,4 +634,3 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     </>
   );
 }
-

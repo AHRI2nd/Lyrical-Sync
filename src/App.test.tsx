@@ -18,7 +18,10 @@ if (typeof globalThis.localStorage === "undefined") {
 
 // App.tsx가 마운트 시 건드리는 Tauri API 전부 스텁 — 이 테스트는 드래그앤드롭 충돌
 // 해소 로직(App.tsx 자체)만 검증하므로, 실제 IPC/OS 연동은 필요 없음.
-const { dragDropHandler } = vi.hoisted(() => ({ dragDropHandler: { current: null as ((e: unknown) => void) | null } }));
+const { dragDropHandler, dialogOpen } = vi.hoisted(() => ({
+  dragDropHandler: { current: null as ((e: unknown) => void) | null },
+  dialogOpen: vi.fn(),
+}));
 vi.mock("@tauri-apps/api/webview", () => ({
   getCurrentWebview: () => ({
     onDragDropEvent: (cb: (e: unknown) => void) => {
@@ -29,7 +32,7 @@ vi.mock("@tauri-apps/api/webview", () => ({
 }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(() => Promise.resolve(() => {})) }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(() => Promise.resolve(undefined)) }));
-vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: dialogOpen, save: vi.fn() }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
 
 // 이 테스트가 검증하는 건 App 자신의 드롭 충돌 판단/모달 로직뿐이므로, 나머지 화면을
@@ -64,6 +67,7 @@ describe("App — drag-and-drop conflict resolution", () => {
   beforeEach(() => {
     resetLrc();
     dragDropHandler.current = null;
+    dialogOpen.mockReset();
   });
 
   afterEach(() => {
@@ -136,5 +140,20 @@ describe("App — drag-and-drop conflict resolution", () => {
 
     expect(setAudioPathSpy).not.toHaveBeenCalled();
     expect(screen.queryByText("파일 열기")).toBeNull();
+  });
+
+  it("confirms before File > Open replaces unsaved lyrics", async () => {
+    resetLrc({ isDirty: true, lrcPath: "/music/old.lrc" });
+    dialogOpen.mockResolvedValue("/music/new.lrc");
+    const loadLyricsPathSpy = vi.spyOn(useLrcStore.getState(), "loadLyricsPath").mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "가사 열기" }));
+    expect(await screen.findByText("작업 중인 가사가 있습니다. 저장하지 않은 변경 사항은 사라집니다. 교체하시겠습니까?")).toBeTruthy();
+    expect(loadLyricsPathSpy).not.toHaveBeenCalled();
+
+    await user.click(screen.getByText("교체"));
+    expect(loadLyricsPathSpy).toHaveBeenCalledWith("/music/new.lrc");
   });
 });
