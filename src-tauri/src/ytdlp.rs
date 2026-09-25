@@ -1,16 +1,64 @@
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use tauri::{AppHandle, Emitter, Manager};
 use serde::Serialize;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use tauri::{AppHandle, Emitter, Manager};
 
 pub struct YtdlpState {
-    cancel_flag: Arc<AtomicBool>,
+    active_cancel: Mutex<Option<Arc<AtomicBool>>>,
+}
+
+static YTDLP_RUN_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+fn next_ytdlp_run_id() -> String {
+    let millis = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    format!(
+        "{millis}-{}",
+        YTDLP_RUN_COUNTER.fetch_add(1, Ordering::Relaxed)
+    )
 }
 
 impl Default for YtdlpState {
     fn default() -> Self {
-        Self { cancel_flag: Arc::new(AtomicBool::new(false)) }
+        Self {
+            active_cancel: Mutex::new(None),
+        }
+    }
+}
+
+impl YtdlpState {
+    fn start_run(&self) -> Result<Arc<AtomicBool>, String> {
+        let mut active = self.active_cancel.lock().unwrap_or_else(|e| e.into_inner());
+        if active.is_some() {
+            return Err("yt-dlp 다운로드가 이미 진행 중입니다".into());
+        }
+        let flag = Arc::new(AtomicBool::new(false));
+        *active = Some(flag.clone());
+        Ok(flag)
+    }
+
+    fn cancel_active(&self) {
+        if let Some(flag) = self
+            .active_cancel
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+        {
+            flag.store(true, Ordering::Relaxed);
+        }
+    }
+
+    fn finish_run(&self, flag: &Arc<AtomicBool>) {
+        let mut active = self.active_cancel.lock().unwrap_or_else(|e| e.into_inner());
+        if active
+            .as_ref()
+            .is_some_and(|current| Arc::ptr_eq(current, flag))
+        {
+            *active = None;
+        }
     }
 }
 
@@ -32,7 +80,8 @@ struct YtdlpAudioProgress {
 }
 
 fn ytdlp_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    app.path().app_data_dir()
+    app.path()
+        .app_data_dir()
         .map(|d| d.join("ytdlp"))
         .map_err(|e| e.to_string())
 }
@@ -66,7 +115,9 @@ pub fn check_ytdlp(app: AppHandle) -> Result<Option<String>, String> {
 #[tauri::command]
 pub async fn download_ytdlp(app: AppHandle) -> Result<(), String> {
     let dir = ytdlp_dir(&app)?;
-    tokio::fs::create_dir_all(&dir).await.map_err(|e| e.to_string())?;
+    tokio::fs::create_dir_all(&dir)
+        .await
+        .map_err(|e| e.to_string())?;
 
     #[cfg(target_os = "windows")]
     let (remote_name, local_name) = ("yt-dlp.exe", "yt-dlp.exe");
@@ -89,9 +140,7 @@ pub async fn download_ytdlp(app: AppHandle) -> Result<(), String> {
             .send()
             .await?;
         let j: serde_json::Value = r.json().await?;
-        Ok::<String, reqwest::Error>(
-            j["tag_name"].as_str().unwrap_or("").to_string()
-        )
+        Ok::<String, reqwest::Error>(j["tag_name"].as_str().unwrap_or("").to_string())
     }
     .await
     .unwrap_or_default();
@@ -110,10 +159,12 @@ pub async fn download_ytdlp(app: AppHandle) -> Result<(), String> {
     let total = resp.content_length().unwrap_or(0);
     let mut downloaded: u64 = 0;
 
-    use tokio::io::AsyncWriteExt;
     use sha2::{Digest, Sha256};
+    use tokio::io::AsyncWriteExt;
     let mut hasher = Sha256::new();
-    let mut file = tokio::fs::File::create(&dest).await.map_err(|e| e.to_string())?;
+    let mut file = tokio::fs::File::create(&dest)
+        .await
+        .map_err(|e| e.to_string())?;
 
     loop {
         match resp.chunk().await {
@@ -121,9 +172,14 @@ pub async fn download_ytdlp(app: AppHandle) -> Result<(), String> {
                 file.write_all(&chunk).await.map_err(|e| e.to_string())?;
                 hasher.update(&chunk);
                 downloaded += chunk.len() as u64;
-                let _ = app.emit("ytdlp-install-progress", YtdlpInstallProgress {
-                    downloaded, total, done: false,
-                });
+                let _ = app.emit(
+                    "ytdlp-install-progress",
+                    YtdlpInstallProgress {
+                        downloaded,
+                        total,
+                        done: false,
+                    },
+                );
             }
             Ok(None) => {
                 file.flush().await.map_err(|e| e.to_string())?;
@@ -147,13 +203,19 @@ pub async fn download_ytdlp(app: AppHandle) -> Result<(), String> {
             .send()
             .await
             .ok()?;
-        if !r.status().is_success() { return None; }
+        if !r.status().is_success() {
+            return None;
+        }
         let text = r.text().await.ok()?;
         text.lines().find_map(|l| {
             let mut it = l.split_whitespace();
             let hash = it.next()?;
             let name = it.next()?;
-            if name == remote_name { Some(hash.to_string()) } else { None }
+            if name == remote_name {
+                Some(hash.to_string())
+            } else {
+                None
+            }
         })
     }
     .await;
@@ -167,7 +229,9 @@ pub async fn download_ytdlp(app: AppHandle) -> Result<(), String> {
     #[cfg(not(target_os = "windows"))]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mut perms = std::fs::metadata(&dest).map_err(|e| e.to_string())?.permissions();
+        let mut perms = std::fs::metadata(&dest)
+            .map_err(|e| e.to_string())?
+            .permissions();
         perms.set_mode(0o755);
         std::fs::set_permissions(&dest, perms).map_err(|e| e.to_string())?;
     }
@@ -176,9 +240,14 @@ pub async fn download_ytdlp(app: AppHandle) -> Result<(), String> {
         let _ = std::fs::write(dir.join("version.txt"), &version_tag);
     }
 
-    let _ = app.emit("ytdlp-install-progress", YtdlpInstallProgress {
-        downloaded, total, done: true,
-    });
+    let _ = app.emit(
+        "ytdlp-install-progress",
+        YtdlpInstallProgress {
+            downloaded,
+            total,
+            done: true,
+        },
+    );
     Ok(())
 }
 
@@ -189,11 +258,24 @@ fn parse_ytdlp_progress(line: &str) -> Option<YtdlpAudioProgress> {
     }
     let parts: Vec<&str> = t.split_whitespace().collect();
     let percent: f32 = parts.get(1)?.trim_end_matches('%').parse().ok()?;
-    let speed = parts.iter().position(|&s| s == "at")
-        .and_then(|i| parts.get(i + 1)).map(|s| s.to_string()).unwrap_or_default();
-    let eta = parts.iter().position(|&s| s == "ETA")
-        .and_then(|i| parts.get(i + 1)).map(|s| s.to_string()).unwrap_or_default();
-    Some(YtdlpAudioProgress { percent, speed, eta, done: false })
+    let speed = parts
+        .iter()
+        .position(|&s| s == "at")
+        .and_then(|i| parts.get(i + 1))
+        .map(|s| s.to_string())
+        .unwrap_or_default();
+    let eta = parts
+        .iter()
+        .position(|&s| s == "ETA")
+        .and_then(|i| parts.get(i + 1))
+        .map(|s| s.to_string())
+        .unwrap_or_default();
+    Some(YtdlpAudioProgress {
+        percent,
+        speed,
+        eta,
+        done: false,
+    })
 }
 
 async fn find_ytdlp_output(dir: &PathBuf, prefix: &str) -> Result<PathBuf, String> {
@@ -221,23 +303,71 @@ pub async fn ytdlp_load_audio(
         return Err("yt-dlp가 설치되지 않았습니다".into());
     }
 
-    ytdlp_state.cancel_flag.store(false, Ordering::Relaxed);
+    let cancel_flag = ytdlp_state.start_run()?;
+    let result = ytdlp_load_audio_inner(
+        url,
+        quality,
+        cookies_file,
+        proxy,
+        app.clone(),
+        exe,
+        cancel_flag.clone(),
+    )
+    .await;
+    ytdlp_state.finish_run(&cancel_flag);
+    result
+}
 
-    let cache_dir = app.path().app_cache_dir()
+async fn ytdlp_load_audio_inner(
+    url: String,
+    quality: String,
+    cookies_file: Option<String>,
+    proxy: Option<String>,
+    app: AppHandle,
+    exe: PathBuf,
+    cancel_flag: Arc<AtomicBool>,
+) -> Result<String, String> {
+    let ts = next_ytdlp_run_id();
+
+    let cache_dir = app
+        .path()
+        .app_cache_dir()
         .map_err(|e| e.to_string())?
-        .join("ytdlp-audio");
+        .join("ytdlp-audio")
+        .join(&ts);
+    tokio::fs::create_dir_all(&cache_dir)
+        .await
+        .map_err(|e| e.to_string())?;
 
-    if cache_dir.exists() {
+    let result = ytdlp_run_child(
+        url,
+        quality,
+        cookies_file,
+        proxy,
+        app,
+        exe,
+        cache_dir.clone(),
+        ts,
+        cancel_flag,
+    )
+    .await;
+    if result.is_err() {
         let _ = tokio::fs::remove_dir_all(&cache_dir).await;
     }
-    tokio::fs::create_dir_all(&cache_dir).await.map_err(|e| e.to_string())?;
+    result
+}
 
-    let ts = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis()
-        .to_string();
-
+async fn ytdlp_run_child(
+    url: String,
+    quality: String,
+    cookies_file: Option<String>,
+    proxy: Option<String>,
+    app: AppHandle,
+    exe: PathBuf,
+    cache_dir: PathBuf,
+    ts: String,
+    cancel_flag: Arc<AtomicBool>,
+) -> Result<String, String> {
     let output_tpl = cache_dir.join(format!("{}.%(ext)s", ts));
 
     let format = match quality.as_str() {
@@ -248,16 +378,22 @@ pub async fn ytdlp_load_audio(
 
     let mut cmd = tokio::process::Command::new(&exe);
     cmd.arg("--no-playlist")
-        .arg("-f").arg(format)
-        .arg("-o").arg(&output_tpl)
+        .arg("-f")
+        .arg(format)
+        .arg("-o")
+        .arg(&output_tpl)
         .arg("--newline")
         .arg("--no-part");
 
     if let Some(ref c) = cookies_file {
-        if !c.is_empty() { cmd.arg("--cookies").arg(c); }
+        if !c.is_empty() {
+            cmd.arg("--cookies").arg(c);
+        }
     }
     if let Some(ref p) = proxy {
-        if !p.is_empty() { cmd.arg("--proxy").arg(p); }
+        if !p.is_empty() {
+            cmd.arg("--proxy").arg(p);
+        }
     }
 
     cmd.arg(&url)
@@ -268,8 +404,14 @@ pub async fn ytdlp_load_audio(
     cmd.creation_flags(0x08000000);
 
     let mut child = cmd.spawn().map_err(|e| format!("yt-dlp 실행 실패: {e}"))?;
-    let stdout = child.stdout.take().ok_or("yt-dlp stdout를 열 수 없습니다")?;
-    let stderr = child.stderr.take().ok_or("yt-dlp stderr를 열 수 없습니다")?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or("yt-dlp stdout를 열 수 없습니다")?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or("yt-dlp stderr를 열 수 없습니다")?;
 
     use tokio::io::{AsyncBufReadExt, BufReader};
 
@@ -282,41 +424,68 @@ pub async fn ytdlp_load_audio(
         while let Ok(Some(line)) = reader.next_line().await {
             let mut tail = stderr_tail_c.lock().unwrap_or_else(|e| e.into_inner());
             tail.push(line);
-            if tail.len() > 5 { tail.remove(0); }
+            if tail.len() > 5 {
+                tail.remove(0);
+            }
         }
     });
 
     let mut reader = BufReader::new(stdout).lines();
 
-    let cancel_flag = ytdlp_state.cancel_flag.clone();
     let app_c = app.clone();
     let mut dest_path: Option<String> = None;
-
-    while let Ok(Some(line)) = reader.next_line().await {
+    loop {
         if cancel_flag.load(Ordering::Relaxed) {
             let _ = child.kill().await;
-            let _ = tokio::fs::remove_dir_all(&cache_dir).await;
+            let _ = child.wait().await;
+            let _ = stderr_task.await;
             return Err("cancelled".into());
         }
-        if let Some(p) = line.strip_prefix("[download] Destination: ") {
-            dest_path = Some(p.trim().to_string());
-        } else if let Some(p) = line.strip_prefix("[Merger] Merging formats into \"") {
-            dest_path = Some(p.trim_end_matches('"').to_string());
-        }
-        if let Some(progress) = parse_ytdlp_progress(&line) {
-            let _ = app_c.emit("ytdlp-audio-progress", &progress);
+        match tokio::time::timeout(std::time::Duration::from_millis(100), reader.next_line()).await
+        {
+            Err(_) => continue,
+            Ok(Ok(Some(line))) => {
+                if let Some(p) = line.strip_prefix("[download] Destination: ") {
+                    dest_path = Some(p.trim().to_string());
+                } else if let Some(p) = line.strip_prefix("[Merger] Merging formats into \"") {
+                    dest_path = Some(p.trim_end_matches('"').to_string());
+                }
+                if let Some(progress) = parse_ytdlp_progress(&line) {
+                    let _ = app_c.emit("ytdlp-audio-progress", &progress);
+                }
+            }
+            Ok(Ok(None)) => break,
+            Ok(Err(e)) => {
+                let _ = child.kill().await;
+                let _ = child.wait().await;
+                let _ = stderr_task.await;
+                return Err(e.to_string());
+            }
         }
     }
 
-    let status = child.wait().await.map_err(|e| e.to_string())?;
+    let status = loop {
+        if cancel_flag.load(Ordering::Relaxed) {
+            let _ = child.kill().await;
+            let _ = child.wait().await;
+            let _ = stderr_task.await;
+            return Err("cancelled".into());
+        }
+        match tokio::time::timeout(std::time::Duration::from_millis(100), child.wait()).await {
+            Err(_) => continue,
+            Ok(status) => break status.map_err(|e| e.to_string())?,
+        }
+    };
     let _ = stderr_task.await;
 
     if cancel_flag.load(Ordering::Relaxed) {
-        let _ = tokio::fs::remove_dir_all(&cache_dir).await;
         return Err("cancelled".into());
     }
     if !status.success() {
-        let detail = stderr_tail.lock().unwrap_or_else(|e| e.into_inner()).join(" / ");
+        let detail = stderr_tail
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .join(" / ");
         return Err(if detail.is_empty() {
             format!("yt-dlp 오류 (종료 코드 {:?})", status.code())
         } else {
@@ -326,21 +495,31 @@ pub async fn ytdlp_load_audio(
 
     let file_path = if let Some(ref p) = dest_path {
         let pb = PathBuf::from(p);
-        if pb.exists() { pb } else { find_ytdlp_output(&cache_dir, &ts).await? }
+        if pb.exists() {
+            pb
+        } else {
+            find_ytdlp_output(&cache_dir, &ts).await?
+        }
     } else {
         find_ytdlp_output(&cache_dir, &ts).await?
     };
 
-    let _ = app.emit("ytdlp-audio-progress", YtdlpAudioProgress {
-        percent: 100.0, speed: String::new(), eta: String::new(), done: true,
-    });
+    let _ = app.emit(
+        "ytdlp-audio-progress",
+        YtdlpAudioProgress {
+            percent: 100.0,
+            speed: String::new(),
+            eta: String::new(),
+            done: true,
+        },
+    );
 
     Ok(file_path.to_string_lossy().to_string())
 }
 
 #[tauri::command]
 pub fn cancel_ytdlp_load(ytdlp_state: tauri::State<'_, YtdlpState>) {
-    ytdlp_state.cancel_flag.store(true, Ordering::Relaxed);
+    ytdlp_state.cancel_active();
 }
 
 #[cfg(test)]
@@ -362,5 +541,37 @@ mod tests {
         assert!(parse_ytdlp_progress("[info] Downloading webpage").is_none());
         assert!(parse_ytdlp_progress("just some text").is_none());
         assert!(parse_ytdlp_progress("[download] Destination: out.mp3").is_none());
+    }
+
+    #[test]
+    fn a_new_download_does_not_clear_an_older_runs_cancel_request() {
+        let state = YtdlpState::default();
+        let first_run_flag = state.start_run().expect("first run should start");
+        first_run_flag.store(true, Ordering::Relaxed);
+        state.finish_run(&first_run_flag);
+
+        // A second run gets its own cancellation flag instead of resetting the first one.
+        let second_run_flag = state
+            .start_run()
+            .expect("second run should start after first finishes");
+
+        assert!(first_run_flag.load(Ordering::Relaxed));
+        assert!(!second_run_flag.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn a_second_download_cannot_start_until_the_active_child_is_reaped() {
+        let state = YtdlpState::default();
+        let first_run_flag = state.start_run().expect("first run should start");
+        assert!(state.start_run().is_err());
+        state.cancel_active();
+        assert!(first_run_flag.load(Ordering::Relaxed));
+        state.finish_run(&first_run_flag);
+        assert!(state.start_run().is_ok());
+    }
+
+    #[test]
+    fn download_run_ids_are_unique_even_within_one_millisecond() {
+        assert_ne!(next_ytdlp_run_id(), next_ytdlp_run_id());
     }
 }

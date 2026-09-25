@@ -59,6 +59,28 @@ describe("timestamp parsing/formatting", () => {
     expect(formatTimestamp(62.34)).toBe("01:02.34");
     expect(formatTimestamp(5)).toBe("00:05.00");
   });
+
+  it("round-trips line and enhanced syllable timestamps at 100 minutes", () => {
+    const original = docOf([{
+      id: "long",
+      timestamp: 6000,
+      text: "long",
+      syllables: [
+        { text: "lo", time: 6000 },
+        { text: "ng", time: 6000.25 },
+      ],
+    }]);
+
+    const serialized = serializeLrc(original, true);
+    const parsed = parseLrc(serialized);
+
+    expect(serialized).toContain("[100:00.00]<100:00.00>lo<100:00.25>ng");
+    expect(parsed.lines[0].timestamp).toBe(6000);
+    expect(parsed.lines[0].syllables?.map((s) => [s.text, s.time])).toEqual([
+      ["lo", 6000],
+      ["ng", 6000.25],
+    ]);
+  });
 });
 
 describe("parseLrc — line level", () => {

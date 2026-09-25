@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 // zustand persist(useSettingsStore/useI18nStore/useLrcStore 등)용 최소 localStorage 폴리필
@@ -57,6 +57,7 @@ const resetLrc = (overrides: Partial<ReturnType<typeof useLrcStore.getState>> = 
     audioPath: null,
     lrcPath: null,
     isDirty: false,
+    syncMode: "line",
     _history: [],
     _future: [],
     ...overrides,
@@ -155,5 +156,42 @@ describe("App — drag-and-drop conflict resolution", () => {
 
     await user.click(screen.getByText("교체"));
     expect(loadLyricsPathSpy).toHaveBeenCalledWith("/music/new.lrc");
+  });
+
+  it("does not intercept Space on a focused button as a stamp shortcut", async () => {
+    const stampSpy = vi.spyOn(useLrcStore.getState(), "stampAndAdvance");
+    render(<><App /><button>focus target</button></>);
+
+    const button = screen.getByRole("button", { name: "focus target" });
+    button.focus();
+    const event = new KeyboardEvent("keydown", { code: "Space", key: " ", bubbles: true, cancelable: true });
+    button.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(stampSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not move to the previous line when Backspace is pressed on a select", async () => {
+    const previousSpy = vi.spyOn(useLrcStore.getState(), "goToPreviousLine");
+    render(<><App /><select aria-label="focus target"><option>one</option></select></>);
+
+    const select = screen.getByRole("combobox", { name: "focus target" });
+    select.focus();
+    const event = new KeyboardEvent("keydown", { code: "Backspace", key: "Backspace", bubbles: true, cancelable: true });
+    select.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(previousSpy).not.toHaveBeenCalled();
+  });
+
+  it("keeps Space stamping available from the non-interactive editor surface", async () => {
+    const stampSpy = vi.spyOn(useLrcStore.getState(), "stampAndAdvance");
+    render(<><App /><div data-testid="editor-surface" tabIndex={0}>editor</div></>);
+
+    const surface = screen.getByTestId("editor-surface");
+    surface.focus();
+    fireEvent.keyDown(surface, { code: "Space", key: " " });
+
+    expect(stampSpy).toHaveBeenCalledTimes(1);
   });
 });

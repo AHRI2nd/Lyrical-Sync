@@ -1,4 +1,5 @@
 import { LrcDocument, defaultDocument } from "../types/lrc";
+import { nextCueEnd } from "./exportFormats";
 
 // SubRip 시간 형식: HH:MM:SS,mmm
 function formatSrtTime(seconds: number): string {
@@ -45,15 +46,7 @@ export function serializeSrt(doc: LrcDocument, lastCueEnd?: number): string {
     const line = timed[i];
     if (line.text.trim() === "") continue; // 빈 줄 = 경계 전용
     const start = line.timestamp as number;
-    const next = timed[i + 1];
-    let end: number;
-    if (next) {
-      end = next.timestamp as number;
-    } else if (lastCueEnd !== undefined && lastCueEnd > start) {
-      end = lastCueEnd;
-    } else {
-      end = start + 4;
-    }
+    const end = nextCueEnd(timed, i, start, lastCueEnd);
     cues.push({ start, end, text: line.text, translation: line.translation });
   }
 

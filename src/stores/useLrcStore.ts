@@ -147,6 +147,35 @@ const MAX_HISTORY = 50;
 let aiRunId = 0;
 
 export const useLrcStore = create<LrcStore>((set, get) => {
+  let documentSessionId = 0;
+  let lyricLoadGeneration = 0;
+  let saveAsGeneration = 0;
+  let lrcWriteActive = false;
+  const lrcWriteQueue: (() => void)[] = [];
+
+  const writeLrcFile = (path: string, content: string) => new Promise<void>((resolve, reject) => {
+    const start = () => {
+      lrcWriteActive = true;
+      let write: Promise<void>;
+      try {
+        write = invoke<void>("write_lrc_file", { path, content });
+      } catch (error) {
+        write = Promise.reject(error);
+      }
+      const finish = () => {
+        lrcWriteActive = false;
+        lrcWriteQueue.shift()?.();
+      };
+      write.then(resolve, reject).then(finish, finish);
+    };
+    if (lrcWriteActive) lrcWriteQueue.push(start);
+    else start();
+  });
+
+  const beginDocumentSession = () => {
+    documentSessionId += 1;
+  };
+
   const resetAiState = () => ({
     aiSyncStatus: "idle" as const,
     aiSyncMessage: "",
@@ -543,6 +572,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
 
   loadFromRawText: (raw) => {
     pushHistory("loadDoc");
+    beginDocumentSession();
     const parsed = parseLrc(raw);
     let id = nextId;
     parsed.lines = parsed.lines.map((l) => ({ ...l, id: String(id++) }));
@@ -552,6 +582,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
   },
 
   restoreDoc: (doc, lrcPath, audioPath) => {
+    beginDocumentSession();
     // 줄 id를 새로 부여해 nextId 카운터와 충돌 없게 함
     let id = 1;
     const lines = doc.lines.map((l) => ({ ...l, id: String(id++) }));
@@ -596,7 +627,8 @@ export const useLrcStore = create<LrcStore>((set, get) => {
   },
 
   setAudioPath: (path) => {
-    set({ audioPath: path });
+    if (get().audioPath === path) set({ audioPath: path });
+    else set({ audioPath: path, ...invalidateAiRun() });
     if (path) useSettingsStore.getState().addRecentFile({ audioPath: path, lrcPath: get().lrcPath });
   },
 
@@ -610,13 +642,16 @@ export const useLrcStore = create<LrcStore>((set, get) => {
 
   // 경로로 가사 로드 (확장자로 LRC/SRT 분기). 다이얼로그/드래그앤드롭 공용.
   loadLyricsPath: async (path) => {
+    const requestId = ++lyricLoadGeneration;
     const content: string = await invoke("read_lrc_file", { path });
+    if (requestId !== lyricLoadGeneration) return;
     const isSrt = path.split(".").pop()?.toLowerCase() === "srt";
     const doc = isSrt ? parseSrt(content) : parseLrc(content);
     let id = 1;
     doc.lines = doc.lines.map((l) => ({ ...l, id: String(id++) }));
     nextId = id;
     const firstId = doc.lines[0]?.id ?? null;
+    beginDocumentSession();
     set({ doc, lrcPath: path, isDirty: false, activeLineId: firstId, loopLineId: null, _history: [], _future: [], _lastEditKey: null, ...invalidateAiRun() });
     useSettingsStore.getState().addRecentFile({ lrcPath: path, audioPath: get().audioPath });
   },
@@ -625,6 +660,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
   // 이미 입력된 title/artist/album은 그대로 두고, 비어 있는 필드만 결과로 채운다.
   // (by/offset도 보존). 로컬 파일 무관 → lrcPath 비움.
   applyFetchedLyrics: (lrcText, meta) => {
+    beginDocumentSession();
     const parsed = parseLrc(lrcText);
     let id = 1;
     parsed.lines = parsed.lines.map((l) => ({ ...l, id: String(id++) }));
@@ -664,13 +700,19 @@ export const useLrcStore = create<LrcStore>((set, get) => {
   saveLrc: async () => {
     const { lrcPath, doc, duration } = get();
     if (!lrcPath) return get().saveLrcAs("lrc");
-    await invoke("write_lrc_file", { path: lrcPath, content: serializeForPath(lrcPath, doc, duration) });
-    set({ isDirty: false });
+    const sessionId = documentSessionId;
+    await writeLrcFile(lrcPath, serializeForPath(lrcPath, doc, duration));
+    const current = get();
+    if (documentSessionId === sessionId && current.doc === doc && current.lrcPath === lrcPath) {
+      set({ isDirty: false });
+    }
     return true;
   },
 
   saveLrcAs: async (format, enhanced) => {
-    const { doc, duration } = get();
+    const { doc, duration, lrcPath: originalPath } = get();
+    const sessionId = documentSessionId;
+    const requestId = ++saveAsGeneration;
     const FILTERS: Record<string, { name: string; extensions: string[] }> = {
       lrc: { name: "LRC", extensions: ["lrc"] },
       srt: { name: "SubRip", extensions: ["srt"] },
@@ -688,16 +730,26 @@ export const useLrcStore = create<LrcStore>((set, get) => {
         : format === "vtt" ? serializeVtt(doc, end)
         : format === "ass" ? serializeAss(doc, end)
         : serializeLrc(doc, enhanced ?? true);
-      await invoke("write_lrc_file", { path, content });
+      await writeLrcFile(path, content);
       // 보조 포맷 저장 시엔 작업 파일 경로(lrcPath)·dirty 상태를 바꾸지 않음
-      if (format === "lrc" || format === "srt") set({ lrcPath: path, isDirty: false });
+      const current = get();
+      if (
+        requestId === saveAsGeneration &&
+        documentSessionId === sessionId &&
+        current.lrcPath === originalPath &&
+        (format === "lrc" || format === "srt")
+      ) {
+        set({ lrcPath: path, ...(current.doc === doc ? { isDirty: false } : {}) });
+      }
       return true;
     }
     return false; // 사용자가 저장 다이얼로그 취소
   },
 
-  newLrc: () =>
-    set({ doc: defaultDocument(), lrcPath: null, isDirty: false, activeLineId: null, loopLineId: null, _history: [], _future: [], _lastEditKey: null, ...invalidateAiRun() }),
+  newLrc: () => {
+    beginDocumentSession();
+    set({ doc: defaultDocument(), lrcPath: null, isDirty: false, activeLineId: null, loopLineId: null, _history: [], _future: [], _lastEditKey: null, ...invalidateAiRun() });
+  },
 
   shiftTimeRange: (fromIdx, toIdx, deltaSeconds) => {
     if (deltaSeconds === 0) return;

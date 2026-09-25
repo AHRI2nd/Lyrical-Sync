@@ -22,6 +22,7 @@ import { useLrcStore } from "./useLrcStore";
 import type { LrcLine, LrcDocument } from "../types/lrc";
 import { saveRecoverySnapshot, loadRecoverySnapshot, clearRecoverySnapshot } from "../utils/recovery";
 import { invoke } from "@tauri-apps/api/core";
+import { save } from "@tauri-apps/plugin-dialog";
 
 const reset = (lines: LrcLine[], offset = 0) =>
   useLrcStore.setState({
@@ -493,5 +494,203 @@ describe("useLrcStore — runAiSync blank-line timestamp placement", () => {
     expect(lines()).toEqual([]);
     expect(useLrcStore.getState().aiSyncStatus).toBe("idle");
     expect(useLrcStore.getState().aiDraftConfidence).toBeNull();
+  });
+});
+
+describe("useLrcStore — save completion races", () => {
+  beforeEach(() => {
+    reset([{ id: "1", timestamp: 1, text: "before save" }]);
+    vi.mocked(invoke).mockReset();
+    useLrcStore.setState({ lrcPath: "/tmp/song.lrc", isDirty: true });
+  });
+
+  it("keeps edits made during a pending save dirty", async () => {
+    let resolveWrite!: (value: undefined) => void;
+    let savedContent = "";
+    vi.mocked(invoke).mockImplementation((_command: unknown, args?: unknown) => {
+      savedContent = (args as { content: string }).content;
+      return new Promise<undefined>((resolve) => { resolveWrite = resolve; });
+    });
+
+    const saving = useLrcStore.getState().saveLrc();
+    await Promise.resolve();
+    useLrcStore.getState().updateLine("1", { text: "edited while saving" });
+    resolveWrite(undefined);
+    await saving;
+
+    expect(savedContent).toContain("before save");
+    expect(savedContent).not.toContain("edited while saving");
+    expect(lines()[0].text).toBe("edited while saving");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
+  it("serializes overlapping saves to the same document so older content cannot finish last", async () => {
+    const writes: { content: string; resolve: () => void }[] = [];
+    let persistedContent = "";
+    vi.mocked(invoke).mockImplementation((_command: unknown, args?: unknown) =>
+      new Promise<undefined>((resolve) => {
+        const content = (args as { content: string }).content;
+        writes.push({
+          content,
+          resolve: () => {
+            persistedContent = content;
+            resolve(undefined);
+          },
+        });
+      }),
+    );
+
+    const firstSave = useLrcStore.getState().saveLrc();
+    await Promise.resolve();
+    useLrcStore.getState().updateLine("1", { text: "latest text" });
+    const secondSave = useLrcStore.getState().saveLrc();
+    await Promise.resolve();
+
+    expect(writes).toHaveLength(1);
+    writes[0].resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(writes).toHaveLength(2);
+    writes[1].resolve();
+    await Promise.all([firstSave, secondSave]);
+
+    expect(persistedContent).toContain("latest text");
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
+  it("does not let an old save clear the dirty state of a newly loaded document", async () => {
+    let resolveWrite!: (value: undefined) => void;
+    vi.mocked(invoke).mockImplementation((command: unknown) => {
+      if (command === "write_lrc_file") {
+        return new Promise<undefined>((resolve) => { resolveWrite = resolve; });
+      }
+      if (command === "read_lrc_file") return Promise.resolve("[ti:new song]\n[00:03.00]new text");
+      return Promise.resolve(undefined);
+    });
+
+    const saving = useLrcStore.getState().saveLrc();
+    await Promise.resolve();
+    await useLrcStore.getState().loadLyricsPath("/tmp/new-song.lrc");
+    useLrcStore.getState().updateLine("1", { text: "new text edited" });
+    resolveWrite(undefined);
+    await saving;
+
+    expect(useLrcStore.getState().lrcPath).toBe("/tmp/new-song.lrc");
+    expect(lines()[0].text).toBe("new text edited");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
+  it("does not assign Save As path to a different document opened while the dialog is pending", async () => {
+    let resolveDialog!: (path: string | null) => void;
+    vi.mocked(save).mockImplementation(() => new Promise((resolve) => { resolveDialog = resolve; }));
+    vi.mocked(invoke).mockResolvedValue(undefined);
+
+    const saving = useLrcStore.getState().saveLrcAs("lrc");
+    await Promise.resolve();
+    useLrcStore.getState().newLrc();
+    useLrcStore.getState().addLine("new document");
+    resolveDialog("/tmp/old-document.lrc");
+    await saving;
+
+    expect(useLrcStore.getState().lrcPath).toBeNull();
+    expect(lines()[0].text).toBe("new document");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
+  it("keeps same-document edits dirty after Save As while adopting the selected path", async () => {
+    vi.mocked(save).mockResolvedValue("/tmp/saved.lrc");
+    let resolveWrite!: (value: undefined) => void;
+    vi.mocked(invoke).mockImplementation(() => new Promise<undefined>((resolve) => { resolveWrite = resolve; }));
+
+    const saving = useLrcStore.getState().saveLrcAs("lrc");
+    await Promise.resolve();
+    useLrcStore.getState().updateLine("1", { text: "edited during Save As" });
+    resolveWrite(undefined);
+    await saving;
+
+    expect(useLrcStore.getState().lrcPath).toBe("/tmp/saved.lrc");
+    expect(lines()[0].text).toBe("edited during Save As");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+});
+
+describe("useLrcStore — concurrent lyric loads", () => {
+  beforeEach(() => {
+    reset([{ id: "existing", timestamp: 1, text: "existing" }]);
+    useLrcStore.setState({ lrcPath: null });
+    vi.mocked(invoke).mockReset();
+  });
+
+  it("keeps the latest selected file when reads resolve out of order", async () => {
+    let resolveOld!: (value: string) => void;
+    let resolveNew!: (value: string) => void;
+    vi.mocked(invoke).mockImplementation((_command: unknown, args?: unknown) => {
+      const path = (args as { path: string }).path;
+      return new Promise<string>((resolve) => {
+        if (path === "/tmp/old.lrc") resolveOld = resolve;
+        else resolveNew = resolve;
+      });
+    });
+
+    const oldLoad = useLrcStore.getState().loadLyricsPath("/tmp/old.lrc");
+    const newLoad = useLrcStore.getState().loadLyricsPath("/tmp/new.lrc");
+    resolveNew("[00:02.00]new selection");
+    await newLoad;
+    resolveOld("[00:01.00]old selection");
+    await oldLoad;
+
+    expect(useLrcStore.getState().lrcPath).toBe("/tmp/new.lrc");
+    expect(lines().map((line) => line.text)).toEqual(["new selection"]);
+  });
+
+  it("does not apply an older pending file after the newest selected file fails", async () => {
+    let resolveOld!: (value: string) => void;
+    vi.mocked(invoke).mockImplementation((_command: unknown, args?: unknown) => {
+      const path = (args as { path: string }).path;
+      if (path === "/tmp/old.lrc") return new Promise<string>((resolve) => { resolveOld = resolve; });
+      return Promise.reject(new Error("read failed"));
+    });
+
+    const oldLoad = useLrcStore.getState().loadLyricsPath("/tmp/old.lrc");
+    await expect(useLrcStore.getState().loadLyricsPath("/tmp/newest.lrc")).rejects.toThrow("read failed");
+    resolveOld("[00:01.00]stale selection");
+    await oldLoad;
+
+    expect(useLrcStore.getState().lrcPath).toBeNull();
+    expect(lines().map((line) => line.text)).toEqual(["existing"]);
+  });
+});
+
+describe("useLrcStore — audio changes during alignment", () => {
+  beforeEach(() => {
+    reset([{ id: "1", timestamp: null, text: "lyrics" }]);
+    vi.mocked(invoke).mockReset();
+    useLrcStore.setState({ audioPath: "/tmp/first.mp3" });
+  });
+
+  it("discards alignment results started for the previously selected audio", async () => {
+    let resolveAlignment!: (value: string) => void;
+    vi.mocked(invoke).mockImplementation((command: unknown) => {
+      if (command === "run_alignment") return new Promise<string>((resolve) => { resolveAlignment = resolve; });
+      return Promise.resolve(undefined);
+    });
+
+    const running = useLrcStore.getState().runAiSync("ko", 1, false, false);
+    await Promise.resolve();
+    await Promise.resolve();
+    useLrcStore.getState().setAudioPath("/tmp/second.mp3");
+    resolveAlignment(JSON.stringify({
+      lines: [{ index: 0, start: 10, end: 11, confidence: 0.99 }],
+      vocal_segments: [],
+      separated: false,
+    }));
+    await running;
+
+    expect(useLrcStore.getState().audioPath).toBe("/tmp/second.mp3");
+    expect(lines()[0].timestamp).toBeNull();
+    expect(useLrcStore.getState().aiSyncStatus).toBe("idle");
+    expect(useLrcStore.getState().aiDraftConfidence).toBeNull();
+    expect(useLrcStore.getState()._history).toHaveLength(0);
+    expect(useLrcStore.getState().isDirty).toBe(false);
   });
 });

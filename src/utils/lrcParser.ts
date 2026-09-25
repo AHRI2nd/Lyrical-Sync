@@ -35,10 +35,10 @@ const META_TAGS: Record<string, keyof LrcMetadata> = {
 const META_RE = /^\[(\w+):([^\]]*)\]$/;
 // 줄 맨 앞의 타임스탬프 토큰: [mm:ss.xx] / [mm:ss.xxx] / [mm:ss] (센티초 선택)
 // 한 줄에 여러 토큰이 올 수 있음 (후렴 반복: [t1][t2]가사)
-const TS_TOKEN_RE = /^\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\]/;
+const TS_TOKEN_RE = /^\[(\d+):(\d{2})(?:\.(\d{1,3}))?\]/;
 
 // Enhanced LRC 인라인 단어 타임스탬프 <mm:ss.xx>
-const INLINE_TS_RE = /<(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?>/g;
+const INLINE_TS_RE = /<(\d+):(\d{2})(?:\.(\d{1,3}))?>/g;
 
 // 줄 텍스트(앞쪽 [..] 제거 후) 안의 <mm:ss.xx> 인라인 태그를 파싱해 토큰 배열로.
 // 인라인 태그가 없으면 null.

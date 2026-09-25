@@ -18,7 +18,7 @@ import { deviceControls } from "./utils/deviceControls";
 import { useDeviceStore } from "./stores/useDeviceStore";
 import { anyModalOpen } from "./utils/modalGuard";
 import { safeUnlisten } from "./utils/safeUnlisten";
-import { matchAction, normalizeKeybindings, PLAYBACK_ACTIONS } from "./utils/keybindings";
+import { isInteractiveKeyTarget, matchAction, normalizeKeybindings, PLAYBACK_ACTIONS } from "./utils/keybindings";
 import { toast } from "./stores/useToastStore";
 import { ToastContainer } from "./components/Toast/ToastContainer";
 import { type RecoverySnapshot, loadRecoverySnapshot, saveRecoverySnapshot, clearRecoverySnapshot } from "./utils/recovery";
@@ -67,14 +67,13 @@ function useGlobalKeys() {
     const controls = deviceModeForKeys ? deviceControls : isServiceMode ? serviceControls : audioControls;
     const kb = normalizeKeybindings(keybindings);
     const handler = (e: KeyboardEvent) => {
-      const inInput =
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement;
+      const inInteractiveControl =
+        isInteractiveKeyTarget(e.target) || isInteractiveKeyTarget(document.activeElement);
 
       // Cmd/Ctrl+Z 실행취소/다시실행 (재설정 불가, 예약)
       const isMod = e.ctrlKey || e.metaKey;
       if (isMod && e.code === "KeyZ") {
-        if (inInput || anyModalOpen()) return;
+        if (inInteractiveControl || anyModalOpen()) return;
         e.preventDefault();
         if (e.shiftKey) redo();
         else undo();
@@ -84,7 +83,7 @@ function useGlobalKeys() {
       if (e.ctrlKey || e.altKey || e.metaKey) return;
 
       const action = matchAction(e.code, kb);
-      if (!action || inInput) return;
+      if (!action || inInteractiveControl) return;
 
       // 재생 트랜스포트: 줄/글자 모드 공통(모달 열려도 미디어 제어 허용)
       if (PLAYBACK_ACTIONS.includes(action)) {

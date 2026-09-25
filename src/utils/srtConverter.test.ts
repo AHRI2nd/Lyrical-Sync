@@ -60,6 +60,28 @@ describe("serializeSrt", () => {
     expect(out).toContain("00:00:03,000 --> 00:00:10,000"); // last uses lastCueEnd
   });
 
+  it("gives equal-start cues the next strictly later timestamp", () => {
+    const out = serializeSrt(docOf([
+      { id: "1", timestamp: 1, text: "first simultaneous line" },
+      { id: "2", timestamp: 1, text: "second simultaneous line" },
+      { id: "3", timestamp: 4, text: "later line" },
+    ]), 8);
+
+    expect(out.match(/00:00:01,000 --> 00:00:04,000/g)).toHaveLength(2);
+    expect(out).toContain("first simultaneous line");
+    expect(out).toContain("second simultaneous line");
+    expect(out).toContain("00:00:04,000 --> 00:00:08,000");
+  });
+
+  it("uses the final boundary for all cues with an equal final start", () => {
+    const out = serializeSrt(docOf([
+      { id: "1", timestamp: 5, text: "last one" },
+      { id: "2", timestamp: 5, text: "last two" },
+    ]), 9);
+
+    expect(out.match(/00:00:05,000 --> 00:00:09,000/g)).toHaveLength(2);
+  });
+
   it("blank lines act as a boundary, not a cue", () => {
     const out = serializeSrt(
       docOf([
