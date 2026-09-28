@@ -7,7 +7,7 @@ A desktop app for creating, syncing, and editing `.lrc` (LRC) lyric files
 ![main](img/main_en.png)
 
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
-![Version](https://img.shields.io/badge/version-0.5.1-green)
+![Next release version](https://img.shields.io/badge/next%20release-0.6.2-green)
 ![Tauri](https://img.shields.io/badge/Tauri-v2-24C8D8)
 ![React](https://img.shields.io/badge/React-19-61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6)
@@ -110,16 +110,20 @@ Default bindings — all of these can be remapped in **Settings → Shortcuts**.
 
 | Role | Technology | Version |
 |------|-----------|---------|
-| Desktop framework | Tauri | v2 |
-| Frontend | React + TypeScript | React 19, TS 5.8 |
-| Styling | Tailwind CSS + @tailwindcss/vite | v4 |
-| State management | Zustand | v5 |
-| Waveform | Wavesurfer.js | v7 |
-| AI alignment | ctc-forced-aligner + MMS-300M | — |
-| Vocal separation | Demucs htdemucs | — |
-| Audio tags / transcode | lofty + Symphonia (Rust) | — |
-| File I/O | @tauri-apps/plugin-fs | v2 |
-| Dialogs | @tauri-apps/plugin-dialog | v2 |
+| Desktop framework | Tauri | 2.11.0 (CLI 2.11.4) |
+| Frontend | React + TypeScript | 19.2.7, 5.8.3 |
+| Styling | Tailwind CSS + @tailwindcss/vite | 4.3.2 |
+| State management | Zustand | 5.0.14 |
+| Waveform | Wavesurfer.js | 7.12.10 |
+| AI runtime | Embedded Python | 3.11.10 (build 20241016) |
+| AI alignment | ctc-forced-aligner + MMS-300M | `<2` (pip range); Hugging Face `main` (unpinned) |
+| Vocal separation | Demucs + htdemucs checkpoint | Demucs unpinned; checkpoint SHA-256 `8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4` |
+| Audio tags / transcode | lofty + Symphonia (Rust) | 0.22.4, 0.5.5 |
+| File I/O / dialogs | Tauri fs / dialog plugins | 2.5.1, 2.7.1 |
+| YouTube downloader | yt-dlp | Latest GitHub release at runtime |
+| macOS media adapter | mediaremote-adapter | Vendored commit `3ac3d4bdf862c7b5399b4fba4df5689f5c38609a` |
+
+The badge shows the next release version prepared on `dev-next`; it becomes the public release when merged into `main`. Exact JavaScript and Rust dependency versions are taken from `package-lock.json` and `src-tauri/Cargo.lock`. AI package and resource policies match the code: the aligner and Demucs Python packages are not locked to exact releases, the MMS model uses the mutable Hugging Face `main` branch, and yt-dlp follows the latest release. The Demucs checkpoint is SHA-256 verified.
 
 ---
 

@@ -1,21 +1,10 @@
+import { memo } from "react";
 import { type LrcLine } from "../../types/lrc";
 import { type Translations } from "../../i18n/translations";
 import { formatDisplayTime } from "../../utils/lrcParser";
 import { LoopIcon } from "../AudioPlayer/icons";
 
-// LrcEditor 줄 하나의 렌더링: 드래그 재정렬 핸들·순번·타임스탬프(인라인 편집)·줄 반복
-// 토글·글자 동기화 배지·경고 아이콘·텍스트 입력·병합/복제/삭제 버튼.
-// 상호작용 상태(드래그·타임스탬프 편집 등)는 LrcEditor가 소유하고 이벤트 핸들러로 전달 —
-// 이 컴포넌트는 순수 렌더링(+ line 자체에서 파생되는 hasGlyphSync/tsClass만 내부 계산).
-export function LrcLineRow({
-  t, line, idx, isActive, isSelected, confidence, isMatch, isCurrentMatch, warning,
-  loopLineId, lyricsFontScale,
-  dragIdx, dragOverIdx, onDragStart, onDragEnd, onDragOver, onDrop,
-  editingTsId, editTsValue, onEditTsChange, onStartTsEdit, onCommitTsEdit, onCancelTsEdit, onStampCurrentLine,
-  onRowClick, onToggleLoop, onTextChange, onKeyDown, onPaste, onFocus,
-  onMergeUp, onDuplicate, onDelete,
-  inputRef, rowRef,
-}: {
+interface LrcLineRowProps {
   t: Translations;
   line: LrcLine;
   idx: number;
@@ -27,13 +16,15 @@ export function LrcLineRow({
   warning: "duplicate" | "outOfOrder" | undefined;
   loopLineId: string | null;
   lyricsFontScale: number;
+  showSpellCheck: boolean;
+  showTranslationLines: boolean;
+  /** onToggleLoop 클로저가 재생 대상(오디오/서비스)을 고르는 데만 쓰임 — 리렌더 비교용 */
+  serviceActive: boolean;
 
   dragIdx: number | null;
-  dragOverIdx: number | null;
-  onDragStart: (e: React.DragEvent<HTMLSpanElement>) => void;
-  onDragEnd: () => void;
-  onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
-  onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
+  showInsertionBefore: boolean;
+  showInsertionAfter: boolean;
+  onReorderPointerDown: (e: React.PointerEvent<HTMLSpanElement>) => void;
 
   editingTsId: string | null;
   editTsValue: string;
@@ -43,9 +34,11 @@ export function LrcLineRow({
   onCancelTsEdit: () => void;
   onStampCurrentLine: () => void;
 
-  onRowClick: (e: React.MouseEvent) => void;
+  // LrcEditor가 useCallback으로 고정한 단일 참조 — 이 줄은 자신의 id/idx를 실어 호출한다
+  onRowClick: (e: React.MouseEvent, id: string, idx: number) => void;
   onToggleLoop: (e: React.MouseEvent) => void;
   onTextChange: (value: string) => void;
+  onTranslationChange: (value: string) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   onPaste: (e: React.ClipboardEvent<HTMLInputElement>) => void;
   onFocus: () => void;
@@ -55,7 +48,21 @@ export function LrcLineRow({
 
   inputRef: (el: HTMLInputElement | null) => void;
   rowRef: (el: HTMLDivElement | null) => void;
-}) {
+}
+
+// LrcEditor 줄 하나의 렌더링: 드래그 재정렬 핸들·순번·타임스탬프(인라인 편집)·줄 반복
+// 토글·글자 동기화 배지·경고 아이콘·텍스트 입력·병합/복제/삭제 버튼.
+// 상호작용 상태(드래그·타임스탬프 편집 등)는 LrcEditor가 소유하고 이벤트 핸들러로 전달 —
+// 이 컴포넌트는 순수 렌더링(+ line 자체에서 파생되는 hasGlyphSync/tsClass만 내부 계산).
+function LrcLineRowImpl({
+  t, line, idx, isActive, isSelected, confidence, isMatch, isCurrentMatch, warning,
+  loopLineId, lyricsFontScale, showSpellCheck, showTranslationLines,
+  dragIdx, showInsertionBefore, showInsertionAfter, onReorderPointerDown,
+  editingTsId, editTsValue, onEditTsChange, onStartTsEdit, onCommitTsEdit, onCancelTsEdit, onStampCurrentLine,
+  onRowClick, onToggleLoop, onTextChange, onTranslationChange, onKeyDown, onPaste, onFocus,
+  onMergeUp, onDuplicate, onDelete,
+  inputRef, rowRef,
+}: LrcLineRowProps) {
   const hasGlyphSync = !!line.syllables?.some((s) => s.time !== null);
 
   // Timestamp button colour varies by AI confidence
@@ -70,15 +77,13 @@ export function LrcLineRow({
     : "bg-zinc-800 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300";
 
   return (
+    <>
     <div
       ref={rowRef}
-      onClick={onRowClick}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-      className={`group/row flex items-center gap-2 rounded-lg px-2 py-1 transition-colors cursor-pointer ${
-        dragIdx !== null && dragOverIdx === idx && dragIdx !== idx
-          ? "outline outline-1 outline-indigo-400 bg-indigo-900/10"
-          : isSelected
+      data-line-id={line.id}
+      onClick={(e) => onRowClick(e, line.id, idx)}
+      className={`group/row relative flex items-center gap-2 rounded-lg px-2 py-1 transition-colors cursor-pointer ${
+        isSelected
           ? "bg-sky-900/30 ring-1 ring-sky-600/60"
           : isCurrentMatch
           ? "bg-amber-900/30 ring-1 ring-amber-500"
@@ -86,16 +91,22 @@ export function LrcLineRow({
           ? "bg-indigo-900/40 ring-1 ring-indigo-500"
           : isMatch
           ? "bg-amber-900/10 ring-1 ring-amber-800"
-          : "hover:bg-zinc-800"
+          : dragIdx === null ? "hover:bg-zinc-800" : ""
       } ${dragIdx === idx ? "opacity-40" : ""}`}
     >
+      {(showInsertionBefore || showInsertionAfter) && (
+        <div
+          data-testid="line-insertion-marker"
+          data-placement={showInsertionBefore ? "before" : "after"}
+          className={`pointer-events-none absolute z-10 left-2 right-2 h-0.5 rounded-full bg-indigo-400 shadow-[0_0_6px_rgba(129,140,248,0.8)] ${showInsertionBefore ? "-top-1" : "-bottom-1"}`}
+        />
+      )}
       <span
-        draggable
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
+        draggable={false}
+        onPointerDown={onReorderPointerDown}
         onClick={(e) => e.stopPropagation()}
         title={t.reorderLine}
-        className="shrink-0 cursor-grab active:cursor-grabbing text-zinc-600 hover:text-zinc-300 opacity-0 group-hover/row:opacity-100 transition-opacity"
+        className="w-6 h-7 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing select-none touch-none text-zinc-600 hover:text-zinc-300 opacity-0 group-hover/row:opacity-100 transition-opacity"
       >
         <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true">
           <circle cx="2.5" cy="2" r="1.2" /><circle cx="7.5" cy="2" r="1.2" />
@@ -182,6 +193,7 @@ export function LrcLineRow({
         onKeyDown={onKeyDown}
         onFocus={onFocus}
         onPaste={onPaste}
+        spellCheck={showSpellCheck}
         className="flex-1 bg-transparent text-white text-sm placeholder-zinc-600 focus:outline-none"
         style={{ fontSize: `${0.875 * lyricsFontScale}rem` }}
         placeholder={t.linePlaceholder}
@@ -217,5 +229,55 @@ export function LrcLineRow({
         ✕
       </button>
     </div>
+    {showTranslationLines && (
+      <div className="flex items-center pl-11 pr-2 -mt-0.5 pb-0.5">
+        <input
+          type="text"
+          value={line.translation ?? ""}
+          onChange={(e) => onTranslationChange(e.target.value)}
+          placeholder={t.translationPlaceholder}
+          spellCheck={showSpellCheck}
+          className="flex-1 bg-transparent text-indigo-300/70 text-xs italic placeholder-zinc-700 focus:outline-none"
+        />
+      </div>
+    )}
+    </>
   );
 }
+
+// 문서 편집 중 매 키 입력마다 부모(LrcEditor)가 전체를 리렌더하므로, 건드리지 않은 줄까지
+// 매번 다시 그리는 걸 막기 위해 React.memo로 감싼다. 이벤트 핸들러 prop들은 의도적으로
+// 비교에서 제외한다 — 전부 line.id/idx처럼 여기서 비교하는 값만 캡처하도록 확인된
+// 상태이므로(LrcEditor.tsx의 handleRowClick만 예외라 useCallback으로 참조를 고정해뒀다),
+// 매 렌더 새로 만들어지는 인라인 클로저의 "참조가 달라짐"을 리렌더 사유로 치지 않아도 안전하다.
+// editTsValue만 예외: 이 줄이 타임스탬프 인라인 편집 대상일 때만 비교한다 — 그렇지 않으면
+// 다른 줄의 타임스탬프를 편집하는 매 키 입력마다 모든 줄이 다시 렌더되는 문제가 되풀이된다.
+function areEqual(prev: LrcLineRowProps, next: LrcLineRowProps): boolean {
+  if (
+    prev.t !== next.t ||
+    prev.line !== next.line ||
+    prev.idx !== next.idx ||
+    prev.isActive !== next.isActive ||
+    prev.isSelected !== next.isSelected ||
+    prev.confidence !== next.confidence ||
+    prev.isMatch !== next.isMatch ||
+    prev.isCurrentMatch !== next.isCurrentMatch ||
+    prev.warning !== next.warning ||
+    prev.loopLineId !== next.loopLineId ||
+    prev.lyricsFontScale !== next.lyricsFontScale ||
+    prev.showSpellCheck !== next.showSpellCheck ||
+    prev.showTranslationLines !== next.showTranslationLines ||
+    prev.serviceActive !== next.serviceActive ||
+    prev.dragIdx !== next.dragIdx ||
+    prev.showInsertionBefore !== next.showInsertionBefore ||
+    prev.showInsertionAfter !== next.showInsertionAfter ||
+    prev.editingTsId !== next.editingTsId
+  ) {
+    return false;
+  }
+  const tsEditRelevant = prev.editingTsId === prev.line.id || next.editingTsId === next.line.id;
+  if (tsEditRelevant && prev.editTsValue !== next.editTsValue) return false;
+  return true;
+}
+
+export const LrcLineRow = memo(LrcLineRowImpl, areEqual);

@@ -1,6 +1,5 @@
 import { create } from "zustand";
-import { check, type Update } from "@tauri-apps/plugin-updater";
-import { relaunch } from "@tauri-apps/plugin-process";
+import type { Update } from "@tauri-apps/plugin-updater";
 import { useLrcStore } from "./useLrcStore";
 import { saveRecoverySnapshot } from "../utils/recovery";
 
@@ -32,6 +31,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
   checkForUpdate: async (silent = false) => {
     if (!silent) set({ status: "checking", error: null });
     try {
+      const { check } = await import("@tauri-apps/plugin-updater");
       const update = await check();
       if (update) {
         set({ status: "available", version: update.version, body: update.body ?? null, _update: update });
@@ -83,6 +83,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
         saveRecoverySnapshot(after.doc, after.lrcPath, after.audioPath);
       }
     }
+    const { relaunch } = await import("@tauri-apps/plugin-process");
     await relaunch();
   },
 

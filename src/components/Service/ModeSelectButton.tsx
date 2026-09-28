@@ -7,6 +7,7 @@ import { useServiceStore } from "../../stores/useServiceStore";
 import { useDeviceStore } from "../../stores/useDeviceStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { audioControls } from "../../utils/audioControls";
+import { deviceControls } from "../../utils/deviceControls";
 
 const SUPPORTS_DEVICE_MODE = navigator.platform.startsWith("Win") || navigator.platform.startsWith("Mac");
 
@@ -77,7 +78,8 @@ export function ModeSelectButton() {
 
   // 모드 이탈 시 이전 재생 정지(공통 헬퍼)
   const stopCurrentPlayback = () => {
-    if (spotifyMode && isLoggedIn) pausePlayback();
+    if (deviceMode) deviceControls.stopAndReset();
+    else if (spotifyMode && isLoggedIn) pausePlayback();
     else audioControls.pause();
   };
 
@@ -86,7 +88,7 @@ export function ModeSelectButton() {
     setSpotifyMode(false); setYoutubeMode(false); setDeviceMode(false); setOpen(false);
   };
   const selectSpotify = () => {
-    audioControls.pause();
+    stopCurrentPlayback();
     setSpotifyMode(true); setYoutubeMode(false); setDeviceMode(false); setOpen(false);
   };
   const selectYouTube = () => {

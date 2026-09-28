@@ -19,6 +19,9 @@ export interface LrcLine {
   text: string;
   // 존재하면 Enhanced LRC(글자/단어 동기화) 줄. 없으면 일반 줄 단위.
   syllables?: LrcSyllable[];
+  // 2차(번역) 가사 줄. 표준 LRC엔 없는 개념 — lrcParser가 "같은 타임스탬프 + / 접두사"
+  // 규약으로 직렬화/파싱한다 (parseLrc/serializeLrc 참고).
+  translation?: string;
 }
 
 export interface LrcDocument {

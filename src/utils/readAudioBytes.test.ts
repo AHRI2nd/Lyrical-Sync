@@ -34,29 +34,26 @@ describe("readAudioBytes", () => {
     expect(readFile).toHaveBeenCalledWith("/song.aiff");
   });
 
-  it("transcodes AIFF to WAV on Windows and reads the transcoded path", async () => {
+  it("transcodes AIFF to WAV bytes on Windows without creating a readable temp path", async () => {
     setPlatform("Win32");
-    invoke.mockResolvedValue("/tmp/transcoded.wav");
-    readFile.mockResolvedValue(new Uint8Array([7]));
+    invoke.mockResolvedValue(new Uint8Array([7]).buffer);
     const { bytes, transcoded } = await readAudioBytes("/song.aiff");
     expect(transcoded).toBe(true);
     expect(invoke).toHaveBeenCalledWith("decode_audio_to_wav", { path: "/song.aiff" });
-    expect(readFile).toHaveBeenCalledWith("/tmp/transcoded.wav");
+    expect(readFile).not.toHaveBeenCalled();
     expect(bytes).toEqual(new Uint8Array([7]));
   });
 
   it("recognizes the short .aif extension on Windows too", async () => {
     setPlatform("Win32");
-    invoke.mockResolvedValue("/tmp/transcoded.wav");
-    readFile.mockResolvedValue(new Uint8Array());
+    invoke.mockResolvedValue(new Uint8Array().buffer);
     const { transcoded } = await readAudioBytes("/song.aif");
     expect(transcoded).toBe(true);
   });
 
   it("is case-insensitive about the extension", async () => {
     setPlatform("Win32");
-    invoke.mockResolvedValue("/tmp/transcoded.wav");
-    readFile.mockResolvedValue(new Uint8Array());
+    invoke.mockResolvedValue(new Uint8Array().buffer);
     const { transcoded } = await readAudioBytes("/SONG.AIFF");
     expect(transcoded).toBe(true);
   });
@@ -70,17 +67,15 @@ describe("readAudioBytes", () => {
     expect(bytes).toEqual(new Uint8Array([4, 5, 6]));
   });
 
-  it("falls back to read_audio_file using the transcoded path when that one is out of scope", async () => {
+  it("does not fall back to a temporary file after AIFF transcoding", async () => {
     setPlatform("Win32");
     invoke.mockImplementation((cmd: string) => {
-      if (cmd === "decode_audio_to_wav") return Promise.resolve("/tmp/transcoded.wav");
-      if (cmd === "read_audio_file") return Promise.resolve(new Uint8Array([1]).buffer);
+      if (cmd === "decode_audio_to_wav") return Promise.resolve(new Uint8Array([1]).buffer);
       return Promise.reject(new Error("unexpected"));
     });
-    readFile.mockRejectedValue(new Error("forbidden path"));
     const { bytes, transcoded } = await readAudioBytes("/song.aiff");
     expect(transcoded).toBe(true);
-    expect(invoke).toHaveBeenCalledWith("read_audio_file", { path: "/tmp/transcoded.wav" });
+    expect(invoke).not.toHaveBeenCalledWith("read_audio_file", expect.anything());
     expect(bytes).toEqual(new Uint8Array([1]));
   });
 });

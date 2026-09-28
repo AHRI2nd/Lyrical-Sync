@@ -229,6 +229,10 @@ try:
 
     subdirs = [d for d in os.listdir(extract_dir)
                if os.path.isdir(os.path.join(extract_dir, d))]
+    if not subdirs:
+        sys.stderr.write("[ctc] no source subdirectory found after extraction\n")
+        sys.stderr.flush()
+        sys.exit(1)
     src_dir = os.path.join(extract_dir, subdirs[0])
     sys.stdout.write("[ctc] source extracted to: " + src_dir + "\n")
     sys.stdout.flush()
@@ -376,7 +380,12 @@ pub async fn install_python_packages(app: AppHandle) -> Result<(), String> {
             success: false,
         });
 
-        let script_path = std::env::temp_dir().join("lyrical_sync_ctc_patch.py");
+        let script_path = tempfile::Builder::new()
+            .prefix("lyrical_sync_ctc_patch_")
+            .suffix(".py")
+            .tempfile()
+            .map_err(|e| format!("임시 파일 생성 실패: {e}"))?
+            .into_temp_path();
         tokio::fs::write(&script_path, CTC_PATCH_SCRIPT)
             .await
             .map_err(|e| format!("패치 스크립트 쓰기 실패: {e}"))?;
