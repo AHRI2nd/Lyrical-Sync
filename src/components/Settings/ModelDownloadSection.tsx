@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { safeUnlisten } from "../../utils/safeUnlisten";
+import { listenSafely } from "../../utils/safeListen";
 import { type Translations } from "../../i18n/translations";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { toast } from "../../stores/useToastStore";
@@ -147,9 +147,9 @@ export function ModelDownloadSection() {
 
   useEffect(() => { checkInstalled(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const unlistenRef = useRef<(() => void) | null>(null);
   useEffect(() => {
-    listen<ProgressPayload>("model-download-progress", (event) => {
+    const stopListening = listenSafely((isActive) => listen<ProgressPayload>("model-download-progress", (event) => {
+      if (!isActive()) return;
       const p = event.payload;
       setStates((prev) => {
         const s = prev[p.modelId] ?? {
@@ -196,8 +196,8 @@ export function ModelDownloadSection() {
           },
         };
       });
-    }).then((fn) => { unlistenRef.current = fn; }).catch(() => {});
-    return () => { safeUnlisten(unlistenRef.current); };
+    }));
+    return stopListening;
   }, []);
 
   const handleInstall = async (model: ModelDef) => {

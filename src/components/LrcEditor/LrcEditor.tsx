@@ -9,7 +9,7 @@ import { formatTimestamp, parseTimestampInput, validateTimestamps, type SyncUnit
 import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
 import { MODEL_DEFS } from "../../utils/modelDefs";
-import { safeUnlisten } from "../../utils/safeUnlisten";
+import { listenSafely } from "../../utils/safeListen";
 import { CurrentTimeFooter } from "./CurrentTimeFooter";
 import { MiniConfirm } from "./MiniConfirm";
 import { FindReplaceBar } from "./FindReplaceBar";
@@ -187,17 +187,16 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   useEffect(() => { checkAiRequirements(); }, [checkAiRequirements]);
 
   useEffect(() => {
-    let unlistenModel: (() => void) | null = null;
-    let unlistenPip: (() => void) | null = null;
-    import("@tauri-apps/api/event").then(({ listen }) => {
-      listen<{ done: boolean }>("model-download-progress", (e) => {
-        if (e.payload.done) checkAiRequirements();
-      }).then((fn) => { unlistenModel = fn; }).catch(() => {});
-      listen<{ done: boolean }>("pip-install-progress", (e) => {
-        if (e.payload.done) checkAiRequirements();
-      }).then((fn) => { unlistenPip = fn; }).catch(() => {});
-    });
-    return () => { safeUnlisten(unlistenModel); safeUnlisten(unlistenPip); };
+    let active = true;
+    const register = async (event: string) => {
+      const { listen } = await import("@tauri-apps/api/event");
+      return listen<{ done: boolean }>(event, (e) => {
+        if (active && e.payload.done) checkAiRequirements();
+      });
+    };
+    const stopModel = listenSafely(() => register("model-download-progress"));
+    const stopPip = listenSafely(() => register("pip-install-progress"));
+    return () => { active = false; stopModel(); stopPip(); };
   }, [checkAiRequirements]);
 
   const canRunAi = pythonReady && missingModels.length === 0;
