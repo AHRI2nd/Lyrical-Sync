@@ -7,7 +7,7 @@
 ![main](img/main_ja.png)
 
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
-![Version](https://img.shields.io/badge/version-0.5.1-green)
+![次回リリースバージョン](https://img.shields.io/badge/next%20release-0.6.2-green)
 ![Tauri](https://img.shields.io/badge/Tauri-v2-24C8D8)
 ![React](https://img.shields.io/badge/React-19-61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6)
@@ -110,16 +110,20 @@
 
 | 役割 | 技術 | バージョン |
 |------|------|-----------|
-| デスクトップフレームワーク | Tauri | v2 |
-| フロントエンド | React + TypeScript | React 19, TS 5.8 |
-| スタイリング | Tailwind CSS + @tailwindcss/vite | v4 |
-| 状態管理 | Zustand | v5 |
-| 波形 | Wavesurfer.js | v7 |
-| AI 整列 | ctc-forced-aligner + MMS-300M | — |
-| ボーカル分離 | Demucs htdemucs | — |
-| 音声タグ / トランスコード | lofty + Symphonia (Rust) | — |
-| ファイル I/O | @tauri-apps/plugin-fs | v2 |
-| ダイアログ | @tauri-apps/plugin-dialog | v2 |
+| デスクトップフレームワーク | Tauri | 2.11.0（CLI 2.11.4） |
+| フロントエンド | React + TypeScript | 19.2.7、5.8.3 |
+| スタイリング | Tailwind CSS + @tailwindcss/vite | 4.3.2 |
+| 状態管理 | Zustand | 5.0.14 |
+| 波形 | Wavesurfer.js | 7.12.10 |
+| AI ランタイム | 内蔵 Python | 3.11.10（ビルド 20241016） |
+| AI 整列 | ctc-forced-aligner + MMS-300M | `<2`（pip 範囲）；Hugging Face `main`（バージョン固定なし） |
+| ボーカル分離 | Demucs + htdemucs チェックポイント | Demucs は未固定；チェックポイント SHA-256 `8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4` |
+| 音声タグ / トランスコード | lofty + Symphonia (Rust) | 0.22.4、0.5.5 |
+| ファイル I/O / ダイアログ | Tauri fs / dialog プラグイン | 2.5.1、2.7.1 |
+| YouTube ダウンローダー | yt-dlp | 実行時に GitHub 最新リリースを取得 |
+| macOS メディアアダプター | mediaremote-adapter | ベンダーコミット `3ac3d4bdf862c7b5399b4fba4df5689f5c38609a` |
+
+バッジは `dev-next` で準備中の次回リリースバージョンを示し、`main` にマージされると公開リリースになります。JavaScript と Rust の正確な依存バージョンは `package-lock.json` と `src-tauri/Cargo.lock` に基づいています。AI パッケージとリソースの方針もコード上の指定どおりに記載しています。アライナーと Demucs の Python パッケージは正確なリリースに固定されず、MMS モデルは変更可能な Hugging Face `main` ブランチを使用し、yt-dlp は実行時点の最新リリースを取得します。Demucs のチェックポイントは SHA-256 で検証されます。
 
 ---
 

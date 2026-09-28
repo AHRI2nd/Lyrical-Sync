@@ -7,7 +7,7 @@
 ![main](img/main_ko.png)
 
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
-![Version](https://img.shields.io/badge/version-0.5.1-green)
+![다음 릴리즈 버전](https://img.shields.io/badge/next%20release-0.6.2-green)
 ![Tauri](https://img.shields.io/badge/Tauri-v2-24C8D8)
 ![React](https://img.shields.io/badge/React-19-61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6)
@@ -110,16 +110,20 @@
 
 | 역할 | 기술 | 버전 |
 |------|------|------|
-| 데스크톱 프레임워크 | Tauri | v2 |
-| 프론트엔드 | React + TypeScript | React 19, TS 5.8 |
-| 스타일링 | Tailwind CSS + @tailwindcss/vite | v4 |
-| 상태 관리 | Zustand | v5 |
-| 파형 | Wavesurfer.js | v7 |
-| AI 정렬 | ctc-forced-aligner + MMS-300M | — |
-| 보컬 분리 | Demucs htdemucs | — |
-| 오디오 태그 / 트랜스코딩 | lofty + Symphonia (Rust) | — |
-| 파일 I/O | @tauri-apps/plugin-fs | v2 |
-| 다이얼로그 | @tauri-apps/plugin-dialog | v2 |
+| 데스크톱 프레임워크 | Tauri | 2.11.0 (CLI 2.11.4) |
+| 프론트엔드 | React + TypeScript | 19.2.7, 5.8.3 |
+| 스타일링 | Tailwind CSS + @tailwindcss/vite | 4.3.2 |
+| 상태 관리 | Zustand | 5.0.14 |
+| 파형 | Wavesurfer.js | 7.12.10 |
+| AI 런타임 | 내장 Python | 3.11.10 (빌드 20241016) |
+| AI 정렬 | ctc-forced-aligner + MMS-300M | `<2` (pip 범위); Hugging Face `main` (버전 고정 없음) |
+| 보컬 분리 | Demucs + htdemucs 체크포인트 | Demucs 버전 미고정; 체크포인트 SHA-256 `8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4` |
+| 오디오 태그 / 트랜스코딩 | lofty + Symphonia (Rust) | 0.22.4, 0.5.5 |
+| 파일 I/O / 다이얼로그 | Tauri fs / dialog 플러그인 | 2.5.1, 2.7.1 |
+| YouTube 다운로더 | yt-dlp | 실행 시점 GitHub 최신 릴리즈 |
+| macOS 미디어 어댑터 | mediaremote-adapter | 벤더링 커밋 `3ac3d4bdf862c7b5399b4fba4df5689f5c38609a` |
+
+배지는 `dev-next`에서 준비 중인 다음 릴리즈 버전을 표시하며, `main`에 병합되면 공개 릴리즈됩니다. 정확한 JavaScript 및 Rust 의존성 버전은 `package-lock.json`과 `src-tauri/Cargo.lock` 기준입니다. AI 패키지와 리소스 정책도 코드에 지정된 그대로 표시했습니다. 정렬기와 Demucs Python 패키지는 정확한 릴리즈 버전으로 잠겨 있지 않고, MMS 모델은 변경 가능한 Hugging Face `main` 브랜치를 사용하며, yt-dlp는 실행 시점의 최신 릴리즈를 받습니다. Demucs 체크포인트는 SHA-256으로 검증합니다.
 
 ---
 
