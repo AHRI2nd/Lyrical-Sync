@@ -5,6 +5,11 @@ export interface Translations {
   close: string;
   cancelLabel: string;
   applyLabel: string;
+  translationSplitTitle: string;
+  translationSplitHint: string;
+  translationFirstPart: string;
+  translationSecondPart: string;
+  translationSplitAction: string;
   audioRequired: string;
   // Header
   newFileTitle: string;
@@ -488,6 +493,11 @@ const ko: Translations = {
   close: "닫기",
   cancelLabel: "취소",
   applyLabel: "적용",
+  translationSplitTitle: "번역 줄 나누기",
+  translationSplitHint: "원문을 나눈 위치에 맞게 번역도 앞뒤로 나눠주세요.",
+  translationFirstPart: "앞 줄 번역",
+  translationSecondPart: "뒷 줄 번역",
+  translationSplitAction: "줄 나누기",
   audioRequired: "오디오 파일을 먼저 열어주세요",
   newFileTitle: "새 LRC 파일",
   newFileBtn: "새로 만들기",
@@ -1028,6 +1038,11 @@ const en: Translations = {
   close: "Close",
   cancelLabel: "Cancel",
   applyLabel: "Apply",
+  translationSplitTitle: "Split translation",
+  translationSplitHint: "Adjust the translation split to match the lyric split.",
+  translationFirstPart: "First line translation",
+  translationSecondPart: "Second line translation",
+  translationSplitAction: "Split line",
   audioRequired: "Open an audio file first",
   newFileTitle: "New LRC File",
   newFileBtn: "New",
@@ -1569,6 +1584,11 @@ const ja: Translations = {
   close: "閉じる",
   cancelLabel: "キャンセル",
   applyLabel: "適用",
+  translationSplitTitle: "翻訳を分割",
+  translationSplitHint: "歌詞の分割位置に合わせて翻訳も分けてください。",
+  translationFirstPart: "前の行の翻訳",
+  translationSecondPart: "次の行の翻訳",
+  translationSplitAction: "行を分割",
   audioRequired: "先に音声ファイルを開いてください",
   newFileTitle: "新規LRCファイル",
   newFileBtn: "新規作成",
