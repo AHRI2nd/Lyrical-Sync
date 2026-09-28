@@ -33,6 +33,11 @@ async fn read_audio_file(path: String) -> Result<tauri::ipc::Response, String> {
         .map_err(|e| e.to_string())
 }
 
+fn is_normal_audio_eof(error: &symphonia::core::errors::Error) -> bool {
+    matches!(error, symphonia::core::errors::Error::IoError(err)
+        if err.kind() == std::io::ErrorKind::UnexpectedEof)
+}
+
 /// AIFF 등 WebView2 미지원 포맷을 WAV 바이트로 트랜스코딩합니다.
 #[tauri::command]
 async fn decode_audio_to_wav(path: String) -> Result<tauri::ipc::Response, String> {
@@ -47,66 +52,70 @@ async fn decode_audio_to_wav(path: String) -> Result<tauri::ipc::Response, Strin
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
     let mut hint = Hint::new();
-    if let Some(ext) = std::path::Path::new(&path).extension().and_then(|e| e.to_str()) {
+    if let Some(ext) = std::path::Path::new(&path)
+        .extension()
+        .and_then(|e| e.to_str())
+    {
         hint.with_extension(ext);
     }
 
     let probed = symphonia::default::get_probe()
-        .format(&hint, mss, &FormatOptions::default(), &MetadataOptions::default())
+        .format(
+            &hint,
+            mss,
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        )
         .map_err(|e| format!("지원하지 않는 포맷: {e}"))?;
 
     let mut format = probed.format;
     let track = format.default_track().ok_or("오디오 트랙 없음")?;
     let codec_params = track.codec_params.clone();
     let track_id = track.id;
-
     let sample_rate = codec_params.sample_rate.ok_or("샘플레이트 없음")?;
     let channels = codec_params.channels.ok_or("채널 정보 없음")?.count();
-
-    let mut decoder = symphonia::default::get_codecs()
-        .make(&codec_params, &DecoderOptions::default())
-        .map_err(|e| format!("디코더 오류: {e}"))?;
-
-    let mut samples: Vec<f32> = Vec::new();
-
-    loop {
-        let packet = match format.next_packet() {
-            Ok(p) => p,
-            Err(_) => break,
-        };
-        if packet.track_id() != track_id {
-            continue;
-        }
-        match decoder.decode(&packet) {
-            Ok(decoded) => {
-                let mut buf =
-                    SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
-                buf.copy_interleaved_ref(decoded);
-                samples.extend_from_slice(buf.samples());
-            }
-            Err(_) => continue,
-        }
-    }
-
     let spec = hound::WavSpec {
-        channels: channels as u16,
+        channels: u16::try_from(channels).map_err(|_| "채널 수가 너무 많습니다")?,
         sample_rate,
         bits_per_sample: 32,
         sample_format: hound::SampleFormat::Float,
     };
 
-    let mut output = Vec::new();
-    {
-        let cursor = std::io::Cursor::new(&mut output);
-        let mut writer = hound::WavWriter::new(cursor, spec)
-            .map_err(|e| format!("WAV 생성 오류: {e}"))?;
-        for &s in &samples {
-            writer.write_sample(s).map_err(|e| format!("WAV 쓰기 오류: {e}"))?;
+    let mut decoder = symphonia::default::get_codecs()
+        .make(&codec_params, &DecoderOptions::default())
+        .map_err(|e| format!("디코더 오류: {e}"))?;
+
+    // 샘플 전체를 별도 Vec에 쌓지 않고 WAV writer에 패킷 단위로 바로 기록해
+    // PCM 전체 버퍼와 최종 WAV 버퍼가 동시에 메모리에 존재하는 일을 막습니다.
+    let mut output = std::io::Cursor::new(Vec::new());
+    let mut writer =
+        hound::WavWriter::new(&mut output, spec).map_err(|e| format!("WAV 생성 오류: {e}"))?;
+
+    loop {
+        let packet = match format.next_packet() {
+            Ok(packet) => packet,
+            Err(error) if is_normal_audio_eof(&error) => break,
+            Err(error) => return Err(format!("오디오 패킷 읽기 오류: {error}")),
+        };
+        if packet.track_id() != track_id {
+            continue;
         }
-        writer.finalize().map_err(|e| format!("WAV 완료 오류: {e}"))?;
+        let decoded = decoder
+            .decode(&packet)
+            .map_err(|e| format!("오디오 디코딩 오류: {e}"))?;
+        let mut buf = SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
+        buf.copy_interleaved_ref(decoded);
+        for &sample in buf.samples() {
+            writer
+                .write_sample(sample)
+                .map_err(|e| format!("WAV 쓰기 오류: {e}"))?;
+        }
     }
 
-    Ok(tauri::ipc::Response::new(output))
+    writer
+        .finalize()
+        .map_err(|e| format!("WAV 완료 오류: {e}"))?;
+    Ok(tauri::ipc::Response::new(output.into_inner()))
 }
 
 #[derive(serde::Serialize)]
@@ -126,8 +135,16 @@ fn read_audio_metadata(path: String) -> Result<AudioMetadata, String> {
     let tag = tagged.primary_tag().or_else(|| tagged.first_tag());
     let s = |o: Option<std::borrow::Cow<str>>| o.map(|c| c.trim().to_string()).unwrap_or_default();
     Ok(match tag {
-        Some(t) => AudioMetadata { title: s(t.title()), artist: s(t.artist()), album: s(t.album()) },
-        None => AudioMetadata { title: String::new(), artist: String::new(), album: String::new() },
+        Some(t) => AudioMetadata {
+            title: s(t.title()),
+            artist: s(t.artist()),
+            album: s(t.album()),
+        },
+        None => AudioMetadata {
+            title: String::new(),
+            artist: String::new(),
+            album: String::new(),
+        },
     })
 }
 
@@ -148,7 +165,8 @@ pub fn run() {
         .setup(|app| {
             // 업데이터는 데스크톱 전용(모바일 타깃엔 없음)
             #[cfg(desktop)]
-            app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+            app.handle()
+                .plugin(tauri_plugin_updater::Builder::new().build())?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -185,4 +203,20 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod audio_decode_tests {
+    use super::is_normal_audio_eof;
+    use symphonia::core::errors::Error;
+
+    #[test]
+    fn only_unexpected_eof_is_treated_as_normal_end_of_audio() {
+        let eof = Error::IoError(std::io::Error::from(std::io::ErrorKind::UnexpectedEof));
+        let permission_error =
+            Error::IoError(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+        assert!(is_normal_audio_eof(&eof));
+        assert!(!is_normal_audio_eof(&permission_error));
+        assert!(!is_normal_audio_eof(&Error::DecodeError("bad packet")));
+    }
 }
