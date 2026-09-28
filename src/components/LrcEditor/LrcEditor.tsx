@@ -27,6 +27,20 @@ const BpmSnapModal = lazy(() => import("../AudioPlayer/BpmSnapModal").then((m) =
 // ISO 639-3 codes used by ctc-forced-aligner / MMS model
 const LANG_CODE: Record<string, string> = { ko: "kor", en: "eng", ja: "jpn" };
 
+function suggestTranslationSplit(text: string, caretPos: number, translation: string) {
+  const sourceChars = Array.from(text);
+  const translatedChars = Array.from(translation);
+  const ratio = sourceChars.length ? Array.from(text.slice(0, caretPos)).length / sourceChars.length : 0.5;
+  const target = Math.round(ratio * translatedChars.length);
+  const boundaries = [0, ...translatedChars.flatMap((char, i) => (/\s/.test(char) ? [i + 1] : [])), translatedChars.length];
+  const splitAt = boundaries.reduce((best, current) =>
+    Math.abs(current - target) < Math.abs(best - target) ? current : best, boundaries[0]);
+  return {
+    first: translatedChars.slice(0, splitAt).join("").trim(),
+    second: translatedChars.slice(splitAt).join("").trim(),
+  };
+}
+
 export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   // currentTime은 푸터에서만 쓰므로 구독에서 제외 → 재생 중 줄 목록이 매 프레임 리렌더되지 않음
   const {
@@ -105,6 +119,12 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
 
   // 글자 동기화된 줄의 텍스트 수정 경고 / 단위 변경 경고
   const [pendingTextEdit, setPendingTextEdit] = useState<{ id: string; text: string } | null>(null);
+  const [pendingTranslationSplit, setPendingTranslationSplit] = useState<{
+    id: string;
+    caretPos: number;
+    first: string;
+    second: string;
+  } | null>(null);
   const [pendingUnit, setPendingUnit] = useState<SyncUnit | null>(null);
   const [pendingAiSync, setPendingAiSync] = useState(false);
   // 드래그 재정렬 상태
@@ -228,6 +248,11 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
       // Shift+Enter = 커서 위치에서 줄 분할
       e.preventDefault();
       const caret = e.currentTarget.selectionStart ?? e.currentTarget.value.length;
+      const line = lines.find((item) => item.id === id);
+      if (line?.translation) {
+        setPendingTranslationSplit({ id, caretPos: caret, ...suggestTranslationSplit(line.text, caret, line.translation) });
+        return;
+      }
       const newId = splitLine(id, caret);
       setActiveLineId(newId);
       pendingFocusId.current = newId;
@@ -728,6 +753,59 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           onOk={() => { setPendingAiSync(false); runAiSyncNow(); }}
           onCancel={() => setPendingAiSync(false)}
         />
+      )}
+      {pendingTranslationSplit && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setPendingTranslationSplit(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="translation-split-title"
+            className="w-full max-w-md mx-4 rounded-xl border border-zinc-700 bg-zinc-900 p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="translation-split-title" className="text-sm font-semibold text-zinc-100">
+              {t.translationSplitTitle}
+            </h2>
+            <p className="mt-2 text-xs text-zinc-400">{t.translationSplitHint}</p>
+            <label className="mt-4 block text-xs text-zinc-400">
+              {t.translationFirstPart}
+              <textarea
+                autoFocus
+                value={pendingTranslationSplit.first}
+                onChange={(e) => setPendingTranslationSplit((s) => s ? { ...s, first: e.target.value } : s)}
+                className="mt-1 min-h-16 w-full resize-y rounded-lg border border-zinc-700 bg-zinc-950 p-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
+              />
+            </label>
+            <label className="mt-3 block text-xs text-zinc-400">
+              {t.translationSecondPart}
+              <textarea
+                value={pendingTranslationSplit.second}
+                onChange={(e) => setPendingTranslationSplit((s) => s ? { ...s, second: e.target.value } : s)}
+                className="mt-1 min-h-16 w-full resize-y rounded-lg border border-zinc-700 bg-zinc-950 p-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
+              />
+            </label>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setPendingTranslationSplit(null)}
+                className="rounded-lg bg-zinc-700 px-3 py-2 text-xs text-zinc-200 hover:bg-zinc-600"
+              >{t.cancelLabel}</button>
+              <button
+                onClick={() => {
+                  const pending = pendingTranslationSplit;
+                  if (!pending) return;
+                  const newId = splitLine(pending.id, pending.caretPos, { first: pending.first, second: pending.second });
+                  setPendingTranslationSplit(null);
+                  setActiveLineId(newId);
+                  pendingFocusId.current = newId;
+                }}
+                className="rounded-lg bg-indigo-600 px-3 py-2 text-xs text-white hover:bg-indigo-500"
+              >{t.translationSplitAction}</button>
+            </div>
+          </div>
+        </div>
       )}
       {showValidation && (
         <ValidationPanel

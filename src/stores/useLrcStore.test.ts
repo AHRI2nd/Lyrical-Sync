@@ -305,6 +305,16 @@ describe("useLrcStore — line manipulation", () => {
     expect(ls[1].id).toBe(nid);
   });
 
+  it("splitLine divides a translated line at the explicitly chosen translation boundary", () => {
+    reset([{ ...mk("1", "helloworld", 5), translation: "안녕 세계" }]);
+    const nid = useLrcStore.getState().splitLine("1", 5, { first: "안녕", second: "세계" });
+    expect(lines().map((l) => [l.text, l.translation])).toEqual([
+      ["hello", "안녕"],
+      ["world", "세계"],
+    ]);
+    expect(lines()[1].id).toBe(nid);
+  });
+
   it("moveLine reorders lines", () => {
     reset([mk("1", "a"), mk("2", "b"), mk("3", "c")]);
     useLrcStore.getState().moveLine(0, 2);

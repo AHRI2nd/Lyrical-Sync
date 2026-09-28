@@ -83,7 +83,7 @@ interface LrcStore {
   /** 줄을 이전 줄과 병합(텍스트 결합, 이전 줄 타임스탬프 유지). 병합된 줄 id, 첫 줄이면 null */
   mergeLineUp: (id: string) => string | null;
   /** 커서 위치에서 줄을 둘로 분할. 새(뒤) 줄 id 반환 */
-  splitLine: (id: string, caretPos: number) => string;
+  splitLine: (id: string, caretPos: number, translationParts?: { first: string; second: string }) => string;
   /** 줄 순서 이동(드래그 재정렬) */
   moveLine: (fromIndex: number, toIndex: number) => void;
   /** 모든 타임스탬프(+글자 동기화)를 배율로 스케일 — 템포/버전 불일치 보정 */
@@ -455,7 +455,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     return prev.id;
   },
 
-  splitLine: (id, caretPos) => {
+  splitLine: (id, caretPos, translationParts) => {
     const { doc } = get();
     const idx = doc.lines.findIndex((l) => l.id === id);
     if (idx < 0) return id;
@@ -463,8 +463,23 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     const cur = doc.lines[idx];
     const newId = genId();
     // 앞부분: 타임스탬프 유지 / 뒷부분: 새 줄(타임스탬프 없음). 둘 다 글자 동기화 무효화
-    const first: LrcLine = { ...cur, text: cur.text.slice(0, caretPos), syllables: undefined };
-    const second: LrcLine = { id: newId, timestamp: null, text: cur.text.slice(caretPos) };
+    const firstText = cur.text.slice(0, caretPos);
+    const secondText = cur.text.slice(caretPos);
+    const splitTranslation = cur.translation !== undefined && translationParts
+      ? [translationParts.first.trim(), translationParts.second.trim()]
+      : [cur.translation, undefined];
+    const first: LrcLine = {
+      ...cur,
+      text: firstText,
+      translation: splitTranslation[0] || undefined,
+      syllables: undefined,
+    };
+    const second: LrcLine = {
+      id: newId,
+      timestamp: null,
+      text: secondText,
+      ...(splitTranslation[1] ? { translation: splitTranslation[1] } : {}),
+    };
     const lines = [...doc.lines];
     lines.splice(idx, 1, first, second);
     set({ doc: { ...doc, lines }, activeLineId: newId, isDirty: true });
