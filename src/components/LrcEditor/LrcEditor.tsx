@@ -129,7 +129,55 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   const [pendingAiSync, setPendingAiSync] = useState(false);
   // 드래그 재정렬 상태
   const [dragIdx, setDragIdx] = useState<number | null>(null);
-  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [dropGapIdx, setDropGapIdx] = useState<number | null>(null);
+  const reorderRef = useRef<{ lineId: string; pointerId: number; startX: number; startY: number; active: boolean; gap: number | null } | null>(null);
+
+  const clearReorder = () => {
+    reorderRef.current = null;
+    setDragIdx(null);
+    setDropGapIdx(null);
+  };
+
+  const gapAtPoint = (x: number, y: number, list: HTMLDivElement): number | null => {
+    const hit = document.elementFromPoint(x, y);
+    if (!hit || !list.contains(hit)) return null;
+    const rows = list.querySelectorAll<HTMLElement>("[data-line-id]");
+    for (let index = 0; index < rows.length; index++) {
+      const rect = rows[index].getBoundingClientRect();
+      if (y < rect.top + rect.height / 2) return index;
+    }
+    return rows.length;
+  };
+
+  const handleReorderMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = reorderRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    if (!drag.active) {
+      const distance = Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY);
+      if (distance < 5) return;
+      drag.active = true;
+      const sourceIndex = useLrcStore.getState().doc.lines.findIndex((line) => line.id === drag.lineId);
+      if (sourceIndex < 0) { clearReorder(); return; }
+      setDragIdx(sourceIndex);
+    }
+    const nextGap = gapAtPoint(e.clientX, e.clientY, e.currentTarget);
+    drag.gap = nextGap;
+    setDropGapIdx((previous) => previous === nextGap ? previous : nextGap);
+  };
+
+  const handleReorderUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = reorderRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    if (drag.active && drag.gap !== null && e.currentTarget.contains(document.elementFromPoint(e.clientX, e.clientY))) {
+      const currentLines = useLrcStore.getState().doc.lines;
+      const from = currentLines.findIndex((line) => line.id === drag.lineId);
+      if (from >= 0) {
+        const to = drag.gap > from ? drag.gap - 1 : drag.gap;
+        if (to !== from) moveLine(from, to);
+      }
+    }
+    clearReorder();
+  };
 
   const charMode = syncMode === "char";
 
@@ -640,6 +688,10 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
 
       <div
         className="flex-1 overflow-y-auto flex flex-col gap-1 px-1 py-1"
+        onPointerMove={handleReorderMove}
+        onPointerUp={handleReorderUp}
+        onPointerCancel={clearReorder}
+        onLostPointerCapture={clearReorder}
         onDoubleClick={(e) => { if (e.target === e.currentTarget) handleAddLine(); }}
       >
         {lines.length === 0 && (
@@ -673,14 +725,14 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
               showTranslationLines={showTranslationLines}
               serviceActive={serviceActive}
               dragIdx={dragIdx}
-              dragOverIdx={dragOverIdx}
-              onDragStart={(e) => { e.stopPropagation(); setDragIdx(idx); }}
-              onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
-              onDragOver={(e) => { if (dragIdx !== null) { e.preventDefault(); if (dragOverIdx !== idx) setDragOverIdx(idx); } }}
-              onDrop={(e) => {
+              showInsertionBefore={dragIdx !== null && dropGapIdx === idx}
+              showInsertionAfter={dragIdx !== null && idx === lines.length - 1 && dropGapIdx === lines.length}
+              onReorderPointerDown={(e) => {
+                if (e.button !== 0) return;
                 e.preventDefault();
-                if (dragIdx !== null && dragIdx !== idx) moveLine(dragIdx, idx);
-                setDragIdx(null); setDragOverIdx(null);
+                e.stopPropagation();
+                e.currentTarget.setPointerCapture(e.pointerId);
+                reorderRef.current = { lineId: line.id, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, active: false, gap: null };
               }}
               editingTsId={editingTsId}
               editTsValue={editTsValue}
