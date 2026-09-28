@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Manager, Emitter};
 
@@ -116,18 +117,48 @@ pub async fn refresh_spotify_token(
         .map_err(|e| format!("응답 파싱 실패: {e}"))
 }
 
-// 평문 파일 저장 (OS 키체인 사용 불가 시 폴백). unix는 0600.
+// 평문 파일 저장 (OS 키체인 사용 불가 시 폴백). unix는 0600, windows는 icacls로
+// 현재 사용자 전용 ACL(상속 제거 후 재부여)을 건다.
 fn save_token_file(app: &AppHandle, token: &str) -> Result<(), String> {
     let path = token_path(app)?;
+    write_restricted_token_file(&path, token)
+}
+
+fn write_restricted_token_file(path: &Path, token: &str) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    std::fs::write(&path, token.as_bytes()).map_err(|e| format!("토큰 저장 실패: {e}"))?;
+
+    let parent = path.parent().ok_or("토큰 경로에 부모 디렉터리가 없습니다")?;
+    let mut temp = tempfile::NamedTempFile::new_in(parent)
+        .map_err(|e| format!("토큰 임시 파일 생성 실패: {e}"))?;
+    temp.write_all(token.as_bytes())
+        .map_err(|e| format!("토큰 저장 실패: {e}"))?;
+    temp.as_file().sync_all().map_err(|e| format!("토큰 저장 실패: {e}"))?;
+
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o600))
+            .map_err(|e| format!("토큰 파일 권한 설정 실패: {e}"))?;
     }
+    #[cfg(windows)]
+    {
+        let path_str = temp.path().to_str().ok_or("토큰 경로를 Windows 형식으로 변환할 수 없습니다")?;
+        let user = std::env::var("USERNAME").map_err(|e| format!("현재 Windows 사용자를 확인할 수 없습니다: {e}"))?;
+        let domain = std::env::var("USERDOMAIN").unwrap_or_default();
+        let identity = if domain.is_empty() { user } else { format!("{domain}\\{user}") };
+        let grant_user = format!("{identity}:F");
+        let output = std::process::Command::new("icacls")
+            .args([path_str, "/inheritance:r", "/grant:r", grant_user.as_str(), "SYSTEM:F"])
+            .output()
+            .map_err(|e| format!("토큰 파일 ACL 도구 실행 실패: {e}"))?;
+        if !output.status.success() {
+            return Err(format!("토큰 파일 ACL 설정 실패: {}", String::from_utf8_lossy(&output.stderr).trim()));
+        }
+    }
+
+    temp.persist(path).map_err(|e| format!("토큰 파일 확정 실패: {}", e.error))?;
     Ok(())
 }
 
@@ -225,4 +256,21 @@ pub fn clear_refresh_token(app: AppHandle) -> Result<(), String> {
         std::fs::remove_file(&path).map_err(|e| format!("토큰 삭제 실패: {e}"))?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod token_file_tests {
+    use super::write_restricted_token_file;
+
+    #[cfg(unix)]
+    #[test]
+    fn refresh_token_file_is_created_with_owner_only_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("token.dat");
+
+        write_restricted_token_file(&path, "secret-token").unwrap();
+
+        assert_eq!(std::fs::metadata(path).unwrap().permissions().mode() & 0o777, 0o600);
+    }
 }

@@ -1,4 +1,5 @@
 import { LrcDocument, defaultDocument } from "../types/lrc";
+import { nextCueEnd } from "./exportFormats";
 
 // SubRip 시간 형식: HH:MM:SS,mmm
 function formatSrtTime(seconds: number): string {
@@ -40,28 +41,20 @@ export function serializeSrt(doc: LrcDocument, lastCueEnd?: number): string {
     .slice()
     .sort((a, b) => (a.timestamp as number) - (b.timestamp as number));
 
-  const cues: { start: number; end: number; text: string }[] = [];
+  const cues: { start: number; end: number; text: string; translation?: string }[] = [];
   for (let i = 0; i < timed.length; i++) {
     const line = timed[i];
     if (line.text.trim() === "") continue; // 빈 줄 = 경계 전용
     const start = line.timestamp as number;
-    const next = timed[i + 1];
-    let end: number;
-    if (next) {
-      end = next.timestamp as number;
-    } else if (lastCueEnd !== undefined && lastCueEnd > start) {
-      end = lastCueEnd;
-    } else {
-      end = start + 4;
-    }
-    cues.push({ start, end, text: line.text });
+    const end = nextCueEnd(timed, i, start, lastCueEnd);
+    cues.push({ start, end, text: line.text, translation: line.translation });
   }
 
   return (
     cues
       .map(
         (c, i) =>
-          `${i + 1}\n${formatSrtTime(c.start)} --> ${formatSrtTime(c.end)}\n${c.text}`
+          `${i + 1}\n${formatSrtTime(c.start)} --> ${formatSrtTime(c.end)}\n${c.text}${c.translation ? `\n${c.translation}` : ""}`
       )
       .join("\n\n") + "\n"
   );
@@ -111,9 +104,10 @@ export function parseSrt(raw: string): LrcDocument {
     const cue = cues[i];
     doc.lines.push({ id: String(lineId++), timestamp: cue.start, text: cue.text });
 
-    // 다음 cue가 있고, 종료 시각이 현재 시작보다 뒤·다음 시작보다 앞이면(갭 존재) 빈 줄 삽입
+    // 다음 cue와의 갭뿐 아니라 마지막 cue의 종료도 경계로 보존한다. 그래야 배치
+    // 오프셋 적용 뒤 마지막 자막이 임의의 4초 길이로 바뀌지 않는다.
     const next = cues[i + 1];
-    if (next && cs(cue.end) > cs(cue.start) && cs(cue.end) < cs(next.start)) {
+    if (cs(cue.end) > cs(cue.start) && (!next || cs(cue.end) < cs(next.start))) {
       doc.lines.push({ id: String(lineId++), timestamp: cue.end, text: "" });
     }
   }

@@ -18,25 +18,29 @@ import { deviceControls } from "./utils/deviceControls";
 import { useDeviceStore } from "./stores/useDeviceStore";
 import { anyModalOpen } from "./utils/modalGuard";
 import { safeUnlisten } from "./utils/safeUnlisten";
-import { matchAction, normalizeKeybindings, PLAYBACK_ACTIONS } from "./utils/keybindings";
+import { isInteractiveKeyTarget, matchAction, normalizeKeybindings, PLAYBACK_ACTIONS } from "./utils/keybindings";
 import { toast } from "./stores/useToastStore";
 import { ToastContainer } from "./components/Toast/ToastContainer";
 import { type RecoverySnapshot, loadRecoverySnapshot, saveRecoverySnapshot, clearRecoverySnapshot } from "./utils/recovery";
 import { initSpotifyPlayer } from "./utils/spotifyPlayer";
 import { useUpdaterStore } from "./stores/useUpdaterStore";
-import { UpdateModal } from "./components/Update/UpdateModal";
+const UpdateModal = lazy(() => import("./components/Update/UpdateModal").then((m) => ({ default: m.UpdateModal })));
 import { useMacMenu } from "./hooks/useMacMenu";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 const HelpModal = lazy(() => import("./components/AppShell/HelpModal").then((m) => ({ default: m.HelpModal })));
+const BatchToolModal = lazy(() => import("./components/BatchTools/BatchToolModal").then((m) => ({ default: m.BatchToolModal })));
 import { ConfirmModal } from "./components/AppShell/ConfirmModal";
 import { SaveFormatModal } from "./components/AppShell/SaveFormatModal";
 import { ELrcNoticeModal } from "./components/AppShell/ELrcNoticeModal";
 import { IconBtn } from "./components/AppShell/IconBtn";
 import { LangDropdown } from "./components/AppShell/LangDropdown";
-import { NewFileIcon, OpenFolderIcon, SaveIcon, SaveAsIcon, UndoIcon, RedoIcon, GearIcon } from "./components/AppShell/icons";
+import { NewFileIcon, OpenFolderIcon, SaveIcon, SaveAsIcon, UndoIcon, RedoIcon, GearIcon, BatchIcon } from "./components/AppShell/icons";
 import { RecentFilesMenu } from "./components/AppShell/RecentFilesMenu";
+import { HistoryPanel } from "./components/AppShell/HistoryPanel";
+import type { RecentFileEntry } from "./stores/useSettingsStore";
 
 const AUDIO_EXTS = ["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff", "aif"];
 const LYRICS_EXTS = ["lrc", "srt"];
@@ -63,14 +67,13 @@ function useGlobalKeys() {
     const controls = deviceModeForKeys ? deviceControls : isServiceMode ? serviceControls : audioControls;
     const kb = normalizeKeybindings(keybindings);
     const handler = (e: KeyboardEvent) => {
-      const inInput =
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement;
+      const inInteractiveControl =
+        isInteractiveKeyTarget(e.target) || isInteractiveKeyTarget(document.activeElement);
 
       // Cmd/Ctrl+Z 실행취소/다시실행 (재설정 불가, 예약)
       const isMod = e.ctrlKey || e.metaKey;
       if (isMod && e.code === "KeyZ") {
-        if (inInput || anyModalOpen()) return;
+        if (inInteractiveControl || anyModalOpen()) return;
         e.preventDefault();
         if (e.shiftKey) redo();
         else undo();
@@ -80,7 +83,7 @@ function useGlobalKeys() {
       if (e.ctrlKey || e.altKey || e.metaKey) return;
 
       const action = matchAction(e.code, kb);
-      if (!action || inInput) return;
+      if (!action || inInteractiveControl) return;
 
       // 재생 트랜스포트: 줄/글자 모드 공통(모달 열려도 미디어 제어 허용)
       if (PLAYBACK_ACTIONS.includes(action)) {
@@ -138,6 +141,18 @@ function useAutoSave() {
     }, 2000);
     return () => clearTimeout(id);
   }, [isDirty, doc]);
+
+  // 위 디바운스는 doc이 바뀔 때마다 리셋되므로 끊임없이 타이핑하는 구간에서는
+  // 한 번도 실행되지 못할 수 있다. dirty가 유지되는 동안 일정 간격으로 강제
+  // 플러시해 그런 연속 편집 구간에도 최소한의 복구 지점을 남긴다.
+  useEffect(() => {
+    if (!isDirty) return;
+    const id = setInterval(() => {
+      const st = useLrcStore.getState();
+      saveRecoverySnapshot(st.doc, st.lrcPath, st.audioPath);
+    }, 5000);
+    return () => clearInterval(id);
+  }, [isDirty]);
 }
 
 // 시작 시 조용히(silent) 확인 — 새 버전이 있을 때만 스토어 상태가 "available"로 바뀌어
@@ -159,12 +174,14 @@ function App() {
     return snap && snap.doc.lines.length > 0 ? snap : null;
   });
   const [showHelp, setShowHelp] = useState(false);
+  const [showBatchTool, setShowBatchTool] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [settingsInitialTab, setSettingsInitialTab] = useState<"general" | "models" | "spotify" | "youtube">("general");
+  const [settingsInitialTab, setSettingsInitialTab] = useState<"general" | "preview" | "models" | "spotify" | "youtube">("general");
   const [showNewConfirm, setShowNewConfirm] = useState(false);
   const [showFormatChooser, setShowFormatChooser] = useState(false);
   const [showElrcNotice, setShowElrcNotice] = useState(false);
+  const [pendingDocumentOpen, setPendingDocumentOpen] = useState<{ lyricsPath: string; audioPath?: string | null } | null>(null);
   const pendingSaveRef = useRef<(() => Promise<boolean>) | null>(null);
   const [showSpotifySearch, setShowSpotifySearch] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -172,10 +189,10 @@ function App() {
     { audio?: string; lyrics?: string; audioConflict: boolean; lyricsConflict: boolean } | null
   >(null);
   // 셀렉터로 좁혀 재생 중 currentTime 갱신마다 App 전체가 리렌더되지 않게 함
-  const { lrcPath, isDirty, openLrc, openAudio, saveLrc, saveLrcAs, newLrc, undo, redo, _history, _future } = useLrcStore(
+  const { lrcPath, isDirty, openAudio, saveLrc, saveLrcAs, newLrc, undo, redo, _history, _future } = useLrcStore(
     useShallow((s) => ({
       lrcPath: s.lrcPath, isDirty: s.isDirty,
-      openLrc: s.openLrc, openAudio: s.openAudio, saveLrc: s.saveLrc, saveLrcAs: s.saveLrcAs, newLrc: s.newLrc,
+      openAudio: s.openAudio, saveLrc: s.saveLrc, saveLrcAs: s.saveLrcAs, newLrc: s.newLrc,
       undo: s.undo, redo: s.redo, _history: s._history, _future: s._future,
     }))
   );
@@ -271,7 +288,33 @@ function App() {
     }
   };
 
-  const handleOpenLrc = () => openLrc().catch(() => toast.error(t.toast.openFailed));
+  const applyDocumentOpen = ({ lyricsPath, audioPath }: { lyricsPath: string; audioPath?: string | null }) => {
+    const st = useLrcStore.getState();
+    if (audioPath) st.setAudioPath(audioPath);
+    st.loadLyricsPath(lyricsPath).catch(() => toast.error(t.toast.openFailed));
+  };
+
+  const requestDocumentOpen = (entry: { lyricsPath: string; audioPath?: string | null }) => {
+    if (useLrcStore.getState().isDirty) setPendingDocumentOpen(entry);
+    else applyDocumentOpen(entry);
+  };
+
+  const handleOpenLrc = async () => {
+    try {
+      const selected = await openDialog({
+        multiple: false,
+        filters: [{ name: "Lyrics", extensions: ["lrc", "srt"] }],
+      });
+      if (typeof selected === "string") requestDocumentOpen({ lyricsPath: selected });
+    } catch {
+      toast.error(t.toast.openFailed);
+    }
+  };
+
+  const handleRecentOpen = (entry: RecentFileEntry) => {
+    if (entry.lrcPath) requestDocumentOpen({ lyricsPath: entry.lrcPath, audioPath: entry.audioPath });
+    else if (entry.audioPath) useLrcStore.getState().setAudioPath(entry.audioPath);
+  };
 
   // 드롭된 파일을 실제로 연다 (오디오 → 오디오 경로, lrc/srt → 가사)
   const applyDrop = (d: { audio?: string; lyrics?: string }) => {
@@ -333,7 +376,8 @@ function App() {
 
   // 모드 전환 (ModeSelectButton과 동일한 동작 — 전환 시 재생 정지)
   const stopCurrentPlaybackForModeSwitch = () => {
-    if (spotifyMode && isLoggedIn) pausePlayback();
+    if (deviceMode) deviceControls.stopAndReset();
+    else if (spotifyMode && isLoggedIn) pausePlayback();
     else audioControls.pause();
   };
   const selectModeFile = () => {
@@ -341,7 +385,7 @@ function App() {
     setSpotifyMode(false); setYoutubeMode(false); setDeviceMode(false);
   };
   const selectModeSpotify = () => {
-    audioControls.pause();
+    stopCurrentPlaybackForModeSwitch();
     setSpotifyMode(true); setYoutubeMode(false); setDeviceMode(false);
   };
   const selectModeYouTube = () => {
@@ -395,11 +439,14 @@ function App() {
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <span className="text-zinc-400 text-sm truncate">
             {title}
-            {isDirty && <span className="text-rose-400 ml-1">●</span>}
+            {isDirty && (
+              <span className="text-rose-400 ml-1 text-xs align-middle" title={t.unsavedChanges}>●</span>
+            )}
           </span>
           <div className="flex gap-1 shrink-0">
             <IconBtn onClick={undo} disabled={_history.length === 0} title={t.undo}><UndoIcon /></IconBtn>
             <IconBtn onClick={redo} disabled={_future.length === 0} title={t.redo}><RedoIcon /></IconBtn>
+            <HistoryPanel />
           </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -408,7 +455,7 @@ function App() {
           {/* 파일 액션 그룹 */}
           <IconBtn onClick={handleNewLrc} title={t.newFileBtn}><NewFileIcon /></IconBtn>
           <IconBtn onClick={handleOpenLrc} title={t.openLrc}><OpenFolderIcon /></IconBtn>
-          <RecentFilesMenu />
+          <RecentFilesMenu onOpen={handleRecentOpen} />
           <IconBtn onClick={handleSave} accent title={t.save} tooltipAlign="right"><SaveIcon /></IconBtn>
           <IconBtn onClick={() => setShowFormatChooser(true)} title={t.saveAs} tooltipAlign="right"><SaveAsIcon /></IconBtn>
           <div className="w-px h-5 bg-zinc-700 mx-0.5" />
@@ -421,9 +468,17 @@ function App() {
           <HelpModal onClose={() => setShowHelp(false)} />
         </Suspense>
       )}
+      {showBatchTool && (
+        <Suspense fallback={null}>
+          <BatchToolModal onClose={() => setShowBatchTool(false)} />
+        </Suspense>
+      )}
       {showPreview && (
         <Suspense fallback={null}>
-          <PreviewModal onClose={() => setShowPreview(false)} />
+          <PreviewModal
+            onClose={() => setShowPreview(false)}
+            onOpenStyleSettings={() => { setSettingsInitialTab("preview"); setShowSettings(true); }}
+          />
         </Suspense>
       )}
       {showSettings && (
@@ -435,7 +490,9 @@ function App() {
           />
         </Suspense>
       )}
-      <UpdateModal />
+      <Suspense fallback={null}>
+        <UpdateModal />
+      </Suspense>
       {recovery && (
         <ConfirmModal
           title={t.recovery.title}
@@ -458,6 +515,16 @@ function App() {
           cancelLabel={t.confirmNewCancel}
           onOk={() => { setShowNewConfirm(false); newLrc(); }}
           onCancel={() => setShowNewConfirm(false)}
+        />
+      )}
+      {pendingDocumentOpen && (
+        <ConfirmModal
+          title={t.drop.replaceTitle}
+          message={t.drop.replaceLyrics}
+          okLabel={t.drop.replaceOk}
+          cancelLabel={t.drop.replaceCancel}
+          onOk={() => { applyDocumentOpen(pendingDocumentOpen); setPendingDocumentOpen(null); }}
+          onCancel={() => setPendingDocumentOpen(null)}
         />
       )}
       {showFormatChooser && (
@@ -533,6 +600,14 @@ function App() {
           className="w-8 h-8 rounded-full bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white transition-colors flex items-center justify-center shadow-lg"
         >
           <GearIcon />
+        </button>
+        <button
+          onClick={() => setShowBatchTool(true)}
+          title={t.batchTitle}
+          aria-label={t.batchTitle}
+          className="w-8 h-8 rounded-full bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white transition-colors flex items-center justify-center shadow-lg"
+        >
+          <BatchIcon />
         </button>
         <button
           onClick={() => setShowHelp(true)}

@@ -1,6 +1,31 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage, type StateStorage } from "zustand/middleware";
 import { type KeyAction, DEFAULT_KEYBINDINGS } from "../utils/keybindings";
+
+// 슬라이더 드래그처럼 짧은 시간에 set()이 연속 호출될 때마다 전체 설정 blob을
+// 매번 동기적으로 localStorage에 직렬화·쓰기하지 않도록, 실제 디스크 쓰기만 디바운스.
+// (인메모리 zustand 상태는 매 tick 그대로 갱신되므로 UI 반응성엔 영향 없음.)
+function debouncedLocalStorage(delayMs: number): StateStorage {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let pending: { key: string; value: string } | null = null;
+  return {
+    getItem: (key) => localStorage.getItem(key),
+    setItem: (key, value) => {
+      pending = { key, value };
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (pending) localStorage.setItem(pending.key, pending.value);
+        pending = null;
+        timer = null;
+      }, delayMs);
+    },
+    removeItem: (key) => {
+      if (timer) { clearTimeout(timer); timer = null; }
+      pending = null;
+      localStorage.removeItem(key);
+    },
+  };
+}
 
 interface SettingsState {
   autoCheckUpdate: boolean;
@@ -19,6 +44,18 @@ interface SettingsState {
   showGlyphTimeMarkers: boolean;
   /** 파형 대신/함께 스펙트로그램 표시 (음높이·배음 구조를 볼 때 유용) */
   showSpectrogram: boolean;
+  /** 가사 줄 입력창에 브라우저 기본 맞춤법 검사 사용 */
+  showSpellCheck: boolean;
+  /** 각 가사 줄에 2차(번역) 텍스트 보조 입력창 표시 */
+  showTranslationLines: boolean;
+  /** 미리보기(가라오케) 글꼴 크기 배율 (0.8 ~ 1.5, 기본값: 1.0) */
+  previewFontScale: number;
+  /** 미리보기 활성 줄 텍스트 색상(카라오케 그라디언트 시작색 겸용) */
+  previewActiveColor: string;
+  /** 미리보기 언더라인 글로우 + 카라오케 그라디언트 끝색 */
+  previewAccentColor: string;
+  /** 미리보기 활성 줄 글로우 효과 사용 여부 */
+  previewGlowEnabled: boolean;
   /** AI 정렬 시 Demucs 보컬 분리 사용(설치돼 있을 때). false면 원본 오디오로 정렬 */
   useVocalSeparation: boolean;
   /** AI 정렬 시 보컬 활동 감지(VAD) 사용 — 빈 줄 정밀 배치 + 신뢰도 보정. 보컬 분리 필요 */
@@ -52,6 +89,12 @@ interface SettingsState {
   setLyricsFontScale: (v: number) => void;
   setShowGlyphTimeMarkers: (v: boolean) => void;
   setShowSpectrogram: (v: boolean) => void;
+  setShowSpellCheck: (v: boolean) => void;
+  setShowTranslationLines: (v: boolean) => void;
+  setPreviewFontScale: (v: number) => void;
+  setPreviewActiveColor: (v: string) => void;
+  setPreviewAccentColor: (v: string) => void;
+  setPreviewGlowEnabled: (v: boolean) => void;
   setUseVocalSeparation: (v: boolean) => void;
   setUseVad: (v: boolean) => void;
   setKeybinding: (action: KeyAction, code: string) => void;
@@ -89,6 +132,12 @@ export const useSettingsStore = create<SettingsState>()(
       lyricsFontScale: 1.0,
       showGlyphTimeMarkers: true,
       showSpectrogram: false,
+      showSpellCheck: false,
+      showTranslationLines: false,
+      previewFontScale: 1.0,
+      previewActiveColor: "#ffffff",
+      previewAccentColor: "#6366f1",
+      previewGlowEnabled: true,
       useVocalSeparation: true,
       useVad: true,
       keybindings: { ...DEFAULT_KEYBINDINGS },
@@ -110,6 +159,12 @@ export const useSettingsStore = create<SettingsState>()(
       setLyricsFontScale: (v) => set({ lyricsFontScale: v }),
       setShowGlyphTimeMarkers: (v) => set({ showGlyphTimeMarkers: v }),
       setShowSpectrogram: (v) => set({ showSpectrogram: v }),
+      setShowSpellCheck: (v) => set({ showSpellCheck: v }),
+      setShowTranslationLines: (v) => set({ showTranslationLines: v }),
+      setPreviewFontScale: (v) => set({ previewFontScale: v }),
+      setPreviewActiveColor: (v) => set({ previewActiveColor: v }),
+      setPreviewAccentColor: (v) => set({ previewAccentColor: v }),
+      setPreviewGlowEnabled: (v) => set({ previewGlowEnabled: v }),
       setUseVocalSeparation: (v) => set({ useVocalSeparation: v }),
       setUseVad: (v) => set({ useVad: v }),
       setKeybinding: (action, code) =>
@@ -132,6 +187,6 @@ export const useSettingsStore = create<SettingsState>()(
         }),
       clearRecentFiles: () => set({ recentFiles: [] }),
     }),
-    { name: "lyrical-sync-settings" }
+    { name: "lyrical-sync-settings", storage: createJSONStorage(() => debouncedLocalStorage(300)) }
   )
 );

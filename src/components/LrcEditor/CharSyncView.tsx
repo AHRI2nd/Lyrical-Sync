@@ -5,7 +5,7 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { tokenizeText, isStampable, formatTimestamp, clampToNeighbors } from "../../utils/lrcParser";
 import { anyModalOpen } from "../../utils/modalGuard";
-import { matchAction, normalizeKeybindings } from "../../utils/keybindings";
+import { isInteractiveKeyTarget, matchAction, normalizeKeybindings } from "../../utils/keybindings";
 import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
 import type { LrcLine, LrcSyllable } from "../../types/lrc";
@@ -244,9 +244,7 @@ export function CharSyncView() {
   // ←→=글자 이동(Shift=미세조정, 고정) · stamp/prevLine=사용자 단축키
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const inInput =
-        e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
-      if (inInput) return;
+      if (isInteractiveKeyTarget(e.target) || isInteractiveKeyTarget(document.activeElement)) return;
       // 모달이 열려 있으면 글자 모드 키가 모달 뒤에서 동작하지 않게 차단
       if (anyModalOpen()) return;
       // 글자 이동/미세조정(고정)

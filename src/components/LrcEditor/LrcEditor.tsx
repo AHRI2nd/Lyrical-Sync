@@ -9,7 +9,7 @@ import { formatTimestamp, parseTimestampInput, validateTimestamps, type SyncUnit
 import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
 import { MODEL_DEFS } from "../../utils/modelDefs";
-import { safeUnlisten } from "../../utils/safeUnlisten";
+import { listenSafely } from "../../utils/safeListen";
 import { CurrentTimeFooter } from "./CurrentTimeFooter";
 import { MiniConfirm } from "./MiniConfirm";
 import { FindReplaceBar } from "./FindReplaceBar";
@@ -20,12 +20,26 @@ import { LrcLineRow } from "./LrcLineRow";
 import { SyncModeToggle } from "./SyncModeToggle";
 import { EditorToolsMenu } from "./EditorToolsMenu";
 import { BulkActionsBar } from "./BulkActionsBar";
-// 글자 동기화 뷰·자동 스팟팅 모달은 각각 모드 전환/버튼 클릭 시에만 필요 → 지연 로드
+// 글자 동기화 뷰는 모드 전환 시에만 필요 → 지연 로드
 const CharSyncView = lazy(() => import("./CharSyncView").then((m) => ({ default: m.CharSyncView })));
-const AutoSpotModal = lazy(() => import("../AudioPlayer/AutoSpotModal").then((m) => ({ default: m.AutoSpotModal })));
+const BpmSnapModal = lazy(() => import("../AudioPlayer/BpmSnapModal").then((m) => ({ default: m.BpmSnapModal })));
 
 // ISO 639-3 codes used by ctc-forced-aligner / MMS model
 const LANG_CODE: Record<string, string> = { ko: "kor", en: "eng", ja: "jpn" };
+
+function suggestTranslationSplit(text: string, caretPos: number, translation: string) {
+  const sourceChars = Array.from(text);
+  const translatedChars = Array.from(translation);
+  const ratio = sourceChars.length ? Array.from(text.slice(0, caretPos)).length / sourceChars.length : 0.5;
+  const target = Math.round(ratio * translatedChars.length);
+  const boundaries = [0, ...translatedChars.flatMap((char, i) => (/\s/.test(char) ? [i + 1] : [])), translatedChars.length];
+  const splitAt = boundaries.reduce((best, current) =>
+    Math.abs(current - target) < Math.abs(best - target) ? current : best, boundaries[0]);
+  return {
+    first: translatedChars.slice(0, splitAt).join("").trim(),
+    second: translatedChars.slice(splitAt).join("").trim(),
+  };
+}
 
 export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   // currentTime은 푸터에서만 쓰므로 구독에서 제외 → 재생 중 줄 목록이 매 프레임 리렌더되지 않음
@@ -57,7 +71,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     }))
   );
   const { t, lang } = useI18nStore();
-  const { blankLineOffset, spotifyMode, deviceMode, lyricsFontScale, useVocalSeparation, useVad } = useSettingsStore();
+  const { blankLineOffset, modelsDir, spotifyMode, deviceMode, lyricsFontScale, useVocalSeparation, useVad, showSpellCheck, showTranslationLines } = useSettingsStore();
   const serviceLoggedIn = useServiceStore((s) => s.isLoggedIn);
   // 실제 Spotify 모드(로그인 + spotifyMode 활성)일 때만 서비스 모드로 간주.
   // 단순 계정 연결만으로 AI 싱크를 막지 않도록 isReady 대신 spotifyMode 기준 사용.
@@ -82,11 +96,13 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   // Time Shift state
   const [showTS, setShowTS] = useState(false);
   const [showScale, setShowScale] = useState(false);
-  const [showAutoSpot, setShowAutoSpot] = useState(false);
+  const [showBpmSnap, setShowBpmSnap] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
   // 줄 다중선택(일괄 작업)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [selAnchor, setSelAnchor] = useState<string | null>(null);
+  // 렌더에 직접 반영되지 않는(shift-클릭 범위 선택 계산에만 쓰이는) 값이라 ref로 보관 —
+  // handleRowClick을 useCallback으로 안정화할 때 상태로 두면 의존성이 돼 참조가 계속 바뀜
+  const selAnchorRef = useRef<string | null>(null);
 
   const [findText, setFindText] = useState("");
   const [replaceText, setReplaceText] = useState("");
@@ -103,11 +119,65 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
 
   // 글자 동기화된 줄의 텍스트 수정 경고 / 단위 변경 경고
   const [pendingTextEdit, setPendingTextEdit] = useState<{ id: string; text: string } | null>(null);
+  const [pendingTranslationSplit, setPendingTranslationSplit] = useState<{
+    id: string;
+    caretPos: number;
+    first: string;
+    second: string;
+  } | null>(null);
   const [pendingUnit, setPendingUnit] = useState<SyncUnit | null>(null);
   const [pendingAiSync, setPendingAiSync] = useState(false);
   // 드래그 재정렬 상태
   const [dragIdx, setDragIdx] = useState<number | null>(null);
-  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [dropGapIdx, setDropGapIdx] = useState<number | null>(null);
+  const reorderRef = useRef<{ lineId: string; pointerId: number; startX: number; startY: number; active: boolean; gap: number | null } | null>(null);
+
+  const clearReorder = () => {
+    reorderRef.current = null;
+    setDragIdx(null);
+    setDropGapIdx(null);
+  };
+
+  const gapAtPoint = (x: number, y: number, list: HTMLDivElement): number | null => {
+    const hit = document.elementFromPoint(x, y);
+    if (!hit || !list.contains(hit)) return null;
+    const rows = list.querySelectorAll<HTMLElement>("[data-line-id]");
+    for (let index = 0; index < rows.length; index++) {
+      const rect = rows[index].getBoundingClientRect();
+      if (y < rect.top + rect.height / 2) return index;
+    }
+    return rows.length;
+  };
+
+  const handleReorderMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = reorderRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    if (!drag.active) {
+      const distance = Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY);
+      if (distance < 5) return;
+      drag.active = true;
+      const sourceIndex = useLrcStore.getState().doc.lines.findIndex((line) => line.id === drag.lineId);
+      if (sourceIndex < 0) { clearReorder(); return; }
+      setDragIdx(sourceIndex);
+    }
+    const nextGap = gapAtPoint(e.clientX, e.clientY, e.currentTarget);
+    drag.gap = nextGap;
+    setDropGapIdx((previous) => previous === nextGap ? previous : nextGap);
+  };
+
+  const handleReorderUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = reorderRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    if (drag.active && drag.gap !== null && e.currentTarget.contains(document.elementFromPoint(e.clientX, e.clientY))) {
+      const currentLines = useLrcStore.getState().doc.lines;
+      const from = currentLines.findIndex((line) => line.id === drag.lineId);
+      if (from >= 0) {
+        const to = drag.gap > from ? drag.gap - 1 : drag.gap;
+        if (to !== from) moveLine(from, to);
+      }
+    }
+    clearReorder();
+  };
 
   const charMode = syncMode === "char";
 
@@ -162,6 +232,8 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   };
 
   const checkAiRequirements = useCallback(async () => {
+    // 앱 재시작 뒤에도 설정 화면을 열기 전에 커스텀 모델 경로를 Rust 상태에 반영한다.
+    await invoke("set_models_dir_override", { path: modelsDir || null }).catch(() => {});
     try {
       const v = await invoke<{ packagesReady: boolean }>("get_python_env_info");
       setPythonReady(v.packagesReady);
@@ -178,22 +250,21 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
       }
     }
     setMissingModels(missing);
-  }, []);
+  }, [modelsDir]);
 
   useEffect(() => { checkAiRequirements(); }, [checkAiRequirements]);
 
   useEffect(() => {
-    let unlistenModel: (() => void) | null = null;
-    let unlistenPip: (() => void) | null = null;
-    import("@tauri-apps/api/event").then(({ listen }) => {
-      listen<{ done: boolean }>("model-download-progress", (e) => {
-        if (e.payload.done) checkAiRequirements();
-      }).then((fn) => { unlistenModel = fn; }).catch(() => {});
-      listen<{ done: boolean }>("pip-install-progress", (e) => {
-        if (e.payload.done) checkAiRequirements();
-      }).then((fn) => { unlistenPip = fn; }).catch(() => {});
-    });
-    return () => { safeUnlisten(unlistenModel); safeUnlisten(unlistenPip); };
+    let active = true;
+    const register = async (event: string) => {
+      const { listen } = await import("@tauri-apps/api/event");
+      return listen<{ done: boolean }>(event, (e) => {
+        if (active && e.payload.done) checkAiRequirements();
+      });
+    };
+    const stopModel = listenSafely(() => register("model-download-progress"));
+    const stopPip = listenSafely(() => register("pip-install-progress"));
+    return () => { active = false; stopModel(); stopPip(); };
   }, [checkAiRequirements]);
 
   const canRunAi = pythonReady && missingModels.length === 0;
@@ -225,6 +296,11 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
       // Shift+Enter = 커서 위치에서 줄 분할
       e.preventDefault();
       const caret = e.currentTarget.selectionStart ?? e.currentTarget.value.length;
+      const line = lines.find((item) => item.id === id);
+      if (line?.translation) {
+        setPendingTranslationSplit({ id, caretPos: caret, ...suggestTranslationSplit(line.text, caret, line.translation) });
+        return;
+      }
       const newId = splitLine(id, caret);
       setActiveLineId(newId);
       pendingFocusId.current = newId;
@@ -288,13 +364,18 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     setShowValidation(false);
   };
 
-  // 줄 클릭: Shift=범위 선택, Ctrl/⌘=토글, 일반=단일 선택+시크(기존 동작)
-  const handleRowClick = (e: React.MouseEvent, id: string, idx: number) => {
-    if (e.shiftKey && selAnchor) {
-      const aIdx = lines.findIndex((l) => l.id === selAnchor);
+  // 줄 클릭: Shift=범위 선택, Ctrl/⌘=토글, 일반=단일 선택+시크(기존 동작).
+  // LrcLineRow가 React.memo로 감싸여 있어 안 건드린 줄은 오래 리렌더되지 않을 수 있으므로,
+  // 이 핸들러는 useCallback으로 참조를 고정하고 매 렌더 바뀌는 값(lines/selAnchor/matchIds)은
+  // ref나 getState()로 그때그때 최신값을 읽는다 — 그래야 오래된 줄에 붙은 낡은 클로저를
+  // 클릭해도 항상 최신 선택/검색 상태를 참조한다.
+  const handleRowClick = useCallback((e: React.MouseEvent, id: string, idx: number) => {
+    const currentLines = useLrcStore.getState().doc.lines;
+    if (e.shiftKey && selAnchorRef.current) {
+      const aIdx = currentLines.findIndex((l) => l.id === selAnchorRef.current);
       if (aIdx >= 0) {
         const [lo, hi] = aIdx <= idx ? [aIdx, idx] : [idx, aIdx];
-        setSelectedIds(new Set(lines.slice(lo, hi + 1).map((l) => l.id)));
+        setSelectedIds(new Set(currentLines.slice(lo, hi + 1).map((l) => l.id)));
       }
       setActiveLineId(id);
       return;
@@ -305,23 +386,23 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
         if (n.has(id)) n.delete(id); else n.add(id);
         return n;
       });
-      setSelAnchor(id);
+      selAnchorRef.current = id;
       setActiveLineId(id);
       return;
     }
     // 일반 클릭: 다중선택 해제 + 기존 동작(활성/시크/찾기)
-    if (selectedIds.size > 0) setSelectedIds(new Set());
-    setSelAnchor(id);
+    setSelectedIds((prev) => (prev.size > 0 ? new Set() : prev));
+    selAnchorRef.current = id;
     setActiveLineId(id);
-    const ln = lines.find((l) => l.id === id);
+    const ln = currentLines.find((l) => l.id === id);
     if (ln && ln.timestamp !== null) {
       (serviceActive ? serviceControls : audioControls).seekTo(ln.timestamp);
     }
     if (showFR) {
-      const mi = matchIds.indexOf(id);
+      const mi = matchIdsRef.current.indexOf(id);
       if (mi !== -1) setMatchPos(mi);
     }
-  };
+  }, [showFR, serviceActive, setActiveLineId]);
 
   // 매칭 줄 id 목록
   const matchIds = useMemo(() => {
@@ -331,6 +412,11 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
       .filter((l) => (caseSensitive ? l.text : l.text.toLowerCase()).includes(needle))
       .map((l) => l.id);
   }, [lines, findText, caseSensitive]);
+  // handleRowClick을 안정된 참조로 유지하려고 matchIds를 의존성에 넣지 않는 대신 ref로 미러링
+  // (매 키 입력마다 lines가 바뀌어 matchIds도 매번 새 배열이 되므로, 그대로 의존성에 넣으면
+  // handleRowClick도 매번 바뀌어 모든 줄이 다시 렌더되는 원래 문제가 되풀이됨)
+  const matchIdsRef = useRef<string[]>(matchIds);
+  useEffect(() => { matchIdsRef.current = matchIds; }, [matchIds]);
 
   // matchPos 범위 보정
   useEffect(() => {
@@ -513,11 +599,11 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           )}
 
           <EditorToolsMenu
-            t={t} showFR={showFR} showTS={showTS} showScale={showScale} showAutoSpot={showAutoSpot}
+            t={t} showFR={showFR} showTS={showTS} showScale={showScale}
             onToggleFR={() => { setShowFR((v) => !v); setTimeout(() => findInputRef.current?.focus(), 0); }}
             onToggleTS={() => setShowTS((v) => !v)}
             onToggleScale={() => setShowScale((v) => !v)}
-            onOpenAutoSpot={() => setShowAutoSpot(true)}
+            onOpenBpmSnap={() => setShowBpmSnap(true)}
           />
           </>)}
           <button
@@ -602,6 +688,10 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
 
       <div
         className="flex-1 overflow-y-auto flex flex-col gap-1 px-1 py-1"
+        onPointerMove={handleReorderMove}
+        onPointerUp={handleReorderUp}
+        onPointerCancel={clearReorder}
+        onLostPointerCapture={clearReorder}
         onDoubleClick={(e) => { if (e.target === e.currentTarget) handleAddLine(); }}
       >
         {lines.length === 0 && (
@@ -631,15 +721,18 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
               warning={warning}
               loopLineId={loopLineId}
               lyricsFontScale={lyricsFontScale}
+              showSpellCheck={showSpellCheck}
+              showTranslationLines={showTranslationLines}
+              serviceActive={serviceActive}
               dragIdx={dragIdx}
-              dragOverIdx={dragOverIdx}
-              onDragStart={(e) => { e.stopPropagation(); setDragIdx(idx); }}
-              onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
-              onDragOver={(e) => { if (dragIdx !== null) { e.preventDefault(); if (dragOverIdx !== idx) setDragOverIdx(idx); } }}
-              onDrop={(e) => {
+              showInsertionBefore={dragIdx !== null && dropGapIdx === idx}
+              showInsertionAfter={dragIdx !== null && idx === lines.length - 1 && dropGapIdx === lines.length}
+              onReorderPointerDown={(e) => {
+                if (e.button !== 0) return;
                 e.preventDefault();
-                if (dragIdx !== null && dragIdx !== idx) moveLine(dragIdx, idx);
-                setDragIdx(null); setDragOverIdx(null);
+                e.stopPropagation();
+                e.currentTarget.setPointerCapture(e.pointerId);
+                reorderRef.current = { lineId: line.id, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, active: false, gap: null };
               }}
               editingTsId={editingTsId}
               editTsValue={editTsValue}
@@ -648,7 +741,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
               onCommitTsEdit={() => commitTsEdit(line.id)}
               onCancelTsEdit={cancelTsEdit}
               onStampCurrentLine={() => stampCurrentLine(line.id)}
-              onRowClick={(e) => handleRowClick(e, line.id, idx)}
+              onRowClick={handleRowClick}
               onToggleLoop={(e) => {
                 e.stopPropagation();
                 if (loopLineId === line.id) { setLoopLine(null); return; }
@@ -657,6 +750,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                 (serviceActive ? serviceControls : audioControls).seekTo(line.timestamp);
               }}
               onTextChange={(value) => handleTextChange(line.id, value)}
+              onTranslationChange={(value) => updateLine(line.id, { translation: value })}
               onKeyDown={(e) => handleKeyDown(e, line.id)}
               onPaste={(e) => handlePaste(e, line.id, line.text)}
               onFocus={() => setActiveLineId(line.id)}
@@ -712,6 +806,59 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           onCancel={() => setPendingAiSync(false)}
         />
       )}
+      {pendingTranslationSplit && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setPendingTranslationSplit(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="translation-split-title"
+            className="w-full max-w-md mx-4 rounded-xl border border-zinc-700 bg-zinc-900 p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="translation-split-title" className="text-sm font-semibold text-zinc-100">
+              {t.translationSplitTitle}
+            </h2>
+            <p className="mt-2 text-xs text-zinc-400">{t.translationSplitHint}</p>
+            <label className="mt-4 block text-xs text-zinc-400">
+              {t.translationFirstPart}
+              <textarea
+                autoFocus
+                value={pendingTranslationSplit.first}
+                onChange={(e) => setPendingTranslationSplit((s) => s ? { ...s, first: e.target.value } : s)}
+                className="mt-1 min-h-16 w-full resize-y rounded-lg border border-zinc-700 bg-zinc-950 p-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
+              />
+            </label>
+            <label className="mt-3 block text-xs text-zinc-400">
+              {t.translationSecondPart}
+              <textarea
+                value={pendingTranslationSplit.second}
+                onChange={(e) => setPendingTranslationSplit((s) => s ? { ...s, second: e.target.value } : s)}
+                className="mt-1 min-h-16 w-full resize-y rounded-lg border border-zinc-700 bg-zinc-950 p-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
+              />
+            </label>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setPendingTranslationSplit(null)}
+                className="rounded-lg bg-zinc-700 px-3 py-2 text-xs text-zinc-200 hover:bg-zinc-600"
+              >{t.cancelLabel}</button>
+              <button
+                onClick={() => {
+                  const pending = pendingTranslationSplit;
+                  if (!pending) return;
+                  const newId = splitLine(pending.id, pending.caretPos, { first: pending.first, second: pending.second });
+                  setPendingTranslationSplit(null);
+                  setActiveLineId(newId);
+                  pendingFocusId.current = newId;
+                }}
+                className="rounded-lg bg-indigo-600 px-3 py-2 text-xs text-white hover:bg-indigo-500"
+              >{t.translationSplitAction}</button>
+            </div>
+          </div>
+        </div>
+      )}
       {showValidation && (
         <ValidationPanel
           stats={stats}
@@ -720,12 +867,11 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           onClose={() => setShowValidation(false)}
         />
       )}
-      {showAutoSpot && (
+      {showBpmSnap && (
         <Suspense fallback={null}>
-          <AutoSpotModal onClose={() => setShowAutoSpot(false)} />
+          <BpmSnapModal onClose={() => setShowBpmSnap(false)} selectedIds={[...selectedIds]} />
         </Suspense>
       )}
     </div>
   );
 }
-

@@ -3,6 +3,14 @@ export type Lang = "ko" | "en" | "ja";
 export interface Translations {
   // Common
   close: string;
+  cancelLabel: string;
+  applyLabel: string;
+  translationSplitTitle: string;
+  translationSplitHint: string;
+  translationFirstPart: string;
+  translationSecondPart: string;
+  translationSplitAction: string;
+  audioRequired: string;
   // Header
   newFileTitle: string;
   newFileBtn: string;
@@ -16,8 +24,19 @@ export interface Translations {
   saveFormatSrtDesc: string;
   saveFormatVttDesc: string;
   saveFormatAssDesc: string;
+  unsavedChanges: string;
   undo: string;
   redo: string;
+  historyPanelTitle: string;
+  historyCurrent: string;
+  historyLabels: Record<
+    | "commitSyllables" | "clearSyllables" | "stampLine" | "setLines" | "addLine"
+    | "insertLines" | "deleteLine" | "duplicateLine" | "mergeLine"
+    | "splitLine" | "moveLine" | "scaleTimestamps" | "deleteLines" | "shiftLines"
+    | "clearTimestamps" | "loadDoc" | "applyOffset" | "shiftTimeRange" | "replaceAll" | "aiSync" | "snapBeatGrid"
+    | "editText" | "editMetadata",
+    string
+  >;
   // Help modal
   helpTitle: string;
   helpTabShortcuts: string;
@@ -160,20 +179,45 @@ export interface Translations {
   tsScale: string;
   tsScaleFactor: string;
   tsScaleHint: string;
-  autoSpot: string;
-  autoSpotTitle: string;
-  autoSpotHint: string;
-  autoSpotNeedsAudio: string;
-  autoSpotDecoding: string;
-  autoSpotDecodeError: string;
-  autoSpotThreshold: string;
-  autoSpotMinSilence: string;
-  autoSpotMinSpeech: string;
-  autoSpotPadding: string;
-  autoSpotSegmentsFound: string;
-  autoSpotAddedLabel: string;
-  autoSpotApply: string;
-  autoSpotCancel: string;
+  translationToggle: string;
+  translationPlaceholder: string;
+  settingsTranslationDesc: string;
+  translationWarningTitle: string;
+  translationWarningMessage: string;
+  translationWarningOk: string;
+  translationWarningCancel: string;
+  bpmTitle: string;
+  bpmHint: string;
+  bpmDetecting: string;
+  bpmDetectFailed: string;
+  bpmDecodeError: string;
+  bpmLabel: string;
+  bpmOffset: string;
+  bpmTapTempo: string;
+  bpmScopeAll: string;
+  bpmScopeSelected: string;
+  bpmConfidence: string;
+  bpmAppliedAll: string;
+  bpmAppliedCount: string;
+  batchTitle: string;
+  batchHint: string;
+  batchSelectFiles: string;
+  batchNoFiles: string;
+  batchNoAudioMatch: string;
+  batchStatusPending: string;
+  batchStatusProcessing: string;
+  batchStatusDone: string;
+  batchStatusError: string;
+  batchOpOffset: string;
+  batchOpConvert: string;
+  batchOpTag: string;
+  batchOffsetLabel: string;
+  batchTagHint: string;
+  batchRun: string;
+  batchRunning: string;
+  batchStop: string;
+  batchSummaryDone: string;
+  batchSummaryError: string;
   timeShiftTooltip: string;
   timeShiftFrom: string;
   timeShiftTo: string;
@@ -246,7 +290,13 @@ export interface Translations {
   settingsTitle: string;
   settingsTabGeneral: string;
   settingsTabShortcuts: string;
+  settingsTabPreview: string;
   settingsTabModels: string;
+  previewFontScaleLabel: string;
+  previewActiveColorLabel: string;
+  previewAccentColorLabel: string;
+  previewGlowLabel: string;
+  previewStyleSettingsTooltip: string;
   settingsAutoUpdate: string;
   settingsAutoUpdateDesc: string;
   settingsAutoSave: string;
@@ -256,6 +306,8 @@ export interface Translations {
   settingsLyricsFontSize: string;
   settingsGlyphMarkers: string;
   settingsGlyphMarkersDesc: string;
+  settingsSpellCheck: string;
+  settingsSpellCheckDesc: string;
   elrcNotice: {
     title: string;
     message: string;
@@ -439,6 +491,14 @@ export interface Translations {
 
 const ko: Translations = {
   close: "닫기",
+  cancelLabel: "취소",
+  applyLabel: "적용",
+  translationSplitTitle: "번역 줄 나누기",
+  translationSplitHint: "원문을 나눈 위치에 맞게 번역도 앞뒤로 나눠주세요.",
+  translationFirstPart: "앞 줄 번역",
+  translationSecondPart: "뒷 줄 번역",
+  translationSplitAction: "줄 나누기",
+  audioRequired: "오디오 파일을 먼저 열어주세요",
   newFileTitle: "새 LRC 파일",
   newFileBtn: "새로 만들기",
   openLrc: "가사 열기",
@@ -451,8 +511,36 @@ const ko: Translations = {
   saveFormatSrtDesc: "영상 자막 파일",
   saveFormatVttDesc: "웹 영상 자막 (HTML5)",
   saveFormatAssDesc: "노래방 영상 자막 (글자 동기화 \\k)",
+  unsavedChanges: "저장되지 않은 변경사항이 있습니다",
   undo: "실행 취소",
   redo: "다시 실행",
+  historyPanelTitle: "편집 히스토리",
+  historyCurrent: "현재",
+  historyLabels: {
+      commitSyllables: "글자 동기화 입력",
+      clearSyllables: "글자 동기화 해제",
+      stampLine: "타임스탬프 찍기",
+      setLines: "가사 줄 일괄 변경",
+      addLine: "줄 추가",
+      insertLines: "줄 삽입",
+      deleteLine: "줄 삭제",
+      duplicateLine: "줄 복제",
+      mergeLine: "줄 병합",
+      splitLine: "줄 분할",
+      moveLine: "줄 순서 이동",
+      scaleTimestamps: "타임스탬프 스케일",
+      deleteLines: "줄 일괄 삭제",
+      shiftLines: "타임스탬프 이동",
+      clearTimestamps: "타임스탬프 지우기",
+      loadDoc: "가사 불러오기",
+      applyOffset: "오프셋 적용",
+      shiftTimeRange: "구간 시간 이동",
+      replaceAll: "찾아바꾸기 ({count}곳)",
+      aiSync: "AI 자동 동기화",
+      snapBeatGrid: "BPM 그리드 스냅",
+      editText: "가사 편집",
+      editMetadata: "메타데이터 편집",
+  },
   helpTitle: "도움말",
   helpTabShortcuts: "단축키",
   helpTabAi: "AI 사용법",
@@ -643,20 +731,45 @@ const ko: Translations = {
   tsScale: "타임스탬프 스케일",
   tsScaleFactor: "배율",
   tsScaleHint: "전체 타임스탬프 ×배율 (예: 1.05 = 5% 느리게)",
-  autoSpot: "자동 스팟팅",
-  autoSpotTitle: "무음 기반 자동 스팟팅",
-  autoSpotHint: "오디오에서 발화로 보이는 구간을 찾아 빈 텍스트 줄로 배치합니다. 정밀한 음성 인식이 아니라 음량 임계값 기반이므로, 배치 후 직접 검토하며 텍스트를 채워주세요.",
-  autoSpotNeedsAudio: "오디오 파일을 먼저 열어주세요",
-  autoSpotDecoding: "오디오 분석 중…",
-  autoSpotDecodeError: "오디오를 분석하지 못했습니다",
-  autoSpotThreshold: "임계값",
-  autoSpotMinSilence: "최소 무음 길이",
-  autoSpotMinSpeech: "최소 발화 길이",
-  autoSpotPadding: "여유(패딩)",
-  autoSpotSegmentsFound: "개 구간 감지됨",
-  autoSpotAddedLabel: "개 줄 추가됨",
-  autoSpotApply: "적용",
-  autoSpotCancel: "취소",
+  translationToggle: "번역 줄 표시",
+  settingsTranslationDesc: "가사 줄마다 2차(번역) 텍스트 보조 입력창을 표시합니다. 표준 LRC 규격에 없는 확장 표기라, 켜서 저장한 파일은 다른 LRC 플레이어·도구와 호환되지 않을 수 있습니다.",
+  translationWarningTitle: "번역 줄은 표준 LRC 형식이 아닙니다",
+  translationWarningMessage: "번역 줄을 켜면 저장되는 LRC 파일에 표준 규격에 없는 확장 표기(같은 타임스탬프에 \"/\"로 시작하는 두 번째 줄)가 포함됩니다.\n이 앱에서는 다시 정상적으로 불러올 수 있지만, 다른 LRC 플레이어나 도구에서는 번역 줄이 별도의 가사 줄로 잘못 표시되거나 호환되지 않을 수 있습니다.\n계속하시겠습니까?",
+  translationWarningOk: "이해했습니다, 켜기",
+  translationWarningCancel: "취소",
+  translationPlaceholder: "번역 (선택)",
+  bpmTitle: "BPM 감지 + 비트 그리드 스냅",
+  bpmHint: "오디오에서 박자(BPM)를 추정합니다. 실제 음악 전체에 대한 자동 감지는 배박/절반박 오류가 흔하니, 값을 확인하거나 아래 탭 템포로 직접 보정한 뒤 적용하세요.",
+  bpmDetecting: "박자 감지 중...",
+  bpmDetectFailed: "박자를 감지하지 못했습니다. 탭 템포로 직접 입력해주세요.",
+  bpmDecodeError: "오디오 디코드에 실패했습니다.",
+  bpmLabel: "BPM",
+  bpmOffset: "첫 비트 시각",
+  bpmTapTempo: "탭 템포 (박자에 맞춰 클릭)",
+  bpmScopeAll: "전체 줄에 적용",
+  bpmScopeSelected: "선택한 줄에 적용",
+  bpmConfidence: "신뢰도",
+  bpmAppliedAll: "전체 줄에 적용했습니다",
+  bpmAppliedCount: "줄에 적용했습니다",
+  batchTitle: "일괄 처리",
+  batchHint: "여러 LRC/SRT 파일을 선택해 오프셋 적용·포맷 변환·태그 채우기 중 하나를 한 번에 적용합니다. 현재 열려있는 문서와는 무관하게 파일을 직접 읽고 씁니다.",
+  batchSelectFiles: "파일 선택...",
+  batchNoFiles: "선택된 파일이 없습니다",
+  batchNoAudioMatch: "매칭된 오디오 없음",
+  batchStatusPending: "대기",
+  batchStatusProcessing: "처리 중",
+  batchStatusDone: "완료",
+  batchStatusError: "오류",
+  batchOpOffset: "오프셋 적용",
+  batchOpConvert: "포맷 변환",
+  batchOpTag: "태그 채우기",
+  batchOffsetLabel: "이동할 시간",
+  batchTagHint: "입력한 필드만 덮어씁니다. LRC 파일에만 적용되며(SRT는 태그 개념이 없어 제외), 오디오 파일 자체의 태그는 변경하지 않습니다.",
+  batchRun: "실행",
+  batchRunning: "처리 중...",
+  batchStop: "중지",
+  batchSummaryDone: "개 완료",
+  batchSummaryError: "개 실패",
   timeShiftTooltip: "선택한 줄 범위의 타임스탬프를 일괄로 앞뒤로 이동합니다",
   timeShiftFrom: "시작",
   timeShiftTo: "끝",
@@ -725,7 +838,13 @@ const ko: Translations = {
   settingsTitle: "설정",
   settingsTabGeneral: "일반",
   settingsTabShortcuts: "단축키",
+  settingsTabPreview: "미리보기",
   settingsTabModels: "AI 모델",
+  previewFontScaleLabel: "가사 글꼴 크기",
+  previewActiveColorLabel: "활성 줄 색상",
+  previewAccentColorLabel: "강조 색상",
+  previewGlowLabel: "글로우 효과",
+  previewStyleSettingsTooltip: "미리보기 스타일 설정",
   settingsAutoUpdate: "자동 업데이트 확인",
   settingsAutoUpdateDesc: "앱 시작 시 최신 버전을 자동으로 확인합니다.",
   settingsAutoSave: "자동 저장",
@@ -735,6 +854,8 @@ const ko: Translations = {
   settingsLyricsFontSize: "가사 글꼴 크기",
   settingsGlyphMarkers: "글자 시간 마커 표시",
   settingsGlyphMarkersDesc: "글자 동기화 모드에서 각 글자 아래에 찍힌 시간을 점선으로 표시합니다.",
+  settingsSpellCheck: "맞춤법 검사",
+  settingsSpellCheckDesc: "가사 입력창에 브라우저 기본 맞춤법 검사를 사용합니다. 전용 교정기가 아니라 일반 사전 기반 검사이며, 음역/비표준 가사에서는 오탐이 많을 수 있습니다.",
   elrcNotice: {
     title: "Enhanced LRC로 저장",
     message: "글자/단어 동기화가 포함되어 있어 이 파일은 Enhanced LRC(.lrc)로 저장됩니다. 일부 플레이어는 글자 단위 타이밍 태그를 지원하지 않을 수 있습니다.",
@@ -915,6 +1036,14 @@ const ko: Translations = {
 
 const en: Translations = {
   close: "Close",
+  cancelLabel: "Cancel",
+  applyLabel: "Apply",
+  translationSplitTitle: "Split translation",
+  translationSplitHint: "Adjust the translation split to match the lyric split.",
+  translationFirstPart: "First line translation",
+  translationSecondPart: "Second line translation",
+  translationSplitAction: "Split line",
+  audioRequired: "Open an audio file first",
   newFileTitle: "New LRC File",
   newFileBtn: "New",
   openLrc: "Open Lyrics",
@@ -927,8 +1056,36 @@ const en: Translations = {
   saveFormatSrtDesc: "Video subtitle file",
   saveFormatVttDesc: "Web video captions (HTML5)",
   saveFormatAssDesc: "Karaoke video subtitle (per-glyph \\k)",
+  unsavedChanges: "You have unsaved changes",
   undo: "Undo",
   redo: "Redo",
+  historyPanelTitle: "Edit history",
+  historyCurrent: "Current",
+  historyLabels: {
+      commitSyllables: "Sync glyphs",
+      clearSyllables: "Clear glyph sync",
+      stampLine: "Stamp timestamp",
+      setLines: "Bulk edit lines",
+      addLine: "Add line",
+      insertLines: "Insert lines",
+      deleteLine: "Delete line",
+      duplicateLine: "Duplicate line",
+      mergeLine: "Merge line",
+      splitLine: "Split line",
+      moveLine: "Reorder line",
+      scaleTimestamps: "Scale timestamps",
+      deleteLines: "Delete lines",
+      shiftLines: "Shift timestamps",
+      clearTimestamps: "Clear timestamps",
+      loadDoc: "Load lyrics",
+      applyOffset: "Apply offset",
+      shiftTimeRange: "Shift time range",
+      replaceAll: "Find & replace ({count})",
+      aiSync: "AI auto sync",
+      snapBeatGrid: "BPM grid snap",
+      editText: "Edit lyrics",
+      editMetadata: "Edit metadata",
+  },
   helpTitle: "Help",
   helpTabShortcuts: "Shortcuts",
   helpTabAi: "AI Guide",
@@ -1120,20 +1277,45 @@ const en: Translations = {
   tsScale: "Timestamp scale",
   tsScaleFactor: "Factor",
   tsScaleHint: "All timestamps × factor (e.g. 1.05 = 5% slower)",
-  autoSpot: "Auto-Spot",
-  autoSpotTitle: "Silence-Based Auto-Spotting",
-  autoSpotHint: "Finds stretches that sound like speech and lays down blank text lines over them. This is a volume-threshold heuristic, not real speech recognition — review and fill in the text afterward.",
-  autoSpotNeedsAudio: "Open an audio file first",
-  autoSpotDecoding: "Analyzing audio…",
-  autoSpotDecodeError: "Couldn't analyze the audio",
-  autoSpotThreshold: "Threshold",
-  autoSpotMinSilence: "Min. silence",
-  autoSpotMinSpeech: "Min. speech",
-  autoSpotPadding: "Padding",
-  autoSpotSegmentsFound: "segments found",
-  autoSpotAddedLabel: "lines added",
-  autoSpotApply: "Apply",
-  autoSpotCancel: "Cancel",
+  translationToggle: "Show translation lines",
+  settingsTranslationDesc: "Show a secondary (translation) text input under each lyric line. This is an extension not part of the standard LRC spec, so files saved with it on may not be compatible with other LRC players or tools.",
+  translationWarningTitle: "Translation lines aren't standard LRC",
+  translationWarningMessage: "Turning this on adds a non-standard extension to saved LRC files (a second line starting with \"/\" at the same timestamp).\nThis app can read it back correctly, but other LRC players or tools may show it as a separate, garbled lyric line or fail to parse the file.\nContinue?",
+  translationWarningOk: "Understood, turn it on",
+  translationWarningCancel: "Cancel",
+  translationPlaceholder: "Translation (optional)",
+  bpmTitle: "BPM Detection + Beat Grid Snap",
+  bpmHint: "Estimates the track's tempo (BPM). Automatic detection on a full music mix is prone to half/double-tempo errors — check the value or correct it with tap tempo below before applying.",
+  bpmDetecting: "Detecting tempo...",
+  bpmDetectFailed: "Couldn't detect a tempo. Try tap tempo instead.",
+  bpmDecodeError: "Failed to decode audio.",
+  bpmLabel: "BPM",
+  bpmOffset: "First beat time",
+  bpmTapTempo: "Tap Tempo (click along with the beat)",
+  bpmScopeAll: "Apply to all lines",
+  bpmScopeSelected: "Apply to selected lines",
+  bpmConfidence: "Confidence",
+  bpmAppliedAll: "Applied to all lines",
+  bpmAppliedCount: "line(s) snapped",
+  batchTitle: "Batch Tool",
+  batchHint: "Select multiple LRC/SRT files and apply one of offset shift, format conversion, or tag filling to all of them at once. Reads and writes files directly, independent of the currently open document.",
+  batchSelectFiles: "Select Files...",
+  batchNoFiles: "No files selected",
+  batchNoAudioMatch: "No matching audio",
+  batchStatusPending: "Pending",
+  batchStatusProcessing: "Processing",
+  batchStatusDone: "Done",
+  batchStatusError: "Error",
+  batchOpOffset: "Apply Offset",
+  batchOpConvert: "Convert Format",
+  batchOpTag: "Fill Tags",
+  batchOffsetLabel: "Shift by",
+  batchTagHint: "Only fields you enter are overwritten. Applies to LRC files only (SRT has no tag concept), and never touches the audio file's own tags.",
+  batchRun: "Run",
+  batchRunning: "Processing...",
+  batchStop: "Stop",
+  batchSummaryDone: "done",
+  batchSummaryError: "failed",
   timeShiftTooltip: "Shift timestamps of a selected line range forward or backward",
   timeShiftFrom: "From",
   timeShiftTo: "To",
@@ -1202,7 +1384,13 @@ const en: Translations = {
   settingsTitle: "Settings",
   settingsTabGeneral: "General",
   settingsTabShortcuts: "Shortcuts",
+  settingsTabPreview: "Preview",
   settingsTabModels: "AI Models",
+  previewFontScaleLabel: "Lyrics font size",
+  previewActiveColorLabel: "Active line color",
+  previewAccentColorLabel: "Accent color",
+  previewGlowLabel: "Glow effect",
+  previewStyleSettingsTooltip: "Preview style settings",
   settingsAutoUpdate: "Auto-check for updates",
   settingsAutoUpdateDesc: "Automatically check for new versions on startup.",
   settingsAutoSave: "Auto-save",
@@ -1212,6 +1400,8 @@ const en: Translations = {
   settingsLyricsFontSize: "Lyrics font size",
   settingsGlyphMarkers: "Show glyph time markers",
   settingsGlyphMarkersDesc: "Show the stamped time under each glyph with dotted lines in character sync mode.",
+  settingsSpellCheck: "Spell check",
+  settingsSpellCheckDesc: "Use the browser's built-in spell checker on the lyric text field. This is a generic dictionary checker, not a lyrics-aware proofreader, and may flag many false positives on phonetic or non-standard lyrics.",
   elrcNotice: {
     title: "Save as Enhanced LRC",
     message: "This file contains word/character sync, so it will be saved as Enhanced LRC (.lrc). Some players may not support per-glyph timing tags.",
@@ -1392,6 +1582,14 @@ const en: Translations = {
 
 const ja: Translations = {
   close: "閉じる",
+  cancelLabel: "キャンセル",
+  applyLabel: "適用",
+  translationSplitTitle: "翻訳を分割",
+  translationSplitHint: "歌詞の分割位置に合わせて翻訳も分けてください。",
+  translationFirstPart: "前の行の翻訳",
+  translationSecondPart: "次の行の翻訳",
+  translationSplitAction: "行を分割",
+  audioRequired: "先に音声ファイルを開いてください",
   newFileTitle: "新規LRCファイル",
   newFileBtn: "新規作成",
   openLrc: "歌詞を開く",
@@ -1404,8 +1602,36 @@ const ja: Translations = {
   saveFormatSrtDesc: "動画字幕ファイル",
   saveFormatVttDesc: "Web動画字幕 (HTML5)",
   saveFormatAssDesc: "カラオケ動画字幕 (文字同期 \\k)",
+  unsavedChanges: "未保存の変更があります",
   undo: "元に戻す",
   redo: "やり直す",
+  historyPanelTitle: "編集履歴",
+  historyCurrent: "現在",
+  historyLabels: {
+      commitSyllables: "文字同期入力",
+      clearSyllables: "文字同期解除",
+      stampLine: "タイムスタンプ記録",
+      setLines: "歌詞行を一括変更",
+      addLine: "行を追加",
+      insertLines: "行を挿入",
+      deleteLine: "行を削除",
+      duplicateLine: "行を複製",
+      mergeLine: "行を結合",
+      splitLine: "行を分割",
+      moveLine: "行の並び替え",
+      scaleTimestamps: "タイムスタンプのスケール",
+      deleteLines: "行を一括削除",
+      shiftLines: "タイムスタンプ移動",
+      clearTimestamps: "タイムスタンプ削除",
+      loadDoc: "歌詞を読み込み",
+      applyOffset: "オフセット適用",
+      shiftTimeRange: "区間の時間移動",
+      replaceAll: "検索と置換 ({count}件)",
+      aiSync: "AI自動同期",
+      snapBeatGrid: "BPMグリッドスナップ",
+      editText: "歌詞編集",
+      editMetadata: "メタデータ編集",
+  },
   helpTitle: "ヘルプ",
   helpTabShortcuts: "ショートカット",
   helpTabAi: "AI使い方",
@@ -1596,20 +1822,45 @@ const ja: Translations = {
   tsScale: "タイムスタンプ倍率",
   tsScaleFactor: "倍率",
   tsScaleHint: "全タイムスタンプ × 倍率（例: 1.05 = 5%遅く）",
-  autoSpot: "自動スポッティング",
-  autoSpotTitle: "無音ベース自動スポッティング",
-  autoSpotHint: "音声から発話に聞こえる区間を検出し、空のテキスト行を配置します。正確な音声認識ではなく音量しきい値ベースなので、配置後は内容を確認しながらテキストを入力してください。",
-  autoSpotNeedsAudio: "先に音声ファイルを開いてください",
-  autoSpotDecoding: "音声を分析中…",
-  autoSpotDecodeError: "音声を分析できませんでした",
-  autoSpotThreshold: "しきい値",
-  autoSpotMinSilence: "最小無音長",
-  autoSpotMinSpeech: "最小発話長",
-  autoSpotPadding: "余白(パディング)",
-  autoSpotSegmentsFound: "区間検出",
-  autoSpotAddedLabel: "行追加",
-  autoSpotApply: "適用",
-  autoSpotCancel: "キャンセル",
+  translationToggle: "翻訳行を表示",
+  settingsTranslationDesc: "各歌詞行の下に2次(翻訳)テキスト入力欄を表示します。標準LRC規格にない拡張表記のため、オンにして保存したファイルは他のLRCプレイヤーやツールと互換性がない場合があります。",
+  translationWarningTitle: "翻訳行は標準LRC形式ではありません",
+  translationWarningMessage: "この機能をオンにすると、保存されるLRCファイルに標準規格にない拡張表記(同じタイムスタンプで\"/\"から始まる2行目)が含まれます。\n本アプリでは正しく読み込めますが、他のLRCプレイヤーやツールでは別の歌詞行として誤表示されたり、互換性がない場合があります。\n続行しますか？",
+  translationWarningOk: "理解しました、オンにする",
+  translationWarningCancel: "キャンセル",
+  translationPlaceholder: "翻訳（任意）",
+  bpmTitle: "BPM検出 + ビートグリッドスナップ",
+  bpmHint: "音源からテンポ(BPM)を推定します。楽曲全体への自動検出は倍テンポ・半テンポの誤りが起きやすいので、値を確認するか下のタップテンポで補正してから適用してください。",
+  bpmDetecting: "テンポを検出中...",
+  bpmDetectFailed: "テンポを検出できませんでした。タップテンポで入力してください。",
+  bpmDecodeError: "音声のデコードに失敗しました。",
+  bpmLabel: "BPM",
+  bpmOffset: "最初のビート時刻",
+  bpmTapTempo: "タップテンポ（拍に合わせてクリック）",
+  bpmScopeAll: "全ての行に適用",
+  bpmScopeSelected: "選択した行に適用",
+  bpmConfidence: "信頼度",
+  bpmAppliedAll: "全ての行に適用しました",
+  bpmAppliedCount: "行に適用しました",
+  batchTitle: "一括処理",
+  batchHint: "複数のLRC/SRTファイルを選択し、オフセット適用・フォーマット変換・タグ入力のいずれかを一括適用します。現在開いているドキュメントとは無関係にファイルを直接読み書きします。",
+  batchSelectFiles: "ファイルを選択...",
+  batchNoFiles: "選択されたファイルはありません",
+  batchNoAudioMatch: "一致する音声なし",
+  batchStatusPending: "待機中",
+  batchStatusProcessing: "処理中",
+  batchStatusDone: "完了",
+  batchStatusError: "エラー",
+  batchOpOffset: "オフセット適用",
+  batchOpConvert: "フォーマット変換",
+  batchOpTag: "タグ入力",
+  batchOffsetLabel: "移動する時間",
+  batchTagHint: "入力した項目のみ上書きします。LRCファイルのみ対象(SRTにはタグの概念がないため対象外)で、音声ファイル自体のタグは変更しません。",
+  batchRun: "実行",
+  batchRunning: "処理中...",
+  batchStop: "停止",
+  batchSummaryDone: "件完了",
+  batchSummaryError: "件失敗",
   timeShiftTooltip: "選択した行範囲のタイムスタンプを前後に一括移動します",
   timeShiftFrom: "開始",
   timeShiftTo: "終了",
@@ -1678,7 +1929,13 @@ const ja: Translations = {
   settingsTitle: "設定",
   settingsTabGeneral: "一般",
   settingsTabShortcuts: "ショートカット",
+  settingsTabPreview: "プレビュー",
   settingsTabModels: "AIモデル",
+  previewFontScaleLabel: "歌詞フォントサイズ",
+  previewActiveColorLabel: "アクティブ行の色",
+  previewAccentColorLabel: "アクセントカラー",
+  previewGlowLabel: "グロー効果",
+  previewStyleSettingsTooltip: "プレビュースタイル設定",
   settingsAutoUpdate: "自動更新確認",
   settingsAutoUpdateDesc: "アプリ起動時に最新バージョンを自動で確認します。",
   settingsAutoSave: "自動保存",
@@ -1688,6 +1945,8 @@ const ja: Translations = {
   settingsLyricsFontSize: "歌詞のフォントサイズ",
   settingsGlyphMarkers: "文字タイムマーカーを表示",
   settingsGlyphMarkersDesc: "文字同期モードで各文字の下に記録した時刻を点線で表示します。",
+  settingsSpellCheck: "スペルチェック",
+  settingsSpellCheckDesc: "歌詞入力欄でブラウザ標準のスペルチェックを使用します。専用の校正機能ではなく一般的な辞書ベースのチェックのため、音訳や非標準的な歌詞では誤検出が多くなることがあります。",
   elrcNotice: {
     title: "Enhanced LRC で保存",
     message: "文字/単語同期が含まれているため、このファイルは Enhanced LRC（.lrc）として保存されます。一部のプレーヤーは文字単位のタイミングタグに対応していない場合があります。",

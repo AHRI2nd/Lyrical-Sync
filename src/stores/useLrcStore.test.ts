@@ -21,12 +21,15 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 import { useLrcStore } from "./useLrcStore";
 import type { LrcLine, LrcDocument } from "../types/lrc";
 import { saveRecoverySnapshot, loadRecoverySnapshot, clearRecoverySnapshot } from "../utils/recovery";
+import { invoke } from "@tauri-apps/api/core";
+import { save } from "@tauri-apps/plugin-dialog";
 
 const reset = (lines: LrcLine[], offset = 0) =>
   useLrcStore.setState({
     doc: { metadata: { title: "", artist: "", album: "", by: "", offset }, lines, extraTags: {} },
     _history: [],
     _future: [],
+    _lastEditKey: null,
     currentTime: 0,
     activeLineId: null,
     isDirty: false,
@@ -46,6 +49,64 @@ describe("useLrcStore — line actions", () => {
     reset([{ id: "1", timestamp: null, text: "a" }]);
     useLrcStore.getState().updateLine("1", { text: "b" });
     expect(lines()[0].text).toBe("b");
+  });
+
+  it("updateLine is undoable — first keystroke pushes history", () => {
+    reset([{ id: "1", timestamp: null, text: "a" }]);
+    const h0 = useLrcStore.getState()._history.length;
+    useLrcStore.getState().updateLine("1", { text: "ab" });
+    expect(useLrcStore.getState()._history.length).toBe(h0 + 1);
+    useLrcStore.getState().undo();
+    expect(lines()[0].text).toBe("a");
+  });
+
+  it("updateLine coalesces consecutive edits to the same field into one undo step", () => {
+    reset([{ id: "1", timestamp: null, text: "a" }]);
+    useLrcStore.getState().updateLine("1", { text: "ab" });
+    useLrcStore.getState().updateLine("1", { text: "abc" });
+    useLrcStore.getState().updateLine("1", { text: "abcd" });
+    expect(useLrcStore.getState()._history.length).toBe(1);
+    useLrcStore.getState().undo();
+    expect(lines()[0].text).toBe("a");
+  });
+
+  it("updateLine starts a new undo step after an intervening action", () => {
+    reset([{ id: "1", timestamp: null, text: "a" }, { id: "2", timestamp: null, text: "x" }]);
+    useLrcStore.getState().updateLine("1", { text: "ab" });
+    useLrcStore.getState().addLine("new");
+    useLrcStore.getState().updateLine("1", { text: "abc" });
+    expect(useLrcStore.getState()._history.length).toBe(3); // editText, addLine, editText
+    useLrcStore.getState().undo();
+    expect(lines().find((l) => l.id === "1")?.text).toBe("ab"); // only the second edit undone
+  });
+
+  it("updateLine starts a new undo step when switching fields on the same line", () => {
+    reset([{ id: "1", timestamp: 1, text: "a", translation: "x" }]);
+    useLrcStore.getState().updateLine("1", { text: "ab" });
+    useLrcStore.getState().updateLine("1", { translation: "y" });
+    expect(useLrcStore.getState()._history.length).toBe(2);
+  });
+
+  it("setMetadata is undoable and coalesces consecutive edits to the same fields", () => {
+    reset([]);
+    const h0 = useLrcStore.getState()._history.length;
+    useLrcStore.getState().setMetadata({ title: "T" });
+    useLrcStore.getState().setMetadata({ title: "Ti" });
+    useLrcStore.getState().setMetadata({ title: "Tit" });
+    expect(useLrcStore.getState()._history.length).toBe(h0 + 1);
+    expect(useLrcStore.getState().doc.metadata.title).toBe("Tit");
+    useLrcStore.getState().undo();
+    expect(useLrcStore.getState().doc.metadata.title).toBe("");
+  });
+
+  it("setMetadata(silent) never pushes history or marks dirty", () => {
+    reset([]);
+    useLrcStore.setState({ isDirty: false });
+    const h0 = useLrcStore.getState()._history.length;
+    useLrcStore.getState().setMetadata({ artist: "A" }, true);
+    expect(useLrcStore.getState()._history.length).toBe(h0);
+    expect(useLrcStore.getState().isDirty).toBe(false);
+    expect(useLrcStore.getState().doc.metadata.artist).toBe("A");
   });
 
   it("deleteLine removes and updates activeLineId", () => {
@@ -131,6 +192,42 @@ describe("useLrcStore — history & raw load", () => {
     expect(lines()).toHaveLength(1);
   });
 
+  it("history entries are labeled by the action that produced them", () => {
+    reset([]);
+    useLrcStore.getState().addLine("x");
+    const history = useLrcStore.getState()._history;
+    expect(history[history.length - 1]?.label).toBe("addLine");
+  });
+
+  it("jumpToHistory(index) is a no-op when index === current position", () => {
+    reset([]);
+    useLrcStore.getState().addLine("x");
+    const before = useLrcStore.getState().doc;
+    useLrcStore.getState().jumpToHistory(useLrcStore.getState()._history.length);
+    expect(useLrcStore.getState().doc).toBe(before);
+  });
+
+  it("jumpToHistory can jump back multiple steps at once, and forward again", () => {
+    reset([]);
+    useLrcStore.getState().addLine("a");
+    useLrcStore.getState().addLine("b");
+    useLrcStore.getState().addLine("c");
+    expect(lines()).toHaveLength(3);
+
+    useLrcStore.getState().jumpToHistory(0); // back to the very start
+    expect(lines()).toHaveLength(0);
+    expect(useLrcStore.getState()._future).toHaveLength(3);
+
+    useLrcStore.getState().jumpToHistory(2); // forward two steps
+    expect(lines()).toHaveLength(2);
+    expect(useLrcStore.getState()._history).toHaveLength(2);
+    expect(useLrcStore.getState()._future).toHaveLength(1);
+
+    // still redoable after a jump (not a dead end)
+    useLrcStore.getState().redo();
+    expect(lines()).toHaveLength(3);
+  });
+
   it("stampAndAdvance with no active line records no history (no empty undo)", () => {
     reset([{ id: "1", timestamp: null, text: "a" }]);
     useLrcStore.setState({ activeLineId: null });
@@ -167,6 +264,12 @@ describe("useLrcStore — line manipulation", () => {
     expect(ls[1].timestamp).toBeNull();
   });
 
+  it("duplicateLine keeps the translation while clearing timing", () => {
+    reset([{ ...mk("1", "a", 1), translation: "번역" }]);
+    useLrcStore.getState().duplicateLine("1");
+    expect(lines()[1]).toMatchObject({ timestamp: null, text: "a", translation: "번역" });
+  });
+
   it("mergeLineUp combines into previous keeping its timestamp", () => {
     reset([mk("1", "hello", 1), mk("2", "world", 2)]);
     const pid = useLrcStore.getState().mergeLineUp("2");
@@ -175,6 +278,15 @@ describe("useLrcStore — line manipulation", () => {
     expect(ls[0].text).toBe("hello world");
     expect(ls[0].timestamp).toBe(1);
     expect(pid).toBe("1");
+  });
+
+  it("mergeLineUp combines translations instead of discarding the lower line", () => {
+    reset([
+      { ...mk("1", "hello", 1), translation: "안녕" },
+      { ...mk("2", "world", 2), translation: "세계" },
+    ]);
+    useLrcStore.getState().mergeLineUp("2");
+    expect(lines()[0].translation).toBe("안녕 세계");
   });
 
   it("mergeLineUp on the first line is a no-op", () => {
@@ -191,6 +303,16 @@ describe("useLrcStore — line manipulation", () => {
     expect(ls[0].timestamp).toBe(5);
     expect(ls[1].timestamp).toBeNull();
     expect(ls[1].id).toBe(nid);
+  });
+
+  it("splitLine divides a translated line at the explicitly chosen translation boundary", () => {
+    reset([{ ...mk("1", "helloworld", 5), translation: "안녕 세계" }]);
+    const nid = useLrcStore.getState().splitLine("1", 5, { first: "안녕", second: "세계" });
+    expect(lines().map((l) => [l.text, l.translation])).toEqual([
+      ["hello", "안녕"],
+      ["world", "세계"],
+    ]);
+    expect(lines()[1].id).toBe(nid);
   });
 
   it("moveLine reorders lines", () => {
@@ -233,6 +355,31 @@ describe("useLrcStore — bulk line actions", () => {
     reset([mk("1", "a", 1), mk("2", "b", 2)]);
     useLrcStore.getState().clearTimestamps(["2"]);
     expect(lines().map((l) => l.timestamp)).toEqual([1, null]);
+  });
+
+  it("snapLinesToBeatGrid snaps only selected timestamps to the nearest beat", () => {
+    // 120 BPM = 0.5s 주기, offset 0 → 0.24 -> 0, 1.76 -> 2.0
+    reset([mk("1", "a", 0.24), mk("2", "b", 1.76), mk("3", "c", 3)]);
+    useLrcStore.getState().snapLinesToBeatGrid(["1", "2"], 120, 0);
+    expect(lines().map((l) => l.timestamp)).toEqual([0, 2, 3]);
+  });
+
+  it("snapLinesToBeatGrid affects every timestamped line when ids is empty", () => {
+    reset([mk("1", "a", 0.24), mk("2", "b", null)]);
+    useLrcStore.getState().snapLinesToBeatGrid([], 120, 0);
+    expect(lines().map((l) => l.timestamp)).toEqual([0, null]);
+  });
+
+  it("snapLinesToBeatGrid drops syllables on lines that actually move, records no history if nothing moves", () => {
+    reset([{ id: "1", timestamp: 0, text: "ab", syllables: [{ text: "a", time: 0 }] }]);
+    const h0 = useLrcStore.getState()._history.length;
+    useLrcStore.getState().snapLinesToBeatGrid(["1"], 120, 0); // already on-grid → no-op
+    expect(useLrcStore.getState()._history.length).toBe(h0);
+    expect(lines()[0].syllables).toBeDefined();
+
+    useLrcStore.getState().snapLinesToBeatGrid(["1"], 100, 0.1); // now actually moves
+    expect(useLrcStore.getState()._history.length).toBe(h0 + 1);
+    expect(lines()[0].syllables).toBeUndefined();
   });
 });
 
@@ -305,35 +452,255 @@ describe("useLrcStore — loop line", () => {
   });
 });
 
-describe("useLrcStore — addLinesFromSpeechSegments", () => {
-  beforeEach(() => reset([]));
+describe("useLrcStore — runAiSync blank-line timestamp placement", () => {
+  beforeEach(() => {
+    reset([]);
+    vi.mocked(invoke).mockReset();
+  });
 
-  it("inserts a blank stamped line per segment, sorted by start time", () => {
-    const count = useLrcStore.getState().addLinesFromSpeechSegments([
-      { start: 2, end: 3 },
-      { start: 0.5, end: 1 },
+  it("places blank lines via prevEnd+offset/nextStart clamp, including a run of consecutive blanks and a trailing unbounded blank", async () => {
+    reset([
+      { id: "b0", timestamp: null, text: "" }, // 정렬 결과 이전 → prevEnd 기본값 0
+      { id: "l1", timestamp: null, text: "hello" },
+      { id: "b1", timestamp: null, text: "" }, // 연속 빈 줄 구간 시작
+      { id: "b2", timestamp: null, text: "" }, // 연속 빈 줄 구간 — 앞뒤 스캔이 더 멀리 가야 하는 경우
+      { id: "l2", timestamp: null, text: "world" },
+      { id: "b3", timestamp: null, text: "" }, // 정렬 결과 이후 → nextStart 없음(클램프 안 됨)
     ]);
-    expect(count).toBe(2);
-    const ls = lines();
-    expect(ls.map((l) => l.timestamp)).toEqual([0.5, 2]);
-    expect(ls.every((l) => l.text === "")).toBe(true);
+    useLrcStore.setState({ audioPath: "/song.mp3" });
+
+    const results = [
+      { index: 1, start: 1.0, end: 1.5, confidence: 0.9 },
+      { index: 4, start: 3.0, end: 3.5, confidence: 0.9 },
+    ];
+    vi.mocked(invoke).mockImplementation((cmd: unknown) => {
+      if (cmd === "run_alignment") {
+        return Promise.resolve(JSON.stringify({ lines: results, vocal_segments: [], separated: false }));
+      }
+      return Promise.resolve(undefined);
+    });
+
+    await useLrcStore.getState().runAiSync("ko", 0.5, false, false);
+
+    expect(lines().map((l) => l.timestamp)).toEqual([0.5, 1.0, 2.0, 2.0, 3.0, 4.0]);
+    expect(useLrcStore.getState().aiSyncStatus).toBe("done");
   });
 
-  it("interleaves new segments among already-stamped lines by time", () => {
-    reset([{ id: "1", timestamp: 0, text: "first" }, { id: "2", timestamp: 5, text: "last" }]);
-    useLrcStore.getState().addLinesFromSpeechSegments([{ start: 2, end: 2.5 }]);
-    expect(lines().map((l) => l.text)).toEqual(["first", "", "last"]);
-  });
+  it("does not apply a completed result after the user starts a new document", async () => {
+    reset([{ id: "old", timestamp: null, text: "old lyric" }]);
+    useLrcStore.setState({ audioPath: "/song.mp3" });
+    let resolveAlignment!: (value: string) => void;
+    vi.mocked(invoke).mockImplementation((cmd: unknown) => {
+      if (cmd === "run_alignment") return new Promise<string>((resolve) => { resolveAlignment = resolve; });
+      return Promise.resolve(undefined);
+    });
 
-  it("does not reorder existing unstamped lines", () => {
-    reset([{ id: "1", timestamp: null, text: "typed first" }, { id: "2", timestamp: null, text: "typed second" }]);
-    useLrcStore.getState().addLinesFromSpeechSegments([{ start: 1, end: 1.5 }]);
-    // 미입력 줄은 정렬 기준에서 제외 → 새 줄은 맨 뒤로 붙고 기존 순서는 그대로
-    expect(lines().map((l) => l.text)).toEqual(["typed first", "typed second", ""]);
-  });
+    const running = useLrcStore.getState().runAiSync("ko", 0.5, false, false);
+    await Promise.resolve();
+    useLrcStore.getState().newLrc();
+    resolveAlignment(JSON.stringify({ lines: [{ index: 0, start: 12, end: 13, confidence: 1 }], vocal_segments: [], separated: false }));
+    await running;
 
-  it("returns 0 and does not touch history for an empty segment list", () => {
-    useLrcStore.getState().addLinesFromSpeechSegments([]);
     expect(lines()).toEqual([]);
+    expect(useLrcStore.getState().aiSyncStatus).toBe("idle");
+    expect(useLrcStore.getState().aiDraftConfidence).toBeNull();
+  });
+});
+
+describe("useLrcStore — save completion races", () => {
+  beforeEach(() => {
+    reset([{ id: "1", timestamp: 1, text: "before save" }]);
+    vi.mocked(invoke).mockReset();
+    useLrcStore.setState({ lrcPath: "/tmp/song.lrc", isDirty: true });
+  });
+
+  it("keeps edits made during a pending save dirty", async () => {
+    let resolveWrite!: (value: undefined) => void;
+    let savedContent = "";
+    vi.mocked(invoke).mockImplementation((_command: unknown, args?: unknown) => {
+      savedContent = (args as { content: string }).content;
+      return new Promise<undefined>((resolve) => { resolveWrite = resolve; });
+    });
+
+    const saving = useLrcStore.getState().saveLrc();
+    await Promise.resolve();
+    useLrcStore.getState().updateLine("1", { text: "edited while saving" });
+    resolveWrite(undefined);
+    await saving;
+
+    expect(savedContent).toContain("before save");
+    expect(savedContent).not.toContain("edited while saving");
+    expect(lines()[0].text).toBe("edited while saving");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
+  it("serializes overlapping saves to the same document so older content cannot finish last", async () => {
+    const writes: { content: string; resolve: () => void }[] = [];
+    let persistedContent = "";
+    vi.mocked(invoke).mockImplementation((_command: unknown, args?: unknown) =>
+      new Promise<undefined>((resolve) => {
+        const content = (args as { content: string }).content;
+        writes.push({
+          content,
+          resolve: () => {
+            persistedContent = content;
+            resolve(undefined);
+          },
+        });
+      }),
+    );
+
+    const firstSave = useLrcStore.getState().saveLrc();
+    await Promise.resolve();
+    useLrcStore.getState().updateLine("1", { text: "latest text" });
+    const secondSave = useLrcStore.getState().saveLrc();
+    await Promise.resolve();
+
+    expect(writes).toHaveLength(1);
+    writes[0].resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(writes).toHaveLength(2);
+    writes[1].resolve();
+    await Promise.all([firstSave, secondSave]);
+
+    expect(persistedContent).toContain("latest text");
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
+  it("does not let an old save clear the dirty state of a newly loaded document", async () => {
+    let resolveWrite!: (value: undefined) => void;
+    vi.mocked(invoke).mockImplementation((command: unknown) => {
+      if (command === "write_lrc_file") {
+        return new Promise<undefined>((resolve) => { resolveWrite = resolve; });
+      }
+      if (command === "read_lrc_file") return Promise.resolve("[ti:new song]\n[00:03.00]new text");
+      return Promise.resolve(undefined);
+    });
+
+    const saving = useLrcStore.getState().saveLrc();
+    await Promise.resolve();
+    await useLrcStore.getState().loadLyricsPath("/tmp/new-song.lrc");
+    useLrcStore.getState().updateLine("1", { text: "new text edited" });
+    resolveWrite(undefined);
+    await saving;
+
+    expect(useLrcStore.getState().lrcPath).toBe("/tmp/new-song.lrc");
+    expect(lines()[0].text).toBe("new text edited");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
+  it("does not assign Save As path to a different document opened while the dialog is pending", async () => {
+    let resolveDialog!: (path: string | null) => void;
+    vi.mocked(save).mockImplementation(() => new Promise((resolve) => { resolveDialog = resolve; }));
+    vi.mocked(invoke).mockResolvedValue(undefined);
+
+    const saving = useLrcStore.getState().saveLrcAs("lrc");
+    await Promise.resolve();
+    useLrcStore.getState().newLrc();
+    useLrcStore.getState().addLine("new document");
+    resolveDialog("/tmp/old-document.lrc");
+    await saving;
+
+    expect(useLrcStore.getState().lrcPath).toBeNull();
+    expect(lines()[0].text).toBe("new document");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
+  it("keeps same-document edits dirty after Save As while adopting the selected path", async () => {
+    vi.mocked(save).mockResolvedValue("/tmp/saved.lrc");
+    let resolveWrite!: (value: undefined) => void;
+    vi.mocked(invoke).mockImplementation(() => new Promise<undefined>((resolve) => { resolveWrite = resolve; }));
+
+    const saving = useLrcStore.getState().saveLrcAs("lrc");
+    await Promise.resolve();
+    useLrcStore.getState().updateLine("1", { text: "edited during Save As" });
+    resolveWrite(undefined);
+    await saving;
+
+    expect(useLrcStore.getState().lrcPath).toBe("/tmp/saved.lrc");
+    expect(lines()[0].text).toBe("edited during Save As");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+});
+
+describe("useLrcStore — concurrent lyric loads", () => {
+  beforeEach(() => {
+    reset([{ id: "existing", timestamp: 1, text: "existing" }]);
+    useLrcStore.setState({ lrcPath: null });
+    vi.mocked(invoke).mockReset();
+  });
+
+  it("keeps the latest selected file when reads resolve out of order", async () => {
+    let resolveOld!: (value: string) => void;
+    let resolveNew!: (value: string) => void;
+    vi.mocked(invoke).mockImplementation((_command: unknown, args?: unknown) => {
+      const path = (args as { path: string }).path;
+      return new Promise<string>((resolve) => {
+        if (path === "/tmp/old.lrc") resolveOld = resolve;
+        else resolveNew = resolve;
+      });
+    });
+
+    const oldLoad = useLrcStore.getState().loadLyricsPath("/tmp/old.lrc");
+    const newLoad = useLrcStore.getState().loadLyricsPath("/tmp/new.lrc");
+    resolveNew("[00:02.00]new selection");
+    await newLoad;
+    resolveOld("[00:01.00]old selection");
+    await oldLoad;
+
+    expect(useLrcStore.getState().lrcPath).toBe("/tmp/new.lrc");
+    expect(lines().map((line) => line.text)).toEqual(["new selection"]);
+  });
+
+  it("does not apply an older pending file after the newest selected file fails", async () => {
+    let resolveOld!: (value: string) => void;
+    vi.mocked(invoke).mockImplementation((_command: unknown, args?: unknown) => {
+      const path = (args as { path: string }).path;
+      if (path === "/tmp/old.lrc") return new Promise<string>((resolve) => { resolveOld = resolve; });
+      return Promise.reject(new Error("read failed"));
+    });
+
+    const oldLoad = useLrcStore.getState().loadLyricsPath("/tmp/old.lrc");
+    await expect(useLrcStore.getState().loadLyricsPath("/tmp/newest.lrc")).rejects.toThrow("read failed");
+    resolveOld("[00:01.00]stale selection");
+    await oldLoad;
+
+    expect(useLrcStore.getState().lrcPath).toBeNull();
+    expect(lines().map((line) => line.text)).toEqual(["existing"]);
+  });
+});
+
+describe("useLrcStore — audio changes during alignment", () => {
+  beforeEach(() => {
+    reset([{ id: "1", timestamp: null, text: "lyrics" }]);
+    vi.mocked(invoke).mockReset();
+    useLrcStore.setState({ audioPath: "/tmp/first.mp3" });
+  });
+
+  it("discards alignment results started for the previously selected audio", async () => {
+    let resolveAlignment!: (value: string) => void;
+    vi.mocked(invoke).mockImplementation((command: unknown) => {
+      if (command === "run_alignment") return new Promise<string>((resolve) => { resolveAlignment = resolve; });
+      return Promise.resolve(undefined);
+    });
+
+    const running = useLrcStore.getState().runAiSync("ko", 1, false, false);
+    await Promise.resolve();
+    await Promise.resolve();
+    useLrcStore.getState().setAudioPath("/tmp/second.mp3");
+    resolveAlignment(JSON.stringify({
+      lines: [{ index: 0, start: 10, end: 11, confidence: 0.99 }],
+      vocal_segments: [],
+      separated: false,
+    }));
+    await running;
+
+    expect(useLrcStore.getState().audioPath).toBe("/tmp/second.mp3");
+    expect(lines()[0].timestamp).toBeNull();
+    expect(useLrcStore.getState().aiSyncStatus).toBe("idle");
+    expect(useLrcStore.getState().aiDraftConfidence).toBeNull();
+    expect(useLrcStore.getState()._history).toHaveLength(0);
+    expect(useLrcStore.getState().isDirty).toBe(false);
   });
 });

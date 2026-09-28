@@ -13,9 +13,10 @@ describe("parseSrt", () => {
   it("parses cue start times and joins multi-line text", () => {
     const srt = "1\n00:00:01,000 --> 00:00:03,000\nHello\nworld\n";
     const d = parseSrt(srt);
-    expect(d.lines).toHaveLength(1);
+    expect(d.lines).toHaveLength(2);
     expect(d.lines[0].timestamp).toBe(1);
     expect(d.lines[0].text).toBe("Hello world");
+    expect(d.lines[1]).toMatchObject({ timestamp: 3, text: "" });
   });
 
   it("accepts both comma and dot fractional separators", () => {
@@ -32,6 +33,7 @@ describe("parseSrt", () => {
       [1, "first"],
       [3, ""],
       [5, "second"],
+      [7, ""],
     ]);
   });
 
@@ -40,7 +42,8 @@ describe("parseSrt", () => {
       "1\n00:00:01,000 --> 00:00:03,000\nfirst\n\n" +
       "2\n00:00:03,000 --> 00:00:05,000\nsecond\n";
     const d = parseSrt(srt);
-    expect(d.lines.map((l) => l.text)).toEqual(["first", "second"]);
+    // cue 사이에는 경계가 없고, 마지막 cue의 종료 경계만 보존된다.
+    expect(d.lines.map((l) => l.text)).toEqual(["first", "second", ""]);
   });
 });
 
@@ -55,6 +58,28 @@ describe("serializeSrt", () => {
     );
     expect(out).toContain("00:00:01,000 --> 00:00:03,000");
     expect(out).toContain("00:00:03,000 --> 00:00:10,000"); // last uses lastCueEnd
+  });
+
+  it("gives equal-start cues the next strictly later timestamp", () => {
+    const out = serializeSrt(docOf([
+      { id: "1", timestamp: 1, text: "first simultaneous line" },
+      { id: "2", timestamp: 1, text: "second simultaneous line" },
+      { id: "3", timestamp: 4, text: "later line" },
+    ]), 8);
+
+    expect(out.match(/00:00:01,000 --> 00:00:04,000/g)).toHaveLength(2);
+    expect(out).toContain("first simultaneous line");
+    expect(out).toContain("second simultaneous line");
+    expect(out).toContain("00:00:04,000 --> 00:00:08,000");
+  });
+
+  it("uses the final boundary for all cues with an equal final start", () => {
+    const out = serializeSrt(docOf([
+      { id: "1", timestamp: 5, text: "last one" },
+      { id: "2", timestamp: 5, text: "last two" },
+    ]), 9);
+
+    expect(out.match(/00:00:05,000 --> 00:00:09,000/g)).toHaveLength(2);
   });
 
   it("blank lines act as a boundary, not a cue", () => {
@@ -78,5 +103,11 @@ describe("serializeSrt", () => {
     const back = serializeSrt(parseSrt(srt), 7);
     expect(back).toContain("00:00:01,000 --> 00:00:03,000");
     expect(back).toContain("00:00:05,000 --> 00:00:07,000");
+  });
+
+  it("round-trips a final cue using its original end as the boundary", () => {
+    const srt = "1\n00:00:10,000 --> 00:00:12,500\nlast\n";
+    const back = serializeSrt(parseSrt(srt));
+    expect(back).toContain("00:00:10,000 --> 00:00:12,500");
   });
 });

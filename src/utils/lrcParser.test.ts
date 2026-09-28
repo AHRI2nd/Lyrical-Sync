@@ -59,6 +59,28 @@ describe("timestamp parsing/formatting", () => {
     expect(formatTimestamp(62.34)).toBe("01:02.34");
     expect(formatTimestamp(5)).toBe("00:05.00");
   });
+
+  it("round-trips line and enhanced syllable timestamps at 100 minutes", () => {
+    const original = docOf([{
+      id: "long",
+      timestamp: 6000,
+      text: "long",
+      syllables: [
+        { text: "lo", time: 6000 },
+        { text: "ng", time: 6000.25 },
+      ],
+    }]);
+
+    const serialized = serializeLrc(original, true);
+    const parsed = parseLrc(serialized);
+
+    expect(serialized).toContain("[100:00.00]<100:00.00>lo<100:00.25>ng");
+    expect(parsed.lines[0].timestamp).toBe(6000);
+    expect(parsed.lines[0].syllables?.map((s) => [s.text, s.time])).toEqual([
+      ["lo", 6000],
+      ["ng", 6000.25],
+    ]);
+  });
 });
 
 describe("parseLrc — line level", () => {
@@ -80,6 +102,48 @@ describe("parseLrc — line level", () => {
     expect(d.metadata.title).toBe("Song");
     expect(d.metadata.artist).toBe("Artist");
     expect(d.extraTags.custom).toBe("x");
+  });
+});
+
+describe("parseLrc / serializeLrc — translation lines", () => {
+  it("merges a same-timestamp /-prefixed line into the previous line's translation", () => {
+    const d = parseLrc("[00:12.34]Hello world\n[00:12.34]/안녕 세상");
+    expect(d.lines).toHaveLength(1);
+    expect(d.lines[0].text).toBe("Hello world");
+    expect(d.lines[0].translation).toBe("안녕 세상");
+  });
+
+  it("merges a translation for an untimed line (no timestamp yet)", () => {
+    const d = parseLrc("Hello world\n/안녕 세상");
+    expect(d.lines).toHaveLength(1);
+    expect(d.lines[0].timestamp).toBeNull();
+    expect(d.lines[0].text).toBe("Hello world");
+    expect(d.lines[0].translation).toBe("안녕 세상");
+  });
+
+  it("round-trips a translation through serializeLrc → parseLrc", () => {
+    const original = parseLrc("[00:12.34]Hello world");
+    original.lines[0].translation = "안녕 세상";
+    const out = serializeLrc(original, false);
+    expect(out).toContain("[00:12.34]Hello world");
+    expect(out).toContain("[00:12.34]/안녕 세상");
+    const reparsed = parseLrc(out);
+    expect(reparsed.lines).toHaveLength(1);
+    expect(reparsed.lines[0].translation).toBe("안녕 세상");
+  });
+
+  it("does not merge into a chorus repeat (different timestamp sets)", () => {
+    // [t1][t2]text 뒤에 다른 타임스탬프의 "/" 줄이 오면 병합 대상이 아니므로 별도 줄로 남음
+    const d = parseLrc("[00:01.00][00:05.00]chorus\n[00:09.00]/not a translation");
+    expect(d.lines).toHaveLength(3);
+    expect(d.lines.every((l) => l.translation === undefined)).toBe(true);
+  });
+
+  it("a duplicate-timestamp original line without a / marker still warns as before (non-interference)", () => {
+    const d = parseLrc("[00:01.00]a\n[00:01.00]b");
+    expect(d.lines).toHaveLength(2);
+    expect(d.lines[0].translation).toBeUndefined();
+    expect(d.lines[1].translation).toBeUndefined();
   });
 });
 

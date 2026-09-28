@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { useLrcStore } from "../../stores/useLrcStore";
 import { useSettingsStore, type RecentFileEntry } from "../../stores/useSettingsStore";
 import { useI18nStore } from "../../stores/useI18nStore";
-import { toast } from "../../stores/useToastStore";
 import { HistoryIcon } from "./icons";
 
 const basename = (path: string) => path.split(/[\\/]/).pop() ?? path;
 
-export function RecentFilesMenu() {
+export function RecentFilesMenu({ onOpen }: { onOpen: (entry: RecentFileEntry) => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const { t } = useI18nStore();
@@ -24,17 +22,9 @@ export function RecentFilesMenu() {
 
   if (recentFiles.length === 0) return null;
 
-  const handleSelect = async (entry: RecentFileEntry) => {
+  const handleSelect = (entry: RecentFileEntry) => {
     setOpen(false);
-    const st = useLrcStore.getState();
-    if (entry.audioPath) st.setAudioPath(entry.audioPath);
-    if (entry.lrcPath) {
-      try {
-        await st.loadLyricsPath(entry.lrcPath);
-      } catch {
-        toast.error(t.toast.openFailed);
-      }
-    }
+    onOpen(entry);
   };
 
   return (

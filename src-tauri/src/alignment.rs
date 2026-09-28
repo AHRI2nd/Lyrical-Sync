@@ -57,12 +57,18 @@ pub async fn run_alignment(
     // Fresh cancel flag for this run
     let cancel = {
         let new_flag = Arc::new(AtomicBool::new(false));
-        *al_state.cancel_flag.lock().unwrap() = new_flag.clone();
+        *al_state.cancel_flag.lock().unwrap_or_else(|e| e.into_inner()) = new_flag.clone();
         new_flag
     };
 
-    // Write the embedded Python scripts to temp files
-    let align_script_path = std::env::temp_dir().join("lyrical_sync_align.py");
+    // 실행별 고유 임시 파일을 사용한다. 동시 정렬이 서로의 스크립트·보컬 스템을 덮어쓰지
+    // 않으며 TempPath가 모든 성공/실패 경로에서 자동 정리한다.
+    let align_script_path = tempfile::Builder::new()
+        .prefix("lyrical_sync_align_")
+        .suffix(".py")
+        .tempfile()
+        .map_err(|e| format!("임시 파일 생성 실패: {e}"))?
+        .into_temp_path();
     tokio::fs::write(&align_script_path, ALIGN_SCRIPT)
         .await
         .map_err(|e| format!("스크립트 쓰기 실패: {e}"))?;
@@ -74,11 +80,21 @@ pub async fn run_alignment(
 
     // ── Vocal separation (Demucs) if model is available ──────────────────────
     let demucs_model = models_dir_path.join("demucs").join("htdemucs.th");
-    let vocals_tmp_path = std::env::temp_dir().join("lyrical_sync_vocals.wav");
+    let vocals_tmp_path = tempfile::Builder::new()
+        .prefix("lyrical_sync_vocals_")
+        .suffix(".wav")
+        .tempfile()
+        .map_err(|e| format!("임시 파일 생성 실패: {e}"))?
+        .into_temp_path();
     let audio_for_align: String;
 
     if use_separation && demucs_model.exists() {
-        let sep_script_path = std::env::temp_dir().join("lyrical_sync_separate.py");
+        let sep_script_path = tempfile::Builder::new()
+            .prefix("lyrical_sync_separate_")
+            .suffix(".py")
+            .tempfile()
+            .map_err(|e| format!("임시 파일 생성 실패: {e}"))?
+            .into_temp_path();
         tokio::fs::write(&sep_script_path, SEPARATE_SCRIPT)
             .await
             .map_err(|e| format!("스크립트 쓰기 실패: {e}"))?;
@@ -95,7 +111,7 @@ pub async fn run_alignment(
             .spawn()
             .map_err(|e| format!("Python 실행 실패: {e}"))?;
 
-        let sep_stderr = sep_child.stderr.take().unwrap();
+        let sep_stderr = sep_child.stderr.take().ok_or("분리 프로세스 stderr를 열 수 없습니다")?;
         let mut sep_reader = ABufReader::new(sep_stderr).lines();
         let mut sep_error: Option<String> = None;
 
@@ -147,8 +163,8 @@ pub async fn run_alignment(
         .spawn()
         .map_err(|e| format!("Python 실행 실패: {e}"))?;
 
-    let stderr = child.stderr.take().unwrap();
-    let stdout = child.stdout.take().unwrap();
+    let stderr = child.stderr.take().ok_or("정렬 프로세스 stderr를 열 수 없습니다")?;
+    let stdout = child.stdout.take().ok_or("정렬 프로세스 stdout을 열 수 없습니다")?;
 
     // Stream stderr line by line for progress events
     let mut stderr_reader = ABufReader::new(stderr).lines();
@@ -191,11 +207,6 @@ pub async fn run_alignment(
 
     let status = child.wait().await.map_err(|e| e.to_string())?;
 
-    // Clean up temp vocals file
-    if audio_for_align != audio_path {
-        let _ = tokio::fs::remove_file(&vocals_tmp_path).await;
-    }
-
     if !status.success() {
         return Err(format!(
             "정렬 스크립트 오류 (exit {})",
@@ -208,5 +219,5 @@ pub async fn run_alignment(
 
 #[tauri::command]
 pub fn cancel_alignment(al_state: tauri::State<'_, AlignmentState>) {
-    al_state.cancel_flag.lock().unwrap().store(true, Ordering::Relaxed);
+    al_state.cancel_flag.lock().unwrap_or_else(|e| e.into_inner()).store(true, Ordering::Relaxed);
 }
