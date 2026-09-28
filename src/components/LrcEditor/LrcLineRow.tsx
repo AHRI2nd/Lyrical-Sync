@@ -22,11 +22,9 @@ interface LrcLineRowProps {
   serviceActive: boolean;
 
   dragIdx: number | null;
-  dragOverIdx: number | null;
-  onDragStart: (e: React.DragEvent<HTMLSpanElement>) => void;
-  onDragEnd: () => void;
-  onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
-  onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
+  showInsertionBefore: boolean;
+  showInsertionAfter: boolean;
+  onReorderPointerDown: (e: React.PointerEvent<HTMLSpanElement>) => void;
 
   editingTsId: string | null;
   editTsValue: string;
@@ -59,7 +57,7 @@ interface LrcLineRowProps {
 function LrcLineRowImpl({
   t, line, idx, isActive, isSelected, confidence, isMatch, isCurrentMatch, warning,
   loopLineId, lyricsFontScale, showSpellCheck, showTranslationLines,
-  dragIdx, dragOverIdx, onDragStart, onDragEnd, onDragOver, onDrop,
+  dragIdx, showInsertionBefore, showInsertionAfter, onReorderPointerDown,
   editingTsId, editTsValue, onEditTsChange, onStartTsEdit, onCommitTsEdit, onCancelTsEdit, onStampCurrentLine,
   onRowClick, onToggleLoop, onTextChange, onTranslationChange, onKeyDown, onPaste, onFocus,
   onMergeUp, onDuplicate, onDelete,
@@ -82,13 +80,10 @@ function LrcLineRowImpl({
     <>
     <div
       ref={rowRef}
+      data-line-id={line.id}
       onClick={(e) => onRowClick(e, line.id, idx)}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-      className={`group/row flex items-center gap-2 rounded-lg px-2 py-1 transition-colors cursor-pointer ${
-        dragIdx !== null && dragOverIdx === idx && dragIdx !== idx
-          ? "outline outline-1 outline-indigo-400 bg-indigo-900/10"
-          : isSelected
+      className={`group/row relative flex items-center gap-2 rounded-lg px-2 py-1 transition-colors cursor-pointer ${
+        isSelected
           ? "bg-sky-900/30 ring-1 ring-sky-600/60"
           : isCurrentMatch
           ? "bg-amber-900/30 ring-1 ring-amber-500"
@@ -96,16 +91,22 @@ function LrcLineRowImpl({
           ? "bg-indigo-900/40 ring-1 ring-indigo-500"
           : isMatch
           ? "bg-amber-900/10 ring-1 ring-amber-800"
-          : "hover:bg-zinc-800"
+          : dragIdx === null ? "hover:bg-zinc-800" : ""
       } ${dragIdx === idx ? "opacity-40" : ""}`}
     >
+      {(showInsertionBefore || showInsertionAfter) && (
+        <div
+          data-testid="line-insertion-marker"
+          data-placement={showInsertionBefore ? "before" : "after"}
+          className={`pointer-events-none absolute z-10 left-2 right-2 h-0.5 rounded-full bg-indigo-400 shadow-[0_0_6px_rgba(129,140,248,0.8)] ${showInsertionBefore ? "-top-1" : "-bottom-1"}`}
+        />
+      )}
       <span
-        draggable
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
+        draggable={false}
+        onPointerDown={onReorderPointerDown}
         onClick={(e) => e.stopPropagation()}
         title={t.reorderLine}
-        className="shrink-0 cursor-grab active:cursor-grabbing text-zinc-600 hover:text-zinc-300 opacity-0 group-hover/row:opacity-100 transition-opacity"
+        className="w-6 h-7 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing select-none touch-none text-zinc-600 hover:text-zinc-300 opacity-0 group-hover/row:opacity-100 transition-opacity"
       >
         <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true">
           <circle cx="2.5" cy="2" r="1.2" /><circle cx="7.5" cy="2" r="1.2" />
@@ -268,7 +269,8 @@ function areEqual(prev: LrcLineRowProps, next: LrcLineRowProps): boolean {
     prev.showTranslationLines !== next.showTranslationLines ||
     prev.serviceActive !== next.serviceActive ||
     prev.dragIdx !== next.dragIdx ||
-    prev.dragOverIdx !== next.dragOverIdx ||
+    prev.showInsertionBefore !== next.showInsertionBefore ||
+    prev.showInsertionAfter !== next.showInsertionAfter ||
     prev.editingTsId !== next.editingTsId
   ) {
     return false;
