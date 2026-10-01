@@ -8,6 +8,7 @@ import { useLrcStore } from "../../stores/useLrcStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { defaultDocument } from "../../types/lrc";
+import { parseTimestampInput } from "../../utils/lrcParser";
 
 let rafCallbacks: FrameRequestCallback[];
 let seekSpy: ReturnType<typeof vi.spyOn>;
@@ -58,6 +59,108 @@ afterEach(() => {
 });
 
 describe("CharSyncView seek lane", () => {
+  it("shows at least two seconds of context when adjacent lyric timestamps are very close", () => {
+    useLrcStore.setState({
+      doc: {
+        ...defaultDocument(),
+        lines: [
+          { id: "line-1", timestamp: 10, text: "fast lyric" },
+          { id: "line-2", timestamp: 10.13, text: "next lyric" },
+        ],
+      },
+      activeLineId: "line-1",
+      currentTime: 10.06,
+    });
+
+    const { lane } = setup();
+    const labels = lane.querySelectorAll("span");
+    const start = parseTimestampInput(labels[0].textContent ?? "");
+    const end = parseTimestampInput(labels[1].textContent ?? "");
+
+    expect(start).not.toBeNull();
+    expect(end).not.toBeNull();
+    expect((end as number) - (start as number)).toBeGreaterThanOrEqual(1.99);
+  });
+
+  it("keeps the minimum window inside the track near its start and end", () => {
+    const cases = [
+      { start: 0.1, end: 0.2, expectedStart: 0, expectedEnd: 2 },
+      { start: 99.8, end: 99.9, expectedStart: 98, expectedEnd: 100 },
+    ];
+
+    for (const [index, item] of cases.entries()) {
+      cleanup();
+      useLrcStore.setState({
+        doc: {
+          ...defaultDocument(),
+          lines: [
+            { id: "line-1", timestamp: item.start, text: "fast lyric" },
+            { id: "line-2", timestamp: item.end, text: "next lyric" },
+          ],
+        },
+        activeLineId: "line-1",
+        currentTime: (item.start + item.end) / 2,
+      });
+      const { lane } = setup();
+      const labels = lane.querySelectorAll("span");
+
+      expect(parseTimestampInput(labels[0].textContent ?? ""), `case ${index} start`).toBeCloseTo(item.expectedStart, 1);
+      expect(parseTimestampInput(labels[1].textContent ?? ""), `case ${index} end`).toBeCloseTo(item.expectedEnd, 1);
+    }
+  });
+
+  it("preserves a quarter-second view at 8x zoom for a short lyric interval", () => {
+    useLrcStore.setState({
+      doc: {
+        ...defaultDocument(),
+        lines: [
+          { id: "line-1", timestamp: 10, text: "fast lyric" },
+          { id: "line-2", timestamp: 10.13, text: "next lyric" },
+        ],
+      },
+      activeLineId: "line-1",
+      currentTime: 10.06,
+    });
+    const { lane, container } = setup();
+
+    const zoomIn = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "+")!;
+    fireEvent.click(zoomIn);
+    fireEvent.click(zoomIn);
+    fireEvent.click(zoomIn);
+
+    const labels = lane.querySelectorAll("span");
+    const start = parseTimestampInput(labels[0].textContent ?? "");
+    const end = parseTimestampInput(labels[1].textContent ?? "");
+    expect((end as number) - (start as number)).toBeGreaterThanOrEqual(0.24);
+  });
+
+  it("limits peak bars to a softer height within the fixed lane", () => {
+    vi.spyOn(audioControls, "getPeaks").mockReturnValue(Array(4000).fill(1));
+    const { lane } = setup();
+    const bar = lane.querySelector("svg rect");
+
+    expect(bar).not.toBeNull();
+    expect(Number(bar?.getAttribute("height"))).toBeLessThanOrEqual(64);
+  });
+
+  it("groups dense waveform samples into a bounded number of display bars", () => {
+    vi.spyOn(audioControls, "getPeaks").mockReturnValue(Array(2000).fill(0.5));
+    useLrcStore.setState({
+      doc: {
+        ...defaultDocument(),
+        lines: [
+          { id: "line-1", timestamp: 0, text: "first" },
+          { id: "line-2", timestamp: 100, text: "last" },
+        ],
+      },
+      activeLineId: "line-1",
+      currentTime: 0,
+    });
+    const { lane } = setup();
+
+    expect(lane.querySelectorAll("svg rect").length).toBeLessThanOrEqual(600);
+  });
+
   it("previews drag movement without changing playback time, then seeks once to the release position", () => {
     const { lane, playhead } = setup();
 

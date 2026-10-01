@@ -25,6 +25,7 @@ const { wsHandlers, wsMock } = vi.hoisted(() => {
     on: (event: string, cb: (...args: unknown[]) => void) => { handlers[event] = cb; },
     getDuration: () => 100,
     getCurrentTime: () => 0,
+    getDecodedData: () => ({ length: 24000 }),
     seekTo: () => {},
     exportPeaks: () => [[]],
     setPlaybackRate: () => {},
@@ -71,6 +72,8 @@ const resetLrc = (lines: LrcLine[], loopLineId: string | null) => {
 const seekToSpy = vi.spyOn(wsMock, "seekTo");
 const loadSpy = vi.spyOn(wsMock, "load");
 const loadBlobSpy = vi.spyOn(wsMock, "loadBlob");
+const exportPeaksSpy = vi.spyOn(wsMock, "exportPeaks");
+let decodedDataSpy: { mockRestore: () => void } | null = null;
 
 describe("AudioPlayer — local audio loading", () => {
   beforeEach(() => {
@@ -79,7 +82,11 @@ describe("AudioPlayer — local audio loading", () => {
     loadBlobSpy.mockClear();
   });
 
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    decodedDataSpy?.mockRestore();
+    decodedDataSpy = null;
+  });
 
   it("passes MP3 bytes to WaveSurfer as a typed Blob, without fetching a Blob URL", async () => {
     vi.mocked(readAudioBytes).mockResolvedValue({
@@ -110,6 +117,29 @@ describe("AudioPlayer — local audio loading", () => {
 
     await waitFor(() => expect(loadBlobSpy).toHaveBeenCalledTimes(1));
     expect(loadBlobSpy.mock.calls[0][0].type).toBe("audio/wav");
+  });
+
+  it("exports enough waveform peaks for a readable glyph-sync lane", () => {
+    exportPeaksSpy.mockClear();
+    for (const k of Object.keys(wsHandlers)) delete wsHandlers[k];
+    resetLrc([], null);
+
+    render(<AudioPlayer />);
+    wsHandlers["ready"]?.(100);
+
+    expect(exportPeaksSpy).toHaveBeenCalledWith({ channels: 1, maxLength: 16000 });
+  });
+
+  it("does not request more waveform peaks than the decoded audio has samples", () => {
+    exportPeaksSpy.mockClear();
+    decodedDataSpy = vi.spyOn(wsMock, "getDecodedData").mockReturnValue({ length: 1200 });
+    for (const k of Object.keys(wsHandlers)) delete wsHandlers[k];
+    resetLrc([], null);
+
+    render(<AudioPlayer />);
+    wsHandlers["ready"]?.(100);
+
+    expect(exportPeaksSpy).toHaveBeenCalledWith({ channels: 1, maxLength: 1200 });
   });
 });
 
