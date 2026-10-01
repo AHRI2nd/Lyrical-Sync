@@ -7,7 +7,7 @@
 ![main](img/main_ja.png)
 
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
-![次回リリースバージョン](https://img.shields.io/badge/next%20release-0.6.2-green)
+![バージョン](https://img.shields.io/badge/version-0.6.3-green)
 ![Tauri](https://img.shields.io/badge/Tauri-v2-24C8D8)
 ![React](https://img.shields.io/badge/React-19-61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6)
@@ -123,7 +123,7 @@
 | YouTube ダウンローダー | yt-dlp | 実行時に GitHub 最新リリースを取得 |
 | macOS メディアアダプター | mediaremote-adapter | ベンダーコミット `3ac3d4bdf862c7b5399b4fba4df5689f5c38609a` |
 
-バッジは `dev-next` で準備中の次回リリースバージョンを示し、`main` にマージされると公開リリースになります。JavaScript と Rust の正確な依存バージョンは `package-lock.json` と `src-tauri/Cargo.lock` に基づいています。AI パッケージとリソースの方針もコード上の指定どおりに記載しています。アライナーと Demucs の Python パッケージは正確なリリースに固定されず、MMS モデルは変更可能な Hugging Face `main` ブランチを使用し、yt-dlp は実行時点の最新リリースを取得します。Demucs のチェックポイントは SHA-256 で検証されます。
+バッジは現在のアプリバージョンを示します。JavaScript と Rust の正確な依存バージョンは `package-lock.json` と `src-tauri/Cargo.lock` に基づいています。AI パッケージとリソースの方針もコード上の指定どおりに記載しています。アライナーと Demucs の Python パッケージは正確なリリースに固定されず、MMS モデルは変更可能な Hugging Face `main` ブランチを使用し、yt-dlp は実行時点の最新リリースを取得します。Demucs のチェックポイントは SHA-256 で検証されます。
 
 ---
 
