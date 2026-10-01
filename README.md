@@ -7,7 +7,7 @@ A desktop app for creating, syncing, and editing `.lrc` (LRC) lyric files
 ![main](img/main_en.png)
 
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
-![Next release version](https://img.shields.io/badge/next%20release-0.6.2-green)
+![Version](https://img.shields.io/badge/version-0.6.3-green)
 ![Tauri](https://img.shields.io/badge/Tauri-v2-24C8D8)
 ![React](https://img.shields.io/badge/React-19-61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6)
@@ -123,7 +123,7 @@ Default bindings — all of these can be remapped in **Settings → Shortcuts**.
 | YouTube downloader | yt-dlp | Latest GitHub release at runtime |
 | macOS media adapter | mediaremote-adapter | Vendored commit `3ac3d4bdf862c7b5399b4fba4df5689f5c38609a` |
 
-The badge shows the next release version prepared on `dev-next`; it becomes the public release when merged into `main`. Exact JavaScript and Rust dependency versions are taken from `package-lock.json` and `src-tauri/Cargo.lock`. AI package and resource policies match the code: the aligner and Demucs Python packages are not locked to exact releases, the MMS model uses the mutable Hugging Face `main` branch, and yt-dlp follows the latest release. The Demucs checkpoint is SHA-256 verified.
+The badge shows the current application version. Exact JavaScript and Rust dependency versions are taken from `package-lock.json` and `src-tauri/Cargo.lock`. AI package and resource policies match the code: the aligner and Demucs Python packages are not locked to exact releases, the MMS model uses the mutable Hugging Face `main` branch, and yt-dlp follows the latest release. The Demucs checkpoint is SHA-256 verified.
 
 ---
 

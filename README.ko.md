@@ -7,7 +7,7 @@
 ![main](img/main_ko.png)
 
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
-![다음 릴리즈 버전](https://img.shields.io/badge/next%20release-0.6.2-green)
+![버전](https://img.shields.io/badge/version-0.6.3-green)
 ![Tauri](https://img.shields.io/badge/Tauri-v2-24C8D8)
 ![React](https://img.shields.io/badge/React-19-61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6)
@@ -123,7 +123,7 @@
 | YouTube 다운로더 | yt-dlp | 실행 시점 GitHub 최신 릴리즈 |
 | macOS 미디어 어댑터 | mediaremote-adapter | 벤더링 커밋 `3ac3d4bdf862c7b5399b4fba4df5689f5c38609a` |
 
-배지는 `dev-next`에서 준비 중인 다음 릴리즈 버전을 표시하며, `main`에 병합되면 공개 릴리즈됩니다. 정확한 JavaScript 및 Rust 의존성 버전은 `package-lock.json`과 `src-tauri/Cargo.lock` 기준입니다. AI 패키지와 리소스 정책도 코드에 지정된 그대로 표시했습니다. 정렬기와 Demucs Python 패키지는 정확한 릴리즈 버전으로 잠겨 있지 않고, MMS 모델은 변경 가능한 Hugging Face `main` 브랜치를 사용하며, yt-dlp는 실행 시점의 최신 릴리즈를 받습니다. Demucs 체크포인트는 SHA-256으로 검증합니다.
+배지는 현재 앱 버전을 표시합니다. 정확한 JavaScript 및 Rust 의존성 버전은 `package-lock.json`과 `src-tauri/Cargo.lock` 기준입니다. AI 패키지와 리소스 정책도 코드에 지정된 그대로 표시했습니다. 정렬기와 Demucs Python 패키지는 정확한 릴리즈 버전으로 잠겨 있지 않고, MMS 모델은 변경 가능한 Hugging Face `main` 브랜치를 사용하며, yt-dlp는 실행 시점의 최신 릴리즈를 받습니다. Demucs 체크포인트는 SHA-256으로 검증합니다.
 
 ---
 
