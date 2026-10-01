@@ -35,7 +35,7 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
   const {
     isPlaying, isLooping, positionMs, durationMs,
     trackName, artistName, albumName, albumArtUrl, trackUri,
-    toggleLoop,
+    deviceId, toggleLoop,
   } = useServiceStore();
 
   // Spotify 콘텐츠 출처표시: 트랙을 Spotify에서 열기 (spotify:track:ID → open.spotify.com)
@@ -68,6 +68,7 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
       <SeekBar
         position={positionSec}
         duration={durationSec}
+        seekContextKey={`${trackUri ?? ""}:${deviceId ?? ""}`}
         onSeek={(s) => serviceControls.seekTo(s)}
         accentClass="bg-green-500"
       />

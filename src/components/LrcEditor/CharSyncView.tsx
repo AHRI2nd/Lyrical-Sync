@@ -3,6 +3,7 @@ import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
+import { useDeviceStore } from "../../stores/useDeviceStore";
 import { tokenizeText, isStampable, formatTimestamp, clampToNeighbors } from "../../utils/lrcParser";
 import { anyModalOpen } from "../../utils/modalGuard";
 import { isInteractiveKeyTarget, matchAction, normalizeKeybindings } from "../../utils/keybindings";
@@ -19,11 +20,29 @@ const MARK_LEVELS = 5;       // 라벨을 배치할 최대 단계 수
 const MARK_GAP = 8;          // 라벨 간 최소 간격(px)
 const MARK_LABEL_H = 14;     // 라벨 높이(px)
 const MARK_TICK = 5;         // 라벨 없는(겹쳐서 생략된) 글자의 짧은 틱 길이(px)
+const MIN_LANE_SPAN = 2;     // 1×에서 최소 표시 시간(초)
+const MAX_LANE_BARS = 600;   // 좁은 패널에서 SVG 요소 수와 막대 밀도 제한
 
 // label=false: 라벨 들어갈 자리가 없어 틱만 표시
 type TimeMark = { index: number; x: number; level: number; time: string; label: boolean };
 
 type LineState = "none" | "partial" | "done";
+type LaneContext = {
+  audioPath: string | null;
+  activeLineId: string | null;
+  lines: LrcLine[];
+  duration: number;
+  controlSource: string;
+  controlIdentity: string;
+  zoom: number;
+};
+type LanePreview = LaneContext & { time: number; start: number; end: number };
+type LaneDrag = LanePreview & {
+  pointerId: number;
+  clientX: number;
+  seekTo: (seconds: number) => void;
+  raf: number | null;
+};
 
 function lineSyncState(line: LrcLine): LineState {
   const syl = line.syllables;
@@ -33,6 +52,41 @@ function lineSyncState(line: LrcLine): LineState {
   const timed = stampable.filter((s) => s.time !== null).length;
   if (timed === 0) return "none";
   return timed < stampable.length ? "partial" : "done";
+}
+
+function getLaneViewRange(
+  start: number,
+  end: number,
+  duration: number,
+  currentTime: number,
+  zoom: number,
+) {
+  const trackEnd = duration > 0 ? duration : Infinity;
+  const rangeStart = Math.min(trackEnd, Math.max(0, start));
+  const rangeEnd = Math.min(trackEnd, Math.max(rangeStart, end));
+  const rangeSpan = rangeEnd - rangeStart;
+  const displaySpan = Math.min(trackEnd, Math.max(MIN_LANE_SPAN, rangeSpan));
+  const rangeCenter = (rangeStart + rangeEnd) / 2;
+  const maxDisplayStart = Number.isFinite(trackEnd) ? Math.max(0, trackEnd - displaySpan) : Infinity;
+  const displayStart = Math.min(maxDisplayStart, Math.max(0, rangeCenter - displaySpan / 2));
+  const displayEnd = displayStart + displaySpan;
+
+  const zoomSpan = displaySpan / Math.max(1, zoom);
+  const center = Math.min(displayEnd, Math.max(displayStart, currentTime));
+  const maxZoomStart = displayEnd - zoomSpan;
+  const viewStart = Math.min(maxZoomStart, Math.max(displayStart, center - zoomSpan / 2));
+  return { start: viewStart, end: viewStart + zoomSpan };
+}
+
+function limitLaneBars(peaks: number[], maxBars: number): number[] {
+  if (peaks.length <= maxBars) return peaks;
+  return Array.from({ length: maxBars }, (_, bin) => {
+    const start = Math.floor((bin * peaks.length) / maxBars);
+    const end = Math.max(start + 1, Math.floor(((bin + 1) * peaks.length) / maxBars));
+    let peak = 0;
+    for (let i = start; i < end; i++) peak = Math.max(peak, Math.abs(peaks[i]));
+    return peak;
+  });
 }
 
 export function CharSyncView() {
@@ -52,8 +106,18 @@ export function CharSyncView() {
   const spotifyMode = useSettingsStore((s) => s.spotifyMode);
   const lyricsFontScale = useSettingsStore((s) => s.lyricsFontScale);
   const showGlyphTimeMarkers = useSettingsStore((s) => s.showGlyphTimeMarkers);
+  const deviceMode = useSettingsStore((s) => s.deviceMode);
   const serviceLoggedIn = useServiceStore((s) => s.isLoggedIn);
+  const serviceTrackUri = useServiceStore((s) => s.trackUri);
+  const serviceDeviceId = useServiceStore((s) => s.deviceId);
+  const deviceIdentity = useDeviceStore((s) => JSON.stringify([
+    s.hasSession, s.sourceApp, s.trackName, s.artistName, s.albumName,
+  ]));
   const controls = serviceLoggedIn && spotifyMode ? serviceControls : audioControls;
+  const controlSource = serviceLoggedIn && spotifyMode ? "spotify" : deviceMode ? "device" : "local";
+  const controlIdentity = controlSource === "spotify"
+    ? `${serviceTrackUri ?? ""}:${serviceDeviceId ?? ""}`
+    : controlSource === "device" ? deviceIdentity : audioPath ?? "";
 
   const lines = doc.lines;
   const lineIdx = activeLineId ? lines.findIndex((l) => l.id === activeLineId) : 0;
@@ -86,27 +150,28 @@ export function CharSyncView() {
 
   // 레인 줌: 창을 1/zoom 너비로 좁혀 재생헤드 중심으로 표시 → 밀집 구간 정밀도↑
   const [zoom, setZoom] = useState(1);
+  const [lanePreview, setLanePreview] = useState<LanePreview | null>(null);
+  const laneDragRef = useRef<LaneDrag | null>(null);
+  const laneSeekPendingRef = useRef(false);
+  const lanePreviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previousCurrentTimeRef = useRef(currentTime);
   useEffect(() => { setZoom(1); }, [activeLineId]);
-  let viewStart = winStart;
-  let viewEnd = winEnd;
-  if (zoom > 1) {
-    const vw = (winEnd - winStart) / zoom;
-    const center = Math.min(Math.max(currentTime, winStart), winEnd);
-    viewStart = Math.max(winStart, Math.min(center - vw / 2, winEnd - vw));
-    viewEnd = viewStart + vw;
-  }
+  const { start: viewStart, end: viewEnd } = getLaneViewRange(winStart, winEnd, duration, currentTime, zoom);
+  const visibleViewStart = lanePreview?.start ?? viewStart;
+  const visibleViewEnd = lanePreview?.end ?? viewEnd;
   const pct = (time: number) =>
-    `${Math.max(0, Math.min(1, (time - viewStart) / (viewEnd - viewStart))) * 100}%`;
+    `${Math.max(0, Math.min(1, (time - visibleViewStart) / (visibleViewEnd - visibleViewStart))) * 100}%`;
 
   // 레인 파형: 전체 트랙 peaks에서 표시 창(view) 구간만 잘라 막대로
   const peaks = useMemo(() => audioControls.getPeaks(), [audioPath, duration]);
   const waveBars = useMemo(() => {
-    if (!peaks || duration <= 0 || viewEnd <= viewStart) return null;
-    const i0 = Math.max(0, Math.floor((viewStart / duration) * peaks.length));
-    const i1 = Math.min(peaks.length, Math.ceil((viewEnd / duration) * peaks.length));
+    if (!peaks || duration <= 0 || visibleViewEnd <= visibleViewStart) return null;
+    const i0 = Math.max(0, Math.floor((visibleViewStart / duration) * peaks.length));
+    const i1 = Math.min(peaks.length, Math.ceil((visibleViewEnd / duration) * peaks.length));
     if (i1 <= i0) return null;
-    return peaks.slice(i0, i1).map((v) => Math.min(1, Math.abs(v)));
-  }, [peaks, duration, viewStart, viewEnd]);
+    const visiblePeaks = peaks.slice(i0, i1).map((v) => Math.min(1, Math.abs(v)));
+    return limitLaneBars(visiblePeaks, MAX_LANE_BARS);
+  }, [peaks, duration, visibleViewStart, visibleViewEnd]);
 
   // 재생 위치에서 지금 불리는 글자(편집 커서와 별개). 창 밖이면 -1.
   const playingIdx = useMemo(() => {
@@ -267,6 +332,124 @@ export function CharSyncView() {
   const laneRef = useRef<HTMLDivElement>(null);
   const dragCleanupRef = useRef<(() => void) | null>(null);
 
+  useEffect(() => {
+    const previewFor = (drag: LaneDrag, time: number): LanePreview => ({
+      time,
+      start: drag.start,
+      end: drag.end,
+      audioPath: drag.audioPath,
+      activeLineId: drag.activeLineId,
+      lines: drag.lines,
+      duration: drag.duration,
+      controlSource: drag.controlSource,
+      controlIdentity: drag.controlIdentity,
+      zoom: drag.zoom,
+    });
+    const positionAt = (drag: LaneDrag, clientX: number) => {
+      const lane = laneRef.current;
+      if (!lane) return null;
+      const rect = lane.getBoundingClientRect();
+      if (rect.width <= 0) return null;
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      return drag.start + ratio * (drag.end - drag.start);
+    };
+
+    const cancelDrag = () => {
+      const drag = laneDragRef.current;
+      if (drag?.raf !== null && drag?.raf !== undefined) cancelAnimationFrame(drag.raf);
+      laneDragRef.current = null;
+      laneSeekPendingRef.current = false;
+      setLanePreview(null);
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      const drag = laneDragRef.current;
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      drag.clientX = e.clientX;
+      if (drag.raf !== null) return;
+      drag.raf = requestAnimationFrame(() => {
+        const latest = laneDragRef.current;
+        if (!latest || latest.pointerId !== e.pointerId) return;
+        latest.raf = null;
+        const time = positionAt(latest, latest.clientX);
+        if (time !== null) setLanePreview(previewFor(latest, time));
+      });
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      const drag = laneDragRef.current;
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      if (drag.raf !== null) cancelAnimationFrame(drag.raf);
+      const time = positionAt(drag, e.clientX);
+      laneDragRef.current = null;
+      if (time === null) {
+        setLanePreview(null);
+        return;
+      }
+
+      laneSeekPendingRef.current = true;
+      setLanePreview(previewFor(drag, time));
+      if (lanePreviewTimerRef.current) clearTimeout(lanePreviewTimerRef.current);
+      lanePreviewTimerRef.current = setTimeout(() => {
+        lanePreviewTimerRef.current = null;
+        laneSeekPendingRef.current = false;
+        setLanePreview(null);
+      }, 750);
+      drag.seekTo(time);
+    };
+
+    const onPointerCancel = (e: PointerEvent) => {
+      if (laneDragRef.current?.pointerId !== e.pointerId) return;
+      cancelDrag();
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerCancel);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerCancel);
+      cancelDrag();
+      if (lanePreviewTimerRef.current) clearTimeout(lanePreviewTimerRef.current);
+      lanePreviewTimerRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const changed = previousCurrentTimeRef.current !== currentTime;
+    previousCurrentTimeRef.current = currentTime;
+    if (!laneSeekPendingRef.current || !changed) return;
+    laneSeekPendingRef.current = false;
+    if (lanePreviewTimerRef.current) clearTimeout(lanePreviewTimerRef.current);
+    lanePreviewTimerRef.current = null;
+    setLanePreview(null);
+  }, [currentTime]);
+
+  useEffect(() => {
+    const drag = laneDragRef.current;
+    const contextChanged = (item: LaneContext) => (
+      item.audioPath !== audioPath ||
+      item.activeLineId !== activeLineId ||
+      item.lines !== lines ||
+      item.duration !== duration ||
+      item.controlSource !== controlSource ||
+      item.controlIdentity !== controlIdentity ||
+      item.zoom !== zoom
+    );
+    if (drag && contextChanged(drag)) {
+      if (drag.raf !== null) cancelAnimationFrame(drag.raf);
+      laneDragRef.current = null;
+      laneSeekPendingRef.current = false;
+      setLanePreview(null);
+    } else if (laneSeekPendingRef.current && lanePreview && contextChanged(lanePreview)) {
+      laneSeekPendingRef.current = false;
+      if (lanePreviewTimerRef.current) clearTimeout(lanePreviewTimerRef.current);
+      lanePreviewTimerRef.current = null;
+      setLanePreview(null);
+    }
+  }, [audioPath, activeLineId, lines, duration, controlSource, controlIdentity, zoom, lanePreview]);
+
   // 드래그 도중 언마운트되면 window 리스너 정리
   useEffect(() => () => dragCleanupRef.current?.(), []);
 
@@ -333,33 +516,48 @@ export function CharSyncView() {
     window.addEventListener("mouseup", up);
   };
 
-  // 레인 = 탐색(내비게이션) 전용. 누르거나 끌어서 재생 위치 이동(글자 시각엔 영향 없음).
-  const beginLaneDrag = (e: React.MouseEvent) => {
-    if (e.button !== 0) return;
+  // 레인 = 탐색 전용. 드래그 중 미리보기만 움직이고 포인터를 놓을 때 한 번 탐색한다.
+  const beginLaneDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || laneDragRef.current) return;
+    const lane = laneRef.current;
+    if (!lane) return;
+    const rect = lane.getBoundingClientRect();
+    if (rect.width <= 0) return;
     e.preventDefault();
-    const seekAt = (clientX: number) => {
-      const el = laneRef.current;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      const ratio = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
-      controls.seekTo(viewStart + ratio * (viewEnd - viewStart));
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const time = visibleViewStart + ratio * (visibleViewEnd - visibleViewStart);
+    if (lanePreviewTimerRef.current) clearTimeout(lanePreviewTimerRef.current);
+    lanePreviewTimerRef.current = null;
+    laneSeekPendingRef.current = false;
+    const drag: LaneDrag = {
+      pointerId: e.pointerId,
+      clientX: e.clientX,
+      time,
+      start: visibleViewStart,
+      end: visibleViewEnd,
+      audioPath,
+      activeLineId,
+      lines,
+      duration,
+      controlSource,
+      controlIdentity,
+      zoom,
+      seekTo: controls.seekTo,
+      raf: null,
     };
-    let raf: number | null = null;
-    seekAt(e.clientX);
-    const move = (ev: MouseEvent) => {
-      if (raf) cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => seekAt(ev.clientX));
-    };
-    const cleanup = () => {
-      window.removeEventListener("mousemove", move);
-      window.removeEventListener("mouseup", up);
-      if (raf) cancelAnimationFrame(raf);
-      dragCleanupRef.current = null;
-    };
-    const up = () => cleanup();
-    dragCleanupRef.current = cleanup;
-    window.addEventListener("mousemove", move);
-    window.addEventListener("mouseup", up);
+    laneDragRef.current = drag;
+    setLanePreview({
+      time,
+      start: visibleViewStart,
+      end: visibleViewEnd,
+      audioPath,
+      activeLineId,
+      lines,
+      duration,
+      controlSource,
+      controlIdentity,
+      zoom,
+    });
   };
 
   const replayLine = () => {
@@ -546,12 +744,12 @@ export function CharSyncView() {
       {/* 스크럽 레인 */}
       <div
         ref={laneRef}
-        onMouseDown={beginLaneDrag}
+        onPointerDown={beginLaneDrag}
         className="relative h-10 rounded-lg bg-zinc-950/60 border border-zinc-800 overflow-hidden cursor-pointer mb-1"
       >
         <LaneWaveform bars={waveBars} />
         {syllables.map((s, i) =>
-          s.time !== null && isStampable(s) && s.time >= viewStart && s.time <= viewEnd ? (
+          s.time !== null && isStampable(s) && s.time >= visibleViewStart && s.time <= visibleViewEnd ? (
             <div
               key={i}
               style={{ left: pct(s.time) }}
@@ -560,14 +758,14 @@ export function CharSyncView() {
           ) : null
         )}
         <div
-          style={{ left: pct(currentTime) }}
+          style={{ left: pct(lanePreview?.time ?? currentTime) }}
           className="absolute top-0 bottom-0 w-0.5 bg-amber-400 pointer-events-none"
         />
         <span className="absolute left-1.5 bottom-0.5 text-[10px] text-zinc-600 font-mono pointer-events-none">
-          {formatTimestamp(viewStart)}
+          {formatTimestamp(visibleViewStart)}
         </span>
         <span className="absolute right-1.5 bottom-0.5 text-[10px] text-zinc-600 font-mono pointer-events-none">
-          {formatTimestamp(viewEnd)}
+          {formatTimestamp(visibleViewEnd)}
         </span>
       </div>
 
@@ -635,7 +833,7 @@ const LaneWaveform = memo(function LaneWaveform({ bars }: { bars: number[] | nul
       preserveAspectRatio="none"
     >
       {bars.map((v, k) => {
-        const h = Math.max(1, v * 88);
+        const h = Math.max(1, v * 64);
         return <rect key={k} x={k + 0.1} width={0.8} y={(100 - h) / 2} height={h} fill="#3f3f46" />;
       })}
     </svg>
