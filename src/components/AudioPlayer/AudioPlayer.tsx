@@ -134,7 +134,9 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       setIsAudioReady(true);
       // 글자 동기화 레인 파형용 정규화 peaks 캐시
       try {
-        peaksRef.current = ws.exportPeaks({ channels: 1, maxLength: 4000 })[0] ?? null;
+        const decodedLength = ws.getDecodedData()?.length;
+        const maxLength = decodedLength && decodedLength > 0 ? Math.min(16000, decodedLength) : 16000;
+        peaksRef.current = ws.exportPeaks({ channels: 1, maxLength })[0] ?? null;
       } catch {
         peaksRef.current = null;
       }
