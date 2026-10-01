@@ -41,6 +41,7 @@ export function DevicePlayerPanel() {
       <SeekBar
         position={positionSec}
         duration={durationSec}
+        seekContextKey={JSON.stringify([hasSession, sourceApp, trackName, artistName, albumName])}
         onSeek={(s) => deviceControls.seekTo(s)}
         accentClass="bg-indigo-500"
       />
