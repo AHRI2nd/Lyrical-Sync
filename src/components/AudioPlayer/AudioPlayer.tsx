@@ -215,11 +215,8 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     };
   });
 
-  const blobUrlRef = useRef<string | null>(null);
-
-  // 언마운트 시 마지막 Blob URL 해제 (경로 변경 시엔 아래 로드 effect가 직전 URL을 해제)
+  // 언마운트 시 debounce 타이머 정리
   useEffect(() => () => {
-    if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
     if (zoomDebounceRef.current) clearTimeout(zoomDebounceRef.current);
   }, []);
 
@@ -247,13 +244,9 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     readAudioBytes(audioPath).then(({ bytes, transcoded }) => {
       if (cancelled || !wsRef.current) return;
 
-      if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
-
       const mimeType = transcoded ? "audio/wav" : (AUDIO_MIME[ext] ?? "audio/*");
       const blob = new Blob([bytes], { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      blobUrlRef.current = url;
-      return wsRef.current.load(url);
+      return wsRef.current.loadBlob(blob);
     }).catch((e) => {
       // 새 로드로 인한 중단(AbortError)은 무시, 실제 디코드/읽기 실패만 알림
       if (cancelled || (e && (e as Error).name === "AbortError")) return;
