@@ -489,6 +489,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         <SeekBar
           position={currentTime}
           duration={duration}
+          seekContextKey={`${youtubeMode ? "youtube" : "local"}:${audioPath ?? ytUrl}`}
           onSeek={audioControls.seekTo}
           accentClass={youtubeMode ? "bg-red-500" : "bg-indigo-500"}
         />
