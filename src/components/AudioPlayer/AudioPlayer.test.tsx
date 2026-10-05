@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, cleanup, waitFor } from "@testing-library/react";
+import { act, render, cleanup, waitFor } from "@testing-library/react";
 
 if (typeof globalThis.localStorage === "undefined") {
   const m = new Map<string, string>();
@@ -25,7 +25,7 @@ const { wsHandlers, wsMock } = vi.hoisted(() => {
     on: (event: string, cb: (...args: unknown[]) => void) => { handlers[event] = cb; },
     getDuration: () => 100,
     getCurrentTime: () => 0,
-    getDecodedData: () => ({ length: 24000 }),
+    getDecodedData: () => ({ length: 4, sampleRate: 4, duration: 1, numberOfChannels: 1, getChannelData: () => new Float32Array([0, 1, -.5, 0]) }),
     seekTo: () => {},
     exportPeaks: () => [[]],
     setPlaybackRate: () => {},
@@ -53,6 +53,7 @@ vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 vi.mock("../../utils/readAudioBytes", () => ({ readAudioBytes: vi.fn() }));
 
+import { useWaveformStore } from "../../stores/useWaveformStore";
 import { AudioPlayer } from "./AudioPlayer";
 import { readAudioBytes } from "../../utils/readAudioBytes";
 import { useLrcStore } from "../../stores/useLrcStore";
@@ -72,8 +73,6 @@ const resetLrc = (lines: LrcLine[], loopLineId: string | null) => {
 const seekToSpy = vi.spyOn(wsMock, "seekTo");
 const loadSpy = vi.spyOn(wsMock, "load");
 const loadBlobSpy = vi.spyOn(wsMock, "loadBlob");
-const exportPeaksSpy = vi.spyOn(wsMock, "exportPeaks");
-let decodedDataSpy: { mockRestore: () => void } | null = null;
 
 describe("AudioPlayer — local audio loading", () => {
   beforeEach(() => {
@@ -84,8 +83,6 @@ describe("AudioPlayer — local audio loading", () => {
 
   afterEach(() => {
     cleanup();
-    decodedDataSpy?.mockRestore();
-    decodedDataSpy = null;
   });
 
   it("passes MP3 bytes to WaveSurfer as a typed Blob, without fetching a Blob URL", async () => {
@@ -119,28 +116,16 @@ describe("AudioPlayer — local audio loading", () => {
     expect(loadBlobSpy.mock.calls[0][0].type).toBe("audio/wav");
   });
 
-  it("exports enough waveform peaks for a readable glyph-sync lane", () => {
-    exportPeaksSpy.mockClear();
-    for (const k of Object.keys(wsHandlers)) delete wsHandlers[k];
-    resetLrc([], null);
-
+  it("publishes decoded detail after loading and clears it when audio is unloaded", async () => {
+    vi.mocked(readAudioBytes).mockResolvedValue({ bytes: new Uint8Array([1]), transcoded: false });
+    resetLrc([], null); useLrcStore.setState({ audioPath: "/music/song.wav" });
     render(<AudioPlayer />);
-    wsHandlers["ready"]?.(100);
-
-    expect(exportPeaksSpy).toHaveBeenCalledWith({ channels: 1, maxLength: 16000 });
+    await waitFor(() => expect(useWaveformStore.getState().source).not.toBeNull());
+    expect([...useWaveformStore.getState().source!.getEnvelope(0, 1, 4)!.min]).toEqual([0, 0, -.5, 0]);
+    act(() => useLrcStore.setState({ audioPath: null }));
+    expect(useWaveformStore.getState().source).toBeNull();
   });
 
-  it("does not request more waveform peaks than the decoded audio has samples", () => {
-    exportPeaksSpy.mockClear();
-    decodedDataSpy = vi.spyOn(wsMock, "getDecodedData").mockReturnValue({ length: 1200 });
-    for (const k of Object.keys(wsHandlers)) delete wsHandlers[k];
-    resetLrc([], null);
-
-    render(<AudioPlayer />);
-    wsHandlers["ready"]?.(100);
-
-    expect(exportPeaksSpy).toHaveBeenCalledWith({ channels: 1, maxLength: 1200 });
-  });
 });
 
 describe("AudioPlayer — loop-line boundary (audioprocess handler)", () => {
