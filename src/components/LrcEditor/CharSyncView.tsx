@@ -1,3 +1,4 @@
+import { CharWaveformPanel } from "./CharWaveformPanel";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
@@ -159,8 +160,7 @@ export function CharSyncView() {
   const { start: viewStart, end: viewEnd } = getLaneViewRange(winStart, winEnd, duration, currentTime, zoom);
   const visibleViewStart = lanePreview?.start ?? viewStart;
   const visibleViewEnd = lanePreview?.end ?? viewEnd;
-  const pct = (time: number) =>
-    `${Math.max(0, Math.min(1, (time - visibleViewStart) / (visibleViewEnd - visibleViewStart))) * 100}%`;
+
 
   // 레인 파형: 전체 트랙 peaks에서 표시 창(view) 구간만 잘라 막대로
   const peaks = useMemo(() => audioControls.getPeaks(), [audioPath, duration]);
@@ -741,33 +741,10 @@ export function CharSyncView() {
       </div>
       </div>
 
-      {/* 스크럽 레인 */}
-      <div
-        ref={laneRef}
-        onPointerDown={beginLaneDrag}
-        className="relative h-10 rounded-lg bg-zinc-950/60 border border-zinc-800 overflow-hidden cursor-pointer mb-1"
-      >
-        <LaneWaveform bars={waveBars} />
-        {syllables.map((s, i) =>
-          s.time !== null && isStampable(s) && s.time >= visibleViewStart && s.time <= visibleViewEnd ? (
-            <div
-              key={i}
-              style={{ left: pct(s.time) }}
-              className="absolute top-0 bottom-0 w-px bg-indigo-500/50"
-            />
-          ) : null
-        )}
-        <div
-          style={{ left: pct(lanePreview?.time ?? currentTime) }}
-          className="absolute top-0 bottom-0 w-0.5 bg-amber-400 pointer-events-none"
-        />
-        <span className="absolute left-1.5 bottom-0.5 text-[10px] text-zinc-600 font-mono pointer-events-none">
-          {formatTimestamp(visibleViewStart)}
-        </span>
-        <span className="absolute right-1.5 bottom-0.5 text-[10px] text-zinc-600 font-mono pointer-events-none">
-          {formatTimestamp(visibleViewEnd)}
-        </span>
-      </div>
+      <CharWaveformPanel laneRef={laneRef} onPointerDown={beginLaneDrag} bars={waveBars}
+        start={visibleViewStart} end={visibleViewEnd} lineStart={winStart} lineEnd={winEnd}
+        playhead={lanePreview?.time ?? currentTime} syllables={syllables} activeIndex={activeSyllableIndex}
+        onSelect={setActiveSyllable} available={controlSource === "local"} />
 
       {/* 하단 컨트롤 */}
       <div className="flex items-center gap-2 mt-3">
@@ -820,22 +797,5 @@ const LineDots = memo(function LineDots({
         );
       })}
     </div>
-  );
-});
-
-// 파형 막대는 시간 창(window)이 바뀔 때만 갱신 → 재생 중 매 프레임 재렌더 방지
-const LaneWaveform = memo(function LaneWaveform({ bars }: { bars: number[] | null }) {
-  if (!bars) return null;
-  return (
-    <svg
-      className="absolute inset-0 w-full h-full pointer-events-none"
-      viewBox={`0 0 ${bars.length} 100`}
-      preserveAspectRatio="none"
-    >
-      {bars.map((v, k) => {
-        const h = Math.max(1, v * 64);
-        return <rect key={k} x={k + 0.1} width={0.8} y={(100 - h) / 2} height={h} fill="#3f3f46" />;
-      })}
-    </svg>
   );
 });

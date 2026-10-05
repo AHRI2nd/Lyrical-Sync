@@ -74,6 +74,12 @@ export interface Translations {
     replaceCancel: string;
   };
   charSync: {
+    waveformHeight: string;
+    waveformStyle: string;
+    waveformContinuous: string;
+    waveformBars: string;
+    waveformUnavailable: string;
+    timeRuler: string;
     modeLine: string;
     modeChar: string;
     unitLabel: string;
@@ -600,6 +606,12 @@ const ko: Translations = {
     replaceCancel: "취소",
   },
   charSync: {
+    waveformHeight: "파형 높이",
+    waveformStyle: "파형 스타일",
+    waveformContinuous: "연속 파형",
+    waveformBars: "막대 파형",
+    waveformUnavailable: "이 재생 모드에서는 파형을 표시할 수 없습니다",
+    timeRuler: "시간 눈금",
     modeLine: "줄 동기화",
     modeChar: "글자 동기화",
     unitLabel: "단위",
@@ -1145,6 +1157,12 @@ const en: Translations = {
     replaceCancel: "Cancel",
   },
   charSync: {
+    waveformHeight: "Waveform height",
+    waveformStyle: "Waveform style",
+    waveformContinuous: "Continuous",
+    waveformBars: "Bars",
+    waveformUnavailable: "Waveform unavailable for this playback source",
+    timeRuler: "Time ruler",
     modeLine: "Line Sync",
     modeChar: "Character Sync",
     unitLabel: "Unit",
@@ -1691,6 +1709,12 @@ const ja: Translations = {
     replaceCancel: "キャンセル",
   },
   charSync: {
+    waveformHeight: "波形の高さ",
+    waveformStyle: "波形スタイル",
+    waveformContinuous: "連続波形",
+    waveformBars: "棒波形",
+    waveformUnavailable: "この再生モードでは波形を表示できません",
+    timeRuler: "時間目盛り",
     modeLine: "行同期",
     modeChar: "文字同期",
     unitLabel: "単位",
