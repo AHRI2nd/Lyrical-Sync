@@ -74,6 +74,8 @@ export interface Translations {
     replaceCancel: string;
   };
   charSync: {
+    waveformPreparing: string;
+    waveformNoAudio: string;
     waveformHeight: string;
     waveformStyle: string;
     waveformContinuous: string;
@@ -606,6 +608,8 @@ const ko: Translations = {
     replaceCancel: "취소",
   },
   charSync: {
+    waveformPreparing: "파형 준비 중…",
+    waveformNoAudio: "오디오를 열면 파형을 표시합니다",
     waveformHeight: "파형 높이",
     waveformStyle: "파형 스타일",
     waveformContinuous: "연속 파형",
@@ -1157,6 +1161,8 @@ const en: Translations = {
     replaceCancel: "Cancel",
   },
   charSync: {
+    waveformPreparing: "Preparing waveform…",
+    waveformNoAudio: "Open audio to view the waveform",
     waveformHeight: "Waveform height",
     waveformStyle: "Waveform style",
     waveformContinuous: "Continuous",
@@ -1709,6 +1715,8 @@ const ja: Translations = {
     replaceCancel: "キャンセル",
   },
   charSync: {
+    waveformPreparing: "波形を準備中…",
+    waveformNoAudio: "オーディオを開くと波形を表示します",
     waveformHeight: "波形の高さ",
     waveformStyle: "波形スタイル",
     waveformContinuous: "連続波形",

@@ -9,6 +9,7 @@ import { useI18nStore } from "../../stores/useI18nStore";
 import { toast } from "../../stores/useToastStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
+import { clearWaveform, prepareWaveform } from "../../stores/useWaveformStore";
 import { audioControls } from "../../utils/audioControls";
 import { readAudioBytes } from "../../utils/readAudioBytes";
 import { activateSpotifyPlayer } from "../../utils/spotifyPlayer";
@@ -52,7 +53,6 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   const containerRef = useRef<HTMLDivElement>(null);
   const spectrogramContainerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
-  const peaksRef = useRef<number[] | null>(null);
   const regionsRef = useRef<ReturnType<typeof RegionsPlugin.create> | null>(null);
   const isLoopingRef = useRef(false);
   const playbackRateRef = useRef(1.0);
@@ -132,14 +132,6 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       setDurationLocal(d);
       if (!inService()) setDuration(d);
       setIsAudioReady(true);
-      // 글자 동기화 레인 파형용 정규화 peaks 캐시
-      try {
-        const decodedLength = ws.getDecodedData()?.length;
-        const maxLength = decodedLength && decodedLength > 0 ? Math.min(16000, decodedLength) : 16000;
-        peaksRef.current = ws.exportPeaks({ channels: 1, maxLength })[0] ?? null;
-      } catch {
-        peaksRef.current = null;
-      }
       // 새 오디오 로드 시 미디어 엘리먼트가 배속을 1.0으로 초기화하므로 재적용
       if (playbackRateRef.current !== 1.0) {
         ws.setPlaybackRate(playbackRateRef.current);
@@ -207,7 +199,6 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       setCurrentTimeLocal(0);
       setCurrentTime(0);
     };
-    audioControls.getPeaks = () => peaksRef.current;
     audioControls.seekTo = (seconds: number) => {
       const ws = wsRef.current;
       if (!ws) return;
@@ -227,6 +218,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     // 때의 값이 모드 전환 후에도 스토어에 남아있을 수 있어(전환 시 일부러 안 지움 —
     // 파일 모드로 돌아오면 다시 쓰도록), 여기서 걸러야 크래시 복구 후 엉뚱한 파일을
     // 다시 로드 시도하는 걸 막을 수 있다.
+    clearWaveform();
     if (!wsRef.current || !audioPath || spotifyMode || deviceMode) return;
     let cancelled = false;
 
@@ -239,23 +231,27 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     setIsPlaying(false);
     setCurrentTime(0);
     setDuration(0);
-    peaksRef.current = null;
 
     const ext = audioPath.split(".").pop()?.toLowerCase() ?? "";
 
-    readAudioBytes(audioPath).then(({ bytes, transcoded }) => {
+    readAudioBytes(audioPath).then(async ({ bytes, transcoded }) => {
       if (cancelled || !wsRef.current) return;
 
       const mimeType = transcoded ? "audio/wav" : (AUDIO_MIME[ext] ?? "audio/*");
       const blob = new Blob([bytes], { type: mimeType });
-      return wsRef.current.loadBlob(blob);
+      const ws = wsRef.current;
+      await ws.loadBlob(blob);
+      if (cancelled) return;
+      const decoded = ws.getDecodedData();
+      if (decoded) await prepareWaveform(audioPath, decoded);
     }).catch((e) => {
       // 새 로드로 인한 중단(AbortError)은 무시, 실제 디코드/읽기 실패만 알림
       if (cancelled || (e && (e as Error).name === "AbortError")) return;
+      clearWaveform();
       toast.error(useI18nStore.getState().t.toast.audioLoadFailed);
     });
 
-    return () => { cancelled = true; };
+    return () => { cancelled = true; clearWaveform(); };
   }, [audioPath, spotifyMode, deviceMode]);
 
   // 오디오 열면 파일 태그(ID3 등)에서 메타데이터를 읽어 비어 있는 필드만 자동 채움
@@ -275,7 +271,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         if (Object.keys(patch).length > 0) useLrcStore.getState().setMetadata(patch);
       })
       .catch(() => {});
-    return () => { cancelled = true; };
+    return () => { cancelled = true; clearWaveform(); };
   }, [audioPath, spotifyMode, deviceMode]);
 
   // 오디오 로드 완료 시 현재 zoom 값 적용 (슬라이더 조작 중 zoom은 debounce로 직접 처리)

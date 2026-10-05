@@ -22,7 +22,6 @@ const MARK_GAP = 8;          // 라벨 간 최소 간격(px)
 const MARK_LABEL_H = 14;     // 라벨 높이(px)
 const MARK_TICK = 5;         // 라벨 없는(겹쳐서 생략된) 글자의 짧은 틱 길이(px)
 const MIN_LANE_SPAN = 2;     // 1×에서 최소 표시 시간(초)
-const MAX_LANE_BARS = 600;   // 좁은 패널에서 SVG 요소 수와 막대 밀도 제한
 
 // label=false: 라벨 들어갈 자리가 없어 틱만 표시
 type TimeMark = { index: number; x: number; level: number; time: string; label: boolean };
@@ -77,17 +76,6 @@ function getLaneViewRange(
   const maxZoomStart = displayEnd - zoomSpan;
   const viewStart = Math.min(maxZoomStart, Math.max(displayStart, center - zoomSpan / 2));
   return { start: viewStart, end: viewStart + zoomSpan };
-}
-
-function limitLaneBars(peaks: number[], maxBars: number): number[] {
-  if (peaks.length <= maxBars) return peaks;
-  return Array.from({ length: maxBars }, (_, bin) => {
-    const start = Math.floor((bin * peaks.length) / maxBars);
-    const end = Math.max(start + 1, Math.floor(((bin + 1) * peaks.length) / maxBars));
-    let peak = 0;
-    for (let i = start; i < end; i++) peak = Math.max(peak, Math.abs(peaks[i]));
-    return peak;
-  });
 }
 
 export function CharSyncView() {
@@ -161,17 +149,6 @@ export function CharSyncView() {
   const visibleViewStart = lanePreview?.start ?? viewStart;
   const visibleViewEnd = lanePreview?.end ?? viewEnd;
 
-
-  // 레인 파형: 전체 트랙 peaks에서 표시 창(view) 구간만 잘라 막대로
-  const peaks = useMemo(() => audioControls.getPeaks(), [audioPath, duration]);
-  const waveBars = useMemo(() => {
-    if (!peaks || duration <= 0 || visibleViewEnd <= visibleViewStart) return null;
-    const i0 = Math.max(0, Math.floor((visibleViewStart / duration) * peaks.length));
-    const i1 = Math.min(peaks.length, Math.ceil((visibleViewEnd / duration) * peaks.length));
-    if (i1 <= i0) return null;
-    const visiblePeaks = peaks.slice(i0, i1).map((v) => Math.min(1, Math.abs(v)));
-    return limitLaneBars(visiblePeaks, MAX_LANE_BARS);
-  }, [peaks, duration, visibleViewStart, visibleViewEnd]);
 
   // 재생 위치에서 지금 불리는 글자(편집 커서와 별개). 창 밖이면 -1.
   const playingIdx = useMemo(() => {
@@ -741,7 +718,7 @@ export function CharSyncView() {
       </div>
       </div>
 
-      <CharWaveformPanel laneRef={laneRef} onPointerDown={beginLaneDrag} bars={waveBars}
+      <CharWaveformPanel laneRef={laneRef} onPointerDown={beginLaneDrag} audioPath={audioPath}
         start={visibleViewStart} end={visibleViewEnd} lineStart={winStart} lineEnd={winEnd}
         playhead={lanePreview?.time ?? currentTime} syllables={syllables} activeIndex={activeSyllableIndex}
         onSelect={setActiveSyllable} available={controlSource === "local"} />

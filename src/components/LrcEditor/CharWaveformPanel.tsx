@@ -1,4 +1,5 @@
-import { memo, type PointerEventHandler, type RefObject } from 'react';
+import { memo, useEffect, useMemo, useState, type PointerEventHandler, type RefObject } from 'react';
+import { useWaveformStore } from '../../stores/useWaveformStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
 import { useI18nStore } from '../../stores/useI18nStore';
 import { formatTimestamp, isStampable } from '../../utils/lrcParser';
@@ -7,7 +8,7 @@ import type { LrcSyllable } from '../../types/lrc';
 interface Props {
   laneRef: RefObject<HTMLDivElement | null>;
   onPointerDown: PointerEventHandler<HTMLDivElement>;
-  bars: number[] | null;
+  audioPath: string | null;
   start: number;
   end: number;
   lineStart: number;
@@ -20,7 +21,7 @@ interface Props {
 }
 
 export const CharWaveformPanel = memo(function CharWaveformPanel({
-  laneRef, onPointerDown, bars, start, end, lineStart, lineEnd, playhead,
+  laneRef, onPointerDown, audioPath, start, end, lineStart, lineEnd, playhead,
   syllables, activeIndex, onSelect, available,
 }: Props) {
   const height = useSettingsStore(s => s.glyphWaveformHeight);
@@ -29,9 +30,29 @@ export const CharWaveformPanel = memo(function CharWaveformPanel({
   const setStyle = useSettingsStore(s => s.setGlyphWaveformStyle);
   const { t } = useI18nStore();
   const pct = (time: number) => Math.max(0, Math.min(100, (time - start) / Math.max(0.001, end - start) * 100));
-  const shownBars = available ? bars : null;
-  const top = shownBars?.map((v, i) => `${i},${50 - v * 36}`).join(' L ');
-  const bottom = shownBars?.map((v, i) => `${i},${50 + v * 36}`).reverse().join(' L ');
+  const source = useWaveformStore(s => s.source);
+  const sourcePath = useWaveformStore(s => s.path);
+  const preparing = useWaveformStore(s => s.preparing);
+  const [width, setWidth] = useState(600);
+  useEffect(() => {
+    const lane = laneRef.current;
+    if (!lane) return;
+    const update = () => { if (lane.clientWidth > 0) setWidth(lane.clientWidth); };
+    update();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(update);
+    observer.observe(lane);
+    return () => observer.disconnect();
+  }, [laneRef]);
+  const envelope = useMemo(() => available && sourcePath === audioPath
+    ? source?.getEnvelope(start, end, width) ?? null : null,
+  [available, sourcePath, audioPath, source, start, end, width]);
+  const path = useMemo(() => {
+    if (!envelope) return '';
+    const top = Array.from(envelope.max, (v, i) => `${i + .5},${50 - v * 36}`).join(' L ');
+    const bottom = Array.from(envelope.min, (v, i) => `${i + .5},${50 - v * 36}`).reverse().join(' L ');
+    return `M ${top} L ${bottom} Z`;
+  }, [envelope]);
   return (
     <div className="shrink-0 min-w-0">
       <div className="flex items-center justify-between gap-2 flex-wrap text-xs text-zinc-400 mb-2">
@@ -50,14 +71,17 @@ export const CharWaveformPanel = memo(function CharWaveformPanel({
       <div ref={laneRef} onPointerDown={onPointerDown} data-testid="glyph-seek-lane" data-start={start} data-end={end}
         style={{ height }} className="relative rounded-lg bg-zinc-950 border border-zinc-800 overflow-hidden cursor-pointer touch-none">
         <div className="absolute inset-y-0 bg-indigo-400/5 pointer-events-none" style={{ left: `${pct(lineStart)}%`, width: `${Math.max(0, pct(lineEnd) - pct(lineStart))}%` }} />
-        {shownBars && shownBars.length > 0 && (
-          <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox={`0 0 ${shownBars.length} 100`} preserveAspectRatio="none" aria-hidden>
+        {envelope && (
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox={`0 0 ${envelope.min.length} 100`} preserveAspectRatio="none" aria-hidden>
             {style === 'continuous'
-              ? <path d={`M ${top} L ${bottom} Z`} fill="#a1a1aa" />
-              : shownBars.map((v, i) => <rect key={i} x={i + 0.1} width={0.8} y={50 - v * 36} height={Math.max(1, v * 72)} fill="#a1a1aa" />)}
+              ? <path d={path} fill="#a1a1aa" />
+              : Array.from(envelope.min, (lo, i) => <rect key={i} x={i + .1} width={.8}
+                  y={50 - envelope.max[i] * 36} height={Math.max(1, (envelope.max[i] - lo) * 36)} fill="#a1a1aa" />)}
           </svg>
         )}
-        {!available && <div className="absolute inset-0 flex items-center justify-center px-3 text-center text-xs text-zinc-400 pointer-events-none">{t.charSync.waveformUnavailable}</div>}
+        {!envelope && <div className="absolute inset-0 flex items-center justify-center px-3 text-center text-xs text-zinc-400 pointer-events-none">
+          {!available ? t.charSync.waveformUnavailable : preparing && sourcePath === audioPath ? t.charSync.waveformPreparing : t.charSync.waveformNoAudio}
+        </div>}
         {syllables.map((s, i) => s.time !== null && isStampable(s) && s.time >= start && s.time <= end ? (
           <button key={i} type="button" aria-label={`${s.text.trim()} ${formatTimestamp(s.time)}`} aria-pressed={i === activeIndex}
             onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); onSelect(i); e.currentTarget.blur(); }}

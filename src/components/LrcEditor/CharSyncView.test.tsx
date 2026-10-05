@@ -134,33 +134,6 @@ describe("CharSyncView seek lane", () => {
     expect((end as number) - (start as number)).toBeGreaterThanOrEqual(0.24);
   });
 
-  it("limits peak bars to a softer height within the fixed lane", () => {
-    vi.spyOn(audioControls, "getPeaks").mockReturnValue(Array(4000).fill(1));
-    const { lane } = setup();
-    const bar = lane.querySelector("svg rect");
-
-    expect(bar).not.toBeNull();
-    expect(Number(bar?.getAttribute("height"))).toBeLessThanOrEqual(72);
-  });
-
-  it("groups dense waveform samples into a bounded number of display bars", () => {
-    vi.spyOn(audioControls, "getPeaks").mockReturnValue(Array(2000).fill(0.5));
-    useLrcStore.setState({
-      doc: {
-        ...defaultDocument(),
-        lines: [
-          { id: "line-1", timestamp: 0, text: "first" },
-          { id: "line-2", timestamp: 100, text: "last" },
-        ],
-      },
-      activeLineId: "line-1",
-      currentTime: 0,
-    });
-    const { lane } = setup();
-
-    expect(lane.querySelectorAll("svg rect").length).toBeLessThanOrEqual(600);
-  });
-
   it("previews drag movement without changing playback time, then seeks once to the release position", () => {
     const { lane, playhead } = setup();
 
