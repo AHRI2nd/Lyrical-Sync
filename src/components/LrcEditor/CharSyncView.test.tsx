@@ -19,6 +19,7 @@ function resetStores() {
     activeLineId: "line-1",
     audioPath: "/music/song.mp3",
     currentTime: 12,
+    isPlaying: false,
     duration: 100,
     syncMode: "char",
     syncUnit: "char",
@@ -132,6 +133,26 @@ describe("CharSyncView seek lane", () => {
     const start = parseTimestampInput(labels[0].textContent ?? "");
     const end = parseTimestampInput(labels[1].textContent ?? "");
     expect((end as number) - (start as number)).toBeGreaterThanOrEqual(0.24);
+  });
+
+  it("holds a zoomed viewport until playback passes its right threshold", () => {
+    useLrcStore.setState({ isPlaying: true });
+    const { lane, container } = setup();
+    fireEvent.click(Array.from(container.querySelectorAll("button")).find(b => b.textContent === "+")!);
+    expect(Number(lane.dataset.start)).toBe(10);
+    act(() => useLrcStore.setState({ currentTime: 12.5 }));
+    expect(Number(lane.dataset.start)).toBe(10);
+    act(() => useLrcStore.setState({ currentTime: 13.5 }));
+    expect(Number(lane.dataset.start)).toBeCloseTo(11.5);
+  });
+
+  it("pans a zoomed viewport without seeking or changing glyph timing", () => {
+    const { lane, container, getByRole } = setup();
+    fireEvent.click(Array.from(container.querySelectorAll("button")).find(b => b.textContent === "+")!);
+    fireEvent.click(getByRole("button", { name: /다음 시간 구간|Next time window/ }));
+    expect(Number(lane.dataset.start)).toBe(12);
+    expect(seekSpy).not.toHaveBeenCalled();
+    expect(useLrcStore.getState()._history).toHaveLength(0);
   });
 
   it("previews drag movement without changing playback time, then seeks once to the release position", () => {

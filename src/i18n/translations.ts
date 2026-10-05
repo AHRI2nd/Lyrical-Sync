@@ -76,6 +76,9 @@ export interface Translations {
   charSync: {
     waveformPreparing: string;
     waveformNoAudio: string;
+    prevWindow: string;
+    nextWindow: string;
+    viewportFixed: string;
     waveformHeight: string;
     waveformStyle: string;
     waveformContinuous: string;
@@ -610,6 +613,9 @@ const ko: Translations = {
   charSync: {
     waveformPreparing: "파형 준비 중…",
     waveformNoAudio: "오디오를 열면 파형을 표시합니다",
+    prevWindow: "이전 시간 구간",
+    nextWindow: "다음 시간 구간",
+    viewportFixed: "화면 고정 · 가장자리에서 이동",
     waveformHeight: "파형 높이",
     waveformStyle: "파형 스타일",
     waveformContinuous: "연속 파형",
@@ -1163,6 +1169,9 @@ const en: Translations = {
   charSync: {
     waveformPreparing: "Preparing waveform…",
     waveformNoAudio: "Open audio to view the waveform",
+    prevWindow: "Previous time window",
+    nextWindow: "Next time window",
+    viewportFixed: "Fixed view · follows at the edge",
     waveformHeight: "Waveform height",
     waveformStyle: "Waveform style",
     waveformContinuous: "Continuous",
@@ -1717,6 +1726,9 @@ const ja: Translations = {
   charSync: {
     waveformPreparing: "波形を準備中…",
     waveformNoAudio: "オーディオを開くと波形を表示します",
+    prevWindow: "前の時間範囲",
+    nextWindow: "次の時間範囲",
+    viewportFixed: "表示を固定 · 端で追従",
     waveformHeight: "波形の高さ",
     waveformStyle: "波形スタイル",
     waveformContinuous: "連続波形",

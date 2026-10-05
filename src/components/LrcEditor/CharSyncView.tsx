@@ -139,16 +139,28 @@ export function CharSyncView() {
 
   // 레인 줌: 창을 1/zoom 너비로 좁혀 재생헤드 중심으로 표시 → 밀집 구간 정밀도↑
   const [zoom, setZoom] = useState(1);
+  const [viewAnchor, setViewAnchor] = useState(currentTime);
   const [lanePreview, setLanePreview] = useState<LanePreview | null>(null);
   const laneDragRef = useRef<LaneDrag | null>(null);
   const laneSeekPendingRef = useRef(false);
   const lanePreviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousCurrentTimeRef = useRef(currentTime);
-  useEffect(() => { setZoom(1); }, [activeLineId]);
-  const { start: viewStart, end: viewEnd } = getLaneViewRange(winStart, winEnd, duration, currentTime, zoom);
+  useEffect(() => { setZoom(1); setViewAnchor(useLrcStore.getState().currentTime); }, [activeLineId, audioPath, controlIdentity, controlSource]);
+  const { start: viewStart, end: viewEnd } = getLaneViewRange(winStart, winEnd, duration, viewAnchor, zoom);
   const visibleViewStart = lanePreview?.start ?? viewStart;
   const visibleViewEnd = lanePreview?.end ?? viewEnd;
 
+
+  const previousViewportTimeRef = useRef(currentTime);
+  // Hold the window while playing; page only when the playhead reaches its edge.
+  useEffect(() => {
+    const changed = previousViewportTimeRef.current !== currentTime;
+    previousViewportTimeRef.current = currentTime;
+    if (!changed || laneDragRef.current || lanePreview) return;
+    if (!isPlaying || currentTime < viewStart || currentTime > viewStart + (viewEnd - viewStart) * .8) {
+      setViewAnchor(currentTime);
+    }
+  }, [currentTime, isPlaying, lanePreview, viewStart, viewEnd]);
 
   // 재생 위치에서 지금 불리는 글자(편집 커서와 별개). 창 밖이면 -1.
   const playingIdx = useMemo(() => {
@@ -397,6 +409,7 @@ export function CharSyncView() {
     const changed = previousCurrentTimeRef.current !== currentTime;
     previousCurrentTimeRef.current = currentTime;
     if (!laneSeekPendingRef.current || !changed) return;
+    setViewAnchor(currentTime);
     laneSeekPendingRef.current = false;
     if (lanePreviewTimerRef.current) clearTimeout(lanePreviewTimerRef.current);
     lanePreviewTimerRef.current = null;
@@ -570,11 +583,13 @@ export function CharSyncView() {
   const glyphDone = stampableIdx.filter((i) => syllables[i].time !== null).length;
 
   const ZOOM_LEVELS = [1, 2, 4, 8];
-  const setZoomStep = (dir: number) =>
+  const setZoomStep = (dir: number) => {
+    setViewAnchor(currentTime);
     setZoom((z) => {
       const i = Math.max(0, Math.min(ZOOM_LEVELS.length - 1, ZOOM_LEVELS.indexOf(z) + dir));
       return ZOOM_LEVELS[i];
     });
+  };
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -718,6 +733,15 @@ export function CharSyncView() {
       </div>
       </div>
 
+      {zoom > 1 && <div className="flex items-center justify-between gap-2 mb-2 text-xs text-zinc-400">
+        <button aria-label={t.charSync.prevWindow} onClick={e => { setViewAnchor((viewStart + viewEnd) / 2 - (viewEnd - viewStart) / 2); e.currentTarget.blur(); }}
+          disabled={viewStart <= getLaneViewRange(winStart, winEnd, duration, currentTime, 1).start}
+          className="px-2 py-1 rounded hover:bg-zinc-800 disabled:opacity-30">‹</button>
+        <span>{t.charSync.viewportFixed}</span>
+        <button aria-label={t.charSync.nextWindow} onClick={e => { setViewAnchor((viewStart + viewEnd) / 2 + (viewEnd - viewStart) / 2); e.currentTarget.blur(); }}
+          disabled={viewEnd >= getLaneViewRange(winStart, winEnd, duration, currentTime, 1).end}
+          className="px-2 py-1 rounded hover:bg-zinc-800 disabled:opacity-30">›</button>
+      </div>}
       <CharWaveformPanel laneRef={laneRef} onPointerDown={beginLaneDrag} audioPath={audioPath}
         start={visibleViewStart} end={visibleViewEnd} lineStart={winStart} lineEnd={winEnd}
         playhead={lanePreview?.time ?? currentTime} syllables={syllables} activeIndex={activeSyllableIndex}
