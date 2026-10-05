@@ -1,3 +1,4 @@
+import { getLinePlaybackRange } from "../../utils/linePlaybackRange";
 import { CharWaveformPanel } from "./CharWaveformPanel";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
@@ -85,6 +86,8 @@ export function CharSyncView() {
   const currentTime = useLrcStore((s) => s.currentTime);
   const isPlaying = useLrcStore((s) => s.isPlaying);
   const duration = useLrcStore((s) => s.duration);
+  const loopLineId = useLrcStore((s) => s.loopLineId);
+  const setLoopLine = useLrcStore((s) => s.setLoopLine);
   const audioPath = useLrcStore((s) => s.audioPath);
   const syncUnit = useLrcStore((s) => s.syncUnit);
   const activeSyllableIndex = useLrcStore((s) => s.activeSyllableIndex);
@@ -127,7 +130,7 @@ export function CharSyncView() {
   const prevLineTs = lineIdx > 0 ? lines[lineIdx - 1].timestamp : null;
   const nextLineTs = (() => {
     for (let i = lineIdx + 1; i < lines.length; i++) {
-      if (lines[i].timestamp !== null) return lines[i].timestamp;
+      if (lines[i].timestamp !== null && (line?.timestamp == null || lines[i].timestamp! > line.timestamp)) return lines[i].timestamp;
     }
     return null;
   })();
@@ -136,6 +139,12 @@ export function CharSyncView() {
     nextLineTs ??
     Math.min(winStart + DEFAULT_SPAN, duration > 0 ? duration : winStart + DEFAULT_SPAN);
   if (winEnd <= winStart) winEnd = winStart + DEFAULT_SPAN;
+
+  const repeatRange = getLinePlaybackRange(lines, activeLineId, duration);
+  const canRepeat = controlSource === "local" && repeatRange !== null;
+  useEffect(() => {
+    if (loopLineId && (loopLineId !== activeLineId || !canRepeat)) setLoopLine(null);
+  }, [loopLineId, activeLineId, canRepeat, setLoopLine]);
 
   // 레인 줌: 창을 1/zoom 너비로 좁혀 재생헤드 중심으로 표시 → 밀집 구간 정밀도↑
   const [zoom, setZoom] = useState(1);
@@ -748,8 +757,8 @@ export function CharSyncView() {
         onSelect={setActiveSyllable} available={controlSource === "local"} />
 
       {/* 하단 컨트롤 */}
-      <div className="flex items-center gap-2 mt-3">
-        <div className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium">
+      <div className="flex items-center gap-2 mt-3 flex-wrap">
+        <div className="flex-1 min-w-40 flex items-center justify-center gap-2 bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium">
           <kbd className="px-1.5 py-0.5 rounded bg-indigo-700/70 text-xs font-mono">Space</kbd>
           {t.charSync.stampHint}
         </div>
@@ -759,6 +768,16 @@ export function CharSyncView() {
         >
           ↺ {t.charSync.replayLine}
         </button>
+        <button aria-label={t.charSync.repeatLine} aria-pressed={loopLineId === line.id} disabled={!canRepeat}
+          title={!canRepeat ? t.charSync.repeatUnavailable : t.charSync.repeatLine}
+          onClick={e => {
+            if (loopLineId === line.id) setLoopLine(null);
+            else if (repeatRange && canRepeat) { setLoopLine(line.id); controls.seekTo(repeatRange.start); }
+            e.currentTarget.blur();
+          }}
+          className={`px-3 py-2 text-xs rounded-lg border transition-colors whitespace-nowrap disabled:opacity-30 ${loopLineId === line.id ? "text-indigo-200 border-indigo-400 bg-indigo-500/20" : "text-zinc-300 border-zinc-700 hover:bg-zinc-800"}`}>
+          {t.charSync.repeatLine} · {loopLineId === line.id ? t.charSync.repeatOn : t.charSync.repeatOff}
+        </button>
         <button
           onClick={(e) => { clearLine(); e.currentTarget.blur(); }}
           className="px-3 py-2 text-xs rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-rose-300 transition-colors whitespace-nowrap"
@@ -766,6 +785,9 @@ export function CharSyncView() {
           {t.charSync.clearLine}
         </button>
       </div>
+      {loopLineId === line.id && repeatRange && <div className="mt-1 text-xs text-indigo-300 font-mono">
+        {formatTimestamp(repeatRange.start)} – {formatTimestamp(repeatRange.end)}
+      </div>}
     </div>
   );
 }
