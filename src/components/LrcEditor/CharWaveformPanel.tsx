@@ -53,6 +53,20 @@ export const CharWaveformPanel = memo(function CharWaveformPanel({
     const bottom = Array.from(envelope.min, (v, i) => `${i + .5},${50 - v * 36}`).reverse().join(' L ');
     return `M ${top} L ${bottom} Z`;
   }, [envelope]);
+  const markerGroups = useMemo(() => {
+    const visible = syllables.map((syllable, index) => ({ syllable, index }))
+      .filter(item => item.syllable.time !== null && isStampable(item.syllable) && item.syllable.time >= start && item.syllable.time <= end)
+      .sort((a, b) => a.syllable.time! - b.syllable.time!);
+    const groups: typeof visible[] = [];
+    for (const item of visible) {
+      const group = groups[groups.length - 1];
+      if (group && (item.syllable.time! - group[group.length - 1].syllable.time!) / Math.max(.001, end - start) * width < 12) group.push(item);
+      else groups.push([item]);
+    }
+    return groups;
+  }, [syllables, start, end, width]);
+  const selected = syllables[activeIndex];
+  const selectedVisible = selected && selected.time !== null && isStampable(selected) && selected.time >= start && selected.time <= end;
   return (
     <div className="shrink-0 min-w-0">
       <div className="flex items-center justify-between gap-2 flex-wrap text-xs text-zinc-400 mb-2">
@@ -82,16 +96,27 @@ export const CharWaveformPanel = memo(function CharWaveformPanel({
         {!envelope && <div className="absolute inset-0 flex items-center justify-center px-3 text-center text-xs text-zinc-400 pointer-events-none">
           {!available ? t.charSync.waveformUnavailable : preparing && sourcePath === audioPath ? t.charSync.waveformPreparing : t.charSync.waveformNoAudio}
         </div>}
-        {syllables.map((s, i) => s.time !== null && isStampable(s) && s.time >= start && s.time <= end ? (
-          <button key={i} type="button" aria-label={`${s.text.trim()} ${formatTimestamp(s.time)}`} aria-pressed={i === activeIndex}
-            onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); onSelect(i); e.currentTarget.blur(); }}
-            title={`${s.text.trim()} ${formatTimestamp(s.time)}`} style={{ left: `${pct(s.time)}%`, transform: 'translateX(-50%)' }}
-            className="absolute inset-y-0 w-3 group focus-visible:outline focus-visible:outline-indigo-300">
-            <span className={`absolute inset-y-0 left-1/2 w-px ${i === activeIndex ? 'bg-indigo-300' : 'bg-indigo-500/50 group-hover:bg-indigo-300'}`} />
-          </button>
-        ) : null)}
+        {markerGroups.flatMap(group => group.map(({ syllable: s, index }) => <div key={index}
+          style={{ left: `${pct(s.time!)}%` }} className={`absolute inset-y-0 w-px pointer-events-none ${index === activeIndex ? 'bg-indigo-300 z-10' : 'bg-indigo-500/50'}`} />))}
+        {markerGroups.map(group => {
+          const first = group[0].syllable.time!;
+          const last = group[group.length - 1].syllable.time!;
+          const position = group.findIndex(item => item.index === activeIndex);
+          const label = group.map(item => `${item.syllable.text.trim()} ${formatTimestamp(item.syllable.time!)}`).join(' / ');
+          return <button key={group[0].index} type="button" aria-label={label} aria-pressed={position >= 0}
+            onPointerDown={e => e.stopPropagation()} onClick={e => {
+              e.stopPropagation(); onSelect(group[(position + 1) % group.length].index); e.currentTarget.blur();
+            }} title={group.length > 1 ? `${label} · ${t.charSync.markerGroupHint}` : label}
+            style={{ left: `${pct((first + last) / 2)}%`, width: Math.max(12, (last - first) / Math.max(.001, end - start) * width + 12), transform: 'translateX(-50%)' }}
+            className="absolute inset-y-0 z-20 focus-visible:outline focus-visible:outline-indigo-300">
+            {group.length > 1 && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[11px] px-1 rounded bg-zinc-800 text-indigo-200">{group.length}</span>}
+          </button>;
+        })}
+        {selectedVisible && <span data-testid="selected-waveform-glyph" style={{ left: `${Math.min(85, pct(selected.time!))}%` }}
+          className="absolute top-1 z-30 px-1 rounded bg-zinc-900 text-indigo-200 text-xs max-w-[15%] truncate pointer-events-none">{selected.text.trim()}</span>}
         {playhead >= start && playhead <= end && <div data-testid="glyph-playhead" style={{ left: `${pct(playhead)}%` }} className="absolute top-0 bottom-0 w-0.5 bg-amber-400 pointer-events-none" />}
       </div>
+      {markerGroups.some(group => group.length > 1) && <p className="mt-1 text-[11px] text-zinc-400">{t.charSync.markerGroupHint}</p>}
       <div className="flex justify-between gap-1 pt-1 text-[11px] text-zinc-400 font-mono" aria-label={t.charSync.timeRuler}>
         {[0, .25, .5, .75, 1].map((fraction, i) => <span key={i} className={i % 2 ? 'hidden sm:inline' : ''}>{formatTimestamp(start + (end - start) * fraction)}</span>)}
       </div>

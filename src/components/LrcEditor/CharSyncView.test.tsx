@@ -156,6 +156,22 @@ describe("CharSyncView seek lane", () => {
     expect(useLrcStore.getState()._history).toHaveLength(0);
   });
 
+  it("keeps manual pan detached during playback until explicitly following again", () => {
+    useLrcStore.setState({ isPlaying: true, doc: { ...defaultDocument(), lines: [
+      { id: "line-1", text: "first", timestamp: 10 }, { id: "line-2", text: "next", timestamp: 30 },
+    ] } });
+    const { lane, container, getByRole } = setup();
+    const zoomIn = Array.from(container.querySelectorAll("button")).find(b => b.textContent === "+")!;
+    fireEvent.click(zoomIn); fireEvent.click(zoomIn); fireEvent.click(zoomIn);
+    const next = getByRole("button", { name: /다음 시간 구간|Next time window/ });
+    fireEvent.click(next); fireEvent.click(next);
+    const start = Number(lane.dataset.start);
+    act(() => useLrcStore.setState({ currentTime: 12.01 }));
+    expect(Number(lane.dataset.start)).toBe(start);
+    fireEvent.click(getByRole("button", { name: /재생 위치 따라가기|Follow playback/ }));
+    expect(Number(lane.dataset.start)).toBeCloseTo(10.76);
+  });
+
   it("toggles the current line repeat without starting playback and clears it on line change", () => {
     useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
       { id: "line-1", text: "first", timestamp: 10 }, { id: "line-2", text: "next", timestamp: 20 },

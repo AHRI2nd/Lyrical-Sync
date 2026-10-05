@@ -50,3 +50,18 @@ it('sanitizes restored and user-provided waveform preferences', () => {
   expect(merged.glyphWaveformHeight).toBe(64);
   expect(merged.glyphWaveformStyle).toBe('continuous');
 });
+
+it('makes co-timed glyphs selectable as a group and keeps the selected label visible', () => {
+  const select = vi.fn();
+  const props = { laneRef: createRef<HTMLDivElement>(), onPointerDown: vi.fn(), audioPath: 'song.wav',
+    start: 0, end: 2, lineStart: 0, lineEnd: 1, playhead: .8,
+    syllables: [{ text: 'a', time: .5 }, { text: 'b', time: .5 }], activeIndex: 0, onSelect: select, available: true };
+  const { rerender } = render(<CharWaveformPanel {...props} />);
+  const group = screen.getByRole('button', { name: /a.*b/ });
+  fireEvent.click(group);
+  expect(select).toHaveBeenLastCalledWith(1);
+  rerender(<CharWaveformPanel {...props} activeIndex={1} />);
+  expect(screen.getByTestId('selected-waveform-glyph').textContent).toBe('b');
+  fireEvent.click(screen.getByRole('button', { name: /a.*b/ }));
+  expect(select).toHaveBeenLastCalledWith(0);
+});
