@@ -27,7 +27,16 @@ function debouncedLocalStorage(delayMs: number): StateStorage {
   };
 }
 
+export function normalizeGlyphWaveformHeight(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(64, Math.min(160, Math.round(value / 8) * 8)) : 96;
+}
+
 interface SettingsState {
+  glyphWaveformHeight: number;
+  glyphWaveformStyle: "continuous" | "bars";
+  setGlyphWaveformHeight: (value: number) => void;
+  setGlyphWaveformStyle: (value: "continuous" | "bars") => void;
   autoCheckUpdate: boolean;
   /** 저장 경로가 지정된 파일에 대해 변경 시 자동 저장 */
   autoSave: boolean;
@@ -123,6 +132,10 @@ const MAX_RECENT_FILES = 8;
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
+      glyphWaveformHeight: 96,
+      glyphWaveformStyle: "continuous",
+      setGlyphWaveformHeight: (v) => set({ glyphWaveformHeight: normalizeGlyphWaveformHeight(v) }),
+      setGlyphWaveformStyle: (v) => set({ glyphWaveformStyle: v === "bars" ? "bars" : "continuous" }),
       autoCheckUpdate: true,
       autoSave: true,
       uiScale: 1.0,
@@ -187,6 +200,14 @@ export const useSettingsStore = create<SettingsState>()(
         }),
       clearRecentFiles: () => set({ recentFiles: [] }),
     }),
-    { name: "lyrical-sync-settings", storage: createJSONStorage(() => debouncedLocalStorage(300)) }
+    { name: "lyrical-sync-settings", storage: createJSONStorage(() => debouncedLocalStorage(300)),
+      merge: (persisted, current) => {
+        const saved = persisted as Partial<SettingsState> | undefined;
+        return { ...current, ...saved,
+          glyphWaveformHeight: normalizeGlyphWaveformHeight(saved?.glyphWaveformHeight),
+          glyphWaveformStyle: saved?.glyphWaveformStyle === "bars" ? "bars" : "continuous",
+        };
+      },
+    }
   )
 );

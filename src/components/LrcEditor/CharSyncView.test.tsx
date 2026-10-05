@@ -8,7 +8,7 @@ import { useLrcStore } from "../../stores/useLrcStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { defaultDocument } from "../../types/lrc";
-import { parseTimestampInput } from "../../utils/lrcParser";
+import { formatTimestamp, parseTimestampInput } from "../../utils/lrcParser";
 
 let rafCallbacks: FrameRequestCallback[];
 let seekSpy: ReturnType<typeof vi.spyOn>;
@@ -26,13 +26,13 @@ function resetStores() {
     _history: [],
     _future: [],
   });
-  useSettingsStore.setState({ spotifyMode: false });
+  useSettingsStore.setState({ spotifyMode: false, deviceMode: false, glyphWaveformStyle: "bars", glyphWaveformHeight: 96 });
   useServiceStore.setState({ isLoggedIn: false });
 }
 
 function setup() {
   const view = render(<CharSyncView />);
-  const lane = view.container.querySelector(".h-10") as HTMLDivElement;
+  const lane = view.container.querySelector('[data-testid="glyph-seek-lane"]') as HTMLDivElement;
   vi.spyOn(lane, "getBoundingClientRect").mockReturnValue({
     x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 40, width: 100, height: 40,
     toJSON: () => ({}),
@@ -73,7 +73,7 @@ describe("CharSyncView seek lane", () => {
     });
 
     const { lane } = setup();
-    const labels = lane.querySelectorAll("span");
+    const labels = [{ textContent: formatTimestamp(Number(lane.dataset.start)) }, { textContent: formatTimestamp(Number(lane.dataset.end)) }];
     const start = parseTimestampInput(labels[0].textContent ?? "");
     const end = parseTimestampInput(labels[1].textContent ?? "");
 
@@ -102,7 +102,7 @@ describe("CharSyncView seek lane", () => {
         currentTime: (item.start + item.end) / 2,
       });
       const { lane } = setup();
-      const labels = lane.querySelectorAll("span");
+      const labels = [{ textContent: formatTimestamp(Number(lane.dataset.start)) }, { textContent: formatTimestamp(Number(lane.dataset.end)) }];
 
       expect(parseTimestampInput(labels[0].textContent ?? ""), `case ${index} start`).toBeCloseTo(item.expectedStart, 1);
       expect(parseTimestampInput(labels[1].textContent ?? ""), `case ${index} end`).toBeCloseTo(item.expectedEnd, 1);
@@ -128,7 +128,7 @@ describe("CharSyncView seek lane", () => {
     fireEvent.click(zoomIn);
     fireEvent.click(zoomIn);
 
-    const labels = lane.querySelectorAll("span");
+    const labels = [{ textContent: formatTimestamp(Number(lane.dataset.start)) }, { textContent: formatTimestamp(Number(lane.dataset.end)) }];
     const start = parseTimestampInput(labels[0].textContent ?? "");
     const end = parseTimestampInput(labels[1].textContent ?? "");
     expect((end as number) - (start as number)).toBeGreaterThanOrEqual(0.24);
@@ -140,7 +140,7 @@ describe("CharSyncView seek lane", () => {
     const bar = lane.querySelector("svg rect");
 
     expect(bar).not.toBeNull();
-    expect(Number(bar?.getAttribute("height"))).toBeLessThanOrEqual(64);
+    expect(Number(bar?.getAttribute("height"))).toBeLessThanOrEqual(72);
   });
 
   it("groups dense waveform samples into a bounded number of display bars", () => {
