@@ -79,6 +79,10 @@ export interface Translations {
     prevWindow: string;
     nextWindow: string;
     viewportFixed: string;
+    repeatLine: string;
+    repeatOn: string;
+    repeatOff: string;
+    repeatUnavailable: string;
     waveformHeight: string;
     waveformStyle: string;
     waveformContinuous: string;
@@ -616,6 +620,10 @@ const ko: Translations = {
     prevWindow: "이전 시간 구간",
     nextWindow: "다음 시간 구간",
     viewportFixed: "화면 고정 · 가장자리에서 이동",
+    repeatLine: "줄 반복",
+    repeatOn: "켜짐",
+    repeatOff: "꺼짐",
+    repeatUnavailable: "로컬 오디오와 유효한 줄 시작 시각이 필요합니다",
     waveformHeight: "파형 높이",
     waveformStyle: "파형 스타일",
     waveformContinuous: "연속 파형",
@@ -1172,6 +1180,10 @@ const en: Translations = {
     prevWindow: "Previous time window",
     nextWindow: "Next time window",
     viewportFixed: "Fixed view · follows at the edge",
+    repeatLine: "Repeat line",
+    repeatOn: "On",
+    repeatOff: "Off",
+    repeatUnavailable: "Requires local audio and a valid line timestamp",
     waveformHeight: "Waveform height",
     waveformStyle: "Waveform style",
     waveformContinuous: "Continuous",
@@ -1729,6 +1741,10 @@ const ja: Translations = {
     prevWindow: "前の時間範囲",
     nextWindow: "次の時間範囲",
     viewportFixed: "表示を固定 · 端で追従",
+    repeatLine: "行リピート",
+    repeatOn: "オン",
+    repeatOff: "オフ",
+    repeatUnavailable: "ローカルオーディオと有効な行開始時刻が必要です",
     waveformHeight: "波形の高さ",
     waveformStyle: "波形スタイル",
     waveformContinuous: "連続波形",

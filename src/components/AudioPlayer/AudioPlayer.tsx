@@ -10,6 +10,7 @@ import { toast } from "../../stores/useToastStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { clearWaveform, prepareWaveform } from "../../stores/useWaveformStore";
+import { getLinePlaybackRange } from "../../utils/linePlaybackRange";
 import { audioControls } from "../../utils/audioControls";
 import { readAudioBytes } from "../../utils/readAudioBytes";
 import { activateSpotifyPlayer } from "../../utils/spotifyPlayer";
@@ -140,23 +141,9 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     ws.on("audioprocess", (t) => {
       setCurrentTimeLocal(t);
       if (!inService()) setCurrentTime(t);
-      // 줄 반복: 반복 대상 줄의 구간(다음 스탬프 줄 시작, 없으면 끝까지) 끝에 닿으면
-      // 줄 시작으로 되돌아감. 매 프레임 스토어에서 직접 읽어 클로저 staleness 회피.
       const { loopLineId, doc } = useLrcStore.getState();
-      if (loopLineId) {
-        const idx = doc.lines.findIndex((l) => l.id === loopLineId);
-        const line = idx >= 0 ? doc.lines[idx] : null;
-        if (line && line.timestamp !== null) {
-          let end = ws.getDuration();
-          for (let i = idx + 1; i < doc.lines.length; i++) {
-            if (doc.lines[i].timestamp !== null) { end = doc.lines[i].timestamp as number; break; }
-          }
-          if (t >= end) {
-            const d = ws.getDuration();
-            if (d > 0) ws.seekTo(Math.max(0, Math.min(1, line.timestamp / d)));
-          }
-        }
-      }
+      const range = !inService() ? getLinePlaybackRange(doc.lines, loopLineId, ws.getDuration()) : null;
+      if (range && t >= range.end) ws.seekTo(range.start / ws.getDuration());
     });
     ws.on("seeking", (t) => {
       setCurrentTimeLocal(t);
@@ -165,7 +152,12 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     ws.on("play", () => { setIsPlayingLocal(true); if (!inService()) setIsPlaying(true); });
     ws.on("pause", () => { setIsPlayingLocal(false); if (!inService()) setIsPlaying(false); });
     ws.on("finish", () => {
-      if (isLoopingRef.current) {
+      const { loopLineId, doc } = useLrcStore.getState();
+      const range = !inService() ? getLinePlaybackRange(doc.lines, loopLineId, ws.getDuration()) : null;
+      if (range) {
+        ws.seekTo(range.start / ws.getDuration());
+        ws.play();
+      } else if (isLoopingRef.current && !inService()) {
         ws.seekTo(0);
         ws.play();
       } else {

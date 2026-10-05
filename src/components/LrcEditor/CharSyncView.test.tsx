@@ -20,6 +20,7 @@ function resetStores() {
     audioPath: "/music/song.mp3",
     currentTime: 12,
     isPlaying: false,
+    loopLineId: null,
     duration: 100,
     syncMode: "char",
     syncUnit: "char",
@@ -153,6 +154,35 @@ describe("CharSyncView seek lane", () => {
     expect(Number(lane.dataset.start)).toBe(12);
     expect(seekSpy).not.toHaveBeenCalled();
     expect(useLrcStore.getState()._history).toHaveLength(0);
+  });
+
+  it("toggles the current line repeat without starting playback and clears it on line change", () => {
+    useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+      { id: "line-1", text: "first", timestamp: 10 }, { id: "line-2", text: "next", timestamp: 20 },
+    ] }});
+    const { getByRole } = setup();
+    const repeat = getByRole("button", { name: /줄 반복|Repeat line/ });
+    fireEvent.click(repeat);
+    expect(repeat.getAttribute("aria-pressed")).toBe("true");
+    expect(useLrcStore.getState().loopLineId).toBe("line-1");
+    expect(seekSpy).toHaveBeenCalledWith(10);
+    expect(useLrcStore.getState().isPlaying).toBe(false);
+    fireEvent.click(repeat);
+    expect(useLrcStore.getState().loopLineId).toBeNull();
+    fireEvent.click(repeat);
+    act(() => useLrcStore.setState({ activeLineId: "line-2" }));
+    expect(useLrcStore.getState().loopLineId).toBeNull();
+  });
+
+  it("disables line repeat when the line has no timestamp or the source is external", () => {
+    useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "line-1", text: "first", timestamp: null }] } });
+    const { getByRole } = setup();
+    expect((getByRole("button", { name: /줄 반복|Repeat line/ }) as HTMLButtonElement).disabled).toBe(true);
+    act(() => {
+      useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "line-1", text: "first", timestamp: 10 }] } });
+      useSettingsStore.setState({ deviceMode: true });
+    });
+    expect((getByRole("button", { name: /줄 반복|Repeat line/ }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("previews drag movement without changing playback time, then seeks once to the release position", () => {

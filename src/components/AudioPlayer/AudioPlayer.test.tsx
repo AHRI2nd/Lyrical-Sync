@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { act, render, cleanup, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, cleanup, waitFor } from "@testing-library/react";
 
 if (typeof globalThis.localStorage === "undefined") {
   const m = new Map<string, string>();
@@ -53,6 +53,8 @@ vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 vi.mock("../../utils/readAudioBytes", () => ({ readAudioBytes: vi.fn() }));
 
+import { useI18nStore } from "../../stores/useI18nStore";
+import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useWaveformStore } from "../../stores/useWaveformStore";
 import { AudioPlayer } from "./AudioPlayer";
 import { readAudioBytes } from "../../utils/readAudioBytes";
@@ -70,6 +72,7 @@ const resetLrc = (lines: LrcLine[], loopLineId: string | null) => {
   });
 };
 
+const playSpy = vi.spyOn(wsMock, "play");
 const seekToSpy = vi.spyOn(wsMock, "seekTo");
 const loadSpy = vi.spyOn(wsMock, "load");
 const loadBlobSpy = vi.spyOn(wsMock, "loadBlob");
@@ -131,6 +134,7 @@ describe("AudioPlayer — local audio loading", () => {
 describe("AudioPlayer — loop-line boundary (audioprocess handler)", () => {
   beforeEach(() => {
     seekToSpy.mockClear();
+    playSpy.mockClear();
     for (const k of Object.keys(wsHandlers)) delete wsHandlers[k];
   });
 
@@ -168,6 +172,45 @@ describe("AudioPlayer — loop-line boundary (audioprocess handler)", () => {
 
     audioprocess(100);
     expect(seekToSpy).toHaveBeenCalledWith(0.1);
+  });
+
+  it("restarts the final line at track finish", () => {
+    resetLrc([{ id: "a", timestamp: 90, text: "last" }], "a");
+    render(<AudioPlayer />);
+    wsHandlers["finish"]();
+    expect(seekToSpy).toHaveBeenCalledWith(.9);
+    expect(playSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives line repeat priority over whole-track repeat at track finish", () => {
+    resetLrc([{ id: "a", timestamp: 90, text: "last" }], "a");
+    const { getByRole } = render(<AudioPlayer />);
+    const t = useI18nStore.getState().t;
+    fireEvent.click(getByRole("button", { name: t.playerMore }));
+    fireEvent.click(getByRole("button", { name: t.tooltipLoop }));
+    wsHandlers["finish"]();
+    expect(seekToSpy).toHaveBeenCalledWith(.9);
+    expect(seekToSpy).not.toHaveBeenCalledWith(0);
+  });
+
+  it("does not loop stale local audio while an external source is active", () => {
+    resetLrc([{ id: "a", timestamp: 10, text: "first" }, { id: "b", timestamp: 20, text: "next" }], "a");
+    render(<AudioPlayer />);
+    act(() => useSettingsStore.setState({ deviceMode: true }));
+    wsHandlers["audioprocess"](20); wsHandlers["finish"]();
+    expect(seekToSpy).not.toHaveBeenCalled();
+    expect(playSpy).not.toHaveBeenCalled();
+    act(() => useSettingsStore.setState({ deviceMode: false }));
+  });
+
+  it("does not seek repeatedly for adjacent equal timestamps", () => {
+    resetLrc([{ id: "a", timestamp: 10, text: "first" }, { id: "b", timestamp: 10, text: "same" },
+      { id: "c", timestamp: 20, text: "next" }], "a");
+    render(<AudioPlayer />);
+    wsHandlers["audioprocess"](11);
+    expect(seekToSpy).not.toHaveBeenCalled();
+    wsHandlers["audioprocess"](20);
+    expect(seekToSpy).toHaveBeenCalledWith(.1);
   });
 
   it("does nothing when no line is set to loop", () => {
