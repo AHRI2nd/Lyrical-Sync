@@ -83,6 +83,8 @@ export interface Translations {
     repeatOn: string;
     repeatOff: string;
     repeatUnavailable: string;
+    followPlayback: string;
+    markerGroupHint: string;
     waveformHeight: string;
     waveformStyle: string;
     waveformContinuous: string;
@@ -624,6 +626,8 @@ const ko: Translations = {
     repeatOn: "켜짐",
     repeatOff: "꺼짐",
     repeatUnavailable: "로컬 오디오와 유효한 줄 시작 시각이 필요합니다",
+    followPlayback: "재생 위치 따라가기",
+    markerGroupHint: "겹친 마커는 클릭할 때마다 다음 글자를 선택합니다",
     waveformHeight: "파형 높이",
     waveformStyle: "파형 스타일",
     waveformContinuous: "연속 파형",
@@ -1184,6 +1188,8 @@ const en: Translations = {
     repeatOn: "On",
     repeatOff: "Off",
     repeatUnavailable: "Requires local audio and a valid line timestamp",
+    followPlayback: "Follow playback",
+    markerGroupHint: "Click overlapping markers to cycle through their glyphs",
     waveformHeight: "Waveform height",
     waveformStyle: "Waveform style",
     waveformContinuous: "Continuous",
@@ -1745,6 +1751,8 @@ const ja: Translations = {
     repeatOn: "オン",
     repeatOff: "オフ",
     repeatUnavailable: "ローカルオーディオと有効な行開始時刻が必要です",
+    followPlayback: "再生位置に追従",
+    markerGroupHint: "重なったマーカーをクリックすると次の文字を選択します",
     waveformHeight: "波形の高さ",
     waveformStyle: "波形スタイル",
     waveformContinuous: "連続波形",

@@ -149,12 +149,13 @@ export function CharSyncView() {
   // 레인 줌: 창을 1/zoom 너비로 좁혀 재생헤드 중심으로 표시 → 밀집 구간 정밀도↑
   const [zoom, setZoom] = useState(1);
   const [viewAnchor, setViewAnchor] = useState(currentTime);
+  const [followPlayback, setFollowPlayback] = useState(true);
   const [lanePreview, setLanePreview] = useState<LanePreview | null>(null);
   const laneDragRef = useRef<LaneDrag | null>(null);
   const laneSeekPendingRef = useRef(false);
   const lanePreviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousCurrentTimeRef = useRef(currentTime);
-  useEffect(() => { setZoom(1); setViewAnchor(useLrcStore.getState().currentTime); }, [activeLineId, audioPath, controlIdentity, controlSource]);
+  useEffect(() => { setZoom(1); setFollowPlayback(true); setViewAnchor(useLrcStore.getState().currentTime); }, [activeLineId, audioPath, controlIdentity, controlSource]);
   const { start: viewStart, end: viewEnd } = getLaneViewRange(winStart, winEnd, duration, viewAnchor, zoom);
   const visibleViewStart = lanePreview?.start ?? viewStart;
   const visibleViewEnd = lanePreview?.end ?? viewEnd;
@@ -165,11 +166,11 @@ export function CharSyncView() {
   useEffect(() => {
     const changed = previousViewportTimeRef.current !== currentTime;
     previousViewportTimeRef.current = currentTime;
-    if (!changed || laneDragRef.current || lanePreview) return;
+    if (!followPlayback || !changed || laneDragRef.current || lanePreview) return;
     if (!isPlaying || currentTime < viewStart || currentTime > viewStart + (viewEnd - viewStart) * .8) {
       setViewAnchor(currentTime);
     }
-  }, [currentTime, isPlaying, lanePreview, viewStart, viewEnd]);
+  }, [currentTime, isPlaying, lanePreview, viewStart, viewEnd, followPlayback]);
 
   // 재생 위치에서 지금 불리는 글자(편집 커서와 별개). 창 밖이면 -1.
   const playingIdx = useMemo(() => {
@@ -419,6 +420,7 @@ export function CharSyncView() {
     previousCurrentTimeRef.current = currentTime;
     if (!laneSeekPendingRef.current || !changed) return;
     setViewAnchor(currentTime);
+    setFollowPlayback(true);
     laneSeekPendingRef.current = false;
     if (lanePreviewTimerRef.current) clearTimeout(lanePreviewTimerRef.current);
     lanePreviewTimerRef.current = null;
@@ -593,6 +595,7 @@ export function CharSyncView() {
 
   const ZOOM_LEVELS = [1, 2, 4, 8];
   const setZoomStep = (dir: number) => {
+    setFollowPlayback(true);
     setViewAnchor(currentTime);
     setZoom((z) => {
       const i = Math.max(0, Math.min(ZOOM_LEVELS.length - 1, ZOOM_LEVELS.indexOf(z) + dir));
@@ -635,7 +638,6 @@ export function CharSyncView() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto">
-      <p className="text-xs text-zinc-500 mb-2 px-1">{t.charSync.hint}</p>
 
       {/* 활성 줄 — 한 줄 흐름 텍스트 + 글자별 시간 마커 (가로 스크롤) */}
       <div className="overflow-x-auto mb-3">
@@ -714,8 +716,11 @@ export function CharSyncView() {
       </div>
       </div>
 
+      <p className="text-xs text-zinc-500 mb-2 px-1">{t.charSync.hint}</p>
+      </div>
+
       {/* 현재 글자 readout + 레인 줌 */}
-      <div className="flex items-center justify-between gap-2 text-xs mb-2 px-1">
+      <div className="flex items-center justify-between flex-wrap gap-2 text-xs mb-2 px-1 shrink-0">
         <span className="font-mono text-indigo-300">
           {t.charSync.current}: 「{readoutText}」 → {readoutTime}
         </span>
@@ -740,14 +745,15 @@ export function CharSyncView() {
           </button>
         </div>
       </div>
-      </div>
 
       {zoom > 1 && <div className="flex items-center justify-between gap-2 mb-2 text-xs text-zinc-400">
-        <button aria-label={t.charSync.prevWindow} onClick={e => { setViewAnchor((viewStart + viewEnd) / 2 - (viewEnd - viewStart) / 2); e.currentTarget.blur(); }}
+        <button aria-label={t.charSync.prevWindow} onClick={e => { setFollowPlayback(false); setViewAnchor((viewStart + viewEnd) / 2 - (viewEnd - viewStart) / 2); e.currentTarget.blur(); }}
           disabled={viewStart <= getLaneViewRange(winStart, winEnd, duration, currentTime, 1).start}
           className="px-2 py-1 rounded hover:bg-zinc-800 disabled:opacity-30">‹</button>
-        <span>{t.charSync.viewportFixed}</span>
-        <button aria-label={t.charSync.nextWindow} onClick={e => { setViewAnchor((viewStart + viewEnd) / 2 + (viewEnd - viewStart) / 2); e.currentTarget.blur(); }}
+        {followPlayback ? <span>{t.charSync.viewportFixed}</span> : <button onClick={e => {
+          setFollowPlayback(true); setViewAnchor(currentTime); e.currentTarget.blur();
+        }} className="px-2 py-1 rounded text-indigo-300 hover:bg-zinc-800">{t.charSync.followPlayback}</button>}
+        <button aria-label={t.charSync.nextWindow} onClick={e => { setFollowPlayback(false); setViewAnchor((viewStart + viewEnd) / 2 + (viewEnd - viewStart) / 2); e.currentTarget.blur(); }}
           disabled={viewEnd >= getLaneViewRange(winStart, winEnd, duration, currentTime, 1).end}
           className="px-2 py-1 rounded hover:bg-zinc-800 disabled:opacity-30">›</button>
       </div>}
