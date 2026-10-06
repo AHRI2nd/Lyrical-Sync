@@ -67,15 +67,10 @@ function getLaneViewRange(
   const rangeEnd = Math.min(trackEnd, Math.max(rangeStart, end));
   const rangeSpan = rangeEnd - rangeStart;
   const displaySpan = Math.min(trackEnd, Math.max(MIN_LANE_SPAN, rangeSpan));
-  const rangeCenter = (rangeStart + rangeEnd) / 2;
-  const maxDisplayStart = Number.isFinite(trackEnd) ? Math.max(0, trackEnd - displaySpan) : Infinity;
-  const displayStart = Math.min(maxDisplayStart, Math.max(0, rangeCenter - displaySpan / 2));
-  const displayEnd = displayStart + displaySpan;
-
   const zoomSpan = displaySpan / Math.max(1, zoom);
-  const center = Math.min(displayEnd, Math.max(displayStart, currentTime));
-  const maxZoomStart = displayEnd - zoomSpan;
-  const viewStart = Math.min(maxZoomStart, Math.max(displayStart, center - zoomSpan / 2));
+  // Only track boundaries stop scrolling; lyric boundaries define width, not position.
+  const maxZoomStart = Number.isFinite(trackEnd) ? Math.max(0, trackEnd - zoomSpan) : Infinity;
+  const viewStart = Math.min(maxZoomStart, Math.max(0, currentTime - zoomSpan / 2));
   return { start: viewStart, end: viewStart + zoomSpan };
 }
 
@@ -156,21 +151,13 @@ export function CharSyncView() {
   const lanePreviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousCurrentTimeRef = useRef(currentTime);
   useEffect(() => { setZoom(1); setFollowPlayback(true); setViewAnchor(useLrcStore.getState().currentTime); }, [activeLineId, audioPath, controlIdentity, controlSource]);
-  const { start: viewStart, end: viewEnd } = getLaneViewRange(winStart, winEnd, duration, viewAnchor, zoom);
+  // Derive the following window in the same render as the playhead to avoid a frame of drift.
+  const { start: viewStart, end: viewEnd } = getLaneViewRange(
+    winStart, winEnd, duration, followPlayback ? currentTime : viewAnchor, zoom,
+  );
   const visibleViewStart = lanePreview?.start ?? viewStart;
   const visibleViewEnd = lanePreview?.end ?? viewEnd;
 
-
-  const previousViewportTimeRef = useRef(currentTime);
-  // Hold the window while playing; page only when the playhead reaches its edge.
-  useEffect(() => {
-    const changed = previousViewportTimeRef.current !== currentTime;
-    previousViewportTimeRef.current = currentTime;
-    if (!followPlayback || !changed || laneDragRef.current || lanePreview) return;
-    if (!isPlaying || currentTime < viewStart || currentTime > viewStart + (viewEnd - viewStart) * .8) {
-      setViewAnchor(currentTime);
-    }
-  }, [currentTime, isPlaying, lanePreview, viewStart, viewEnd, followPlayback]);
 
   // 재생 위치에서 지금 불리는 글자(편집 커서와 별개). 창 밖이면 -1.
   const playingIdx = useMemo(() => {
@@ -748,13 +735,13 @@ export function CharSyncView() {
 
       {zoom > 1 && <div className="flex items-center justify-between gap-2 mb-2 text-xs text-zinc-400">
         <button aria-label={t.charSync.prevWindow} onClick={e => { setFollowPlayback(false); setViewAnchor((viewStart + viewEnd) / 2 - (viewEnd - viewStart) / 2); e.currentTarget.blur(); }}
-          disabled={viewStart <= getLaneViewRange(winStart, winEnd, duration, currentTime, 1).start}
+          disabled={viewStart <= 0}
           className="px-2 py-1 rounded hover:bg-zinc-800 disabled:opacity-30">‹</button>
         {followPlayback ? <span>{t.charSync.viewportFixed}</span> : <button onClick={e => {
           setFollowPlayback(true); setViewAnchor(currentTime); e.currentTarget.blur();
         }} className="px-2 py-1 rounded text-indigo-300 hover:bg-zinc-800">{t.charSync.followPlayback}</button>}
         <button aria-label={t.charSync.nextWindow} onClick={e => { setFollowPlayback(false); setViewAnchor((viewStart + viewEnd) / 2 + (viewEnd - viewStart) / 2); e.currentTarget.blur(); }}
-          disabled={viewEnd >= getLaneViewRange(winStart, winEnd, duration, currentTime, 1).end}
+          disabled={duration > 0 && viewEnd >= duration}
           className="px-2 py-1 rounded hover:bg-zinc-800 disabled:opacity-30">›</button>
       </div>}
       <CharWaveformPanel laneRef={laneRef} onPointerDown={beginLaneDrag} audioPath={audioPath}
