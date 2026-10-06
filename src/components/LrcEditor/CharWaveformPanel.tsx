@@ -114,7 +114,9 @@ export const CharWaveformPanel = memo(function CharWaveformPanel({
         })}
         {selectedVisible && <span data-testid="selected-waveform-glyph" style={{ left: `${Math.min(85, pct(selected.time!))}%` }}
           className="absolute top-1 z-30 px-1 rounded bg-zinc-900 text-indigo-200 text-xs max-w-[15%] truncate pointer-events-none">{selected.text.trim()}</span>}
-        {playhead >= start && playhead <= end && <div data-testid="glyph-playhead" style={{ left: `${pct(playhead)}%` }} className="absolute top-0 bottom-0 w-0.5 bg-amber-400 pointer-events-none" />}
+        {playhead >= start && playhead <= end && <div data-testid="glyph-playhead"
+          style={{ left: `${pct(playhead)}%`, transform: `translateX(-${pct(playhead)}%)` }}
+          className="absolute top-0 bottom-0 w-0.5 bg-amber-400 pointer-events-none" />}
       </div>
       {markerGroups.some(group => group.length > 1) && <p className="mt-1 text-[11px] text-zinc-400">{t.charSync.markerGroupHint}</p>}
       <div className="flex justify-between gap-1 pt-1 text-[11px] text-zinc-400 font-mono" aria-label={t.charSync.timeRuler}>

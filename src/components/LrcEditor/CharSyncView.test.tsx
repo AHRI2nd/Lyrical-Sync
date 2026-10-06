@@ -136,15 +136,81 @@ describe("CharSyncView seek lane", () => {
     expect((end as number) - (start as number)).toBeGreaterThanOrEqual(0.24);
   });
 
-  it("holds a zoomed viewport until playback passes its right threshold", () => {
+  it("continuously centers playback in a zoomed viewport across lyric boundaries", () => {
     useLrcStore.setState({ isPlaying: true });
-    const { lane, container } = setup();
+    const { lane, container, playhead } = setup();
     fireEvent.click(Array.from(container.querySelectorAll("button")).find(b => b.textContent === "+")!);
     expect(Number(lane.dataset.start)).toBe(10);
     act(() => useLrcStore.setState({ currentTime: 12.5 }));
-    expect(Number(lane.dataset.start)).toBe(10);
+    expect(Number(lane.dataset.start)).toBe(10.5);
+    expect(playhead.style.left).toBe("50%");
     act(() => useLrcStore.setState({ currentTime: 13.5 }));
     expect(Number(lane.dataset.start)).toBeCloseTo(11.5);
+    act(() => useLrcStore.setState({ currentTime: 25 }));
+    expect(Number(lane.dataset.start)).toBe(23);
+    expect(playhead.style.left).toBe("50%");
+  });
+
+  it("moves the playhead from left to center, scrolls the waveform, then moves it to the right", () => {
+    useLrcStore.setState({ isPlaying: true, currentTime: 0 });
+    const { lane, playhead } = setup();
+    const cases = [
+      { time: 0, start: 0, end: 8, position: 0 },
+      { time: 2, start: 0, end: 8, position: 25 },
+      { time: 4, start: 0, end: 8, position: 50 },
+      { time: 12, start: 8, end: 16, position: 50 },
+      { time: 50, start: 46, end: 54, position: 50 },
+      { time: 96, start: 92, end: 100, position: 50 },
+      { time: 98, start: 92, end: 100, position: 75 },
+      { time: 100, start: 92, end: 100, position: 100 },
+      { time: 10, start: 6, end: 14, position: 50 },
+    ];
+    for (const item of cases) {
+      act(() => useLrcStore.setState({ currentTime: item.time }));
+      expect(Number(lane.dataset.start), `time ${item.time}`).toBe(item.start);
+      expect(Number(lane.dataset.end), `time ${item.time}`).toBe(item.end);
+      expect(parseFloat(playhead.style.left), `time ${item.time}`).toBe(item.position);
+      if (item.position === 100) {
+        expect(playhead.style.transform, `visible endpoint at ${item.time}`).toBe(`translateX(-${item.position}%)`);
+      }
+    }
+  });
+
+  it("keeps a track shorter than the minimum window fully visible", () => {
+    useLrcStore.setState({
+      duration: 0.5, currentTime: 0, isPlaying: true,
+      doc: { ...defaultDocument(), lines: [{ id: "line-1", timestamp: 0, text: "short" }] },
+    });
+    const { lane, playhead } = setup();
+    for (const [time, position] of [[0, 0], [0.25, 50], [0.5, 100]]) {
+      act(() => useLrcStore.setState({ currentTime: time }));
+      expect(Number(lane.dataset.start)).toBe(0);
+      expect(Number(lane.dataset.end)).toBe(0.5);
+      expect(parseFloat(playhead.style.left)).toBe(position);
+    }
+  });
+
+  it("keeps tracking without an end boundary before duration is known", () => {
+    useLrcStore.setState({ duration: 0, currentTime: 50, isPlaying: true });
+    const { lane, playhead } = setup();
+    expect(Number(lane.dataset.start)).toBe(46);
+    expect(Number(lane.dataset.end)).toBe(54);
+    expect(playhead.style.left).toBe("50%");
+  });
+
+  it("resumes centered following after a drag seek is acknowledged", () => {
+    useLrcStore.setState({ isPlaying: true });
+    const { lane, playhead } = setup();
+    fireEvent.pointerDown(lane, { pointerId: 9, button: 0, clientX: 20 });
+    act(() => useLrcStore.setState({ currentTime: 13 }));
+    expect(Number(lane.dataset.start)).toBe(8);
+    fireEvent.pointerUp(window, { pointerId: 9, button: 0, clientX: 75 });
+    expect(seekSpy).toHaveBeenCalledWith(14);
+    act(() => useLrcStore.setState({ currentTime: 14 }));
+    expect(Number(lane.dataset.start)).toBe(10);
+    expect(playhead.style.left).toBe("50%");
+    act(() => useLrcStore.setState({ currentTime: 14.5 }));
+    expect(Number(lane.dataset.start)).toBe(10.5);
   });
 
   it("pans a zoomed viewport without seeking or changing glyph timing", () => {
@@ -215,7 +281,7 @@ describe("CharSyncView seek lane", () => {
 
     fireEvent.pointerUp(window, { pointerId: 1, button: 0, clientX: 80 });
     expect(seekSpy).toHaveBeenCalledTimes(1);
-    expect(seekSpy).toHaveBeenCalledWith(16.4);
+    expect(seekSpy).toHaveBeenCalledWith(14.4);
     expect(useLrcStore.getState().currentTime).toBe(12);
   });
 
