@@ -21,7 +21,7 @@ it('changes panel height and style without seeking or editing timestamps', () =>
   fireEvent.change(screen.getByRole('slider'), { target: { value: '160' } });
   expect(screen.getByTestId('glyph-seek-lane').style.height).toBe('160px');
   fireEvent.change(screen.getByRole('combobox'), { target: { value: 'bars' } });
-  expect(screen.getByTestId('glyph-seek-lane').querySelectorAll('svg rect').length).toBe(600);
+  expect(screen.getByTestId('glyph-seek-lane').querySelectorAll('svg rect').length).toBeGreaterThanOrEqual(600);
   expect(seek).not.toHaveBeenCalled();
 });
 it('selects a stamped glyph from its marker without triggering a seek', () => {
@@ -64,4 +64,23 @@ it('makes co-timed glyphs selectable as a group and keeps the selected label vis
   expect(screen.getByTestId('selected-waveform-glyph').textContent).toBe('b');
   fireEvent.click(screen.getByRole('button', { name: /a.*b/ }));
   expect(select).toHaveBeenLastCalledWith(0);
+});
+
+it('translates stable audio geometry during fractional playback and refreshes it on zoom', async () => {
+  const samples = new Float32Array(48000 * 12); samples[240006] = 1; samples[240206] = .4;
+  await prepareWaveform('song.wav', { length: samples.length, sampleRate: 48000, duration: 12,
+    numberOfChannels: 1, getChannelData: () => samples });
+  const props = { laneRef: createRef<HTMLDivElement>(), onPointerDown: vi.fn(), audioPath: 'song.wav',
+    start: 2, end: 8, lineStart: 4, lineEnd: 10, playhead: 5,
+    syllables: [], activeIndex: 0, onSelect: vi.fn(), available: true };
+  const { container, rerender } = render(<CharWaveformPanel {...props} />);
+  const initial = [...container.querySelectorAll('svg')].map(svg => svg.querySelector('path')!.getAttribute('d'));
+  const initialLeft = (container.querySelector('svg') as SVGElement).style.left;
+  for (const offset of [.017, .033, .05]) {
+    rerender(<CharWaveformPanel {...props} start={2 + offset} end={8 + offset} playhead={5 + offset} />);
+    expect([...container.querySelectorAll('svg')].map(svg => svg.querySelector('path')!.getAttribute('d'))).toEqual(initial);
+    expect((container.querySelector('svg') as SVGElement).style.left).not.toBe(initialLeft);
+  }
+  rerender(<CharWaveformPanel {...props} start={4} end={7} />);
+  expect([...container.querySelectorAll('svg')].map(svg => svg.querySelector('path')!.getAttribute('d'))).not.toEqual(initial);
 });

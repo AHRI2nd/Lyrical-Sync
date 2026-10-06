@@ -13,11 +13,13 @@ export interface WaveformEnvelope {
 }
 export interface WaveformSource {
   getEnvelope: (start: number, end: number, pixelWidth: number) => WaveformEnvelope | null;
+  getTile: (index: number, secondsPerBin: number) => WaveformEnvelope | null;
 }
 
 const BLOCK = 256;
 const CHUNK = 262144;
-const CACHE_LIMIT = 8;
+const CACHE_LIMIT = 16;
+export const WAVEFORM_TILE_BINS = 512;
 
 /** Keep decoded PCM by reference; build compact summaries while yielding between chunks. */
 export async function createWaveformSource(buffer: DecodedAudio, signal?: AbortSignal): Promise<WaveformSource> {
@@ -52,6 +54,37 @@ export async function createWaveformSource(buffer: DecodedAudio, signal?: AbortS
   checkAbort();
   const scale = amplitude > 0 ? 1 / amplitude : 1;
   const cache = new Map<string, WaveformEnvelope>();
+  const sampleEnvelope = (start: number, end: number, width: number, key: string,
+    boundary: (bin: number) => number): WaveformEnvelope => {
+    const cached = cache.get(key);
+    if (cached) return cached;
+    const min = new Float32Array(width); const max = new Float32Array(width);
+    for (let bin = 0; bin < width; bin++) {
+      const left = boundary(bin); const right = boundary(bin + 1);
+      if (right <= 0 || left >= buffer.length) continue;
+      let a = Math.max(0, Math.floor(left));
+      const b = Math.min(buffer.length, Math.max(a + 1, Math.ceil(right)));
+      let lo = 0; let hi = 0;
+      while (a < b) {
+        if (a % BLOCK === 0 && a + BLOCK <= b) {
+          const index = a / BLOCK;
+          lo = Math.min(lo, lows[index]); hi = Math.max(hi, highs[index]); a += BLOCK;
+        } else {
+          for (const channel of channels) {
+            const v = channel[a];
+            if (v < lo) lo = v;
+            if (v > hi) hi = v;
+          }
+          a++;
+        }
+      }
+      min[bin] = lo * scale; max[bin] = hi * scale;
+    }
+    const envelope = { start, end, min, max };
+    if (cache.size >= CACHE_LIMIT) cache.delete(cache.keys().next().value!);
+    cache.set(key, envelope);
+    return envelope;
+  };
   return {
     getEnvelope(start, end, pixelWidth) {
       if (![start, end, pixelWidth, buffer.duration].every(Number.isFinite) || pixelWidth <= 0 || buffer.length === 0 || channels.length === 0) return null;
@@ -59,35 +92,37 @@ export async function createWaveformSource(buffer: DecodedAudio, signal?: AbortS
       end = Math.max(start, Math.min(buffer.duration, end));
       if (end <= start) return null;
       const width = Math.max(1, Math.min(4096, Math.round(pixelWidth)));
-      const key = `${start}:${end}:${width}`;
-      const cached = cache.get(key);
-      if (cached) return cached;
-      const min = new Float32Array(width); const max = new Float32Array(width);
       const first = start * buffer.sampleRate;
       const span = (end - start) * buffer.sampleRate;
-      for (let bin = 0; bin < width; bin++) {
-        let a = Math.min(buffer.length - 1, Math.floor(first + span * bin / width));
-        const b = Math.min(buffer.length, Math.max(a + 1, Math.ceil(first + span * (bin + 1) / width)));
-        let lo = 0; let hi = 0;
-        while (a < b) {
-          if (a % BLOCK === 0 && a + BLOCK <= b) {
-            const index = a / BLOCK;
-            lo = Math.min(lo, lows[index]); hi = Math.max(hi, highs[index]); a += BLOCK;
-          } else {
-            for (const channel of channels) {
-              const v = channel[a];
-              if (v < lo) lo = v;
-              if (v > hi) hi = v;
-            }
-            a++;
-          }
-        }
-        min[bin] = lo * scale; max[bin] = hi * scale;
-      }
-      const envelope = { start, end, min, max };
-      if (cache.size >= CACHE_LIMIT) cache.delete(cache.keys().next().value!);
-      cache.set(key, envelope);
-      return envelope;
+      return sampleEnvelope(start, end, width, `range:${start}:${end}:${width}`, bin => first + span * bin / width);
+    },
+    getTile(index, secondsPerBin) {
+      if (!Number.isSafeInteger(index) || index < 0 || !Number.isFinite(secondsPerBin) || secondsPerBin <= 0
+        || !buffer.length || !channels.length) return null;
+      // Guard bins overlap adjacent tiles, keeping continuous paths connected at the seam.
+      const firstBin = index * WAVEFORM_TILE_BINS - 1;
+      const width = WAVEFORM_TILE_BINS + 2;
+      const start = firstBin * secondsPerBin;
+      const end = (firstBin + width) * secondsPerBin;
+      if (!Number.isFinite(end)) return null;
+      return sampleEnvelope(start, end, width, `tile:${index}:${secondsPerBin}`,
+        bin => (firstBin + bin) * secondsPerBin * buffer.sampleRate);
     },
   };
+}
+
+/** Quantize only resolution noise; viewport position remains continuous. */
+export function getWaveformTiles(source: WaveformSource, start: number, end: number, pixelWidth: number): WaveformEnvelope[] {
+  if (![start, end, pixelWidth].every(Number.isFinite) || end <= start || pixelWidth <= 0) return [];
+  const width = Math.max(1, Math.min(4096, Math.round(pixelWidth)));
+  const secondsPerBin = Number(((end - start) / width).toPrecision(12));
+  const tileSpan = secondsPerBin * WAVEFORM_TILE_BINS;
+  const first = Math.max(0, Math.floor(start / tileSpan));
+  const last = Math.max(first, Math.floor(end / tileSpan));
+  const tiles: WaveformEnvelope[] = [];
+  for (let index = first; index <= last; index++) {
+    const tile = source.getTile(index, secondsPerBin);
+    if (tile) tiles.push(tile);
+  }
+  return tiles;
 }
