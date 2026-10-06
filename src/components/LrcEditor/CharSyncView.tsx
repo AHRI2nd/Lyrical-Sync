@@ -751,10 +751,12 @@ export function CharSyncView() {
 
       {/* 하단 컨트롤 */}
       <div className="flex items-center gap-2 mt-3 flex-wrap">
-        <div className="flex-1 min-w-40 flex items-center justify-center gap-2 bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium">
+        <button type="button" aria-label={t.charSync.stampHint}
+          onClick={(e) => { stampActive(); e.currentTarget.blur(); }}
+          className="flex-1 min-w-40 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg py-2 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-indigo-300">
           <kbd className="px-1.5 py-0.5 rounded bg-indigo-700/70 text-xs font-mono">Space</kbd>
           {t.charSync.stampHint}
-        </div>
+        </button>
         <button
           onClick={(e) => { replayLine(); e.currentTarget.blur(); }}
           className="px-3 py-2 text-xs rounded-lg text-zinc-300 border border-zinc-700 hover:bg-zinc-800 hover:text-white transition-colors whitespace-nowrap"
