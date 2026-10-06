@@ -3,6 +3,7 @@ import { useWaveformStore } from '../../stores/useWaveformStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
 import { useI18nStore } from '../../stores/useI18nStore';
 import { formatTimestamp, isStampable } from '../../utils/lrcParser';
+import { getWaveformTiles, type WaveformEnvelope } from '../../utils/waveformEnvelope';
 import type { LrcSyllable } from '../../types/lrc';
 
 interface Props {
@@ -44,15 +45,9 @@ export const CharWaveformPanel = memo(function CharWaveformPanel({
     observer.observe(lane);
     return () => observer.disconnect();
   }, [laneRef]);
-  const envelope = useMemo(() => available && sourcePath === audioPath
-    ? source?.getEnvelope(start, end, width) ?? null : null,
+  const tiles = useMemo(() => available && sourcePath === audioPath && source
+    ? getWaveformTiles(source, start, end, width) : [],
   [available, sourcePath, audioPath, source, start, end, width]);
-  const path = useMemo(() => {
-    if (!envelope) return '';
-    const top = Array.from(envelope.max, (v, i) => `${i + .5},${50 - v * 36}`).join(' L ');
-    const bottom = Array.from(envelope.min, (v, i) => `${i + .5},${50 - v * 36}`).reverse().join(' L ');
-    return `M ${top} L ${bottom} Z`;
-  }, [envelope]);
   const markerGroups = useMemo(() => {
     const visible = syllables.map((syllable, index) => ({ syllable, index }))
       .filter(item => item.syllable.time !== null && isStampable(item.syllable) && item.syllable.time >= start && item.syllable.time <= end)
@@ -85,15 +80,10 @@ export const CharWaveformPanel = memo(function CharWaveformPanel({
       <div ref={laneRef} onPointerDown={onPointerDown} data-testid="glyph-seek-lane" data-start={start} data-end={end}
         style={{ height }} className="relative rounded-lg bg-zinc-950 border border-zinc-800 overflow-hidden cursor-pointer touch-none">
         <div className="absolute inset-y-0 bg-indigo-400/5 pointer-events-none" style={{ left: `${pct(lineStart)}%`, width: `${Math.max(0, pct(lineEnd) - pct(lineStart))}%` }} />
-        {envelope && (
-          <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox={`0 0 ${envelope.min.length} 100`} preserveAspectRatio="none" aria-hidden>
-            {style === 'continuous'
-              ? <path d={path} fill="#a1a1aa" />
-              : Array.from(envelope.min, (lo, i) => <rect key={i} x={i + .1} width={.8}
-                  y={50 - envelope.max[i] * 36} height={Math.max(1, (envelope.max[i] - lo) * 36)} fill="#a1a1aa" />)}
-          </svg>
-        )}
-        {!envelope && <div className="absolute inset-0 flex items-center justify-center px-3 text-center text-xs text-zinc-400 pointer-events-none">
+        {tiles.map(tile => <WaveformTile key={tile.start} envelope={tile} style={style}
+          left={(tile.start - start) / (end - start) * 100}
+          width={(tile.end - tile.start) / (end - start) * 100} />)}
+        {!tiles.length && <div className="absolute inset-0 flex items-center justify-center px-3 text-center text-xs text-zinc-400 pointer-events-none">
           {!available ? t.charSync.waveformUnavailable : preparing && sourcePath === audioPath ? t.charSync.waveformPreparing : t.charSync.waveformNoAudio}
         </div>}
         {markerGroups.flatMap(group => group.map(({ syllable: s, index }) => <div key={index}
@@ -124,4 +114,21 @@ export const CharWaveformPanel = memo(function CharWaveformPanel({
       </div>
     </div>
   );
+});
+
+const WaveformTile = memo(function WaveformTile({ envelope, style, left, width }: {
+  envelope: WaveformEnvelope; style: 'continuous' | 'bars'; left: number; width: number;
+}) {
+  const path = useMemo(() => {
+    const top = Array.from(envelope.max, (v, i) => `${i + .5},${50 - v * 36}`).join(' L ');
+    const bottom = Array.from(envelope.min, (v, i) => `${i + .5},${50 - v * 36}`).reverse().join(' L ');
+    return `M ${top} L ${bottom} Z`;
+  }, [envelope]);
+  return <svg className="absolute inset-y-0 h-full pointer-events-none"
+    style={{ left: `${left}%`, width: `${width}%` }}
+    viewBox={`0 0 ${envelope.min.length} 100`} preserveAspectRatio="none" aria-hidden>
+    {style === 'continuous' ? <path d={path} fill="#a1a1aa" />
+      : Array.from(envelope.min, (lo, i) => <rect key={i} x={i + .1} width={.8}
+        y={50 - envelope.max[i] * 36} height={Math.max(1, (envelope.max[i] - lo) * 36)} fill="#a1a1aa" />)}
+  </svg>;
 });
