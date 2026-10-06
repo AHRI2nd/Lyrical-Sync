@@ -61,6 +61,38 @@ afterEach(() => {
 });
 
 describe("CharSyncView seek lane", () => {
+  it("stamps the current glyph on click, skips spaces, and lets Space stamp the next glyph", () => {
+    useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+      { id: "line-1", timestamp: 10, text: "a b", syllables: [
+        { text: "a", time: null }, { text: " ", time: null }, { text: "b", time: null },
+      ] },
+      { id: "line-2", timestamp: 20, text: "next" },
+    ] } });
+    const { getByRole } = setup();
+    const stamp = getByRole("button", { name: /현재 글자 찍고 다음으로|Stamp current glyph.*advance/ });
+    stamp.focus();
+    fireEvent.click(stamp);
+    expect(useLrcStore.getState().doc.lines[0].syllables?.map(s => s.time)).toEqual([12, null, null]);
+    expect(useLrcStore.getState().activeSyllableIndex).toBe(2);
+    expect(document.activeElement).not.toBe(stamp);
+    act(() => useLrcStore.setState({ currentTime: 13 }));
+    fireEvent.keyDown(window, { code: "Space" });
+    expect(useLrcStore.getState().doc.lines[0].syllables?.map(s => s.time)).toEqual([12, null, 13]);
+    expect(useLrcStore.getState().activeLineId).toBe("line-2");
+    expect(useLrcStore.getState()._history).toHaveLength(2);
+    expect(seekSpy).not.toHaveBeenCalled();
+  });
+
+  it("uses the latest playback time for consecutive stamp button clicks", () => {
+    const { getByRole } = setup();
+    const stamp = getByRole("button", { name: /현재 글자 찍고 다음으로|Stamp current glyph.*advance/ });
+    fireEvent.click(stamp);
+    act(() => useLrcStore.setState({ currentTime: 12.5 }));
+    fireEvent.click(stamp);
+    expect(useLrcStore.getState().doc.lines[0].syllables?.slice(0, 2).map(s => s.time)).toEqual([12, 12.5]);
+    expect(useLrcStore.getState().activeSyllableIndex).toBe(2);
+  });
+
   it("shows at least two seconds of context when adjacent lyric timestamps are very close", () => {
     useLrcStore.setState({
       doc: {
