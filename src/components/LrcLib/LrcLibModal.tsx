@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "../../stores/useToastStore";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import {
@@ -18,7 +19,6 @@ function fmtDur(sec: number): string {
 export function LrcLibModal({ onClose }: { onClose: () => void }) {
   const { t } = useI18nStore();
   const metadata = useLrcStore((s) => s.doc.metadata);
-  const applyFetchedLyrics = useLrcStore((s) => s.applyFetchedLyrics);
 
   const [title, setTitle] = useState(metadata.title);
   const [artist, setArtist] = useState(metadata.artist);
@@ -77,11 +77,14 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
     return () => window.removeEventListener("keydown", h);
   }, [preview, onClose]);
 
-  const handleConfirm = (r: LrcLibResult) => {
+  const handleConfirm = async (r: LrcLibResult) => {
     const lrc = r.syncedLyrics ?? r.plainLyrics;
     if (!lrc) return;
-    applyFetchedLyrics(lrc, { title: r.trackName, artist: r.artistName, album: r.albumName });
-    onClose();
+    try {
+      const result = await useLrcStore.getState().requestDocumentTransition({ kind: "fetched", text: lrc,
+        meta: { title: r.trackName, artist: r.artistName, album: r.albumName } });
+      if (result === "applied") onClose();
+    } catch { toast.error(t.toast.openFailed); }
   };
 
   return (

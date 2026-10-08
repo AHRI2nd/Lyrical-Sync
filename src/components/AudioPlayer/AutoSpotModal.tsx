@@ -10,6 +10,8 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
   const audioBookmark = useLrcStore((s) => s.audioBookmark);
   const addLinesFromSpeechSegments = useLrcStore((s) => s.addLinesFromSpeechSegments);
 
+  const documentSession = useLrcStore((s) => s._documentSession);
+  const audioSelection = useLrcStore((s) => s._audioSelection);
   const [samples, setSamples] = useState<Float32Array | null>(null);
   const [sampleRate, setSampleRate] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -28,8 +30,8 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
     setError(null);
     decodeAudioSamples(audioPath, audioBookmark)
       .then(({ samples: s, sampleRate: sr, file }) => {
-        if (cancelled) return;
-        useLrcStore.getState().refreshFileReference("audio", { path: audioPath, bookmark: audioBookmark }, file);
+        if (cancelled || useLrcStore.getState()._documentSession !== documentSession || useLrcStore.getState()._audioSelection !== audioSelection) return;
+        useLrcStore.getState().refreshFileReference("audio", { path: audioPath, bookmark: audioBookmark }, file, { session: documentSession, selection: audioSelection });
         setSamples(s);
         setSampleRate(sr);
       })
@@ -37,7 +39,7 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audioPath, audioBookmark]);
+  }, [audioPath, audioBookmark, documentSession, audioSelection]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };

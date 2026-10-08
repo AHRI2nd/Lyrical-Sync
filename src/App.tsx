@@ -18,7 +18,7 @@ import { ToastContainer } from "./components/Toast/ToastContainer";
 import { type RecoverySnapshot, loadRecoverySnapshot, saveRecoverySnapshot, clearRecoverySnapshot } from "./utils/recovery";
 import { useMacMenu } from "./hooks/useMacMenu";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { prepareFileRef, type FileRef } from "./utils/fileAccess";
+import { setDocumentConfirmation, type TransitionChoice } from "./utils/documentTransition";
 const HelpModal = lazy(() => import("./components/AppShell/HelpModal").then((m) => ({ default: m.HelpModal })));
 import { ConfirmModal } from "./components/AppShell/ConfirmModal";
 import { SaveFormatModal } from "./components/AppShell/SaveFormatModal";
@@ -137,10 +137,29 @@ function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showNewConfirm, setShowNewConfirm] = useState(false);
+  const [replacementPrompt, setReplacementPrompt] = useState(false);
+  const confirmationRef = useRef<((choice: TransitionChoice) => void) | null>(null);
+  const answerReplacement = (choice: TransitionChoice) => {
+    confirmationRef.current?.(choice);
+    confirmationRef.current = null;
+    setReplacementPrompt(false);
+  };
+  useEffect(() => {
+    const unregister = setDocumentConfirmation(() => new Promise((resolve) => {
+      confirmationRef.current = resolve;
+      setReplacementPrompt(true);
+    }), () => answerReplacement("cancel"));
+    return () => { confirmationRef.current?.("cancel"); unregister(); };
+  }, []);
   const [showFormatChooser, setShowFormatChooser] = useState(false);
   const [showElrcNotice, setShowElrcNotice] = useState(false);
   const pendingSaveRef = useRef<(() => Promise<boolean>) | null>(null);
+  const documentSession = useLrcStore((s) => s._documentSession);
+  useEffect(() => {
+    setShowFormatChooser(false);
+    setShowElrcNotice(false);
+    pendingSaveRef.current = null;
+  }, [documentSession]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [dropConflict, setDropConflict] = useState<
     { audio?: string; lyrics?: string; audioConflict: boolean; lyricsConflict: boolean } | null
@@ -160,17 +179,16 @@ function App() {
   // Clear any zoom set by a previous version of the app
   useEffect(() => { document.documentElement.style.zoom = ""; }, []);
 
-  const handleNewLrc = () => {
-    if (isDirty) {
-      setShowNewConfirm(true);
-    } else {
-      newLrc();
-    }
-  };
+  const handleNewLrc = () => { void newLrc().catch(() => toast.error(t.toast.openFailed)); };
 
   // 저장 결과를 토스트로 알림(취소 시 무알림, 실패 시 에러)
-  const runSave = (p: Promise<boolean>) => {
-    p.then((written) => { if (written) toast.success(t.toast.saved); })
+  const runSave = (p: Promise<boolean>, workingFile = true) => {
+    const { _documentSession: session, _editRevision: revision } = useLrcStore.getState();
+    p.then((written) => {
+      const current = useLrcStore.getState();
+      if (written && current._documentSession === session && current._editRevision === revision && (!workingFile || !current.isDirty))
+        toast.success(t.toast.saved);
+    })
      .catch(() => toast.error(t.toast.saveFailed));
   };
 
@@ -198,8 +216,10 @@ function App() {
   // 드롭된 파일을 실제로 연다 (오디오 → 오디오 경로, lrc/srt → 가사)
   const applyDrop = (d: { audio?: string; lyrics?: string }) => {
     const st = useLrcStore.getState();
-    if (d.audio) st.setAudioPath(d.audio);
-    if (d.lyrics) st.loadLyricsPath(d.lyrics).catch(() => toast.error(t.toast.openFailed));
+    if (d.lyrics) void st.requestDocumentTransition({ kind: "file", file: { path: d.lyrics, bookmark: null },
+      ...(d.audio ? { audio: { path: d.audio, bookmark: null } } : {})
+    }).catch(() => toast.error(t.toast.openFailed));
+    else if (d.audio) st.setAudioPath(d.audio);
   };
 
   // 파일 드래그앤드롭 열기 (Tauri 네이티브 드롭 이벤트 → 파일 경로 제공)
@@ -227,7 +247,7 @@ function App() {
         const st = useLrcStore.getState();
         const audioConflict = !!audio && st.audioPath !== null;
         const lyricsConflict = !!lyrics && (st.lrcPath !== null || st.isDirty || st.doc.lines.length > 0);
-        if (audioConflict || lyricsConflict) {
+        if (audioConflict && !lyrics) {
           setDropConflict({ audio, lyrics, audioConflict, lyricsConflict });
         } else {
           applyDrop({ audio, lyrics });
@@ -316,36 +336,31 @@ function App() {
           okLabel={t.recovery.restore}
           cancelLabel={t.recovery.discard}
           onOk={async () => {
-            const restoreFile = async (path: string | null, bookmark: string | null): Promise<FileRef | null> => {
-              if (!path) return null;
-              try {
-                return await prepareFileRef({ path, bookmark });
-              } catch {
-                // Preserve the recovered document, but require file reselection.
-                toast.error(t.toast.openFailed);
-                return null;
+            try {
+              const result = await useLrcStore.getState().requestDocumentTransition({ kind: "recovery", doc: recovery.doc,
+                lyrics: recovery.lrcPath ? { path: recovery.lrcPath, bookmark: recovery.lrcBookmark } : null,
+                audio: recovery.audioPath ? { path: recovery.audioPath, bookmark: recovery.audioBookmark } : null });
+              if (result === "applied") {
+                const current = useLrcStore.getState();
+                if ((recovery.lrcPath && !current.lrcPath) || (recovery.audioPath && !current.audioPath)) toast.error(t.toast.openFailed);
+                setRecovery(null);
               }
-            };
-            const lyrics = await restoreFile(recovery.lrcPath, recovery.lrcBookmark);
-            const audio = await restoreFile(recovery.audioPath, recovery.audioBookmark);
-            useLrcStore.getState().restoreDoc(
-              recovery.doc, lyrics?.path ?? null, audio?.path ?? null,
-              lyrics?.bookmark ?? null, audio?.bookmark ?? null,
-            );
-            clearRecoverySnapshot();
-            setRecovery(null);
+            } catch { toast.error(t.toast.openFailed); }
           }}
           onCancel={() => { clearRecoverySnapshot(); setRecovery(null); }}
         />
       )}
-      {showNewConfirm && (
+      {replacementPrompt && (
         <ConfirmModal
-          title={t.confirmNewTitle}
+          priority
+          title={t.replaceDocumentTitle}
           message={t.confirmNewMessage}
-          okLabel={t.confirmNewOk}
+          okLabel={t.discardChanges}
           cancelLabel={t.confirmNewCancel}
-          onOk={() => { setShowNewConfirm(false); newLrc(); }}
-          onCancel={() => setShowNewConfirm(false)}
+          leftLabel={t.save}
+          onLeft={() => answerReplacement("save")}
+          onOk={() => answerReplacement("discard")}
+          onCancel={() => answerReplacement("cancel")}
         />
       )}
       {showFormatChooser && (
@@ -353,7 +368,7 @@ function App() {
           onSelect={(format) => {
             setShowFormatChooser(false);
             if (format === "lrc") requestSaveLrc(() => saveLrcAs("lrc"));
-            else runSave(saveLrcAs(format));
+            else runSave(saveLrcAs(format), format === "srt");
           }}
           onCancel={() => setShowFormatChooser(false)}
         />

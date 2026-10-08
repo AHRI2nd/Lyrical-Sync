@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, lazy, Suspense } from "react";
+import { toast } from "../../stores/useToastStore";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
@@ -8,9 +9,9 @@ const LrcLibModal = lazy(() => import("../LrcLib/LrcLibModal").then((m) => ({ de
 
 export function MetaEditor() {
   // currentTime 등에 리렌더되지 않도록 필요한 필드만 구독
-  const { doc, setMetadata, applyOffset, loadFromRawText } = useLrcStore(
+  const { doc, setMetadata, applyOffset } = useLrcStore(
     useShallow((s) => ({
-      doc: s.doc, setMetadata: s.setMetadata, applyOffset: s.applyOffset, loadFromRawText: s.loadFromRawText,
+      doc: s.doc, setMetadata: s.setMetadata, applyOffset: s.applyOffset,
     }))
   );
   const { t } = useI18nStore();
@@ -92,9 +93,11 @@ export function MetaEditor() {
       {showRawEditor && (
         <RawEditorModal
           initialValue={serializeLrc(doc)}
-          onApply={(raw) => {
-            loadFromRawText(raw);
-            setShowRawEditor(false);
+          onApply={async (raw) => {
+            try {
+              const result = await useLrcStore.getState().requestDocumentTransition({ kind: "raw", text: raw });
+              if (result === "applied") setShowRawEditor(false);
+            } catch { toast.error(t.toast.openFailed); }
           }}
           onClose={() => setShowRawEditor(false)}
         />

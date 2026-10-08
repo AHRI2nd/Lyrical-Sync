@@ -3,7 +3,9 @@ import { LrcDocument, LrcLine, LrcMetadata, LrcSyllable, defaultDocument } from 
 import { parseLrc, serializeLrc, type SyncUnit } from "../utils/lrcParser";
 import { serializeSrt, parseSrt } from "../utils/srtConverter";
 import { serializeVtt, serializeAss } from "../utils/exportFormats";
-import { readLyrics, writeLyrics, type FileRef } from "../utils/fileAccess";
+import { prepareFileRef, readLyrics, writeLyrics, type FileRef } from "../utils/fileAccess";
+import { enqueuePathWrite } from "../utils/pathWriteQueue";
+import { runDocumentTransition, confirmDocumentReplacement, cancelDocumentConfirmation, type DocumentIntent } from "../utils/documentTransition";
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { useSettingsStore } from "./useSettingsStore";
@@ -12,7 +14,7 @@ import { useSettingsStore } from "./useSettingsStore";
 // 실패해도(구버전 macOS, 권한 문제 등) 조용히 null 반환 — 복구 기능만 못 쓸 뿐 파일 열기 자체는 계속 동작.
 async function createBookmark(path: string): Promise<string | null> {
   try {
-    return await invoke<string>("create_security_bookmark", { path });
+    return (await invoke<string | null>("create_security_bookmark", { path })) ?? null;
   } catch {
     return null;
   }
@@ -20,6 +22,13 @@ async function createBookmark(path: string): Promise<string | null> {
 
 interface LrcStore {
   doc: LrcDocument;
+  _documentSession: number;
+  _editRevision: number;
+  _openRequest: number;
+  _audioSelection: number;
+  _saveTarget: number;
+  _saveRequest: number;
+  requestDocumentTransition: (intent: DocumentIntent) => Promise<"applied" | "cancelled">;
   _history: LrcDocument[];
   _future: LrcDocument[];
   undo: () => void;
@@ -88,7 +97,7 @@ interface LrcStore {
   clearTimestamps: (ids: string[]) => void;
   stampCurrentLine: (id: string) => void;
   applyOffset: () => void;
-  loadFromRawText: (raw: string) => void;
+  loadFromRawText: (raw: string) => Promise<void>;
   /** 자동 복구: 스냅샷 문서·경로를 통째로 복원(미저장 상태로) */
   restoreDoc: (
     doc: LrcDocument,
@@ -96,20 +105,21 @@ interface LrcStore {
     audioPath: string | null,
     lrcBookmark?: string | null,
     audioBookmark?: string | null
-  ) => void;
+  ) => Promise<void>;
 
   setAudioPath: (path: string | null, bookmark?: string | null) => void;
-  refreshFileReference: (kind: "lyrics" | "audio", previous: FileRef, next: FileRef) => void;
+  refreshFileReference: (kind: "lyrics" | "audio", previous: FileRef, next: FileRef, owner?: { session: number; selection: number; target?: number }) => void;
   openAudio: () => Promise<void>;
   openLrc: () => Promise<void>;
   loadLyricsPath: (path: string, bookmark?: string | null) => Promise<void>;
-  applyFetchedLyrics: (lrcText: string, meta?: { title: string; artist: string; album: string }) => void;
+  applyFetchedLyrics: (lrcText: string, meta?: { title: string; artist: string; album: string }) => Promise<void>;
   // 반환값: 실제로 파일을 썼으면 true, 사용자가 저장 다이얼로그를 취소하면 false
   saveLrc: () => Promise<boolean>;
   // enhanced: 이번 저장에만 적용하는 일회성 override(미지정 시 글자 데이터 있으면 E-LRC)
   saveLrcAs: (format: "lrc" | "srt" | "vtt" | "ass", enhanced?: boolean) => Promise<boolean>;
-  newLrc: () => void;
+  newLrc: () => Promise<void>;
   replaceInLines: (find: string, replace: string, caseSensitive: boolean) => number;
+
   shiftTimeRange: (fromIdx: number, toIdx: number, deltaSeconds: number) => void;
 }
 
@@ -129,8 +139,22 @@ function serializeForPath(path: string, doc: LrcDocument, duration: number): str
 
 const MAX_HISTORY = 50;
 
-export const useLrcStore = create<LrcStore>((set, get) => ({
+export const useLrcStore = create<LrcStore>((baseSet, get) => {
+  const set = (update: Partial<LrcStore> | ((state: LrcStore) => Partial<LrcStore>)) => {
+    baseSet((state) => {
+      const patch = typeof update === "function" ? update(state) : update;
+      return patch.doc && patch.doc !== state.doc && patch._documentSession === undefined
+        ? { ...patch, _editRevision: state._editRevision + 1 } : patch;
+    });
+  };
+  let audioDialogRequest = 0;
+  const recordRecent = () => {
+    const { lrcPath, audioPath, lrcBookmark, audioBookmark } = get();
+    if (lrcPath || audioPath) useSettingsStore.getState().addRecentFile({ lrcPath, audioPath, lrcBookmark, audioBookmark });
+  };
+  return ({
   doc: defaultDocument(),
+  _documentSession: 0, _editRevision: 0, _openRequest: 0, _audioSelection: 0, _saveTarget: 0, _saveRequest: 0,
   _history: [],
   _future: [],
   audioPath: null,
@@ -431,34 +455,11 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     });
   },
 
-  loadFromRawText: (raw) => {
-    const { doc, _history } = get();
-    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [] });
-    const parsed = parseLrc(raw);
-    let id = nextId;
-    parsed.lines = parsed.lines.map((l) => ({ ...l, id: String(id++) }));
-    nextId = id;
-    const firstId = parsed.lines[0]?.id ?? null;
-    set({ doc: parsed, activeLineId: firstId, loopLineId: null, isDirty: true });
-  },
-
-  restoreDoc: (doc, lrcPath, audioPath, lrcBookmark = null, audioBookmark = null) => {
-    // 줄 id를 새로 부여해 nextId 카운터와 충돌 없게 함
-    let id = 1;
-    const lines = doc.lines.map((l) => ({ ...l, id: String(id++) }));
-    nextId = id;
-    set({
-      doc: { ...doc, lines },
-      lrcPath,
-      audioPath,
-      lrcBookmark,
-      audioBookmark,
-      activeLineId: lines[0]?.id ?? null,
-      loopLineId: null,
-      isDirty: true, // 복구된 작업은 아직 미저장
-      _history: [],
-      _future: [],
-    });
+  loadFromRawText: async (text) => { await get().requestDocumentTransition({ kind: "raw", text }); },
+  restoreDoc: async (doc, lrcPath, audioPath, lrcBookmark = null, audioBookmark = null) => {
+    await get().requestDocumentTransition({ kind: "recovery", doc,
+      lyrics: lrcPath ? { path: lrcPath, bookmark: lrcBookmark } : null,
+      audio: audioPath ? { path: audioPath, bookmark: audioBookmark } : null });
   },
 
   applyOffset: () => {
@@ -486,10 +487,13 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     });
   },
 
-  refreshFileReference: (kind, previous, next) => {
+  refreshFileReference: (kind, previous, next, owner) => {
     const current = get();
     const pathKey = kind === "audio" ? "audioPath" : "lrcPath";
     const bookmarkKey = kind === "audio" ? "audioBookmark" : "lrcBookmark";
+    if (owner?.target !== undefined && kind === "lyrics" && current._saveTarget !== owner.target) return;
+    if (owner && (current._documentSession !== owner.session ||
+        (kind === "audio" && current._audioSelection !== owner.selection))) return;
     if (current[pathKey] !== previous.path ||
         current[bookmarkKey] !== previous.bookmark) return;
     if (previous.path === next.path && previous.bookmark === next.bookmark) return;
@@ -503,114 +507,141 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   },
 
   setAudioPath: (path, bookmark = null) => {
-    set({ audioPath: path, audioBookmark: bookmark });
-    if (path && bookmark) {
-      useSettingsStore.getState().addRecentFile({
-        audioPath: path, audioBookmark: bookmark,
-        lrcPath: get().lrcPath, lrcBookmark: get().lrcBookmark,
-      });
-      return;
-    }
-    if (path) {
-      createBookmark(path).then((bookmark) => {
-        // 그 사이 다른 파일로 바뀌었으면 덮어쓰지 않음
-        if (get().audioPath === path) set({ audioBookmark: bookmark });
-        useSettingsStore.getState().addRecentFile({
-          audioPath: path, lrcPath: get().lrcPath,
-          audioBookmark: bookmark, lrcBookmark: get().lrcBookmark,
-        });
+    const selection = get()._audioSelection + 1;
+    const session = get()._documentSession;
+    set({ audioPath: path, audioBookmark: bookmark, _audioSelection: selection });
+    recordRecent();
+    if (path && !bookmark) {
+      createBookmark(path).then((fresh) => {
+        get().refreshFileReference("audio", { path, bookmark: null }, { path, bookmark: fresh }, { session, selection });
       });
     }
   },
 
   openAudio: async () => {
+    const request = ++audioDialogRequest;
+    const selection = get()._audioSelection;
+    const session = get()._documentSession;
     const selected = await open({
       multiple: false,
       filters: [{ name: "Audio", extensions: ["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff", "aif"] }],
     });
-    if (typeof selected === "string") {
+    if (audioDialogRequest === request && get()._documentSession === session && get()._audioSelection === selection && typeof selected === "string") {
       get().setAudioPath(selected);
     }
   },
 
-  // 경로로 가사 로드 (확장자로 LRC/SRT 분기). 다이얼로그/드래그앤드롭 공용.
-  loadLyricsPath: async (path, bookmark = null) => {
-    const result = await readLyrics({ path, bookmark });
-    path = result.file.path;
-    const content = result.value;
-    const isSrt = path.split(".").pop()?.toLowerCase() === "srt";
-    const doc = isSrt ? parseSrt(content) : parseLrc(content);
-    let id = 1;
-    doc.lines = doc.lines.map((l) => ({ ...l, id: String(id++) }));
-    nextId = id;
-    const firstId = doc.lines[0]?.id ?? null;
-    set({ doc, lrcPath: path, lrcBookmark: result.file.bookmark, isDirty: false, activeLineId: firstId, loopLineId: null, _history: [], _future: [] });
-    if (result.file.bookmark) {
-      useSettingsStore.getState().addRecentFile({
-        lrcPath: path, lrcBookmark: result.file.bookmark,
-        audioPath: get().audioPath, audioBookmark: get().audioBookmark,
-      });
-      return;
-    }
-    createBookmark(path).then((bookmark) => {
-      if (get().lrcPath === path) set({ lrcBookmark: bookmark });
-      useSettingsStore.getState().addRecentFile({
-        lrcPath: path, audioPath: get().audioPath,
-        lrcBookmark: bookmark, audioBookmark: get().audioBookmark,
-      });
+  requestDocumentTransition: async (intent) => {
+    cancelDocumentConfirmation();
+    const request = get()._openRequest + 1;
+    const audioSelection = get()._audioSelection;
+    set({ _openRequest: request });
+    return runDocumentTransition({
+      snapshot: () => ({ session: get()._documentSession, revision: get()._editRevision, dirty: !(intent.kind === "recent" && !intent.entry.lrcPath) && get().isDirty }),
+      isCurrent: () => get()._openRequest === request &&
+        (!(intent.kind === "recent" || (intent.kind === "file" && intent.audio !== undefined)) || get()._audioSelection === audioSelection),
+      confirm: confirmDocumentReplacement,
+      save: () => get().saveLrc(),
+      prepare: async () => {
+        let doc: LrcDocument;
+        let lyrics: FileRef | null = null;
+        let audio: FileRef | null | undefined;
+        let dirty = false;
+        if (intent.kind === "file" || intent.kind === "recent") {
+          const file = intent.kind === "file" ? intent.file
+            : intent.entry.lrcPath ? { path: intent.entry.lrcPath, bookmark: intent.entry.lrcBookmark } : null;
+          if (file) {
+            const result = await readLyrics(file);
+            lyrics = result.file;
+            doc = /\.srt$/i.test(lyrics.path) ? parseSrt(result.value) : parseLrc(result.value);
+          } else { doc = get().doc; dirty = get().isDirty; lyrics = get().lrcPath ? { path: get().lrcPath!, bookmark: get().lrcBookmark } : null; }
+          const selectedAudio = intent.kind === "file" ? intent.audio
+            : intent.entry.audioPath ? { path: intent.entry.audioPath, bookmark: intent.entry.audioBookmark } : null;
+          audio = selectedAudio ? await prepareFileRef(selectedAudio) : selectedAudio;
+        } else if (intent.kind === "recovery") {
+          doc = intent.doc; dirty = true;
+          // Recovery content remains useful even if a persistent grant expires.
+          const restore = async (file: FileRef | null) => file ? prepareFileRef(file) : null;
+          lyrics = await restore(intent.lyrics).catch(() => null);
+          audio = await restore(intent.audio).catch(() => null);
+        } else if (intent.kind === "new") doc = defaultDocument();
+        else {
+          doc = parseLrc(intent.text); dirty = true;
+          if (intent.kind === "fetched") {
+            const current = get().doc.metadata;
+            doc.metadata = intent.meta ? { ...current,
+              title: current.title.trim() || intent.meta.title,
+              artist: current.artist.trim() || intent.meta.artist,
+              album: current.album.trim() || intent.meta.album } : current;
+          } else lyrics = get().lrcPath ? { path: get().lrcPath!, bookmark: get().lrcBookmark } : null;
+        }
+        return { doc, lyrics, audio, dirty };
+      },
+      apply: ({ doc, lyrics, audio, dirty }) => {
+        const previous = get();
+        if (intent.kind === "raw") lyrics = previous.lrcPath ? { path: previous.lrcPath, bookmark: previous.lrcBookmark } : null;
+        if (intent.kind === "recent" && !intent.entry.lrcPath) {
+          get().setAudioPath(audio?.path ?? null, audio?.bookmark ?? null);
+          return;
+        }
+        let id = 1;
+        doc = { ...doc, lines: doc.lines.map((line) => ({ ...line, id: String(id++) })) };
+        nextId = id;
+        const session = previous._documentSession + 1;
+        const selection = previous._audioSelection + (audio !== undefined ? 1 : 0);
+        const target = previous._saveTarget + 1;
+        set({ doc, lrcPath: lyrics?.path ?? null, lrcBookmark: lyrics?.bookmark ?? null,
+          ...(audio !== undefined ? { audioPath: audio?.path ?? null, audioBookmark: audio?.bookmark ?? null } : {}),
+          _documentSession: session, _editRevision: 0, _audioSelection: selection, _saveTarget: target,
+          isDirty: dirty, activeLineId: doc.lines[0]?.id ?? null, loopLineId: null,
+          _history: intent.kind === "raw" ? [...previous._history.slice(-(MAX_HISTORY - 1)), previous.doc] : [], _future: [] });
+        if (intent.kind === "file" || intent.kind === "recent" || intent.kind === "recovery") recordRecent();
+        const ensureGrant = (kind: "lyrics" | "audio", file: FileRef | null) => {
+          if (file && !file.bookmark) void createBookmark(file.path).then((bookmark) => {
+            get().refreshFileReference(kind, file, { ...file, bookmark }, { session, selection, target });
+          });
+        };
+        if (intent.kind !== "new") ensureGrant("lyrics", lyrics);
+        ensureGrant("audio", get().audioPath ? { path: get().audioPath!, bookmark: get().audioBookmark } : null);
+      },
     });
   },
 
-  // LRCLIB 등 외부에서 가져온 가사 적용. 라인은 교체하되 메타데이터는 보존:
-  // 이미 입력된 title/artist/album은 그대로 두고, 비어 있는 필드만 결과로 채운다.
-  // (by/offset도 보존). 로컬 파일 무관 → lrcPath 비움.
-  applyFetchedLyrics: (lrcText, meta) => {
-    const parsed = parseLrc(lrcText);
-    let id = 1;
-    parsed.lines = parsed.lines.map((l) => ({ ...l, id: String(id++) }));
-    nextId = id;
-    const current = get().doc.metadata;
-    const metadata = meta
-      ? {
-          ...current,
-          title: current.title.trim() || meta.title,
-          artist: current.artist.trim() || meta.artist,
-          album: current.album.trim() || meta.album,
-        }
-      : current;
-    const firstId = parsed.lines[0]?.id ?? null;
-    set({
-      doc: { ...parsed, metadata },
-      lrcPath: null,
-      lrcBookmark: null,
-      isDirty: true,
-      activeLineId: firstId,
-      loopLineId: null,
-      _history: [],
-      _future: [],
-    });
+  loadLyricsPath: async (path, bookmark = null) => {
+    await get().requestDocumentTransition({ kind: "file", file: { path, bookmark } });
+  },
+  applyFetchedLyrics: async (text, meta) => {
+    await get().requestDocumentTransition({ kind: "fetched", text, meta });
   },
 
   // 가사 열기: LRC·SRT 모두 지원.
   openLrc: async () => {
+    cancelDocumentConfirmation();
+    const request = get()._openRequest + 1;
+    set({ _openRequest: request });
     const selected = await open({
       multiple: false,
       filters: [{ name: "Lyrics", extensions: ["lrc", "srt"] }],
     });
-    if (typeof selected === "string") await get().loadLyricsPath(selected);
+    if (get()._openRequest === request && typeof selected === "string") await get().loadLyricsPath(selected);
   },
 
   saveLrc: async () => {
-    const { lrcPath, lrcBookmark, doc, duration } = get();
+    const { lrcPath, lrcBookmark, doc, duration, _documentSession: session, _editRevision: revision, _saveTarget: target } = get();
     if (!lrcPath) return get().saveLrcAs("lrc");
-    const result = await writeLyrics({ path: lrcPath, bookmark: lrcBookmark }, serializeForPath(lrcPath, doc, duration));
-    get().refreshFileReference("lyrics", { path: lrcPath, bookmark: lrcBookmark }, result.file);
-    set({ isDirty: false });
+    const content = serializeForPath(lrcPath, doc, duration);
+    const result = await enqueuePathWrite(lrcPath, () => writeLyrics({ path: lrcPath, bookmark: lrcBookmark }, content));
+    if (get()._documentSession === session) {
+      get().refreshFileReference("lyrics", { path: lrcPath, bookmark: lrcBookmark }, result.file, { session, selection: get()._audioSelection, target });
+      if (get()._editRevision === revision && get()._saveTarget === target) set({ isDirty: false });
+    }
     return true;
   },
 
   saveLrcAs: async (format, enhanced) => {
-    const { doc, duration } = get();
+    const request = get()._saveRequest + 1;
+    set({ _saveRequest: request });
+    const { doc, duration, _documentSession: session, _editRevision: revision } = get();
     const FILTERS: Record<string, { name: string; extensions: string[] }> = {
       lrc: { name: "LRC", extensions: ["lrc"] },
       srt: { name: "SubRip", extensions: ["srt"] },
@@ -622,18 +653,21 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
       defaultPath: doc.metadata.title || "untitled",
     });
     if (path) {
+      if (get()._documentSession !== session || get()._saveRequest !== request) return false;
       const end = duration > 0 ? duration : undefined;
       const content =
         format === "srt" ? serializeSrt(doc, end)
         : format === "vtt" ? serializeVtt(doc, end)
         : format === "ass" ? serializeAss(doc, end)
         : serializeLrc(doc, enhanced ?? true);
-      await writeLyrics({ path, bookmark: null }, content);
+      await enqueuePathWrite(path, () => writeLyrics({ path, bookmark: null }, content));
       // 보조 포맷 저장 시엔 작업 파일 경로(lrcPath)·dirty 상태를 바꾸지 않음
-      if (format === "lrc" || format === "srt") {
-        set({ lrcPath: path, lrcBookmark: null, isDirty: false });
+      if ((format === "lrc" || format === "srt") && get()._documentSession === session && get()._saveRequest === request) {
+        const target = get()._saveTarget + 1;
+        set({ lrcPath: path, lrcBookmark: null, _saveTarget: target, isDirty: get()._editRevision !== revision });
+        recordRecent();
         createBookmark(path).then((bookmark) => {
-          if (get().lrcPath === path) set({ lrcBookmark: bookmark });
+          get().refreshFileReference("lyrics", { path, bookmark: null }, { path, bookmark }, { session, selection: get()._audioSelection, target });
         });
       }
       return true;
@@ -641,8 +675,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     return false; // 사용자가 저장 다이얼로그 취소
   },
 
-  newLrc: () =>
-    set({ doc: defaultDocument(), lrcPath: null, lrcBookmark: null, isDirty: false, activeLineId: null, loopLineId: null, _history: [], _future: [] }),
+  newLrc: async () => { await get().requestDocumentTransition({ kind: "new" }); },
 
   shiftTimeRange: (fromIdx, toIdx, deltaSeconds) => {
     if (deltaSeconds === 0) return;
@@ -677,6 +710,5 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     if (count === 0) return 0;
     set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines: newLines }, isDirty: true });
     return count;
-  },
-}));
-
+  },});
+});

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { prepareFileRef } from "../../utils/fileAccess";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useSettingsStore, type RecentFileEntry } from "../../stores/useSettingsStore";
 import { useI18nStore } from "../../stores/useI18nStore";
@@ -30,11 +29,7 @@ export function RecentFilesMenu() {
     const st = useLrcStore.getState();
 
     try {
-      const audio = entry.audioPath
-        ? await prepareFileRef({ path: entry.audioPath, bookmark: entry.audioBookmark })
-        : null;
-      if (audio) st.setAudioPath(audio.path, audio.bookmark);
-      if (entry.lrcPath) await st.loadLyricsPath(entry.lrcPath, entry.lrcBookmark);
+      await st.requestDocumentTransition({ kind: "recent", entry });
     } catch {
       // Invalid grants require explicit reselection, not an unscoped path retry.
       toast.error(t.toast.openFailed);
