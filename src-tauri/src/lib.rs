@@ -1,4 +1,10 @@
+#[cfg(target_os = "macos")]
 mod bookmark;
+#[cfg(not(target_os = "macos"))]
+#[path = "bookmark_unsupported.rs"]
+mod bookmark;
+#[cfg(all(windows, feature = "msstore"))]
+mod store_runtime;
 use bookmark::{create_security_bookmark, resolve_security_bookmark};
 
 // ─── LRC / audio commands ────────────────────────────────────────
@@ -122,6 +128,8 @@ fn read_audio_metadata(path: String) -> Result<AudioMetadata, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(all(windows, feature = "msstore"))]
+    store_runtime::configure().expect("packaged WebView2 runtime is missing or invalid");
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())

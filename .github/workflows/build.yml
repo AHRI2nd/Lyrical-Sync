@@ -1,54 +1,54 @@
 name: Build
 
-# store-lite는 Mac App Store 전용(macOS-only) 브랜치라 Windows 빌드는 없음.
-# 서명 없는 빌드 상태 점검용 — App Store 제출 빌드는 release.yml 참고.
 on:
   push:
-    branches:
-      - store-lite
+    branches: [store-lite]
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: macos-latest
-
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-darwin
-
-      - name: Add cargo to PATH
-        shell: bash
-        run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
+          targets: ${{ matrix.target }}
+      - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          key: aarch64-apple-darwin
-
-      - name: Install frontend deps
+          key: ${{ matrix.target }}-store
+      - name: Install dependencies
         run: npm ci
-
-      - name: Build
-        uses: tauri-apps/tauri-action@v0.5
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Test frontend
+        run: npm test
+      - name: Test MSIX staging
+        run: node --test scripts/msix-stage.node-test.mjs
+      - name: Test App Store profile validation
+        if: runner.os == 'macOS'
+        run: node --test scripts/appstore-preflight.node-test.mjs
+      - name: Build unsigned macOS app
+        if: runner.os == 'macOS'
+        run: bash scripts/appstore-build.sh --unsigned
+      - name: Compile Windows Store executable
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./scripts/msstore-build.ps1 -CompileOnly
+      - uses: actions/upload-artifact@v4
         with:
-          args: --target aarch64-apple-darwin --bundles app
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: lyrical-sync-lite-macos-arm64
-          path: src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app
-          if-no-files-found: warn
+          name: lyrical-sync-store-${{ matrix.target }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app
+            src-tauri/target/${{ matrix.target }}/release/lyrical-sync.exe
+          if-no-files-found: error

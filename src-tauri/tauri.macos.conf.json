@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "resources": {
+      "PrivacyInfo.xcprivacy": "PrivacyInfo.xcprivacy",
+      "../LICENSE": "AppLicense.txt"
+    },
+    "macOS": {
+      "minimumSystemVersion": "12.0",
+      "dmg": {
+        "background": "dmg/dmg-background.png",
+        "windowSize": {
+          "width": 700,
+          "height": 520
+        },
+        "appPosition": {
+          "x": 190,
+          "y": 220
+        },
+        "applicationFolderPosition": {
+          "x": 510,
+          "y": 220
+        }
+      }
+    }
+  }
+}

@@ -14,6 +14,8 @@ A desktop app for creating, syncing, and editing `.lrc` (LRC) lyric files
 
 ---
 
+> This `store-lite` branch builds for the macOS App Store and Microsoft Store (MSIX). Some feature descriptions below refer to the full edition and are not included in this Store build.
+
 ## Features
 
 ### Editing & syncing
