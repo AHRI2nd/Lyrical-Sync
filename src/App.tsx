@@ -18,7 +18,7 @@ import { ToastContainer } from "./components/Toast/ToastContainer";
 import { type RecoverySnapshot, loadRecoverySnapshot, saveRecoverySnapshot, clearRecoverySnapshot } from "./utils/recovery";
 import { useMacMenu } from "./hooks/useMacMenu";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { invoke } from "@tauri-apps/api/core";
+import { prepareFileRef, type FileRef } from "./utils/fileAccess";
 const HelpModal = lazy(() => import("./components/AppShell/HelpModal").then((m) => ({ default: m.HelpModal })));
 import { ConfirmModal } from "./components/AppShell/ConfirmModal";
 import { SaveFormatModal } from "./components/AppShell/SaveFormatModal";
@@ -316,23 +316,22 @@ function App() {
           okLabel={t.recovery.restore}
           cancelLabel={t.recovery.discard}
           onOk={async () => {
-            let lrcPath = recovery.lrcPath;
-            let audioPath = recovery.audioPath;
-            if (recovery.lrcBookmark) {
+            const restoreFile = async (path: string | null, bookmark: string | null): Promise<FileRef | null> => {
+              if (!path) return null;
               try {
-                lrcPath = await invoke<string>("resolve_security_bookmark", { bookmark: recovery.lrcBookmark });
+                return await prepareFileRef({ path, bookmark });
               } catch {
-                // 북마크 해석 실패 — 원래 경로로 best-effort 시도
+                // Preserve the recovered document, but require file reselection.
+                toast.error(t.toast.openFailed);
+                return null;
               }
-            }
-            if (recovery.audioBookmark) {
-              try {
-                audioPath = await invoke<string>("resolve_security_bookmark", { bookmark: recovery.audioBookmark });
-              } catch {
-                // 북마크 해석 실패 — 원래 경로로 best-effort 시도
-              }
-            }
-            useLrcStore.getState().restoreDoc(recovery.doc, lrcPath, audioPath, recovery.lrcBookmark, recovery.audioBookmark);
+            };
+            const lyrics = await restoreFile(recovery.lrcPath, recovery.lrcBookmark);
+            const audio = await restoreFile(recovery.audioPath, recovery.audioBookmark);
+            useLrcStore.getState().restoreDoc(
+              recovery.doc, lyrics?.path ?? null, audio?.path ?? null,
+              lyrics?.bookmark ?? null, audio?.bookmark ?? null,
+            );
             clearRecoverySnapshot();
             setRecovery(null);
           }}

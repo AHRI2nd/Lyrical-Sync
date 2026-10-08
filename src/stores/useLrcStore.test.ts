@@ -467,3 +467,62 @@ describe("useLrcStore — addLinesFromSpeechSegments", () => {
     expect(lines()).toEqual([]);
   });
 });
+
+describe("useLrcStore scoped file references", () => {
+  beforeEach(() => {
+    vi.mocked(invoke).mockReset();
+    reset([]);
+    useLrcStore.setState({ lrcPath: null, lrcBookmark: null, audioBookmark: null, audioPath: null });
+    useSettingsStore.setState({ recentFiles: [] });
+  });
+
+  it("keeps a refreshed bookmark when opening a moved recent lyric file", async () => {
+    vi.mocked(invoke).mockImplementation((cmd) => {
+      if (cmd === "prepare_file_ref") return Promise.resolve({ path: "/moved/song.lrc", bookmark: "fresh" });
+      if (cmd === "read_lrc_file") return Promise.resolve("[00:01.00]hello");
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    await useLrcStore.getState().loadLyricsPath("/old/song.lrc", "old");
+    expect(useLrcStore.getState().lrcPath).toBe("/moved/song.lrc");
+    expect(useLrcStore.getState().lrcBookmark).toBe("fresh");
+    expect(useSettingsStore.getState().recentFiles[0].lrcBookmark).toBe("fresh");
+  });
+
+  it("writes a restored lyric file using its persisted bookmark", async () => {
+    useLrcStore.setState({ lrcPath: "/song.lrc", lrcBookmark: "old", isDirty: true });
+    vi.mocked(invoke).mockImplementation((cmd) => {
+      if (cmd === "prepare_file_ref") return Promise.resolve({ path: "/song.lrc", bookmark: "fresh" });
+      if (cmd === "write_lrc_file") return Promise.resolve(undefined);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    expect(await useLrcStore.getState().saveLrc()).toBe(true);
+    expect(invoke).toHaveBeenCalledWith("write_lrc_file", expect.objectContaining({
+      path: "/song.lrc", bookmark: "fresh",
+    }));
+    expect(useLrcStore.getState().lrcBookmark).toBe("fresh");
+  });
+  it("retains a newly selected file grant while its lyrics are edited", async () => {
+    let finish!: (bookmark: string) => void;
+    vi.mocked(invoke).mockImplementation((cmd) => {
+      if (cmd === "read_lrc_file") return Promise.resolve("[00:01.00]hello");
+      if (cmd === "create_security_bookmark") return new Promise<string>((resolve) => { finish = resolve; });
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    await useLrcStore.getState().loadLyricsPath("/song.lrc");
+    useLrcStore.setState({ doc: { ...useLrcStore.getState().doc, metadata: { ...useLrcStore.getState().doc.metadata, title: "Edited" } } });
+    finish("selected-grant");
+    await vi.waitFor(() => expect(useLrcStore.getState().lrcBookmark).toBe("selected-grant"));
+  });
+
+  it("refreshes the active file grant across edits but rejects another file", () => {
+    useLrcStore.setState({ audioPath: "/old/song.mp3", audioBookmark: "old" });
+    useLrcStore.setState({ doc: { ...useLrcStore.getState().doc } });
+    useLrcStore.getState().refreshFileReference("audio", { path: "/old/song.mp3", bookmark: "old" },
+      { path: "/moved/song.mp3", bookmark: "fresh" });
+    expect(useLrcStore.getState().audioBookmark).toBe("fresh");
+    useLrcStore.getState().refreshFileReference("audio", { path: "/another/song.mp3", bookmark: "old" },
+      { path: "/wrong/song.mp3", bookmark: "wrong" });
+    expect(useLrcStore.getState().audioPath).toBe("/moved/song.mp3");
+  });
+
+});

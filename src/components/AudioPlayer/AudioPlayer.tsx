@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "wavesurfer.js/dist/plugins/regions.esm.js";
-import { invoke } from "@tauri-apps/api/core";
+import { readAudioMetadata } from "../../utils/fileAccess";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
@@ -57,9 +57,9 @@ export function AudioPlayer() {
   const [viewMode, setViewMode] = useState<"waveform" | "bar">("waveform");
 
   // 자체 로컬 상태(currentTimeLocal 등)로 UI를 그리므로 스토어 currentTime은 구독하지 않음
-  const { audioPath, setCurrentTime, setIsPlaying, setDuration, openAudio } = useLrcStore(
+  const { audioPath, audioBookmark, setCurrentTime, setIsPlaying, setDuration, openAudio } = useLrcStore(
     useShallow((s) => ({
-      audioPath: s.audioPath, setCurrentTime: s.setCurrentTime, setIsPlaying: s.setIsPlaying,
+      audioPath: s.audioPath, audioBookmark: s.audioBookmark, setCurrentTime: s.setCurrentTime, setIsPlaying: s.setIsPlaying,
       setDuration: s.setDuration, openAudio: s.openAudio,
     }))
   );
@@ -201,8 +201,9 @@ export function AudioPlayer() {
 
     const ext = audioPath.split(".").pop()?.toLowerCase() ?? "";
 
-    readAudioBytes(audioPath).then(({ bytes, transcoded }) => {
+    readAudioBytes(audioPath, audioBookmark).then(({ bytes, transcoded, file }) => {
       if (cancelled || !wsRef.current) return;
+      useLrcStore.getState().refreshFileReference("audio", { path: audioPath, bookmark: audioBookmark }, file);
 
       if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
 
@@ -218,15 +219,16 @@ export function AudioPlayer() {
     });
 
     return () => { cancelled = true; };
-  }, [audioPath]);
+  }, [audioPath, audioBookmark]);
 
   // 오디오 열면 파일 태그(ID3 등)에서 메타데이터를 읽어 비어 있는 필드만 자동 채움
   useEffect(() => {
     if (!audioPath) return;
     let cancelled = false;
-    invoke<{ title: string; artist: string; album: string }>("read_audio_metadata", { path: audioPath })
-      .then((m) => {
+    readAudioMetadata({ path: audioPath, bookmark: audioBookmark })
+      .then(({ value: m, file }) => {
         if (cancelled) return;
+        useLrcStore.getState().refreshFileReference("audio", { path: audioPath, bookmark: audioBookmark }, file);
         const cur = useLrcStore.getState().doc.metadata;
         const patch: { title?: string; artist?: string; album?: string } = {};
         if (!cur.title.trim() && m.title) patch.title = m.title;
@@ -236,7 +238,7 @@ export function AudioPlayer() {
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [audioPath]);
+  }, [audioPath, audioBookmark]);
 
   // 오디오 로드 완료 시 현재 zoom 값 적용 (슬라이더 조작 중 zoom은 debounce로 직접 처리)
   useEffect(() => {
