@@ -14,6 +14,8 @@
 
 ---
 
+> 이 `store-lite` 브랜치는 macOS App Store와 Microsoft Store(MSIX) 빌드를 지원합니다. 아래 일부 기능 설명은 전체 버전 기준이며 이 Store 빌드에는 포함되지 않습니다.
+
 ## 기능
 
 ### 편집 & 동기화

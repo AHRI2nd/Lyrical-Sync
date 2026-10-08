@@ -14,6 +14,8 @@
 
 ---
 
+> この `store-lite` ブランチは macOS App Store と Microsoft Store（MSIX）のビルドに対応しています。以下の一部の機能説明はフル版のもので、この Store ビルドには含まれません。
+
 ## 機能
 
 ### 編集 & 同期

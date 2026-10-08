@@ -48,3 +48,19 @@ DESIGN_translation.md
 DESIGN_lrclib.md
 
 AGENTS.md
+
+# Local handoff, planning and generated Store packages
+Transfer.md
+/docs/
+/packaging/**/*.md
+/plans/
+/reports/
+/artifacts/
+*.p12
+*.pfx
+*.cer
+*.provisionprofile
+
+# Python build script caches
+__pycache__/
+*.py[cod]
