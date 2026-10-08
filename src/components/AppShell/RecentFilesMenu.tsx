@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { prepareFileRef } from "../../utils/fileAccess";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useSettingsStore, type RecentFileEntry } from "../../stores/useSettingsStore";
 import { useI18nStore } from "../../stores/useI18nStore";
@@ -29,32 +29,15 @@ export function RecentFilesMenu() {
     setOpen(false);
     const st = useLrcStore.getState();
 
-    // App Sandbox: 저장된 경로는 재시작 후 접근 권한이 없을 수 있어, 보안 스코프
-    // 북마크가 있으면 그걸로 접근 권한을 복원한 실제 경로를 우선 사용(크래시 복구와 동일 패턴).
-    let audioPath = entry.audioPath;
-    if (entry.audioBookmark) {
-      try {
-        audioPath = await invoke<string>("resolve_security_bookmark", { bookmark: entry.audioBookmark });
-      } catch {
-        // 북마크 해석 실패 — 원래 경로로 best-effort 시도
-      }
-    }
-    let lrcPath = entry.lrcPath;
-    if (entry.lrcBookmark) {
-      try {
-        lrcPath = await invoke<string>("resolve_security_bookmark", { bookmark: entry.lrcBookmark });
-      } catch {
-        // 북마크 해석 실패 — 원래 경로로 best-effort 시도
-      }
-    }
-
-    if (audioPath) st.setAudioPath(audioPath);
-    if (lrcPath) {
-      try {
-        await st.loadLyricsPath(lrcPath);
-      } catch {
-        toast.error(t.toast.openFailed);
-      }
+    try {
+      const audio = entry.audioPath
+        ? await prepareFileRef({ path: entry.audioPath, bookmark: entry.audioBookmark })
+        : null;
+      if (audio) st.setAudioPath(audio.path, audio.bookmark);
+      if (entry.lrcPath) await st.loadLyricsPath(entry.lrcPath, entry.lrcBookmark);
+    } catch {
+      // Invalid grants require explicit reselection, not an unscoped path retry.
+      toast.error(t.toast.openFailed);
     }
   };
 

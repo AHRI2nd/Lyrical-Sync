@@ -7,6 +7,7 @@ import { detectSpeechSegments } from "../../utils/autoSpot";
 export function AutoSpotModal({ onClose }: { onClose: () => void }) {
   const { t } = useI18nStore();
   const audioPath = useLrcStore((s) => s.audioPath);
+  const audioBookmark = useLrcStore((s) => s.audioBookmark);
   const addLinesFromSpeechSegments = useLrcStore((s) => s.addLinesFromSpeechSegments);
 
   const [samples, setSamples] = useState<Float32Array | null>(null);
@@ -25,9 +26,10 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    decodeAudioSamples(audioPath)
-      .then(({ samples: s, sampleRate: sr }) => {
+    decodeAudioSamples(audioPath, audioBookmark)
+      .then(({ samples: s, sampleRate: sr, file }) => {
         if (cancelled) return;
+        useLrcStore.getState().refreshFileReference("audio", { path: audioPath, bookmark: audioBookmark }, file);
         setSamples(s);
         setSampleRate(sr);
       })
@@ -35,7 +37,7 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audioPath]);
+  }, [audioPath, audioBookmark]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };

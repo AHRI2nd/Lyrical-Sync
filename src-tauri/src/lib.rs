@@ -1,3 +1,4 @@
+mod file_access;
 #[cfg(target_os = "macos")]
 mod bookmark;
 #[cfg(not(target_os = "macos"))]
@@ -10,26 +11,29 @@ use bookmark::{create_security_bookmark, resolve_security_bookmark};
 // ─── LRC / audio commands ────────────────────────────────────────
 
 #[tauri::command]
-async fn read_lrc_file(path: String) -> Result<String, String> {
-    std::fs::read_to_string(&path).map_err(|e| e.to_string())
+async fn read_lrc_file(path: String, bookmark: Option<String>) -> Result<String, String> {
+    let access = file_access::FileAccess::open(path, bookmark)?;
+    std::fs::read_to_string(access.path()).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-async fn write_lrc_file(path: String, content: String) -> Result<(), String> {
-    std::fs::write(&path, content).map_err(|e| e.to_string())
+async fn write_lrc_file(path: String, content: String, bookmark: Option<String>) -> Result<(), String> {
+    let access = file_access::FileAccess::open(path, bookmark)?;
+    std::fs::write(access.path(), content).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-async fn read_audio_file(path: String) -> Result<tauri::ipc::Response, String> {
+async fn read_audio_file(path: String, bookmark: Option<String>) -> Result<tauri::ipc::Response, String> {
     // 바이트를 JSON(number[]) 대신 raw 바이너리로 반환 → 대용량 오디오도 빠름
-    std::fs::read(&path)
+    let access = file_access::FileAccess::open(path, bookmark)?;
+    std::fs::read(access.path())
         .map(tauri::ipc::Response::new)
         .map_err(|e| e.to_string())
 }
 
 /// AIFF 등 WebView2 미지원 포맷을 WAV로 트랜스코딩해 임시 파일 경로를 반환합니다.
 #[tauri::command]
-async fn decode_audio_to_wav(path: String) -> Result<String, String> {
+async fn decode_audio_to_wav(path: String, bookmark: Option<String>) -> Result<String, String> {
     use symphonia::core::audio::SampleBuffer;
     use symphonia::core::codecs::DecoderOptions;
     use symphonia::core::formats::FormatOptions;
@@ -37,6 +41,8 @@ async fn decode_audio_to_wav(path: String) -> Result<String, String> {
     use symphonia::core::meta::MetadataOptions;
     use symphonia::core::probe::Hint;
 
+    let access = file_access::FileAccess::open(path, bookmark)?;
+    let path = access.path();
     let file = std::fs::File::open(&path).map_err(|e| e.to_string())?;
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
@@ -112,10 +118,11 @@ struct AudioMetadata {
 /// 오디오 파일 태그(ID3/Vorbis/MP4 등)에서 제목·아티스트·앨범을 읽습니다.
 /// 태그가 없거나 읽기 실패 시 빈 문자열을 돌려줍니다(프런트에서 빈 필드만 채움).
 #[tauri::command]
-fn read_audio_metadata(path: String) -> Result<AudioMetadata, String> {
+fn read_audio_metadata(path: String, bookmark: Option<String>) -> Result<AudioMetadata, String> {
     use lofty::file::TaggedFileExt;
     use lofty::tag::Accessor;
-    let tagged = lofty::read_from_path(&path).map_err(|e| e.to_string())?;
+    let access = file_access::FileAccess::open(path, bookmark)?;
+    let tagged = lofty::read_from_path(access.path()).map_err(|e| e.to_string())?;
     let tag = tagged.primary_tag().or_else(|| tagged.first_tag());
     let s = |o: Option<std::borrow::Cow<str>>| o.map(|c| c.trim().to_string()).unwrap_or_default();
     Ok(match tag {
@@ -134,6 +141,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            file_access::prepare_file_ref,
             read_lrc_file,
             write_lrc_file,
             read_audio_file,

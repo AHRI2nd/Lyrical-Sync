@@ -3,6 +3,7 @@ import { LrcDocument, LrcLine, LrcMetadata, LrcSyllable, defaultDocument } from 
 import { parseLrc, serializeLrc, type SyncUnit } from "../utils/lrcParser";
 import { serializeSrt, parseSrt } from "../utils/srtConverter";
 import { serializeVtt, serializeAss } from "../utils/exportFormats";
+import { readLyrics, writeLyrics, type FileRef } from "../utils/fileAccess";
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { useSettingsStore } from "./useSettingsStore";
@@ -97,10 +98,11 @@ interface LrcStore {
     audioBookmark?: string | null
   ) => void;
 
-  setAudioPath: (path: string | null) => void;
+  setAudioPath: (path: string | null, bookmark?: string | null) => void;
+  refreshFileReference: (kind: "lyrics" | "audio", previous: FileRef, next: FileRef) => void;
   openAudio: () => Promise<void>;
   openLrc: () => Promise<void>;
-  loadLyricsPath: (path: string) => Promise<void>;
+  loadLyricsPath: (path: string, bookmark?: string | null) => Promise<void>;
   applyFetchedLyrics: (lrcText: string, meta?: { title: string; artist: string; album: string }) => void;
   // 반환값: 실제로 파일을 썼으면 true, 사용자가 저장 다이얼로그를 취소하면 false
   saveLrc: () => Promise<boolean>;
@@ -484,8 +486,31 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
     });
   },
 
-  setAudioPath: (path) => {
-    set({ audioPath: path, audioBookmark: null });
+  refreshFileReference: (kind, previous, next) => {
+    const current = get();
+    const pathKey = kind === "audio" ? "audioPath" : "lrcPath";
+    const bookmarkKey = kind === "audio" ? "audioBookmark" : "lrcBookmark";
+    if (current[pathKey] !== previous.path ||
+        current[bookmarkKey] !== previous.bookmark) return;
+    if (previous.path === next.path && previous.bookmark === next.bookmark) return;
+    set({ [pathKey]: next.path, [bookmarkKey]: next.bookmark });
+    useSettingsStore.setState((settings) => ({
+      recentFiles: settings.recentFiles.map((entry) =>
+        entry[pathKey] === previous.path && entry[bookmarkKey] === previous.bookmark
+          ? { ...entry, [pathKey]: next.path, [bookmarkKey]: next.bookmark }
+          : entry),
+    }));
+  },
+
+  setAudioPath: (path, bookmark = null) => {
+    set({ audioPath: path, audioBookmark: bookmark });
+    if (path && bookmark) {
+      useSettingsStore.getState().addRecentFile({
+        audioPath: path, audioBookmark: bookmark,
+        lrcPath: get().lrcPath, lrcBookmark: get().lrcBookmark,
+      });
+      return;
+    }
     if (path) {
       createBookmark(path).then((bookmark) => {
         // 그 사이 다른 파일로 바뀌었으면 덮어쓰지 않음
@@ -509,15 +534,24 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   },
 
   // 경로로 가사 로드 (확장자로 LRC/SRT 분기). 다이얼로그/드래그앤드롭 공용.
-  loadLyricsPath: async (path) => {
-    const content: string = await invoke("read_lrc_file", { path });
+  loadLyricsPath: async (path, bookmark = null) => {
+    const result = await readLyrics({ path, bookmark });
+    path = result.file.path;
+    const content = result.value;
     const isSrt = path.split(".").pop()?.toLowerCase() === "srt";
     const doc = isSrt ? parseSrt(content) : parseLrc(content);
     let id = 1;
     doc.lines = doc.lines.map((l) => ({ ...l, id: String(id++) }));
     nextId = id;
     const firstId = doc.lines[0]?.id ?? null;
-    set({ doc, lrcPath: path, lrcBookmark: null, isDirty: false, activeLineId: firstId, loopLineId: null, _history: [], _future: [] });
+    set({ doc, lrcPath: path, lrcBookmark: result.file.bookmark, isDirty: false, activeLineId: firstId, loopLineId: null, _history: [], _future: [] });
+    if (result.file.bookmark) {
+      useSettingsStore.getState().addRecentFile({
+        lrcPath: path, lrcBookmark: result.file.bookmark,
+        audioPath: get().audioPath, audioBookmark: get().audioBookmark,
+      });
+      return;
+    }
     createBookmark(path).then((bookmark) => {
       if (get().lrcPath === path) set({ lrcBookmark: bookmark });
       useSettingsStore.getState().addRecentFile({
@@ -567,9 +601,10 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
   },
 
   saveLrc: async () => {
-    const { lrcPath, doc, duration } = get();
+    const { lrcPath, lrcBookmark, doc, duration } = get();
     if (!lrcPath) return get().saveLrcAs("lrc");
-    await invoke("write_lrc_file", { path: lrcPath, content: serializeForPath(lrcPath, doc, duration) });
+    const result = await writeLyrics({ path: lrcPath, bookmark: lrcBookmark }, serializeForPath(lrcPath, doc, duration));
+    get().refreshFileReference("lyrics", { path: lrcPath, bookmark: lrcBookmark }, result.file);
     set({ isDirty: false });
     return true;
   },
@@ -593,7 +628,7 @@ export const useLrcStore = create<LrcStore>((set, get) => ({
         : format === "vtt" ? serializeVtt(doc, end)
         : format === "ass" ? serializeAss(doc, end)
         : serializeLrc(doc, enhanced ?? true);
-      await invoke("write_lrc_file", { path, content });
+      await writeLyrics({ path, bookmark: null }, content);
       // 보조 포맷 저장 시엔 작업 파일 경로(lrcPath)·dirty 상태를 바꾸지 않음
       if (format === "lrc" || format === "srt") {
         set({ lrcPath: path, lrcBookmark: null, isDirty: false });
