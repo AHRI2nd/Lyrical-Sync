@@ -18,6 +18,9 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(() => Promise.resolve(() => {})) }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 
+import { setDocumentConfirmation } from "../utils/documentTransition";
+beforeEach(() => setDocumentConfirmation(async () => "discard"));
+
 import { useLrcStore } from "./useLrcStore";
 import type { LrcLine, LrcDocument } from "../types/lrc";
 import { saveRecoverySnapshot, loadRecoverySnapshot, clearRecoverySnapshot } from "../utils/recovery";
@@ -150,9 +153,9 @@ describe("useLrcStore — history & raw load", () => {
     expect(useLrcStore.getState()._history.length).toBe(h0);
   });
 
-  it("loadFromRawText replaces the document", () => {
+  it("loadFromRawText replaces the document", async () => {
     reset([{ id: "9", timestamp: null, text: "old" }]);
-    useLrcStore.getState().loadFromRawText("[00:01.00]hello");
+    await useLrcStore.getState().loadFromRawText("[00:01.00]hello");
     expect(lines()[0].text).toBe("hello");
     expect(lines()[0].timestamp).toBe(1);
   });
@@ -261,9 +264,9 @@ describe("recovery snapshot & restoreDoc", () => {
     expect(loadRecoverySnapshot()).toBeNull();
   });
 
-  it("restoreDoc loads doc, marks dirty, reassigns ids", () => {
+  it("restoreDoc loads doc, marks dirty, reassigns ids", async () => {
     reset([]);
-    useLrcStore.getState().restoreDoc(mkDoc(), "/p.lrc", "/a.mp3");
+    await useLrcStore.getState().restoreDoc(mkDoc(), "/p.lrc", "/a.mp3");
     const st = useLrcStore.getState();
     expect(st.doc.lines[0].text).toBe("hi");
     expect(st.lrcPath).toBe("/p.lrc");
@@ -375,25 +378,26 @@ describe("useLrcStore — security-scoped bookmarks (App Sandbox)", () => {
     expect(useLrcStore.getState().lrcBookmark).toBe("bm-new");
   });
 
-  it("restoreDoc sets bookmarks directly from parameters", () => {
+  it("restoreDoc sets bookmarks directly from parameters", async () => {
+    vi.mocked(invoke).mockImplementation((cmd, args) => cmd === "prepare_file_ref" ? Promise.resolve(args) : Promise.resolve(null));
     const doc: LrcDocument = {
       metadata: { title: "T", artist: "", album: "", by: "", offset: 0 },
       lines: [{ id: "x", timestamp: null, text: "hi" }],
       extraTags: {},
     };
-    useLrcStore.getState().restoreDoc(doc, "/p.lrc", "/a.mp3", "bm-lrc", "bm-audio");
+    await useLrcStore.getState().restoreDoc(doc, "/p.lrc", "/a.mp3", "bm-lrc", "bm-audio");
     const st = useLrcStore.getState();
     expect(st.lrcBookmark).toBe("bm-lrc");
     expect(st.audioBookmark).toBe("bm-audio");
   });
 
-  it("restoreDoc defaults bookmarks to null when omitted", () => {
+  it("restoreDoc defaults bookmarks to null when omitted", async () => {
     const doc: LrcDocument = {
       metadata: { title: "T", artist: "", album: "", by: "", offset: 0 },
       lines: [{ id: "x", timestamp: null, text: "hi" }],
       extraTags: {},
     };
-    useLrcStore.getState().restoreDoc(doc, "/p.lrc", "/a.mp3");
+    await useLrcStore.getState().restoreDoc(doc, "/p.lrc", "/a.mp3");
     const st = useLrcStore.getState();
     expect(st.lrcBookmark).toBeNull();
     expect(st.audioBookmark).toBeNull();
@@ -428,9 +432,9 @@ describe("useLrcStore — loop line", () => {
     expect(useLrcStore.getState().loopLineId).toBeNull();
   });
 
-  it("newLrc/loadFromRawText/restoreDoc reset loopLineId", () => {
+  it("newLrc/loadFromRawText/restoreDoc reset loopLineId", async () => {
     useLrcStore.getState().setLoopLine("1");
-    useLrcStore.getState().newLrc();
+    await useLrcStore.getState().newLrc();
     expect(useLrcStore.getState().loopLineId).toBeNull();
   });
 });

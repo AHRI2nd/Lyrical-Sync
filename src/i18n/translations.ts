@@ -171,6 +171,8 @@ export interface Translations {
   previewNoLyrics: string;
   previewNoTimestamps: string;
   // Confirm new file dialog
+  replaceDocumentTitle: string;
+  discardChanges: string;
   confirmNewTitle: string;
   confirmNewMessage: string;
   confirmNewOk: string;
@@ -425,6 +427,8 @@ const ko: Translations = {
   previewUntitled: "제목 없음",
   previewNoLyrics: "가사가 없습니다",
   previewNoTimestamps: "타임스탬프가 설정된 줄이 없습니다",
+  replaceDocumentTitle: "현재 작업 교체",
+  discardChanges: "변경 사항 버리기",
   confirmNewTitle: "새 파일 만들기",
   confirmNewMessage: "저장되지 않은 변경 사항이 있습니다. 계속하면 현재 내용이 삭제됩니다.",
   confirmNewOk: "새로 만들기",
@@ -679,6 +683,8 @@ const en: Translations = {
   previewUntitled: "Untitled",
   previewNoLyrics: "No lyrics added",
   previewNoTimestamps: "No timestamps have been set",
+  replaceDocumentTitle: "Replace Current Work",
+  discardChanges: "Discard Changes",
   confirmNewTitle: "New File",
   confirmNewMessage: "You have unsaved changes. Continuing will discard the current content.",
   confirmNewOk: "New File",
@@ -932,6 +938,8 @@ const ja: Translations = {
   previewUntitled: "タイトルなし",
   previewNoLyrics: "歌詞がありません",
   previewNoTimestamps: "タイムスタンプが設定されていません",
+  replaceDocumentTitle: "現在の作業を置き換え",
+  discardChanges: "変更を破棄",
   confirmNewTitle: "新規ファイル",
   confirmNewMessage: "保存されていない変更があります。続行すると現在の内容が削除されます。",
   confirmNewOk: "新規作成",

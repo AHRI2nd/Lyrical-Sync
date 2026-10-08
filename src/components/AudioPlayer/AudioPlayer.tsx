@@ -56,6 +56,8 @@ export function AudioPlayer() {
   const [playbackRate, setPlaybackRate] = useState(1.0);
   const [viewMode, setViewMode] = useState<"waveform" | "bar">("waveform");
 
+  const documentSession = useLrcStore((s) => s._documentSession);
+  const audioSelection = useLrcStore((s) => s._audioSelection);
   // 자체 로컬 상태(currentTimeLocal 등)로 UI를 그리므로 스토어 currentTime은 구독하지 않음
   const { audioPath, audioBookmark, setCurrentTime, setIsPlaying, setDuration, openAudio } = useLrcStore(
     useShallow((s) => ({
@@ -202,8 +204,8 @@ export function AudioPlayer() {
     const ext = audioPath.split(".").pop()?.toLowerCase() ?? "";
 
     readAudioBytes(audioPath, audioBookmark).then(({ bytes, transcoded, file }) => {
-      if (cancelled || !wsRef.current) return;
-      useLrcStore.getState().refreshFileReference("audio", { path: audioPath, bookmark: audioBookmark }, file);
+      if (cancelled || !wsRef.current || useLrcStore.getState()._audioSelection !== audioSelection) return;
+      useLrcStore.getState().refreshFileReference("audio", { path: audioPath, bookmark: audioBookmark }, file, { session: useLrcStore.getState()._documentSession, selection: audioSelection });
 
       if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
 
@@ -219,7 +221,7 @@ export function AudioPlayer() {
     });
 
     return () => { cancelled = true; };
-  }, [audioPath, audioBookmark]);
+  }, [audioPath, audioBookmark, audioSelection]);
 
   // 오디오 열면 파일 태그(ID3 등)에서 메타데이터를 읽어 비어 있는 필드만 자동 채움
   useEffect(() => {
@@ -227,8 +229,8 @@ export function AudioPlayer() {
     let cancelled = false;
     readAudioMetadata({ path: audioPath, bookmark: audioBookmark })
       .then(({ value: m, file }) => {
-        if (cancelled) return;
-        useLrcStore.getState().refreshFileReference("audio", { path: audioPath, bookmark: audioBookmark }, file);
+        if (cancelled || useLrcStore.getState()._documentSession !== documentSession || useLrcStore.getState()._audioSelection !== audioSelection) return;
+        useLrcStore.getState().refreshFileReference("audio", { path: audioPath, bookmark: audioBookmark }, file, { session: documentSession, selection: audioSelection });
         const cur = useLrcStore.getState().doc.metadata;
         const patch: { title?: string; artist?: string; album?: string } = {};
         if (!cur.title.trim() && m.title) patch.title = m.title;
@@ -238,7 +240,7 @@ export function AudioPlayer() {
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [audioPath, audioBookmark]);
+  }, [audioPath, audioBookmark, documentSession, audioSelection]);
 
   // 오디오 로드 완료 시 현재 zoom 값 적용 (슬라이더 조작 중 zoom은 debounce로 직접 처리)
   useEffect(() => {
