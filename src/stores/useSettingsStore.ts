@@ -1,6 +1,7 @@
 import { create } from "zustand";
+import { createSafeJSONStorage, isRecord, isFiniteNumber, isNullableString } from "../utils/storage";
 import { persist } from "zustand/middleware";
-import { type KeyAction, DEFAULT_KEYBINDINGS } from "../utils/keybindings";
+import { type KeyAction, DEFAULT_KEYBINDINGS, KEY_ACTIONS, RESERVED_CODES } from "../utils/keybindings";
 
 interface SettingsState {
   /** 저장 경로가 지정된 파일에 대해 변경 시 자동 저장 */
@@ -45,6 +46,42 @@ export interface RecentFileEntry {
 
 const MAX_RECENT_FILES = 8;
 
+function sanitizeSettings(value: unknown, current: SettingsState): SettingsState {
+  if (!isRecord(value)) return current;
+  const next = { ...current };
+  for (const field of ["autoSave", "showElrcSaveNotice", "showGlyphTimeMarkers", "showSpectrogram"] as const)
+    if (typeof value[field] === "boolean") next[field] = value[field];
+  for (const [field, min, max] of [["uiScale", 0.7, 1.3], ["lyricsFontScale", 0.8, 1.5]] as const) {
+    const number = value[field];
+    if (isFiniteNumber(number) && number >= min && number <= max) next[field] = number;
+  }
+  next.keybindings = { ...current.keybindings };
+  if (isRecord(value.keybindings)) for (const action of KEY_ACTIONS) {
+    const code = value.keybindings[action];
+    // Keyboard layouts may provide additional code names beyond the common keys.
+    if (typeof code === "string" && /^[A-Z][A-Za-z0-9]{0,39}$/.test(code) &&
+        !/^(Shift|Control|Alt|Meta)/.test(code) && !RESERVED_CODES.has(code)) next.keybindings[action] = code;
+  }
+  if (Array.isArray(value.recentFiles)) {
+    const seen = new Set<string>();
+    next.recentFiles = [];
+    for (const entry of value.recentFiles) {
+      if (!isRecord(entry) || !isNullableString(entry.lrcPath) || !isNullableString(entry.audioPath) ||
+          (!entry.lrcPath && !entry.audioPath) || !isFiniteNumber(entry.openedAt) ||
+          (entry.lrcBookmark !== undefined && !isNullableString(entry.lrcBookmark)) ||
+          (entry.audioBookmark !== undefined && !isNullableString(entry.audioBookmark))) continue;
+      const key = JSON.stringify([entry.lrcPath, entry.audioPath]);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      next.recentFiles.push({ lrcPath: entry.lrcPath as string | null, audioPath: entry.audioPath as string | null,
+        lrcBookmark: (entry.lrcBookmark ?? null) as string | null, audioBookmark: (entry.audioBookmark ?? null) as string | null,
+        openedAt: entry.openedAt });
+      if (next.recentFiles.length === MAX_RECENT_FILES) break;
+    }
+  }
+  return next;
+}
+
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
@@ -74,6 +111,7 @@ export const useSettingsStore = create<SettingsState>()(
         set((s) => ({ keybindings: { ...s.keybindings, [action]: code } })),
       resetKeybindings: () => set({ keybindings: { ...DEFAULT_KEYBINDINGS } }),
     }),
-    { name: "lyrical-sync-settings" }
+    { name: "lyrical-sync-settings", storage: createSafeJSONStorage<SettingsState>(),
+      merge: (persisted, current) => sanitizeSettings(persisted, current) }
   )
 );

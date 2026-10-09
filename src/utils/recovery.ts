@@ -1,53 +1,62 @@
 import type { LrcDocument } from "../types/lrc";
-
-// 미저장 작업 자동 복구: 작업 중 문서를 주기적으로 localStorage에 스냅샷하고,
-// 재시작 시 남아 있으면 복구를 제안한다. 저장 경로(lrcPath)가 없어도 보호된다.
+import { isRecord, isFiniteNumber, isNullableString } from "./storage";
 const KEY = "lyrical-sync-recovery";
-
 export interface RecoverySnapshot {
   doc: LrcDocument;
   lrcPath: string | null;
   audioPath: string | null;
-  // App Sandbox 보안 스코프 북마크(base64) — 재시작 후 lrcPath/audioPath 접근 권한 복원용.
-  // 없으면(null) 구버전 스냅샷이거나 북마크 생성 실패 — 원래 경로로 best-effort 시도.
   lrcBookmark: string | null;
   audioBookmark: string | null;
   savedAt: number;
+  sessionId?: string;
 }
 
-export function saveRecoverySnapshot(
-  doc: LrcDocument,
-  lrcPath: string | null,
-  audioPath: string | null,
-  lrcBookmark: string | null = null,
-  audioBookmark: string | null = null
-): void {
+function validDocument(value: unknown): value is LrcDocument {
+  if (!isRecord(value) || !isRecord(value.metadata) || !isRecord(value.extraTags) || !Array.isArray(value.lines)) return false;
+  const metadata = value.metadata;
+  if (!["title", "artist", "album", "by"].every((key) => typeof metadata[key] === "string") || !isFiniteNumber(metadata.offset)) return false;
+  if (!Object.values(value.extraTags).every((tag) => typeof tag === "string")) return false;
+  return value.lines.every((line: unknown) => isRecord(line) && typeof line.id === "string" && typeof line.text === "string" &&
+    (line.timestamp === null || isFiniteNumber(line.timestamp)) &&
+    (line.syllables === undefined || (Array.isArray(line.syllables) && line.syllables.every((token: unknown) =>
+      isRecord(token) && typeof token.text === "string" && (token.time === null || isFiniteNumber(token.time))))));
+}
+
+export function saveRecoverySnapshot(doc: LrcDocument, lrcPath: string | null, audioPath: string | null,
+  lrcBookmark: string | null = null, audioBookmark: string | null = null, sessionId?: string): boolean {
   try {
-    localStorage.setItem(
-      KEY,
-      JSON.stringify({ doc, lrcPath, audioPath, lrcBookmark, audioBookmark, savedAt: Date.now() })
-    );
-  } catch {
-    // 용량 초과 등 — 복구는 best-effort
-  }
+    if (!validDocument(doc)) return false;
+    localStorage.setItem(KEY, JSON.stringify({ doc, lrcPath, audioPath, lrcBookmark, audioBookmark, savedAt: Date.now(), sessionId }));
+    return true;
+  } catch { return false; }
+}
+
+function parseSnapshot(raw: string): RecoverySnapshot | null {
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (!isRecord(value) || !validDocument(value.doc) || !isFiniteNumber(value.savedAt) ||
+        !isNullableString(value.lrcPath) || !isNullableString(value.audioPath) ||
+        (value.lrcBookmark !== undefined && !isNullableString(value.lrcBookmark)) ||
+        (value.audioBookmark !== undefined && !isNullableString(value.audioBookmark)) ||
+        (value.sessionId !== undefined && typeof value.sessionId !== "string")) return null;
+    return { doc: value.doc, lrcPath: value.lrcPath as string | null, audioPath: value.audioPath as string | null,
+      lrcBookmark: (value.lrcBookmark ?? null) as string | null, audioBookmark: (value.audioBookmark ?? null) as string | null,
+      savedAt: value.savedAt, ...(value.sessionId !== undefined ? { sessionId: value.sessionId as string } : {}) };
+  } catch { return null; }
 }
 
 export function loadRecoverySnapshot(): RecoverySnapshot | null {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return null;
-    const s = JSON.parse(raw);
-    if (s && s.doc && Array.isArray(s.doc.lines)) return s as RecoverySnapshot;
-    return null;
-  } catch {
-    return null;
-  }
+  try { const raw = localStorage.getItem(KEY); return raw ? parseSnapshot(raw) : null; }
+  catch { return null; }
 }
 
-export function clearRecoverySnapshot(): void {
+export function clearRecoverySnapshot(expected?: RecoverySnapshot): boolean {
   try {
+    if (expected) {
+      const raw = localStorage.getItem(KEY);
+      if (!raw || JSON.stringify(parseSnapshot(raw)) !== JSON.stringify(expected)) return true;
+    }
     localStorage.removeItem(KEY);
-  } catch {
-    // ignore
-  }
+    return true;
+  } catch { return false; }
 }
