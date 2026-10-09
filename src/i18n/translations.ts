@@ -195,6 +195,7 @@ export interface Translations {
     dontShowAgain: string;
   };
   recovery: {
+    storageFailed: string;
     title: string;
     message: string;
     restore: string;
@@ -450,6 +451,7 @@ const ko: Translations = {
     dontShowAgain: "다시 보지 않기",
   },
   recovery: {
+    storageFailed: "복구 데이터를 갱신하지 못했습니다. 작업 파일을 직접 저장해 주세요.",
     title: "미저장 작업 복구",
     message: "이전에 저장하지 않은 작업이 남아 있습니다. 복구하시겠습니까?",
     restore: "복구",
@@ -706,6 +708,7 @@ const en: Translations = {
     dontShowAgain: "Don't show again",
   },
   recovery: {
+    storageFailed: "Recovery data could not be updated. Please save your working file manually.",
     title: "Recover unsaved work",
     message: "Unsaved work from a previous session was found. Restore it?",
     restore: "Restore",
@@ -961,6 +964,7 @@ const ja: Translations = {
     dontShowAgain: "今後表示しない",
   },
   recovery: {
+    storageFailed: "復元データを更新できませんでした。作業ファイルを手動で保存してください。",
     title: "未保存の作業を復元",
     message: "前回保存されていない作業が残っています。復元しますか？",
     restore: "復元",

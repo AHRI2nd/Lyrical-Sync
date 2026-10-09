@@ -15,7 +15,8 @@ import { safeUnlisten } from "./utils/safeUnlisten";
 import { matchAction, normalizeKeybindings, PLAYBACK_ACTIONS } from "./utils/keybindings";
 import { toast } from "./stores/useToastStore";
 import { ToastContainer } from "./components/Toast/ToastContainer";
-import { type RecoverySnapshot, loadRecoverySnapshot, saveRecoverySnapshot, clearRecoverySnapshot } from "./utils/recovery";
+import { type RecoverySnapshot, loadRecoverySnapshot, clearRecoverySnapshot } from "./utils/recovery";
+import { useRecoverySnapshots } from "./hooks/useRecoverySnapshots";
 import { useMacMenu } from "./hooks/useMacMenu";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { setDocumentConfirmation, type TransitionChoice } from "./utils/documentTransition";
@@ -112,28 +113,18 @@ function useAutoSave() {
     return () => clearTimeout(id);
     // doc 변경마다 타이머 리셋 → 입력이 멈춘 뒤에만 저장(디바운스)
   }, [autoSave, lrcPath, isDirty, doc]);
-
-  // 미저장 작업 자동 복구 스냅샷: dirty면 디바운스로 저장, 저장되면(dirty 해제) 제거.
-  // 저장 경로가 없어도 보호되므로 autoSave와 독립적으로 동작.
-  useEffect(() => {
-    if (!isDirty) { clearRecoverySnapshot(); return; }
-    const id = setTimeout(() => {
-      const st = useLrcStore.getState();
-      saveRecoverySnapshot(st.doc, st.lrcPath, st.audioPath, st.lrcBookmark, st.audioBookmark);
-    }, 2000);
-    return () => clearTimeout(id);
-  }, [isDirty, doc]);
 }
 
 function App() {
   useGlobalKeys();
   useAutoSave();
 
-  // 시작 시(이펙트 실행 전) 스냅샷을 캡처 — dirty 해제 이펙트가 지우기 전에 확보
+  // Capture startup recovery before any backup effect starts.
   const [recovery, setRecovery] = useState<RecoverySnapshot | null>(() => {
     const snap = loadRecoverySnapshot();
-    return snap && snap.doc.lines.length > 0 ? snap : null;
+    return snap;
   });
+  const recoveryFailed = useRecoverySnapshots(recovery !== null);
   const [showHelp, setShowHelp] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -347,7 +338,10 @@ function App() {
               }
             } catch { toast.error(t.toast.openFailed); }
           }}
-          onCancel={() => { clearRecoverySnapshot(); setRecovery(null); }}
+          onCancel={() => {
+            if (clearRecoverySnapshot(recovery)) setRecovery(null);
+            else toast.error(t.recovery.storageFailed);
+          }}
         />
       )}
       {replacementPrompt && (
@@ -437,6 +431,9 @@ function App() {
         </button>
       </div>
 
+      {recoveryFailed && (
+        <div role="status" className="px-4 py-2 text-sm text-amber-200 bg-amber-950">{t.recovery.storageFailed}</div>
+      )}
       <ToastContainer />
     </div>
   );

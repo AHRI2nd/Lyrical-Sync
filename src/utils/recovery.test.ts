@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { LrcDocument } from "../types/lrc";
 import { saveRecoverySnapshot, loadRecoverySnapshot, clearRecoverySnapshot } from "./recovery";
 
@@ -96,4 +96,45 @@ describe("recovery snapshot round-trip", () => {
       localStorage.removeItem = original;
     }
   });
+});
+
+it.each(["metadata", "timestamp", "syllable", "extraTags", "bookmark", "savedAt"])("rejects malformed %s values", (field) => {
+  const snapshot: any = { doc: doc(), lrcPath: null, audioPath: null, savedAt: 1 };
+  if (field === "metadata") snapshot.doc.metadata.offset = "bad";
+  if (field === "timestamp") snapshot.doc.lines[0].timestamp = "bad";
+  if (field === "syllable") snapshot.doc.lines[0].syllables = [{ text: "x", time: "bad" }];
+  if (field === "extraTags") snapshot.doc.extraTags = { invalid: 3 };
+  if (field === "bookmark") snapshot.lrcBookmark = 3;
+  if (field === "savedAt") snapshot.savedAt = "bad";
+  localStorage.setItem(KEY, JSON.stringify(snapshot));
+  expect(loadRecoverySnapshot()).toBeNull();
+});
+it("loads a legacy snapshot without bookmark fields", () => {
+  localStorage.setItem(KEY, JSON.stringify({ doc: doc(), lrcPath: null, audioPath: null, savedAt: 1 }));
+  expect(loadRecoverySnapshot()?.lrcBookmark).toBeNull();
+});
+it("cannot discard a newer session with an old snapshot", () => {
+  saveRecoverySnapshot(doc(), null, null, null, null, "old");
+  const old = loadRecoverySnapshot()!;
+  saveRecoverySnapshot(doc(), null, null, null, null, "new");
+  clearRecoverySnapshot(old);
+  expect(loadRecoverySnapshot()?.sessionId).toBe("new");
+});
+
+it("restores rich document data from stored bytes after recreating the module", async () => {
+  const rich = doc();
+  rich.extraTags = { language: "ko" };
+  rich.lines[0].syllables = [{ text: "hello", time: 1.5 }, { text: " ", time: null }];
+  expect(saveRecoverySnapshot(rich, "/a.lrc", null, "grant", null, "restart")).toBe(true);
+  expect(JSON.parse(localStorage.getItem(KEY)!).doc).toEqual(rich);
+  vi.resetModules();
+  const recreated = await import("./recovery");
+  expect(recreated.loadRecoverySnapshot()?.doc).toEqual(rich);
+  expect(recreated.loadRecoverySnapshot()?.lrcBookmark).toBe("grant");
+});
+it("rejects non-finite values before JSON can silently convert them to null", () => {
+  const invalid = doc(); invalid.lines[0].timestamp = Infinity;
+  expect(saveRecoverySnapshot(invalid, null, null)).toBe(false);
+  localStorage.setItem(KEY, '{"doc":{"metadata":{"title":"","artist":"","album":"","by":"","offset":1e999},"lines":[],"extraTags":{}},"lrcPath":null,"audioPath":null,"savedAt":1}');
+  expect(loadRecoverySnapshot()).toBeNull();
 });
