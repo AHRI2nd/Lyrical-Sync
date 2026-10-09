@@ -56,3 +56,17 @@ it("reports a partial deletion failure without claiming all local data was clear
   expect(loadRecoverySnapshot()).not.toBeNull();
   expect(useSettingsStore.getState().recoveryEnabled).toBe(false);
 });
+
+it("retains durable opt-outs if the final minimal settings write fails", async () => {
+  const originalSet = Storage.prototype.setItem;
+  vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, key, value) {
+    if (key === "lyrical-sync-settings" && Object.keys(JSON.parse(value).state).length === 2) throw Error("quota at final write");
+    originalSet.call(this, key, value);
+  });
+  expect(clearLocalData()).toBe(false);
+  expect(localStorage.getItem("lyrical-sync-settings")).not.toBeNull();
+  await useSettingsStore.persist.rehydrate();
+  expect(useSettingsStore.getState().recoveryEnabled).toBe(false);
+  expect(useSettingsStore.getState().autoSave).toBe(false);
+  expect(useSettingsStore.getState().recentFiles).toEqual([]);
+});
