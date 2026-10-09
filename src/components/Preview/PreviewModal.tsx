@@ -1,4 +1,5 @@
 import { useEffect, useRef, useMemo, useCallback, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { audioControls } from "../../utils/audioControls";
@@ -6,7 +7,10 @@ import { formatDisplayTime, formatTimestamp, parseTimestampInput, isStampable } 
 import type { LrcSyllable } from "../../types/lrc";
 
 export function PreviewModal({ onClose }: { onClose: () => void }) {
-  const { doc, currentTime, duration, isPlaying, updateLine } = useLrcStore();
+  const { doc, currentTime, duration, isPlaying, updateLine, audioPath } = useLrcStore(useShallow((s) => ({
+    doc: s.doc, currentTime: s.currentTime, duration: s.duration,
+    isPlaying: s.isPlaying, updateLine: s.updateLine, audioPath: s.audioPath,
+  })));
   const { t } = useI18nStore();
   const activeLineRef = useRef<HTMLDivElement>(null);
   const controls = audioControls;
@@ -235,6 +239,8 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
           {t.previewClose}
         </button>
       </div>
+
+      {!audioPath && <p className="text-center text-xs text-zinc-500 pt-3">{t.previewNoAudio}</p>}
 
       {/* 가사 영역 */}
       <div
