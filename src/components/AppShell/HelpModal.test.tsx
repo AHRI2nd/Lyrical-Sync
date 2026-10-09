@@ -42,3 +42,18 @@ it("reports a notice read failure and preserves Help", async () => {
   await waitFor(() => expect(useToastStore.getState().toasts.slice(-1)[0]?.type).toBe("error"));
   expect(close).not.toHaveBeenCalled();
 });
+
+it("informs Windows users about bundled WebView2 diagnostics and SmartScreen", () => {
+  vi.spyOn(navigator, "platform", "get").mockReturnValue("Win32");
+  useI18nStore.setState({ lang: "en", t: translations.en });
+  render(<HelpModal onClose={() => {}} />);
+  expect(screen.getByTestId("windows-runtime-privacy").textContent).toContain("SmartScreen");
+  expect(screen.getByTestId("windows-runtime-privacy").textContent).toContain("required diagnostic");
+  vi.restoreAllMocks();
+});
+it("keeps Windows runtime notice out of the macOS Help screen", () => {
+  vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+  render(<HelpModal onClose={() => {}} />);
+  expect(screen.queryByTestId("windows-runtime-privacy")).toBeNull();
+  vi.restoreAllMocks();
+});

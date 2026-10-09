@@ -120,6 +120,8 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
             <section aria-label={t.privacyTitle} className="border-t border-zinc-700 pt-4">
               <h3 className="text-xs font-semibold text-zinc-400 mb-2">{t.privacyTitle}</h3>
               <p className="text-sm text-zinc-300 leading-snug">{t.privacySummary}</p>
+              {navigator.platform.startsWith("Win") && <p data-testid="windows-runtime-privacy"
+                className="mt-2 text-sm text-zinc-300 leading-snug">{t.privacyWindowsRuntime}</p>}
               <button
                 type="button"
                 data-testid="privacy-policy-link"
