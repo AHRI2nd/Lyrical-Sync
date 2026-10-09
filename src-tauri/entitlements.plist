@@ -6,6 +6,10 @@
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
 
+	<!-- Required for the sandboxed WebKit runtime to render the local app UI. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+
 	<!-- Allow files selected by the user. -->
 	<key>com.apple.security.files.user-selected.read-write</key>
 	<true/>

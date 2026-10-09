@@ -27,7 +27,7 @@ def validate(profile, bundle_id, template):
     result = dict(template)
     result["com.apple.application-identifier"] = expected
     result["com.apple.developer.team-identifier"] = team
-    for key in ("com.apple.security.app-sandbox", "com.apple.security.files.user-selected.read-write", "com.apple.security.files.bookmarks.app-scope"):
+    for key in ("com.apple.security.app-sandbox", "com.apple.security.network.client", "com.apple.security.files.user-selected.read-write", "com.apple.security.files.bookmarks.app-scope"):
         if result.get(key) is not True:
             raise ValueError(f"Required Store entitlement missing: {key}")
         if key in entitlements and entitlements[key] is not True:
