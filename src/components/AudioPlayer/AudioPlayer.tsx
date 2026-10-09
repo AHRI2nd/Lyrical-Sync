@@ -40,6 +40,8 @@ export function AudioPlayer() {
   const containerRef = useRef<HTMLDivElement>(null);
   const spectrogramContainerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
+  const readyRef = useRef(false);
+  const engineOwnerRef = useRef<{ path: string | null; bookmark: string | null; selection: number } | null>(null);
   const peaksRef = useRef<number[] | null>(null);
   const regionsRef = useRef<ReturnType<typeof RegionsPlugin.create> | null>(null);
   const isLoopingRef = useRef(false);
@@ -75,6 +77,21 @@ export function AudioPlayer() {
 
   useEffect(() => {
     if (!containerRef.current) return;
+    const owner = engineOwnerRef.current;
+    // A lyric-only replacement retains already loaded audio, but restarts a pending load.
+    if (readyRef.current && owner?.path === audioPath && owner.bookmark === audioBookmark && owner.selection === audioSelection) return;
+    const previous = wsRef.current;
+    wsRef.current = null;
+    previous?.destroy();
+    readyRef.current = false;
+    peaksRef.current = null;
+    regionsRef.current = null;
+    setIsAudioReady(false);
+    setDurationLocal(0); setDuration(0);
+    setCurrentTimeLocal(0); setCurrentTime(0);
+    setIsPlayingLocal(false); setIsPlaying(false);
+    engineOwnerRef.current = { path: audioPath, bookmark: audioBookmark, selection: audioSelection };
+    let cancelled = false;
 
     const ws = WaveSurfer.create({
       container: containerRef.current,
@@ -85,6 +102,8 @@ export function AudioPlayer() {
       normalize: true,
       interact: true,
     });
+    const isCurrent = () => wsRef.current === ws && useLrcStore.getState()._audioSelection === audioSelection;
+    ws.setVolume(volume);
     // Windows의 가로 스크롤바가 파형 하단을 가리는 문제 방지
     ws.getWrapper().classList.add("ws-scroll");
 
@@ -94,6 +113,7 @@ export function AudioPlayer() {
 
     // 파형의 가사 마커 클릭 → 해당 줄 선택 (에디터가 activeLineId 변경에 따라 자동 스크롤)
     regions.on("region-clicked", (region, e) => {
+      if (!isCurrent()) return;
       if (typeof region.id === "string" && region.id.startsWith("lyric:")) {
         e.stopPropagation(); // 파형 탐색(시크) 방지
         useLrcStore.getState().setActiveLineId(region.id.slice("lyric:".length));
@@ -101,6 +121,8 @@ export function AudioPlayer() {
     });
 
     ws.on("ready", () => {
+      if (!isCurrent() || useLrcStore.getState()._documentSession !== documentSession) return;
+      readyRef.current = true;
       const d = ws.getDuration();
       setDurationLocal(d);
       setDuration(d);
@@ -117,6 +139,7 @@ export function AudioPlayer() {
       }
     });
     ws.on("audioprocess", (t) => {
+      if (!isCurrent()) return;
       setCurrentTimeLocal(t);
       setCurrentTime(t);
       // 줄 반복: 반복 대상 줄의 구간(다음 스탬프 줄 시작, 없으면 끝까지) 끝에 닿으면
@@ -138,12 +161,14 @@ export function AudioPlayer() {
       }
     });
     ws.on("seeking", (t) => {
+      if (!isCurrent()) return;
       setCurrentTimeLocal(t);
       setCurrentTime(t);
     });
-    ws.on("play", () => { setIsPlayingLocal(true); setIsPlaying(true); });
-    ws.on("pause", () => { setIsPlayingLocal(false); setIsPlaying(false); });
+    ws.on("play", () => { if (!isCurrent()) return; setIsPlayingLocal(true); setIsPlaying(true); });
+    ws.on("pause", () => { if (!isCurrent()) return; setIsPlayingLocal(false); setIsPlaying(false); });
     ws.on("finish", () => {
+      if (!isCurrent()) return;
       if (isLoopingRef.current) {
         ws.seekTo(0);
         ws.play();
@@ -154,8 +179,31 @@ export function AudioPlayer() {
     });
 
     wsRef.current = ws;
-    return () => ws.destroy();
-  }, [setCurrentTime]);
+    if (audioPath) {
+      const ext = audioPath.split(".").pop()?.toLowerCase() ?? "";
+      readAudioBytes(audioPath, audioBookmark).then(({ bytes, transcoded, file }) => {
+        if (cancelled || !isCurrent() || useLrcStore.getState()._documentSession !== documentSession) return;
+        useLrcStore.getState().refreshFileReference("audio", { path: audioPath, bookmark: audioBookmark }, file, { session: documentSession, selection: audioSelection });
+        const mimeType = transcoded ? "audio/wav" : (AUDIO_MIME[ext] ?? "audio/*");
+        return ws.loadBlob(new Blob([bytes], { type: mimeType }));
+      }).catch((e: unknown) => {
+        if (cancelled || !isCurrent() || (e instanceof Error && e.name === "AbortError")) return;
+        toast.error(useI18nStore.getState().t.toast.audioLoadFailed);
+      });
+    }
+    return () => { cancelled = true; };
+  }, [audioPath, audioBookmark, audioSelection, documentSession, setCurrentTime, setDuration, setIsPlaying]);
+
+  useEffect(() => () => {
+    const ws = wsRef.current;
+    wsRef.current = null;
+    ws?.destroy();
+    readyRef.current = false;
+    peaksRef.current = null;
+    regionsRef.current = null;
+    setCurrentTime(0); setDuration(0); setIsPlaying(false);
+    if (zoomDebounceRef.current) clearTimeout(zoomDebounceRef.current);
+  }, [setCurrentTime, setDuration, setIsPlaying]);
 
   useEffect(() => {
     audioControls.togglePlay = () => wsRef.current?.playPause();
@@ -187,41 +235,6 @@ export function AudioPlayer() {
       ws.seekTo(Math.max(0, Math.min(1, seconds / d)));
     };
   });
-
-  const blobUrlRef = useRef<string | null>(null);
-
-  // 언마운트 시 마지막 Blob URL 해제 (경로 변경 시엔 아래 로드 effect가 직전 URL을 해제)
-  useEffect(() => () => {
-    if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
-  }, []);
-
-  useEffect(() => {
-    if (!wsRef.current || !audioPath) return;
-    let cancelled = false;
-
-    setIsAudioReady(false);
-
-    const ext = audioPath.split(".").pop()?.toLowerCase() ?? "";
-
-    readAudioBytes(audioPath, audioBookmark).then(({ bytes, transcoded, file }) => {
-      if (cancelled || !wsRef.current || useLrcStore.getState()._audioSelection !== audioSelection) return;
-      useLrcStore.getState().refreshFileReference("audio", { path: audioPath, bookmark: audioBookmark }, file, { session: useLrcStore.getState()._documentSession, selection: audioSelection });
-
-      if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
-
-      const mimeType = transcoded ? "audio/wav" : (AUDIO_MIME[ext] ?? "audio/*");
-      const blob = new Blob([bytes], { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      blobUrlRef.current = url;
-      return wsRef.current.load(url);
-    }).catch((e) => {
-      // 새 로드로 인한 중단(AbortError)은 무시, 실제 디코드/읽기 실패만 알림
-      if (cancelled || (e && (e as Error).name === "AbortError")) return;
-      toast.error(useI18nStore.getState().t.toast.audioLoadFailed);
-    });
-
-    return () => { cancelled = true; };
-  }, [audioPath, audioBookmark, audioSelection]);
 
   // 오디오 열면 파일 태그(ID3 등)에서 메타데이터를 읽어 비어 있는 필드만 자동 채움
   useEffect(() => {
@@ -332,12 +345,12 @@ export function AudioPlayer() {
   // 끄면 destroy()로 완전히 정리
   useEffect(() => {
     const ws = wsRef.current;
-    if (!ws || !showSpectrogram || !spectrogramContainerRef.current) return;
+    if (!ws || !isAudioReady || !showSpectrogram || !spectrogramContainerRef.current) return;
     let cancelled = false;
     let plugin: InstanceType<typeof import("wavesurfer.js/dist/plugins/spectrogram.esm.js").default> | null = null;
     import("wavesurfer.js/dist/plugins/spectrogram.esm.js").then(({ default: SpectrogramPlugin }) => {
-      if (cancelled || !wsRef.current || !spectrogramContainerRef.current) return;
-      plugin = wsRef.current.registerPlugin(
+      if (cancelled || wsRef.current !== ws || !spectrogramContainerRef.current) return;
+      plugin = ws.registerPlugin(
         SpectrogramPlugin.create({ container: spectrogramContainerRef.current, height: 80, labels: false, scale: "mel" })
       );
     });
@@ -345,7 +358,7 @@ export function AudioPlayer() {
       cancelled = true;
       plugin?.destroy();
     };
-  }, [showSpectrogram]);
+  }, [showSpectrogram, isAudioReady, audioSelection]);
 
   const togglePlay = useCallback(() => wsRef.current?.playPause(), []);
 
