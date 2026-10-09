@@ -20,6 +20,7 @@ interface SettingsState {
   recentFiles: RecentFileEntry[];
   /** 전역 단축키 바인딩(action → KeyboardEvent.code) */
   keybindings: Record<KeyAction, string>;
+  resetLocalPreferences: () => void;
   setRecoveryEnabled: (v: boolean) => boolean;
   setAutoSave: (v: boolean) => void;
   setUiScale: (v: number) => void;
@@ -96,6 +97,11 @@ export const useSettingsStore = create<SettingsState>()(
       showSpectrogram: false,
       recentFiles: [],
       keybindings: { ...DEFAULT_KEYBINDINGS },
+      resetLocalPreferences: () => set({
+        autoSave: false, recoveryEnabled: false, uiScale: 1, showElrcSaveNotice: true,
+        lyricsFontScale: 1, showGlyphTimeMarkers: true, showSpectrogram: false,
+        recentFiles: [], keybindings: { ...DEFAULT_KEYBINDINGS },
+      }),
       setRecoveryEnabled: (v) => {
         // Verify durable preference storage before discarding a recovery copy.
         try {

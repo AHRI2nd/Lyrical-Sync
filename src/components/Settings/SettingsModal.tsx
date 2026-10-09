@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { ConfirmModal } from "../AppShell/ConfirmModal";
-import { configureRecovery } from "../../utils/localPrivacy";
+import { configureRecovery, clearLocalData } from "../../utils/localPrivacy";
 import { toast } from "../../stores/useToastStore";
 import { KeybindingsSection } from "./KeybindingsSection";
 
@@ -15,16 +15,17 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     setAutoSave, setUiScale, setShowElrcSaveNotice, setLyricsFontScale, setShowGlyphTimeMarkers,
   } = useSettingsStore();
 
+  const [confirmClear, setConfirmClear] = useState(false);
   const [confirmRecoveryOff, setConfirmRecoveryOff] = useState(false);
   const [tab, setTab] = useState<Tab>("general");
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !confirmRecoveryOff) onClose();
+      if (e.key === "Escape" && !confirmRecoveryOff && !confirmClear) onClose();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onClose, confirmRecoveryOff]);
+  }, [onClose, confirmRecoveryOff, confirmClear]);
 
   const scalePercent = Math.round(uiScale * 100);
 
@@ -63,6 +64,11 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         <div className="overflow-y-auto flex-1">
           {tab === "general" && (
             <div className="p-5 flex flex-col gap-5">
+              <section className="flex flex-col gap-2">
+                <button type="button" className="self-start text-sm text-rose-400 underline"
+                  onClick={() => setConfirmClear(true)}>{t.settingsClearLocal}</button>
+                <p className="text-xs text-zinc-500">{t.settingsClearLocalDesc}</p>
+              </section>
               <section className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-zinc-200">{t.settingsRecovery}</span>
@@ -235,6 +241,12 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       message={t.settingsRecoveryOffConfirm} okLabel={t.settingsRecoveryOff} cancelLabel={t.confirmNewCancel}
       onCancel={() => setConfirmRecoveryOff(false)} onOk={() => {
         if (configureRecovery(false)) setConfirmRecoveryOff(false);
+        else toast.error(t.settingsPrivacyFailure);
+      }} />}
+    {confirmClear && <ConfirmModal priority title={t.settingsClearLocal}
+      message={t.settingsClearLocalConfirm} okLabel={t.settingsClearLocalAction} cancelLabel={t.confirmNewCancel}
+      onCancel={() => setConfirmClear(false)} onOk={() => {
+        if (clearLocalData()) { setConfirmClear(false); toast.success(t.settingsClearLocalDone); }
         else toast.error(t.settingsPrivacyFailure);
       }} />}
     </>
