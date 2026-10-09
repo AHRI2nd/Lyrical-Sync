@@ -113,7 +113,6 @@ interface LrcStore {
   openAudio: () => Promise<void>;
   openLrc: () => Promise<void>;
   loadLyricsPath: (path: string, bookmark?: string | null) => Promise<void>;
-  applyFetchedLyrics: (lrcText: string, meta?: { title: string; artist: string; album: string }) => Promise<void>;
   // 반환값: 실제로 파일을 썼으면 true, 사용자가 저장 다이얼로그를 취소하면 false
   saveLrc: () => Promise<boolean>;
   // enhanced: 이번 저장에만 적용하는 일회성 override(미지정 시 글자 데이터 있으면 E-LRC)
@@ -580,13 +579,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
         } else if (intent.kind === "new") doc = defaultDocument();
         else {
           doc = parseLrc(intent.text); dirty = true;
-          if (intent.kind === "fetched") {
-            const current = get().doc.metadata;
-            doc.metadata = intent.meta ? { ...current,
-              title: current.title.trim() || intent.meta.title,
-              artist: current.artist.trim() || intent.meta.artist,
-              album: current.album.trim() || intent.meta.album } : current;
-          } else lyrics = get().lrcPath ? { path: get().lrcPath!, bookmark: get().lrcBookmark } : null;
+          lyrics = get().lrcPath ? { path: get().lrcPath!, bookmark: get().lrcBookmark } : null;
         }
         return { doc, lyrics, audio, dirty };
       },
@@ -622,9 +615,6 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
 
   loadLyricsPath: async (path, bookmark = null) => {
     await get().requestDocumentTransition({ kind: "file", file: { path, bookmark } });
-  },
-  applyFetchedLyrics: async (text, meta) => {
-    await get().requestDocumentTransition({ kind: "fetched", text, meta });
   },
 
   // 가사 열기: LRC·SRT 모두 지원.

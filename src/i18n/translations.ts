@@ -18,6 +18,8 @@ export interface Translations {
   redo: string;
   // Help modal
   helpTitle: string;
+  privacyTitle: string;
+  privacySummary: string;
   shortcutsTitle: string;
   shortcutNote: string;
   helpGroupPlayback: string;
@@ -69,14 +71,6 @@ export interface Translations {
     badge: string;
     endCell: string;
     glyphProgress: string;
-  };
-  lrclib: {
-    button: string; title: string;
-    fieldTitle: string; fieldArtist: string; fieldAlbum: string;
-    search: string; searching: string; noResults: string; error: string; hint: string;
-    syncedOnly: string; plainOnly: string;
-    preview: string; confirm: string;
-    instrumental: string; noLyrics: string; synced: string; plain: string;
   };
   // AudioPlayer
   openAudio: string;
@@ -246,6 +240,8 @@ const ko: Translations = {
   undo: "실행 취소",
   redo: "다시 실행",
   helpTitle: "도움말",
+  privacyTitle: "개인정보",
+  privacySummary: "가사와 오디오는 기기에서 처리하며 앱에서 외부 서버로 업로드하지 않습니다. 설정·최근 파일 경로·복구용 가사는 기기에 보관됩니다. 최근 목록은 최근 파일 메뉴에서 지울 수 있고, 복구 내용은 저장 또는 복구 알림에서 삭제할 수 있습니다.",
   shortcutsTitle: "단축키 안내",
   shortcutNote: "* 입력란·버튼·슬라이더 등 조작 요소에 포커스가 있으면 재생·스탬프·실행 취소/다시 실행 단축키가 동작하지 않습니다.",
   helpGroupPlayback: "재생 · 탐색",
@@ -320,26 +316,6 @@ const ko: Translations = {
     badge: "글자 동기화됨",
     endCell: "다음 줄로 (여기까지 칠하거나 클릭)",
     glyphProgress: "현재 줄의 글자 동기화 진행도",
-  },
-  lrclib: {
-    button: "LRCLIB 불러오기",
-    title: "LRCLIB 가사 검색",
-    fieldTitle: "제목",
-    fieldArtist: "아티스트",
-    fieldAlbum: "앨범",
-    search: "검색",
-    searching: "검색 중…",
-    noResults: "검색 결과가 없습니다.",
-    error: "검색에 실패했습니다.",
-    hint: "제목·아티스트·앨범으로 검색하세요. (제목 우선순위 높음)",
-    syncedOnly: "동기화 가사만",
-    plainOnly: "일반 가사만",
-    preview: "미리보기",
-    confirm: "확인",
-    instrumental: "연주곡",
-    noLyrics: "가사 없음",
-    synced: "동기화",
-    plain: "가사",
   },
   openAudio: "오디오 열기",
   zoom: "줌",
@@ -504,6 +480,8 @@ const en: Translations = {
   undo: "Undo",
   redo: "Redo",
   helpTitle: "Help",
+  privacyTitle: "Privacy",
+  privacySummary: "Lyrics and audio are processed on your device and are not uploaded by the app. Settings, recent file paths and recovery lyrics are stored locally. Clear recent entries in the recent files menu; recovery content is removed when saved or discarded at the recovery prompt.",
   shortcutsTitle: "Keyboard Shortcuts",
   shortcutNote: "* Playback, stamping and undo/redo shortcuts are disabled while inputs, buttons or other controls are focused.",
   helpGroupPlayback: "Playback",
@@ -578,26 +556,6 @@ const en: Translations = {
     badge: "Character-synced",
     endCell: "Next line (paint here or click)",
     glyphProgress: "Glyphs synced in this line",
-  },
-  lrclib: {
-    button: "Fetch from LRCLIB",
-    title: "Search lyrics on LRCLIB",
-    fieldTitle: "Title",
-    fieldArtist: "Artist",
-    fieldAlbum: "Album",
-    search: "Search",
-    searching: "Searching…",
-    noResults: "No results found.",
-    error: "Search failed.",
-    hint: "Search by title, artist, and album. (Title is weighted highest)",
-    syncedOnly: "Synced only",
-    plainOnly: "Plain only",
-    preview: "Preview",
-    confirm: "Use",
-    instrumental: "Instrumental",
-    noLyrics: "No lyrics",
-    synced: "Synced",
-    plain: "Plain",
   },
   openAudio: "Open Audio",
   zoom: "Zoom",
@@ -763,6 +721,8 @@ const ja: Translations = {
   undo: "元に戻す",
   redo: "やり直す",
   helpTitle: "ヘルプ",
+  privacyTitle: "プライバシー",
+  privacySummary: "歌詞と音声は端末上で処理され、アプリから外部サーバーへアップロードされません。設定・最近使ったファイルのパス・復元用の歌詞は端末に保存されます。最近のファイルの一覧はメニューから、復元用の内容は保存時または復元通知から削除できます。",
   shortcutsTitle: "キーボードショートカット",
   shortcutNote: "* 入力欄・ボタン・スライダーなどにフォーカス中は、再生・打刻・元に戻す/やり直しのショートカットが無効になります。",
   helpGroupPlayback: "再生・移動",
@@ -837,26 +797,6 @@ const ja: Translations = {
     badge: "文字同期済み",
     endCell: "次の行へ（ここまで塗るかクリック）",
     glyphProgress: "この行の文字同期の進捗",
-  },
-  lrclib: {
-    button: "LRCLIBから取得",
-    title: "LRCLIBで歌詞を検索",
-    fieldTitle: "タイトル",
-    fieldArtist: "アーティスト",
-    fieldAlbum: "アルバム",
-    search: "検索",
-    searching: "検索中…",
-    noResults: "検索結果がありません。",
-    error: "検索に失敗しました。",
-    hint: "タイトル・アーティスト・アルバムで検索（タイトル優先）",
-    syncedOnly: "同期歌詞のみ",
-    plainOnly: "通常歌詞のみ",
-    preview: "プレビュー",
-    confirm: "確定",
-    instrumental: "インスト",
-    noLyrics: "歌詞なし",
-    synced: "同期",
-    plain: "歌詞",
   },
   openAudio: "音声を開く",
   zoom: "ズーム",

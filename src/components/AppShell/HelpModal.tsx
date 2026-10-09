@@ -100,6 +100,10 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
               </div>
             ))}
             <p className="text-xs text-zinc-500 pt-1">{t.shortcutNote}</p>
+            <section aria-label={t.privacyTitle} className="border-t border-zinc-700 pt-4">
+              <h3 className="text-xs font-semibold text-zinc-400 mb-2">{t.privacyTitle}</h3>
+              <p className="text-sm text-zinc-300 leading-snug">{t.privacySummary}</p>
+            </section>
           </div>
         </div>
       </div>

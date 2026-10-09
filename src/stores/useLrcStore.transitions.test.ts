@@ -44,7 +44,7 @@ it("old Save As cannot retarget a replacement document", async () => {
   expect(useLrcStore.getState().isDirty).toBe(true);
 });
 
-it.each(["new", "recovery", "fetched", "raw"])("late file read cannot replace %s", async (kind) => {
+it.each(["new", "recovery", "raw"])("late file read cannot replace %s", async (kind) => {
   const read = deferred<string>();
   vi.mocked(invoke).mockImplementation((cmd) => cmd === "read_lrc_file" ? read.promise : Promise.resolve(null));
   const loading = useLrcStore.getState().loadLyricsPath("/old.lrc");
@@ -52,7 +52,6 @@ it.each(["new", "recovery", "fetched", "raw"])("late file read cannot replace %s
   const st = useLrcStore.getState();
   if (kind === "new") await st.newLrc();
   if (kind === "recovery") await st.restoreDoc(defaultDocument(), null, null);
-  if (kind === "fetched") await st.applyFetchedLyrics("[00:01.00]fresh");
   if (kind === "raw") await st.loadFromRawText("[00:01.00]raw");
   const current = useLrcStore.getState().doc;
   read.resolve("[00:02.00]obsolete");

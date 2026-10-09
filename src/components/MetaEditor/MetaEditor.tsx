@@ -1,11 +1,9 @@
-import { useEffect, useRef, useState, lazy, Suspense } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "../../stores/useToastStore";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { serializeLrc } from "../../utils/lrcParser";
-// 검색/불러오기 모달은 버튼 클릭 시에만 필요 → 지연 로드(초기 번들 절감)
-const LrcLibModal = lazy(() => import("../LrcLib/LrcLibModal").then((m) => ({ default: m.LrcLibModal })));
 
 export function MetaEditor() {
   // currentTime 등에 리렌더되지 않도록 필요한 필드만 구독
@@ -18,7 +16,6 @@ export function MetaEditor() {
   const { metadata } = doc;
 
   const [showRawEditor, setShowRawEditor] = useState(false);
-  const [showLrcLib, setShowLrcLib] = useState(false);
 
   // 오프셋 입력은 로컬 문자열로 관리해 ""·"-"·음수 입력을 허용 (숫자 0 고정 방지)
   const [offsetStr, setOffsetStr] = useState(String(metadata.offset));
@@ -35,13 +32,6 @@ export function MetaEditor() {
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-zinc-300">{t.songInfo}</h2>
         <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => setShowLrcLib(true)}
-            title={t.lrclib.button}
-            className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 transition-colors"
-          >
-            <DownloadIcon /> LRCLIB
-          </button>
           <button
             onClick={() => setShowRawEditor(true)}
             title={t.viewAll}
@@ -102,11 +92,6 @@ export function MetaEditor() {
           onClose={() => setShowRawEditor(false)}
         />
       )}
-      {showLrcLib && (
-        <Suspense fallback={null}>
-          <LrcLibModal onClose={() => setShowLrcLib(false)} />
-        </Suspense>
-      )}
     </div>
   );
 }
@@ -130,14 +115,6 @@ function Field({
         className="w-full px-2.5 py-1.5 rounded-lg bg-zinc-800 border border-transparent text-white text-sm placeholder-zinc-600 focus:outline-none focus:border-indigo-500 transition-colors"
       />
     </div>
-  );
-}
-
-function DownloadIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3v12M8 11l4 4 4-4M5 20h14" />
-    </svg>
   );
 }
 
