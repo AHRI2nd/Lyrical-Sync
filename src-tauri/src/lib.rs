@@ -1,5 +1,6 @@
 mod audio_decode;
 mod file_access;
+mod privacy_policy;
 #[cfg(target_os = "macos")]
 mod bookmark;
 #[cfg(not(target_os = "macos"))]
@@ -80,6 +81,7 @@ pub fn run() {
     #[cfg(all(windows, feature = "msstore"))]
     store_runtime::configure().expect("packaged WebView2 runtime is missing or invalid");
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::Builder::new().open_js_links_on_click(false).build())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
@@ -91,6 +93,7 @@ pub fn run() {
             read_audio_metadata,
             create_security_bookmark,
             resolve_security_bookmark,
+            privacy_policy::open_privacy_policy,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
