@@ -1,10 +1,12 @@
 import { useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { toast } from "../../stores/useToastStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { normalizeKeybindings, keyLabel } from "../../utils/keybindings";
 
 export function HelpModal({ onClose }: { onClose: () => void }) {
-  const { t } = useI18nStore();
+  const { t, lang } = useI18nStore();
   const kb = normalizeKeybindings(useSettingsStore((s) => s.keybindings));
 
   const shortcutGroups = [
@@ -103,6 +105,12 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
             <section aria-label={t.privacyTitle} className="border-t border-zinc-700 pt-4">
               <h3 className="text-xs font-semibold text-zinc-400 mb-2">{t.privacyTitle}</h3>
               <p className="text-sm text-zinc-300 leading-snug">{t.privacySummary}</p>
+              <button
+                type="button"
+                data-testid="privacy-policy-link"
+                className="mt-3 text-sm text-sky-400 underline hover:text-sky-300"
+                onClick={() => { void invoke("open_privacy_policy", { language: lang }).catch(() => toast.error(t.privacyOpenError)); }}
+              >{t.privacyPolicyLink}</button>
             </section>
           </div>
         </div>

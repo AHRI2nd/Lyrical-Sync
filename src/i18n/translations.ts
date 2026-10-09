@@ -20,6 +20,8 @@ export interface Translations {
   helpTitle: string;
   privacyTitle: string;
   privacySummary: string;
+  privacyPolicyLink: string;
+  privacyOpenError: string;
   shortcutsTitle: string;
   shortcutNote: string;
   helpGroupPlayback: string;
@@ -241,7 +243,9 @@ const ko: Translations = {
   redo: "다시 실행",
   helpTitle: "도움말",
   privacyTitle: "개인정보",
-  privacySummary: "가사와 오디오는 기기에서 처리하며 앱에서 외부 서버로 업로드하지 않습니다. 설정·최근 파일 경로·복구용 가사는 기기에 보관됩니다. 최근 목록은 최근 파일 메뉴에서 지울 수 있고, 복구 내용은 저장 또는 복구 알림에서 삭제할 수 있습니다.",
+  privacyPolicyLink: "개인정보처리방침 열기 (기본 브라우저)",
+  privacyOpenError: "개인정보처리방침을 열 수 없습니다. 기본 브라우저 설정을 확인하세요.",
+  privacySummary: "가사와 오디오는 기기에서 처리하며 앱에서 외부 서버로 업로드하지 않습니다. 설정·최근 파일 경로·복구용 가사는 기기에 보관됩니다. 최근 목록은 최근 파일 메뉴에서 지울 수 있습니다. 복구 내용은 최신 변경사항이 저장되어 미저장 상태가 해소되거나 시작 시 복구 알림에서 버리기를 선택하면 제거됩니다. 저장소 오류가 있으면 삭제에 실패할 수 있으므로 알림을 확인하세요. 개인정보 문의: tsukimori@ahri2nd.xyz",
   shortcutsTitle: "단축키 안내",
   shortcutNote: "* 입력란·버튼·슬라이더 등 조작 요소에 포커스가 있으면 재생·스탬프·실행 취소/다시 실행 단축키가 동작하지 않습니다.",
   helpGroupPlayback: "재생 · 탐색",
@@ -481,7 +485,9 @@ const en: Translations = {
   redo: "Redo",
   helpTitle: "Help",
   privacyTitle: "Privacy",
-  privacySummary: "Lyrics and audio are processed on your device and are not uploaded by the app. Settings, recent file paths and recovery lyrics are stored locally. Clear recent entries in the recent files menu; recovery content is removed when saved or discarded at the recovery prompt.",
+  privacyPolicyLink: "Open privacy policy (default browser)",
+  privacyOpenError: "Could not open the privacy policy. Check your default browser settings.",
+  privacySummary: "Lyrics and audio are processed on your device and are not uploaded by the app. Settings, recent file paths and recovery lyrics are stored locally. Clear recent entries in the recent files menu. Recovery content is removed when the latest changes are saved and no unsaved changes remain, or when discarded at the startup recovery prompt. Storage errors can prevent deletion; check the app's notices. Privacy inquiries: tsukimori@ahri2nd.xyz",
   shortcutsTitle: "Keyboard Shortcuts",
   shortcutNote: "* Playback, stamping and undo/redo shortcuts are disabled while inputs, buttons or other controls are focused.",
   helpGroupPlayback: "Playback",
@@ -722,7 +728,9 @@ const ja: Translations = {
   redo: "やり直す",
   helpTitle: "ヘルプ",
   privacyTitle: "プライバシー",
-  privacySummary: "歌詞と音声は端末上で処理され、アプリから外部サーバーへアップロードされません。設定・最近使ったファイルのパス・復元用の歌詞は端末に保存されます。最近のファイルの一覧はメニューから、復元用の内容は保存時または復元通知から削除できます。",
+  privacyPolicyLink: "プライバシーポリシーを開く（既定のブラウザー）",
+  privacyOpenError: "プライバシーポリシーを開けません。既定のブラウザー設定を確認してください。",
+  privacySummary: "歌詞と音声は端末上で処理され、アプリから外部サーバーへアップロードされません。設定・最近使ったファイルのパス・復元用の歌詞は端末に保存されます。最近のファイルの一覧はメニューから削除できます。復元用の内容は、最新の変更が保存され未保存の変更がなくなった場合、または起動時の復元通知で破棄した場合に削除されます。ストレージのエラーで削除に失敗する場合があるため、アプリの通知を確認してください。個人情報に関するお問い合わせ：tsukimori@ahri2nd.xyz",
   shortcutsTitle: "キーボードショートカット",
   shortcutNote: "* 入力欄・ボタン・スライダーなどにフォーカス中は、再生・打刻・元に戻す/やり直しのショートカットが無効になります。",
   helpGroupPlayback: "再生・移動",
