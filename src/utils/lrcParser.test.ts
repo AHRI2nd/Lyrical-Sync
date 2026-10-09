@@ -213,3 +213,23 @@ describe("validateTimestamps", () => {
     expect(w.get("b")).toBe("outOfOrder");
   });
 });
+
+
+describe("long LRC timestamps", () => {
+  it.each([99, 100, 1000])("round-trips %i-minute line and inline timestamps", (minutes) => {
+    const start = minutes * 60 + 59.25;
+    const doc = docOf([{ id: "long", text: "ab", timestamp: start,
+      syllables: [{ text: "a", time: start }, { text: "b", time: start + 0.5 }] }]);
+    const parsed = parseLrc(serializeLrc(doc));
+    expect(parsed.lines).toHaveLength(1);
+    expect(parsed.lines[0]).toMatchObject({ timestamp: start, text: "ab", syllables: doc.lines[0].syllables });
+    expect(parseTimestamp(`[${formatTimestamp(start)}]`)).toBe(start);
+    expect(parseLrc(serializeLrc(doc, false)).lines[0]).toMatchObject({ timestamp: start, text: "ab" });
+  });
+  it("parses repeated long timestamps and millisecond inline tags", () => {
+    const doc = parseLrc("[100:00.123][1000:00.123]<100:00.123>a<100:00.456>b");
+    expect(doc.lines.map((line) => line.timestamp)).toEqual([6000.123, 60000.123]);
+    expect(doc.lines[0].syllables?.map((token) => token.time)).toEqual([6000.123, 6000.456]);
+    expect(doc.lines[0].syllables).not.toBe(doc.lines[1].syllables);
+  });
+});

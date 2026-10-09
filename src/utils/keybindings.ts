@@ -50,6 +50,19 @@ export function matchAction(code: string, kb: Record<KeyAction, string>): KeyAct
   return null;
 }
 
+const INTERACTIVE_KEY_TARGET = [
+  "input", "textarea", "select", "button", "a[href]", "summary",
+  "[contenteditable]:not([contenteditable='false' i])",
+  ...["button", "link", "textbox", "combobox", "searchbox", "checkbox", "radio", "switch",
+    "slider", "spinbutton", "tab", "menuitem", "option"].map((role) => `[role='${role}']`),
+].join(",");
+
+export function isInteractiveKeyTarget(target: EventTarget | null): boolean {
+  if (typeof Element === "undefined") return false;
+  const element = target instanceof Element ? target : target instanceof Node ? target.parentElement : null;
+  return element !== null && element.closest(INTERACTIVE_KEY_TARGET) !== null;
+}
+
 // 같은 코드를 이미 다른 동작이 쓰고 있으면 그 동작을 반환(충돌). 자기 자신은 제외.
 export function conflictingAction(
   code: string,

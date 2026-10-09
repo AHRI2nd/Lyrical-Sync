@@ -20,6 +20,8 @@ import App from "./App";
 import { useLrcStore } from "./stores/useLrcStore";
 import { useSettingsStore } from "./stores/useSettingsStore";
 import { useI18nStore } from "./stores/useI18nStore";
+import { DEFAULT_KEYBINDINGS } from "./utils/keybindings";
+import { audioControls } from "./utils/audioControls";
 import { defaultDocument } from "./types/lrc";
 
 describe("App document confirmation and keyboard boundaries", () => {
@@ -27,7 +29,7 @@ describe("App document confirmation and keyboard boundaries", () => {
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
     localStorage.clear();
     vi.mocked(invoke).mockReset().mockResolvedValue(null);
-    useSettingsStore.setState({ autoSave: false, recentFiles: [] });
+    useSettingsStore.setState({ autoSave: false, recentFiles: [], keybindings: { ...DEFAULT_KEYBINDINGS } });
     useLrcStore.setState({
       doc: {
         ...defaultDocument(),
@@ -47,7 +49,7 @@ describe("App document confirmation and keyboard boundaries", () => {
   });
 
   afterEach(() => {
-    cleanup();
+    cleanup(); document.querySelectorAll("[data-test-control]").forEach((node) => node.remove()); vi.restoreAllMocks();
     delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
     localStorage.clear();
   });
@@ -145,6 +147,42 @@ describe("App document confirmation and keyboard boundaries", () => {
     expect(screen.getByText(t.saveFormatTitle)).toBeTruthy();
     await act(async () => { await useLrcStore.getState().newLrc(); });
     expect(screen.queryByText(t.saveFormatTitle)).toBeNull();
+  });
+
+  it.each(["button", "slider", "link", "select", "editable"])("protects Space, transport and undo on a focused %s", (kind) => {
+    const before = useLrcStore.getState().doc;
+    useLrcStore.setState({ activeLineId: "draft", _history: [defaultDocument()] });
+    const toggle = vi.spyOn(audioControls, "togglePlay");
+    render(<App />);
+    const node = document.createElement(kind === "button" ? "button" : kind === "link" ? "a" : kind === "select" ? "select" : "div");
+    node.tabIndex = 0;
+    if (kind === "link") node.setAttribute("href", "#");
+    if (kind === "slider") node.setAttribute("role", "slider");
+    if (kind === "editable") node.setAttribute("contenteditable", "true");
+    const child = document.createElement("span"); node.append(child);
+    node.setAttribute("data-test-control", "");
+    document.body.append(node); node.focus();
+    for (const target of [child, window]) for (const code of ["Space", "Digit3", "KeyZ"]) {
+      const event = new KeyboardEvent("keydown", { code, ctrlKey: code === "KeyZ", bubbles: true, cancelable: true });
+      fireEvent(target, event);
+      expect(event.defaultPrevented).toBe(false);
+    }
+    expect(useLrcStore.getState().doc).toBe(before);
+    expect(useLrcStore.getState()._history).toHaveLength(1);
+    expect(toggle).not.toHaveBeenCalled();
+    node.remove();
+  });
+
+  it("continues stamping successive lines from the noninteractive editor area", () => {
+    useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+      { id: "a", text: "a", timestamp: null }, { id: "b", text: "b", timestamp: null }, { id: "c", text: "c", timestamp: null },
+    ] }, activeLineId: "a" });
+    render(<App />);
+    fireEvent.keyDown(window, { code: "Space" });
+    act(() => useLrcStore.setState({ currentTime: 13 }));
+    fireEvent.keyDown(window, { code: "Space" });
+    expect(useLrcStore.getState().doc.lines.map((line) => line.timestamp)).toEqual([12, 13, null]);
+    expect(useLrcStore.getState().activeLineId).toBe("c");
   });
 
 });

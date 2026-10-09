@@ -1,4 +1,5 @@
 import { LrcDocument, defaultDocument } from "../types/lrc";
+import { nextCueEnd } from "./exportFormats";
 
 // SubRip 시간 형식: HH:MM:SS,mmm
 function formatSrtTime(seconds: number): string {
@@ -29,10 +30,8 @@ function parseSrtTime(str: string): number | null {
 }
 
 /**
- * LRC 문서를 SubRip(SRT) 문자열로 직렬화.
- * 각 자막의 종료 시간 = 다음(시간 있는) 줄의 시작 시간.
- * 빈 줄(text:"")은 자막으로 출력하지 않고 직전 자막의 종료 경계로만 사용됨.
- * 마지막 줄은 다음 줄이 없으므로 lastCueEnd(있으면) 또는 start + 4초로 종료.
+ * Export text cues ending at the next strictly later timed line (including blanks),
+ * a finite later audio duration, or a four-second fallback. Coincident starts share an end.
  */
 export function serializeSrt(doc: LrcDocument, lastCueEnd?: number): string {
   const timed = doc.lines
@@ -45,15 +44,7 @@ export function serializeSrt(doc: LrcDocument, lastCueEnd?: number): string {
     const line = timed[i];
     if (line.text.trim() === "") continue; // 빈 줄 = 경계 전용
     const start = line.timestamp as number;
-    const next = timed[i + 1];
-    let end: number;
-    if (next) {
-      end = next.timestamp as number;
-    } else if (lastCueEnd !== undefined && lastCueEnd > start) {
-      end = lastCueEnd;
-    } else {
-      end = start + 4;
-    }
+    const end = nextCueEnd(timed, i, start, lastCueEnd);
     cues.push({ start, end, text: line.text });
   }
 
@@ -68,14 +59,8 @@ export function serializeSrt(doc: LrcDocument, lastCueEnd?: number): string {
 }
 
 /**
- * SubRip(SRT) 문자열을 LRC 문서로 파싱.
- * 각 자막 cue의 시작 시간을 LRC 타임스탬프로 변환.
- * cue 본문이 여러 줄이면 공백으로 합쳐 한 줄로 만듦.
- *
- * 가사 사이 빈 시간(갭): cue가 끝난 뒤 다음 cue 시작 전까지 공백이 있으면,
- * 그 종료 시각에 "텍스트 없는 타임스탬프 줄"(LRC 문단 구분선)을 삽입해
- * 에디터에서 가사가 비는 구간을 빈 줄로 표현한다. serializeSrt가 이 빈 줄을
- * 직전 cue의 종료 경계로 사용하므로 SRT→LRC→SRT 라운드트립도 보존된다.
+ * Import cue starts and join multiline bodies with spaces. Intermediate gaps become
+ * blank timed boundaries. Original overlaps and final cue ends are not stored.
  */
 export function parseSrt(raw: string): LrcDocument {
   const doc = defaultDocument();

@@ -80,3 +80,31 @@ describe("serializeSrt", () => {
     expect(back).toContain("00:00:05,000 --> 00:00:07,000");
   });
 });
+
+
+describe("SRT cue boundaries", () => {
+  it("uses the next strictly later boundary for coincident starts", () => {
+    const out = serializeSrt(docOf([
+      { id: "a", timestamp: 1, text: "a" }, { id: "blank", timestamp: 1, text: "" },
+      { id: "b", timestamp: 1, text: "b" }, { id: "end", timestamp: 3, text: "" },
+      { id: "c", timestamp: 5, text: "c" },
+    ]), 10);
+    expect(out).toContain("00:00:01,000 --> 00:00:03,000\na");
+    expect(out).toContain("00:00:01,000 --> 00:00:03,000\nb");
+    expect(out).toContain("00:00:05,000 --> 00:00:10,000\nc");
+    expect(out.match(/-->/g)).toHaveLength(3);
+  });
+  it.each([undefined, 0, 5, 4, NaN, Infinity])("falls back for absent or unusable duration %s", (end) => {
+    expect(serializeSrt(docOf([{ id: "last", timestamp: 5, text: "last" }]), end))
+      .toContain("00:00:05,000 --> 00:00:09,000");
+  });
+  it("uses duration for every coincident final cue", () => {
+    const out = serializeSrt(docOf([{ id: "a", timestamp: 5, text: "a" }, { id: "b", timestamp: 5, text: "b" }]), 8);
+    expect(out.match(/00:00:05,000 --> 00:00:08,000/g)).toHaveLength(2);
+  });
+});
+
+it("preserves distinct millisecond cue boundaries in SRT", () => {
+  expect(serializeSrt(docOf([{ id: "a", timestamp: 1.001, text: "a" }, { id: "b", timestamp: 1.004, text: "b" }])))
+    .toContain("00:00:01,001 --> 00:00:01,004");
+});
