@@ -7,6 +7,9 @@
     "macOS": {
       "entitlements": "entitlements.plist",
       "signingIdentity": "-"
+    },
+    "resources": {
+      "ThirdPartyNotices.txt": "ThirdPartyNotices.txt"
     }
   }
 }

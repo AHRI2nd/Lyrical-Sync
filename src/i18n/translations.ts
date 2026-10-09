@@ -22,6 +22,8 @@ export interface Translations {
   privacySummary: string;
   privacyPolicyLink: string;
   privacyOpenError: string;
+  thirdPartyNotices: string;
+  thirdPartyNoticesError: string;
   shortcutsTitle: string;
   shortcutNote: string;
   helpGroupPlayback: string;
@@ -245,6 +247,8 @@ const ko: Translations = {
   privacyTitle: "개인정보",
   privacyPolicyLink: "개인정보처리방침 열기 (기본 브라우저)",
   privacyOpenError: "개인정보처리방침을 열 수 없습니다. 기본 브라우저 설정을 확인하세요.",
+  thirdPartyNotices: "타사 라이선스 고지",
+  thirdPartyNoticesError: "라이선스 고지를 불러올 수 없습니다.",
   privacySummary: "가사와 오디오는 기기에서 처리하며 앱에서 외부 서버로 업로드하지 않습니다. 설정·최근 파일 경로·복구용 가사는 기기에 보관됩니다. 최근 목록은 최근 파일 메뉴에서 지울 수 있습니다. 복구 내용은 최신 변경사항이 저장되어 미저장 상태가 해소되거나 시작 시 복구 알림에서 버리기를 선택하면 제거됩니다. 저장소 오류가 있으면 삭제에 실패할 수 있으므로 알림을 확인하세요. 개인정보 문의: tsukimori@ahri2nd.xyz",
   shortcutsTitle: "단축키 안내",
   shortcutNote: "* 입력란·버튼·슬라이더 등 조작 요소에 포커스가 있으면 재생·스탬프·실행 취소/다시 실행 단축키가 동작하지 않습니다.",
@@ -487,6 +491,8 @@ const en: Translations = {
   privacyTitle: "Privacy",
   privacyPolicyLink: "Open privacy policy (default browser)",
   privacyOpenError: "Could not open the privacy policy. Check your default browser settings.",
+  thirdPartyNotices: "Third-party license notices",
+  thirdPartyNoticesError: "Could not load license notices.",
   privacySummary: "Lyrics and audio are processed on your device and are not uploaded by the app. Settings, recent file paths and recovery lyrics are stored locally. Clear recent entries in the recent files menu. Recovery content is removed when the latest changes are saved and no unsaved changes remain, or when discarded at the startup recovery prompt. Storage errors can prevent deletion; check the app's notices. Privacy inquiries: tsukimori@ahri2nd.xyz",
   shortcutsTitle: "Keyboard Shortcuts",
   shortcutNote: "* Playback, stamping and undo/redo shortcuts are disabled while inputs, buttons or other controls are focused.",
@@ -730,6 +736,8 @@ const ja: Translations = {
   privacyTitle: "プライバシー",
   privacyPolicyLink: "プライバシーポリシーを開く（既定のブラウザー）",
   privacyOpenError: "プライバシーポリシーを開けません。既定のブラウザー設定を確認してください。",
+  thirdPartyNotices: "サードパーティーのライセンス",
+  thirdPartyNoticesError: "ライセンス情報を読み込めません。",
   privacySummary: "歌詞と音声は端末上で処理され、アプリから外部サーバーへアップロードされません。設定・最近使ったファイルのパス・復元用の歌詞は端末に保存されます。最近のファイルの一覧はメニューから削除できます。復元用の内容は、最新の変更が保存され未保存の変更がなくなった場合、または起動時の復元通知で破棄した場合に削除されます。ストレージのエラーで削除に失敗する場合があるため、アプリの通知を確認してください。個人情報に関するお問い合わせ：tsukimori@ahri2nd.xyz",
   shortcutsTitle: "キーボードショートカット",
   shortcutNote: "* 入力欄・ボタン・スライダーなどにフォーカス中は、再生・打刻・元に戻す/やり直しのショートカットが無効になります。",

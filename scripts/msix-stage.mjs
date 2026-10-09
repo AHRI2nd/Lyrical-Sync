@@ -86,11 +86,13 @@ try {
   let manifest = readFileSync(join(repo, 'packaging/msix/AppxManifest.xml.in'), 'utf8');
   manifest = manifest.replace(/\{\{([A-Z_]+)\}\}/g, (_, key) => { if (!(key in values)) throw new Error(`Unresolved manifest value ${key}`); return xml(values[key]); });
   if (/\{\{|\}\}/.test(manifest)) throw new Error('Unresolved manifest template');
+  const notices = readFileSync(join(repo, 'src-tauri/ThirdPartyNotices.txt'));
   mkdirSync(stage); mkdirSync(join(stage, 'Assets'));
   copyFileSync(binary, join(stage, 'lyrical-sync.exe'));
   for (const [name] of logos) copyFileSync(join(assets, name), join(stage, 'Assets', name));
   for (const file of runtimeFiles) { const target = join(stage, 'WebView2', relative(runtime, file)); mkdirSync(dirname(target), { recursive: true }); copyFileSync(file, target); }
   copyFileSync(join(repo, 'LICENSE'), join(stage, 'AppLicense.txt'));
+  writeFileSync(join(stage, 'ThirdPartyNotices.txt'), notices);
   writeFileSync(join(stage, 'AppxManifest.xml'), manifest);
   const inventory = sourceFiles(stage).map(file => ({ path: relative(stage, file).split(sep).join('/'), sha256: createHash('sha256').update(readFileSync(file)).digest('hex') }));
   process.stdout.write(JSON.stringify({ version, identity: config, architecture: 'x64', maxVersionTested: tested, files: inventory }, null, 2) + '\n');
