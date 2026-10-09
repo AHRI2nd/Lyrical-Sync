@@ -1,10 +1,22 @@
 import { LrcDocument, LrcLine } from "../types/lrc";
 
-// 타임스탬프 있는 줄을 자막 cue로 변환. 빈 줄(text:"")은 직전 cue의 종료 경계로만 사용.
-// (srtConverter와 동일한 규칙 — start=줄 시각, end=다음 시각 줄/총 길이/+4초)
+// Blank timed lines mark cue ends without becoming subtitles themselves.
+// SRT, VTT and ASS share strictly later boundaries, valid duration, or a four-second fallback.
 interface Cue { start: number; end: number; line: LrcLine; }
 
-function buildCues(doc: LrcDocument, lastCueEnd?: number): Cue[] {
+// Compare boundaries at the output format precision so rounding cannot create an empty cue.
+export function nextCueEnd(timed: readonly LrcLine[], index: number, start: number, lastCueEnd?: number, timeUnitsPerSecond = 1000): number {
+  const startUnit = Math.max(0, Math.round(start * timeUnitsPerSecond));
+  const isLater = (time: number) => Number.isFinite(time) && Math.round(time * timeUnitsPerSecond) > startUnit;
+  for (let i = index + 1; i < timed.length; i++) {
+    const next = timed[i].timestamp;
+    if (next !== null && isLater(next)) return next;
+  }
+  if (lastCueEnd !== undefined && isLater(lastCueEnd)) return lastCueEnd;
+  return start + 4;
+}
+
+function buildCues(doc: LrcDocument, lastCueEnd?: number, timeUnitsPerSecond = 1000): Cue[] {
   const timed = doc.lines
     .filter((l) => l.timestamp !== null)
     .slice()
@@ -15,11 +27,7 @@ function buildCues(doc: LrcDocument, lastCueEnd?: number): Cue[] {
     const line = timed[i];
     if (line.text.trim() === "") continue; // 빈 줄 = 경계 전용
     const start = line.timestamp as number;
-    const next = timed[i + 1];
-    let end: number;
-    if (next) end = next.timestamp as number;
-    else if (lastCueEnd !== undefined && lastCueEnd > start) end = lastCueEnd;
-    else end = start + 4;
+    const end = nextCueEnd(timed, i, start, lastCueEnd, timeUnitsPerSecond);
     cues.push({ start, end, line });
   }
   return cues;
@@ -79,7 +87,7 @@ function assText(line: LrcLine, cueEnd: number): string {
 }
 
 export function serializeAss(doc: LrcDocument, lastCueEnd?: number): string {
-  const cues = buildCues(doc, lastCueEnd);
+  const cues = buildCues(doc, lastCueEnd, 100);
   const title = doc.metadata.title || "Lyrical Sync";
   const header =
 `[Script Info]

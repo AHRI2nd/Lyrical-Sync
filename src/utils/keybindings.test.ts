@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  matchAction, conflictingAction, normalizeKeybindings, keyLabel, DEFAULT_KEYBINDINGS,
+  matchAction, conflictingAction, normalizeKeybindings, keyLabel, DEFAULT_KEYBINDINGS, isInteractiveKeyTarget,
 } from "./keybindings";
 
 describe("keybindings — matching", () => {
@@ -40,4 +40,9 @@ describe("keybindings — normalize & labels", () => {
     expect(keyLabel("Space")).toBe("Space");
     expect(keyLabel("ArrowLeft")).toBe("←");
   });
+});
+
+it("handles non-DOM targets without browser globals", () => {
+  expect(isInteractiveKeyTarget(null)).toBe(false);
+  expect(isInteractiveKeyTarget(new EventTarget())).toBe(false);
 });

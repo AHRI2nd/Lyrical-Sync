@@ -54,3 +54,32 @@ describe("serializeAss", () => {
     expect(out).toContain("{\\k50}a{\\k50}b");
   });
 });
+
+
+describe("shared subtitle cue boundaries", () => {
+  it("uses strictly later blank boundaries and final duration in VTT and ASS", () => {
+    const doc = docOf([{ id: "a", timestamp: 1, text: "a" }, { id: "b", timestamp: 1, text: "b" },
+      { id: "end", timestamp: 3, text: "" }, { id: "last", timestamp: 5, text: "last" }]);
+    const vtt = serializeVtt(doc, 8);
+    expect(vtt.match(/00:00:01.000 --> 00:00:03.000/g)).toHaveLength(2);
+    expect(vtt).toContain("00:00:05.000 --> 00:00:08.000");
+    const ass = serializeAss(doc, 8);
+    expect(ass.match(/Dialogue: 0,0:00:01.00,0:00:03.00/g)).toHaveLength(2);
+    expect(ass).toContain("Dialogue: 0,0:00:05.00,0:00:08.00");
+  });
+  it.each([undefined, 0, 5, NaN, Infinity])("uses finite fallback ends with duration %s", (end) => {
+    const doc = docOf([{ id: "a", timestamp: 5, text: "a" }, { id: "b", timestamp: 5, text: "b" }]);
+    expect(serializeVtt(doc, end).match(/00:00:05.000 --> 00:00:09.000/g)).toHaveLength(2);
+    expect(serializeAss(doc, end).match(/Dialogue: 0,0:00:05.00,0:00:09.00/g)).toHaveLength(2);
+  });
+});
+
+
+it("keeps valid cue ends after ASS centisecond rounding without shortening VTT precision", () => {
+  const doc = docOf([{ id: "a", timestamp: 1.001, text: "a" }, { id: "b", timestamp: 1.004, text: "b" },
+    { id: "c", timestamp: 3, text: "c" }]);
+  expect(serializeVtt(doc)).toContain("00:00:01.001 --> 00:00:01.004");
+  expect(serializeAss(doc).match(/Dialogue: 0,0:00:01.00,0:00:03.00/g)).toHaveLength(2);
+  expect(serializeAss(docOf([{ id: "a", timestamp: 1.001, text: "a" }]), 1.004))
+    .toContain("Dialogue: 0,0:00:01.00,0:00:05.00");
+});

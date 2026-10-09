@@ -4,7 +4,7 @@ import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { tokenizeText, isStampable, formatTimestamp, clampToNeighbors } from "../../utils/lrcParser";
 import { anyModalOpen } from "../../utils/modalGuard";
-import { matchAction, normalizeKeybindings } from "../../utils/keybindings";
+import { isInteractiveKeyTarget, keyLabel, matchAction, normalizeKeybindings } from "../../utils/keybindings";
 import { audioControls } from "../../utils/audioControls";
 import type { LrcLine, LrcSyllable } from "../../types/lrc";
 
@@ -50,6 +50,7 @@ export function CharSyncView() {
   const lyricsFontScale = useSettingsStore((s) => s.lyricsFontScale);
   const showGlyphTimeMarkers = useSettingsStore((s) => s.showGlyphTimeMarkers);
   const controls = audioControls;
+  const stampKey = keyLabel(normalizeKeybindings(useSettingsStore((s) => s.keybindings)).stamp);
 
   const lines = doc.lines;
   const lineIdx = activeLineId ? lines.findIndex((l) => l.id === activeLineId) : 0;
@@ -238,9 +239,7 @@ export function CharSyncView() {
   // ←→=글자 이동(Shift=미세조정, 고정) · stamp/prevLine=사용자 단축키
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const inInput =
-        e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
-      if (inInput) return;
+      if (isInteractiveKeyTarget(e.target) || isInteractiveKeyTarget(document.activeElement)) return;
       // 모달이 열려 있으면 글자 모드 키가 모달 뒤에서 동작하지 않게 차단
       if (anyModalOpen()) return;
       // 글자 이동/미세조정(고정)
@@ -283,6 +282,8 @@ export function CharSyncView() {
   const beginDrag = (index: number, e: React.MouseEvent) => {
     if (!line || e.button !== 0) return; // 좌클릭만 (우클릭은 글자 지우기)
     e.preventDefault();
+    // Return shortcut focus to the glyph editor after using a toolbar control.
+    textRef.current?.focus({ preventScroll: true });
     const startX = e.clientX;
     let painting = false;
     let lastIdx = -1;
@@ -430,11 +431,11 @@ export function CharSyncView() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto">
-      <p className="text-xs text-zinc-500 mb-2 px-1">{t.charSync.hint}</p>
+      <p className="text-xs text-zinc-500 mb-2 px-1">{t.charSync.hint.replace("{stamp}", stampKey)}</p>
 
       {/* 활성 줄 — 한 줄 흐름 텍스트 + 글자별 시간 마커 (가로 스크롤) */}
       <div className="overflow-x-auto mb-3">
-      <div ref={textRef} className="relative inline-block" style={{ minWidth: "100%" }}>
+      <div ref={textRef} tabIndex={-1} className="relative inline-block" style={{ minWidth: "100%" }}>
       <div
         className="leading-relaxed select-none"
         style={{ whiteSpace: "pre", fontSize: `${1.875 * lyricsFontScale}rem` }}
@@ -566,7 +567,7 @@ export function CharSyncView() {
       {/* 하단 컨트롤 */}
       <div className="flex items-center gap-2 mt-3">
         <div className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium">
-          <kbd className="px-1.5 py-0.5 rounded bg-indigo-700/70 text-xs font-mono">Space</kbd>
+          <kbd className="px-1.5 py-0.5 rounded bg-indigo-700/70 text-xs font-mono">{stampKey}</kbd>
           {t.charSync.stampHint}
         </div>
         <button
