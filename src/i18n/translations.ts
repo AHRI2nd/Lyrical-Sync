@@ -179,6 +179,11 @@ export interface Translations {
   confirmNewCancel: string;
   // Settings modal
   settingsTitle: string;
+  settingsRecovery: string;
+  settingsRecoveryDesc: string;
+  settingsRecoveryOffConfirm: string;
+  settingsRecoveryOff: string;
+  settingsPrivacyFailure: string;
   settingsTabGeneral: string;
   settingsTabShortcuts: string;
   settingsAutoSave: string;
@@ -423,6 +428,11 @@ const ko: Translations = {
   confirmNewOk: "새로 만들기",
   confirmNewCancel: "취소",
   settingsTitle: "설정",
+  settingsRecovery: "복구용 사본 저장",
+  settingsRecoveryDesc: "저장하지 않은 편집 내용을 이 기기에 보관합니다. 원본 파일 자동 저장과는 별개입니다.",
+  settingsRecoveryOffConfirm: "복구용 사본을 삭제하고 앞으로 저장하지 않습니다. 원본 가사·오디오와 현재 편집 내용은 유지됩니다. 앱이 종료되면 저장하지 않은 내용을 복구할 수 없습니다.",
+  settingsRecoveryOff: "끄고 사본 삭제",
+  settingsPrivacyFailure: "일부 로컬 설정 저장 또는 사본 삭제에 실패했습니다. 다시 시도하세요.",
   settingsTabGeneral: "일반",
   settingsTabShortcuts: "단축키",
   settingsAutoSave: "자동 저장",
@@ -668,6 +678,11 @@ const en: Translations = {
   confirmNewOk: "New File",
   confirmNewCancel: "Cancel",
   settingsTitle: "Settings",
+  settingsRecovery: "Save recovery copies",
+  settingsRecoveryDesc: "Keep unsaved edits on this device. This is separate from saving changes to your original file.",
+  settingsRecoveryOffConfirm: "Delete recovery copies and stop creating them. Original lyrics, audio and current edits stay intact. Unsaved edits cannot be recovered after the app closes.",
+  settingsRecoveryOff: "Turn off and delete copies",
+  settingsPrivacyFailure: "Some local preferences or copies could not be saved or deleted. Please retry.",
   settingsTabGeneral: "General",
   settingsTabShortcuts: "Shortcuts",
   settingsAutoSave: "Auto-save",
@@ -912,6 +927,11 @@ const ja: Translations = {
   confirmNewOk: "新規作成",
   confirmNewCancel: "キャンセル",
   settingsTitle: "設定",
+  settingsRecovery: "復元用コピーを保存",
+  settingsRecoveryDesc: "未保存の編集をこの端末に保存します。元ファイルの自動保存とは別の設定です。",
+  settingsRecoveryOffConfirm: "復元用コピーを削除し、今後の保存を停止します。元の歌詞・音声と現在の編集は保持されます。アプリ終了後は未保存の編集を復元できません。",
+  settingsRecoveryOff: "無効にしてコピーを削除",
+  settingsPrivacyFailure: "一部の設定の保存またはコピーの削除に失敗しました。再試行してください。",
   settingsTabGeneral: "一般",
   settingsTabShortcuts: "ショートカット",
   settingsAutoSave: "自動保存",

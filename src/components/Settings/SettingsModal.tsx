@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
+import { ConfirmModal } from "../AppShell/ConfirmModal";
+import { configureRecovery } from "../../utils/localPrivacy";
+import { toast } from "../../stores/useToastStore";
 import { KeybindingsSection } from "./KeybindingsSection";
 
 type Tab = "general" | "shortcuts";
@@ -8,23 +11,25 @@ type Tab = "general" | "shortcuts";
 export function SettingsModal({ onClose }: { onClose: () => void }) {
   const { t } = useI18nStore();
   const {
-    autoSave, uiScale, showElrcSaveNotice, lyricsFontScale, showGlyphTimeMarkers,
+    autoSave, recoveryEnabled, uiScale, showElrcSaveNotice, lyricsFontScale, showGlyphTimeMarkers,
     setAutoSave, setUiScale, setShowElrcSaveNotice, setLyricsFontScale, setShowGlyphTimeMarkers,
   } = useSettingsStore();
 
+  const [confirmRecoveryOff, setConfirmRecoveryOff] = useState(false);
   const [tab, setTab] = useState<Tab>("general");
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && !confirmRecoveryOff) onClose();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
+  }, [onClose, confirmRecoveryOff]);
 
   const scalePercent = Math.round(uiScale * 100);
 
   return (
+    <>
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={onClose}
@@ -58,6 +63,21 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         <div className="overflow-y-auto flex-1">
           {tab === "general" && (
             <div className="p-5 flex flex-col gap-5">
+              <section className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-zinc-200">{t.settingsRecovery}</span>
+                  <button type="button" role="switch" aria-label={t.settingsRecovery} aria-checked={recoveryEnabled}
+                    className={`w-10 h-5 rounded-full ${recoveryEnabled ? "bg-indigo-600" : "bg-zinc-600"}`}
+                    onClick={() => {
+                      if (recoveryEnabled) setConfirmRecoveryOff(true);
+                      else if (!configureRecovery(true)) toast.error(t.settingsPrivacyFailure);
+                    }}>
+                    <span className={`block w-4 h-4 rounded-full bg-white ${recoveryEnabled ? "translate-x-[22px]" : "translate-x-0.5"}`} />
+                  </button>
+                </div>
+                <p className="text-xs text-zinc-500">{t.settingsRecoveryDesc}</p>
+              </section>
+              <div className="border-t border-zinc-800" />
               {/* Auto save */}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
@@ -211,6 +231,13 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         </div>
       </div>
     </div>
+    {confirmRecoveryOff && <ConfirmModal priority title={t.settingsRecovery}
+      message={t.settingsRecoveryOffConfirm} okLabel={t.settingsRecoveryOff} cancelLabel={t.confirmNewCancel}
+      onCancel={() => setConfirmRecoveryOff(false)} onOk={() => {
+        if (configureRecovery(false)) setConfirmRecoveryOff(false);
+        else toast.error(t.settingsPrivacyFailure);
+      }} />}
+    </>
   );
 }
 
