@@ -29,6 +29,7 @@ test('derives signed identifiers from a matching distribution profile and enable
   assert.equal(entitlements['com.apple.application-identifier'], '7N6XWH2333.com.arisair.lyrical-sync');
   assert.equal(entitlements['com.apple.security.app-sandbox'], true);
   assert.equal(entitlements['com.apple.security.files.bookmarks.app-scope'], true);
+  assert.equal(entitlements['com.apple.security.network.client'], undefined);
 });
 test('rejects an expired profile', t => {
   const f = fixture(t, { ExpirationDate: '2000-01-01T00:00:00Z' }); const r = f.run(); assert.notEqual(r.status, 0); assert.match(r.stderr, /expired/i);
