@@ -29,6 +29,7 @@ interface LrcStore {
   _saveTarget: number;
   _saveRequest: number;
   requestDocumentTransition: (intent: DocumentIntent) => Promise<"applied" | "cancelled">;
+  _lastEditKey: string | null;
   _history: LrcDocument[];
   _future: LrcDocument[];
   undo: () => void;
@@ -143,9 +144,18 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
   const set = (update: Partial<LrcStore> | ((state: LrcStore) => Partial<LrcStore>)) => {
     baseSet((state) => {
       const patch = typeof update === "function" ? update(state) : update;
-      return patch.doc && patch.doc !== state.doc && patch._documentSession === undefined
-        ? { ...patch, _editRevision: state._editRevision + 1 } : patch;
+      const changed = patch.doc && patch.doc !== state.doc;
+      return { ...patch,
+        ...(changed && patch._lastEditKey === undefined ? { _lastEditKey: null } : {}),
+        ...(changed && patch._documentSession === undefined ? { _editRevision: state._editRevision + 1 } : {}) };
+
     });
+  };
+  const pushHistory = (doc: LrcDocument, editKey: string | null): Pick<LrcStore, "_history" | "_future" | "_lastEditKey"> => {
+    const state = get();
+    const grouped = editKey !== null && state._lastEditKey === editKey && state._history.length > 0;
+    return { _history: grouped ? state._history : [...state._history, doc].slice(-MAX_HISTORY),
+      _future: [], _lastEditKey: editKey };
   };
   let audioDialogRequest = 0;
   const recordRecent = () => {
@@ -155,6 +165,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
   return ({
   doc: defaultDocument(),
   _documentSession: 0, _editRevision: 0, _openRequest: 0, _audioSelection: 0, _saveTarget: 0, _saveRequest: 0,
+  _lastEditKey: null,
   _history: [],
   _future: [],
   audioPath: null,
@@ -178,7 +189,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
   setActiveSyllable: (i) => set({ activeSyllableIndex: i }),
 
   commitSyllables: (lineId, syllables, recordHistory = true) => {
-    const { doc, _history } = get();
+    const { doc } = get();
     const times = syllables.filter((s) => s.time !== null).map((s) => s.time as number);
     const lineTs = times.length > 0 ? Math.min(...times) : null;
     const lines = doc.lines.map((l) =>
@@ -188,21 +199,20 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     );
     set({
       ...(recordHistory
-        ? { _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [] }
-        : {}),
+        ? pushHistory(doc, null)
+        : { _lastEditKey: null, _future: [] }),
       doc: { ...doc, lines },
       isDirty: true,
     });
   },
 
   clearLineSyllables: (lineId) => {
-    const { doc, _history } = get();
+    const { doc } = get();
     const lines = doc.lines.map((l) =>
       l.id === lineId ? { ...l, syllables: undefined } : l
     );
     set({
-      _history: [..._history.slice(-(MAX_HISTORY - 1)), doc],
-      _future: [],
+      ...pushHistory(doc, null),
       doc: { ...doc, lines },
       isDirty: true,
     });
@@ -239,7 +249,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
   setActiveLineId: (id) => set({ activeLineId: id }),
 
   stampAndAdvance: () => {
-    const { activeLineId, currentTime, doc, _history } = get();
+    const { activeLineId, currentTime, doc } = get();
     const lines = doc.lines;
     if (lines.length === 0) return;
 
@@ -257,7 +267,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
 
     // 실제 스탬프할 때만 히스토리 기록
     set({
-      _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [],
+      ...pushHistory(doc, null),
       doc: { ...doc, lines: stamped },
       activeLineId: next ? next.id : activeLineId,
       isDirty: true,
@@ -276,22 +286,24 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     if (idx > 0) set({ activeLineId: lines[idx - 1].id });
   },
 
-  setMetadata: (meta, silent = false) =>
-    set((s) => ({
-      doc: { ...s.doc, metadata: { ...s.doc.metadata, ...meta } },
-      // silent: 자동 채움 등 사용자 편집이 아닌 갱신은 dirty로 표시하지 않음
-      isDirty: silent ? s.isDirty : true,
-    })),
+  setMetadata: (meta, silent = false) => {
+    const { doc, isDirty } = get();
+    const fields = (Object.keys(meta) as (keyof LrcMetadata)[]).filter((field) => !Object.is(doc.metadata[field], meta[field]));
+    if (fields.length === 0) return;
+    const editKey = fields.length === 1 ? `metadata:${fields[0]}` : null;
+    set({ ...(silent ? { _lastEditKey: null, _future: [] } : pushHistory(doc, editKey)),
+      doc: { ...doc, metadata: { ...doc.metadata, ...meta } }, isDirty: silent ? isDirty : true });
+  },
 
   setLines: (lines) => {
-    const { doc, _history } = get();
-    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, isDirty: true });
+    const { doc } = get();
+    set({ ...pushHistory(doc, null), doc: { ...doc, lines }, isDirty: true });
   },
 
   addLine: (text = "") => {
-    const { doc, _history } = get();
+    const { doc } = get();
     set({
-      _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [],
+      ...pushHistory(doc, null),
       doc: { ...doc, lines: [...doc.lines, { id: genId(), timestamp: null, text }] },
       isDirty: true,
     });
@@ -300,17 +312,17 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
   insertLinesAfter: (afterId, texts) => {
     const newLines = texts.map((t) => ({ id: genId(), timestamp: null as null, text: t }));
     const lastId = newLines[newLines.length - 1].id;
-    const { doc, _history } = get();
+    const { doc } = get();
     const idx = doc.lines.findIndex((l) => l.id === afterId);
     const lines = [...doc.lines];
     lines.splice(idx + 1, 0, ...newLines);
-    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, isDirty: true });
+    set({ ...pushHistory(doc, null), doc: { ...doc, lines }, isDirty: true });
     return lastId;
   },
 
   addLinesFromSpeechSegments: (segments) => {
     if (segments.length === 0) return 0;
-    const { doc, _history } = get();
+    const { doc } = get();
     let lines = doc.lines;
     for (const seg of segments) {
       const ts = Math.round(seg.start * 1000) / 1000;
@@ -320,31 +332,32 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
       const insertAt = idx === -1 ? lines.length : idx;
       lines = [...lines.slice(0, insertAt), newLine, ...lines.slice(insertAt)];
     }
-    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, isDirty: true });
+    set({ ...pushHistory(doc, null), doc: { ...doc, lines }, isDirty: true });
     return segments.length;
   },
 
-  updateLine: (id, patch) =>
-    set((s) => ({
-      doc: {
-        ...s.doc,
-        lines: s.doc.lines.map((l) => (l.id === id ? { ...l, ...patch } : l)),
-      },
-      isDirty: true,
-    })),
+  updateLine: (id, patch) => {
+    const { doc } = get();
+    const line = doc.lines.find((item) => item.id === id);
+    if (!line) return;
+    const fields = (Object.keys(patch) as (keyof typeof patch)[]).filter((field) => !Object.is(line[field], patch[field]));
+    if (fields.length === 0) return;
+    const key = fields.length === 1 && fields[0] === "text" ? `line:${id}:text` : null;
+    set({ ...pushHistory(doc, key), doc: { ...doc, lines: doc.lines.map((item) => item.id === id ? { ...item, ...patch } : item) }, isDirty: true });
+  },
 
   deleteLine: (id) => {
-    const { doc, _history, activeLineId, loopLineId } = get();
+    const { doc, activeLineId, loopLineId } = get();
     const lines = doc.lines.filter((l) => l.id !== id);
     const newActiveLineId = activeLineId === id ? (lines[0]?.id ?? null) : activeLineId;
     set({
-      _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines },
+      ...pushHistory(doc, null), doc: { ...doc, lines },
       activeLineId: newActiveLineId, loopLineId: loopLineId === id ? null : loopLineId, isDirty: true,
     });
   },
 
   duplicateLine: (id) => {
-    const { doc, _history } = get();
+    const { doc } = get();
     const idx = doc.lines.findIndex((l) => l.id === id);
     if (idx < 0) return id;
     const newId = genId();
@@ -352,12 +365,12 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     const copy: LrcLine = { id: newId, timestamp: null, text: doc.lines[idx].text };
     const lines = [...doc.lines];
     lines.splice(idx + 1, 0, copy);
-    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, isDirty: true });
+    set({ ...pushHistory(doc, null), doc: { ...doc, lines }, isDirty: true });
     return newId;
   },
 
   mergeLineUp: (id) => {
-    const { doc, _history } = get();
+    const { doc } = get();
     const idx = doc.lines.findIndex((l) => l.id === id);
     if (idx <= 0) return null;
     const prev = doc.lines[idx - 1];
@@ -367,12 +380,12 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     const merged: LrcLine = { ...prev, text: prev.text + sep + cur.text, syllables: undefined };
     const lines = [...doc.lines];
     lines.splice(idx - 1, 2, merged);
-    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, activeLineId: prev.id, isDirty: true });
+    set({ ...pushHistory(doc, null), doc: { ...doc, lines }, activeLineId: prev.id, isDirty: true });
     return prev.id;
   },
 
   splitLine: (id, caretPos) => {
-    const { doc, _history } = get();
+    const { doc } = get();
     const idx = doc.lines.findIndex((l) => l.id === id);
     if (idx < 0) return id;
     const cur = doc.lines[idx];
@@ -382,40 +395,40 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     const second: LrcLine = { id: newId, timestamp: null, text: cur.text.slice(caretPos) };
     const lines = [...doc.lines];
     lines.splice(idx, 1, first, second);
-    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, activeLineId: newId, isDirty: true });
+    set({ ...pushHistory(doc, null), doc: { ...doc, lines }, activeLineId: newId, isDirty: true });
     return newId;
   },
 
   moveLine: (fromIndex, toIndex) => {
-    const { doc, _history } = get();
+    const { doc } = get();
     const n = doc.lines.length;
     if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= n || toIndex >= n) return;
     const lines = [...doc.lines];
     const [moved] = lines.splice(fromIndex, 1);
     lines.splice(toIndex, 0, moved);
-    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, isDirty: true });
+    set({ ...pushHistory(doc, null), doc: { ...doc, lines }, isDirty: true });
   },
 
   scaleTimestamps: (factor) => {
     if (!(factor > 0) || factor === 1) return;
-    const { doc, _history } = get();
+    const { doc } = get();
     const sc = (t: number | null) => (t !== null ? Math.max(0, Math.round(t * factor * 1000) / 1000) : null);
     const lines = doc.lines.map((l) => ({
       ...l,
       timestamp: sc(l.timestamp),
       syllables: l.syllables?.map((s) => ({ ...s, time: sc(s.time) })),
     }));
-    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, isDirty: true });
+    set({ ...pushHistory(doc, null), doc: { ...doc, lines }, isDirty: true });
   },
 
   deleteLines: (ids) => {
     if (ids.length === 0) return;
     const idSet = new Set(ids);
-    const { doc, _history, activeLineId, loopLineId } = get();
+    const { doc, activeLineId, loopLineId } = get();
     const lines = doc.lines.filter((l) => !idSet.has(l.id));
     const newActiveLineId = activeLineId && idSet.has(activeLineId) ? (lines[0]?.id ?? null) : activeLineId;
     set({
-      _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines },
+      ...pushHistory(doc, null), doc: { ...doc, lines },
       activeLineId: newActiveLineId, loopLineId: loopLineId && idSet.has(loopLineId) ? null : loopLineId, isDirty: true,
     });
   },
@@ -423,27 +436,27 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
   shiftLines: (ids, delta) => {
     if (delta === 0 || ids.length === 0) return;
     const idSet = new Set(ids);
-    const { doc, _history } = get();
+    const { doc } = get();
     const sh = (t: number | null) => (t !== null ? Math.max(0, Math.round((t + delta) * 1000) / 1000) : null);
     const lines = doc.lines.map((l) =>
       idSet.has(l.id)
         ? { ...l, timestamp: sh(l.timestamp), syllables: l.syllables?.map((s) => ({ ...s, time: sh(s.time) })) }
         : l
     );
-    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, isDirty: true });
+    set({ ...pushHistory(doc, null), doc: { ...doc, lines }, isDirty: true });
   },
 
   clearTimestamps: (ids) => {
     if (ids.length === 0) return;
     const idSet = new Set(ids);
-    const { doc, _history } = get();
+    const { doc } = get();
     const lines = doc.lines.map((l) => (idSet.has(l.id) ? { ...l, timestamp: null, syllables: undefined } : l));
-    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines }, isDirty: true });
+    set({ ...pushHistory(doc, null), doc: { ...doc, lines }, isDirty: true });
   },
 
   stampCurrentLine: (id) => {
-    const { currentTime, doc, _history } = get();
-    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [] });
+    const { currentTime, doc } = get();
+    set({ ...pushHistory(doc, null) });
     set({
       doc: {
         ...doc,
@@ -463,10 +476,10 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
   },
 
   applyOffset: () => {
-    const { doc, _history } = get();
+    const { doc } = get();
     const deltaSeconds = doc.metadata.offset / 1000;
     if (deltaSeconds === 0) return; // 변화 없음 → 히스토리 기록 안 함(빈 undo 방지)
-    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [] });
+    set({ ...pushHistory(doc, null) });
     set({
       doc: {
         ...doc,
@@ -594,7 +607,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
           ...(audio !== undefined ? { audioPath: audio?.path ?? null, audioBookmark: audio?.bookmark ?? null } : {}),
           _documentSession: session, _editRevision: 0, _audioSelection: selection, _saveTarget: target,
           isDirty: dirty, activeLineId: doc.lines[0]?.id ?? null, loopLineId: null,
-          _history: intent.kind === "raw" ? [...previous._history.slice(-(MAX_HISTORY - 1)), previous.doc] : [], _future: [] });
+          _history: intent.kind === "raw" ? pushHistory(previous.doc, null)._history : [], _future: [] });
         if (intent.kind === "file" || intent.kind === "recent" || intent.kind === "recovery") recordRecent();
         const ensureGrant = (kind: "lyrics" | "audio", file: FileRef | null) => {
           if (file && !file.bookmark) void createBookmark(file.path).then((bookmark) => {
@@ -627,6 +640,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
   },
 
   saveLrc: async () => {
+    set({ _lastEditKey: null });
     const { lrcPath, lrcBookmark, doc, duration, _documentSession: session, _editRevision: revision, _saveTarget: target } = get();
     if (!lrcPath) return get().saveLrcAs("lrc");
     const content = serializeForPath(lrcPath, doc, duration);
@@ -639,6 +653,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
   },
 
   saveLrcAs: async (format, enhanced) => {
+    set({ _lastEditKey: null });
     const request = get()._saveRequest + 1;
     set({ _saveRequest: request });
     const { doc, duration, _documentSession: session, _editRevision: revision } = get();
@@ -679,7 +694,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
 
   shiftTimeRange: (fromIdx, toIdx, deltaSeconds) => {
     if (deltaSeconds === 0) return;
-    const { doc, _history } = get();
+    const { doc } = get();
     const newLines = doc.lines.map((l, i) => {
       if (i < fromIdx || i > toIdx || l.timestamp === null) return l;
       return {
@@ -691,12 +706,12 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
         })),
       };
     });
-    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines: newLines }, isDirty: true });
+    set({ ...pushHistory(doc, null), doc: { ...doc, lines: newLines }, isDirty: true });
   },
 
   replaceInLines: (find, replace, caseSensitive) => {
     if (!find) return 0;
-    const { doc, _history } = get();
+    const { doc } = get();
     const escaped = find.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const re = new RegExp(escaped, caseSensitive ? "g" : "gi");
     let count = 0;
@@ -708,7 +723,8 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
       return { ...l, text: l.text.replace(re, replace), syllables: undefined };
     });
     if (count === 0) return 0;
-    set({ _history: [..._history.slice(-(MAX_HISTORY - 1)), doc], _future: [], doc: { ...doc, lines: newLines }, isDirty: true });
+    set({ ...pushHistory(doc, null), doc: { ...doc, lines: newLines }, isDirty: true });
     return count;
-  },});
+  },
+  });
 });
