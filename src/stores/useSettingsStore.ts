@@ -6,6 +6,7 @@ import { type KeyAction, DEFAULT_KEYBINDINGS, KEY_ACTIONS, RESERVED_CODES } from
 interface SettingsState {
   /** 저장 경로가 지정된 파일에 대해 변경 시 자동 저장 */
   autoSave: boolean;
+  recoveryEnabled: boolean;
   uiScale: number;
   /** 글자/단어 동기화가 있어 Enhanced LRC로 저장될 때 알림 팝업 표시. false면 묻지 않고 저장 */
   showElrcSaveNotice: boolean;
@@ -19,6 +20,7 @@ interface SettingsState {
   recentFiles: RecentFileEntry[];
   /** 전역 단축키 바인딩(action → KeyboardEvent.code) */
   keybindings: Record<KeyAction, string>;
+  setRecoveryEnabled: (v: boolean) => boolean;
   setAutoSave: (v: boolean) => void;
   setUiScale: (v: number) => void;
   setShowElrcSaveNotice: (v: boolean) => void;
@@ -49,7 +51,7 @@ const MAX_RECENT_FILES = 8;
 function sanitizeSettings(value: unknown, current: SettingsState): SettingsState {
   if (!isRecord(value)) return current;
   const next = { ...current };
-  for (const field of ["autoSave", "showElrcSaveNotice", "showGlyphTimeMarkers", "showSpectrogram"] as const)
+  for (const field of ["autoSave", "recoveryEnabled", "showElrcSaveNotice", "showGlyphTimeMarkers", "showSpectrogram"] as const)
     if (typeof value[field] === "boolean") next[field] = value[field];
   for (const [field, min, max] of [["uiScale", 0.7, 1.3], ["lyricsFontScale", 0.8, 1.5]] as const) {
     const number = value[field];
@@ -86,6 +88,7 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
       autoSave: true,
+      recoveryEnabled: true,
       uiScale: 1.0,
       showElrcSaveNotice: true,
       lyricsFontScale: 1.0,
@@ -93,6 +96,15 @@ export const useSettingsStore = create<SettingsState>()(
       showSpectrogram: false,
       recentFiles: [],
       keybindings: { ...DEFAULT_KEYBINDINGS },
+      setRecoveryEnabled: (v) => {
+        // Verify durable preference storage before discarding a recovery copy.
+        try {
+          const state = { ...useSettingsStore.getState(), recoveryEnabled: v };
+          localStorage.setItem("lyrical-sync-settings", JSON.stringify({ state, version: 0 }));
+          set({ recoveryEnabled: v });
+          return JSON.parse(localStorage.getItem("lyrical-sync-settings")!).state.recoveryEnabled === v;
+        } catch { return false; }
+      },
       setAutoSave: (v) => set({ autoSave: v }),
       setUiScale: (v) => set({ uiScale: v }),
       setShowElrcSaveNotice: (v) => set({ showElrcSaveNotice: v }),

@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from "react";
+import { useSettingsStore } from "../stores/useSettingsStore";
 import { useLrcStore } from "../stores/useLrcStore";
 import { clearRecoverySnapshot, loadRecoverySnapshot, saveRecoverySnapshot, type RecoverySnapshot } from "../utils/recovery";
 
 export function useRecoverySnapshots(pendingRecovery: boolean): boolean {
+  const enabled = useSettingsStore((state) => state.recoveryEnabled);
   const session = useLrcStore((state) => state._documentSession);
   const dirty = useLrcStore((state) => state.isDirty);
   const prefix = useRef(crypto.randomUUID());
   const owned = useRef<RecoverySnapshot | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
+    if (!enabled) { owned.current = null; setFailed(false); return; }
     if (pendingRecovery) return;
     if (!dirty) {
       if (!owned.current) setFailed(false);
@@ -27,7 +30,7 @@ export function useRecoverySnapshots(pendingRecovery: boolean): boolean {
     }
     const flush = () => {
       const state = useLrcStore.getState();
-      if (!state.isDirty || state._documentSession !== session) return;
+      if (!useSettingsStore.getState().recoveryEnabled || !state.isDirty || state._documentSession !== session) return;
       const ok = saveRecoverySnapshot(state.doc, state.lrcPath, state.audioPath, state.lrcBookmark, state.audioBookmark, `${prefix.current}:${session}`);
       if (ok) {
         const snapshot = loadRecoverySnapshot();
@@ -38,6 +41,6 @@ export function useRecoverySnapshots(pendingRecovery: boolean): boolean {
     flush();
     const interval = setInterval(flush, 5000);
     return () => clearInterval(interval);
-  }, [dirty, session, pendingRecovery]);
+  }, [dirty, session, pendingRecovery, enabled]);
   return failed;
 }

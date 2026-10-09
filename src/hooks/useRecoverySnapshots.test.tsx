@@ -3,6 +3,7 @@ import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
+import { useSettingsStore } from "../stores/useSettingsStore";
 import { invoke } from "@tauri-apps/api/core";
 import { useRecoverySnapshots } from "./useRecoverySnapshots";
 import { useLrcStore } from "../stores/useLrcStore";
@@ -10,6 +11,7 @@ import { defaultDocument } from "../types/lrc";
 import { loadRecoverySnapshot, saveRecoverySnapshot } from "../utils/recovery";
 beforeEach(() => {
   vi.useFakeTimers(); localStorage.clear();
+  useSettingsStore.setState({ recoveryEnabled: true });
   useLrcStore.setState({ doc: defaultDocument(), isDirty: true, lrcPath: "/song.lrc", lrcBookmark: null, audioPath: null, audioBookmark: null });
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
@@ -73,4 +75,16 @@ it("retries failed cleanup without removing a newer snapshot", async () => {
   act(() => vi.advanceTimersByTime(5000));
   expect(result.current).toBe(false);
   expect(loadRecoverySnapshot()?.sessionId).toBe("newer");
+});
+
+it("stops all backup writes while disabled and resumes the latest edited document when enabled", () => {
+  const { unmount } = renderHook(() => useRecoverySnapshots(false));
+  act(() => useSettingsStore.setState({ recoveryEnabled: false }));
+  localStorage.removeItem("lyrical-sync-recovery");
+  act(() => { useLrcStore.getState().addLine("unsaved working text"); vi.advanceTimersByTime(15000); });
+  expect(loadRecoverySnapshot()).toBeNull();
+  expect(useLrcStore.getState().isDirty).toBe(true);
+  act(() => useSettingsStore.setState({ recoveryEnabled: true }));
+  expect(loadRecoverySnapshot()?.doc.lines[0].text).toBe("unsaved working text");
+  unmount();
 });
