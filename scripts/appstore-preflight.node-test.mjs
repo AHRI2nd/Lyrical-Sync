@@ -29,7 +29,7 @@ test('derives signed identifiers from a matching distribution profile and enable
   assert.equal(entitlements['com.apple.application-identifier'], '7N6XWH2333.com.arisair.lyrical-sync');
   assert.equal(entitlements['com.apple.security.app-sandbox'], true);
   assert.equal(entitlements['com.apple.security.files.bookmarks.app-scope'], true);
-  assert.equal(entitlements['com.apple.security.network.client'], undefined);
+  assert.equal(entitlements['com.apple.security.network.client'], true);
 });
 test('rejects an expired profile', t => {
   const f = fixture(t, { ExpirationDate: '2000-01-01T00:00:00Z' }); const r = f.run(); assert.notEqual(r.status, 0); assert.match(r.stderr, /expired/i);
@@ -55,4 +55,9 @@ test('rejects a distribution certificate absent from the profile', t => {
 });
 test('rejects a Developer ID installer certificate for an App Store PKG', t => {
   const f = fixture(t); const r = f.run(['--installer-identity', '2'.repeat(40)]); assert.notEqual(r.status, 0); assert.match(r.stderr, /installer.*certificate/i);
+});
+
+test('rejects a profile that forbids the WebKit runtime network entitlement', t => {
+  const f = fixture(t, { Entitlements: { 'com.apple.application-identifier': '7N6XWH2333.com.arisair.lyrical-sync', 'com.apple.developer.team-identifier': '7N6XWH2333', 'com.apple.security.network.client': false } });
+  const r = f.run(); assert.notEqual(r.status, 0); assert.match(r.stderr, /forbids required entitlement.*network.client/i);
 });
