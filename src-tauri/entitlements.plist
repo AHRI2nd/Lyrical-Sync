@@ -6,10 +6,6 @@
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
 
-	<!-- Allow LRCLIB requests. -->
-	<key>com.apple.security.network.client</key>
-	<true/>
-
 	<!-- Allow files selected by the user. -->
 	<key>com.apple.security.files.user-selected.read-write</key>
 	<true/>
