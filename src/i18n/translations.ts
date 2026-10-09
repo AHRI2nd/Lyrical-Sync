@@ -84,6 +84,8 @@ export interface Translations {
   volume: string;
   noAudio: string;
   noAudioShort: string;
+  previewNoAudio: string;
+  unsavedChanges: string;
   tooltipSkipBack5: string;
   tooltipSkipBack1: string;
   tooltipPlayPause: string;
@@ -344,6 +346,8 @@ const ko: Translations = {
   volume: "볼륨",
   noAudio: "오디오 파일을 열어 파형을 표시합니다",
   noAudioShort: "열린 오디오 파일 없음",
+  previewNoAudio: "오디오 파일을 열면 가사와 함께 재생할 수 있습니다.",
+  unsavedChanges: "저장되지 않은 변경사항이 있습니다",
   tooltipSkipBack5: "[1] −5초",
   tooltipSkipBack1: "[2] −1초",
   tooltipPlayPause: "[3] 재생/일시정지",
@@ -600,6 +604,8 @@ const en: Translations = {
   volume: "Volume",
   noAudio: "Open an audio file to display the waveform",
   noAudioShort: "No audio file open",
+  previewNoAudio: "Open an audio file to play along with the lyrics.",
+  unsavedChanges: "You have unsaved changes",
   tooltipSkipBack5: "[1] −5s",
   tooltipSkipBack1: "[2] −1s",
   tooltipPlayPause: "[3] Play/Pause",
@@ -857,6 +863,8 @@ const ja: Translations = {
   volume: "音量",
   noAudio: "音声ファイルを開いて波形を表示します",
   noAudioShort: "開いている音声ファイルなし",
+  previewNoAudio: "音声ファイルを開くと歌詞と一緒に再生できます。",
+  unsavedChanges: "未保存の変更があります",
   tooltipSkipBack5: "[1] −5秒",
   tooltipSkipBack1: "[2] −1秒",
   tooltipPlayPause: "[3] 再生/一時停止",

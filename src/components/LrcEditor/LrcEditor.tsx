@@ -19,7 +19,7 @@ const AutoSpotModal = lazy(() => import("../AudioPlayer/AutoSpotModal").then((m)
 export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   // currentTime은 푸터에서만 쓰므로 구독에서 제외 → 재생 중 줄 목록이 매 프레임 리렌더되지 않음
   const {
-    doc, activeLineId,
+    doc, activeLineId, documentSession,
     addLine, insertLinesAfter, updateLine, deleteLine,
     duplicateLine, mergeLineUp, splitLine, moveLine, scaleTimestamps,
     deleteLines, shiftLines, clearTimestamps,
@@ -29,7 +29,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     loopLineId, setLoopLine,
   } = useLrcStore(
     useShallow((s) => ({
-      doc: s.doc, activeLineId: s.activeLineId,
+      doc: s.doc, activeLineId: s.activeLineId, documentSession: s._documentSession,
       addLine: s.addLine, insertLinesAfter: s.insertLinesAfter, updateLine: s.updateLine, deleteLine: s.deleteLine,
       duplicateLine: s.duplicateLine, mergeLineUp: s.mergeLineUp, splitLine: s.splitLine, moveLine: s.moveLine, scaleTimestamps: s.scaleTimestamps,
       deleteLines: s.deleteLines, shiftLines: s.shiftLines, clearTimestamps: s.clearTimestamps,
@@ -80,7 +80,18 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   const [pendingUnit, setPendingUnit] = useState<SyncUnit | null>(null);
   // 드래그 재정렬 상태
   const [dragIdx, setDragIdx] = useState<number | null>(null);
-  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [dropGap, setDropGap] = useState<number | null>(null);
+  const dragSource = useRef<{ id: string; session: number; order: string } | null>(null);
+  const lineOrder = JSON.stringify(lines.map((line) => line.id));
+  const cancelReorder = useCallback(() => {
+    dragSource.current = null;
+    setDragIdx(null); setDropGap(null);
+  }, []);
+  useEffect(() => { cancelReorder(); }, [documentSession, lineOrder, cancelReorder]);
+  const insertionGap = (element: HTMLElement, index: number, y: number) => {
+    const rect = element.getBoundingClientRect();
+    return index + (y >= rect.top + rect.height / 2 ? 1 : 0);
+  };
 
   const charMode = syncMode === "char";
 
@@ -544,16 +555,26 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
               key={line.id}
               ref={setRowRef(line.id)}
               onClick={(e) => handleRowClick(e, line.id, idx)}
-              onDragOver={(e) => { if (dragIdx !== null) { e.preventDefault(); if (dragOverIdx !== idx) setDragOverIdx(idx); } }}
+              onDragOver={(e) => {
+                if (!dragSource.current) return;
+                e.preventDefault();
+                setDropGap(insertionGap(e.currentTarget, idx, e.clientY));
+              }}
               onDrop={(e) => {
                 e.preventDefault();
-                if (dragIdx !== null && dragIdx !== idx) moveLine(dragIdx, idx);
-                setDragIdx(null); setDragOverIdx(null);
+                const source = dragSource.current;
+                const current = useLrcStore.getState();
+                if (source && source.session === current._documentSession &&
+                    source.order === JSON.stringify(current.doc.lines.map((item) => item.id))) {
+                  const from = current.doc.lines.findIndex((item) => item.id === source.id);
+                  const gap = insertionGap(e.currentTarget, idx, e.clientY);
+                  const to = gap > from ? gap - 1 : gap;
+                  if (from >= 0 && from !== to) moveLine(from, to);
+                }
+                cancelReorder();
               }}
-              className={`group/row flex items-center gap-2 rounded-lg px-2 py-1 transition-colors cursor-pointer ${
-                dragIdx !== null && dragOverIdx === idx && dragIdx !== idx
-                  ? "outline outline-1 outline-indigo-400 bg-indigo-900/10"
-                  : selectedIds.has(line.id)
+              className={`group/row relative flex items-center gap-2 rounded-lg px-2 py-1 transition-colors cursor-pointer ${
+                selectedIds.has(line.id)
                   ? "bg-sky-900/30 ring-1 ring-sky-600/60"
                   : isCurrentMatch
                   ? "bg-amber-900/30 ring-1 ring-amber-500"
@@ -564,10 +585,18 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                   : "hover:bg-zinc-800"
               } ${dragIdx === idx ? "opacity-40" : ""}`}
             >
+              {dragIdx !== null && (dropGap === idx || (idx === lines.length - 1 && dropGap === lines.length)) && (
+                <div aria-hidden="true" className={`absolute left-0 right-0 h-0.5 bg-indigo-400 pointer-events-none ${dropGap === idx ? "-top-1" : "-bottom-1"}`} />
+              )}
               <span
                 draggable
-                onDragStart={(e) => { e.stopPropagation(); setDragIdx(idx); }}
-                onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
+                onDragStart={(e) => {
+                  e.stopPropagation();
+                  dragSource.current = { id: line.id, session: documentSession, order: lineOrder };
+                  if (e.dataTransfer) { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", line.id); }
+                  setDragIdx(idx);
+                }}
+                onDragEnd={cancelReorder}
                 onClick={(e) => e.stopPropagation()}
                 title={t.reorderLine}
                 className="shrink-0 cursor-grab active:cursor-grabbing text-zinc-600 hover:text-zinc-300 opacity-0 group-hover/row:opacity-100 transition-opacity"

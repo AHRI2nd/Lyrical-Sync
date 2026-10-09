@@ -5,6 +5,7 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import { tokenizeText, isStampable, formatTimestamp, clampToNeighbors } from "../../utils/lrcParser";
 import { anyModalOpen } from "../../utils/modalGuard";
 import { isInteractiveKeyTarget, keyLabel, matchAction, normalizeKeybindings } from "../../utils/keybindings";
+import { usePointerScrub } from "../../hooks/usePointerScrub";
 import { audioControls } from "../../utils/audioControls";
 import type { LrcLine, LrcSyllable } from "../../types/lrc";
 
@@ -34,6 +35,8 @@ function lineSyncState(line: LrcLine): LineState {
 }
 
 export function CharSyncView() {
+  const audioSelection = useLrcStore((s) => s._audioSelection);
+  const documentSession = useLrcStore((s) => s._documentSession);
   const doc = useLrcStore((s) => s.doc);
   const activeLineId = useLrcStore((s) => s.activeLineId);
   const setActiveLineId = useLrcStore((s) => s.setActiveLineId);
@@ -92,6 +95,11 @@ export function CharSyncView() {
     viewStart = Math.max(winStart, Math.min(center - vw / 2, winEnd - vw));
     viewEnd = viewStart + vw;
   }
+  const laneScrub = usePointerScrub({
+    contextKey: JSON.stringify([documentSession, audioSelection, audioPath, activeLineId, zoom, winStart, winEnd, duration]),
+    start: viewStart, end: viewEnd, onCommit: controls.seekTo, enabled: !!audioPath && duration > 0,
+  });
+  if (laneScrub.range) { viewStart = laneScrub.range.start; viewEnd = laneScrub.range.end; }
   const pct = (time: number) =>
     `${Math.max(0, Math.min(1, (time - viewStart) / (viewEnd - viewStart))) * 100}%`;
 
@@ -102,7 +110,15 @@ export function CharSyncView() {
     const i0 = Math.max(0, Math.floor((viewStart / duration) * peaks.length));
     const i1 = Math.min(peaks.length, Math.ceil((viewEnd / duration) * peaks.length));
     if (i1 <= i0) return null;
-    return peaks.slice(i0, i1).map((v) => Math.min(1, Math.abs(v)));
+    const visible = peaks.slice(i0, i1).map((v) => Math.min(1, Math.abs(v)));
+    if (visible.length <= 600) return visible;
+    return Array.from({ length: 600 }, (_, bin) => {
+      const start = Math.floor(bin * visible.length / 600);
+      const end = Math.floor((bin + 1) * visible.length / 600);
+      let peak = 0;
+      for (let i = start; i < end; i++) peak = Math.max(peak, visible[i]);
+      return peak;
+    });
   }, [peaks, duration, viewStart, viewEnd]);
 
   // 재생 위치에서 지금 불리는 글자(편집 커서와 별개). 창 밖이면 -1.
@@ -330,35 +346,6 @@ export function CharSyncView() {
     window.addEventListener("mouseup", up);
   };
 
-  // 레인 = 탐색(내비게이션) 전용. 누르거나 끌어서 재생 위치 이동(글자 시각엔 영향 없음).
-  const beginLaneDrag = (e: React.MouseEvent) => {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    const seekAt = (clientX: number) => {
-      const el = laneRef.current;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      const ratio = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
-      controls.seekTo(viewStart + ratio * (viewEnd - viewStart));
-    };
-    let raf: number | null = null;
-    seekAt(e.clientX);
-    const move = (ev: MouseEvent) => {
-      if (raf) cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => seekAt(ev.clientX));
-    };
-    const cleanup = () => {
-      window.removeEventListener("mousemove", move);
-      window.removeEventListener("mouseup", up);
-      if (raf) cancelAnimationFrame(raf);
-      dragCleanupRef.current = null;
-    };
-    const up = () => cleanup();
-    dragCleanupRef.current = cleanup;
-    window.addEventListener("mousemove", move);
-    window.addEventListener("mouseup", up);
-  };
-
   const replayLine = () => {
     controls.seekTo(winStart);
     if (!isPlaying) controls.togglePlay();
@@ -539,7 +526,8 @@ export function CharSyncView() {
       {/* 스크럽 레인 */}
       <div
         ref={laneRef}
-        onMouseDown={beginLaneDrag}
+        onPointerDown={laneScrub.begin}
+        style={{ touchAction: "none" }}
         className="relative h-10 rounded-lg bg-zinc-950/60 border border-zinc-800 overflow-hidden cursor-pointer mb-1"
       >
         <LaneWaveform bars={waveBars} />
@@ -553,7 +541,7 @@ export function CharSyncView() {
           ) : null
         )}
         <div
-          style={{ left: pct(currentTime) }}
+          style={{ left: pct(laneScrub.preview ?? currentTime) }}
           className="absolute top-0 bottom-0 w-0.5 bg-amber-400 pointer-events-none"
         />
         <span className="absolute left-1.5 bottom-0.5 text-[10px] text-zinc-600 font-mono pointer-events-none">

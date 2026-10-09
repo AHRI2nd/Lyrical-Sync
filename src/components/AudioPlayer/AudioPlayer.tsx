@@ -433,6 +433,7 @@ export function AudioPlayer() {
         <SeekBar
           position={currentTime}
           duration={duration}
+          seekContextKey={JSON.stringify([audioSelection, audioPath])}
           onSeek={audioControls.seekTo}
           accentClass="bg-indigo-500"
         />
