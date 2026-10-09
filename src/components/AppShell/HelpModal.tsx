@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "../../stores/useToastStore";
 import { useI18nStore } from "../../stores/useI18nStore";
@@ -7,6 +7,8 @@ import { normalizeKeybindings, keyLabel } from "../../utils/keybindings";
 
 export function HelpModal({ onClose }: { onClose: () => void }) {
   const { t, lang } = useI18nStore();
+  const [notices, setNotices] = useState<string | null>(null);
+  const [loadingNotices, setLoadingNotices] = useState(false);
   const kb = normalizeKeybindings(useSettingsStore((s) => s.keybindings));
 
   const shortcutGroups = [
@@ -57,11 +59,11 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") { if (notices !== null) setNotices(null); else onClose(); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
+  }, [onClose, notices]);
 
   return (
     <div
@@ -101,6 +103,19 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
                 </div>
               </div>
             ))}
+            <section aria-label={t.thirdPartyNotices}>
+              <button type="button" data-testid="third-party-notices" disabled={loadingNotices}
+                className="text-sm text-sky-400 underline disabled:opacity-50"
+                onClick={async () => {
+                  setLoadingNotices(true);
+                  try { setNotices(await invoke<string>("read_third_party_notices")); }
+                  catch { toast.error(t.thirdPartyNoticesError); }
+                  finally { setLoadingNotices(false); }
+                }}>{t.thirdPartyNotices}</button>
+              {notices !== null && <textarea readOnly aria-label={t.thirdPartyNotices}
+                data-testid="third-party-notices-text" value={notices}
+                className="mt-3 w-full h-72 bg-zinc-950 text-zinc-200 text-xs p-3 rounded" />}
+            </section>
             <p className="text-xs text-zinc-500 pt-1">{t.shortcutNote}</p>
             <section aria-label={t.privacyTitle} className="border-t border-zinc-700 pt-4">
               <h3 className="text-xs font-semibold text-zinc-400 mb-2">{t.privacyTitle}</h3>

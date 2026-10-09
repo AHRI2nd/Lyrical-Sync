@@ -14,6 +14,7 @@ if [[ "$(uname -s)" != "Darwin" ]]; then echo "Run this script on macOS" >&2; ex
 TARGET="${APPSTORE_TARGET:-aarch64-apple-darwin}"
 case "$TARGET" in aarch64-apple-darwin|x86_64-apple-darwin|universal-apple-darwin) ;; *) echo "Unsupported Mac target: $TARGET" >&2; exit 1 ;; esac
 for tool in node npm cargo rustup python3 plutil codesign security productbuild pkgutil; do command -v "$tool" >/dev/null; done
+node scripts/check-notices.mjs
 VERSION=$(node -p "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json','utf8')).version")
 BUNDLE_ID=$(node -p "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json','utf8')).identifier")
 python3 - "$VERSION" <<'PY'
@@ -52,6 +53,7 @@ fi
 CARGO_PROFILE_RELEASE_BUILD_OVERRIDE_STRIP=none npm run tauri -- build --config src-tauri/tauri.appstore.conf.json --bundles app --target "$TARGET" --no-sign -- --locked
 [[ -f "$APP_PATH/Contents/Resources/PrivacyInfo.xcprivacy" ]] || { echo "Privacy manifest missing from final app" >&2; exit 1; }
 plutil -lint "$APP_PATH/Contents/Resources/PrivacyInfo.xcprivacy"
+cmp src-tauri/ThirdPartyNotices.txt "$APP_PATH/Contents/Resources/ThirdPartyNotices.txt"
 python3 - "$APP_PATH" "$BUNDLE_ID" "$VERSION" <<'PY'
 import plistlib,sys
 p=plistlib.load(open(sys.argv[1]+'/Contents/Info.plist','rb'))

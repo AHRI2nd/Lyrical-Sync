@@ -11,7 +11,9 @@
     "tauri": "tauri",
     "build:appstore": "bash scripts/appstore-build.sh",
     "build:msstore": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/msstore-build.ps1",
-    "test:packaging": "node --test scripts/msix-stage.node-test.mjs scripts/appstore-preflight.node-test.mjs scripts/store-offline.node-test.mjs"
+    "test:packaging": "node --test scripts/msix-stage.node-test.mjs scripts/appstore-preflight.node-test.mjs scripts/store-offline.node-test.mjs scripts/notices.node-test.mjs",
+    "licenses:generate": "python3 scripts/generate-notices.py",
+    "licenses:check": "node scripts/check-notices.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

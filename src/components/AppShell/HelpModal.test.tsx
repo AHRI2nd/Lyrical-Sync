@@ -23,3 +23,22 @@ it("reports a browser launch failure without closing Help", async () => {
   await waitFor(() => expect(useToastStore.getState().toasts.slice(-1)[0]?.type).toBe("error"));
   expect(close).not.toHaveBeenCalled();
 });
+
+it("shows bundled third-party notices as plain text inside Help", async () => {
+  vi.mocked(invoke).mockResolvedValue("WaveSurfer 7.12.6\nBSD 3-Clause License\n<script>untrusted()</script>");
+  const close = vi.fn();
+  render(<HelpModal onClose={close} />);
+  fireEvent.click(screen.getByTestId("third-party-notices"));
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith("read_third_party_notices"));
+  expect((screen.getByTestId("third-party-notices-text") as HTMLTextAreaElement).value).toContain("BSD 3-Clause");
+  expect(document.querySelector("script")).toBeNull();
+  expect(close).not.toHaveBeenCalled();
+});
+it("reports a notice read failure and preserves Help", async () => {
+  vi.mocked(invoke).mockRejectedValue(new Error("Missing notices"));
+  const close = vi.fn();
+  render(<HelpModal onClose={close} />);
+  fireEvent.click(screen.getByTestId("third-party-notices"));
+  await waitFor(() => expect(useToastStore.getState().toasts.slice(-1)[0]?.type).toBe("error"));
+  expect(close).not.toHaveBeenCalled();
+});

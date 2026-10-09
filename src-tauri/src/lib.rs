@@ -1,6 +1,7 @@
 mod audio_decode;
 mod file_access;
 mod privacy_policy;
+mod third_party_notices;
 #[cfg(target_os = "macos")]
 mod bookmark;
 #[cfg(not(target_os = "macos"))]
@@ -94,6 +95,7 @@ pub fn run() {
             create_security_bookmark,
             resolve_security_bookmark,
             privacy_policy::open_privacy_policy,
+            third_party_notices::read_third_party_notices,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

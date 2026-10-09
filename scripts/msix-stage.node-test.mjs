@@ -31,8 +31,9 @@ test('stages an x64 package with exact Store identity and complete runtime, excl
   assert.match(xml, /EntryPoint="Windows.fullTrustApplication"/);
   assert.match(xml, /Name="runFullTrust"/);
   assert.equal(readFileSync(join(f.stage, 'WebView2', 'Locales', 'ko.pak'), 'utf8'), 'complete runtime data');
-  assert.deepEqual(readdirSync(f.stage).sort(), ['AppLicense.txt', 'AppxManifest.xml', 'Assets', 'WebView2', 'lyrical-sync.exe']);
+  assert.deepEqual(readdirSync(f.stage).sort(), ['AppLicense.txt', 'AppxManifest.xml', 'Assets', 'ThirdPartyNotices.txt', 'WebView2', 'lyrical-sync.exe']);
   assert.match(readFileSync(join(f.stage, 'AppLicense.txt'), 'utf8'), /MIT License/);
+  assert.match(readFileSync(join(f.stage, 'ThirdPartyNotices.txt'), 'utf8'), /WaveSurfer|wavesurfer/);
   assert.equal(existsSync(join(f.stage, 'secret.pfx')), false);
 });
 for (const version of ['0.6.101-beta', '65535.0.0', '0.65536.0', '0.1.65536', '0.01.1']) {

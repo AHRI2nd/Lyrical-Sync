@@ -43,6 +43,7 @@ function Find-Dumpbin {
 Push-Location $repo
 $oldFlags = [Environment]::GetEnvironmentVariable('CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS', 'Process')
 try {
+    Invoke-Checked 'node' @('scripts/check-notices.mjs')
     foreach ($tool in @('node', 'npm.cmd', 'cargo', 'rustup')) { Get-Command $tool -ErrorAction Stop | Out-Null }
     $app = Get-Content -LiteralPath 'package.json' -Raw | ConvertFrom-Json
     $tauri = Get-Content -LiteralPath 'src-tauri\tauri.conf.json' -Raw | ConvertFrom-Json
