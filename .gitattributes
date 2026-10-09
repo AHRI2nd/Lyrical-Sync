@@ -1,1 +1,8 @@
 src-tauri/Cargo.toml text eol=lf
+# Preserve byte hashes used by the Store license notice verifier.
+src-tauri/Cargo.lock text eol=lf
+package.json text eol=lf
+package-lock.json text eol=lf
+scripts/generate-notices.py text eol=lf
+packaging/licenses/** text eol=lf
+src-tauri/ThirdPartyNotices.txt text eol=lf

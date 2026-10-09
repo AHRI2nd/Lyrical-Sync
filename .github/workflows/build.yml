@@ -33,6 +33,8 @@ jobs:
         run: npm ci
       - name: Test frontend
         run: npm test
+      - name: Test license notice integrity
+        run: node --test scripts/notices.node-test.mjs
       - name: Test MSIX staging
         run: node --test scripts/msix-stage.node-test.mjs
       - name: Test App Store profile validation

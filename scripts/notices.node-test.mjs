@@ -6,6 +6,18 @@ import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const script = resolve('scripts/check-notices.mjs');
+test('pins hashed notice inputs and payload to LF on Windows checkouts', () => {
+  const manifest = JSON.parse(readFileSync('packaging/licenses/inventory.json', 'utf8'));
+  const files = [...Object.keys(manifest.inputs), 'src-tauri/ThirdPartyNotices.txt'];
+  const result = spawnSync('git', ['check-attr', '--stdin', 'text', 'eol'], {
+    input: files.join('\n') + '\n', encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  for (const file of files) {
+    assert.ok(result.stdout.includes(`${file}: text: set\n`), `${file} must be text`);
+    assert.ok(result.stdout.includes(`${file}: eol: lf\n`), `${file} must retain LF`);
+  }
+});
 test('validates the checked-in notices for both Store targets and production frontend', () => {
   const result = spawnSync(process.execPath, [script], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
