@@ -12,7 +12,7 @@ export function clearLocalData(): boolean {
   if (!configureRecovery(false)) return false;
   useSettingsStore.getState().resetLocalPreferences();
   try {
-    localStorage.removeItem("lyrical-sync-settings");
+    // Atomically replace the value; failed writes must preserve durable opt-outs.
     // Retain only the opt-outs, so neither recovery nor autosave restarts after clearing.
     localStorage.setItem("lyrical-sync-settings", JSON.stringify({ state: { recoveryEnabled: false, autoSave: false }, version: 0 }));
     const stored = JSON.parse(localStorage.getItem("lyrical-sync-settings")!);
