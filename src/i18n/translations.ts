@@ -184,6 +184,11 @@ export interface Translations {
   settingsRecoveryOffConfirm: string;
   settingsRecoveryOff: string;
   settingsPrivacyFailure: string;
+  settingsClearLocal: string;
+  settingsClearLocalDesc: string;
+  settingsClearLocalConfirm: string;
+  settingsClearLocalAction: string;
+  settingsClearLocalDone: string;
   settingsTabGeneral: string;
   settingsTabShortcuts: string;
   settingsAutoSave: string;
@@ -254,7 +259,7 @@ const ko: Translations = {
   privacyOpenError: "개인정보처리방침을 열 수 없습니다. 기본 브라우저 설정을 확인하세요.",
   thirdPartyNotices: "타사 라이선스 고지",
   thirdPartyNoticesError: "라이선스 고지를 불러올 수 없습니다.",
-  privacySummary: "가사와 오디오는 기기에서 처리하며 앱에서 외부 서버로 업로드하지 않습니다. 설정·최근 파일 경로·복구용 가사는 기기에 보관됩니다. 최근 목록은 최근 파일 메뉴에서 지울 수 있습니다. 복구 내용은 최신 변경사항이 저장되어 미저장 상태가 해소되거나 시작 시 복구 알림에서 버리기를 선택하면 제거됩니다. 저장소 오류가 있으면 삭제에 실패할 수 있으므로 알림을 확인하세요. 개인정보 문의: tsukimori@ahri2nd.xyz",
+  privacySummary: "가사와 오디오는 기기에서 처리하며 앱에서 외부 서버로 업로드하지 않습니다. 설정·최근 파일 경로·복구용 가사는 기기에 보관됩니다. 최근 목록은 최근 파일 메뉴에서 지울 수 있습니다. 설정에서 복구 사본 저장을 끄거나 로컬 작업 데이터와 설정을 지울 수 있으며, 원본 파일과 현재 편집은 유지됩니다. 복구 내용은 최신 변경사항이 저장되어 미저장 상태가 해소되거나 시작 시 복구 알림에서 버리기를 선택하면 제거됩니다. 저장소 오류가 있으면 삭제에 실패할 수 있으므로 알림을 확인하세요. 개인정보 문의: tsukimori@ahri2nd.xyz",
   shortcutsTitle: "단축키 안내",
   shortcutNote: "* 입력란·버튼·슬라이더 등 조작 요소에 포커스가 있으면 재생·스탬프·실행 취소/다시 실행 단축키가 동작하지 않습니다.",
   helpGroupPlayback: "재생 · 탐색",
@@ -433,6 +438,11 @@ const ko: Translations = {
   settingsRecoveryOffConfirm: "복구용 사본을 삭제하고 앞으로 저장하지 않습니다. 원본 가사·오디오와 현재 편집 내용은 유지됩니다. 앱이 종료되면 저장하지 않은 내용을 복구할 수 없습니다.",
   settingsRecoveryOff: "끄고 사본 삭제",
   settingsPrivacyFailure: "일부 로컬 설정 저장 또는 사본 삭제에 실패했습니다. 다시 시도하세요.",
+  settingsClearLocal: "로컬 데이터 지우기",
+  settingsClearLocalDesc: "최근 파일·접근 북마크·복구 사본을 지우고 설정을 초기화합니다. 원본 파일과 현재 편집은 유지됩니다.",
+  settingsClearLocalConfirm: "최근 파일·접근 북마크·복구 사본을 삭제하고 설정을 초기화합니다. 복구 사본과 원본 자동 저장은 꺼진 상태로 유지합니다. 원본 가사·오디오와 현재 편집 내용은 유지됩니다. 현재 문서에서 열어 둔 파일 접근은 닫을 때까지 유지됩니다.",
+  settingsClearLocalAction: "지우고 초기화",
+  settingsClearLocalDone: "로컬 작업 데이터가 지워졌습니다. 복구 사본과 원본 자동 저장이 꺼졌습니다.",
   settingsTabGeneral: "일반",
   settingsTabShortcuts: "단축키",
   settingsAutoSave: "자동 저장",
@@ -503,7 +513,7 @@ const en: Translations = {
   privacyOpenError: "Could not open the privacy policy. Check your default browser settings.",
   thirdPartyNotices: "Third-party license notices",
   thirdPartyNoticesError: "Could not load license notices.",
-  privacySummary: "Lyrics and audio are processed on your device and are not uploaded by the app. Settings, recent file paths and recovery lyrics are stored locally. Clear recent entries in the recent files menu. Recovery content is removed when the latest changes are saved and no unsaved changes remain, or when discarded at the startup recovery prompt. Storage errors can prevent deletion; check the app's notices. Privacy inquiries: tsukimori@ahri2nd.xyz",
+  privacySummary: "Lyrics and audio are processed on your device and are not uploaded by the app. Settings, recent file paths and recovery lyrics are stored locally. Clear recent entries in the recent files menu. Settings lets you disable recovery copies or clear local working data and reset preferences while retaining original files and current edits. Recovery content is removed when the latest changes are saved and no unsaved changes remain, or when discarded at the startup recovery prompt. Storage errors can prevent deletion; check the app's notices. Privacy inquiries: tsukimori@ahri2nd.xyz",
   shortcutsTitle: "Keyboard Shortcuts",
   shortcutNote: "* Playback, stamping and undo/redo shortcuts are disabled while inputs, buttons or other controls are focused.",
   helpGroupPlayback: "Playback",
@@ -683,6 +693,11 @@ const en: Translations = {
   settingsRecoveryOffConfirm: "Delete recovery copies and stop creating them. Original lyrics, audio and current edits stay intact. Unsaved edits cannot be recovered after the app closes.",
   settingsRecoveryOff: "Turn off and delete copies",
   settingsPrivacyFailure: "Some local preferences or copies could not be saved or deleted. Please retry.",
+  settingsClearLocal: "Clear local data",
+  settingsClearLocalDesc: "Clear recent files, access bookmarks and recovery copies, and reset settings. Original files and current edits stay intact.",
+  settingsClearLocalConfirm: "Delete recent files, access bookmarks and recovery copies, and reset settings. Recovery and original-file autosave remain off. Original lyrics, audio and current edits stay intact. Access to files in the current document remains until it is closed.",
+  settingsClearLocalAction: "Clear and reset",
+  settingsClearLocalDone: "Local working data cleared. Recovery copies and original-file autosave are off.",
   settingsTabGeneral: "General",
   settingsTabShortcuts: "Shortcuts",
   settingsAutoSave: "Auto-save",
@@ -753,7 +768,7 @@ const ja: Translations = {
   privacyOpenError: "プライバシーポリシーを開けません。既定のブラウザー設定を確認してください。",
   thirdPartyNotices: "サードパーティーのライセンス",
   thirdPartyNoticesError: "ライセンス情報を読み込めません。",
-  privacySummary: "歌詞と音声は端末上で処理され、アプリから外部サーバーへアップロードされません。設定・最近使ったファイルのパス・復元用の歌詞は端末に保存されます。最近のファイルの一覧はメニューから削除できます。復元用の内容は、最新の変更が保存され未保存の変更がなくなった場合、または起動時の復元通知で破棄した場合に削除されます。ストレージのエラーで削除に失敗する場合があるため、アプリの通知を確認してください。個人情報に関するお問い合わせ：tsukimori@ahri2nd.xyz",
+  privacySummary: "歌詞と音声は端末上で処理され、アプリから外部サーバーへアップロードされません。設定・最近使ったファイルのパス・復元用の歌詞は端末に保存されます。最近のファイルの一覧はメニューから削除できます。設定で復元用コピーを無効にしたり、ローカル作業データと設定を削除したりできます。元ファイルと現在の編集は保持されます。復元用の内容は、最新の変更が保存され未保存の変更がなくなった場合、または起動時の復元通知で破棄した場合に削除されます。ストレージのエラーで削除に失敗する場合があるため、アプリの通知を確認してください。個人情報に関するお問い合わせ：tsukimori@ahri2nd.xyz",
   shortcutsTitle: "キーボードショートカット",
   shortcutNote: "* 入力欄・ボタン・スライダーなどにフォーカス中は、再生・打刻・元に戻す/やり直しのショートカットが無効になります。",
   helpGroupPlayback: "再生・移動",
@@ -932,6 +947,11 @@ const ja: Translations = {
   settingsRecoveryOffConfirm: "復元用コピーを削除し、今後の保存を停止します。元の歌詞・音声と現在の編集は保持されます。アプリ終了後は未保存の編集を復元できません。",
   settingsRecoveryOff: "無効にしてコピーを削除",
   settingsPrivacyFailure: "一部の設定の保存またはコピーの削除に失敗しました。再試行してください。",
+  settingsClearLocal: "ローカルデータを削除",
+  settingsClearLocalDesc: "最近のファイル・アクセス用ブックマーク・復元用コピーを削除し、設定を初期化します。元ファイルと現在の編集は保持されます。",
+  settingsClearLocalConfirm: "最近のファイル・アクセス用ブックマーク・復元用コピーを削除し、設定を初期化します。復元用コピーと元ファイルの自動保存は無効のままです。元の歌詞・音声と現在の編集は保持されます。現在の文書のファイルアクセスは閉じるまで保持されます。",
+  settingsClearLocalAction: "削除して初期化",
+  settingsClearLocalDone: "ローカル作業データを削除しました。復元用コピーと自動保存は無効です。",
   settingsTabGeneral: "一般",
   settingsTabShortcuts: "ショートカット",
   settingsAutoSave: "自動保存",

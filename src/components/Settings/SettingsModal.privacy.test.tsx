@@ -31,3 +31,14 @@ it("Escape dismisses only the privacy confirmation", () => {
   expect(close).not.toHaveBeenCalled();
   expect(screen.queryByRole("button", { name: "Turn off and delete copies" })).toBeNull();
 });
+
+it("clears local history only after confirmation and leaves recovery disabled", () => {
+  useSettingsStore.getState().addRecentFile({ lrcPath: "/original.lrc", audioPath: null, lrcBookmark: "grant", audioBookmark: null });
+  const close = vi.fn(); render(<SettingsModal onClose={close} />);
+  fireEvent.click(screen.getByRole("button", { name: "Clear local data" }));
+  expect(useSettingsStore.getState().recentFiles).toHaveLength(1);
+  fireEvent.click(screen.getByRole("button", { name: "Clear and reset" }));
+  expect(useSettingsStore.getState().recentFiles).toEqual([]);
+  expect(useSettingsStore.getState().recoveryEnabled).toBe(false);
+  expect(close).not.toHaveBeenCalled();
+});
