@@ -8,27 +8,15 @@
 	<key>NSPrivacyTrackingDomains</key>
 	<array/>
 
-	<!-- LRCLIB(lrclib.net) 가사 검색 시 사용자가 입력한 곡 제목/아티스트/앨범 검색어가
-	     제3자 서버로 전송됨. 계정·기기 식별자와 연결되지 않고 앱 기능(가사 검색) 용도로만 사용. -->
+	<!-- No app-initiated off-device collection: local editing and playback only. -->
 	<key>NSPrivacyCollectedDataTypes</key>
-	<array>
-		<dict>
-			<key>NSPrivacyCollectedDataType</key>
-			<string>NSPrivacyCollectedDataTypeSearchHistory</string>
-			<key>NSPrivacyCollectedDataTypeLinked</key>
-			<false/>
-			<key>NSPrivacyCollectedDataTypeTracking</key>
-			<false/>
-			<key>NSPrivacyCollectedDataTypePurposes</key>
-			<array>
-				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
-			</array>
-		</dict>
-	</array>
+	<array/>
 
-	<!-- Required Reason API 사용 내역:
-	     - File timestamp APIs: 오디오/LRC 파일의 수정 시각 비교(자동 저장·복구 스냅샷 판단)에 사용.
-	       사유 코드 C617.1(사용자가 앱에서 명시적으로 요청한 파일에 한해 타임스탬프 확인). -->
+	<!-- Symphonia's File media source queries file size/type through metadata()
+	     while decoding audio explicitly selected or granted by the user.
+	     3B52.1 covers user-granted files; recovery uses a local savedAt value,
+	     not file modification timestamps. No container metadata use was found
+	     in the reviewed application flow to justify C617.1. -->
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>
 		<dict>
@@ -36,7 +24,7 @@
 			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
 			<key>NSPrivacyAccessedAPITypeReasons</key>
 			<array>
-				<string>C617.1</string>
+				<string>3B52.1</string>
 			</array>
 		</dict>
 	</array>

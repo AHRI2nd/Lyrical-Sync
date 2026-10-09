@@ -6,7 +6,6 @@ export type DocumentIntent =
   | { kind: "new" }
   | { kind: "file"; file: FileRef; audio?: FileRef | null }
   | { kind: "recent"; entry: RecentFileEntry }
-  | { kind: "fetched"; text: string; meta?: { title: string; artist: string; album: string } }
   | { kind: "raw"; text: string }
   | { kind: "recovery"; doc: LrcDocument; lyrics: FileRef | null; audio: FileRef | null };
 export type TransitionChoice = "save" | "discard" | "cancel";

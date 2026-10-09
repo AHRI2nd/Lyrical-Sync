@@ -45,7 +45,6 @@ A desktop app for creating, syncing, and editing `.lrc` (LRC) lyric files
 ### Import / export
 - **Open** — LRC and SRT files (drag-and-drop supported).
 - **Export** — LRC (plain or Enhanced LRC), SRT, **WebVTT**, and **ASS** (karaoke).
-- **LRCLIB** — fetch lyrics from, and contribute synced lyrics to, the public [LRCLIB](https://lrclib.net/) database.
 
 ### General
 - **Multi-language UI** — Korean, English, Japanese.
