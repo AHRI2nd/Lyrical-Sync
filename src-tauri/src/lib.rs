@@ -95,6 +95,7 @@ pub fn run() {
             create_security_bookmark,
             resolve_security_bookmark,
             privacy_policy::open_privacy_policy,
+            privacy_policy::open_microsoft_privacy_policy,
             third_party_notices::read_third_party_notices,
         ])
         .run(tauri::generate_context!())

@@ -21,6 +21,7 @@ export interface Translations {
   privacyTitle: string;
   privacySummary: string;
   privacyWindowsRuntime: string;
+  privacyMicrosoftLink: string;
   privacyPolicyLink: string;
   privacyOpenError: string;
   thirdPartyNotices: string;
@@ -261,7 +262,8 @@ const ko: Translations = {
   thirdPartyNotices: "타사 라이선스 고지",
   thirdPartyNoticesError: "라이선스 고지를 불러올 수 없습니다.",
   privacySummary: "가사와 오디오는 기기에서 처리하며 개발자 서버로 업로드하지 않습니다. 설정·최근 파일 경로·복구용 가사는 기기에 보관됩니다. 최근 목록은 최근 파일 메뉴에서 지울 수 있습니다. 설정에서 복구 사본 저장을 끄거나 로컬 작업 데이터와 설정을 지울 수 있으며, 원본 파일과 현재 편집은 유지됩니다. 복구 내용은 최신 변경사항이 저장되어 미저장 상태가 해소되거나 시작 시 복구 알림에서 버리기를 선택하면 제거됩니다. 저장소 오류가 있으면 삭제에 실패할 수 있으므로 알림을 확인하세요. 개인정보 문의: tsukimori@ahri2nd.xyz",
-  privacyWindowsRuntime: "Windows 화면을 표시하는 Microsoft WebView2는 필수 진단 데이터를 수집하고, Windows의 진단 데이터 설정에 따라 선택 진단도 수집합니다. 기본 Microsoft Defender SmartScreen과 런타임 오류 보고는 Microsoft로 정보를 전송할 수 있습니다. Microsoft 개인정보처리방침과 앱 개인정보처리방침에서 자세한 내용을 확인하세요. 로컬 데이터 지우기는 런타임 진단 파일이나 운영체제 캐시까지 삭제하지 않습니다.",
+  privacyWindowsRuntime: "Windows 화면을 표시하는 Microsoft WebView2는 필수 진단 데이터를 수집하며, Windows 진단 설정에 따라 선택 진단도 수집합니다. 이 앱은 Microsoft Defender SmartScreen을 활성화하며, SmartScreen은 보안 검사를 위해 사용자 정보를 Microsoft로 수집·전송합니다. 런타임 오류 보고도 Microsoft로 전송될 수 있습니다. 앱 게시자는 이러한 Microsoft 보고를 수신하지 않습니다. 자세한 내용은 Microsoft 개인정보처리방침과 앱 개인정보처리방침에서 확인하세요. 로컬 데이터 지우기는 런타임 진단 파일이나 운영체제 캐시까지 삭제하지 않습니다.",
+  privacyMicrosoftLink: "Microsoft 개인정보처리방침",
   shortcutsTitle: "단축키 안내",
   shortcutNote: "* 입력란·버튼·슬라이더 등 조작 요소에 포커스가 있으면 재생·스탬프·실행 취소/다시 실행 단축키가 동작하지 않습니다.",
   helpGroupPlayback: "재생 · 탐색",
@@ -516,7 +518,8 @@ const en: Translations = {
   thirdPartyNotices: "Third-party license notices",
   thirdPartyNoticesError: "Could not load license notices.",
   privacySummary: "Lyrics and audio are processed on your device and are not uploaded to the publisher’s server. Settings, recent file paths and recovery lyrics are stored locally. Clear recent entries in the recent files menu. Settings lets you disable recovery copies or clear local working data and reset preferences while retaining original files and current edits. Recovery content is removed when the latest changes are saved and no unsaved changes remain, or when discarded at the startup recovery prompt. Storage errors can prevent deletion; check the app's notices. Privacy inquiries: tsukimori@ahri2nd.xyz",
-  privacyWindowsRuntime: "Microsoft WebView2, which displays the Windows app, collects required diagnostic data and optional diagnostics according to Windows diagnostic settings. Its default Microsoft Defender SmartScreen and runtime crash reporting may send information to Microsoft. See the Microsoft Privacy Statement and the app privacy policy for details. Clear local data does not delete runtime diagnostic files or OS caches.",
+  privacyWindowsRuntime: "Microsoft WebView2, which displays the Windows app, collects required diagnostic data and optional diagnostics according to Windows diagnostic settings. This app enables Microsoft Defender SmartScreen, which collects and sends user information to Microsoft for security checks. Runtime crash reports may also be sent to Microsoft. The app publisher does not receive these Microsoft reports. See the Microsoft Privacy Statement and the app privacy policy for details. Clear local data does not delete runtime diagnostic files or OS caches.",
+  privacyMicrosoftLink: "Microsoft Privacy Statement",
   shortcutsTitle: "Keyboard Shortcuts",
   shortcutNote: "* Playback, stamping and undo/redo shortcuts are disabled while inputs, buttons or other controls are focused.",
   helpGroupPlayback: "Playback",
@@ -772,7 +775,8 @@ const ja: Translations = {
   thirdPartyNotices: "サードパーティーのライセンス",
   thirdPartyNoticesError: "ライセンス情報を読み込めません。",
   privacySummary: "歌詞と音声は端末上で処理され、開発者のサーバーへアップロードされません。設定・最近使ったファイルのパス・復元用の歌詞は端末に保存されます。最近のファイルの一覧はメニューから削除できます。設定で復元用コピーを無効にしたり、ローカル作業データと設定を削除したりできます。元ファイルと現在の編集は保持されます。復元用の内容は、最新の変更が保存され未保存の変更がなくなった場合、または起動時の復元通知で破棄した場合に削除されます。ストレージのエラーで削除に失敗する場合があるため、アプリの通知を確認してください。個人情報に関するお問い合わせ：tsukimori@ahri2nd.xyz",
-  privacyWindowsRuntime: "Windows版の画面表示に使用するMicrosoft WebView2は必須診断データを収集し、Windowsの診断設定に応じて任意の診断データも収集します。既定のMicrosoft Defender SmartScreenとランタイムのクラッシュ報告はMicrosoftに情報を送信する場合があります。詳細はMicrosoftのプライバシー声明とアプリのプライバシーポリシーをご確認ください。ローカルデータの削除は診断ファイルやOSキャッシュまで削除しません。",
+  privacyWindowsRuntime: "Windows版の画面表示に使用するMicrosoft WebView2は必須診断データを収集し、Windowsの診断設定に応じて任意の診断データも収集します。このアプリはMicrosoft Defender SmartScreenを有効にし、SmartScreenはセキュリティ確認のため利用者情報を収集してMicrosoftに送信します。ランタイムのクラッシュ報告もMicrosoftに送信される場合があります。アプリの発行者はこれらのMicrosoftへの報告を受信しません。詳細はMicrosoftのプライバシー声明とアプリのプライバシーポリシーをご確認ください。ローカルデータの削除は診断ファイルやOSキャッシュまで削除しません。",
+  privacyMicrosoftLink: "Microsoftのプライバシー声明",
   shortcutsTitle: "キーボードショートカット",
   shortcutNote: "* 入力欄・ボタン・スライダーなどにフォーカス中は、再生・打刻・元に戻す/やり直しのショートカットが無効になります。",
   helpGroupPlayback: "再生・移動",

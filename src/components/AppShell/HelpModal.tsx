@@ -122,6 +122,10 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
               <p className="text-sm text-zinc-300 leading-snug">{t.privacySummary}</p>
               {navigator.platform.startsWith("Win") && <p data-testid="windows-runtime-privacy"
                 className="mt-2 text-sm text-zinc-300 leading-snug">{t.privacyWindowsRuntime}</p>}
+              {navigator.platform.startsWith("Win") && <button type="button"
+                data-testid="microsoft-privacy-link" className="mt-3 mr-4 text-sm text-sky-400 underline hover:text-sky-300"
+                onClick={() => { void invoke("open_microsoft_privacy_policy").catch(() => toast.error(t.privacyOpenError)); }}
+              >{t.privacyMicrosoftLink}</button>}
               <button
                 type="button"
                 data-testid="privacy-policy-link"
