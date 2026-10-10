@@ -36,7 +36,14 @@ test('Windows executable declares per-monitor DPI awareness without elevation', 
     const doc = window.document;
     assert.equal(doc.getElementsByTagNameNS('http://schemas.microsoft.com/SMI/2016/WindowsSettings', 'dpiAwareness')[0]?.textContent, 'PerMonitorV2');
     assert.equal(doc.getElementsByTagNameNS('http://schemas.microsoft.com/SMI/2005/WindowsSettings', 'dpiAware')[0]?.textContent, 'true/pm');
-    const controls = doc.getElementsByTagNameNS('urn:schemas-microsoft-com:asm.v1', 'assemblyIdentity')[0];
+    const identities = Array.from(doc.getElementsByTagNameNS('urn:schemas-microsoft-com:asm.v1', 'assemblyIdentity'));
+    const definition = identities.find(node => node.parentElement === doc.documentElement);
+    assert.equal(definition?.getAttribute('name'), 'LyricalSync');
+    assert.equal(definition?.getAttribute('type'), 'win32');
+    assert.equal(definition?.getAttribute('processorArchitecture'), 'amd64');
+    const app = JSON.parse(readFileSync(new URL('../package.json', import.meta.url)));
+    assert.equal(definition?.getAttribute('version'), `${app.version}.0`);
+    const controls = identities.find(node => node.getAttribute('name') === 'Microsoft.Windows.Common-Controls');
     assert.equal(controls?.getAttribute('name'), 'Microsoft.Windows.Common-Controls');
     assert.equal(controls?.getAttribute('version'), '6.0.0.0');
     assert.equal(doc.querySelector('requestedExecutionLevel')?.getAttribute('level') ?? 'asInvoker', 'asInvoker');
