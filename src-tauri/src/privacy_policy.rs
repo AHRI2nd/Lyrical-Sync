@@ -15,6 +15,14 @@ pub fn open_privacy_policy(app: tauri::AppHandle, language: String) -> Result<()
         .map_err(|error| error.to_string())
 }
 
+#[tauri::command]
+pub fn open_microsoft_privacy_policy(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    app.opener()
+        .open_url("https://privacy.microsoft.com/privacystatement", None::<&str>)
+        .map_err(|error| error.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::policy_url;

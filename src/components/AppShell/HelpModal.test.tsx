@@ -57,3 +57,19 @@ it("keeps Windows runtime notice out of the macOS Help screen", () => {
   expect(screen.queryByTestId("windows-runtime-privacy")).toBeNull();
   vi.restoreAllMocks();
 });
+
+it.each(["ko", "en", "ja"] as const)("opens the Microsoft privacy statement for Windows users in %s", async lang => {
+  vi.spyOn(navigator, "platform", "get").mockReturnValue("Win32");
+  useI18nStore.setState({ lang, t: translations[lang] });
+  vi.mocked(invoke).mockResolvedValue(undefined);
+  render(<HelpModal onClose={() => {}} />);
+  fireEvent.click(screen.getByTestId("microsoft-privacy-link"));
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith("open_microsoft_privacy_policy"));
+  vi.restoreAllMocks();
+});
+it("does not show a Microsoft runtime policy link on macOS", () => {
+  vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+  render(<HelpModal onClose={() => {}} />);
+  expect(screen.queryByTestId("microsoft-privacy-link")).toBeNull();
+  vi.restoreAllMocks();
+});
