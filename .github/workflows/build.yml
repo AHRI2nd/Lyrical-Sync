@@ -35,6 +35,8 @@ jobs:
         run: npm test
       - name: Test license notice integrity
         run: node --test scripts/notices.node-test.mjs
+      - name: Test Store runtime security configuration
+        run: node --test scripts/store-offline.node-test.mjs
       - name: Test MSIX staging
         run: node --test scripts/msix-stage.node-test.mjs
       - name: Test App Store profile validation
