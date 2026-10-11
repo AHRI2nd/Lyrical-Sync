@@ -14,6 +14,7 @@ export function IconBtn({
   return (
     <div className="relative group/ibtn">
       <button
+        aria-label={title}
         onClick={onClick}
         disabled={disabled}
         className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${

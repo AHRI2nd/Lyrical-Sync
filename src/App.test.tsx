@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 // Native APIs and audio rendering are outside this shell-level DOM test.
@@ -54,7 +54,7 @@ describe("App document confirmation and keyboard boundaries", () => {
     localStorage.clear();
   });
 
-  // IconBtn currently renders its label in a separate tooltip, not on the button.
+  // Scope confirmation actions to the modal when toolbar labels overlap.
   it("keeps unsaved lyrics when new-document confirmation is cancelled", async () => {
     const user = userEvent.setup();
     const t = useI18nStore.getState().t;
@@ -120,7 +120,7 @@ describe("App document confirmation and keyboard boundaries", () => {
     vi.mocked(save).mockResolvedValue(null);
     render(<App />);
     await user.click(screen.getByText(t.newFileBtn).parentElement!.parentElement!.querySelector("button")!);
-    await user.click(screen.getByRole("button", { name: t.save }));
+    await user.click(within(screen.getByText(t.replaceDocumentTitle).parentElement!.parentElement!).getByRole("button", { name: t.save }));
     expect(useLrcStore.getState().doc.lines[0].text).toBe("Keep this draft");
     expect(useLrcStore.getState().isDirty).toBe(true);
   });
