@@ -12,7 +12,7 @@ import { useSettingsStore } from "./stores/useSettingsStore";
 import { audioControls } from "./utils/audioControls";
 import { anyModalOpen } from "./utils/modalGuard";
 import { safeUnlisten } from "./utils/safeUnlisten";
-import { isInteractiveKeyTarget, matchAction, normalizeKeybindings, PLAYBACK_ACTIONS } from "./utils/keybindings";
+import { isComposingKeyEvent, isInteractiveKeyTarget, matchAction, normalizeKeybindings, PLAYBACK_ACTIONS } from "./utils/keybindings";
 import { toast } from "./stores/useToastStore";
 import { ToastContainer } from "./components/Toast/ToastContainer";
 import { type RecoverySnapshot, loadRecoverySnapshot, clearRecoverySnapshot } from "./utils/recovery";
@@ -49,6 +49,7 @@ function useGlobalKeys() {
     const controls = audioControls;
     const kb = normalizeKeybindings(keybindings);
     const handler = (e: KeyboardEvent) => {
+      if (isComposingKeyEvent(e)) return;
       const inInteractiveControl = isInteractiveKeyTarget(e.target) || isInteractiveKeyTarget(document.activeElement);
 
       // Cmd/Ctrl+Z 실행취소/다시실행 (재설정 불가, 예약)

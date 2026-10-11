@@ -108,7 +108,18 @@ it("ignores secondary button and secondary pointer starts", () => {
   fireEvent.pointerDown(handles[0], { pointerId: 7, button: 0, isPrimary: false }); pointerMove(76); pointerEnd(76);
   expect(useLrcStore.getState()._history).toHaveLength(0);
 });
-
+it.each([
+  { isComposing: true }, { keyCode: 229 },
+])("does not insert or split a line while the IME owns Enter (%j)", (composition) => {
+  const { container } = pointerSetup();
+  const input = container.querySelector('input[placeholder="가사를 입력하세요..."]') ??
+    Array.from(container.querySelectorAll("input")).find((node) => node.value === "a")!;
+  const original = structuredClone(useLrcStore.getState().doc.lines);
+  fireEvent.keyDown(input, { key: "Enter", ...composition });
+  fireEvent.keyDown(input, { key: "Enter", shiftKey: true, ...composition });
+  expect(useLrcStore.getState().doc.lines).toEqual(original);
+  expect(useLrcStore.getState()._history).toHaveLength(0);
+});
 it("cancels a drop over a clipped row outside the visible scroll area", () => {
   const { handles, rows } = pointerSetup();
   vi.spyOn(rows[0].parentElement!, "getBoundingClientRect").mockReturnValue({

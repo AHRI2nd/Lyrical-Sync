@@ -11,6 +11,7 @@ import { FindReplaceBar } from "./FindReplaceBar";
 import { TimeShiftBar } from "./TimeShiftBar";
 import { ValidationPanel } from "./ValidationPanel";
 import { ScaleBar } from "./ScaleBar";
+import { isComposingKeyEvent } from "../../utils/keybindings";
 import { LoopIcon } from "../AudioPlayer/icons";
 // 글자 동기화 뷰·자동 스팟팅 모달은 각각 모드 전환/버튼 클릭 시에만 필요 → 지연 로드
 const CharSyncView = lazy(() => import("./CharSyncView").then((m) => ({ default: m.CharSyncView })));
@@ -235,6 +236,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, id: string) => {
+    if (isComposingKeyEvent(e.nativeEvent)) return;
     if (e.key === "Enter" && e.shiftKey) {
       // Shift+Enter = 커서 위치에서 줄 분할
       e.preventDefault();
@@ -667,7 +669,8 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                     onFocus={(e) => e.target.select()}
                     onChange={(e) => setEditTsValue(e.target.value)}
                     onKeyDown={(e) => {
-                                        if (e.key === "Enter") { e.preventDefault(); commitTsEdit(line.id); }
+                      if (isComposingKeyEvent(e.nativeEvent)) return;
+                      if (e.key === "Enter") { e.preventDefault(); commitTsEdit(line.id); }
                       else if (e.key === "Escape") { e.preventDefault(); cancelTsEdit(); }
                     }}
                     onBlur={() => commitTsEdit(line.id)}

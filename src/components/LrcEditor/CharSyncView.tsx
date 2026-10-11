@@ -4,7 +4,7 @@ import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { tokenizeText, isStampable, formatTimestamp, clampToNeighbors } from "../../utils/lrcParser";
 import { anyModalOpen } from "../../utils/modalGuard";
-import { isInteractiveKeyTarget, keyLabel, matchAction, normalizeKeybindings } from "../../utils/keybindings";
+import { isComposingKeyEvent, isInteractiveKeyTarget, keyLabel, matchAction, normalizeKeybindings } from "../../utils/keybindings";
 import { usePointerScrub } from "../../hooks/usePointerScrub";
 import { audioControls } from "../../utils/audioControls";
 import type { LrcLine, LrcSyllable } from "../../types/lrc";
@@ -255,6 +255,7 @@ export function CharSyncView() {
   // ←→=글자 이동(Shift=미세조정, 고정) · stamp/prevLine=사용자 단축키
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (isComposingKeyEvent(e)) return;
       if (isInteractiveKeyTarget(e.target) || isInteractiveKeyTarget(document.activeElement)) return;
       // 모달이 열려 있으면 글자 모드 키가 모달 뒤에서 동작하지 않게 차단
       if (anyModalOpen()) return;

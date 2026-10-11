@@ -185,4 +185,12 @@ describe("App document confirmation and keyboard boundaries", () => {
     expect(useLrcStore.getState().activeLineId).toBe("c");
   });
 
+  it.each([{ isComposing: true }, { keyCode: 229 }])("does not stamp while IME composition owns the key (%j)", (composition) => {
+    useLrcStore.setState({ activeLineId: "draft" });
+    render(<App />);
+    const original = structuredClone(useLrcStore.getState().doc.lines);
+    fireEvent.keyDown(window, { code: "Space", ...composition });
+    expect(useLrcStore.getState().doc.lines).toEqual(original);
+  });
+
 });
