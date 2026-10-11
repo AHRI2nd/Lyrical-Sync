@@ -105,3 +105,10 @@ it("caps lane waveform bars while preserving a narrow peak", () => {
   expect(bars.length).toBeLessThanOrEqual(600);
   expect(Array.from(bars).some((bar) => Number(bar.getAttribute("height")) > 60)).toBe(true);
 });
+it.each([{ isComposing: true }, { keyCode: 229 }])("does not stamp or advance during IME composition (%j)", (composition) => {
+  render(<CharSyncView />);
+  fireEvent.keyDown(window, { code: "Space", ...composition });
+  fireEvent.keyDown(window, { code: "ArrowRight", ...composition });
+  expect(useLrcStore.getState().doc.lines[0].syllables).toBeUndefined();
+  expect(useLrcStore.getState().activeSyllableIndex).toBe(0);
+});

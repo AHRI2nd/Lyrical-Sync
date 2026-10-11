@@ -100,3 +100,8 @@ export function keyLabel(code: string): string {
   if (sym[code]) return sym[code];
   return code;
 }
+
+// Some IMEs report keyCode 229 on the final composition key event.
+export function isComposingKeyEvent(event: Pick<KeyboardEvent, "isComposing" | "keyCode">): boolean {
+  return event.isComposing || event.keyCode === 229;
+}
