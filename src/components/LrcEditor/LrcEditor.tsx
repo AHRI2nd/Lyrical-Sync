@@ -45,6 +45,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
 
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const rowViewportRef = useRef<HTMLDivElement>(null);
   const pendingFocusId = useRef<string | null>(null);
 
   // Find/Replace state
@@ -81,16 +82,82 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   // 드래그 재정렬 상태
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dropGap, setDropGap] = useState<number | null>(null);
-  const dragSource = useRef<{ id: string; session: number; order: string } | null>(null);
   const lineOrder = JSON.stringify(lines.map((line) => line.id));
+  const reorderCleanup = useRef<(() => void) | null>(null);
   const cancelReorder = useCallback(() => {
-    dragSource.current = null;
+    reorderCleanup.current?.();
     setDragIdx(null); setDropGap(null);
   }, []);
-  useEffect(() => { cancelReorder(); }, [documentSession, lineOrder, cancelReorder]);
+  useEffect(() => { cancelReorder(); }, [documentSession, lineOrder, syncMode, cancelReorder]);
+  useEffect(() => () => reorderCleanup.current?.(), []);
   const insertionGap = (element: HTMLElement, index: number, y: number) => {
     const rect = element.getBoundingClientRect();
     return index + (y >= rect.top + rect.height / 2 ? 1 : 0);
+  };
+
+  // Keep native file drop enabled; Windows consumes HTML drag events.
+  const beginPointerReorder = (event: React.PointerEvent<HTMLSpanElement>, index: number) => {
+    if (event.button !== 0 || event.isPrimary === false) return;
+    event.preventDefault(); event.stopPropagation(); cancelReorder();
+    const source = { id: lines[index].id, session: documentSession, order: lineOrder };
+    const pointerId = event.pointerId;
+    const startX = event.clientX, startY = event.clientY;
+    const handle = event.currentTarget;
+    let moved = false;
+    let gap: number | null = null;
+    const updateGap = (x: number, y: number) => {
+      gap = null;
+      const viewport = rowViewportRef.current?.getBoundingClientRect();
+      if (!viewport || x < viewport.left || x > viewport.right || y < viewport.top || y > viewport.bottom) {
+        setDropGap(null); return;
+      }
+      lines.forEach((line, rowIndex) => {
+        const row = rowRefs.current.get(line.id);
+        if (!row) return;
+        const rect = row.getBoundingClientRect();
+        if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+          gap = insertionGap(row, rowIndex, y);
+        }
+      });
+      setDropGap(gap);
+    };
+    const move = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      if (!moved && Math.hypot(ev.clientX - startX, ev.clientY - startY) < 6) return;
+      moved = true; setDragIdx(index); updateGap(ev.clientX, ev.clientY);
+    };
+    const finish = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      updateGap(ev.clientX, ev.clientY);
+      const current = useLrcStore.getState();
+      if (moved && gap !== null && source.session === current._documentSession &&
+          source.order === JSON.stringify(current.doc.lines.map((item) => item.id))) {
+        const from = current.doc.lines.findIndex((item) => item.id === source.id);
+        const to = gap > from ? gap - 1 : gap;
+        if (from >= 0 && from !== to) moveLine(from, to);
+      }
+      cancelReorder();
+    };
+    const cancelPointer = (ev: PointerEvent) => { if (ev.pointerId === pointerId) cancelReorder(); };
+    const cancelKey = (ev: KeyboardEvent) => { if (ev.key === "Escape") cancelReorder(); };
+    const cleanup = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", cancelPointer);
+      window.removeEventListener("blur", cancelReorder);
+      window.removeEventListener("keydown", cancelKey);
+      handle.removeEventListener("lostpointercapture", cancelPointer);
+      reorderCleanup.current = null;
+      if (handle.hasPointerCapture?.(pointerId)) handle.releasePointerCapture(pointerId);
+    };
+    reorderCleanup.current = cleanup;
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", cancelPointer);
+    window.addEventListener("blur", cancelReorder);
+    window.addEventListener("keydown", cancelKey);
+    handle.addEventListener("lostpointercapture", cancelPointer);
+    handle.setPointerCapture?.(pointerId);
   };
 
   const charMode = syncMode === "char";
@@ -529,6 +596,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
       )}
 
       <div
+        ref={rowViewportRef}
         className="flex-1 overflow-y-auto flex flex-col gap-1 px-1 py-1"
         onDoubleClick={(e) => { if (e.target === e.currentTarget) handleAddLine(); }}
       >
@@ -555,24 +623,6 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
               key={line.id}
               ref={setRowRef(line.id)}
               onClick={(e) => handleRowClick(e, line.id, idx)}
-              onDragOver={(e) => {
-                if (!dragSource.current) return;
-                e.preventDefault();
-                setDropGap(insertionGap(e.currentTarget, idx, e.clientY));
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                const source = dragSource.current;
-                const current = useLrcStore.getState();
-                if (source && source.session === current._documentSession &&
-                    source.order === JSON.stringify(current.doc.lines.map((item) => item.id))) {
-                  const from = current.doc.lines.findIndex((item) => item.id === source.id);
-                  const gap = insertionGap(e.currentTarget, idx, e.clientY);
-                  const to = gap > from ? gap - 1 : gap;
-                  if (from >= 0 && from !== to) moveLine(from, to);
-                }
-                cancelReorder();
-              }}
               className={`group/row relative flex items-center gap-2 rounded-lg px-2 py-1 transition-colors cursor-pointer ${
                 selectedIds.has(line.id)
                   ? "bg-sky-900/30 ring-1 ring-sky-600/60"
@@ -589,14 +639,9 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                 <div aria-hidden="true" className={`absolute left-0 right-0 h-0.5 bg-indigo-400 pointer-events-none ${dropGap === idx ? "-top-1" : "-bottom-1"}`} />
               )}
               <span
-                draggable
-                onDragStart={(e) => {
-                  e.stopPropagation();
-                  dragSource.current = { id: line.id, session: documentSession, order: lineOrder };
-                  if (e.dataTransfer) { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", line.id); }
-                  setDragIdx(idx);
-                }}
-                onDragEnd={cancelReorder}
+                data-reorder-handle
+                onPointerDown={(e) => beginPointerReorder(e, idx)}
+                style={{ touchAction: "none" }}
                 onClick={(e) => e.stopPropagation()}
                 title={t.reorderLine}
                 className="shrink-0 cursor-grab active:cursor-grabbing text-zinc-600 hover:text-zinc-300 opacity-0 group-hover/row:opacity-100 transition-opacity"
@@ -622,7 +667,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                     onFocus={(e) => e.target.select()}
                     onChange={(e) => setEditTsValue(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") { e.preventDefault(); commitTsEdit(line.id); }
+                                        if (e.key === "Enter") { e.preventDefault(); commitTsEdit(line.id); }
                       else if (e.key === "Escape") { e.preventDefault(); cancelTsEdit(); }
                     }}
                     onBlur={() => commitTsEdit(line.id)}
