@@ -411,3 +411,58 @@ it('closes waveform view options with Escape and returns focus to its trigger', 
   expect(queryByRole('slider')).toBeNull();
   expect(document.activeElement).toBe(trigger);
 });
+
+it('keeps the viewport scale when stamping changes the current line start', () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+    { id: 'line-1', timestamp: 10, text: 'ab' }, { id: 'line-2', timestamp: 20, text: 'next' },
+  ] } });
+  const { lane, getByRole } = setup();
+  const span = Number(lane.dataset.end) - Number(lane.dataset.start);
+  fireEvent.click(getByRole('button', { name: /현재 글자 찍고 다음으로|Stamp current glyph.*advance/ }));
+  expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(12);
+  expect(Number(lane.dataset.end) - Number(lane.dataset.start)).toBeCloseTo(span);
+});
+
+it.each(['replay', 'nudge'])('reattaches following after manual pan and %s', action => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+    { id: 'line-1', timestamp: 10, text: 'ab', syllables: [{ text: 'a', time: 10 }, { text: 'b', time: 12 }] },
+    { id: 'line-2', timestamp: 20, text: 'next' },
+  ] } });
+  const { lane, getByRole } = setup();
+  fireEvent.click(getByRole('button', { name: /다음 시간 구간|Next time window/ }));
+  if (action === 'replay') fireEvent.click(getByRole('button', { name: /이 줄 재생|Replay line|Play line/ }));
+  else fireEvent.keyDown(window, { code: 'ArrowRight', shiftKey: true });
+  expect(getByRole('button', { name: /재생 위치 따라가기|Follow playback/ }).getAttribute('aria-pressed')).toBe('true');
+  act(() => useLrcStore.setState({ currentTime: 40 }));
+  expect(Number(lane.dataset.start)).toBeCloseTo(35);
+});
+
+it('paints vertically across wrapped glyphs in a single undo entry', () => {
+  const { container } = setup();
+  const first = container.querySelector('[data-glyph="0"]')!;
+  const second = container.querySelector('[data-glyph="1"]')!;
+  const point = vi.fn(() => second);
+  Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: point });
+  fireEvent.mouseDown(first, { button: 0, clientX: 10, clientY: 10 });
+  fireEvent.mouseMove(window, { clientX: 10, clientY: 30 });
+  fireEvent.mouseMove(window, { clientX: 10, clientY: 40 });
+  fireEvent.mouseUp(window);
+  expect(useLrcStore.getState().doc.lines[0].syllables?.slice(0, 2).map(s => s.time)).toEqual([12, 12]);
+  expect(useLrcStore.getState()._history).toHaveLength(1);
+});
+
+it('ignores stamp and nudge shortcuts during IME composition', () => {
+  setup();
+  fireEvent.keyDown(window, { code: 'Space', isComposing: true });
+  expect(useLrcStore.getState().doc.lines[0].syllables).toBeUndefined();
+  fireEvent.keyDown(window, { code: 'Space', keyCode: 229 });
+  expect(useLrcStore.getState()._history).toHaveLength(0);
+});
+
+it('clears line repeat when the local audio path changes', () => {
+  const { getByRole } = setup();
+  fireEvent.click(getByRole('button', { name: /줄 반복|Repeat line/ }));
+  expect(useLrcStore.getState().loopLineId).toBe('line-1');
+  act(() => useLrcStore.setState({ audioPath: '/music/replacement.mp3' }));
+  expect(useLrcStore.getState().loopLineId).toBeNull();
+});
