@@ -29,7 +29,7 @@ function debouncedLocalStorage(delayMs: number): StateStorage {
 
 export function normalizeGlyphWaveformHeight(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value)
-    ? Math.max(64, Math.min(160, Math.round(value / 8) * 8)) : 96;
+    ? Math.max(80, Math.min(240, Math.round(value / 8) * 8)) : 144;
 }
 
 interface SettingsState {
@@ -132,7 +132,7 @@ const MAX_RECENT_FILES = 8;
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
-      glyphWaveformHeight: 96,
+      glyphWaveformHeight: 144,
       glyphWaveformStyle: "continuous",
       setGlyphWaveformHeight: (v) => set({ glyphWaveformHeight: normalizeGlyphWaveformHeight(v) }),
       setGlyphWaveformStyle: (v) => set({ glyphWaveformStyle: v === "bars" ? "bars" : "continuous" }),

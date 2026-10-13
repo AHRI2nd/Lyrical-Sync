@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createRef } from 'react';
 import { CharWaveformPanel } from './CharWaveformPanel';
 import { clearWaveform, prepareWaveform } from '../../stores/useWaveformStore';
@@ -18,9 +18,9 @@ it('changes panel height and style without seeking or editing timestamps', () =>
   render(<CharWaveformPanel laneRef={createRef()} onPointerDown={seek} audioPath="song.wav"
     start={0} end={2} lineStart={0} lineEnd={1} playhead={.5}
     syllables={[{ text: 'a', time: .5 }]} activeIndex={0} onSelect={vi.fn()} available />);
-  fireEvent.change(screen.getByRole('slider'), { target: { value: '160' } });
-  expect(screen.getByTestId('glyph-seek-lane').style.height).toBe('160px');
-  fireEvent.change(screen.getByRole('combobox'), { target: { value: 'bars' } });
+  act(() => useSettingsStore.getState().setGlyphWaveformHeight(240));
+  expect(screen.getByTestId('glyph-seek-lane').style.height).toBe('240px');
+  act(() => useSettingsStore.getState().setGlyphWaveformStyle('bars'));
   expect(screen.getByTestId('glyph-seek-lane').querySelectorAll('svg rect').length).toBeGreaterThanOrEqual(600);
   expect(seek).not.toHaveBeenCalled();
 });
@@ -43,11 +43,11 @@ it('does not show a stale local waveform for an external playback source', () =>
 });
 it('sanitizes restored and user-provided waveform preferences', () => {
   useSettingsStore.getState().setGlyphWaveformHeight(Infinity);
-  expect(useSettingsStore.getState().glyphWaveformHeight).toBe(96);
+  expect(useSettingsStore.getState().glyphWaveformHeight).toBe(144);
   useSettingsStore.getState().setGlyphWaveformHeight(999);
-  expect(useSettingsStore.getState().glyphWaveformHeight).toBe(160);
+  expect(useSettingsStore.getState().glyphWaveformHeight).toBe(240);
   const merged = useSettingsStore.persist.getOptions().merge!({ glyphWaveformHeight: -20, glyphWaveformStyle: 'invalid' }, useSettingsStore.getState());
-  expect(merged.glyphWaveformHeight).toBe(64);
+  expect(merged.glyphWaveformHeight).toBe(80);
   expect(merged.glyphWaveformStyle).toBe('continuous');
 });
 

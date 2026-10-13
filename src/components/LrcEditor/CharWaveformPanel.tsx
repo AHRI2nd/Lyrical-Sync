@@ -26,8 +26,6 @@ export const CharWaveformPanel = memo(function CharWaveformPanel({ laneRef, onPo
   const savedStyle = useSettingsStore(s => s.glyphWaveformStyle);
   const height = suppliedHeight ?? savedHeight;
   const style = suppliedStyle ?? savedStyle;
-  const setHeight = useSettingsStore(s => s.setGlyphWaveformHeight);
-  const setStyle = useSettingsStore(s => s.setGlyphWaveformStyle);
   const source = useWaveformStore(s => s.source);
   const path = useWaveformStore(s => s.path);
   const preparing = useWaveformStore(s => s.preparing);
@@ -50,19 +48,6 @@ export const CharWaveformPanel = memo(function CharWaveformPanel({ laneRef, onPo
   const timed = syllables.map((s, index) => ({ s, index }))
     .filter(({ s }) => s.time !== null && Number.isFinite(s.time) && isStampable(s) && s.time >= start && s.time <= end);
   return <div className="shrink-0 min-w-0">
-      <div className="flex items-center justify-between gap-2 flex-wrap text-xs text-zinc-400 mb-2">
-        <label className="flex items-center gap-2">
-          {t.charSync.waveformHeight}
-          <input type="range" min={64} max={160} step={8} value={height} aria-label={t.charSync.waveformHeight}
-            onChange={e => setHeight(Number(e.target.value))} className="w-24 accent-indigo-400" />
-          <span className="font-mono w-10">{height}px</span>
-        </label>
-        <select value={style} aria-label={t.charSync.waveformStyle} onChange={e => setStyle(e.target.value as 'continuous' | 'bars')}
-          className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-zinc-300">
-          <option value="continuous">{t.charSync.waveformContinuous}</option>
-          <option value="bars">{t.charSync.waveformBars}</option>
-        </select>
-      </div>
     <div className="shrink-0 min-w-0 overflow-hidden rounded-lg border border-zinc-700/70 bg-zinc-950">
     <div aria-label={t.charSync.timeRuler} className="relative h-8 border-b border-zinc-800 text-[11px] text-zinc-400 font-mono tabular-nums">
       {ticks.map(tick => <span key={tick.time} style={{ left: `${tick.percent}%`, transform: "translateX(-50%)" }}
