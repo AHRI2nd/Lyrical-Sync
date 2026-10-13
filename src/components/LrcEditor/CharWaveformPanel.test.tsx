@@ -84,3 +84,20 @@ it('translates stable audio geometry during fractional playback and refreshes it
   rerender(<CharWaveformPanel {...props} start={4} end={7} />);
   expect([...container.querySelectorAll('svg')].map(svg => svg.querySelector('path')!.getAttribute('d'))).not.toEqual(initial);
 });
+
+it('keeps dense glyph targets in a separate two-row lane without seeking', () => {
+  const select = vi.fn();
+  const seek = vi.fn();
+  const syllables = Array.from({ length: 12 }, (_, i) => ({ text: String(i), time: .5 + i * .03 }));
+  const { getByTestId, getAllByRole } = render(<CharWaveformPanel laneRef={createRef()} onPointerDown={seek} audioPath="song.wav"
+    start={0} end={2} lineStart={0} lineEnd={1} playhead={.5}
+    syllables={syllables} activeIndex={0} onSelect={select} available />);
+  const markers = getByTestId('glyph-marker-lane');
+  expect(markers.style.height).toBe('64px');
+  const targets = getAllByRole('button').filter(button => markers.contains(button));
+  expect(targets.length).toBeGreaterThan(0);
+  fireEvent.pointerDown(targets[0]);
+  fireEvent.click(targets[0]);
+  expect(select).toHaveBeenCalled();
+  expect(seek).not.toHaveBeenCalled();
+});
