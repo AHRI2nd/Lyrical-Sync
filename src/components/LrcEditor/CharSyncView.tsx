@@ -131,10 +131,18 @@ export function CharSyncView() {
   if (winEnd <= winStart) winEnd = winStart + DEFAULT_SPAN;
 
   const repeatRange = getLinePlaybackRange(lines, activeLineId, duration);
-  const canRepeat = controlSource === "local" && repeatRange !== null;
+  const canRepeat = !!audioPath && controlSource === "local" && repeatRange !== null;
+  const repeatContext = useRef({ audioPath, document: doc.extraTags });
   useEffect(() => {
-    if (loopLineId && (loopLineId !== activeLineId || !canRepeat)) setLoopLine(null);
-  }, [loopLineId, activeLineId, canRepeat, setLoopLine]);
+    const changed = repeatContext.current.audioPath !== audioPath || repeatContext.current.document !== doc.extraTags;
+    repeatContext.current = { audioPath, document: doc.extraTags };
+    if (loopLineId && (changed || loopLineId !== activeLineId || !canRepeat)) setLoopLine(null);
+  }, [audioPath, doc.extraTags, loopLineId, activeLineId, canRepeat, setLoopLine]);
+
+  // Extra tags retain their object identity while glyph stamps update the document.
+  // New/imported documents provide a fresh object, so their viewing scale resets.
+  const viewSpan = useMemo(() => Math.max(MIN_LANE_SPAN, winEnd - winStart),
+    [doc.extraTags, activeLineId, audioPath, duration, controlIdentity, controlSource]);
 
   // 레인 줌: 창을 1/zoom 너비로 좁혀 재생헤드 중심으로 표시 → 밀집 구간 정밀도↑
   const [zoom, setZoom] = useState(1);
@@ -145,14 +153,30 @@ export function CharSyncView() {
   const laneSeekPendingRef = useRef(false);
   const lanePreviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousCurrentTimeRef = useRef(currentTime);
-  useEffect(() => { setZoom(1); setFollowPlayback(true); setViewAnchor(useLrcStore.getState().currentTime); }, [activeLineId, audioPath, controlIdentity, controlSource]);
+  useEffect(() => { setZoom(1); setFollowPlayback(true); setViewAnchor(useLrcStore.getState().currentTime); }, [doc.extraTags, activeLineId, audioPath, controlIdentity, controlSource]);
   // Derive the following window in the same render as the playhead to avoid a frame of drift.
   const { start: viewStart, end: viewEnd } = getLaneViewRange(
-    winStart, winEnd, duration, followPlayback ? currentTime : viewAnchor, zoom,
+    0, viewSpan, duration, followPlayback ? currentTime : viewAnchor, zoom,
   );
   const visibleViewStart = lanePreview?.start ?? viewStart;
   const visibleViewEnd = lanePreview?.end ?? viewEnd;
 
+
+  const discardLanePreview = () => {
+    const drag = laneDragRef.current;
+    if (drag?.raf != null) cancelAnimationFrame(drag.raf);
+    laneDragRef.current = null;
+    laneSeekPendingRef.current = false;
+    if (lanePreviewTimerRef.current) clearTimeout(lanePreviewTimerRef.current);
+    lanePreviewTimerRef.current = null;
+    setLanePreview(null);
+  };
+  const seekWithFollow = (seconds: number, controller = controls) => {
+    discardLanePreview();
+    setFollowPlayback(true);
+    setViewAnchor(seconds);
+    controller.seekTo(seconds);
+  };
 
   // 재생 위치에서 지금 불리는 글자(편집 커서와 별개). 창 밖이면 -1.
   const playingIdx = useMemo(() => {
@@ -240,12 +264,13 @@ export function CharSyncView() {
     commitSyllables(ln.id, syl.map((x, i) => (i === idx ? { ...x, time: nt } : x)));
     const ctrl = useServiceStore.getState().isLoggedIn && useSettingsStore.getState().spotifyMode
       ? serviceControls : audioControls;
-    ctrl.seekTo(nt);
+    seekWithFollow(nt, ctrl);
   };
 
   // ←→=글자 이동(Shift=미세조정, 고정) · stamp/prevLine=사용자 단축키
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.isComposing || e.keyCode === 229) return;
       if (isInteractiveKeyTarget(e.target) || isInteractiveKeyTarget(document.activeElement)) return;
       // 모달이 열려 있으면 글자 모드 키가 모달 뒤에서 동작하지 않게 차단
       if (anyModalOpen()) return;
@@ -409,14 +434,16 @@ export function CharSyncView() {
   const beginDrag = (index: number, e: React.MouseEvent) => {
     if (!line || e.button !== 0) return; // 좌클릭만 (우클릭은 글자 지우기)
     e.preventDefault();
+    textRef.current?.focus({ preventScroll: true });
     const startX = e.clientX;
+    const startY = e.clientY;
     let painting = false;
     let lastIdx = -1;
     let advancedViaEnd = false;
 
     const move = (ev: MouseEvent) => {
       if (!painting) {
-        if (Math.abs(ev.clientX - startX) <= 5) return;
+        if (Math.hypot(ev.clientX - startX, ev.clientY - startY) <= 5) return;
         painting = true;
         stampGlyphAt(index, true); // 칠하기 시작 = 히스토리 1회 기록
         lastIdx = index;
@@ -500,7 +527,7 @@ export function CharSyncView() {
   };
 
   const replayLine = () => {
-    controls.seekTo(winStart);
+    seekWithFollow(winStart);
     if (!isPlaying) controls.togglePlay();
   };
 
@@ -533,8 +560,8 @@ export function CharSyncView() {
 
   const ZOOM_LEVELS = [1, 2, 4, 8];
   const setZoomStep = (dir: number) => {
-    setFollowPlayback(true);
-    setViewAnchor(currentTime);
+    discardLanePreview();
+    if (!followPlayback) setViewAnchor(readoutSyl?.time ?? viewAnchor);
     setZoom((z) => {
       const i = Math.max(0, Math.min(ZOOM_LEVELS.length - 1, ZOOM_LEVELS.indexOf(z) + dir));
       return ZOOM_LEVELS[i];
@@ -542,6 +569,7 @@ export function CharSyncView() {
   };
 
   const pan = (dir: number) => {
+    discardLanePreview();
     setFollowPlayback(false);
     setViewAnchor((visibleViewStart + visibleViewEnd) / 2 + dir * (visibleViewEnd - visibleViewStart) / 2);
   };
@@ -589,7 +617,7 @@ export function CharSyncView() {
             className="px-2 py-1.5 rounded border border-zinc-700 text-zinc-300 disabled:opacity-30">+</button>
           <button type="button" aria-label={t.charSync.nextWindow} onClick={e => { pan(1); e.currentTarget.blur(); }} disabled={duration > 0 && visibleViewEnd >= duration}
             className="px-2 py-1.5 rounded border border-zinc-700 text-zinc-400 disabled:opacity-30">›</button>
-          <button type="button" aria-pressed={followPlayback} onClick={e => { setFollowPlayback(v => !v); setViewAnchor((visibleViewStart + visibleViewEnd) / 2); e.currentTarget.blur(); }}
+          <button type="button" aria-pressed={followPlayback} onClick={e => { discardLanePreview(); setFollowPlayback(v => !v); setViewAnchor((visibleViewStart + visibleViewEnd) / 2); e.currentTarget.blur(); }}
             className={`px-2 py-1.5 rounded border border-zinc-700 ${followPlayback ? "bg-indigo-400/15 text-indigo-200" : "text-zinc-400"}`}>{t.charSync.followPlayback}</button>
           <WaveformViewMenu />
         </div>
@@ -611,7 +639,7 @@ export function CharSyncView() {
           title={canRepeat ? t.charSync.repeatLine : t.charSync.repeatUnavailable}
           onClick={e => {
             if (loopLineId === line.id) setLoopLine(null);
-            else if (canRepeat && repeatRange) { setLoopLine(line.id); setFollowPlayback(true); controls.seekTo(repeatRange.start); }
+            else if (canRepeat && repeatRange) { setLoopLine(line.id); seekWithFollow(repeatRange.start); }
             e.currentTarget.blur();
           }} className={`px-3 py-2 text-xs rounded-md border border-zinc-700 disabled:opacity-30 ${loopLineId === line.id ? "bg-indigo-400/15 text-indigo-200" : "text-zinc-400 hover:bg-zinc-800"}`}>
           {t.charSync.repeatLine} · {loopLineId === line.id ? t.charSync.repeatOn : t.charSync.repeatOff}
