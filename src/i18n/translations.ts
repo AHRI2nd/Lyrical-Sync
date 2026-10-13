@@ -74,6 +74,15 @@ export interface Translations {
     replaceCancel: string;
   };
   charSync: {
+    glyphMarkerLane: string;
+    selectedGlyph: string;
+    currentLine: string;
+    displaySpan: string;
+    waveformView: string;
+    glyphMarkers: string;
+    playhead: string;
+    help: string;
+    more: string;
     waveformPreparing: string;
     waveformNoAudio: string;
     prevWindow: string;
@@ -617,6 +626,15 @@ const ko: Translations = {
     replaceCancel: "취소",
   },
   charSync: {
+    glyphMarkerLane: "시간축 글자 마커",
+    selectedGlyph: "선택 글자",
+    currentLine: "현재 줄",
+    displaySpan: "{seconds}초 구간",
+    waveformView: "파형 보기",
+    glyphMarkers: "글자 마커 표시",
+    playhead: "재생 위치",
+    help: "조작 안내",
+    more: "추가 작업",
     waveformPreparing: "파형 준비 중…",
     waveformNoAudio: "오디오를 열면 파형을 표시합니다",
     prevWindow: "이전 시간 구간",
@@ -1179,6 +1197,15 @@ const en: Translations = {
     replaceCancel: "Cancel",
   },
   charSync: {
+    glyphMarkerLane: "Timed glyph markers",
+    selectedGlyph: "Selected glyph",
+    currentLine: "Current line",
+    displaySpan: "{seconds}s view",
+    waveformView: "Waveform view",
+    glyphMarkers: "Show glyph markers",
+    playhead: "Playback position",
+    help: "Controls help",
+    more: "More actions",
     waveformPreparing: "Preparing waveform…",
     waveformNoAudio: "Open audio to view the waveform",
     prevWindow: "Previous time window",
@@ -1742,6 +1769,15 @@ const ja: Translations = {
     replaceCancel: "キャンセル",
   },
   charSync: {
+    glyphMarkerLane: "時間軸の文字マーカー",
+    selectedGlyph: "選択文字",
+    currentLine: "現在の行",
+    displaySpan: "{seconds}秒の範囲",
+    waveformView: "波形表示",
+    glyphMarkers: "文字マーカーを表示",
+    playhead: "再生位置",
+    help: "操作ガイド",
+    more: "その他の操作",
     waveformPreparing: "波形を準備中…",
     waveformNoAudio: "オーディオを開くと波形を表示します",
     prevWindow: "前の時間範囲",
