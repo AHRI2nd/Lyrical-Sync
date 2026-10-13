@@ -28,7 +28,7 @@ function resetStores() {
     _history: [],
     _future: [],
   });
-  useSettingsStore.setState({ spotifyMode: false, deviceMode: false, glyphWaveformStyle: "bars", glyphWaveformHeight: 96 });
+  useSettingsStore.setState({ spotifyMode: false, deviceMode: false, glyphWaveformStyle: "bars", glyphWaveformHeight: 96, showGlyphTimeMarkers: true });
   useServiceStore.setState({ isLoggedIn: false });
 }
 
@@ -386,4 +386,28 @@ describe("CharSyncView seek lane", () => {
 
     expect(seekSpy).toHaveBeenLastCalledWith(12);
   });
+});
+
+it('applies waveform view settings without seeking or editing lyrics', () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: 'line-1', timestamp: 10, text: 'ab', syllables: [{ text: 'a', time: 10 }, { text: 'b', time: 12 }] }] } });
+  const before = useLrcStore.getState().doc;
+  const { getByRole, lane, container } = setup();
+  fireEvent.click(getByRole('button', { name: /파형 보기|Waveform view/ }));
+  fireEvent.change(getByRole('slider', { name: /파형 높이|Waveform height/ }), { target: { value: '240' } });
+  expect(lane.style.height).toBe('240px');
+  const markers = container.querySelector('[data-testid="glyph-marker-lane"]')!;
+  expect(markers.querySelector('button')).not.toBeNull();
+  fireEvent.click(getByRole('checkbox', { name: /글자 마커 표시|Show glyph markers/ }));
+  expect(markers.querySelector('button')).toBeNull();
+  expect(useLrcStore.getState().doc).toBe(before);
+  expect(seekSpy).not.toHaveBeenCalled();
+});
+
+it('closes waveform view options with Escape and returns focus to its trigger', () => {
+  const { getByRole, queryByRole } = setup();
+  const trigger = getByRole('button', { name: /파형 보기|Waveform view/ });
+  fireEvent.click(trigger);
+  fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' });
+  expect(queryByRole('slider')).toBeNull();
+  expect(document.activeElement).toBe(trigger);
 });
