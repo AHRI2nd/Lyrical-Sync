@@ -83,3 +83,28 @@ it("keeps valid cue ends after ASS centisecond rounding without shortening VTT p
   expect(serializeAss(docOf([{ id: "a", timestamp: 1.001, text: "a" }]), 1.004))
     .toContain("Dialogue: 0,0:00:01.00,0:00:05.00");
 });
+
+
+it("exports translations after enhanced originals in VTT and ASS", () => {
+  const doc = docOf([{ id: "a", timestamp: 1, text: "hi", translation: "hello", syllables: [{ text: "hi", time: 1 }] }]);
+  expect(serializeVtt(doc, 3)).toContain("<00:00:01.000>hi\nhello");
+  expect(serializeAss(doc, 3)).toContain("{\\k200}hi\\Nhello");
+});
+it("escapes ASS body newlines and literal backslashes without modifying karaoke tags", () => {
+  const doc = docOf([{ id: "a", timestamp: 1, text: "one\\Nliteral\ntwo", translation: "three\\path\nfour" }]);
+  const out = serializeAss(doc, 3);
+  expect(out).toContain("one\\\\Nliteral\\Ntwo\\Nthree\\\\path\\Nfour");
+  expect(out.split("\n").filter(l => l.startsWith("Dialogue:"))).toHaveLength(1);
+});
+it("does not add empty subtitle translation rows", () => {
+  const doc = docOf([{ id: "a", timestamp: 1, text: "hi", translation: "" }]);
+  expect(serializeVtt(doc, 3)).toContain("\nhi\n");
+  expect(serializeAss(doc, 3)).not.toContain("hi\\N");
+});
+
+
+it("exports translation-only content in VTT and ASS", () => {
+  const doc = docOf([{ id: "1", timestamp: 1, text: "", translation: "translated" }]);
+  expect(serializeVtt(doc, 3)).toContain("00:00:01.000 --> 00:00:03.000\ntranslated");
+  expect(serializeAss(doc, 3)).toContain("Default,,0,0,0,,translated");
+});

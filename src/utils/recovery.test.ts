@@ -138,3 +138,18 @@ it("rejects non-finite values before JSON can silently convert them to null", ()
   localStorage.setItem(KEY, '{"doc":{"metadata":{"title":"","artist":"","album":"","by":"","offset":1e999},"lines":[],"extraTags":{}},"lrcPath":null,"audioPath":null,"savedAt":1}');
   expect(loadRecoverySnapshot()).toBeNull();
 });
+
+
+it.each([[null], [12], [{}], [[]]])("rejects malformed translation values %s", (translation) => {
+  const invalid = doc();
+  (invalid.lines[0] as any).translation = translation;
+  expect(saveRecoverySnapshot(invalid, null, null)).toBe(false);
+  localStorage.setItem(KEY, JSON.stringify({ doc: invalid, lrcPath: null, audioPath: null, savedAt: 1 }));
+  expect(loadRecoverySnapshot()).toBeNull();
+});
+it.each(["translated", ""])("retains optional translation strings %s in recovery", (translation) => {
+  const rich = doc();
+  (rich.lines[0] as any).translation = translation;
+  expect(saveRecoverySnapshot(rich, null, null)).toBe(true);
+  expect(loadRecoverySnapshot()?.doc.lines[0]).toHaveProperty("translation", translation);
+});

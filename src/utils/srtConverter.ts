@@ -42,10 +42,10 @@ export function serializeSrt(doc: LrcDocument, lastCueEnd?: number): string {
   const cues: { start: number; end: number; text: string }[] = [];
   for (let i = 0; i < timed.length; i++) {
     const line = timed[i];
-    if (line.text.trim() === "") continue; // 빈 줄 = 경계 전용
+    if (line.text.trim() === "" && !line.translation?.trim()) continue; // 빈 줄 = 경계 전용
     const start = line.timestamp as number;
     const end = nextCueEnd(timed, i, start, lastCueEnd);
-    cues.push({ start, end, text: line.text });
+    cues.push({ start, end, text: line.text.trim() === "" ? (line.translation ?? "") : line.translation ? `${line.text}\n${line.translation}` : line.text });
   }
 
   return (
@@ -59,8 +59,8 @@ export function serializeSrt(doc: LrcDocument, lastCueEnd?: number): string {
 }
 
 /**
- * Import cue starts and join multiline bodies with spaces. Intermediate gaps become
- * blank timed boundaries. Original overlaps and final cue ends are not stored.
+ * Import cue starts and preserve multiline bodies. Intermediate gaps become
+ * blank timed boundaries. Original overlaps are not stored; the final cue end is retained.
  */
 export function parseSrt(raw: string): LrcDocument {
   const doc = defaultDocument();
@@ -72,7 +72,8 @@ export function parseSrt(raw: string): LrcDocument {
   // 1) cue(start, end, text) 수집
   const cues: { start: number; end: number; text: string }[] = [];
   for (const block of blocks) {
-    const rows = block.split("\n").map((r) => r.trim()).filter((r) => r !== "");
+    const rows = block.split("\n");
+    while (rows.length && rows[rows.length - 1] === "") rows.pop();
     if (rows.length === 0) continue;
 
     // 시간 줄(--> 포함)을 찾음. 그 앞은 인덱스 번호(있으면), 그 뒤는 본문.
@@ -84,21 +85,20 @@ export function parseSrt(raw: string): LrcDocument {
     if (start === null) continue;
     const end = parseSrtTime(endStr ?? "");
 
-    const text = rows.slice(arrowIdx + 1).join(" ").trim();
+    const text = rows.slice(arrowIdx + 1).join("\n");
     cues.push({ start, end: end ?? start, text });
   }
 
   cues.sort((a, b) => a.start - b.start);
 
   // 2) cue → 가사 줄 + 가사 사이 갭에 빈 줄(경계) 삽입
-  const cs = (s: number) => Math.round(s * 100); // 센티초(LRC 정밀도) 기준 비교
   for (let i = 0; i < cues.length; i++) {
     const cue = cues[i];
     doc.lines.push({ id: String(lineId++), timestamp: cue.start, text: cue.text });
 
-    // 다음 cue가 있고, 종료 시각이 현재 시작보다 뒤·다음 시작보다 앞이면(갭 존재) 빈 줄 삽입
+    // Keep gap boundaries and the final cue end so imports retain their duration.
     const next = cues[i + 1];
-    if (next && cs(cue.end) > cs(cue.start) && cs(cue.end) < cs(next.start)) {
+    if (cue.end > cue.start && (!next || cue.end < next.start)) {
       doc.lines.push({ id: String(lineId++), timestamp: cue.end, text: "" });
     }
   }
