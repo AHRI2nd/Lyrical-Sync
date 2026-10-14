@@ -1,31 +1,35 @@
+import { isComposingKeyEvent } from "../../utils/keybindings";
 import { useEffect, useState } from "react";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { ConfirmModal } from "../AppShell/ConfirmModal";
 import { configureRecovery, clearLocalData } from "../../utils/localPrivacy";
 import { toast } from "../../stores/useToastStore";
+import { PreviewSettingsTab } from "./PreviewSettingsTab";
 import { KeybindingsSection } from "./KeybindingsSection";
 
-type Tab = "general" | "shortcuts";
+type Tab = "general" | "shortcuts" | "preview";
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
   const { t } = useI18nStore();
   const {
-    autoSave, recoveryEnabled, uiScale, showElrcSaveNotice, lyricsFontScale, showGlyphTimeMarkers,
-    setAutoSave, setUiScale, setShowElrcSaveNotice, setLyricsFontScale, setShowGlyphTimeMarkers,
+    autoSave, recoveryEnabled, uiScale, showElrcSaveNotice, lyricsFontScale, showGlyphTimeMarkers, showSpellCheck, showTranslationLines,
+    setAutoSave, setUiScale, setShowElrcSaveNotice, setLyricsFontScale, setShowGlyphTimeMarkers, setShowSpellCheck, setShowTranslationLines,
   } = useSettingsStore();
 
+  const [confirmTranslations, setConfirmTranslations] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmRecoveryOff, setConfirmRecoveryOff] = useState(false);
   const [tab, setTab] = useState<Tab>("general");
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !confirmRecoveryOff && !confirmClear) onClose();
+      if (isComposingKeyEvent(e)) return;
+      if (e.key === "Escape" && !confirmRecoveryOff && !confirmClear && !confirmTranslations) onClose();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onClose, confirmRecoveryOff, confirmClear]);
+  }, [onClose, confirmRecoveryOff, confirmClear, confirmTranslations]);
 
   const scalePercent = Math.round(uiScale * 100);
 
@@ -54,6 +58,9 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         <div className="flex border-b border-zinc-800 shrink-0">
           <TabBtn active={tab === "general"} onClick={() => setTab("general")}>
             {t.settingsTabGeneral}
+          </TabBtn>
+          <TabBtn active={tab === "preview"} onClick={() => setTab("preview")}>
+            {t.settingsTabPreview}
           </TabBtn>
           <TabBtn active={tab === "shortcuts"} onClick={() => setTab("shortcuts")}>
             {t.settingsTabShortcuts}
@@ -203,6 +210,17 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 
               <div className="border-t border-zinc-800" />
 
+              <section className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-zinc-200">{t.translationToggle}</span>
+                  <button type="button" role="switch" aria-label={t.translationToggle} aria-checked={showTranslationLines}
+                    onClick={() => { if (showTranslationLines) setShowTranslationLines(false); else setConfirmTranslations(true); }}
+                    className={`relative w-10 h-5 rounded-full shrink-0 ${showTranslationLines ? "bg-indigo-600" : "bg-zinc-600"}`}>
+                    <span className={`absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white ${showTranslationLines ? "translate-x-[22px]" : "translate-x-0.5"}`} />
+                  </button>
+                </div>
+                <p className="text-xs text-zinc-500">{t.settingsTranslationDesc}</p>
+              </section>
               {/* Glyph time markers */}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
@@ -226,8 +244,22 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                 </div>
                 <p className="text-xs text-zinc-500">{t.settingsGlyphMarkersDesc}</p>
               </div>
+              <div className="border-t border-zinc-800" />
+              <section className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-zinc-200">{t.settingsSpellCheck}</span>
+                  <button type="button" role="switch" aria-label={t.settingsSpellCheck} aria-checked={showSpellCheck}
+                    onClick={() => setShowSpellCheck(!showSpellCheck)}
+                    className={`relative w-10 h-5 rounded-full transition-colors shrink-0 overflow-hidden ${showSpellCheck ? "bg-indigo-600" : "bg-zinc-600"}`}>
+                    <span className={`absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white shadow transition-transform ${showSpellCheck ? "translate-x-[22px]" : "translate-x-0.5"}`} />
+                  </button>
+                </div>
+                <p className="text-xs text-zinc-500">{t.settingsSpellCheckDesc}</p>
+              </section>
             </div>
           )}
+
+          {tab === "preview" && <PreviewSettingsTab />}
 
           {tab === "shortcuts" && (
             <div className="p-5">
@@ -237,6 +269,9 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         </div>
       </div>
     </div>
+    {confirmTranslations && <ConfirmModal priority title={t.translationWarningTitle}
+      message={t.translationWarningMessage} okLabel={t.translationWarningOk} cancelLabel={t.translationWarningCancel}
+      onCancel={() => setConfirmTranslations(false)} onOk={() => { setShowTranslationLines(true); setConfirmTranslations(false); }} />}
     {confirmRecoveryOff && <ConfirmModal priority title={t.settingsRecovery}
       message={t.settingsRecoveryOffConfirm} okLabel={t.settingsRecoveryOff} cancelLabel={t.confirmNewCancel}
       onCancel={() => setConfirmRecoveryOff(false)} onOk={() => {
