@@ -25,7 +25,7 @@ function buildCues(doc: LrcDocument, lastCueEnd?: number, timeUnitsPerSecond = 1
   const cues: Cue[] = [];
   for (let i = 0; i < timed.length; i++) {
     const line = timed[i];
-    if (line.text.trim() === "") continue; // 빈 줄 = 경계 전용
+    if (line.text.trim() === "" && !line.translation?.trim()) continue; // 빈 줄 = 경계 전용
     const start = line.timestamp as number;
     const end = nextCueEnd(timed, i, start, lastCueEnd, timeUnitsPerSecond);
     cues.push({ start, end, line });
@@ -44,6 +44,7 @@ function vttTime(seconds: number): string {
 
 // 글자/단어 동기화가 있으면 VTT 인라인 타임스탬프(<HH:MM:SS.mmm>)로 카라오케 표현
 function vttText(line: LrcLine): string {
+  if (line.text.trim() === "") return line.translation ?? "";
   if (line.syllables?.some((s) => s.time !== null)) {
     return line.syllables
       .map((s) => (s.time !== null ? `<${vttTime(s.time)}>` : "") + s.text)
@@ -55,7 +56,7 @@ function vttText(line: LrcLine): string {
 export function serializeVtt(doc: LrcDocument, lastCueEnd?: number): string {
   const cues = buildCues(doc, lastCueEnd);
   const body = cues
-    .map((c) => `${vttTime(c.start)} --> ${vttTime(c.end)}\n${vttText(c.line)}`)
+    .map((c) => `${vttTime(c.start)} --> ${vttTime(c.end)}\n${vttText(c.line)}${c.line.text.trim() && c.line.translation ? `\n${c.line.translation}` : ""}`)
     .join("\n\n");
   return `WEBVTT\n\n${body}\n`;
 }
@@ -67,23 +68,28 @@ function assTime(seconds: number): string {
 }
 
 // ASS 텍스트: 글자 동기화가 있으면 \k(센티초 지속) 카라오케 태그로
+function escapeAssText(text: string): string {
+  return text.replace(/\\/g, "\\\\").replace(/\r\n|\r|\n/g, "\\N");
+}
+
 function assText(line: LrcLine, cueEnd: number): string {
+  if (line.text.trim() === "") return escapeAssText(line.translation ?? "");
   const syl = line.syllables;
   if (syl?.some((s) => s.time !== null)) {
     let out = "";
     for (let i = 0; i < syl.length; i++) {
       const s = syl[i];
-      if (s.time === null) { out += s.text; continue; }
+      if (s.time === null) { out += escapeAssText(s.text); continue; }
       let nextT = cueEnd;
       for (let j = i + 1; j < syl.length; j++) {
         if (syl[j].time !== null) { nextT = syl[j].time as number; break; }
       }
       const durCs = Math.max(0, Math.round((nextT - (s.time as number)) * 100));
-      out += `{\\k${durCs}}${s.text}`;
+      out += `{\\k${durCs}}${escapeAssText(s.text)}`;
     }
     return out;
   }
-  return line.text;
+  return escapeAssText(line.text);
 }
 
 export function serializeAss(doc: LrcDocument, lastCueEnd?: number): string {
@@ -106,7 +112,7 @@ Style: Default,Arial,72,&H00FFFFFF,&H00E8A33D,&H00000000,&H64000000,0,0,0,0,100,
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
   const events = cues
-    .map((c) => `Dialogue: 0,${assTime(c.start)},${assTime(c.end)},Default,,0,0,0,,${assText(c.line, c.end)}`)
+    .map((c) => `Dialogue: 0,${assTime(c.start)},${assTime(c.end)},Default,,0,0,0,,${assText(c.line, c.end)}${c.line.text.trim() && c.line.translation ? `\\N${escapeAssText(c.line.translation)}` : ""}`)
     .join("\n");
   return header + events + "\n";
 }

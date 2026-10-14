@@ -233,3 +233,67 @@ describe("long LRC timestamps", () => {
     expect(doc.lines[0].syllables).not.toBe(doc.lines[1].syllables);
   });
 });
+
+
+describe("explicit translation LRC", () => {
+  it("preserves default literal slash rows and ignores unsupported markers", () => {
+    for (const header of ["", "[x-lyrical-translations:2]\n"]) {
+      const parsed = parseLrc(header + "[00:01.00]original\n[00:01.00]/literal");
+      expect(parsed.lines.map(l => l.text)).toEqual(["original", "/literal"]);
+      expect(parsed.lines.every(l => !("translation" in l))).toBe(true);
+    }
+  });
+  it("pairs marked repeated timestamps before sorting and retains enhanced originals", () => {
+    const parsed = parseLrc("[x-lyrical-translations:1]\n[00:01.00][00:05.00]<00:01.00>hi\n[00:01.00][00:05.00]/hello\n[00:03.00]/literal");
+    expect(parsed.lines.map(l => [l.timestamp, l.text, l.translation])).toEqual([
+      [1, "hi", "hello"], [3, "/literal", undefined], [5, "hi", "hello"],
+    ]);
+    expect(parsed.lines[0].syllables).toEqual([{ text: "hi", time: 1 }]);
+    expect(parsed.lines[0].syllables).not.toBe(parsed.lines[2].syllables);
+  });
+  it("round-trips enhanced, untimed and empty translations alongside literal slash rows", () => {
+    const doc = docOf([
+      { id: "1", timestamp: 1, text: "hi", translation: "hello", syllables: [{ text: "hi", time: 1 }] },
+      { id: "2", timestamp: 1, text: "/literal" },
+      { id: "3", timestamp: null, text: "untimed", translation: "plain" },
+      { id: "4", timestamp: null, text: "\\literal", translation: "" },
+    ]);
+    const out = serializeLrc(doc);
+    expect(out).toContain("[x-lyrical-translations:1]");
+    const parsed = parseLrc(out);
+    expect(parsed.lines.map(l => [l.timestamp, l.text, l.translation])).toEqual([
+      [1, "hi", "hello"], [1, "/literal", undefined], [null, "untimed", "plain"], [null, "\\literal", ""],
+    ]);
+    expect(parsed.lines[0].syllables).toEqual([{ text: "hi", time: 1 }]);
+    expect(parseLrc(serializeLrc(doc, false)).lines[0].syllables).toBeUndefined();
+  });
+  it("drops stale translation markers when no line has a translation", () => {
+    const doc = docOf([{ id: "1", timestamp: 1, text: "a" }, { id: "2", timestamp: 1, text: "/b" }]);
+    doc.extraTags = { "x-lyrical-translations": "1" };
+    const out = serializeLrc(doc);
+    expect(out).not.toContain("x-lyrical-translations");
+    expect(parseLrc(out).lines.map(l => l.text)).toEqual(["a", "/b"]);
+  });
+});
+
+
+it("retains empty untimed originals and multiline translation strings in marked LRC", () => {
+  const doc = docOf([
+    { id: "1", timestamp: null, text: "", translation: "only translation" },
+    { id: "2", timestamp: null, text: "one\ntwo\\n", translation: "/three\nfour\\path" },
+  ]);
+  expect(parseLrc(serializeLrc(doc)).lines.map(l => [l.text, l.translation])).toEqual([
+    ["", "only translation"], ["one\ntwo\\n", "/three\nfour\\path"],
+  ]);
+});
+it("does not merge pre-marker or mismatched repeated timestamps", () => {
+  const parsed = parseLrc("[00:01.00]a\n[00:01.00]/b\n[x-lyrical-translations:1]\n[00:03.00][00:05.00]c\n[00:03.00]/d");
+  expect(parsed.lines.map(l => [l.timestamp, l.text, l.translation])).toEqual([
+    [1, "a", undefined], [1, "/b", undefined], [3, "c", undefined], [3, "/d", undefined], [5, "c", undefined],
+  ]);
+});
+
+
+it("retains ordinary LRC whitespace normalization around timestamps", () => {
+  expect(parseLrc("  [00:01.00]hello  ").lines[0]).toMatchObject({ timestamp: 1, text: "hello" });
+});
