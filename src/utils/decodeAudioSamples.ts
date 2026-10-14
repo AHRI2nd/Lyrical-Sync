@@ -1,24 +1,37 @@
 import type { FileRef } from "./fileAccess";
 import { readAudioBytes } from "./readAudioBytes";
 
-// 자동 스팟팅(RMS 에너지 분석)용 원본 PCM 샘플 추출. Wavesurfer의 exportPeaks()는
-// 픽셀당 min/max로 다운샘플된 값이라 20ms 윈도우 RMS 계산엔 정밀도가 부족해 별도 디코드.
-export async function decodeAudioSamples(audioPath: string, bookmark: string | null = null): Promise<{ samples: Float32Array; sampleRate: number; file: FileRef }> {
+// Decode original PCM for local analysis; display peaks lose transient detail.
+export async function decodeAudioSamples(audioPath: string, bookmark: string | null = null, signal?: AbortSignal): Promise<{ samples: Float32Array; sampleRate: number; file: FileRef }> {
+  const checkCancelled = () => {
+    if (signal?.aborted) throw new DOMException("Audio analysis cancelled", "AbortError");
+  };
+  checkCancelled();
   const { bytes, file } = await readAudioBytes(audioPath, bookmark);
+  checkCancelled();
   const ctx = new AudioContext();
   try {
     const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
     const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+    checkCancelled();
     const channels = audioBuffer.numberOfChannels;
     const { length, sampleRate } = audioBuffer;
-    // 채널 평균으로 모노화
+    // Average channels in chunks so cancellation and UI events can run.
     const samples = new Float32Array(length);
-    for (let c = 0; c < channels; c++) {
-      const data = audioBuffer.getChannelData(c);
-      for (let i = 0; i < length; i++) samples[i] += data[i] / channels;
+    const channelData = Array.from({ length: channels }, (_, c) => audioBuffer.getChannelData(c));
+    const chunkSize = 200000;
+    for (let start = 0; start < length; start += chunkSize) {
+      checkCancelled();
+      const end = Math.min(length, start + chunkSize);
+      for (const data of channelData) {
+        for (let i = start; i < end; i++) samples[i] += data[i] / channels;
+      }
+      if (end < length) await new Promise<void>((resolve) => setTimeout(resolve, 0));
     }
+    checkCancelled();
     return { samples, sampleRate, file };
   } finally {
-    ctx.close();
+    // Closing a context must not replace the original decode/cancel error.
+    try { await ctx.close(); } catch { /* Context may already be closed. */ }
   }
 }
