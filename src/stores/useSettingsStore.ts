@@ -3,7 +3,32 @@ import { createSafeJSONStorage, isRecord, isFiniteNumber, isNullableString } fro
 import { persist } from "zustand/middleware";
 import { type KeyAction, DEFAULT_KEYBINDINGS, KEY_ACTIONS, RESERVED_CODES } from "../utils/keybindings";
 
+export function normalizeGlyphWaveformHeight(value: unknown): number {
+  return isFiniteNumber(value)
+    ? Math.max(80, Math.min(240, Math.round(value / 8) * 8)) : 144;
+}
+
+function isPreviewColor(value: unknown): value is string {
+  return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value);
+}
+
 interface SettingsState {
+  glyphWaveformHeight: number;
+  glyphWaveformStyle: "continuous" | "bars";
+  showSpellCheck: boolean;
+  showTranslationLines: boolean;
+  previewFontScale: number;
+  previewActiveColor: string;
+  previewAccentColor: string;
+  previewGlowEnabled: boolean;
+  setGlyphWaveformHeight: (value: number) => void;
+  setGlyphWaveformStyle: (value: "continuous" | "bars") => void;
+  setShowSpellCheck: (value: boolean) => void;
+  setShowTranslationLines: (value: boolean) => void;
+  setPreviewFontScale: (value: number) => void;
+  setPreviewActiveColor: (value: string) => void;
+  setPreviewAccentColor: (value: string) => void;
+  setPreviewGlowEnabled: (value: boolean) => void;
   /** 저장 경로가 지정된 파일에 대해 변경 시 자동 저장 */
   autoSave: boolean;
   recoveryEnabled: boolean;
@@ -52,12 +77,18 @@ const MAX_RECENT_FILES = 8;
 function sanitizeSettings(value: unknown, current: SettingsState): SettingsState {
   if (!isRecord(value)) return current;
   const next = { ...current };
-  for (const field of ["autoSave", "recoveryEnabled", "showElrcSaveNotice", "showGlyphTimeMarkers", "showSpectrogram"] as const)
+  for (const field of ["autoSave", "recoveryEnabled", "showElrcSaveNotice", "showGlyphTimeMarkers", "showSpectrogram", "showSpellCheck", "showTranslationLines", "previewGlowEnabled"] as const)
     if (typeof value[field] === "boolean") next[field] = value[field];
-  for (const [field, min, max] of [["uiScale", 0.7, 1.3], ["lyricsFontScale", 0.8, 1.5]] as const) {
+  for (const [field, min, max] of [["uiScale", 0.7, 1.3], ["lyricsFontScale", 0.8, 1.5], ["previewFontScale", 0.8, 1.5]] as const) {
     const number = value[field];
     if (isFiniteNumber(number) && number >= min && number <= max) next[field] = number;
   }
+  if (value.glyphWaveformHeight !== undefined)
+    next.glyphWaveformHeight = normalizeGlyphWaveformHeight(value.glyphWaveformHeight);
+  if (value.glyphWaveformStyle === "continuous" || value.glyphWaveformStyle === "bars")
+    next.glyphWaveformStyle = value.glyphWaveformStyle;
+  for (const field of ["previewActiveColor", "previewAccentColor"] as const)
+    if (isPreviewColor(value[field])) next[field] = value[field];
   next.keybindings = { ...current.keybindings };
   if (isRecord(value.keybindings)) for (const action of KEY_ACTIONS) {
     const code = value.keybindings[action];
@@ -88,6 +119,22 @@ function sanitizeSettings(value: unknown, current: SettingsState): SettingsState
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
+      glyphWaveformHeight: 144,
+      glyphWaveformStyle: "continuous",
+      showSpellCheck: false,
+      showTranslationLines: false,
+      previewFontScale: 1,
+      previewActiveColor: "#ffffff",
+      previewAccentColor: "#6366f1",
+      previewGlowEnabled: true,
+      setGlyphWaveformHeight: (v) => set({ glyphWaveformHeight: normalizeGlyphWaveformHeight(v) }),
+      setGlyphWaveformStyle: (v) => set({ glyphWaveformStyle: v === "bars" ? "bars" : "continuous" }),
+      setShowSpellCheck: (v) => { if (typeof v === "boolean") set({ showSpellCheck: v }); },
+      setShowTranslationLines: (v) => { if (typeof v === "boolean") set({ showTranslationLines: v }); },
+      setPreviewFontScale: (v) => { if (isFiniteNumber(v) && v >= 0.8 && v <= 1.5) set({ previewFontScale: v }); },
+      setPreviewActiveColor: (v) => { if (isPreviewColor(v)) set({ previewActiveColor: v }); },
+      setPreviewAccentColor: (v) => { if (isPreviewColor(v)) set({ previewAccentColor: v }); },
+      setPreviewGlowEnabled: (v) => { if (typeof v === "boolean") set({ previewGlowEnabled: v }); },
       autoSave: true,
       recoveryEnabled: true,
       uiScale: 1.0,
@@ -98,6 +145,9 @@ export const useSettingsStore = create<SettingsState>()(
       recentFiles: [],
       keybindings: { ...DEFAULT_KEYBINDINGS },
       resetLocalPreferences: () => set({
+        glyphWaveformHeight: 144, glyphWaveformStyle: "continuous",
+        showSpellCheck: false, showTranslationLines: false,
+        previewFontScale: 1, previewActiveColor: "#ffffff", previewAccentColor: "#6366f1", previewGlowEnabled: true,
         autoSave: false, recoveryEnabled: false, uiScale: 1, showElrcSaveNotice: true,
         lyricsFontScale: 1, showGlyphTimeMarkers: true, showSpectrogram: false,
         recentFiles: [], keybindings: { ...DEFAULT_KEYBINDINGS },

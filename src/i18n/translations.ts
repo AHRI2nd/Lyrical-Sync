@@ -77,6 +77,34 @@ export interface Translations {
     badge: string;
     endCell: string;
     glyphProgress: string;
+    glyphMarkerLane: string;
+    selectedGlyph: string;
+    currentLine: string;
+    displaySpan: string;
+    waveformView: string;
+    glyphMarkers: string;
+    playhead: string;
+    help: string;
+    more: string;
+    waveformPreparing: string;
+    waveformNoAudio: string;
+    prevWindow: string;
+    nextWindow: string;
+    viewportFixed: string;
+    repeatLine: string;
+    repeatOn: string;
+    repeatOff: string;
+    repeatUnavailable: string;
+    followPlayback: string;
+    markerGroupHint: string;
+    waveformHeight: string;
+    waveformStyle: string;
+    waveformContinuous: string;
+    waveformBars: string;
+    waveformUnavailable: string;
+    timeRuler: string;
+    prevLine: string;
+    nextLine: string;
   };
   // AudioPlayer
   openAudio: string;
@@ -238,6 +266,67 @@ export interface Translations {
   };
   settingsUiScale: string;
   settingsUiScaleReset: string;
+  translationSplitTitle: string;
+  translationSplitHint: string;
+  translationFirstPart: string;
+  translationSecondPart: string;
+  translationSplitAction: string;
+  historyPanelTitle: string;
+  historyCurrent: string;
+  historyLabels: Record<string, string>;
+  translationToggle: string;
+  translationPlaceholder: string;
+  settingsTranslationDesc: string;
+  translationWarningTitle: string;
+  translationWarningMessage: string;
+  translationWarningOk: string;
+  translationWarningCancel: string;
+  bpmTitle: string;
+  bpmHint: string;
+  bpmDetecting: string;
+  bpmDetectFailed: string;
+  bpmDecodeError: string;
+  bpmLabel: string;
+  bpmOffset: string;
+  bpmTapTempo: string;
+  bpmScopeAll: string;
+  bpmScopeSelected: string;
+  bpmConfidence: string;
+  bpmAppliedAll: string;
+  bpmAppliedCount: string;
+  batchOutputFolder: string;
+  batchOutputFolderEmpty: string;
+  batchStatusCancelled: string;
+  batchSummaryCancelled: string;
+  batchStopping: string;
+  bpmManualHint: string;
+  cancelLabel: string;
+  applyLabel: string;
+  batchTitle: string;
+  batchHint: string;
+  batchSelectFiles: string;
+  batchNoFiles: string;
+  batchStatusPending: string;
+  batchStatusProcessing: string;
+  batchStatusDone: string;
+  batchStatusError: string;
+  batchOpOffset: string;
+  batchOpConvert: string;
+  batchOpTag: string;
+  batchOffsetLabel: string;
+  batchTagHint: string;
+  batchRun: string;
+  batchRunning: string;
+  batchStop: string;
+  batchSummaryDone: string;
+  batchSummaryError: string;
+  settingsTabPreview: string;
+  previewFontScaleLabel: string;
+  previewActiveColorLabel: string;
+  previewAccentColorLabel: string;
+  previewGlowLabel: string;
+  settingsSpellCheck: string;
+  settingsSpellCheckDesc: string;
 }
 
 const ko: Translations = {
@@ -338,6 +427,34 @@ const ko: Translations = {
     badge: "글자 동기화됨",
     endCell: "다음 줄로 (여기까지 칠하거나 클릭)",
     glyphProgress: "현재 줄의 글자 동기화 진행도",
+    glyphMarkerLane: "시간축 글자 마커",
+    selectedGlyph: "선택 글자",
+    currentLine: "현재 줄",
+    displaySpan: "{seconds}초 구간",
+    waveformView: "파형 보기",
+    glyphMarkers: "글자 마커 표시",
+    playhead: "재생 위치",
+    help: "조작 안내",
+    more: "추가 작업",
+    waveformPreparing: "파형 준비 중…",
+    waveformNoAudio: "오디오를 열면 파형을 표시합니다",
+    prevWindow: "이전 시간 구간",
+    nextWindow: "다음 시간 구간",
+    viewportFixed: "재생 위치 추적 · 중앙 기준",
+    repeatLine: "줄 반복",
+    repeatOn: "켜짐",
+    repeatOff: "꺼짐",
+    repeatUnavailable: "로컬 오디오와 유효한 줄 시작 시각이 필요합니다",
+    followPlayback: "재생 위치 따라가기",
+    markerGroupHint: "겹친 마커는 클릭할 때마다 다음 글자를 선택합니다",
+    waveformHeight: "파형 높이",
+    waveformStyle: "파형 스타일",
+    waveformContinuous: "연속 파형",
+    waveformBars: "막대 파형",
+    waveformUnavailable: "이 재생 모드에서는 파형을 표시할 수 없습니다",
+    timeRuler: "시간 눈금",
+    prevLine: "이전 줄",
+    nextLine: "다음 줄",
   },
   openAudio: "오디오 열기",
   zoom: "줌",
@@ -494,6 +611,90 @@ const ko: Translations = {
   },
   settingsUiScale: "UI 크기",
   settingsUiScaleReset: "초기화",
+  translationSplitTitle: "번역 줄 나누기",
+  translationSplitHint: "원문을 나눈 위치에 맞게 번역도 앞뒤로 나눠주세요.",
+  translationFirstPart: "앞 줄 번역",
+  translationSecondPart: "뒷 줄 번역",
+  translationSplitAction: "줄 나누기",
+  historyPanelTitle: "편집 히스토리",
+  historyCurrent: "현재",
+  historyLabels: {
+      commitSyllables: "글자 동기화 입력",
+      clearSyllables: "글자 동기화 해제",
+      stampLine: "타임스탬프 찍기",
+      setLines: "가사 줄 일괄 변경",
+      addLine: "줄 추가",
+      insertLines: "줄 삽입",
+      deleteLine: "줄 삭제",
+      duplicateLine: "줄 복제",
+      mergeLine: "줄 병합",
+      splitLine: "줄 분할",
+      moveLine: "줄 순서 이동",
+      scaleTimestamps: "타임스탬프 스케일",
+      deleteLines: "줄 일괄 삭제",
+      shiftLines: "타임스탬프 이동",
+      clearTimestamps: "타임스탬프 지우기",
+      loadDoc: "가사 불러오기",
+      applyOffset: "오프셋 적용",
+      shiftTimeRange: "구간 시간 이동",
+      replaceAll: "찾아바꾸기 ({count}곳)",
+      snapBeatGrid: "BPM 그리드 스냅",
+      editText: "가사 편집",
+      editMetadata: "메타데이터 편집",
+  },
+  translationToggle: "번역 줄 표시",
+  settingsTranslationDesc: "각 가사 아래에 번역 입력창을 표시합니다. LRC 번역은 앱 전용 확장 형식이며, 자막에서는 여러 줄로 출력합니다.",
+  translationWarningTitle: "번역 줄은 표준 LRC 형식이 아닙니다",
+  translationWarningMessage: "번역이 있는 LRC 파일은 번역용 확장 형식으로 저장되어 다른 플레이어와 호환되지 않을 수 있습니다. SRT/VTT/ASS에서는 원문과 번역을 여러 줄로 출력하며, 다시 불러온 SRT는 전체 자막 텍스트로 유지됩니다. 일반 LRC의 /로 시작하는 줄은 원문 그대로 불러옵니다. 번역 입력을 켜시겠습니까?",
+  translationWarningOk: "이해했습니다, 켜기",
+  translationWarningCancel: "취소",
+  translationPlaceholder: "번역 (선택)",
+  bpmTitle: "BPM 감지 + 비트 그리드 스냅",
+  bpmHint: "오디오에서 박자(BPM)를 추정합니다. 실제 음악 전체에 대한 자동 감지는 배박/절반박 오류가 흔하니, 값을 확인하거나 아래 탭 템포로 직접 보정한 뒤 적용하세요.",
+  bpmDetecting: "박자 감지 중...",
+  bpmDetectFailed: "박자를 감지하지 못했습니다. 탭 템포로 직접 입력해주세요.",
+  bpmDecodeError: "오디오 디코드에 실패했습니다.",
+  bpmLabel: "BPM",
+  bpmOffset: "첫 비트 시각",
+  bpmTapTempo: "탭 템포 (박자에 맞춰 클릭)",
+  bpmScopeAll: "전체 줄에 적용",
+  bpmScopeSelected: "선택한 줄에 적용",
+  bpmConfidence: "신뢰도",
+  bpmAppliedAll: "전체 줄에 적용했습니다",
+  bpmAppliedCount: "줄에 적용했습니다",
+  batchOutputFolder: "출력 폴더",
+  batchOutputFolderEmpty: "출력 폴더를 선택하세요",
+  batchStatusCancelled: "취소됨",
+  batchSummaryCancelled: "취소 {count}개",
+  batchStopping: "현재 파일 저장 후 중단합니다…",
+  bpmManualHint: "오디오 없이 BPM을 입력하거나 탭 템포를 사용하세요.",
+  cancelLabel: "취소",
+  applyLabel: "적용",
+  batchTitle: "일괄 처리",
+  batchHint: "선택한 파일에 오프셋·형식 변환·태그를 적용하여 출력 폴더에 새 파일로 저장합니다. 원본이나 기존 출력 파일은 덮어쓰지 않습니다.",
+  batchSelectFiles: "파일 선택...",
+  batchNoFiles: "선택된 파일이 없습니다",
+  batchStatusPending: "대기",
+  batchStatusProcessing: "처리 중",
+  batchStatusDone: "완료",
+  batchStatusError: "오류",
+  batchOpOffset: "오프셋 적용",
+  batchOpConvert: "포맷 변환",
+  batchOpTag: "태그 채우기",
+  batchOffsetLabel: "이동할 시간",
+  batchTagHint: "입력한 필드만 덮어씁니다. LRC 파일에만 적용되며(SRT는 태그 개념이 없어 제외), 오디오 파일 자체의 태그는 변경하지 않습니다.",
+  batchRun: "실행",
+  batchRunning: "처리 중...",
+  batchStop: "중지",
+  batchSummaryDone: "개 완료",
+  batchSummaryError: "개 실패",
+  settingsTabPreview: "미리보기",
+  previewFontScaleLabel: "가사 글꼴 크기",
+  previewActiveColorLabel: "활성 줄 색상",
+  previewAccentColorLabel: "강조 색상",
+  previewGlowLabel: "글로우 효과",
+  settingsSpellCheck: "맞춤법 검사",
+  settingsSpellCheckDesc: "가사 입력창에 브라우저 기본 맞춤법 검사를 사용합니다. 전용 교정기가 아니라 일반 사전 기반 검사이며, 음역/비표준 가사에서는 오탐이 많을 수 있습니다.",
 };
 
 const en: Translations = {
@@ -594,6 +795,34 @@ const en: Translations = {
     badge: "Character-synced",
     endCell: "Next line (paint here or click)",
     glyphProgress: "Glyphs synced in this line",
+    glyphMarkerLane: "Timed glyph markers",
+    selectedGlyph: "Selected glyph",
+    currentLine: "Current line",
+    displaySpan: "{seconds}s view",
+    waveformView: "Waveform view",
+    glyphMarkers: "Show glyph markers",
+    playhead: "Playback position",
+    help: "Controls help",
+    more: "More actions",
+    waveformPreparing: "Preparing waveform…",
+    waveformNoAudio: "Open audio to view the waveform",
+    prevWindow: "Previous time window",
+    nextWindow: "Next time window",
+    viewportFixed: "Following playback · centered",
+    repeatLine: "Repeat line",
+    repeatOn: "On",
+    repeatOff: "Off",
+    repeatUnavailable: "Requires local audio and a valid line timestamp",
+    followPlayback: "Follow playback",
+    markerGroupHint: "Click overlapping markers to cycle through their glyphs",
+    waveformHeight: "Waveform height",
+    waveformStyle: "Waveform style",
+    waveformContinuous: "Continuous",
+    waveformBars: "Bars",
+    waveformUnavailable: "Waveform unavailable for this playback source",
+    timeRuler: "Time ruler",
+    prevLine: "Previous line",
+    nextLine: "Next line",
   },
   openAudio: "Open Audio",
   zoom: "Zoom",
@@ -751,6 +980,90 @@ const en: Translations = {
   },
   settingsUiScale: "UI Scale",
   settingsUiScaleReset: "Reset",
+  translationSplitTitle: "Split translation",
+  translationSplitHint: "Adjust the translation split to match the lyric split.",
+  translationFirstPart: "First line translation",
+  translationSecondPart: "Second line translation",
+  translationSplitAction: "Split line",
+  historyPanelTitle: "Edit history",
+  historyCurrent: "Current",
+  historyLabels: {
+      commitSyllables: "Sync glyphs",
+      clearSyllables: "Clear glyph sync",
+      stampLine: "Stamp timestamp",
+      setLines: "Bulk edit lines",
+      addLine: "Add line",
+      insertLines: "Insert lines",
+      deleteLine: "Delete line",
+      duplicateLine: "Duplicate line",
+      mergeLine: "Merge line",
+      splitLine: "Split line",
+      moveLine: "Reorder line",
+      scaleTimestamps: "Scale timestamps",
+      deleteLines: "Delete lines",
+      shiftLines: "Shift timestamps",
+      clearTimestamps: "Clear timestamps",
+      loadDoc: "Load lyrics",
+      applyOffset: "Apply offset",
+      shiftTimeRange: "Shift time range",
+      replaceAll: "Find & replace ({count})",
+      snapBeatGrid: "BPM grid snap",
+      editText: "Edit lyrics",
+      editMetadata: "Edit metadata",
+  },
+  translationToggle: "Show translation lines",
+  settingsTranslationDesc: "Show translation inputs beneath lyrics. LRC translations use an app-specific extension; subtitle exports use multiple lines.",
+  translationWarningTitle: "Translation lines aren't standard LRC",
+  translationWarningMessage: "LRC translations are saved with an explicit translation extension that other players may not support. SRT/VTT/ASS exports place lyrics and translations on multiple lines; reimported SRT retains the complete subtitle text. Slash-prefixed lines in ordinary LRC files remain literal lyrics. Enable translation inputs?",
+  translationWarningOk: "Understood, turn it on",
+  translationWarningCancel: "Cancel",
+  translationPlaceholder: "Translation (optional)",
+  bpmTitle: "BPM Detection + Beat Grid Snap",
+  bpmHint: "Estimates the track's tempo (BPM). Automatic detection on a full music mix is prone to half/double-tempo errors — check the value or correct it with tap tempo below before applying.",
+  bpmDetecting: "Detecting tempo...",
+  bpmDetectFailed: "Couldn't detect a tempo. Try tap tempo instead.",
+  bpmDecodeError: "Failed to decode audio.",
+  bpmLabel: "BPM",
+  bpmOffset: "First beat time",
+  bpmTapTempo: "Tap Tempo (click along with the beat)",
+  bpmScopeAll: "Apply to all lines",
+  bpmScopeSelected: "Apply to selected lines",
+  bpmConfidence: "Confidence",
+  bpmAppliedAll: "Applied to all lines",
+  bpmAppliedCount: "line(s) snapped",
+  batchOutputFolder: "Output folder",
+  batchOutputFolderEmpty: "Select an output folder",
+  batchStatusCancelled: "Cancelled",
+  batchSummaryCancelled: "{count} cancelled",
+  batchStopping: "Stopping after active saves…",
+  bpmManualHint: "Without audio, enter a BPM or use Tap Tempo.",
+  cancelLabel: "Cancel",
+  applyLabel: "Apply",
+  batchTitle: "Batch Tool",
+  batchHint: "Apply offsets, convert formats or fill tags in selected files and save new files to the output folder. Source files and existing outputs are never overwritten.",
+  batchSelectFiles: "Select Files...",
+  batchNoFiles: "No files selected",
+  batchStatusPending: "Pending",
+  batchStatusProcessing: "Processing",
+  batchStatusDone: "Done",
+  batchStatusError: "Error",
+  batchOpOffset: "Apply Offset",
+  batchOpConvert: "Convert Format",
+  batchOpTag: "Fill Tags",
+  batchOffsetLabel: "Shift by",
+  batchTagHint: "Only fields you enter are overwritten. Applies to LRC files only (SRT has no tag concept), and never touches the audio file's own tags.",
+  batchRun: "Run",
+  batchRunning: "Processing...",
+  batchStop: "Stop",
+  batchSummaryDone: "done",
+  batchSummaryError: "failed",
+  settingsTabPreview: "Preview",
+  previewFontScaleLabel: "Lyrics font size",
+  previewActiveColorLabel: "Active line color",
+  previewAccentColorLabel: "Accent color",
+  previewGlowLabel: "Glow effect",
+  settingsSpellCheck: "Spell check",
+  settingsSpellCheckDesc: "Use the browser's built-in spell checker on the lyric text field. This is a generic dictionary checker, not a lyrics-aware proofreader, and may flag many false positives on phonetic or non-standard lyrics.",
 };
 
 const ja: Translations = {
@@ -851,6 +1164,34 @@ const ja: Translations = {
     badge: "文字同期済み",
     endCell: "次の行へ（ここまで塗るかクリック）",
     glyphProgress: "この行の文字同期の進捗",
+    glyphMarkerLane: "時間軸の文字マーカー",
+    selectedGlyph: "選択文字",
+    currentLine: "現在の行",
+    displaySpan: "{seconds}秒の範囲",
+    waveformView: "波形表示",
+    glyphMarkers: "文字マーカーを表示",
+    playhead: "再生位置",
+    help: "操作ガイド",
+    more: "その他の操作",
+    waveformPreparing: "波形を準備中…",
+    waveformNoAudio: "オーディオを開くと波形を表示します",
+    prevWindow: "前の時間範囲",
+    nextWindow: "次の時間範囲",
+    viewportFixed: "再生位置を追従 · 中央基準",
+    repeatLine: "行リピート",
+    repeatOn: "オン",
+    repeatOff: "オフ",
+    repeatUnavailable: "ローカルオーディオと有効な行開始時刻が必要です",
+    followPlayback: "再生位置に追従",
+    markerGroupHint: "重なったマーカーをクリックすると次の文字を選択します",
+    waveformHeight: "波形の高さ",
+    waveformStyle: "波形スタイル",
+    waveformContinuous: "連続波形",
+    waveformBars: "棒波形",
+    waveformUnavailable: "この再生モードでは波形を表示できません",
+    timeRuler: "時間目盛り",
+    prevLine: "前の行",
+    nextLine: "次の行",
   },
   openAudio: "音声を開く",
   zoom: "ズーム",
@@ -1007,6 +1348,90 @@ const ja: Translations = {
   },
   settingsUiScale: "UIサイズ",
   settingsUiScaleReset: "リセット",
+  translationSplitTitle: "翻訳を分割",
+  translationSplitHint: "歌詞の分割位置に合わせて翻訳も分けてください。",
+  translationFirstPart: "前の行の翻訳",
+  translationSecondPart: "次の行の翻訳",
+  translationSplitAction: "行を分割",
+  historyPanelTitle: "編集履歴",
+  historyCurrent: "現在",
+  historyLabels: {
+      commitSyllables: "文字同期入力",
+      clearSyllables: "文字同期解除",
+      stampLine: "タイムスタンプ記録",
+      setLines: "歌詞行を一括変更",
+      addLine: "行を追加",
+      insertLines: "行を挿入",
+      deleteLine: "行を削除",
+      duplicateLine: "行を複製",
+      mergeLine: "行を結合",
+      splitLine: "行を分割",
+      moveLine: "行の並び替え",
+      scaleTimestamps: "タイムスタンプのスケール",
+      deleteLines: "行を一括削除",
+      shiftLines: "タイムスタンプ移動",
+      clearTimestamps: "タイムスタンプ削除",
+      loadDoc: "歌詞を読み込み",
+      applyOffset: "オフセット適用",
+      shiftTimeRange: "区間の時間移動",
+      replaceAll: "検索と置換 ({count}件)",
+      snapBeatGrid: "BPMグリッドスナップ",
+      editText: "歌詞編集",
+      editMetadata: "メタデータ編集",
+  },
+  translationToggle: "翻訳行を表示",
+  settingsTranslationDesc: "歌詞の下に翻訳入力欄を表示します。LRC翻訳はアプリ独自の拡張形式、字幕では複数行で出力します。",
+  translationWarningTitle: "翻訳行は標準LRC形式ではありません",
+  translationWarningMessage: "翻訳を含むLRCは翻訳用拡張形式で保存されるため、他のプレイヤーで非対応の場合があります。SRT/VTT/ASSでは原文と翻訳を複数行で出力し、再読込したSRTは字幕全体のテキストを保持します。通常のLRCで/から始まる行は原文のまま読み込みます。翻訳入力を有効にしますか？",
+  translationWarningOk: "理解しました、オンにする",
+  translationWarningCancel: "キャンセル",
+  translationPlaceholder: "翻訳（任意）",
+  bpmTitle: "BPM検出 + ビートグリッドスナップ",
+  bpmHint: "音源からテンポ(BPM)を推定します。楽曲全体への自動検出は倍テンポ・半テンポの誤りが起きやすいので、値を確認するか下のタップテンポで補正してから適用してください。",
+  bpmDetecting: "テンポを検出中...",
+  bpmDetectFailed: "テンポを検出できませんでした。タップテンポで入力してください。",
+  bpmDecodeError: "音声のデコードに失敗しました。",
+  bpmLabel: "BPM",
+  bpmOffset: "最初のビート時刻",
+  bpmTapTempo: "タップテンポ（拍に合わせてクリック）",
+  bpmScopeAll: "全ての行に適用",
+  bpmScopeSelected: "選択した行に適用",
+  bpmConfidence: "信頼度",
+  bpmAppliedAll: "全ての行に適用しました",
+  bpmAppliedCount: "行に適用しました",
+  batchOutputFolder: "出力フォルダー",
+  batchOutputFolderEmpty: "出力フォルダーを選択してください",
+  batchStatusCancelled: "キャンセル済み",
+  batchSummaryCancelled: "{count}件キャンセル",
+  batchStopping: "保存中のファイルの完了後に停止します…",
+  bpmManualHint: "音声なしではBPMを入力するかタップテンポを使用してください。",
+  cancelLabel: "キャンセル",
+  applyLabel: "適用",
+  batchTitle: "一括処理",
+  batchHint: "選択したファイルにオフセット・形式変換・タグを適用し、出力フォルダーに新規保存します。原本や既存の出力ファイルは上書きしません。",
+  batchSelectFiles: "ファイルを選択...",
+  batchNoFiles: "選択されたファイルはありません",
+  batchStatusPending: "待機中",
+  batchStatusProcessing: "処理中",
+  batchStatusDone: "完了",
+  batchStatusError: "エラー",
+  batchOpOffset: "オフセット適用",
+  batchOpConvert: "フォーマット変換",
+  batchOpTag: "タグ入力",
+  batchOffsetLabel: "移動する時間",
+  batchTagHint: "入力した項目のみ上書きします。LRCファイルのみ対象(SRTにはタグの概念がないため対象外)で、音声ファイル自体のタグは変更しません。",
+  batchRun: "実行",
+  batchRunning: "処理中...",
+  batchStop: "停止",
+  batchSummaryDone: "件完了",
+  batchSummaryError: "件失敗",
+  settingsTabPreview: "プレビュー",
+  previewFontScaleLabel: "歌詞フォントサイズ",
+  previewActiveColorLabel: "アクティブ行の色",
+  previewAccentColorLabel: "アクセントカラー",
+  previewGlowLabel: "グロー効果",
+  settingsSpellCheck: "スペルチェック",
+  settingsSpellCheckDesc: "歌詞入力欄でブラウザ標準のスペルチェックを使用します。専用の校正機能ではなく一般的な辞書ベースのチェックのため、音訳や非標準的な歌詞では誤検出が多くなることがあります。",
 };
 
 export const translations: Record<Lang, Translations> = { ko, en, ja };

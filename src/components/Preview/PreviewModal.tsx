@@ -1,6 +1,8 @@
+import { isComposingKeyEvent } from "../../utils/keybindings";
 import { useEffect, useRef, useMemo, useCallback, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useLrcStore } from "../../stores/useLrcStore";
+import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { audioControls } from "../../utils/audioControls";
 import { formatDisplayTime, formatTimestamp, parseTimestampInput, isStampable } from "../../utils/lrcParser";
@@ -12,6 +14,10 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
     isPlaying: s.isPlaying, updateLine: s.updateLine, audioPath: s.audioPath,
   })));
   const { t } = useI18nStore();
+  const { previewFontScale, previewActiveColor, previewAccentColor, previewGlowEnabled } = useSettingsStore(useShallow((s) => ({
+    previewFontScale: s.previewFontScale, previewActiveColor: s.previewActiveColor,
+    previewAccentColor: s.previewAccentColor, previewGlowEnabled: s.previewGlowEnabled,
+  })));
   const activeLineRef = useRef<HTMLDivElement>(null);
   const controls = audioControls;
   const playbackTime = currentTime;
@@ -61,6 +67,7 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
   // ESC: 편집 중이면 편집 취소, 아니면 모달 닫기
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (isComposingKeyEvent(e)) return;
       if (e.key === "Escape") {
         if (editingId) {
           setEditingId(null);
@@ -104,22 +111,16 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
     const hasGlyphSync = !!line.syllables?.some((s) => s.time !== null);
     const lineEnd = lineEnds[i];
 
-    const dimClass = isActive
-      ? "text-white"
-      : dist === 1 ? "text-zinc-300"
-      : dist === 2 ? "text-zinc-500"
-      : "text-zinc-700";
-    const textSizeClass = isActive
-      ? "text-2xl font-bold"
-      : dist === 1 ? "text-xl font-medium"
-      : dist === 2 ? "text-lg"
-      : "text-base";
+    const lineColor = hexToRgba(previewActiveColor, isActive ? 1 : dist === 1 ? 0.8 : dist === 2 ? 0.45 : 0.2);
+    const fontWeightClass = isActive ? "font-bold" : dist === 1 ? "font-medium" : "";
+    const fontRem = (isActive ? 1.5 : dist === 1 ? 1.25 : dist === 2 ? 1.125 : 1) * previewFontScale;
 
     return (
       <div
         key={line.id}
         ref={isActive ? activeLineRef : null}
-        className={`flex items-baseline gap-4 transition-all duration-300 ${dimClass}`}
+        className="flex items-baseline gap-4 transition-all duration-300"
+        style={{ color: lineColor }}
       >
         <div className="w-20 shrink-0 flex justify-end">
           {editingId === line.id ? (
@@ -130,6 +131,7 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
               onBlur={() => commitEdit(line.id)}
               onKeyDown={(e) => {
                 e.stopPropagation();
+                if (isComposingKeyEvent(e.nativeEvent)) return;
                 if (e.key === "Enter") commitEdit(line.id);
                 if (e.key === "Escape") setEditingId(null);
               }}
@@ -151,25 +153,32 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div
-          className={`flex-1 leading-snug ${textSizeClass} ${line.timestamp !== null ? "cursor-pointer" : "select-none"}`}
+          className={`flex-1 leading-snug ${fontWeightClass} ${line.timestamp !== null ? "cursor-pointer" : "select-none"}`}
+          style={{ fontSize: `${fontRem}rem`, whiteSpace: "pre-wrap",
+            textShadow: isActive && previewGlowEnabled ? `0 0 26px ${hexToRgba(previewAccentColor, 0.28)}` : undefined,
+          }}
           onClick={() => { if (line.timestamp !== null) seekToLine(line.timestamp); }}
         >
           {isActive ? (
             <span className="relative inline-block">
               {hasGlyphSync && line.syllables ? (
-                <KaraokeText syllables={line.syllables} lineEnd={lineEnd} />
+                <KaraokeText syllables={line.syllables} lineEnd={lineEnd} activeColor={previewActiveColor} />
               ) : (
                 line.text || " "
               )}
-              <span className="absolute -bottom-1 left-0 right-0 h-0.5 rounded-full bg-indigo-500 opacity-80" />
+              <span className="absolute -bottom-1.5 left-0 right-0 h-px"
+                style={{ background: `linear-gradient(90deg, transparent, ${previewAccentColor}, transparent)`,
+                  boxShadow: previewGlowEnabled ? `0 0 12px 1px ${hexToRgba(previewAccentColor, 0.55)}` : undefined,
+                }} />
             </span>
           ) : (
             line.text || " "
           )}
+          {line.translation && <div style={{ whiteSpace: "pre-wrap", fontSize: "0.8em", opacity: 0.75, marginTop: "0.35em" }}>{line.translation}</div>}
         </div>
       </div>
     );
-  }), [doc.lines, activeIdx, lineEnds, editingId, editValue, startEdit, commitEdit, seekToLine]);
+  }), [doc.lines, activeIdx, lineEnds, editingId, editValue, startEdit, commitEdit, seekToLine, previewFontScale, previewActiveColor, previewAccentColor, previewGlowEnabled]);
 
   const hasTimestamps = doc.lines.some((l) => l.timestamp !== null);
 
@@ -268,10 +277,11 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
 // 글자 단위 가라오케 채움: 각 글자를 시작~다음 시각 사이 진행도로 좌→우 채움
 // 시간을 자체 구독 → 부모(미리보기 목록)가 매 프레임 리렌더되지 않아도 활성 줄만 채움 갱신
 function KaraokeText({
-  syllables, lineEnd,
+  syllables, lineEnd, activeColor,
 }: {
   syllables: LrcSyllable[];
   lineEnd: number;
+  activeColor: string;
 }) {
   const currentTime = useLrcStore((s) => s.currentTime);
   return (
@@ -294,7 +304,7 @@ function KaraokeText({
           <span
             key={i}
             style={{
-              background: `linear-gradient(90deg, #ffffff ${pct}%, #6b7280 ${pct}%)`,
+              background: `linear-gradient(90deg, ${activeColor} ${pct}%, #6b7280 ${pct}%)`,
               WebkitBackgroundClip: "text",
               backgroundClip: "text",
               WebkitTextFillColor: "transparent",
@@ -371,4 +381,12 @@ function TriLeftIcon() {
 
 function TriRightIcon() {
   return <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M9 6 L9 18 L17 12 Z" /></svg>;
+}
+
+// Settings accept only six-digit hex colors before they reach CSS consumers.
+function hexToRgba(hex: string, alpha: number): string {
+  const red = parseInt(hex.slice(1, 3), 16);
+  const green = parseInt(hex.slice(3, 5), 16);
+  const blue = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
