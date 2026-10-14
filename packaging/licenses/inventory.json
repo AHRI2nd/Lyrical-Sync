@@ -1384,6 +1384,28 @@
     {
       "documents": [
         {
+          "file": "LICENSE-APACHE",
+          "text": "143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "text": "8764a597675778ddfd4e25f81b08a05dbcf089ac05662df7613fe67f150e3aa2"
+        }
+      ],
+      "ecosystem": "cargo",
+      "license": "MIT OR Apache-2.0",
+      "name": "errno",
+      "repository": "https://github.com/lambda-fairy/rust-errno",
+      "sourceArchive": "https://crates.io/api/v1/crates/errno/0.3.14/download",
+      "sourceCommit": "ffc03bfb9eb491013567115e6eea560948cd9e52",
+      "targets": [
+        "macOS ARM64"
+      ],
+      "version": "0.3.14"
+    },
+    {
+      "documents": [
+        {
           "file": "LICENSE.txt",
           "text": "25a0874d15e7c834a47c3adc80901edb2219759254992023ef1010c3065413d5"
         }
@@ -3575,6 +3597,36 @@
     {
       "documents": [
         {
+          "file": "COPYRIGHT",
+          "text": "377c2e7c53250cc5905c0b0532d35973392af16ffb9596a41d99d202cf3617c9"
+        },
+        {
+          "file": "LICENSE-APACHE",
+          "text": "143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4"
+        },
+        {
+          "file": "LICENSE-Apache-2.0_WITH_LLVM-exception",
+          "text": "ae6e99144a735503e5b54b92e09cf8dec2e7f2e25706ec5c98af2f7d2242dc75"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "text": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ],
+      "ecosystem": "cargo",
+      "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+      "name": "rustix",
+      "repository": "https://github.com/bytecodealliance/rustix",
+      "sourceArchive": "https://crates.io/api/v1/crates/rustix/1.1.4/download",
+      "sourceCommit": "c4caf5caaa7e93828a2e4a4cdba1dd0171e45717",
+      "targets": [
+        "macOS ARM64"
+      ],
+      "version": "1.1.4"
+    },
+    {
+      "documents": [
+        {
           "file": "COPYING",
           "text": "01c266bced4a434da0051174d6bee16a4c82cf634e2679b6155d40d75012390f"
         },
@@ -4743,6 +4795,29 @@
         "Windows x64"
       ],
       "version": "2.11.0"
+    },
+    {
+      "documents": [
+        {
+          "file": "LICENSE-APACHE",
+          "text": "143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "text": "8b427f5bc501764575e52ba4f9d95673cf8f6d80a86d0d06599852e1a9a20a36"
+        }
+      ],
+      "ecosystem": "cargo",
+      "license": "MIT OR Apache-2.0",
+      "name": "tempfile",
+      "repository": "https://github.com/Stebalien/tempfile",
+      "sourceArchive": "https://crates.io/api/v1/crates/tempfile/3.27.0/download",
+      "sourceCommit": "5c8fa12eb584931b4f1bccfde87eb72fbfa7dc61",
+      "targets": [
+        "macOS ARM64",
+        "Windows x64"
+      ],
+      "version": "3.27.0"
     },
     {
       "documents": [
@@ -6447,9 +6522,9 @@
     "packaging/licenses/upstream/c76f740d1521b9bed9ca7a04ad526c310493c62621b1341d623b431736533b30.txt": "c76f740d1521b9bed9ca7a04ad526c310493c62621b1341d623b431736533b30",
     "packaging/licenses/upstream/f5c342c49f3ac804f3e8e7bb62a8040a44c50d47bb36902b1abd13f66a1adf8b.txt": "f5c342c49f3ac804f3e8e7bb62a8040a44c50d47bb36902b1abd13f66a1adf8b",
     "scripts/generate-notices.py": "4953e82aee8e9a07168fcc6d17467c02a83d28d51ba69de00efb62fb91151c0e",
-    "src-tauri/Cargo.lock": "c9221e774251d82737d52236e22031436b1b9fa2a083ac2275d843a9adb24423",
-    "src-tauri/Cargo.toml": "2d345bb402e3342fbc4128cf5b914359db986824541eb9bcd39a3beeeb01ed6e"
+    "src-tauri/Cargo.lock": "a75a3d47f86cd04a1400e24bdc2991c002c8fe57c2d19ee4646e70313fc7bb70",
+    "src-tauri/Cargo.toml": "b76a68e8db3573cf694453e3d2111333e95cec55c21f74260222b093cce39733"
   },
-  "noticeSha256": "5559531b9919223c5b03ac6d3a5f15a6a180de305aa40b74e18c58a163b09ea0",
+  "noticeSha256": "34f3cdf8c2b7397e7879851773cb28d9bf8ca6b9b3aa4d86dd0c6528540985a9",
   "schema": 1
 }

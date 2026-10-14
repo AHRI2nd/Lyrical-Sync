@@ -1,3 +1,4 @@
+mod batch_output;
 mod audio_decode;
 mod file_access;
 mod privacy_policy;
@@ -87,6 +88,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             file_access::prepare_file_ref,
+            batch_output::write_batch_output,
             read_lrc_file,
             write_lrc_file,
             read_audio_file,
