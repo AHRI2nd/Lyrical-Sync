@@ -5,8 +5,11 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn().mockResolvedValue(null)
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 import { LrcEditor } from "./LrcEditor";
 import { useLrcStore } from "../../stores/useLrcStore";
+import { useI18nStore } from "../../stores/useI18nStore";
+import { useSettingsStore } from "../../stores/useSettingsStore";
 import { defaultDocument } from "../../types/lrc";
 beforeEach(() => {
+  useSettingsStore.setState({ showTranslationLines: false, showSpellCheck: false });
   vi.stubGlobal("DragEvent", class extends MouseEvent {});
   Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: ["a", "b", "c", "d"].map((id) => ({ id, text: id, timestamp: null })) },
@@ -128,4 +131,84 @@ it("cancels a drop over a clipped row outside the visible scroll area", () => {
   pointerStart(handles[0]); pointerMove(76); pointerEnd(76);
   expect(useLrcStore.getState().doc.lines.map((line) => line.id)).toEqual(["a", "b", "c", "d"]);
   expect(useLrcStore.getState()._history).toHaveLength(0);
+});
+
+
+it("edits translation text without altering enhanced original timing and obeys spellcheck", () => {
+  useSettingsStore.setState({ showTranslationLines: true, showSpellCheck: true });
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "original", timestamp: 1,
+    translation: "translated", syllables: [{ text: "original", time: 1 }] }] } });
+  const { getByDisplayValue } = render(<LrcEditor onPreview={() => {}} />);
+  const translation = getByDisplayValue("translated");
+  expect(translation.getAttribute("spellcheck")).toBe("true");
+  expect(getByDisplayValue("original").getAttribute("spellcheck")).toBe("true");
+  fireEvent.change(translation, { target: { value: "new\ntranslation" } });
+  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({ text: "original", translation: "new\ntranslation", syllables: [{ text: "original", time: 1 }] });
+  act(() => useSettingsStore.setState({ showTranslationLines: false }));
+  expect(useLrcStore.getState().doc.lines[0].translation).toBe("new\ntranslation");
+});
+it("keeps imported multiline subtitle bodies intact while editing", () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "first\nsecond", timestamp: 1 }] } });
+  const { getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  const lyric = getByRole("textbox");
+  expect(lyric.tagName).toBe("TEXTAREA");
+  expect((lyric as HTMLTextAreaElement).value).toBe("first\nsecond");
+  fireEvent.change(lyric, { target: { value: "first\nchanged" } });
+  expect(useLrcStore.getState().doc.lines[0].text).toBe("first\nchanged");
+});
+
+
+it("asks for explicit translation parts when splitting and cancellation leaves the cue untouched", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "original", translation: "complete translation", timestamp: 1 }] } });
+  const { getByDisplayValue, getByRole, getByText } = render(<LrcEditor onPreview={() => {}} />);
+  const input = getByDisplayValue("original") as HTMLInputElement;
+  input.setSelectionRange(3, 3);
+  fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+  expect(getByText(t.translationSplitTitle)).toBeTruthy();
+  expect(useLrcStore.getState().doc.lines).toHaveLength(1);
+  expect((getByRole("textbox", { name: t.translationFirstPart }) as HTMLTextAreaElement).value).toBe("complete translation");
+  fireEvent.click(getByRole("button", { name: t.confirmNewCancel }));
+  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({ text: "original", translation: "complete translation" });
+  fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+  fireEvent.change(getByRole("textbox", { name: t.translationFirstPart }), { target: { value: "first part" } });
+  fireEvent.change(getByRole("textbox", { name: t.translationSecondPart }), { target: { value: "second part" } });
+  fireEvent.click(getByRole("button", { name: t.translationSplitAction }));
+  expect(useLrcStore.getState().doc.lines.map(l => [l.text, l.translation])).toEqual([["ori", "first part"], ["ginal", "second part"]]);
+});
+
+
+it("cancels a pending translation split when its document is replaced", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "original", translation: "translated", timestamp: 1 }] } });
+  const { getByDisplayValue, queryByRole } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.keyDown(getByDisplayValue("original"), { key: "Enter", shiftKey: true });
+  act(() => useLrcStore.setState({ doc: defaultDocument(), _documentSession: useLrcStore.getState()._documentSession + 1 }));
+  expect(queryByRole("dialog", { name: t.translationSplitTitle })).toBeNull();
+  expect(useLrcStore.getState().doc.lines).toEqual([]);
+});
+it("keeps ordinary Enter available for multiline cue editing instead of inserting a lyric row", () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "first\nsecond", timestamp: 1 }] } });
+  const { getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  expect(fireEvent.keyDown(getByRole("textbox"), { key: "Enter" })).toBe(true);
+  expect(useLrcStore.getState().doc.lines).toHaveLength(1);
+});
+it("opens the real lazy batch tool from the editor menu", async () => {
+  const t = useI18nStore.getState().t;
+  const { getByRole, findByRole } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getByRole("button", { name: t.editorTools }));
+  fireEvent.click(getByRole("button", { name: t.batchTitle }));
+  expect(await findByRole("dialog", { name: t.batchTitle })).toBeTruthy();
+});
+it("passes the selected lyric IDs into the lazy BPM tool", async () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ audioPath: null, doc: { ...defaultDocument(), lines: [{ id: "a", text: "a", timestamp: 1.14 }, { id: "b", text: "b", timestamp: 2.26 }] } });
+  const { getByRole, getByDisplayValue, findByRole } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getByDisplayValue("a").closest(".group\\/row")!, { ctrlKey: true });
+  fireEvent.click(getByRole("button", { name: t.editorTools }));
+  fireEvent.click(getByRole("button", { name: t.bpmTitle }));
+  const bpm = await findByRole("textbox", { name: t.bpmLabel });
+  fireEvent.change(bpm, { target: { value: "120" } });
+  fireEvent.click(getByRole("button", { name: t.applyLabel }));
+  expect(useLrcStore.getState().doc.lines.map(l => l.timestamp)).toEqual([1, 2.26]);
 });

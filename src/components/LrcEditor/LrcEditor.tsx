@@ -15,6 +15,8 @@ import { isComposingKeyEvent } from "../../utils/keybindings";
 import { LoopIcon } from "../AudioPlayer/icons";
 // 글자 동기화 뷰·자동 스팟팅 모달은 각각 모드 전환/버튼 클릭 시에만 필요 → 지연 로드
 const CharSyncView = lazy(() => import("./CharSyncView").then((m) => ({ default: m.CharSyncView })));
+const BpmSnapModal = lazy(() => import("../AudioPlayer/BpmSnapModal").then((m) => ({ default: m.BpmSnapModal })));
+const BatchToolModal = lazy(() => import("../BatchTools/BatchToolModal").then((m) => ({ default: m.BatchToolModal })));
 const AutoSpotModal = lazy(() => import("../AudioPlayer/AutoSpotModal").then((m) => ({ default: m.AutoSpotModal })));
 
 export function LrcEditor({ onPreview }: { onPreview: () => void }) {
@@ -41,10 +43,10 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     }))
   );
   const { t } = useI18nStore();
-  const { lyricsFontScale } = useSettingsStore();
+  const { lyricsFontScale, showSpellCheck, showTranslationLines } = useSettingsStore();
   const { lines } = doc;
 
-  const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+  const inputRefs = useRef<Map<string, HTMLInputElement | HTMLTextAreaElement>>(new Map());
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const rowViewportRef = useRef<HTMLDivElement>(null);
   const pendingFocusId = useRef<string | null>(null);
@@ -55,6 +57,8 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   // Time Shift state
   const [showTS, setShowTS] = useState(false);
   const [showScale, setShowScale] = useState(false);
+  const [showBpm, setShowBpm] = useState(false);
+  const [showBatch, setShowBatch] = useState(false);
   const [showAutoSpot, setShowAutoSpot] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
   // 줄 다중선택(일괄 작업)
@@ -80,6 +84,28 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   // 글자 동기화된 줄의 텍스트 수정 경고 / 단위 변경 경고
   const [pendingTextEdit, setPendingTextEdit] = useState<{ id: string; text: string } | null>(null);
   const [pendingUnit, setPendingUnit] = useState<SyncUnit | null>(null);
+  const [pendingSplit, setPendingSplit] = useState<{
+    id: string; caret: number; session: number; text: string; translation: string; first: string; second: string;
+  } | null>(null);
+  useEffect(() => { setPendingSplit(null); }, [documentSession]);
+  useEffect(() => {
+    if (!pendingSplit) return;
+    const cancel = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !isComposingKeyEvent(event)) setPendingSplit(null);
+    };
+    window.addEventListener("keydown", cancel);
+    return () => window.removeEventListener("keydown", cancel);
+  }, [pendingSplit]);
+  const applyTranslationSplit = () => {
+    if (!pendingSplit) return;
+    const current = useLrcStore.getState();
+    const line = current.doc.lines.find(item => item.id === pendingSplit.id);
+    if (current._documentSession === pendingSplit.session && line?.text === pendingSplit.text && line.translation === pendingSplit.translation) {
+      const newId = splitLine(pendingSplit.id, pendingSplit.caret, { first: pendingSplit.first, second: pendingSplit.second });
+      setActiveLineId(newId); pendingFocusId.current = newId;
+    }
+    setPendingSplit(null);
+  };
   // 드래그 재정렬 상태
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dropGap, setDropGap] = useState<number | null>(null);
@@ -225,7 +251,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     }
   });
 
-  const setInputRef = useCallback((id: string) => (el: HTMLInputElement | null) => {
+  const setInputRef = useCallback((id: string) => (el: HTMLInputElement | HTMLTextAreaElement | null) => {
     if (el) inputRefs.current.set(id, el);
     else inputRefs.current.delete(id);
   }, []);
@@ -235,12 +261,18 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     else rowRefs.current.delete(id);
   }, []);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, id: string) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>, id: string) => {
     if (isComposingKeyEvent(e.nativeEvent)) return;
     if (e.key === "Enter" && e.shiftKey) {
       // Shift+Enter = 커서 위치에서 줄 분할
       e.preventDefault();
       const caret = e.currentTarget.selectionStart ?? e.currentTarget.value.length;
+      const line = lines.find(item => item.id === id);
+      if (line?.translation !== undefined) {
+        setPendingSplit({ id, caret, session: documentSession, text: line.text, translation: line.translation,
+          first: line.translation, second: "" });
+        return;
+      }
       const newId = splitLine(id, caret);
       setActiveLineId(newId);
       pendingFocusId.current = newId;
@@ -514,6 +546,10 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                 >
                   {t.tsScale}
                 </button>
+                <button onClick={() => { setShowBpm(true); setShowTools(false); }}
+                  className="text-left px-2.5 py-1.5 text-xs rounded-lg hover:bg-zinc-700 text-zinc-200">{t.bpmTitle}</button>
+                <button onClick={() => { setShowBatch(true); setShowTools(false); }}
+                  className="text-left px-2.5 py-1.5 text-xs rounded-lg hover:bg-zinc-700 text-zinc-200">{t.batchTitle}</button>
                 <button
                   onClick={() => { setShowAutoSpot(true); setShowTools(false); }}
                   className="text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors hover:bg-zinc-700 text-zinc-200"
@@ -732,18 +768,41 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                 </div>
               )}
 
-              <input
-                ref={setInputRef(line.id)}
-                type="text"
-                value={line.text}
-                onChange={(e) => handleTextChange(line.id, e.target.value)}
-                onKeyDown={(e) => handleKeyDown(e, line.id)}
-                onFocus={() => setActiveLineId(line.id)}
-                onPaste={(e) => handlePaste(e, line.id, line.text)}
-                className="flex-1 bg-transparent text-white text-sm placeholder-zinc-600 focus:outline-none"
-                style={{ fontSize: `${0.875 * lyricsFontScale}rem` }}
-                placeholder={t.linePlaceholder}
-              />
+              <div className="flex-1 min-w-0 flex flex-col gap-1">
+                {line.text.includes("\n") ? (
+                  <textarea
+                    ref={setInputRef(line.id)} value={line.text} rows={Math.max(2, line.text.split("\n").length)}
+                    spellCheck={showSpellCheck}
+                    onChange={(e) => handleTextChange(line.id, e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && e.shiftKey) handleKeyDown(e, line.id); }}
+                    onFocus={() => setActiveLineId(line.id)}
+                    className="w-full resize-y bg-transparent text-white placeholder-zinc-600 focus:outline-none"
+                    style={{ fontSize: `${0.875 * lyricsFontScale}rem` }} placeholder={t.linePlaceholder}
+                  />
+                ) : (
+                  <input
+                    ref={setInputRef(line.id)} type="text" value={line.text} spellCheck={showSpellCheck}
+                    onChange={(e) => handleTextChange(line.id, e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(e, line.id)}
+                    onFocus={() => setActiveLineId(line.id)}
+                    onPaste={(e) => handlePaste(e, line.id, line.text)}
+                    className="w-full bg-transparent text-white placeholder-zinc-600 focus:outline-none"
+                    style={{ fontSize: `${0.875 * lyricsFontScale}rem` }} placeholder={t.linePlaceholder}
+                  />
+                )}
+                {showTranslationLines && (
+                  <textarea
+                    value={line.translation ?? ""} rows={Math.max(1, (line.translation ?? "").split("\n").length)}
+                    spellCheck={showSpellCheck} aria-label={`${t.translationPlaceholder} ${idx + 1}`}
+                    placeholder={t.translationPlaceholder}
+                    onClick={(e) => e.stopPropagation()}
+                    onFocus={() => setActiveLineId(line.id)}
+                    onChange={(e) => updateLine(line.id, { translation: e.target.value })}
+                    className="w-full resize-y bg-transparent text-zinc-400 placeholder-zinc-600 focus:outline-none"
+                    style={{ fontSize: `${0.75 * lyricsFontScale}rem` }}
+                  />
+                )}
+              </div>
 
               <button
                 onClick={(e) => {
@@ -788,6 +847,30 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
 
       <CurrentTimeFooter />
 
+      {pendingSplit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setPendingSplit(null)}>
+          <div role="dialog" aria-modal="true" aria-label={t.translationSplitTitle}
+            className="w-full max-w-md mx-4 p-5 rounded-xl border border-zinc-700 bg-zinc-900 flex flex-col gap-3"
+            onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-semibold text-white">{t.translationSplitTitle}</h3>
+            <p className="text-sm text-zinc-400">{t.translationSplitHint}</p>
+            <label className="text-sm text-zinc-300">{t.translationFirstPart}
+              <textarea autoFocus value={pendingSplit.first} spellCheck={showSpellCheck} rows={3}
+                onChange={(e) => setPendingSplit({ ...pendingSplit, first: e.target.value })}
+                className="mt-1 w-full rounded bg-zinc-800 p-2 text-white" />
+            </label>
+            <label className="text-sm text-zinc-300">{t.translationSecondPart}
+              <textarea value={pendingSplit.second} spellCheck={showSpellCheck} rows={3}
+                onChange={(e) => setPendingSplit({ ...pendingSplit, second: e.target.value })}
+                className="mt-1 w-full rounded bg-zinc-800 p-2 text-white" />
+            </label>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setPendingSplit(null)} className="rounded bg-zinc-700 px-3 py-2 text-sm text-white">{t.confirmNewCancel}</button>
+              <button onClick={applyTranslationSplit} className="rounded bg-indigo-600 px-3 py-2 text-sm text-white">{t.translationSplitAction}</button>
+            </div>
+          </div>
+        </div>
+      )}
       {pendingTextEdit && (
         <MiniConfirm
           title={t.charSync.retokenizeTitle}
@@ -816,6 +899,8 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
           onClose={() => setShowValidation(false)}
         />
       )}
+      {showBpm && <Suspense fallback={null}><BpmSnapModal selectedIds={[...selectedIds]} onClose={() => setShowBpm(false)} /></Suspense>}
+      {showBatch && <Suspense fallback={null}><BatchToolModal t={t} onClose={() => setShowBatch(false)} /></Suspense>}
       {showAutoSpot && (
         <Suspense fallback={null}>
           <AutoSpotModal onClose={() => setShowAutoSpot(false)} />
