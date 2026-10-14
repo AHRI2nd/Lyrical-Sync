@@ -93,3 +93,36 @@ it("undo restores enhanced tokens after a confirmed text change removes them", (
   s.undo(); expect(useLrcStore.getState().doc.lines[0].text).toBe("confirmed");
   s.undo(); expect(useLrcStore.getState().doc.lines[0].syllables).toEqual(tokens);
 });
+
+it('keeps labeled history metadata aligned across grouped edits, undo and redo', () => {
+  const s=useLrcStore.getState(); s.updateLine('1',{text:'one'}); s.updateLine('1',{text:'two'});
+  expect(useLrcStore.getState()._historyInfo).toHaveLength(1);
+  expect(useLrcStore.getState()._historyInfo[0]).toMatchObject({label:'editText'});
+  expect(useLrcStore.getState()._historyInfo[0].timestamp).toBeGreaterThan(0);
+  s.undo(); expect(useLrcStore.getState()._historyInfo).toHaveLength(0);
+  expect(useLrcStore.getState()._futureInfo).toHaveLength(1);
+  s.redo(); expect(useLrcStore.getState()._historyInfo).toHaveLength(1);
+  expect(useLrcStore.getState()._futureInfo).toHaveLength(0);
+});
+it('jumps both directions without changing file access ownership', () => {
+  const s=useLrcStore.getState(); s.updateLine('1',{text:'one'}); s.updateLine('2',{text:'other edited'}); s.setMetadata({title:'title'});
+  const latest=useLrcStore.getState().doc;
+  const path=useLrcStore.getState().lrcPath,session=useLrcStore.getState()._documentSession;
+  s.jumpToHistory(1);
+  expect(useLrcStore.getState().doc.lines.map(l=>l.text)).toEqual(['one','other']);
+  expect(useLrcStore.getState()._history).toHaveLength(1);
+  expect(useLrcStore.getState()._future).toHaveLength(2);
+  s.jumpToHistory(3); expect(useLrcStore.getState().doc).toBe(latest);
+  expect(useLrcStore.getState()).toMatchObject({lrcPath:path,_documentSession:session,isDirty:true});
+  expect(useLrcStore.getState()._historyInfo).toHaveLength(3);
+});
+it('ignores invalid timeline indices and preserves raw-import undo metadata and clears it on a new document', async () => {
+  const s=useLrcStore.getState(); s.updateLine('1',{text:'one'}); const doc=useLrcStore.getState().doc;
+  for(const index of [-1,NaN,Infinity,0.5,20]) s.jumpToHistory(index);
+  expect(useLrcStore.getState().doc).toBe(doc);
+  await s.loadFromRawText('[00:01.00]new');
+  expect(useLrcStore.getState()._historyInfo).toHaveLength(useLrcStore.getState()._history.length);
+  await s.newLrc();
+  expect(useLrcStore.getState()._historyInfo).toHaveLength(0);
+  expect(useLrcStore.getState()._futureInfo).toHaveLength(0);
+});
