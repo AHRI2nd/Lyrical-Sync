@@ -1,3 +1,5 @@
+import { clearWaveform, prepareWaveform } from "../../stores/useWaveformStore";
+import { getLinePlaybackRange } from "../../utils/linePlaybackRange";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "wavesurfer.js/dist/plugins/regions.esm.js";
@@ -83,6 +85,7 @@ export function AudioPlayer() {
     const previous = wsRef.current;
     wsRef.current = null;
     previous?.destroy();
+    clearWaveform();
     readyRef.current = false;
     peaksRef.current = null;
     regionsRef.current = null;
@@ -123,6 +126,8 @@ export function AudioPlayer() {
     ws.on("ready", () => {
       if (!isCurrent() || useLrcStore.getState()._documentSession !== documentSession) return;
       readyRef.current = true;
+      const decoded = ws.getDecodedData();
+      if (audioPath && decoded) void prepareWaveform(audioPath, decoded);
       const d = ws.getDuration();
       setDurationLocal(d);
       setDuration(d);
@@ -145,20 +150,8 @@ export function AudioPlayer() {
       // 줄 반복: 반복 대상 줄의 구간(다음 스탬프 줄 시작, 없으면 끝까지) 끝에 닿으면
       // 줄 시작으로 되돌아감. 매 프레임 스토어에서 직접 읽어 클로저 staleness 회피.
       const { loopLineId, doc } = useLrcStore.getState();
-      if (loopLineId) {
-        const idx = doc.lines.findIndex((l) => l.id === loopLineId);
-        const line = idx >= 0 ? doc.lines[idx] : null;
-        if (line && line.timestamp !== null) {
-          let end = ws.getDuration();
-          for (let i = idx + 1; i < doc.lines.length; i++) {
-            if (doc.lines[i].timestamp !== null) { end = doc.lines[i].timestamp as number; break; }
-          }
-          if (t >= end) {
-            const d = ws.getDuration();
-            if (d > 0) ws.seekTo(Math.max(0, Math.min(1, line.timestamp / d)));
-          }
-        }
-      }
+      const range = getLinePlaybackRange(doc.lines, loopLineId, ws.getDuration());
+      if (range && t >= range.end) ws.seekTo(range.start / ws.getDuration());
     });
     ws.on("seeking", (t) => {
       if (!isCurrent()) return;
@@ -169,7 +162,12 @@ export function AudioPlayer() {
     ws.on("pause", () => { if (!isCurrent()) return; setIsPlayingLocal(false); setIsPlaying(false); });
     ws.on("finish", () => {
       if (!isCurrent()) return;
-      if (isLoopingRef.current) {
+      const state = useLrcStore.getState();
+      const range = getLinePlaybackRange(state.doc.lines, state.loopLineId, ws.getDuration());
+      if (range) {
+        ws.seekTo(range.start / ws.getDuration());
+        ws.play();
+      } else if (isLoopingRef.current) {
         ws.seekTo(0);
         ws.play();
       } else {
@@ -198,6 +196,7 @@ export function AudioPlayer() {
     const ws = wsRef.current;
     wsRef.current = null;
     ws?.destroy();
+    clearWaveform();
     readyRef.current = false;
     peaksRef.current = null;
     regionsRef.current = null;

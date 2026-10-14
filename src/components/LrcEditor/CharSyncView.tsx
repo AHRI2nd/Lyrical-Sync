@@ -1,4 +1,8 @@
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { WaveformViewMenu } from "./WaveformViewMenu";
+import { getCenteredView } from "../../utils/waveformTimeline";
+import { getLinePlaybackRange } from "../../utils/linePlaybackRange";
+import { CharWaveformPanel } from "./CharWaveformPanel";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -8,19 +12,7 @@ import { isComposingKeyEvent, isInteractiveKeyTarget, keyLabel, matchAction, nor
 import { usePointerScrub } from "../../hooks/usePointerScrub";
 import { audioControls } from "../../utils/audioControls";
 import type { LrcLine, LrcSyllable } from "../../types/lrc";
-
-// 줄 타임스탬프가 없을 때 글자를 펼칠 기본 시간 창(초)
 const DEFAULT_SPAN = 8;
-
-// 찍힌 글자 아래 시간 마커(점선+시각) 레이아웃
-const MARK_STEP = 13;        // 단계당 점선 길이 증가(px)
-const MARK_LEVELS = 5;       // 라벨을 배치할 최대 단계 수
-const MARK_GAP = 8;          // 라벨 간 최소 간격(px)
-const MARK_LABEL_H = 14;     // 라벨 높이(px)
-const MARK_TICK = 5;         // 라벨 없는(겹쳐서 생략된) 글자의 짧은 틱 길이(px)
-
-// label=false: 라벨 들어갈 자리가 없어 틱만 표시
-type TimeMark = { index: number; x: number; level: number; time: string; label: boolean };
 
 type LineState = "none" | "partial" | "done";
 
@@ -43,6 +35,8 @@ export function CharSyncView() {
   const currentTime = useLrcStore((s) => s.currentTime);
   const isPlaying = useLrcStore((s) => s.isPlaying);
   const duration = useLrcStore((s) => s.duration);
+  const loopLineId = useLrcStore(s => s.loopLineId);
+  const setLoopLine = useLrcStore(s => s.setLoopLine);
   const audioPath = useLrcStore((s) => s.audioPath);
   const syncUnit = useLrcStore((s) => s.syncUnit);
   const activeSyllableIndex = useLrcStore((s) => s.activeSyllableIndex);
@@ -58,8 +52,6 @@ export function CharSyncView() {
   const lines = doc.lines;
   const lineIdx = activeLineId ? lines.findIndex((l) => l.id === activeLineId) : 0;
   const line: LrcLine | null = lines[lineIdx] ?? null;
-
-  // 표시용 토큰: 저장된 글자 동기화가 있으면 그대로, 없으면 현재 단위로 즉석 토큰화
   const syllables = useMemo<LrcSyllable[]>(() => {
     if (!line) return [];
     return line.syllables ?? tokenizeText(line.text, syncUnit);
@@ -69,59 +61,60 @@ export function CharSyncView() {
     () => syllables.map((s, i) => (isStampable(s) ? i : -1)).filter((i) => i >= 0),
     [syllables]
   );
-
-  // 시간 창 계산
   const prevLineTs = lineIdx > 0 ? lines[lineIdx - 1].timestamp : null;
   const nextLineTs = (() => {
     for (let i = lineIdx + 1; i < lines.length; i++) {
-      if (lines[i].timestamp !== null) return lines[i].timestamp;
+      if (lines[i].timestamp !== null && (line?.timestamp == null || lines[i].timestamp! > line.timestamp)) return lines[i].timestamp;
     }
     return null;
   })();
   const winStart = line?.timestamp ?? prevLineTs ?? 0;
+  const repeatRange = getLinePlaybackRange(lines, activeLineId, duration);
+  const canRepeat = !!audioPath && repeatRange !== null;
+  const previousAudio = useRef({ audioPath, audioSelection });
+  useEffect(() => {
+    const changed = previousAudio.current.audioPath !== audioPath || previousAudio.current.audioSelection !== audioSelection;
+    previousAudio.current = { audioPath, audioSelection };
+    if (loopLineId && (changed || loopLineId !== activeLineId || !canRepeat)) setLoopLine(null);
+  }, [audioPath, audioSelection, activeLineId, loopLineId, canRepeat, setLoopLine]);
   let winEnd =
     nextLineTs ??
     Math.min(winStart + DEFAULT_SPAN, duration > 0 ? duration : winStart + DEFAULT_SPAN);
   if (winEnd <= winStart) winEnd = winStart + DEFAULT_SPAN;
 
-  // 레인 줌: 창을 1/zoom 너비로 좁혀 재생헤드 중심으로 표시 → 밀집 구간 정밀도↑
   const [zoom, setZoom] = useState(1);
-  useEffect(() => { setZoom(1); }, [activeLineId]);
-  let viewStart = winStart;
-  let viewEnd = winEnd;
-  if (zoom > 1) {
-    const vw = (winEnd - winStart) / zoom;
-    const center = Math.min(Math.max(currentTime, winStart), winEnd);
-    viewStart = Math.max(winStart, Math.min(center - vw / 2, winEnd - vw));
-    viewEnd = viewStart + vw;
-  }
+  const [follow, setFollow] = useState(true);
+  const [anchor, setAnchor] = useState(currentTime);
+  const waveformHeight = useSettingsStore(s => s.glyphWaveformHeight);
+  const waveformStyle = useSettingsStore(s => s.glyphWaveformStyle);
+  // Keep the viewing scale stable while stamps change the lyric's start timestamp.
+  const baseSpan = useMemo(() => Math.max(2, winEnd - winStart), [documentSession, audioSelection, activeLineId, duration]);
+  useEffect(() => { setZoom(1); setFollow(true); setAnchor(useLrcStore.getState().currentTime); }, [documentSession, audioSelection, activeLineId]);
+  let { start: viewStart, end: viewEnd } = getCenteredView(follow ? currentTime : anchor, baseSpan / zoom, duration);
+  const contextKey = JSON.stringify([documentSession, audioSelection, audioPath, activeLineId, zoom, winStart, winEnd, duration]);
+  const displayRange = useRef({ start: viewStart, end: viewEnd });
+  const [pendingSeek, setPendingSeek] = useState<{ start: number; end: number; time: number; fromTime: number; context: string } | null>(null);
   const laneScrub = usePointerScrub({
-    contextKey: JSON.stringify([documentSession, audioSelection, audioPath, activeLineId, zoom, winStart, winEnd, duration]),
-    start: viewStart, end: viewEnd, onCommit: controls.seekTo, enabled: !!audioPath && duration > 0,
+    contextKey, start: pendingSeek?.context === contextKey ? pendingSeek.start : viewStart,
+    end: pendingSeek?.context === contextKey ? pendingSeek.end : viewEnd, enabled: !!audioPath && duration > 0,
+    onCommit: seconds => {
+      setPendingSeek({ ...displayRange.current, time: seconds, fromTime: useLrcStore.getState().currentTime, context: contextKey });
+      setFollow(true); setAnchor(seconds); controls.seekTo(seconds);
+    },
   });
-  if (laneScrub.range) { viewStart = laneScrub.range.start; viewEnd = laneScrub.range.end; }
-  const pct = (time: number) =>
-    `${Math.max(0, Math.min(1, (time - viewStart) / (viewEnd - viewStart))) * 100}%`;
-
-  // 레인 파형: 전체 트랙 peaks에서 표시 창(view) 구간만 잘라 막대로
-  const peaks = useMemo(() => audioControls.getPeaks(), [audioPath, duration]);
-  const waveBars = useMemo(() => {
-    if (!peaks || duration <= 0 || viewEnd <= viewStart) return null;
-    const i0 = Math.max(0, Math.floor((viewStart / duration) * peaks.length));
-    const i1 = Math.min(peaks.length, Math.ceil((viewEnd / duration) * peaks.length));
-    if (i1 <= i0) return null;
-    const visible = peaks.slice(i0, i1).map((v) => Math.min(1, Math.abs(v)));
-    if (visible.length <= 600) return visible;
-    return Array.from({ length: 600 }, (_, bin) => {
-      const start = Math.floor(bin * visible.length / 600);
-      const end = Math.floor((bin + 1) * visible.length / 600);
-      let peak = 0;
-      for (let i = start; i < end; i++) peak = Math.max(peak, visible[i]);
-      return peak;
-    });
-  }, [peaks, duration, viewStart, viewEnd]);
-
-  // 재생 위치에서 지금 불리는 글자(편집 커서와 별개). 창 밖이면 -1.
+  useEffect(() => {
+    if (!pendingSeek) return;
+    if (pendingSeek.context !== contextKey || currentTime !== pendingSeek.fromTime) { setPendingSeek(null); return; }
+    const timer = setTimeout(() => setPendingSeek(null), 750);
+    return () => clearTimeout(timer);
+  }, [pendingSeek, currentTime, contextKey]);
+  const frozen = laneScrub.range ?? (pendingSeek?.context === contextKey ? pendingSeek : null);
+  if (frozen) { viewStart = frozen.start; viewEnd = frozen.end; }
+  displayRange.current = { start: viewStart, end: viewEnd };
+  const visiblePlayhead = laneScrub.preview ?? (pendingSeek?.context === contextKey ? pendingSeek.time : currentTime);
+  const seekWithFollow = (seconds: number) => {
+    setFollow(true); setAnchor(seconds); setPendingSeek(null); controls.seekTo(seconds);
+  };
   const playingIdx = useMemo(() => {
     if (currentTime < winStart || currentTime > winEnd) return -1;
     let idx = -1;
@@ -132,53 +125,7 @@ export function CharSyncView() {
     return idx;
   }, [syllables, currentTime, winStart, winEnd]);
 
-  // 찍힌 글자 아래 시간 마커(점선+시각). 글자 위치·라벨 폭을 측정해 겹치지 않게 배치.
   const textRef = useRef<HTMLDivElement>(null);
-  const measureRef = useRef<HTMLSpanElement>(null);
-  const [marks, setMarks] = useState<TimeMark[]>([]);
-  const [marksHeight, setMarksHeight] = useState(0);
-  const [measureKey, setMeasureKey] = useState(0);
-
-  useEffect(() => {
-    const onResize = () => setMeasureKey((k) => k + 1);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-
-  useLayoutEffect(() => {
-    const root = textRef.current;
-    if (!root || !showGlyphTimeMarkers) { setMarks([]); setMarksHeight(0); return; }
-    // 실제 라벨 폭 측정(폰트 의존). 실패 시 보수적 기본값.
-    const labelW = (measureRef.current?.offsetWidth ?? 56) + MARK_GAP;
-    const levelRight: number[] = []; // 단계별 마지막 라벨 우측 끝
-    const out: TimeMark[] = [];
-    let maxLabelLevel = 0;
-    for (let i = 0; i < syllables.length; i++) {
-      const s = syllables[i];
-      if (s.time === null || !isStampable(s)) continue;
-      const el = root.querySelector<HTMLElement>(`[data-glyph="${i}"]`);
-      if (!el) continue;
-      const cx = el.offsetLeft + el.offsetWidth / 2;
-      const left = cx - labelW / 2;
-      const right = cx + labelW / 2;
-      // 겹치지 않는 가장 낮은 단계 찾기. 없으면 라벨 생략(틱만) → 겹침 0 보장.
-      let level = -1;
-      for (let L = 0; L < MARK_LEVELS; L++) {
-        if (levelRight[L] === undefined || levelRight[L] <= left) { level = L; break; }
-      }
-      const hasLabel = level !== -1;
-      if (hasLabel) {
-        levelRight[level] = right;
-        maxLabelLevel = Math.max(maxLabelLevel, level);
-      }
-      out.push({ index: i, x: cx, level: hasLabel ? level : 0, time: formatTimestamp(s.time), label: hasLabel });
-    }
-    const anyLabel = out.some((m) => m.label);
-    setMarks(out);
-    setMarksHeight(out.length ? (anyLabel ? maxLabelLevel * MARK_STEP + MARK_LABEL_H + 6 : MARK_TICK + 4) : 0);
-  }, [syllables, activeLineId, syncUnit, measureKey, showGlyphTimeMarkers, lyricsFontScale]);
-
-  // 활성 줄이 바뀌면 활성 글자를 첫 미입력(없으면 첫 글자)으로
   useEffect(() => {
     if (stampableIdx.length === 0) {
       setActiveSyllable(0);
@@ -188,19 +135,13 @@ export function CharSyncView() {
     setActiveSyllable(firstUnstamped ?? stampableIdx[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeLineId, syncUnit, stampableIdx.length]);
-
-  // keydown 핸들러가 1회 캡처되므로 lines는 클로저 대신 최신 상태에서 읽는다
   const gotoLine = (i: number) => {
     const l = useLrcStore.getState().doc.lines[i];
     if (l) setActiveLineId(l.id);
   };
-
-  // 활성 줄이 없으면 첫 줄로 (글자 모드 진입 시 선택 보장)
   useEffect(() => {
     if (!activeLineId && lines.length > 0) setActiveLineId(lines[0].id);
   }, [activeLineId, lines, setActiveLineId]);
-
-  // 최신 상태 스냅샷 (키 핸들러에서 참조)
   const stateRef = useRef({
     line,
     syllables,
@@ -213,7 +154,6 @@ export function CharSyncView() {
   const stampActive = () => {
     const { line: ln, syllables: syl, stampableIdx: sidx, lineIdx: li } = stateRef.current;
     if (!ln) return;
-    // 스탬프할 글자가 없는 줄(빈 구분선)이면 다음 줄로 건너뜀
     if (sidx.length === 0) { gotoLine(li + 1); return; }
     const idx = useLrcStore.getState().activeSyllableIndex;
     if (!syl[idx] || !isStampable(syl[idx])) return;
@@ -235,8 +175,6 @@ export function CharSyncView() {
     else if (dir < 0) gotoLine(li - 1);
     else gotoLine(li + 1);
   };
-
-  // 현재 글자 시각 미세조정 (Shift+←/→). 이웃 글자 시각 사이로 클램프 + 탐색.
   const nudge = (delta: number) => {
     const { line: ln, syllables: syl } = stateRef.current;
     if (!ln) return;
@@ -249,22 +187,17 @@ export function CharSyncView() {
     for (let i = idx + 1; i < syl.length; i++) { if (syl[i].time !== null) { hi = syl[i].time as number; break; } }
     const nt = Math.max(lo, Math.min(hi, Math.max(0, (s.time as number) + delta)));
     commitSyllables(ln.id, syl.map((x, i) => (i === idx ? { ...x, time: nt } : x)));
-    audioControls.seekTo(nt);
+    seekWithFollow(nt);
   };
-
-  // ←→=글자 이동(Shift=미세조정, 고정) · stamp/prevLine=사용자 단축키
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (isComposingKeyEvent(e)) return;
       if (isInteractiveKeyTarget(e.target) || isInteractiveKeyTarget(document.activeElement)) return;
-      // 모달이 열려 있으면 글자 모드 키가 모달 뒤에서 동작하지 않게 차단
       if (anyModalOpen()) return;
-      // 글자 이동/미세조정(고정)
       if (e.code === "ArrowLeft" && e.shiftKey) { e.preventDefault(); nudge(-0.05); return; }
       if (e.code === "ArrowRight" && e.shiftKey) { e.preventDefault(); nudge(0.05); return; }
       if (e.code === "ArrowLeft") { e.preventDefault(); moveActive(-1); return; }
       if (e.code === "ArrowRight") { e.preventDefault(); moveActive(1); return; }
-      // 사용자 단축키(stamp/prevLine). 수식자 조합 제외.
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const kb = normalizeKeybindings(useSettingsStore.getState().keybindings);
       const action = matchAction(e.code, kb);
@@ -278,12 +211,7 @@ export function CharSyncView() {
 
   const laneRef = useRef<HTMLDivElement>(null);
   const dragCleanupRef = useRef<(() => void) | null>(null);
-
-  // 드래그 도중 언마운트되면 window 리스너 정리
   useEffect(() => () => dragCleanupRef.current?.(), []);
-
-  // 글자를 "현재 재생 시간"으로 찍고 다음 글자를 준비(활성)로. 재생헤드는 건드리지 않음.
-  // recordHistory=false면 히스토리 미기록(칠하기 드래그 도중 글자들을 1회 undo로 묶기 위함).
   const stampGlyphAt = (index: number, recordHistory = true) => {
     const { line: ln, syllables: syl, stampableIdx: sidx } = stateRef.current;
     if (!ln || !syl[index] || !isStampable(syl[index])) return;
@@ -293,29 +221,26 @@ export function CharSyncView() {
     const nextIdx = sidx[pos + 1];
     if (nextIdx != null) setActiveSyllable(nextIdx);
   };
-
-  // 글자 위 드래그 = 칠하기: 재생 중 글자 위를 끌면 지나는 글자가 현재 재생 시간으로 찍히고
-  // 다음 글자가 준비됨(재생헤드 이동/스크럽 없음). 단순 클릭 = 그 글자를 활성(준비)으로 선택만.
   const beginDrag = (index: number, e: React.MouseEvent) => {
     if (!line || e.button !== 0) return; // 좌클릭만 (우클릭은 글자 지우기)
     e.preventDefault();
     // Return shortcut focus to the glyph editor after using a toolbar control.
     textRef.current?.focus({ preventScroll: true });
     const startX = e.clientX;
+    const startY = e.clientY;
     let painting = false;
     let lastIdx = -1;
     let advancedViaEnd = false;
 
     const move = (ev: MouseEvent) => {
       if (!painting) {
-        if (Math.abs(ev.clientX - startX) <= 5) return;
+        if (Math.hypot(ev.clientX - startX, ev.clientY - startY) <= 5) return;
         painting = true;
         stampGlyphAt(index, true); // 칠하기 시작 = 히스토리 1회 기록
         lastIdx = index;
         return;
       }
       const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
-      // 마지막 공백 셀까지 칠이 이어지면 다음 줄로 (드래그 1회당 한 번만)
       if (el?.getAttribute?.("data-glyph-end") != null) {
         if (!advancedViaEnd) {
           advancedViaEnd = true;
@@ -324,7 +249,6 @@ export function CharSyncView() {
         }
         return;
       }
-      // 커서 아래 글자 판별 → 새 글자에 진입하면 현재 재생 시간으로 찍기 (히스토리 미기록=배치)
       const attr = el?.getAttribute?.("data-glyph");
       if (attr == null) return;
       advancedViaEnd = false;
@@ -348,15 +272,13 @@ export function CharSyncView() {
   };
 
   const replayLine = () => {
-    controls.seekTo(winStart);
+    seekWithFollow(winStart);
     if (!isPlaying) controls.togglePlay();
   };
 
   const clearLine = () => {
     if (line) clearLineSyllables(line.id);
   };
-
-  // 우클릭: 그 글자의 시각만 제거
   const clearGlyph = (index: number) => {
     if (!line || syllables[index].time === null) return;
     commitSyllables(line.id, syllables.map((s, i) => (i === index ? { ...s, time: null } : s)));
@@ -369,214 +291,107 @@ export function CharSyncView() {
       </div>
     );
   }
-
-  // readout: 현재 활성 글자
   const readoutSyl = syllables[activeSyllableIndex];
   const readoutText = readoutSyl && isStampable(readoutSyl) ? readoutSyl.text.trim() : "—";
   const readoutTime = readoutSyl && readoutSyl.time !== null ? formatTimestamp(readoutSyl.time) : "--:--.--";
-
-  // 활성 줄 글자 진행도
   const glyphTotal = stampableIdx.length;
   const glyphDone = stampableIdx.filter((i) => syllables[i].time !== null).length;
 
   const ZOOM_LEVELS = [1, 2, 4, 8];
-  const setZoomStep = (dir: number) =>
-    setZoom((z) => {
-      const i = Math.max(0, Math.min(ZOOM_LEVELS.length - 1, ZOOM_LEVELS.indexOf(z) + dir));
-      return ZOOM_LEVELS[i];
-    });
+  const setZoomStep = (dir: number) => {
+    if (!follow) setAnchor(readoutSyl?.time ?? anchor);
+    setPendingSeek(null);
+    setZoom(z => ZOOM_LEVELS[Math.max(0, Math.min(ZOOM_LEVELS.length - 1, ZOOM_LEVELS.indexOf(z) + dir))]);
+  };
+  const pan = (dir: number) => { setFollow(false); setPendingSeek(null); setAnchor((viewStart + viewEnd) / 2 + dir * (viewEnd - viewStart) / 2); };
 
-  return (
-    <div className="flex flex-col flex-1 min-h-0">
-      {/* 줄 네비게이터 */}
-      <div className="flex items-center gap-2 px-2 py-1.5 bg-zinc-800/60 rounded-lg mb-4">
-        <button
-          onClick={(e) => { gotoLine(lineIdx - 1); e.currentTarget.blur(); }}
-          disabled={lineIdx <= 0}
-          className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 transition-colors"
-        >
-          ‹
-        </button>
-        <span className="text-xs text-zinc-500 font-mono shrink-0">
-          {lineIdx + 1} / {lines.length}
-          {glyphTotal > 0 && (
-            <span
-              className={`ml-1.5 ${glyphDone === glyphTotal ? "text-emerald-400" : "text-amber-400"}`}
-              title={t.charSync.glyphProgress}
-            >
-              {glyphDone}/{glyphTotal}
-            </span>
-          )}
-        </span>
-        <LineDots lines={lines} activeIdx={lineIdx} onSelect={setActiveLineId} />
-        <button
-          onClick={(e) => { gotoLine(lineIdx + 1); e.currentTarget.blur(); }}
-          disabled={lineIdx >= lines.length - 1}
-          className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 transition-colors"
-        >
-          ›
-        </button>
+  return <div className="flex flex-col flex-1 min-h-0 overflow-y-auto gap-4 pr-1">
+    <div className="flex items-center gap-2 px-2 py-1.5 border-b border-zinc-800 shrink-0">
+      <span className="text-sm text-zinc-200 shrink-0">{t.charSync.modeChar}</span>
+      <LineDots lines={lines} activeIdx={lineIdx} onSelect={setActiveLineId} />
+      <button type="button" onClick={e => { gotoLine(lineIdx - 1); e.currentTarget.blur(); }} disabled={lineIdx <= 0}
+        className="text-zinc-400 hover:text-white disabled:opacity-30 px-1">‹</button>
+      <span className="text-xs text-zinc-400 font-mono shrink-0">{lineIdx + 1}/{lines.length}</span>
+      <button type="button" onClick={e => { gotoLine(lineIdx + 1); e.currentTarget.blur(); }} disabled={lineIdx >= lines.length - 1}
+        className="text-zinc-400 hover:text-white disabled:opacity-30 px-1">›</button>
+    </div>
+    <div className="shrink-0 min-w-0">
+      <div className="flex items-center justify-between gap-3 text-xs text-zinc-400 mb-3">
+        <span>{t.charSync.currentLine}</span><span title={t.charSync.glyphProgress} className="font-mono tabular-nums">{glyphDone}/{glyphTotal}</span>
       </div>
-
-      <div className="flex-1 min-h-0 overflow-y-auto">
-      <p className="text-xs text-zinc-500 mb-2 px-1">{t.charSync.hint.replace("{stamp}", stampKey)}</p>
-
-      {/* 활성 줄 — 한 줄 흐름 텍스트 + 글자별 시간 마커 (가로 스크롤) */}
-      <div className="overflow-x-auto mb-3">
-      <div ref={textRef} tabIndex={-1} className="relative inline-block" style={{ minWidth: "100%" }}>
-      <div
-        className="leading-relaxed select-none"
-        style={{ whiteSpace: "pre", fontSize: `${1.875 * lyricsFontScale}rem` }}
-      >
-        {syllables.map((s, i) => {
-          if (!isStampable(s)) return <span key={i}>{s.text}</span>;
-          const isCurrent = i === activeSyllableIndex;
-          const isSinging = i === playingIdx && !isCurrent;
-          const stamped = s.time !== null;
-          const cls = isCurrent
-            ? "bg-indigo-500 text-white rounded px-0.5"
-            : isSinging
-            ? "bg-amber-500/20 text-amber-200 rounded px-0.5"
-            : stamped
-            ? "text-zinc-100 border-b-2 border-indigo-500/60"
-            : "text-zinc-600 hover:text-zinc-400";
-          return (
-            <span
-              key={i}
-              data-glyph={i}
-              onMouseDown={(e) => beginDrag(i, e)}
-              onContextMenu={(e) => { e.preventDefault(); clearGlyph(i); }}
-              className={`cursor-pointer transition-colors ${cls}`}
-            >
-              {s.text}
-            </span>
-          );
-        })}
-        {/* 마지막 공백 셀: 여기까지 칠하면(또는 클릭하면) 다음 줄로 */}
-        <span
-          data-glyph-end="1"
-          onClick={() => gotoLine(lineIdx + 1)}
-          title={t.charSync.endCell}
-          className="inline-block align-middle ml-1 w-8 text-center rounded border border-dashed border-zinc-700 text-zinc-600 text-base cursor-pointer hover:border-indigo-500 hover:text-indigo-300 select-none"
-        >
-          ↵
-        </span>
-      </div>
-
-      {/* 글자별 시간 마커: 점선 + 싱크 시각. 겹치면 단계적으로 내리고, 자리가 없으면 라벨 생략(틱만) */}
-      {marksHeight > 0 && (
-        <div className="relative pointer-events-none" style={{ height: marksHeight }}>
-          {marks.map((m) => (
-            <div key={m.index} className="absolute top-0" style={{ left: m.x }}>
-              <div
-                className={`absolute top-0 border-l border-dashed ${m.label ? "border-indigo-400/70" : "border-indigo-400/35"}`}
-                style={{ height: m.label ? m.level * MARK_STEP + 4 : MARK_TICK }}
-              />
-              {m.label && (
-                <div
-                  className="absolute font-mono text-[10px] text-indigo-300 whitespace-nowrap"
-                  style={{ top: m.level * MARK_STEP + 4, transform: "translateX(-50%)" }}
-                >
-                  {m.time}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* 라벨 폭 측정용(숨김) */}
-      <span
-        ref={measureRef}
-        aria-hidden
-        className="font-mono text-[10px] whitespace-nowrap"
-        style={{ position: "absolute", visibility: "hidden", left: -9999, top: 0 }}
-      >
-        00:00.00
-      </span>
-
-      </div>
-      </div>
-
-      {/* 현재 글자 readout + 레인 줌 */}
-      <div className="flex items-center justify-between gap-2 text-xs mb-2 px-1">
-        <span className="font-mono text-indigo-300">
-          {t.charSync.current}: 「{readoutText}」 → {readoutTime}
-        </span>
-        <div className="flex items-center gap-1 shrink-0 text-zinc-500">
-          <span>{t.zoom}</span>
-          <button
-            onClick={(e) => { setZoomStep(-1); e.currentTarget.blur(); }}
-            disabled={zoom <= 1}
-            className="w-5 h-5 flex items-center justify-center rounded hover:bg-zinc-800 hover:text-white disabled:opacity-30 transition-colors"
-          >
-            −
-          </button>
-          <span className="font-mono text-zinc-400 w-6 text-center">{zoom}×</span>
-          <button
-            onClick={(e) => { setZoomStep(1); e.currentTarget.blur(); }}
-            disabled={zoom >= 8}
-            className="w-5 h-5 flex items-center justify-center rounded hover:bg-zinc-800 hover:text-white disabled:opacity-30 transition-colors"
-          >
-            +
-          </button>
-        </div>
-      </div>
-      </div>
-
-      {/* 스크럽 레인 */}
-      <div
-        ref={laneRef}
-        onPointerDown={laneScrub.begin}
-        style={{ touchAction: "none" }}
-        className="relative h-10 rounded-lg bg-zinc-950/60 border border-zinc-800 overflow-hidden cursor-pointer mb-1"
-      >
-        <LaneWaveform bars={waveBars} />
-        {syllables.map((s, i) =>
-          s.time !== null && isStampable(s) && s.time >= viewStart && s.time <= viewEnd ? (
-            <div
-              key={i}
-              style={{ left: pct(s.time) }}
-              className="absolute top-0 bottom-0 w-px bg-indigo-500/50"
-            />
-          ) : null
-        )}
-        <div
-          style={{ left: pct(laneScrub.preview ?? currentTime) }}
-          className="absolute top-0 bottom-0 w-0.5 bg-amber-400 pointer-events-none"
-        />
-        <span className="absolute left-1.5 bottom-0.5 text-[10px] text-zinc-600 font-mono pointer-events-none">
-          {formatTimestamp(viewStart)}
-        </span>
-        <span className="absolute right-1.5 bottom-0.5 text-[10px] text-zinc-600 font-mono pointer-events-none">
-          {formatTimestamp(viewEnd)}
-        </span>
-      </div>
-
-      {/* 하단 컨트롤 */}
-      <div className="flex items-center gap-2 mt-3">
-        <div className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium">
-          <kbd className="px-1.5 py-0.5 rounded bg-indigo-700/70 text-xs font-mono">{stampKey}</kbd>
-          {t.charSync.stampHint}
-        </div>
-        <button
-          onClick={(e) => { replayLine(); e.currentTarget.blur(); }}
-          className="px-3 py-2 text-xs rounded-lg text-zinc-300 border border-zinc-700 hover:bg-zinc-800 hover:text-white transition-colors whitespace-nowrap"
-        >
-          ↺ {t.charSync.replayLine}
-        </button>
-        <button
-          onClick={(e) => { clearLine(); e.currentTarget.blur(); }}
-          className="px-3 py-2 text-xs rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-rose-300 transition-colors whitespace-nowrap"
-        >
-          {t.charSync.clearLine}
-        </button>
+      <div ref={textRef} tabIndex={-1} className="min-h-16 leading-relaxed select-none break-words"
+        style={{ whiteSpace: "pre-wrap", fontSize: `${1.875 * lyricsFontScale}rem` }}>
+        {syllables.map((s, i) => !isStampable(s) ? <span key={i}>{s.text}</span> : <span key={i} data-glyph={i}
+          onMouseDown={e => beginDrag(i, e)} onContextMenu={e => { e.preventDefault(); clearGlyph(i); }}
+          className={`cursor-pointer rounded px-0.5 transition-colors ${i === activeSyllableIndex ? "bg-indigo-400/15 text-indigo-200" : i === playingIdx ? "bg-amber-500/15 text-amber-200" : s.time !== null ? "text-zinc-200" : "text-zinc-500 hover:text-zinc-300"}`}>
+          {s.text}
+        </span>)}
+        <button type="button" data-glyph-end="1" onClick={e => { gotoLine(lineIdx + 1); e.currentTarget.blur(); }}
+          title={t.charSync.endCell} className="align-middle ml-2 px-1.5 rounded border border-dashed border-zinc-700 text-zinc-500 text-sm hover:text-indigo-300">↵</button>
       </div>
     </div>
-  );
+    <div className="shrink-0 min-w-0">
+      <div className="flex items-baseline flex-wrap gap-x-2 gap-y-1 border-t border-zinc-800 pt-3 pb-3 text-xs">
+        <span className="text-zinc-400">{t.charSync.selectedGlyph}</span>
+        <span className="text-indigo-200 font-medium break-all">{readoutText}</span>
+        <span className="font-mono tabular-nums text-zinc-200">{readoutTime}</span>
+      </div>
+      <div className="flex items-center justify-between gap-2 flex-wrap mb-3 text-xs">
+        <span className="text-zinc-400 font-mono tabular-nums">{t.charSync.displaySpan.replace("{seconds}", String(Number((viewEnd - viewStart).toFixed(2))))}</span>
+        <div className="flex items-center flex-wrap gap-1.5">
+          <button type="button" aria-label={t.charSync.prevWindow} onClick={e => { pan(-1); e.currentTarget.blur(); }} disabled={viewStart <= 0}
+            className="px-2 py-1.5 rounded border border-zinc-700 text-zinc-400 disabled:opacity-30">‹</button>
+          <button type="button" aria-label={t.zoom} onClick={e => { setZoomStep(-1); e.currentTarget.blur(); }} disabled={zoom <= 1}
+            className="px-2 py-1.5 rounded border border-zinc-700 text-zinc-300 disabled:opacity-30">−</button>
+          <span className="text-zinc-500 font-mono">{zoom}×</span>
+          <button type="button" aria-label={`${t.zoom} +`} onClick={e => { setZoomStep(1); e.currentTarget.blur(); }} disabled={zoom >= 8}
+            className="px-2 py-1.5 rounded border border-zinc-700 text-zinc-300 disabled:opacity-30">+</button>
+          <button type="button" aria-label={t.charSync.nextWindow} onClick={e => { pan(1); e.currentTarget.blur(); }} disabled={duration > 0 && viewEnd >= duration}
+            className="px-2 py-1.5 rounded border border-zinc-700 text-zinc-400 disabled:opacity-30">›</button>
+          <button type="button" aria-pressed={follow} onClick={e => { setFollow(v => !v); setAnchor((viewStart + viewEnd) / 2); e.currentTarget.blur(); }}
+            className={`px-2 py-1.5 rounded border border-zinc-700 ${follow ? "bg-indigo-400/15 text-indigo-200" : "text-zinc-400"}`}>{t.charSync.followPlayback}</button>
+          <WaveformViewMenu />
+        </div>
+      </div>
+      <CharWaveformPanel laneRef={laneRef} onPointerDown={laneScrub.begin} audioPath={audioPath}
+        start={viewStart} end={viewEnd} lineStart={winStart} lineEnd={repeatRange?.end ?? winEnd} playhead={visiblePlayhead}
+        syllables={syllables} activeIndex={activeSyllableIndex} onSelect={index => { setActiveSyllable(index); textRef.current?.focus({ preventScroll: true }); }}
+        height={waveformHeight} style={waveformStyle} showMarkers={showGlyphTimeMarkers} repeating={loopLineId === line.id && canRepeat} />
+      <div className="flex gap-x-3 gap-y-1 flex-wrap justify-between text-[11px] text-zinc-400 mt-2">
+        <div className="flex gap-3"><span className="inline-flex gap-1 items-center"><span className="w-0.5 h-2.5 bg-indigo-300" aria-hidden />{t.charSync.selectedGlyph}</span>
+          <span className="inline-flex gap-1 items-center"><span className="w-0.5 h-2.5 bg-amber-400" aria-hidden />{t.charSync.playhead}</span></div>
+        <span className="font-mono tabular-nums">{loopLineId === line.id ? t.charSync.repeatLine : t.charSync.currentLine} {formatTimestamp(winStart)} — {formatTimestamp(repeatRange?.end ?? winEnd)}</span>
+      </div>
+    </div>
+    <div className="flex items-center justify-between gap-2 flex-wrap shrink-0">
+      <div className="flex items-center gap-2 flex-wrap">
+        <button type="button" onClick={e => { replayLine(); e.currentTarget.blur(); }} className="px-3 py-2 text-xs rounded-md border border-zinc-700 text-zinc-300 hover:bg-zinc-800">↺ {t.charSync.replayLine}</button>
+        <button type="button" aria-label={t.charSync.repeatLine} aria-pressed={loopLineId === line.id} disabled={!canRepeat}
+          title={canRepeat ? t.charSync.repeatLine : t.charSync.repeatUnavailable}
+          onClick={e => {
+            if (loopLineId === line.id) setLoopLine(null);
+            else if (canRepeat && repeatRange) { setLoopLine(line.id); setFollow(true); controls.seekTo(repeatRange.start); }
+            e.currentTarget.blur();
+          }} className={`px-3 py-2 text-xs rounded-md border border-zinc-700 disabled:opacity-30 ${loopLineId === line.id ? "bg-indigo-400/15 text-indigo-200" : "text-zinc-400 hover:bg-zinc-800"}`}>
+          {t.charSync.repeatLine} · {loopLineId === line.id ? t.charSync.repeatOn : t.charSync.repeatOff}
+        </button>
+      </div>
+      <button type="button" aria-label={t.charSync.stampHint} onClick={e => { stampActive(); e.currentTarget.blur(); textRef.current?.focus({ preventScroll: true }); }}
+        className="flex items-center justify-center gap-2 px-3 py-2 bg-indigo-400/15 hover:bg-indigo-400/25 text-indigo-200 rounded-md text-xs font-medium">
+        {t.charSync.stampHint}<kbd className="px-1 py-0.5 bg-zinc-900 border border-zinc-700 rounded font-mono text-[11px]">{stampKey}</kbd>
+      </button>
+    </div>
+    <div className="flex items-start justify-between gap-3 border-t border-zinc-800 pt-2 text-xs text-zinc-500 shrink-0">
+      <details className="min-w-0"><summary className="cursor-pointer">{t.charSync.help}</summary><p className="pt-2 text-zinc-400">{t.charSync.hint.replace("{stamp}", stampKey)}</p></details>
+      <details className="relative shrink-0"><summary className="cursor-pointer" aria-label={t.charSync.more}>⋯</summary>
+        <div className="absolute bottom-full right-0 mb-2 p-2 bg-zinc-900 border border-zinc-700 rounded shadow-lg z-20">
+          <button type="button" onClick={e => { clearLine(); e.currentTarget.closest("details")?.removeAttribute("open"); textRef.current?.focus({ preventScroll: true }); }}
+            className="whitespace-nowrap px-2 py-1 text-zinc-400 hover:text-rose-300">{t.charSync.clearLine}</button>
+        </div>
+      </details>
+    </div>
+  </div>;
 }
-
-// 줄 점 네비게이터: lines/활성 줄이 바뀔 때만 갱신 → 재생 중 매 프레임 재렌더 방지
 const LineDots = memo(function LineDots({
   lines, activeIdx, onSelect,
 }: {
@@ -603,22 +418,5 @@ const LineDots = memo(function LineDots({
         );
       })}
     </div>
-  );
-});
-
-// 파형 막대는 시간 창(window)이 바뀔 때만 갱신 → 재생 중 매 프레임 재렌더 방지
-const LaneWaveform = memo(function LaneWaveform({ bars }: { bars: number[] | null }) {
-  if (!bars) return null;
-  return (
-    <svg
-      className="absolute inset-0 w-full h-full pointer-events-none"
-      viewBox={`0 0 ${bars.length} 100`}
-      preserveAspectRatio="none"
-    >
-      {bars.map((v, k) => {
-        const h = Math.max(1, v * 88);
-        return <rect key={k} x={k + 0.1} width={0.8} y={(100 - h) / 2} height={h} fill="#3f3f46" />;
-      })}
-    </svg>
   );
 });

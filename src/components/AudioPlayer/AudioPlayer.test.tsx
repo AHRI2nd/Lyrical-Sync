@@ -3,11 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, waitFor } from "@testing-library/react";
 
 // Supply controlled engine events; test the component's loop policy, not decoding.
-const { handlers, seekTo, load, engines, spectrogramCreated, spectrogramDestroyed } = vi.hoisted(() => ({
+const { handlers, seekTo, play, load, engines, spectrogramCreated, spectrogramDestroyed } = vi.hoisted(() => ({
   spectrogramCreated: vi.fn(), spectrogramDestroyed: vi.fn(),
   handlers: new Map<string, (...args: unknown[]) => void>(),
   engines: [] as Map<string, (...args: unknown[]) => void>[],
-  seekTo: vi.fn(), load: vi.fn().mockResolvedValue(undefined),
+  seekTo: vi.fn(), play: vi.fn(), load: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("wavesurfer.js", () => ({
   default: {
@@ -18,7 +18,9 @@ vi.mock("wavesurfer.js", () => ({
         handlers.set(event, callback); events.set(event, callback);
       },
       getDuration: () => 100,
-      seekTo, load, loadBlob: load,
+      getDecodedData: () => ({ length: 4, numberOfChannels: 1, sampleRate: 2, duration: 2,
+        getChannelData: () => new Float32Array([0, .5, -.5, 0]) }),
+      seekTo, play, load, loadBlob: load,
       pause: vi.fn(), zoom: vi.fn(), setPlaybackRate: vi.fn(),
       exportPeaks: () => [[0.5]],
       setVolume: () => {},
@@ -44,15 +46,18 @@ import { useLrcStore } from "../../stores/useLrcStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { audioControls } from "../../utils/audioControls";
 import { defaultDocument } from "../../types/lrc";
+import { useWaveformStore, clearWaveform } from "../../stores/useWaveformStore";
 
 const originalControls = { ...audioControls };
 
 describe("AudioPlayer loop-line boundaries", () => {
   beforeEach(() => {
+    clearWaveform();
     handlers.clear(); engines.length = 0; spectrogramCreated.mockClear(); spectrogramDestroyed.mockClear();
     vi.mocked(invoke).mockReset().mockResolvedValue(null);
     vi.mocked(readAudioBytes).mockReset();
     seekTo.mockClear();
+    play.mockClear();
     load.mockClear();
     Object.defineProperty(URL, "createObjectURL", { configurable: true, value: vi.fn(() => "blob:audio") });
     Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() });
@@ -75,6 +80,26 @@ describe("AudioPlayer loop-line boundaries", () => {
       duration: 0,
       isPlaying: false,
     });
+  });
+
+  it("publishes decoded detail only for the current ready engine and clears it on replacement", async () => {
+    vi.mocked(readAudioBytes).mockResolvedValue({ bytes: new Uint8Array([0]), transcoded: false,
+      file: { path: "/song.wav", bookmark: null } });
+    useLrcStore.setState({ audioPath: "/song.wav", audioBookmark: null });
+    const { unmount } = render(<AudioPlayer />);
+    await waitFor(() => expect(load).toHaveBeenCalled());
+    const oldReady = handlers.get("ready")!;
+    act(() => oldReady());
+    await waitFor(() => expect(useWaveformStore.getState().source).not.toBeNull());
+    expect(useWaveformStore.getState().path).toBe("/song.wav");
+    act(() => useLrcStore.setState({ audioPath: "/replacement.wav", _audioSelection: useLrcStore.getState()._audioSelection + 1 }));
+    expect(useWaveformStore.getState().source).toBeNull();
+    act(() => oldReady());
+    expect(useWaveformStore.getState().source).toBeNull();
+    act(() => handlers.get("ready")!());
+    await waitFor(() => expect(useWaveformStore.getState().path).toBe("/replacement.wav"));
+    unmount();
+    expect(useWaveformStore.getState().source).toBeNull();
   });
 
   afterEach(() => {
@@ -114,6 +139,19 @@ describe("AudioPlayer loop-line boundaries", () => {
 
     playbackAt(100);
     expect(seekTo.mock.calls).toEqual([[0.1]]);
+  });
+  it("skips co-timed boundaries and restarts final-line playback on finish", () => {
+    useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+      { id: "loop", text: "first", timestamp: 10 }, { id: "same", text: "parallel", timestamp: 10 },
+      { id: "next", text: "next", timestamp: 20 },
+    ] } });
+    render(<AudioPlayer />);
+    playbackAt(10);
+    expect(seekTo).not.toHaveBeenCalled();
+    act(() => useLrcStore.setState({ loopLineId: "next" }));
+    act(() => handlers.get("finish")!());
+    expect(seekTo).toHaveBeenCalledWith(.2);
+    expect(play).toHaveBeenCalledTimes(1);
   });
 
   it("does not repeat when line looping is disabled", () => {

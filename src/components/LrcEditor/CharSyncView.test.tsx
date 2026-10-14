@@ -19,10 +19,11 @@ beforeEach(() => {
     constructor(type: string, init: PointerEventInit = {}) { super(type, init); this.pointerId = init.pointerId ?? 1; }
   });
   localStorage.clear();
-  useSettingsStore.setState({ keybindings: { ...DEFAULT_KEYBINDINGS }, showGlyphTimeMarkers: false });
+  useSettingsStore.setState({ keybindings: { ...DEFAULT_KEYBINDINGS }, showGlyphTimeMarkers: false, glyphWaveformHeight: 144, glyphWaveformStyle: "continuous" });
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "abc", timestamp: 0 }] },
     activeLineId: "a", activeSyllableIndex: 0, syncMode: "char", syncUnit: "char", currentTime: 12,
     isPlaying: false, isDirty: false, audioPath: null, duration: 0, _history: [], _future: [] });
+  useLrcStore.setState({ loopLineId: null });
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); document.querySelectorAll("[data-test-control]").forEach((node) => node.remove()); localStorage.clear(); useI18nStore.setState(originalLanguage); });
 
@@ -73,7 +74,7 @@ it("freezes the lane viewport while previewing and seeks only on release", () =>
   const seek = vi.spyOn(audioControls, "seekTo");
   const { container, getByText } = render(<CharSyncView />);
   fireEvent.click(getByText("+"));
-  const lane = container.querySelector('.h-10.cursor-pointer')!;
+  const lane = container.querySelector('[data-testid="glyph-seek-lane"]')!;
   vi.spyOn(lane, "getBoundingClientRect").mockReturnValue({ left: 0, width: 100 } as DOMRect);
   fireEvent.pointerDown(lane, { pointerId: 1, button: 0, clientX: 20 });
   fireEvent.pointerMove(window, { pointerId: 1, clientX: 50 });
@@ -86,7 +87,7 @@ it("cancels lane scrubbing on audio selection and zoom changes", () => {
   useLrcStore.setState({ duration: 100, audioPath: "/song.mp3" });
   const seek = vi.spyOn(audioControls, "seekTo");
   const { container, getByText } = render(<CharSyncView />);
-  const lane = container.querySelector('.h-10.cursor-pointer')!;
+  const lane = container.querySelector('[data-testid="glyph-seek-lane"]')!;
   vi.spyOn(lane, "getBoundingClientRect").mockReturnValue({ left: 0, width: 100 } as DOMRect);
   fireEvent.pointerDown(lane, { pointerId: 1, button: 0, clientX: 20 });
   act(() => useLrcStore.setState({ _audioSelection: useLrcStore.getState()._audioSelection + 1 }));
@@ -96,19 +97,112 @@ it("cancels lane scrubbing on audio selection and zoom changes", () => {
   fireEvent.pointerUp(window, { pointerId: 1, clientX: 75 });
   expect(seek).not.toHaveBeenCalled();
 });
-it("caps lane waveform bars while preserving a narrow peak", () => {
-  useLrcStore.setState({ duration: 8, audioPath: "/song.mp3", currentTime: 0 });
-  const peaks = Array.from({ length: 4000 }, () => 0); peaks[3000] = 1;
-  vi.spyOn(audioControls, "getPeaks").mockReturnValue(peaks);
-  const { container } = render(<CharSyncView />);
-  const bars = container.querySelectorAll('.h-10 svg rect');
-  expect(bars.length).toBeLessThanOrEqual(600);
-  expect(Array.from(bars).some((bar) => Number(bar.getAttribute("height")) > 60)).toBe(true);
-});
 it.each([{ isComposing: true }, { keyCode: 229 }])("does not stamp or advance during IME composition (%j)", (composition) => {
   render(<CharSyncView />);
   fireEvent.keyDown(window, { code: "Space", ...composition });
   fireEvent.keyDown(window, { code: "ArrowRight", ...composition });
   expect(useLrcStore.getState().doc.lines[0].syllables).toBeUndefined();
   expect(useLrcStore.getState().activeSyllableIndex).toBe(0);
+});
+
+it("stamps by clicking the real control and keeps the viewport span stable after a stamp", () => {
+  useLrcStore.setState({ duration: 100, audioPath: "/song.mp3" });
+  const { getByRole, getByTestId } = render(<CharSyncView />);
+  const lane = getByTestId("glyph-seek-lane");
+  const before = Number(lane.dataset.end) - Number(lane.dataset.start);
+  const button = getByRole("button", { name: translations.en.charSync.stampHint });
+  button.focus(); fireEvent.click(button);
+  expect(useLrcStore.getState().doc.lines[0].syllables?.[0].time).toBe(12);
+  expect(useLrcStore.getState().activeSyllableIndex).toBe(1);
+  expect(Number(lane.dataset.end) - Number(lane.dataset.start)).toBe(before);
+  act(() => useLrcStore.setState({ currentTime: 13 }));
+  fireEvent.keyDown(window, { code: "Space" });
+  expect(useLrcStore.getState().doc.lines[0].syllables?.[1].time).toBe(13);
+});
+
+it("keeps the following playhead centered and lets manual viewport navigation stay detached", () => {
+  useLrcStore.setState({ duration: 100, audioPath: "/song.mp3", isPlaying: true, currentTime: 12 });
+  const { getByRole, getByTestId } = render(<CharSyncView />);
+  const lane = getByTestId("glyph-seek-lane");
+  expect(Number(lane.dataset.start)).toBe(8);
+  act(() => useLrcStore.setState({ currentTime: 13 }));
+  expect(Number(lane.dataset.start)).toBe(9);
+  expect(getByTestId("glyph-playhead").style.left).toBe("50%");
+  fireEvent.click(getByRole("button", { name: /다음 시간 구간|Next time window/ }));
+  const frozen = lane.dataset.start;
+  act(() => useLrcStore.setState({ currentTime: 14 }));
+  expect(lane.dataset.start).toBe(frozen);
+  fireEvent.click(getByRole("button", { name: /재생 위치 따라가기|Follow playback/ }));
+  expect(Number(lane.dataset.start)).toBe(10);
+});
+
+it("updates the actual waveform height and style from the view menu and dismisses it with Escape", () => {
+  const { getByRole, getByTestId } = render(<CharSyncView />);
+  const menu = getByRole("button", { name: translations.en.charSync.waveformView });
+  fireEvent.click(menu);
+  fireEvent.change(getByRole("slider", { name: translations.en.charSync.waveformHeight }), { target: { value: "208" } });
+  expect(getByTestId("glyph-seek-lane").style.height).toBe("208px");
+  fireEvent.change(getByRole("combobox"), { target: { value: "bars" } });
+  expect(useSettingsStore.getState().glyphWaveformStyle).toBe("bars");
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(menu.getAttribute("aria-expanded")).toBe("false");
+});
+
+it("shows a valid line repeat beside replay without starting playback and clears it on selection changes", () => {
+  useLrcStore.setState({ duration: 100, audioPath: "/song.mp3", doc: { ...defaultDocument(), lines: [
+    { id: "a", text: "abc", timestamp: 10 }, { id: "b", text: "next", timestamp: 20 },
+  ] } });
+  const seek = vi.spyOn(audioControls, "seekTo");
+  const { getByRole, getByTestId } = render(<CharSyncView />);
+  const repeat = getByRole("button", { name: /줄 반복|Repeat line/ });
+  fireEvent.click(repeat);
+  expect(repeat.getAttribute("aria-pressed")).toBe("true");
+  expect(seek).toHaveBeenCalledWith(10);
+  expect(useLrcStore.getState().isPlaying).toBe(false);
+  expect(getByTestId("glyph-line-region").getAttribute("data-repeating")).toBe("true");
+  act(() => useLrcStore.setState({ activeLineId: "b" }));
+  expect(useLrcStore.getState().loopLineId).toBeNull();
+});
+
+it.each(["replay", "nudge"])("restores waveform following for explicit %s after manual navigation", action => {
+  useLrcStore.setState({ duration: 100, audioPath: "/song.mp3", currentTime: 12, doc: { ...defaultDocument(), lines: [
+    { id: "a", text: "ab", timestamp: 10, syllables: [{ text: "a", time: 10 }, { text: "b", time: 12 }] },
+    { id: "b", text: "next", timestamp: 20 },
+  ] } });
+  vi.spyOn(audioControls, "seekTo").mockImplementation(time => useLrcStore.setState({ currentTime: time }));
+  const { getByRole, getByTestId } = render(<CharSyncView />);
+  const pan = getByRole("button", { name: /다음 시간 구간|Next time window/ });
+  fireEvent.click(pan); fireEvent.click(pan); fireEvent.click(pan);
+  if (action === "replay") fireEvent.click(getByRole("button", { name: /이 줄 재생|Play line/ }));
+  else {
+    act(() => useLrcStore.setState({ activeSyllableIndex: 1 }));
+    fireEvent.keyDown(window, { code: "ArrowRight", shiftKey: true });
+  }
+  expect(getByRole("button", { name: /재생 위치 따라가기|Follow playback/ }).getAttribute("aria-pressed")).toBe("true");
+  expect(getByTestId("glyph-playhead").style.left).toBe("50%");
+});
+
+it("starts painting vertically in wrapped lyrics without seeking", () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "a".repeat(80), timestamp: 0 }] } });
+  const seek = vi.spyOn(audioControls, "seekTo");
+  const { container } = render(<CharSyncView />);
+  fireEvent.mouseDown(container.querySelector('[data-glyph="0"]')!, { button: 0, clientX: 100, clientY: 10 });
+  fireEvent.mouseMove(window, { clientX: 100, clientY: 40 });
+  fireEvent.mouseUp(window);
+  expect(useLrcStore.getState().doc.lines[0].syllables?.[0].time).toBe(12);
+  expect(useLrcStore.getState().activeSyllableIndex).toBe(1);
+  expect(seek).not.toHaveBeenCalled();
+});
+it("starts a second seek in the still-visible pending viewport", () => {
+  useLrcStore.setState({ duration:100, audioPath:'/song.mp3', currentTime:12 });
+  const seek=vi.spyOn(audioControls,'seekTo');
+  const {getByRole,getByTestId}=render(<CharSyncView />);
+  fireEvent.click(getByRole('button',{name:/다음 시간 구간|Next time window/}));
+  const lane=getByTestId('glyph-seek-lane');
+  vi.spyOn(lane,'getBoundingClientRect').mockReturnValue({left:0,width:100} as DOMRect);
+  const start=Number(lane.dataset.start),end=Number(lane.dataset.end);
+  fireEvent.pointerDown(lane,{pointerId:1,button:0,clientX:20}); fireEvent.pointerUp(window,{pointerId:1,clientX:20});
+  expect(Number(lane.dataset.start)).toBe(start);
+  fireEvent.pointerDown(lane,{pointerId:2,button:0,clientX:75}); fireEvent.pointerUp(window,{pointerId:2,clientX:75});
+  expect(seek.mock.calls[1][0]).toBeCloseTo(start+(end-start)*.75);
 });
