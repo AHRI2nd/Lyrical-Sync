@@ -7,75 +7,112 @@ import { detectBpm } from "../../utils/bpmDetect";
 export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; selectedIds: string[] }) {
   const { t } = useI18nStore();
   const audioPath = useLrcStore((s) => s.audioPath);
-  const snapLinesToBeatGrid = useLrcStore((s) => s.snapLinesToBeatGrid);
-
-  const [loading, setLoading] = useState(false);
+  const session = useLrcStore((s) => s._documentSession);
+  const selection = useLrcStore((s) => s._audioSelection);
+  const [loading, setLoading] = useState(Boolean(audioPath));
   const [error, setError] = useState<string | null>(null);
-
   const [bpmStr, setBpmStr] = useState("");
   const [offsetStr, setOffsetStr] = useState("0.00");
   const [confidence, setConfidence] = useState<number | null>(null);
   const [snappedCount, setSnappedCount] = useState<number | null>(null);
-
   const tapTimesRef = useRef<number[]>([]);
+  const abortRef = useRef<AbortController | null>(null);
+  const dismissedRef = useRef(false);
+  const [owner, setOwner] = useState({ session, selection, path: audioPath });
+  const ownerRef = useRef(owner);
+
+  const isCurrent = () => {
+    const state = useLrcStore.getState();
+    const owner = ownerRef.current;
+    return !dismissedRef.current && owner.session === state._documentSession &&
+      owner.selection === state._audioSelection && owner.path === state.audioPath;
+  };
+  const close = () => {
+    dismissedRef.current = true;
+    abortRef.current?.abort();
+    onClose();
+  };
 
   useEffect(() => {
-    if (!audioPath) return;
-    let cancelled = false;
-    setLoading(true);
+    const state = useLrcStore.getState();
+    const owner = { session, selection, path: state.audioPath };
+    ownerRef.current = owner;
+    setOwner(owner);
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setBpmStr("");
+    setOffsetStr("0.00");
+    setConfidence(null);
+    setSnappedCount(null);
     setError(null);
-    decodeAudioSamples(audioPath)
-      .then(({ samples, sampleRate }) => {
-        if (cancelled) return;
-        const result = detectBpm(samples, sampleRate);
-        if (result) {
-          setBpmStr(String(result.bpm));
-          setOffsetStr(result.offsetSec.toFixed(2));
-          setConfidence(result.confidence);
-        } else {
-          setError(t.bpmDetectFailed);
-        }
-      })
-      .catch(() => { if (!cancelled) setError(t.bpmDecodeError); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+    tapTimesRef.current = [];
+    setLoading(Boolean(owner.path));
+    if (owner.path) {
+      decodeAudioSamples(owner.path, controller.signal)
+        .then(({ samples, sampleRate }) => {
+          if (controller.signal.aborted || !isCurrent()) return;
+          const result = detectBpm(samples, sampleRate);
+          if (controller.signal.aborted || !isCurrent()) return;
+          if (result) {
+            setBpmStr(String(result.bpm));
+            setOffsetStr(result.offsetSec.toFixed(2));
+            setConfidence(result.confidence);
+          } else setError(t.bpmDetectFailed);
+        })
+        .catch(() => {
+          if (!controller.signal.aborted && isCurrent()) setError(t.bpmDecodeError);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted && isCurrent()) setLoading(false);
+        });
+    }
+    return () => controller.abort();
+    // Audio selection/session generations change even for same-path replacements.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audioPath]);
+  }, [session, selection, audioPath]);
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onClose]);
 
-  const bpm = Number(bpmStr) || 0;
-  const offsetSec = Number(offsetStr) || 0;
-  const valid = bpm > 0;
+  const bpm = Number(bpmStr);
+  const offsetSec = Number(offsetStr);
+  const sourceCurrent = !dismissedRef.current && owner.session === session &&
+    owner.selection === selection && owner.path === audioPath;
+  const valid = sourceCurrent && bpmStr.trim() !== "" && offsetStr.trim() !== "" &&
+    Number.isFinite(bpm) && bpm > 0 && Number.isFinite(60 / bpm) &&
+    60 / bpm > 0 && Number.isFinite(offsetSec);
 
   const handleTapTempo = () => {
+    if (!isCurrent()) return;
     const now = performance.now();
     const taps = tapTimesRef.current;
-    // 마지막 탭에서 2초 넘게 지나면 새 시퀀스로 리셋
+    // Reset after a long pause; duplicate or reversed clocks cannot form intervals.
     if (taps.length > 0 && now - taps[taps.length - 1] > 2000) taps.length = 0;
+    if (!Number.isFinite(now) || (taps.length > 0 && now <= taps[taps.length - 1])) return;
     taps.push(now);
+    if (taps.length > 16) taps.shift();
     setSnappedCount(null);
     if (taps.length < 2) return;
-    const intervals = taps.slice(1).map((t, i) => t - taps[i]);
-    const avgMs = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-    setBpmStr((60000 / avgMs).toFixed(1));
-    setConfidence(null); // 탭 템포로 직접 보정 → 자동 감지 신뢰도 표시는 더 이상 유효하지 않음
+    const avgMs = (taps[taps.length - 1] - taps[0]) / (taps.length - 1);
+    const tempo = 60000 / avgMs;
+    if (Number.isFinite(tempo) && tempo > 0) setBpmStr(tempo.toFixed(1));
+    setConfidence(null);
   };
 
   const handleApply = () => {
-    if (!valid) return;
-    snapLinesToBeatGrid(selectedIds, bpm, offsetSec);
+    if (!valid || !isCurrent()) return;
+    useLrcStore.getState().snapLinesToBeatGrid(selectedIds, bpm, offsetSec);
     setSnappedCount(selectedIds.length > 0 ? selectedIds.length : -1);
   };
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
+      onClick={close}
     >
       <div
         className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
@@ -84,7 +121,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
         <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
           <span className="font-semibold text-zinc-100 text-sm">{t.bpmTitle}</span>
           <button
-            onClick={onClose}
+            onClick={close}
             className="text-zinc-500 hover:text-white transition-colors text-lg leading-none"
           >
             ✕
@@ -92,12 +129,11 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
         </div>
 
         <div className="p-5 flex flex-col gap-4">
-          {!audioPath ? (
-            <p className="text-sm text-amber-400">{t.audioRequired}</p>
-          ) : loading ? (
+          {loading || !sourceCurrent ? (
             <p className="text-sm text-zinc-400">{t.bpmDetecting}</p>
           ) : (
             <>
+              {!audioPath && <p className="text-sm text-amber-400">{t.bpmManualHint}</p>}
               <p className="text-[11px] leading-relaxed text-zinc-500">{t.bpmHint}</p>
               {error && <p className="text-xs text-amber-400">{error}</p>}
 
@@ -105,6 +141,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
                 <span className="text-xs text-zinc-300">{t.bpmLabel}</span>
                 <div className="flex items-center gap-1.5">
                   <input
+                    aria-label={t.bpmLabel}
                     type="text"
                     inputMode="decimal"
                     value={bpmStr}
@@ -119,6 +156,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
                 <span className="text-xs text-zinc-300">{t.bpmOffset}</span>
                 <div className="flex items-center gap-1.5">
                   <input
+                    aria-label={t.bpmOffset}
                     type="text"
                     inputMode="decimal"
                     value={offsetStr}
@@ -156,12 +194,12 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
 
           <div className="flex justify-end gap-2">
             <button
-              onClick={onClose}
+              onClick={close}
               className="px-4 py-2 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
             >
               {t.cancelLabel}
             </button>
-            {audioPath && !loading && (
+            {sourceCurrent && !loading && (
               <button
                 onClick={handleApply}
                 disabled={!valid}

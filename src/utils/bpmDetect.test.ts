@@ -1,72 +1,60 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { detectBpm, nearestBeat } from "./bpmDetect";
 
-// 지정 BPM으로 짧은 사인파 "클릭"을 주기적으로 배치한 합성 트랙 생성(그 외 구간은 무음).
-function makeClickTrack(bpm: number, sampleRate: number, durationSec: number, firstBeatSec = 0): Float32Array {
-  const n = Math.floor(durationSec * sampleRate);
-  const samples = new Float32Array(n);
-  const period = 60 / bpm;
-  const clickLenSamples = Math.round(0.01 * sampleRate); // 10ms 클릭
-  for (let beatT = firstBeatSec; beatT < durationSec; beatT += period) {
-    const start = Math.round(beatT * sampleRate);
-    for (let i = 0; i < clickLenSamples && start + i < n; i++) {
-      // 감쇠하는 1kHz 톤 — 타격음 근사
-      samples[start + i] = Math.sin((2 * Math.PI * 1000 * i) / sampleRate) * (1 - i / clickLenSamples);
-    }
+function pulseTrack(period: number, offset: number, duration = 12) {
+  const samples = new Float32Array(duration * 1000);
+  for (let start = offset * 1000; start < samples.length; start += period * 1000) {
+    samples.fill(1, start, start + 20);
   }
   return samples;
 }
 
-describe("detectBpm", () => {
-  it("returns null for empty/silent input", () => {
-    expect(detectBpm(new Float32Array(0), 8000)).toBeNull();
-    expect(detectBpm(new Float32Array(1000), 8000)).toBeNull();
+describe("local BPM detection", () => {
+  it("finds a 120 BPM pulse with a 100ms phase", () => {
+    const result = detectBpm(pulseTrack(0.5, 0.1), 1000);
+    expect(result).toMatchObject({ bpm: 120, offsetSec: 0.1 });
+    expect(result?.confidence).toBeGreaterThan(0);
+    expect(result?.confidence).toBeLessThanOrEqual(1);
   });
 
-  it("returns null for an invalid sample rate", () => {
-    expect(detectBpm(new Float32Array(1000), 0)).toBeNull();
+  it("finds a 150 BPM pulse with a 200ms phase", () => {
+    expect(detectBpm(pulseTrack(0.4, 0.2), 1000)?.bpm).toBe(150);
+    expect(detectBpm(pulseTrack(0.4, 0.2), 1000)?.offsetSec).toBe(0.2);
   });
 
-  it("recovers the BPM of a clean synthetic click track (120 BPM)", () => {
-    const sampleRate = 8000;
-    const track = makeClickTrack(120, sampleRate, 8);
-    const result = detectBpm(track, sampleRate);
-    expect(result).not.toBeNull();
-    expect(result!.bpm).toBeGreaterThan(118);
-    expect(result!.bpm).toBeLessThan(122);
+  it.each([0, -1, NaN, Infinity])("rejects invalid sample rate %s", (rate) => {
+    expect(detectBpm(pulseTrack(0.5, 0.1), rate)).toBeNull();
   });
 
-  it("recovers the BPM and phase of an offset click track (90 BPM, first beat at 0.3s)", () => {
-    const sampleRate = 8000;
-    const track = makeClickTrack(90, sampleRate, 10, 0.3);
-    const result = detectBpm(track, sampleRate);
-    expect(result).not.toBeNull();
-    expect(result!.bpm).toBeGreaterThan(88);
-    expect(result!.bpm).toBeLessThan(92);
-    // 위상은 주기 이내로만 보장(0.3s 자체가 아니라 0.3s mod period와 근접해야 함)
-    const period = 60 / result!.bpm;
-    const phaseDiff = Math.min(
-      Math.abs(result!.offsetSec - 0.3) % period,
-      period - (Math.abs(result!.offsetSec - 0.3) % period)
-    );
-    expect(phaseDiff).toBeLessThan(0.05);
+  it("returns no guess for silence, short input or invalid samples", () => {
+    expect(detectBpm(new Float32Array(12000), 1000)).toBeNull();
+    expect(detectBpm(new Float32Array(10), 1000)).toBeNull();
+    const invalid = pulseTrack(0.5, 0.1);
+    invalid[100] = NaN;
+    expect(detectBpm(invalid, 1000)).toBeNull();
+  });
+
+  it("bounds long input analysis without reading its distant tail", () => {
+    const samples = Array.from(pulseTrack(0.5, 0.1, 120));
+    samples.length = 3600000;
+    Object.defineProperty(samples, 120001, { get: () => { throw new Error("unbounded read"); } });
+    expect(detectBpm(samples, 1000)?.bpm).toBe(120);
   });
 });
 
-describe("nearestBeat", () => {
-  it("snaps to the nearest beat on a simple grid", () => {
-    // 120 BPM = 0.5s 주기, offset 0
-    expect(nearestBeat(0.24, 120, 0)).toBeCloseTo(0, 3);
-    expect(nearestBeat(0.26, 120, 0)).toBeCloseTo(0.5, 3);
-    expect(nearestBeat(1.76, 120, 0)).toBeCloseTo(2.0, 3);
+describe("nearest beat", () => {
+  it.each([
+    [1.34, 120, 0.1, 1.1],
+    [1.38, 120, 0.1, 1.6],
+    [0.01, 120, -0.1, 0],
+    [1, 90, 0, 1.333],
+  ])("snaps %s seconds on a %s BPM grid", (time, bpm, offset, expected) => {
+    expect(nearestBeat(time, bpm, offset)).toBe(expected);
   });
 
-  it("respects a non-zero offset", () => {
-    expect(nearestBeat(0.35, 120, 0.1)).toBeCloseTo(0.1, 3);
-    expect(nearestBeat(0.55, 120, 0.1)).toBeCloseTo(0.6, 3);
-  });
-
-  it("never returns a negative timestamp", () => {
-    expect(nearestBeat(0, 120, 5)).toBeGreaterThanOrEqual(0);
+  it.each([
+    [0, 0], [-1, 0], [NaN, 0], [Infinity, 0], [120, NaN], [120, Infinity], [Number.MIN_VALUE, 0],
+  ])("leaves time intact for an invalid grid (%s, %s)", (bpm, offset) => {
+    expect(nearestBeat(1.34, bpm, offset)).toBe(1.34);
   });
 });

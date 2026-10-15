@@ -75,7 +75,7 @@ export const CharWaveformPanel = memo(function CharWaveformPanel({ laneRef, onPo
         const selected = group.indices.indexOf(activeIndex);
         const current = group.indices[selected >= 0 ? selected : 0];
         const label = group.indices.map(i => `${syllables[i].text.trim()} ${formatTimestamp(syllables[i].time!)}`).join(" / ");
-        return <button key={group.indices[0]} type="button" aria-label={label} aria-pressed={selected >= 0} title={label}
+        return <button key={group.indices[0]} type="button" aria-label={label} aria-pressed={selected >= 0} title={group.indices.length > 1 ? `${label} · ${t.charSync.markerGroupHint}` : label}
           onPointerDown={e => e.stopPropagation()} onClick={e => { onSelect(group.indices[(selected + 1) % group.indices.length]); e.currentTarget.blur(); }}
           style={{ left: `${group.x / width * 100}%`, top: group.row * cell, width: cell, height: cell, transform: "translateX(-50%)" }}
           className={`absolute flex items-center justify-center rounded text-xs focus-visible:outline focus-visible:outline-indigo-300 ${selected >= 0 ? "bg-indigo-400/15 text-indigo-200" : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"}`}>

@@ -21,7 +21,7 @@ const { wsHandlers, wsMock } = vi.hoisted(() => {
   const handlers: Record<string, (...args: unknown[]) => void> = {};
   const mock = {
     getWrapper: () => ({ classList: { add: () => {} } }),
-    registerPlugin: () => ({ on: () => {} }),
+    registerPlugin: () => ({ on: () => {}, destroy: () => {} }),
     on: (event: string, cb: (...args: unknown[]) => void) => { handlers[event] = cb; },
     getDuration: () => 100,
     getCurrentTime: () => 0,
@@ -44,6 +44,8 @@ const { wsHandlers, wsMock } = vi.hoisted(() => {
 vi.mock("wavesurfer.js", () => ({
   default: { create: () => wsMock },
 }));
+const spectrumCreate = vi.hoisted(() => vi.fn(() => ({ type: "spectrum" })));
+vi.mock("wavesurfer.js/dist/plugins/spectrogram.esm.js", () => ({ default: { create: spectrumCreate } }));
 vi.mock("wavesurfer.js/dist/plugins/regions.esm.js", () => ({
   default: { create: () => ({ on: () => {} }) },
 }));
@@ -221,4 +223,55 @@ describe("AudioPlayer — loop-line boundary (audioprocess handler)", () => {
     audioprocess(20);
     expect(seekToSpy).not.toHaveBeenCalled();
   });
+});
+
+describe('AudioPlayer — source ownership', () => {
+  afterEach(cleanup);
+  it('reloads a reselected path and ignores events from the replaced engine', async () => {
+    vi.mocked(readAudioBytes).mockReset().mockResolvedValue({bytes:new Uint8Array([1]),transcoded:false});
+    useSettingsStore.setState({spotifyMode:false,deviceMode:false});
+    resetLrc([],null); useLrcStore.getState().setAudioPath('/same.mp3');
+    render(<AudioPlayer />); await waitFor(()=>expect(readAudioBytes).toHaveBeenCalledTimes(1));
+    const oldReady=wsHandlers.ready, oldProcess=wsHandlers.audioprocess;
+    act(()=>useLrcStore.getState().setAudioPath('/same.mp3'));
+    await waitFor(()=>expect(readAudioBytes).toHaveBeenCalledTimes(2));
+    act(()=>{ useLrcStore.setState({duration:42,currentTime:5}); oldReady(); oldProcess(90); });
+    expect(useLrcStore.getState().duration).toBe(42); expect(useLrcStore.getState().currentTime).toBe(5);
+  });
+});
+
+it('reattaches an enabled spectrogram after replacing the audio engine', async () => {
+  spectrumCreate.mockClear(); vi.mocked(readAudioBytes).mockResolvedValue({bytes:new Uint8Array([1]),transcoded:false});
+  useSettingsStore.setState({spotifyMode:false,deviceMode:false,showSpectrogram:true});
+  resetLrc([],null); useLrcStore.getState().setAudioPath('/spectrogram.mp3');
+  const view=render(<AudioPlayer />);
+  try {
+    await waitFor(()=>expect(spectrumCreate).toHaveBeenCalledTimes(1));
+    act(()=>useLrcStore.getState().setAudioPath('/spectrogram.mp3'));
+    await waitFor(()=>expect(spectrumCreate).toHaveBeenCalledTimes(2));
+  } finally { view.unmount(); useSettingsStore.setState({showSpectrogram:false}); }
+});
+
+it('retains decoded waveform data when only the lyric document changes', async () => {
+  vi.mocked(readAudioBytes).mockResolvedValue({bytes:new Uint8Array([1]),transcoded:false});
+  useSettingsStore.setState({spotifyMode:false,deviceMode:false}); resetLrc([],null);
+  useLrcStore.getState().setAudioPath('/kept.mp3'); const view=render(<AudioPlayer />);
+  try {
+    await waitFor(()=>expect(useWaveformStore.getState().source).not.toBeNull());
+    const source=useWaveformStore.getState().source;
+    act(()=>useLrcStore.setState(s=>({_documentSession:s._documentSession+1})));
+    expect(useWaveformStore.getState().source).toBe(source);
+  } finally { view.unmount(); }
+});
+it('keeps the selected volume when the audio engine is replaced', async () => {
+  const volumeSpy=vi.spyOn(wsMock,'setVolume');
+  vi.mocked(readAudioBytes).mockResolvedValue({bytes:new Uint8Array([1]),transcoded:false});
+  useSettingsStore.setState({spotifyMode:false,deviceMode:false}); resetLrc([],null);
+  useLrcStore.getState().setAudioPath('/volume.mp3'); const view=render(<AudioPlayer />);
+  try {
+    fireEvent.change(view.container.querySelector('input[max="1"]')!,{target:{value:'0.25'}});
+    expect(volumeSpy).toHaveBeenLastCalledWith(.25); volumeSpy.mockClear();
+    act(()=>useLrcStore.getState().setAudioPath('/volume.mp3'));
+    expect(volumeSpy).toHaveBeenCalledWith(.25);
+  } finally { view.unmount(); volumeSpy.mockRestore(); }
 });

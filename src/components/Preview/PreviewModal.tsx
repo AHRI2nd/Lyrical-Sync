@@ -1,3 +1,4 @@
+import { isComposingKeyEvent } from "../../utils/keybindings";
 import { useEffect, useRef, useMemo, useCallback, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useLrcStore } from "../../stores/useLrcStore";
@@ -98,6 +99,7 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
   // ESC: 편집 중이면 편집 취소, 아니면 모달 닫기
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (isComposingKeyEvent(e)) return;
       if (e.key === "Escape") {
         if (editingId) {
           setEditingId(null);
@@ -161,6 +163,7 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
               onBlur={() => commitEdit(line.id)}
               onKeyDown={(e) => {
                 e.stopPropagation();
+                if (isComposingKeyEvent(e.nativeEvent)) return;
                 if (e.key === "Enter") commitEdit(line.id);
                 if (e.key === "Escape") setEditingId(null);
               }}
@@ -185,6 +188,7 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
           className={`flex-1 leading-snug ${fontWeightClass} ${line.timestamp !== null ? "cursor-pointer" : "select-none"}`}
           style={{
             fontSize: `${fontRem}rem`,
+            whiteSpace: "pre-wrap",
             textShadow: isActive && previewGlowEnabled ? `0 0 26px ${hexToRgba(previewAccentColor, 0.28)}` : undefined,
           }}
           onClick={() => { if (line.timestamp !== null) seekToLine(line.timestamp); }}
@@ -210,7 +214,7 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
           {line.translation && (
             <div
               className="text-sm font-sans not-italic mt-0.5"
-              style={{ color: isActive ? hexToRgba(previewAccentColor, 0.7) : hexToRgba(previewActiveColor, 0.35) }}
+              style={{ whiteSpace: "pre-wrap", color: isActive ? hexToRgba(previewAccentColor, 0.7) : hexToRgba(previewActiveColor, 0.35) }}
             >
               {line.translation}
             </div>

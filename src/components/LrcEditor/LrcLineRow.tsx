@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { isComposingKeyEvent } from "../../utils/keybindings";
 import { type LrcLine } from "../../types/lrc";
 import { type Translations } from "../../i18n/translations";
 import { formatDisplayTime } from "../../utils/lrcParser";
@@ -39,14 +40,14 @@ interface LrcLineRowProps {
   onToggleLoop: (e: React.MouseEvent) => void;
   onTextChange: (value: string) => void;
   onTranslationChange: (value: string) => void;
-  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   onPaste: (e: React.ClipboardEvent<HTMLInputElement>) => void;
   onFocus: () => void;
   onMergeUp: (e: React.MouseEvent) => void;
   onDuplicate: (e: React.MouseEvent) => void;
   onDelete: (e: React.MouseEvent) => void;
 
-  inputRef: (el: HTMLInputElement | null) => void;
+  inputRef: (el: HTMLInputElement | HTMLTextAreaElement | null) => void;
   rowRef: (el: HTMLDivElement | null) => void;
 }
 
@@ -129,6 +130,7 @@ function LrcLineRowImpl({
             onFocus={(e) => e.target.select()}
             onChange={(e) => onEditTsChange(e.target.value)}
             onKeyDown={(e) => {
+              if (isComposingKeyEvent(e.nativeEvent)) return;
               if (e.key === "Enter") { e.preventDefault(); onCommitTsEdit(); }
               else if (e.key === "Escape") { e.preventDefault(); onCancelTsEdit(); }
             }}
@@ -185,19 +187,34 @@ function LrcLineRowImpl({
         </div>
       )}
 
-      <input
-        ref={inputRef}
-        type="text"
-        value={line.text}
-        onChange={(e) => onTextChange(e.target.value)}
-        onKeyDown={onKeyDown}
-        onFocus={onFocus}
-        onPaste={onPaste}
-        spellCheck={showSpellCheck}
-        className="flex-1 bg-transparent text-white text-sm placeholder-zinc-600 focus:outline-none"
-        style={{ fontSize: `${0.875 * lyricsFontScale}rem` }}
-        placeholder={t.linePlaceholder}
-      />
+      {line.text.includes("\n") ? (
+        <textarea
+          ref={inputRef}
+          value={line.text}
+          rows={Math.max(2, line.text.split("\n").length)}
+          onChange={(e) => onTextChange(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && e.shiftKey) onKeyDown(e); }}
+          onFocus={onFocus}
+          spellCheck={showSpellCheck}
+          className="flex-1 min-w-0 resize-y bg-transparent text-white text-sm placeholder-zinc-600 focus:outline-none"
+          style={{ fontSize: `${0.875 * lyricsFontScale}rem` }}
+          placeholder={t.linePlaceholder}
+        />
+      ) : (
+        <input
+          ref={inputRef}
+          type="text"
+          value={line.text}
+          onChange={(e) => onTextChange(e.target.value)}
+          onKeyDown={onKeyDown}
+          onFocus={onFocus}
+          onPaste={onPaste}
+          spellCheck={showSpellCheck}
+          className="flex-1 min-w-0 bg-transparent text-white text-sm placeholder-zinc-600 focus:outline-none"
+          style={{ fontSize: `${0.875 * lyricsFontScale}rem` }}
+          placeholder={t.linePlaceholder}
+        />
+      )}
 
       <button
         onClick={onMergeUp}
@@ -231,13 +248,16 @@ function LrcLineRowImpl({
     </div>
     {showTranslationLines && (
       <div className="flex items-center pl-11 pr-2 -mt-0.5 pb-0.5">
-        <input
-          type="text"
+        <textarea
           value={line.translation ?? ""}
+          rows={Math.max(1, (line.translation ?? "").split("\n").length)}
+          aria-label={`${t.translationPlaceholder} ${idx + 1}`}
+          onClick={(e) => e.stopPropagation()}
+          onFocus={onFocus}
           onChange={(e) => onTranslationChange(e.target.value)}
           placeholder={t.translationPlaceholder}
           spellCheck={showSpellCheck}
-          className="flex-1 bg-transparent text-indigo-300/70 text-xs italic placeholder-zinc-700 focus:outline-none"
+          className="flex-1 min-w-0 resize-y bg-transparent text-indigo-300/70 text-xs italic placeholder-zinc-700 focus:outline-none"
         />
       </div>
     )}
