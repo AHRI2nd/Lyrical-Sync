@@ -160,3 +160,19 @@ describe("SeekBar scrubbing", () => {
     expect(onSeek).toHaveBeenCalledWith(0);
   });
 });
+
+it('exposes keyboard seeking with accessible bounds', () => {
+  const view=setup(); const slider=view.getByRole('slider');
+  expect(slider.getAttribute('aria-valuemax')).toBe('100');
+  fireEvent.keyDown(slider,{key:'ArrowRight'}); expect(view.onSeek).toHaveBeenLastCalledWith(11);
+  fireEvent.keyDown(slider,{key:'Home'}); expect(view.onSeek).toHaveBeenLastCalledWith(0);
+  fireEvent.keyDown(slider,{key:'End'}); expect(view.onSeek).toHaveBeenLastCalledWith(100);
+});
+
+it('continues keyboard seeking from the pending target while remote feedback is delayed', () => {
+  const view=setup(); const slider=view.getByRole('slider');
+  fireEvent.keyDown(slider,{key:'End'}); fireEvent.keyDown(slider,{key:'ArrowLeft'});
+  expect(view.onSeek.mock.calls.map(([time])=>time)).toEqual([100,99]);
+  fireEvent.keyDown(slider,{key:'Home'}); fireEvent.keyDown(slider,{key:'ArrowRight'}); fireEvent.keyDown(slider,{key:'ArrowRight'});
+  expect(view.onSeek.mock.calls.slice(-3).map(([time])=>time)).toEqual([0,1,2]);
+});
