@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { useI18nStore } from "../../stores/useI18nStore";
 import { CharSyncView } from "./CharSyncView";
 import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
@@ -69,7 +70,7 @@ describe("CharSyncView seek lane", () => {
       { id: "line-2", timestamp: 20, text: "next" },
     ] } });
     const { getByRole } = setup();
-    const stamp = getByRole("button", { name: /현재 글자 찍고 다음으로|Stamp current glyph.*advance/ });
+    const stamp = getByRole("button", { name: useI18nStore.getState().t.charSync.stampHint });
     stamp.focus();
     fireEvent.click(stamp);
     expect(useLrcStore.getState().doc.lines[0].syllables?.map(s => s.time)).toEqual([12, null, null]);
@@ -85,7 +86,7 @@ describe("CharSyncView seek lane", () => {
 
   it("uses the latest playback time for consecutive stamp button clicks", () => {
     const { getByRole } = setup();
-    const stamp = getByRole("button", { name: /현재 글자 찍고 다음으로|Stamp current glyph.*advance/ });
+    const stamp = getByRole("button", { name: useI18nStore.getState().t.charSync.stampHint });
     fireEvent.click(stamp);
     act(() => useLrcStore.setState({ currentTime: 12.5 }));
     fireEvent.click(stamp);
@@ -418,7 +419,7 @@ it('keeps the viewport scale when stamping changes the current line start', () =
   ] } });
   const { lane, getByRole } = setup();
   const span = Number(lane.dataset.end) - Number(lane.dataset.start);
-  fireEvent.click(getByRole('button', { name: /현재 글자 찍고 다음으로|Stamp current glyph.*advance/ }));
+  fireEvent.click(getByRole('button', { name: useI18nStore.getState().t.charSync.stampHint }));
   expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(12);
   expect(Number(lane.dataset.end) - Number(lane.dataset.start)).toBeCloseTo(span);
 });
