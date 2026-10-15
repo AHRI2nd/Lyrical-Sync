@@ -13,7 +13,12 @@
     "build:msstore": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/msstore-build.ps1",
     "test:packaging": "node --test scripts/msix-stage.node-test.mjs scripts/appstore-preflight.node-test.mjs scripts/store-offline.node-test.mjs scripts/notices.node-test.mjs",
     "licenses:generate": "python3 scripts/generate-notices.py",
-    "licenses:check": "node scripts/check-notices.mjs"
+    "licenses:check": "node scripts/check-notices.mjs",
+    "predev": "node scripts/check-dependencies.mjs",
+    "prebuild": "node scripts/check-dependencies.mjs",
+    "pretest": "node scripts/check-dependencies.mjs",
+    "pretauri": "node scripts/check-dependencies.mjs",
+    "test:dependencies": "node --test scripts/check-dependencies.node-test.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
