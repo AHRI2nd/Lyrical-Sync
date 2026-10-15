@@ -1,151 +1,114 @@
 import { useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { useI18nStore } from "../../stores/useI18nStore";
-import { findMatchingAudio, runBatchOperation, type BatchFileEntry, type BatchOperation } from "../../utils/batchProcessor";
+import type { Translations } from "../../i18n/translations";
+import type { FileRef } from "../../utils/fileAccess";
+import { runBatchOperation, type BatchFileEntry, type BatchOperation, type BatchSummary } from "../../utils/batchProcessor";
 import { BatchFileList } from "./BatchFileList";
 import { BatchOperationPicker } from "./BatchOperationPicker";
 
-export function BatchToolModal({ onClose }: { onClose: () => void }) {
-  const { t } = useI18nStore();
+export function BatchToolModal({ t, onClose }: { t: Translations; onClose: () => void }) {
   const [entries, setEntries] = useState<BatchFileEntry[]>([]);
   const [operation, setOperation] = useState<BatchOperation>({ kind: "offset", deltaSeconds: 0 });
+  const [output, setOutput] = useState<FileRef | null>(null);
   const [running, setRunning] = useState(false);
-  const [summary, setSummary] = useState<{ done: number; error: number } | null>(null);
+  const [selecting, setSelecting] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const [summary, setSummary] = useState<BatchSummary | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const mounted = useRef(true);
+  const selectingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
+  const busy = running || selecting;
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape" && !running) onClose(); };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose, running]);
+    mounted.current = true;
+    return () => { mounted.current = false; abortRef.current?.abort(); };
+  }, []);
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !abortRef.current && !selectingRef.current) onClose();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [onClose]);
 
-  const handleSelectFiles = async () => {
-    const selected = await open({
-      multiple: true,
-      filters: [{ name: "Lyrics", extensions: ["lrc", "srt"] }],
-    });
-    if (!selected) return;
-    const paths = (Array.isArray(selected) ? selected : [selected]).filter(
-      (p) => !entries.some((e) => e.lrcPath === p)
-    );
-    if (paths.length === 0) return;
-    setSummary(null);
-    const newEntries: BatchFileEntry[] = paths.map((p) => ({ lrcPath: p, audioPath: null, status: "pending" }));
-    setEntries((prev) => [...prev, ...newEntries]);
-    // 오디오 매칭은 파일 목록에 먼저 반영한 뒤 비동기로 채움(대량 선택 시 UI가 즉시 반응하도록)
-    const baseIndex = entries.length;
-    newEntries.forEach((entry, i) => {
-      findMatchingAudio(entry.lrcPath).then((audioPath) => {
-        if (!audioPath) return;
-        setEntries((prev) => {
-          const next = [...prev];
-          if (next[baseIndex + i]?.lrcPath === entry.lrcPath) next[baseIndex + i] = { ...next[baseIndex + i], audioPath };
-          return next;
-        });
+  const close = () => { if (!abortRef.current && !selectingRef.current) onClose(); };
+  const select = async (folder: boolean) => {
+    if (abortRef.current || selectingRef.current) return;
+    selectingRef.current = true;
+    setSelecting(true);
+    setError(null);
+    try {
+      const selection = folder
+        ? await open({ directory: true, multiple: false })
+        : await open({ multiple: true, filters: [{ name: "Lyrics", extensions: ["lrc", "srt"] }] });
+      if (!selection || !mounted.current) return;
+      const paths = Array.isArray(selection) ? selection : [selection];
+      const refs: FileRef[] = paths.map(path => ({ path, bookmark: null }));
+      if (!mounted.current) return;
+      setSummary(null);
+      if (folder) setOutput(refs[0]);
+      else setEntries((current) => {
+        const known = new Set(current.map((entry) => entry.file.path));
+        const additions: BatchFileEntry[] = [];
+        for (const file of refs) {
+          if (!known.has(file.path)) { known.add(file.path); additions.push({ id: crypto.randomUUID(), file, status: "pending" }); }
+        }
+        return [...current, ...additions];
       });
-    });
+    } catch (failure) {
+      if (mounted.current) setError(failure instanceof Error ? failure.message : String(failure));
+    } finally {
+      selectingRef.current = false;
+      if (mounted.current) setSelecting(false);
+    }
   };
 
-  const handleRemove = (index: number) => setEntries((prev) => prev.filter((_, i) => i !== index));
-
-  const handleRun = async () => {
-    if (entries.length === 0 || running) return;
-    setRunning(true);
-    setSummary(null);
-    setEntries((prev) => prev.map((e) => ({ ...e, status: "pending", error: undefined })));
-    let done = 0;
-    let error = 0;
+  const run = async () => {
+    if (abortRef.current || selectingRef.current || !entries.length || !output) return;
     const controller = new AbortController();
     abortRef.current = controller;
-    await runBatchOperation(
-      entries,
-      operation,
-      (index, status, err) => {
-        if (status === "done") done++;
-        if (status === "error") error++;
-        setEntries((prev) => {
-          const next = [...prev];
-          next[index] = { ...next[index], status, error: err };
-          return next;
-        });
-      },
-      { signal: controller.signal }
-    );
-    abortRef.current = null;
-    setRunning(false);
-    setSummary({ done, error });
+    setRunning(true);
+    setStopping(false);
+    setError(null);
+    setSummary(null);
+    setEntries((current) => current.map((entry) => ({ ...entry, status: "pending", error: undefined })));
+    try {
+      const result = await runBatchOperation(entries, operation, output, (id, status, failure, file) => {
+        if (mounted.current) setEntries((current) => current.map((entry) => entry.id === id ? { ...entry, status, error: failure, file: file ?? entry.file } : entry));
+      }, { signal: controller.signal });
+      if (mounted.current) setSummary(result);
+    } catch (failure) {
+      if (mounted.current) setError(failure instanceof Error ? failure.message : String(failure));
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null;
+      if (mounted.current) { setRunning(false); setStopping(false); }
+    }
   };
-
-  const handleStop = () => abortRef.current?.abort();
+  const buttonClass = "rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm text-zinc-200 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed";
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={() => { if (!running) onClose(); }}
-    >
-      <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
-          <span className="font-semibold text-zinc-100 text-sm">{t.batchTitle}</span>
-          <button
-            onClick={() => { if (!running) onClose(); }}
-            className="text-zinc-500 hover:text-white transition-colors text-lg leading-none disabled:opacity-30"
-            disabled={running}
-          >
-            ✕
-          </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={close}>
+      <div role="dialog" aria-modal="true" aria-label={t.batchTitle} className="mx-4 flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-3">
+          <h2 className="text-sm font-semibold text-zinc-100">{t.batchTitle}</h2>
+          <button type="button" aria-label={t.confirmNewCancel} disabled={busy} onClick={close} className="text-zinc-500 hover:text-white disabled:opacity-40">✕</button>
         </div>
-
-        <div className="p-5 flex flex-col gap-4">
-          <p className="text-[11px] leading-relaxed text-zinc-500">{t.batchHint}</p>
-
-          <button
-            onClick={handleSelectFiles}
-            disabled={running}
-            className="w-full py-2.5 text-sm rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 disabled:opacity-40 transition-colors"
-          >
-            {t.batchSelectFiles}
-          </button>
-
-          <BatchFileList t={t} entries={entries} onRemove={handleRemove} />
-
-          <div className="border-t border-zinc-800 pt-3">
-            <BatchOperationPicker t={t} operation={operation} onChange={setOperation} />
+        <div className="flex flex-col gap-4 overflow-y-auto p-5">
+          <p className="text-xs leading-relaxed text-zinc-500">{t.batchHint}</p>
+          <button type="button" disabled={busy} className={buttonClass} onClick={() => void select(false)}>{t.batchSelectFiles}</button>
+          <BatchFileList t={t} entries={entries} disabled={busy} onRemove={(id) => { if (!abortRef.current && !selectingRef.current) { setEntries((current) => current.filter((entry) => entry.id !== id)); setSummary(null); } }} />
+          <div>
+            <button type="button" disabled={busy} className={`${buttonClass} w-full`} onClick={() => void select(true)}>{t.batchOutputFolder}</button>
+            <p className="mt-1 break-all text-xs text-zinc-500">{output?.path ?? t.batchOutputFolderEmpty}</p>
           </div>
-
-          {summary && (
-            <p className="text-xs">
-              <span className="text-emerald-400">{summary.done} {t.batchSummaryDone}</span>
-              {summary.error > 0 && <span className="text-red-400 ml-2">{summary.error} {t.batchSummaryError}</span>}
-            </p>
-          )}
-
+          <BatchOperationPicker t={t} operation={operation} disabled={busy} onChange={(next) => { if (!abortRef.current && !selectingRef.current) { setOperation(next); setSummary(null); } }} />
+          {error && <p role="alert" className="break-words text-xs text-red-400">{error}</p>}
+          {summary && <p role="status" className="text-xs text-zinc-300">{summary.done} {t.batchSummaryDone} · {summary.error} {t.batchSummaryError} · {summary.cancelled} {t.batchSummaryCancelled}</p>}
           <div className="flex justify-end gap-2">
-            <button
-              onClick={onClose}
-              disabled={running}
-              className="px-4 py-2 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 disabled:opacity-40 text-zinc-300 transition-colors"
-            >
-              {t.cancelLabel}
-            </button>
-            {running ? (
-              <button
-                onClick={handleStop}
-                className="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-500 text-white transition-colors"
-              >
-                {t.batchStop}
-              </button>
-            ) : (
-              <button
-                onClick={handleRun}
-                disabled={entries.length === 0}
-                className="px-4 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
-              >
-                {t.batchRun}
-              </button>
-            )}
+            <button type="button" disabled={busy} className={buttonClass} onClick={close}>{t.confirmNewCancel}</button>
+            {running ? <button type="button" disabled={stopping} className={`${buttonClass} border-red-800 text-red-300`} onClick={() => { abortRef.current?.abort(); setStopping(true); }}>{stopping ? t.batchStopping : t.batchStop}</button>
+              : <button type="button" disabled={busy || !entries.length || !output || (operation.kind === "offset" && !Number.isFinite(operation.deltaSeconds))} className={`${buttonClass} border-indigo-500 bg-indigo-600 text-white`} onClick={() => void run()}>{t.batchRun}</button>}
           </div>
         </div>
       </div>

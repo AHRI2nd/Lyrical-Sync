@@ -1,3 +1,4 @@
+mod batch_output;
 mod service_auth;
 use service_auth::*;
 mod now_playing;
@@ -172,6 +173,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             read_lrc_file,
             write_lrc_file,
+            batch_output::write_batch_output,
             read_audio_file,
             decode_audio_to_wav,
             read_audio_metadata,

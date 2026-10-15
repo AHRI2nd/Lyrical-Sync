@@ -18,7 +18,7 @@ import { deviceControls } from "./utils/deviceControls";
 import { useDeviceStore } from "./stores/useDeviceStore";
 import { anyModalOpen } from "./utils/modalGuard";
 import { safeUnlisten } from "./utils/safeUnlisten";
-import { isInteractiveKeyTarget, matchAction, normalizeKeybindings, PLAYBACK_ACTIONS } from "./utils/keybindings";
+import { isComposingKeyEvent, isInteractiveKeyTarget, matchAction, normalizeKeybindings, PLAYBACK_ACTIONS } from "./utils/keybindings";
 import { toast } from "./stores/useToastStore";
 import { ToastContainer } from "./components/Toast/ToastContainer";
 import { type RecoverySnapshot, loadRecoverySnapshot, saveRecoverySnapshot, clearRecoverySnapshot } from "./utils/recovery";
@@ -67,6 +67,7 @@ function useGlobalKeys() {
     const controls = deviceModeForKeys ? deviceControls : isServiceMode ? serviceControls : audioControls;
     const kb = normalizeKeybindings(keybindings);
     const handler = (e: KeyboardEvent) => {
+      if (isComposingKeyEvent(e)) return;
       const inInteractiveControl =
         isInteractiveKeyTarget(e.target) || isInteractiveKeyTarget(document.activeElement);
 
@@ -470,7 +471,7 @@ function App() {
       )}
       {showBatchTool && (
         <Suspense fallback={null}>
-          <BatchToolModal onClose={() => setShowBatchTool(false)} />
+          <BatchToolModal t={t} onClose={() => setShowBatchTool(false)} />
         </Suspense>
       )}
       {showPreview && (
