@@ -1,24 +1,22 @@
 import { LrcDocument, LrcLine } from "../types/lrc";
 
-// 타임스탬프 있는 줄을 자막 cue로 변환. 빈 줄(text:"")은 직전 cue의 종료 경계로만 사용.
-// (srtConverter와 동일한 규칙 — start=줄 시각, end=다음 시각 줄/총 길이/+4초)
+// Blank timed lines mark cue ends without becoming subtitles themselves.
+// SRT, VTT and ASS share strictly later boundaries, valid duration, or a four-second fallback.
 interface Cue { start: number; end: number; line: LrcLine; }
 
-export function nextCueEnd(
-  timed: readonly LrcLine[],
-  index: number,
-  start: number,
-  lastCueEnd?: number,
-): number {
+// Compare boundaries at the output format precision so rounding cannot create an empty cue.
+export function nextCueEnd(timed: readonly LrcLine[], index: number, start: number, lastCueEnd?: number, timeUnitsPerSecond = 1000): number {
+  const startUnit = Math.max(0, Math.round(start * timeUnitsPerSecond));
+  const isLater = (time: number) => Number.isFinite(time) && Math.round(time * timeUnitsPerSecond) > startUnit;
   for (let i = index + 1; i < timed.length; i++) {
     const next = timed[i].timestamp;
-    if (next !== null && next > start) return next;
+    if (next !== null && isLater(next)) return next;
   }
-  if (lastCueEnd !== undefined && lastCueEnd > start) return lastCueEnd;
+  if (lastCueEnd !== undefined && isLater(lastCueEnd)) return lastCueEnd;
   return start + 4;
 }
 
-function buildCues(doc: LrcDocument, lastCueEnd?: number): Cue[] {
+function buildCues(doc: LrcDocument, lastCueEnd?: number, timeUnitsPerSecond = 1000): Cue[] {
   const timed = doc.lines
     .filter((l) => l.timestamp !== null)
     .slice()
@@ -27,9 +25,9 @@ function buildCues(doc: LrcDocument, lastCueEnd?: number): Cue[] {
   const cues: Cue[] = [];
   for (let i = 0; i < timed.length; i++) {
     const line = timed[i];
-    if (line.text.trim() === "") continue; // 빈 줄 = 경계 전용
+    if (line.text.trim() === "" && !line.translation?.trim()) continue; // Empty rows provide boundaries only.
     const start = line.timestamp as number;
-    const end = nextCueEnd(timed, i, start, lastCueEnd);
+    const end = nextCueEnd(timed, i, start, lastCueEnd, timeUnitsPerSecond);
     cues.push({ start, end, line });
   }
   return cues;
@@ -44,21 +42,21 @@ function vttTime(seconds: number): string {
   return `${p2(Math.floor(ms / 3600000))}:${p2(Math.floor(ms / 60000) % 60)}:${p2(Math.floor(ms / 1000) % 60)}.${p3(ms % 1000)}`;
 }
 
-// 글자/단어 동기화가 있으면 VTT 인라인 타임스탬프(<HH:MM:SS.mmm>)로 카라오케 표현.
-// 번역 줄이 있으면 WebVTT가 기본 지원하는 개행으로 본문 아래에 덧붙임.
+// Timed glyphs use VTT inline timestamps for karaoke.
 function vttText(line: LrcLine): string {
-  const main = line.syllables?.some((s) => s.time !== null)
-    ? line.syllables
-        .map((s) => (s.time !== null ? `<${vttTime(s.time)}>` : "") + s.text)
-        .join("")
-    : line.text;
-  return line.translation ? `${main}\n${line.translation}` : main;
+  if (line.text.trim() === "") return line.translation ?? "";
+  if (line.syllables?.some((s) => s.time !== null)) {
+    return line.syllables
+      .map((s) => (s.time !== null ? `<${vttTime(s.time)}>` : "") + s.text)
+      .join("");
+  }
+  return line.text;
 }
 
 export function serializeVtt(doc: LrcDocument, lastCueEnd?: number): string {
   const cues = buildCues(doc, lastCueEnd);
   const body = cues
-    .map((c) => `${vttTime(c.start)} --> ${vttTime(c.end)}\n${vttText(c.line)}`)
+    .map((c) => `${vttTime(c.start)} --> ${vttTime(c.end)}\n${vttText(c.line)}${c.line.text.trim() && c.line.translation ? `\n${c.line.translation}` : ""}`)
     .join("\n\n");
   return `WEBVTT\n\n${body}\n`;
 }
@@ -69,32 +67,33 @@ function assTime(seconds: number): string {
   return `${Math.floor(cs / 360000)}:${p2(Math.floor(cs / 6000) % 60)}:${p2(Math.floor(cs / 100) % 60)}.${p2(cs % 100)}`;
 }
 
-// ASS 텍스트: 글자 동기화가 있으면 \k(센티초 지속) 카라오케 태그로.
-// 번역 줄이 있으면 ASS의 줄바꿈 태그 \N으로 본문 아래에 덧붙임.
+// Timed glyphs use ASS karaoke tags with centisecond durations.
+function escapeAssText(text: string): string {
+  return text.replace(/\\/g, "\\\\").replace(/\r\n|\r|\n/g, "\\N");
+}
+
 function assText(line: LrcLine, cueEnd: number): string {
+  if (line.text.trim() === "") return escapeAssText(line.translation ?? "");
   const syl = line.syllables;
-  let main: string;
   if (syl?.some((s) => s.time !== null)) {
     let out = "";
     for (let i = 0; i < syl.length; i++) {
       const s = syl[i];
-      if (s.time === null) { out += s.text; continue; }
+      if (s.time === null) { out += escapeAssText(s.text); continue; }
       let nextT = cueEnd;
       for (let j = i + 1; j < syl.length; j++) {
         if (syl[j].time !== null) { nextT = syl[j].time as number; break; }
       }
       const durCs = Math.max(0, Math.round((nextT - (s.time as number)) * 100));
-      out += `{\\k${durCs}}${s.text}`;
+      out += `{\\k${durCs}}${escapeAssText(s.text)}`;
     }
-    main = out;
-  } else {
-    main = line.text;
+    return out;
   }
-  return line.translation ? `${main}\\N${line.translation}` : main;
+  return escapeAssText(line.text);
 }
 
 export function serializeAss(doc: LrcDocument, lastCueEnd?: number): string {
-  const cues = buildCues(doc, lastCueEnd);
+  const cues = buildCues(doc, lastCueEnd, 100);
   const title = doc.metadata.title || "Lyrical Sync";
   const header =
 `[Script Info]
@@ -113,7 +112,7 @@ Style: Default,Arial,72,&H00FFFFFF,&H00E8A33D,&H00000000,&H64000000,0,0,0,0,100,
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
   const events = cues
-    .map((c) => `Dialogue: 0,${assTime(c.start)},${assTime(c.end)},Default,,0,0,0,,${assText(c.line, c.end)}`)
+    .map((c) => `Dialogue: 0,${assTime(c.start)},${assTime(c.end)},Default,,0,0,0,,${assText(c.line, c.end)}${c.line.text.trim() && c.line.translation ? `\\N${escapeAssText(c.line.translation)}` : ""}`)
     .join("\n");
   return header + events + "\n";
 }

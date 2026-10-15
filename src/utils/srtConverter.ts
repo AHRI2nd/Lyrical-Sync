@@ -30,10 +30,8 @@ function parseSrtTime(str: string): number | null {
 }
 
 /**
- * LRC 문서를 SubRip(SRT) 문자열로 직렬화.
- * 각 자막의 종료 시간 = 다음(시간 있는) 줄의 시작 시간.
- * 빈 줄(text:"")은 자막으로 출력하지 않고 직전 자막의 종료 경계로만 사용됨.
- * 마지막 줄은 다음 줄이 없으므로 lastCueEnd(있으면) 또는 start + 4초로 종료.
+ * Export text cues ending at the next strictly later timed line (including blanks),
+ * a finite later audio duration, or a four-second fallback. Coincident starts share an end.
  */
 export function serializeSrt(doc: LrcDocument, lastCueEnd?: number): string {
   const timed = doc.lines
@@ -41,34 +39,28 @@ export function serializeSrt(doc: LrcDocument, lastCueEnd?: number): string {
     .slice()
     .sort((a, b) => (a.timestamp as number) - (b.timestamp as number));
 
-  const cues: { start: number; end: number; text: string; translation?: string }[] = [];
+  const cues: { start: number; end: number; text: string }[] = [];
   for (let i = 0; i < timed.length; i++) {
     const line = timed[i];
-    if (line.text.trim() === "") continue; // 빈 줄 = 경계 전용
+    if (line.text.trim() === "" && !line.translation?.trim()) continue; // Empty rows provide boundaries only.
     const start = line.timestamp as number;
     const end = nextCueEnd(timed, i, start, lastCueEnd);
-    cues.push({ start, end, text: line.text, translation: line.translation });
+    cues.push({ start, end, text: line.text.trim() === "" ? (line.translation ?? "") : line.translation ? `${line.text}\n${line.translation}` : line.text });
   }
 
   return (
     cues
       .map(
         (c, i) =>
-          `${i + 1}\n${formatSrtTime(c.start)} --> ${formatSrtTime(c.end)}\n${c.text}${c.translation ? `\n${c.translation}` : ""}`
+          `${i + 1}\n${formatSrtTime(c.start)} --> ${formatSrtTime(c.end)}\n${c.text}`
       )
       .join("\n\n") + "\n"
   );
 }
 
 /**
- * SubRip(SRT) 문자열을 LRC 문서로 파싱.
- * 각 자막 cue의 시작 시간을 LRC 타임스탬프로 변환.
- * cue 본문이 여러 줄이면 공백으로 합쳐 한 줄로 만듦.
- *
- * 가사 사이 빈 시간(갭): cue가 끝난 뒤 다음 cue 시작 전까지 공백이 있으면,
- * 그 종료 시각에 "텍스트 없는 타임스탬프 줄"(LRC 문단 구분선)을 삽입해
- * 에디터에서 가사가 비는 구간을 빈 줄로 표현한다. serializeSrt가 이 빈 줄을
- * 직전 cue의 종료 경계로 사용하므로 SRT→LRC→SRT 라운드트립도 보존된다.
+ * Import cue starts and preserve multiline bodies. Intermediate gaps become
+ * blank timed boundaries. Original overlaps are not stored; the final cue end is retained.
  */
 export function parseSrt(raw: string): LrcDocument {
   const doc = defaultDocument();
@@ -80,7 +72,8 @@ export function parseSrt(raw: string): LrcDocument {
   // 1) cue(start, end, text) 수집
   const cues: { start: number; end: number; text: string }[] = [];
   for (const block of blocks) {
-    const rows = block.split("\n").map((r) => r.trim()).filter((r) => r !== "");
+    const rows = block.split("\n");
+    while (rows.length && rows[rows.length - 1] === "") rows.pop();
     if (rows.length === 0) continue;
 
     // 시간 줄(--> 포함)을 찾음. 그 앞은 인덱스 번호(있으면), 그 뒤는 본문.
@@ -92,22 +85,20 @@ export function parseSrt(raw: string): LrcDocument {
     if (start === null) continue;
     const end = parseSrtTime(endStr ?? "");
 
-    const text = rows.slice(arrowIdx + 1).join(" ").trim();
+    const text = rows.slice(arrowIdx + 1).join("\n");
     cues.push({ start, end: end ?? start, text });
   }
 
   cues.sort((a, b) => a.start - b.start);
 
   // 2) cue → 가사 줄 + 가사 사이 갭에 빈 줄(경계) 삽입
-  const cs = (s: number) => Math.round(s * 100); // 센티초(LRC 정밀도) 기준 비교
   for (let i = 0; i < cues.length; i++) {
     const cue = cues[i];
     doc.lines.push({ id: String(lineId++), timestamp: cue.start, text: cue.text });
 
-    // 다음 cue와의 갭뿐 아니라 마지막 cue의 종료도 경계로 보존한다. 그래야 배치
-    // 오프셋 적용 뒤 마지막 자막이 임의의 4초 길이로 바뀌지 않는다.
+    // Keep gap boundaries and the final cue end so imports retain their duration.
     const next = cues[i + 1];
-    if (cs(cue.end) > cs(cue.start) && (!next || cs(cue.end) < cs(next.start))) {
+    if (cue.end > cue.start && (!next || cue.end < next.start)) {
       doc.lines.push({ id: String(lineId++), timestamp: cue.end, text: "" });
     }
   }
