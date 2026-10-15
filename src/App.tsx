@@ -128,6 +128,7 @@ function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<"general" | "shortcuts" | "preview">("general");
   const [replacementPrompt, setReplacementPrompt] = useState(false);
   const confirmationRef = useRef<((choice: TransitionChoice) => void) | null>(null);
   const answerReplacement = (choice: TransitionChoice) => {
@@ -262,7 +263,7 @@ function App() {
       togglePlay: () => audioControls.togglePlay(),
       skip: (d) => audioControls.skip(d),
       stop: () => audioControls.stopAndReset(),
-      openSettings: () => setShowSettings(true),
+      openSettings: () => { setSettingsInitialTab("general"); setShowSettings(true); },
       openPreview: () => setShowPreview(true),
       openHelp: () => setShowHelp(true),
     },
@@ -318,7 +319,7 @@ function App() {
       )}
       {showSettings && (
         <Suspense fallback={null}>
-          <SettingsModal onClose={() => setShowSettings(false)} />
+          <SettingsModal onClose={() => setShowSettings(false)} initialTab={settingsInitialTab} />
         </Suspense>
       )}
       {recovery && (
@@ -411,13 +412,13 @@ function App() {
           <MetaEditor />
         </div>
         <div className="flex flex-col flex-1 p-3 min-h-0">
-          <LrcEditor onPreview={() => setShowPreview(true)} />
+          <LrcEditor onPreview={() => setShowPreview(true)} onOpenShortcuts={() => { setSettingsInitialTab("shortcuts"); setShowSettings(true); }} />
         </div>
       </div>
 
       <div className="fixed bottom-4 left-4 flex gap-2 z-10">
         <button
-          onClick={() => setShowSettings(true)}
+          onClick={() => { setSettingsInitialTab("general"); setShowSettings(true); }}
           title={t.settingsTitle}
           className="w-8 h-8 rounded-full bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white transition-colors flex items-center justify-center shadow-lg"
         >

@@ -58,12 +58,12 @@ it("resumes consecutive glyph stamps after returning from a button to the glyph 
   expect(useLrcStore.getState().doc.lines[0].syllables?.map((token) => token.time)).toEqual([12, 13, null]);
 });
 
-it.each(["ko", "en", "ja"] as const)("uses the configured stamp key in %s hints and glyph stamping", (lang) => {
+it.each(["ko", "en", "ja"] as const)("uses the configured stamp key in the %s typing button and glyph stamping", (lang) => {
   useI18nStore.setState({ lang, t: translations[lang] });
   useSettingsStore.setState({ keybindings: { ...DEFAULT_KEYBINDINGS, stamp: "KeyS" } });
   const { container } = render(<CharSyncView />);
   expect(container.querySelector("kbd")?.textContent).toBe("S");
-  expect(container.querySelector("p")?.textContent).toContain("S=");
+  expect(container.querySelector("details")).toBeNull();
   fireEvent.keyDown(window, { code: "KeyS" });
   expect(useLrcStore.getState().doc.lines[0].syllables?.[0].time).toBe(12);
 });
@@ -205,4 +205,12 @@ it("starts a second seek in the still-visible pending viewport", () => {
   expect(Number(lane.dataset.start)).toBe(start);
   fireEvent.pointerDown(lane,{pointerId:2,button:0,clientX:75}); fireEvent.pointerUp(window,{pointerId:2,clientX:75});
   expect(seek.mock.calls[1][0]).toBeCloseTo(start+(end-start)*.75);
+});
+
+it("opens shortcut settings from the header", () => {
+  const onOpenShortcuts = vi.fn();
+  const view = render(<CharSyncView onOpenShortcuts={onOpenShortcuts} />);
+  fireEvent.click(view.getByRole("button",{name:useI18nStore.getState().t.charSync.shortcuts}));
+  expect(onOpenShortcuts).toHaveBeenCalledOnce();
+  expect(view.container.querySelector("details")).toBeNull();
 });

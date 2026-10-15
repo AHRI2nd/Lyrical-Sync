@@ -19,7 +19,7 @@ const BpmSnapModal = lazy(() => import("../AudioPlayer/BpmSnapModal").then((m) =
 const BatchToolModal = lazy(() => import("../BatchTools/BatchToolModal").then((m) => ({ default: m.BatchToolModal })));
 const AutoSpotModal = lazy(() => import("../AudioPlayer/AutoSpotModal").then((m) => ({ default: m.AutoSpotModal })));
 
-export function LrcEditor({ onPreview }: { onPreview: () => void }) {
+export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => void; onOpenShortcuts?: () => void }) {
   // currentTime은 푸터에서만 쓰므로 구독에서 제외 → 재생 중 줄 목록이 매 프레임 리렌더되지 않음
   const {
     doc, activeLineId, documentSession,
@@ -579,7 +579,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
 
       {charMode && (
         <Suspense fallback={null}>
-          <CharSyncView />
+          <CharSyncView onOpenShortcuts={onOpenShortcuts} />
         </Suspense>
       )}
 

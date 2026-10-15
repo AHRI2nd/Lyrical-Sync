@@ -1,5 +1,5 @@
 import { isComposingKeyEvent } from "../../utils/keybindings";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { ConfirmModal } from "../AppShell/ConfirmModal";
@@ -10,7 +10,7 @@ import { KeybindingsSection } from "./KeybindingsSection";
 
 type Tab = "general" | "shortcuts" | "preview";
 
-export function SettingsModal({ onClose }: { onClose: () => void }) {
+export function SettingsModal({ onClose, initialTab = "general" }: { onClose: () => void; initialTab?: Tab }) {
   const { t } = useI18nStore();
   const {
     autoSave, recoveryEnabled, uiScale, showElrcSaveNotice, lyricsFontScale, showGlyphTimeMarkers, showSpellCheck, showTranslationLines,
@@ -20,7 +20,12 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   const [confirmTranslations, setConfirmTranslations] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmRecoveryOff, setConfirmRecoveryOff] = useState(false);
-  const [tab, setTab] = useState<Tab>("general");
+  const [tab, setTab] = useState<Tab>(initialTab);
+  const returnFocus = useRef(document.activeElement);
+  useEffect(() => () => {
+    const target = returnFocus.current;
+    if (target instanceof HTMLElement && target.isConnected) target.focus({ preventScroll: true });
+  }, []);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -48,6 +53,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           <span className="font-semibold text-zinc-100">{t.settingsTitle}</span>
           <button
             onClick={onClose}
+            aria-label={t.close}
             className="text-zinc-500 hover:text-white transition-colors text-lg leading-none"
           >
             ✕
@@ -263,7 +269,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 
           {tab === "shortcuts" && (
             <div className="p-5">
-              <KeybindingsSection />
+              <KeybindingsSection focusCharacterSync={initialTab === "shortcuts"} />
             </div>
           )}
         </div>
