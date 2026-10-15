@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { LrcDocument } from "../types/lrc";
 import { saveRecoverySnapshot, loadRecoverySnapshot, clearRecoverySnapshot } from "./recovery";
 
@@ -43,6 +43,20 @@ describe("recovery snapshot round-trip", () => {
     expect(loaded!.audioPath).toBeNull();
   });
 
+  it("defaults bookmarks to null when not passed (back-compat with older snapshots)", () => {
+    saveRecoverySnapshot(doc(), "/tmp/song.lrc", "/tmp/song.mp3");
+    const loaded = loadRecoverySnapshot();
+    expect(loaded!.lrcBookmark).toBeNull();
+    expect(loaded!.audioBookmark).toBeNull();
+  });
+
+  it("persists App Sandbox security-scoped bookmarks when provided", () => {
+    saveRecoverySnapshot(doc(), "/tmp/song.lrc", "/tmp/song.mp3", "bm-lrc-base64", "bm-audio-base64");
+    const loaded = loadRecoverySnapshot();
+    expect(loaded!.lrcBookmark).toBe("bm-lrc-base64");
+    expect(loaded!.audioBookmark).toBe("bm-audio-base64");
+  });
+
   it("returns null when nothing has been saved", () => {
     expect(loadRecoverySnapshot()).toBeNull();
   });
@@ -58,7 +72,7 @@ describe("recovery snapshot round-trip", () => {
   });
 
   it("clearRecoverySnapshot removes the snapshot", () => {
-    saveRecoverySnapshot(doc(), "/tmp/song.lrc", "/tmp/song.mp3");
+    saveRecoverySnapshot(doc(), "/tmp/song.lrc", "/tmp/song.mp3", "bm-lrc", "bm-audio");
     clearRecoverySnapshot();
     expect(loadRecoverySnapshot()).toBeNull();
   });
@@ -82,4 +96,60 @@ describe("recovery snapshot round-trip", () => {
       localStorage.removeItem = original;
     }
   });
+});
+
+it.each(["metadata", "timestamp", "syllable", "extraTags", "bookmark", "savedAt"])("rejects malformed %s values", (field) => {
+  const snapshot: any = { doc: doc(), lrcPath: null, audioPath: null, savedAt: 1 };
+  if (field === "metadata") snapshot.doc.metadata.offset = "bad";
+  if (field === "timestamp") snapshot.doc.lines[0].timestamp = "bad";
+  if (field === "syllable") snapshot.doc.lines[0].syllables = [{ text: "x", time: "bad" }];
+  if (field === "extraTags") snapshot.doc.extraTags = { invalid: 3 };
+  if (field === "bookmark") snapshot.lrcBookmark = 3;
+  if (field === "savedAt") snapshot.savedAt = "bad";
+  localStorage.setItem(KEY, JSON.stringify(snapshot));
+  expect(loadRecoverySnapshot()).toBeNull();
+});
+it("loads a legacy snapshot without bookmark fields", () => {
+  localStorage.setItem(KEY, JSON.stringify({ doc: doc(), lrcPath: null, audioPath: null, savedAt: 1 }));
+  expect(loadRecoverySnapshot()?.lrcBookmark).toBeNull();
+});
+it("cannot discard a newer session with an old snapshot", () => {
+  saveRecoverySnapshot(doc(), null, null, null, null, "old");
+  const old = loadRecoverySnapshot()!;
+  saveRecoverySnapshot(doc(), null, null, null, null, "new");
+  clearRecoverySnapshot(old);
+  expect(loadRecoverySnapshot()?.sessionId).toBe("new");
+});
+
+it("restores rich document data from stored bytes after recreating the module", async () => {
+  const rich = doc();
+  rich.extraTags = { language: "ko" };
+  rich.lines[0].syllables = [{ text: "hello", time: 1.5 }, { text: " ", time: null }];
+  expect(saveRecoverySnapshot(rich, "/a.lrc", null, "grant", null, "restart")).toBe(true);
+  expect(JSON.parse(localStorage.getItem(KEY)!).doc).toEqual(rich);
+  vi.resetModules();
+  const recreated = await import("./recovery");
+  expect(recreated.loadRecoverySnapshot()?.doc).toEqual(rich);
+  expect(recreated.loadRecoverySnapshot()?.lrcBookmark).toBe("grant");
+});
+it("rejects non-finite values before JSON can silently convert them to null", () => {
+  const invalid = doc(); invalid.lines[0].timestamp = Infinity;
+  expect(saveRecoverySnapshot(invalid, null, null)).toBe(false);
+  localStorage.setItem(KEY, '{"doc":{"metadata":{"title":"","artist":"","album":"","by":"","offset":1e999},"lines":[],"extraTags":{}},"lrcPath":null,"audioPath":null,"savedAt":1}');
+  expect(loadRecoverySnapshot()).toBeNull();
+});
+
+
+it.each([[null], [12], [{}], [[]]])("rejects malformed translation values %s", (translation) => {
+  const invalid = doc();
+  (invalid.lines[0] as any).translation = translation;
+  expect(saveRecoverySnapshot(invalid, null, null)).toBe(false);
+  localStorage.setItem(KEY, JSON.stringify({ doc: invalid, lrcPath: null, audioPath: null, savedAt: 1 }));
+  expect(loadRecoverySnapshot()).toBeNull();
+});
+it.each(["translated", ""])("retains optional translation strings %s in recovery", (translation) => {
+  const rich = doc();
+  (rich.lines[0] as any).translation = translation;
+  expect(saveRecoverySnapshot(rich, null, null)).toBe(true);
+  expect(loadRecoverySnapshot()?.doc.lines[0]).toHaveProperty("translation", translation);
 });
