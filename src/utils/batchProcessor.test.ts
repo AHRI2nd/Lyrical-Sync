@@ -1,181 +1,114 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { invoke } from "@tauri-apps/api/core";
+import { readLyrics } from "./fileAccess";
+import { batchOutputName, preflightBatch, runBatchOperation, type BatchFileEntry } from "./batchProcessor";
 
-const invokeMock = vi.fn();
-const readDirMock = vi.fn();
-
-vi.mock("@tauri-apps/api/core", () => ({ invoke: (...args: unknown[]) => invokeMock(...args) }));
-vi.mock("@tauri-apps/plugin-fs", () => ({ readDir: (...args: unknown[]) => readDirMock(...args) }));
-
-import { findMatchingAudio, runBatchOperation, type BatchFileEntry } from "./batchProcessor";
-
-const LRC = "[ti:Song]\n[00:01.00]hello\n[00:03.00]world";
+vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
+vi.mock("./fileAccess", () => ({ readLyrics: vi.fn() }));
+const entry = (path: string, id = path): BatchFileEntry => ({ id, file: { path, bookmark: "input" }, status: "pending" });
+const output = { path: "/output", bookmark: "folder" };
+const convert = { kind: "convert", format: "srt" } as const;
 
 beforeEach(() => {
-  invokeMock.mockReset();
-  readDirMock.mockReset();
+  vi.clearAllMocks();
+  vi.mocked(readLyrics).mockImplementation(async (file) => ({ value: "[00:02.00]<00:02.20>Hello", file: { ...file, bookmark: "fresh" } }));
+  vi.mocked(invoke).mockResolvedValue(undefined);
 });
 
-describe("findMatchingAudio", () => {
-  it("finds a same-stem audio file in the same directory", async () => {
-    readDirMock.mockResolvedValue([
-      { name: "song.lrc", isFile: true, isDirectory: false, isSymlink: false },
-      { name: "song.mp3", isFile: true, isDirectory: false, isSymlink: false },
-      { name: "other.wav", isFile: true, isDirectory: false, isSymlink: false },
-    ]);
-    const result = await findMatchingAudio("/music/song.lrc");
-    expect(result).toBe("/music/song.mp3");
+describe("batch preflight", () => {
+  it("rejects same-stem and case-folded output collisions before any I/O", async () => {
+    await expect(runBatchOperation([entry("/a/song.lrc"), entry("/b/SONG.srt")], convert, output, vi.fn())).rejects.toThrow("Duplicate output");
+    expect(readLyrics).not.toHaveBeenCalled();
+    expect(invoke).not.toHaveBeenCalled();
   });
-
-  it("returns null when nothing matches", async () => {
-    readDirMock.mockResolvedValue([{ name: "other.mp3", isFile: true, isDirectory: false, isSymlink: false }]);
-    expect(await findMatchingAudio("/music/song.lrc")).toBeNull();
+  it("retains the input basename extension for offset and chooses only a basename for conversion", () => {
+    expect(batchOutputName("C:\\folder.with.dot\\Song.LRC", { kind: "offset", deltaSeconds: 1 })).toBe("Song.LRC");
+    expect(batchOutputName("/parent.dot/song.srt", { kind: "tag", title: "new" })).toBe("song.srt");
+    expect(batchOutputName("/parent.dot/song.lrc", convert)).toBe("song.srt");
+    expect(preflightBatch([entry("/a/song.lrc")], convert, output)[0].targetPath).toBe("/output/song.srt");
   });
-
-  it("returns null when the directory can't be read (out of scope, etc.)", async () => {
-    readDirMock.mockRejectedValue(new Error("permission denied"));
-    expect(await findMatchingAudio("/music/song.lrc")).toBeNull();
-  });
-
-  it("ignores non-audio extensions and directories", async () => {
-    readDirMock.mockResolvedValue([
-      { name: "song.txt", isFile: true, isDirectory: false, isSymlink: false },
-      { name: "song", isFile: false, isDirectory: true, isSymlink: false },
-    ]);
-    expect(await findMatchingAudio("/music/song.lrc")).toBeNull();
+  it("rejects unsupported inputs and unsafe basenames", () => {
+    expect(() => preflightBatch([entry("/a/song.wav")], convert, output)).toThrow("Unsupported input");
+    expect(() => batchOutputName("/a/bad:name.lrc", convert)).toThrow("Invalid output name");
+    for (const name of ["NUL .lrc", "COM¹.lrc", "CONIN$.lrc"]) {
+      expect(() => batchOutputName(`/a/${name}`, convert)).toThrow("Invalid output name");
+    }
+    expect(() => preflightBatch([entry("/a/song.lrc")], { kind: "offset", deltaSeconds: Infinity }, output)).toThrow("finite");
   });
 });
 
-describe("runBatchOperation", () => {
-  const entry = (lrcPath: string): BatchFileEntry => ({ lrcPath, audioPath: null, status: "pending" });
-
-  it("applies an offset to every file and writes the shifted content", async () => {
-    invokeMock.mockImplementation((cmd: string) => (cmd === "read_lrc_file" ? Promise.resolve(LRC) : Promise.resolve()));
-    const entries = [entry("/a.lrc"), entry("/b.lrc")];
-    const progress: [number, string][] = [];
-    await runBatchOperation(
-      entries,
-      { kind: "offset", deltaSeconds: 1 },
-      (i, status) => progress.push([i, status]),
-      { concurrency: 1 }
-    );
-
-    expect(progress).toEqual([[0, "processing"], [0, "done"], [1, "processing"], [1, "done"]]);
-    const writeCalls = invokeMock.mock.calls.filter((c) => c[0] === "write_lrc_file");
-    expect(writeCalls).toHaveLength(2);
-    expect(writeCalls[0][1].content).toContain("[00:02.00]hello");
-    expect(writeCalls[0][1].content).toContain("[00:04.00]world");
+describe("batch output", () => {
+  it("updates nonempty LRC tags while preserving existing metadata and lyric content", async () => {
+    vi.mocked(readLyrics).mockResolvedValueOnce({ value: "[ti:Old]\n[ar:Existing]\n[00:02.00]Hello", file: entry("/inputs/song.lrc").file });
+    await runBatchOperation([entry("/inputs/song.lrc")], { kind: "tag", title: " New ", artist: " " }, output, vi.fn());
+    const content = (vi.mocked(invoke).mock.calls[0][1] as { content: string }).content;
+    expect(content).toContain("[ti:New]");
+    expect(content).toContain("[ar:Existing]");
+    expect(content).toContain("[00:02.00]Hello");
   });
-
-  it("converts format and writes to a new path with the target extension", async () => {
-    invokeMock.mockImplementation((cmd: string) => (cmd === "read_lrc_file" ? Promise.resolve(LRC) : Promise.resolve()));
-    await runBatchOperation([entry("/song.lrc")], { kind: "convert", format: "srt" }, () => {});
-    const writeCall = invokeMock.mock.calls.find((c) => c[0] === "write_lrc_file");
-    expect(writeCall?.[1].path).toBe("/song.srt");
-    expect(writeCall?.[1].content).toContain("-->");
+  it("preserves multiline SRT content and its final end while shifting new output", async () => {
+    vi.mocked(readLyrics).mockResolvedValueOnce({ value: "1\n00:00:10,000 --> 00:00:12,000\nFirst\nSecond\n", file: entry("/inputs/song.srt").file });
+    await runBatchOperation([entry("/inputs/song.srt")], { kind: "offset", deltaSeconds: 1 }, output, vi.fn());
+    expect(invoke).toHaveBeenCalledWith("write_batch_output", expect.objectContaining({ name: "song.srt", content: expect.stringContaining("00:00:11,000 --> 00:00:13,000\nFirst\nSecond") }));
   });
-
-  it("reports a per-file error and continues with the rest of the batch", async () => {
-    invokeMock.mockImplementation((cmd: string, args: { path: string }) => {
-      if (cmd === "read_lrc_file") {
-        if (args.path === "/bad.lrc") return Promise.reject(new Error("not found"));
-        return Promise.resolve(LRC);
-      }
-      return Promise.resolve();
+  it.each(["srt", "vtt", "ass"] as const)("converts local lyrics to a new %s basename", async (format) => {
+    await runBatchOperation([entry("/inputs/song.lrc")], { kind: "convert", format }, output, vi.fn());
+    expect(invoke).toHaveBeenCalledWith("write_batch_output", expect.objectContaining({ name: `song.${format}`, content: expect.stringContaining("Hello") }));
+  });
+  it("shifts both line and syllable times and writes a new output with the selected folder grant", async () => {
+    const status = vi.fn();
+    const summary = await runBatchOperation([entry("/inputs/song.lrc", "stable")], { kind: "offset", deltaSeconds: -1 }, output, status);
+    expect(summary).toEqual({ done: 1, error: 0, cancelled: 0 });
+    expect(invoke).toHaveBeenCalledWith("write_batch_output", {
+      outputDir: "/output", outputBookmark: "folder", name: "song.lrc",
+      content: expect.stringContaining("[00:01.00]<00:01.20>Hello"),
     });
-    const entries = [entry("/bad.lrc"), entry("/good.lrc")];
-    const progress: [number, string, string?][] = [];
-    await runBatchOperation(
-      entries,
-      { kind: "offset", deltaSeconds: 1 },
-      (i, status, error) => progress.push([i, status, error]),
-      { concurrency: 1 }
-    );
-
-    expect(progress[1]).toEqual([0, "error", "Error: not found"]);
-    expect(progress[2]).toEqual([1, "processing", undefined]);
-    expect(progress[3]).toEqual([1, "done", undefined]);
+    expect(status).toHaveBeenLastCalledWith("stable", "done", undefined, { path: "/inputs/song.lrc", bookmark: "fresh" });
   });
-
-  it("skips tagging SRT files (no metadata concept) and reports it as an error", async () => {
-    invokeMock.mockImplementation((cmd: string) => (cmd === "read_lrc_file" ? Promise.resolve(LRC) : Promise.resolve()));
-    const progress: [number, string][] = [];
-    await runBatchOperation([entry("/song.srt")], { kind: "tag", title: "New Title" }, (i, status) => progress.push([i, status]));
-    expect(progress).toEqual([[0, "processing"], [0, "error"]]);
-    expect(invokeMock.mock.calls.some((c) => c[0] === "write_lrc_file")).toBe(false);
+  it("reports denied reads and refused outputs per stable entry ID", async () => {
+    vi.mocked(readLyrics).mockRejectedValueOnce(new Error("permission denied"));
+    vi.mocked(invoke).mockRejectedValueOnce(new Error("already exists"));
+    const status = vi.fn();
+    const summary = await runBatchOperation([entry("/a/one.lrc", "one"), entry("/a/two.lrc", "two")], convert, output, status, { concurrency: 1 });
+    expect(summary).toEqual({ done: 0, error: 2, cancelled: 0 });
+    expect(status).toHaveBeenCalledWith("one", "error", "permission denied", undefined);
+    expect(status).toHaveBeenCalledWith("two", "error", "already exists", { path: "/a/two.lrc", bookmark: "fresh" });
   });
-
-  it("applies tags to an LRC file, only overwriting non-empty fields", async () => {
-    invokeMock.mockImplementation((cmd: string) => (cmd === "read_lrc_file" ? Promise.resolve(LRC) : Promise.resolve()));
-    await runBatchOperation([entry("/song.lrc")], { kind: "tag", artist: "New Artist" }, () => {});
-    const writeCall = invokeMock.mock.calls.find((c) => c[0] === "write_lrc_file");
-    expect(writeCall?.[1].content).toContain("[ti:Song]");
-    expect(writeCall?.[1].content).toContain("[ar:New Artist]");
-  });
-
-  function defer<T>() {
-    let resolve!: (v: T) => void;
-    const promise = new Promise<T>((res) => { resolve = res; });
-    return { promise, resolve };
-  }
-
-  async function flush(ticks = 5) {
-    for (let i = 0; i < ticks; i++) await new Promise((r) => setTimeout(r, 0));
-  }
-
-  it("only runs `concurrency` files at a time, starting the next as one finishes", async () => {
-    const gates = [defer<void>(), defer<void>(), defer<void>()];
-    let callIdx = 0;
-    invokeMock.mockImplementation((cmd: string) => {
-      if (cmd === "read_lrc_file") return gates[callIdx++].promise.then(() => LRC);
-      return Promise.resolve();
-    });
-    const entries = [entry("/a.lrc"), entry("/b.lrc"), entry("/c.lrc")];
-    const progress: [number, string][] = [];
-    const resultPromise = runBatchOperation(
-      entries,
-      { kind: "offset", deltaSeconds: 1 },
-      (i, status) => progress.push([i, status]),
-      { concurrency: 2 }
-    );
-
-    // 동기 실행 구간에서 concurrency만큼만 즉시 시작되고 3번째는 대기해야 함
-    expect(progress).toEqual([[0, "processing"], [1, "processing"]]);
-
-    gates[0].resolve();
-    await flush();
-    expect(progress).toContainEqual([0, "done"]);
-    expect(progress).toContainEqual([2, "processing"]);
-
-    gates[1].resolve();
-    gates[2].resolve();
-    await resultPromise;
-    expect(progress).toContainEqual([1, "done"]);
-    expect(progress).toContainEqual([2, "done"]);
-  });
-
-  it("stops starting new files once aborted, letting in-flight ones finish", async () => {
-    const gates = [defer<void>(), defer<void>(), defer<void>()];
-    let callIdx = 0;
-    invokeMock.mockImplementation((cmd: string) => {
-      if (cmd === "read_lrc_file") return gates[callIdx++].promise.then(() => LRC);
-      return Promise.resolve();
-    });
-    const entries = [entry("/a.lrc"), entry("/b.lrc"), entry("/c.lrc")];
-    const progress: [number, string][] = [];
+  it("snapshots operation and entries while cancellation awaits active I/O and stops new entries", async () => {
+    let finish!: () => void;
+    vi.mocked(invoke).mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }));
+    const files = [entry("/a/one.lrc", "one"), entry("/a/two.lrc", "two")];
+    const operation = { kind: "offset", deltaSeconds: 1 } as const;
     const controller = new AbortController();
-    const resultPromise = runBatchOperation(
-      entries,
-      { kind: "offset", deltaSeconds: 1 },
-      (i, status) => progress.push([i, status]),
-      { concurrency: 1, signal: controller.signal }
-    );
-
-    expect(progress).toEqual([[0, "processing"]]);
+    const status = vi.fn();
+    const running = runBatchOperation(files, operation, output, status, { signal: controller.signal, concurrency: 1 });
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledTimes(1));
+    files[1].file.path = "/a/replaced.lrc";
+    (operation as { deltaSeconds: number }).deltaSeconds = 10;
     controller.abort();
-    gates[0].resolve();
-    await resultPromise;
-
-    expect(progress).toEqual([[0, "processing"], [0, "done"]]);
-    expect(invokeMock.mock.calls.filter((c) => c[0] === "read_lrc_file")).toHaveLength(1);
+    let settled = false;
+    void running.then(() => { settled = true; });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    finish();
+    expect(await running).toEqual({ done: 1, error: 0, cancelled: 1 });
+    expect(readLyrics).toHaveBeenCalledTimes(1);
+    expect(status).toHaveBeenCalledWith("two", "cancelled", undefined, undefined);
+    expect(invoke).toHaveBeenCalledWith("write_batch_output", expect.objectContaining({ content: expect.stringContaining("[00:03.00]") }));
+  });
+  it("snapshots operation, source path and folder while the first file is being read", async () => {
+    let finish!: (value: Awaited<ReturnType<typeof readLyrics>>) => void;
+    vi.mocked(readLyrics).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const files = [entry("/a/one.lrc", "one"), entry("/a/two.lrc", "two")];
+    const operation = { kind: "offset", deltaSeconds: 1 } as const;
+    const folder = { ...output };
+    const running = runBatchOperation(files, operation, folder, vi.fn(), { concurrency: 1 });
+    files[1].file.path = "/a/replaced.lrc";
+    (operation as { deltaSeconds: number }).deltaSeconds = 20;
+    folder.path = "/elsewhere";
+    finish({ value: "[00:02.00]One", file: files[0].file });
+    await running;
+    expect(readLyrics).toHaveBeenLastCalledWith({ path: "/a/two.lrc", bookmark: "input" });
+    expect(invoke).toHaveBeenLastCalledWith("write_batch_output", expect.objectContaining({ outputDir: "/output", name: "two.lrc", content: expect.stringContaining("[00:03.00]") }));
   });
 });

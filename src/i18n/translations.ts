@@ -225,6 +225,12 @@ export interface Translations {
   bpmConfidence: string;
   bpmAppliedAll: string;
   bpmAppliedCount: string;
+  batchOutputFolder: string;
+  batchOutputFolderEmpty: string;
+  batchStatusCancelled: string;
+  batchSummaryCancelled: string;
+  batchStopping: string;
+  bpmManualHint: string;
   batchTitle: string;
   batchHint: string;
   batchSelectFiles: string;
@@ -784,9 +790,9 @@ const ko: Translations = {
   tsScaleFactor: "배율",
   tsScaleHint: "전체 타임스탬프 ×배율 (예: 1.05 = 5% 느리게)",
   translationToggle: "번역 줄 표시",
-  settingsTranslationDesc: "가사 줄마다 2차(번역) 텍스트 보조 입력창을 표시합니다. 표준 LRC 규격에 없는 확장 표기라, 켜서 저장한 파일은 다른 LRC 플레이어·도구와 호환되지 않을 수 있습니다.",
+  settingsTranslationDesc: "각 가사 아래에 번역 입력창을 표시합니다. LRC 번역은 앱 전용 확장 형식이며, 자막에서는 여러 줄로 출력합니다.",
   translationWarningTitle: "번역 줄은 표준 LRC 형식이 아닙니다",
-  translationWarningMessage: "번역 줄을 켜면 저장되는 LRC 파일에 표준 규격에 없는 확장 표기(같은 타임스탬프에 \"/\"로 시작하는 두 번째 줄)가 포함됩니다.\n이 앱에서는 다시 정상적으로 불러올 수 있지만, 다른 LRC 플레이어나 도구에서는 번역 줄이 별도의 가사 줄로 잘못 표시되거나 호환되지 않을 수 있습니다.\n계속하시겠습니까?",
+  translationWarningMessage: "번역이 있는 LRC 파일은 번역용 확장 형식으로 저장되어 다른 플레이어와 호환되지 않을 수 있습니다. SRT/VTT/ASS에서는 원문과 번역을 여러 줄로 출력하며, 다시 불러온 SRT는 전체 자막 텍스트로 유지됩니다. 일반 LRC의 /로 시작하는 줄은 원문 그대로 불러옵니다. 번역 입력을 켜시겠습니까?",
   translationWarningOk: "이해했습니다, 켜기",
   translationWarningCancel: "취소",
   translationPlaceholder: "번역 (선택)",
@@ -803,8 +809,14 @@ const ko: Translations = {
   bpmConfidence: "신뢰도",
   bpmAppliedAll: "전체 줄에 적용했습니다",
   bpmAppliedCount: "줄에 적용했습니다",
+  batchOutputFolder: "출력 폴더",
+  batchOutputFolderEmpty: "출력 폴더를 선택하세요",
+  batchStatusCancelled: "취소됨",
+  batchSummaryCancelled: "취소 {count}개",
+  batchStopping: "현재 파일 저장 후 중단합니다…",
+  bpmManualHint: "오디오 없이 BPM을 입력하거나 탭 템포를 사용하세요.",
   batchTitle: "일괄 처리",
-  batchHint: "여러 LRC/SRT 파일을 선택해 오프셋 적용·포맷 변환·태그 채우기 중 하나를 한 번에 적용합니다. 현재 열려있는 문서와는 무관하게 파일을 직접 읽고 씁니다.",
+  batchHint: "선택한 파일에 오프셋·형식 변환·태그를 적용하여 출력 폴더에 새 파일로 저장합니다. 원본이나 기존 출력 파일은 덮어쓰지 않습니다.",
   batchSelectFiles: "파일 선택...",
   batchNoFiles: "선택된 파일이 없습니다",
   batchNoAudioMatch: "매칭된 오디오 없음",
@@ -1356,9 +1368,9 @@ const en: Translations = {
   tsScaleFactor: "Factor",
   tsScaleHint: "All timestamps × factor (e.g. 1.05 = 5% slower)",
   translationToggle: "Show translation lines",
-  settingsTranslationDesc: "Show a secondary (translation) text input under each lyric line. This is an extension not part of the standard LRC spec, so files saved with it on may not be compatible with other LRC players or tools.",
+  settingsTranslationDesc: "Show translation inputs beneath lyrics. LRC translations use an app-specific extension; subtitle exports use multiple lines.",
   translationWarningTitle: "Translation lines aren't standard LRC",
-  translationWarningMessage: "Turning this on adds a non-standard extension to saved LRC files (a second line starting with \"/\" at the same timestamp).\nThis app can read it back correctly, but other LRC players or tools may show it as a separate, garbled lyric line or fail to parse the file.\nContinue?",
+  translationWarningMessage: "LRC translations are saved with an explicit translation extension that other players may not support. SRT/VTT/ASS exports place lyrics and translations on multiple lines; reimported SRT retains the complete subtitle text. Slash-prefixed lines in ordinary LRC files remain literal lyrics. Enable translation inputs?",
   translationWarningOk: "Understood, turn it on",
   translationWarningCancel: "Cancel",
   translationPlaceholder: "Translation (optional)",
@@ -1375,8 +1387,14 @@ const en: Translations = {
   bpmConfidence: "Confidence",
   bpmAppliedAll: "Applied to all lines",
   bpmAppliedCount: "line(s) snapped",
+  batchOutputFolder: "Output folder",
+  batchOutputFolderEmpty: "Select an output folder",
+  batchStatusCancelled: "Cancelled",
+  batchSummaryCancelled: "{count} cancelled",
+  batchStopping: "Stopping after active saves…",
+  bpmManualHint: "Without audio, enter a BPM or use Tap Tempo.",
   batchTitle: "Batch Tool",
-  batchHint: "Select multiple LRC/SRT files and apply one of offset shift, format conversion, or tag filling to all of them at once. Reads and writes files directly, independent of the currently open document.",
+  batchHint: "Apply offsets, convert formats or fill tags in selected files and save new files to the output folder. Source files and existing outputs are never overwritten.",
   batchSelectFiles: "Select Files...",
   batchNoFiles: "No files selected",
   batchNoAudioMatch: "No matching audio",
@@ -1927,9 +1945,9 @@ const ja: Translations = {
   tsScaleFactor: "倍率",
   tsScaleHint: "全タイムスタンプ × 倍率（例: 1.05 = 5%遅く）",
   translationToggle: "翻訳行を表示",
-  settingsTranslationDesc: "各歌詞行の下に2次(翻訳)テキスト入力欄を表示します。標準LRC規格にない拡張表記のため、オンにして保存したファイルは他のLRCプレイヤーやツールと互換性がない場合があります。",
+  settingsTranslationDesc: "歌詞の下に翻訳入力欄を表示します。LRC翻訳はアプリ独自の拡張形式、字幕では複数行で出力します。",
   translationWarningTitle: "翻訳行は標準LRC形式ではありません",
-  translationWarningMessage: "この機能をオンにすると、保存されるLRCファイルに標準規格にない拡張表記(同じタイムスタンプで\"/\"から始まる2行目)が含まれます。\n本アプリでは正しく読み込めますが、他のLRCプレイヤーやツールでは別の歌詞行として誤表示されたり、互換性がない場合があります。\n続行しますか？",
+  translationWarningMessage: "翻訳を含むLRCは翻訳用拡張形式で保存されるため、他のプレイヤーで非対応の場合があります。SRT/VTT/ASSでは原文と翻訳を複数行で出力し、再読込したSRTは字幕全体のテキストを保持します。通常のLRCで/から始まる行は原文のまま読み込みます。翻訳入力を有効にしますか？",
   translationWarningOk: "理解しました、オンにする",
   translationWarningCancel: "キャンセル",
   translationPlaceholder: "翻訳（任意）",
@@ -1946,8 +1964,14 @@ const ja: Translations = {
   bpmConfidence: "信頼度",
   bpmAppliedAll: "全ての行に適用しました",
   bpmAppliedCount: "行に適用しました",
+  batchOutputFolder: "出力フォルダー",
+  batchOutputFolderEmpty: "出力フォルダーを選択してください",
+  batchStatusCancelled: "キャンセル済み",
+  batchSummaryCancelled: "{count}件キャンセル",
+  batchStopping: "保存中のファイルの完了後に停止します…",
+  bpmManualHint: "音声なしではBPMを入力するかタップテンポを使用してください。",
   batchTitle: "一括処理",
-  batchHint: "複数のLRC/SRTファイルを選択し、オフセット適用・フォーマット変換・タグ入力のいずれかを一括適用します。現在開いているドキュメントとは無関係にファイルを直接読み書きします。",
+  batchHint: "選択したファイルにオフセット・形式変換・タグを適用し、出力フォルダーに新規保存します。原本や既存の出力ファイルは上書きしません。",
   batchSelectFiles: "ファイルを選択...",
   batchNoFiles: "選択されたファイルはありません",
   batchNoAudioMatch: "一致する音声なし",
