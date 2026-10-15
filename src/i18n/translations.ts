@@ -107,6 +107,25 @@ export interface Translations {
     unitWord: string;
     hint: string;
     stampHint: string;
+    clearTimingButton: string;
+    clearTimingTitle: string;
+    clearTimingMessage: string;
+    clearTimingConfirm: string;
+    clearTimingDone: string;
+    undoClear: string;
+    shortcuts: string;
+    previousSelection: string;
+    shortcutSyncHint: string;
+    fixedShortcuts: string;
+    glyphSelection: string;
+    nudgeShortcut: string;
+    mouseControls: string;
+    paintGesture: string;
+    paintAction: string;
+    clearGesture: string;
+    clearAction: string;
+    seekGesture: string;
+    seekAction: string;
     replayLine: string;
     clearLine: string;
     current: string;
@@ -665,6 +684,25 @@ const ko: Translations = {
     unitWord: "단어",
     hint: "글자 드래그=재생 시간으로 칠하기 · Space=찍기 · 우클릭=지우기 · Shift+←/→=미세조정 · 파형=탐색",
     stampHint: "타이핑",
+    clearTimingButton: "타이밍 지우기…",
+    clearTimingTitle: "현재 줄의 타이밍을 지울까요?",
+    clearTimingMessage: "{count}개의 글자·단어 타이밍을 지웁니다. 가사와 줄 시작 시각은 유지됩니다.",
+    clearTimingConfirm: "타이밍 지우기",
+    clearTimingDone: "타이밍을 지웠습니다.",
+    undoClear: "실행 취소",
+    shortcuts: "단축키",
+    previousSelection: "이전 줄·글자",
+    shortcutSyncHint: "설정한 키는 줄 동기화에서도 사용됩니다.",
+    fixedShortcuts: "고정 조작",
+    glyphSelection: "이전·다음 글자 선택",
+    nudgeShortcut: "타이밍 미세 조정 (0.05초)",
+    mouseControls: "마우스 조작",
+    paintGesture: "드래그",
+    paintAction: "지나는 글자에 현재 재생 시각 기록",
+    clearGesture: "우클릭",
+    clearAction: "해당 글자 타이밍 지우기",
+    seekGesture: "파형 클릭·드래그",
+    seekAction: "재생 위치 이동",
     replayLine: "이 줄 재생",
     clearLine: "이 줄 초기화",
     current: "현재",
@@ -1242,6 +1280,25 @@ const en: Translations = {
     unitWord: "Word",
     hint: "Drag glyphs=paint at playback time · Space=stamp · right-click=clear · Shift+←/→=nudge · waveform=seek",
     stampHint: "Typing",
+    clearTimingButton: "Clear timings…",
+    clearTimingTitle: "Clear this line’s timings?",
+    clearTimingMessage: "Clear {count} glyph/word timings. Lyrics and the line start time are preserved.",
+    clearTimingConfirm: "Clear timings",
+    clearTimingDone: "Timings cleared.",
+    undoClear: "Undo",
+    shortcuts: "Shortcuts",
+    previousSelection: "Previous line / glyph",
+    shortcutSyncHint: "Configured keys are also used in line sync.",
+    fixedShortcuts: "Fixed controls",
+    glyphSelection: "Select previous/next glyph",
+    nudgeShortcut: "Adjust timing (0.05 s)",
+    mouseControls: "Mouse controls",
+    paintGesture: "Drag",
+    paintAction: "Record playback time on crossed glyphs",
+    clearGesture: "Right-click",
+    clearAction: "Clear that glyph’s timing",
+    seekGesture: "Click/drag waveform",
+    seekAction: "Seek playback",
     replayLine: "Play line",
     clearLine: "Reset line",
     current: "Current",
@@ -1820,6 +1877,25 @@ const ja: Translations = {
     unitWord: "単語",
     hint: "文字ドラッグ=再生時間で塗り打刻 · Space=打刻 · 右クリック=消去 · Shift+←/→=微調整 · 波形=シーク",
     stampHint: "タイピング",
+    clearTimingButton: "タイミングを消去…",
+    clearTimingTitle: "現在の行のタイミングを消去しますか？",
+    clearTimingMessage: "{count}個の文字・単語タイミングを消去します。歌詞と行の開始時刻は保持されます。",
+    clearTimingConfirm: "タイミングを消去",
+    clearTimingDone: "タイミングを消去しました。",
+    undoClear: "元に戻す",
+    shortcuts: "ショートカット",
+    previousSelection: "前の行・文字",
+    shortcutSyncHint: "設定したキーは行同期でも使用します。",
+    fixedShortcuts: "固定操作",
+    glyphSelection: "前後の文字を選択",
+    nudgeShortcut: "タイミング微調整（0.05秒）",
+    mouseControls: "マウス操作",
+    paintGesture: "ドラッグ",
+    paintAction: "通過した文字に再生時刻を記録",
+    clearGesture: "右クリック",
+    clearAction: "その文字のタイミングを消去",
+    seekGesture: "波形をクリック・ドラッグ",
+    seekAction: "再生位置を移動",
     replayLine: "この行を再生",
     clearLine: "この行をリセット",
     current: "現在",

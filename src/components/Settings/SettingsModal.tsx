@@ -1,5 +1,5 @@
 import { isComposingKeyEvent } from "../../utils/keybindings";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -32,6 +32,11 @@ export function SettingsModal({
   const youtubeGuideUrl = `https://ahri2nd.xyz/posts/lyrical-sync-youtube-guide-${guideSuffix}/`;
   const [checkState, setCheckState] = useState<CheckState>("idle");
   const [tab, setTab] = useState<Tab>(initialTab);
+  const returnFocus = useRef(document.activeElement);
+  useEffect(() => () => {
+    const target = returnFocus.current;
+    if (target instanceof HTMLElement && target.isConnected) target.focus({ preventScroll: true });
+  }, []);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -104,7 +109,7 @@ export function SettingsModal({
 
           {tab === "shortcuts" && (
             <div className="p-5">
-              <KeybindingsSection />
+              <KeybindingsSection focusCharacterSync={initialTab === "shortcuts"} />
             </div>
           )}
 

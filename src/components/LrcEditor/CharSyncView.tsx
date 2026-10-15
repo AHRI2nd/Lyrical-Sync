@@ -1,3 +1,4 @@
+import { ClearGlyphTimings } from "./ClearGlyphTimings";
 import { WaveformViewMenu } from "./WaveformViewMenu";
 import { getLinePlaybackRange } from "../../utils/linePlaybackRange";
 import { CharWaveformPanel } from "./CharWaveformPanel";
@@ -66,7 +67,7 @@ function getLaneViewRange(
   return { start: viewStart, end: viewStart + zoomSpan };
 }
 
-export function CharSyncView() {
+export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void } = {}) {
   const doc = useLrcStore((s) => s.doc);
   const activeLineId = useLrcStore((s) => s.activeLineId);
   const setActiveLineId = useLrcStore((s) => s.setActiveLineId);
@@ -80,7 +81,6 @@ export function CharSyncView() {
   const activeSyllableIndex = useLrcStore((s) => s.activeSyllableIndex);
   const setActiveSyllable = useLrcStore((s) => s.setActiveSyllable);
   const commitSyllables = useLrcStore((s) => s.commitSyllables);
-  const clearLineSyllables = useLrcStore((s) => s.clearLineSyllables);
   const { t } = useI18nStore();
   const spotifyMode = useSettingsStore((s) => s.spotifyMode);
   const lyricsFontScale = useSettingsStore((s) => s.lyricsFontScale);
@@ -532,10 +532,6 @@ export function CharSyncView() {
     if (!isPlaying) controls.togglePlay();
   };
 
-  const clearLine = () => {
-    if (line) clearLineSyllables(line.id);
-  };
-
   // 우클릭: 그 글자의 시각만 제거
   const clearGlyph = (index: number) => {
     if (!line || syllables[index].time === null) return;
@@ -576,8 +572,9 @@ export function CharSyncView() {
   };
 
   return <div className="flex flex-col flex-1 min-h-0 overflow-y-auto gap-4 pr-1">
-    <div className="flex items-center gap-2 px-2 py-1.5 border-b border-zinc-800 shrink-0">
+    <div className="flex flex-wrap items-center gap-2 px-2 py-1.5 border-b border-zinc-800 shrink-0">
       <span className="text-sm text-zinc-200 shrink-0">{t.charSync.modeChar}</span>
+      {onOpenShortcuts && <button type="button" onClick={onOpenShortcuts} className="text-xs text-zinc-300 border border-zinc-700 rounded-md px-2 py-1 hover:bg-zinc-800">{t.charSync.shortcuts}</button>}
       <LineDots lines={lines} activeIdx={lineIdx} onSelect={setActiveLineId} />
       <button type="button" onClick={e => { gotoLine(lineIdx - 1); e.currentTarget.blur(); }} aria-label={t.charSync.prevLine} disabled={lineIdx <= 0}
         className="text-zinc-400 hover:text-white disabled:opacity-30 px-1">‹</button>
@@ -586,8 +583,9 @@ export function CharSyncView() {
         className="text-zinc-400 hover:text-white disabled:opacity-30 px-1">›</button>
     </div>
     <div className="shrink-0 min-w-0">
-      <div className="flex items-center justify-between gap-3 text-xs text-zinc-400 mb-3">
+      <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-400 mb-3">
         <span>{t.charSync.currentLine}</span><span title={t.charSync.glyphProgress} className="font-mono tabular-nums">{glyphDone}/{glyphTotal}</span>
+        <div className="ml-auto"><ClearGlyphTimings lineId={line.id} /></div>
       </div>
       <div ref={textRef} tabIndex={-1} className="min-h-16 leading-relaxed select-none break-words"
         style={{ whiteSpace: "pre-wrap", fontSize: `${1.875 * lyricsFontScale}rem` }}>
@@ -651,15 +649,7 @@ export function CharSyncView() {
         {t.charSync.stampHint}<kbd className="px-1 py-0.5 bg-zinc-900 border border-zinc-700 rounded font-mono text-[11px]">{stampKey}</kbd>
       </button>
     </div>
-    <div className="flex items-start justify-between gap-3 border-t border-zinc-800 pt-2 text-xs text-zinc-500 shrink-0">
-      <details className="min-w-0"><summary className="cursor-pointer">{t.charSync.help}</summary><p className="pt-2 text-zinc-400">{t.charSync.hint.replace("Space", stampKey)}</p></details>
-      <details className="relative shrink-0"><summary className="cursor-pointer" aria-label={t.charSync.more}>⋯</summary>
-        <div className="absolute bottom-full right-0 mb-2 p-2 bg-zinc-900 border border-zinc-700 rounded shadow-lg z-20">
-          <button type="button" onClick={e => { clearLine(); e.currentTarget.closest("details")?.removeAttribute("open"); textRef.current?.focus({ preventScroll: true }); }}
-            className="whitespace-nowrap px-2 py-1 text-zinc-400 hover:text-rose-300">{t.charSync.clearLine}</button>
-        </div>
-      </details>
-    </div>
+
   </div>;
 }
 

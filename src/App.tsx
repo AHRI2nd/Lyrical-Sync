@@ -178,7 +178,7 @@ function App() {
   const [showBatchTool, setShowBatchTool] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [settingsInitialTab, setSettingsInitialTab] = useState<"general" | "preview" | "models" | "spotify" | "youtube">("general");
+  const [settingsInitialTab, setSettingsInitialTab] = useState<"general" | "preview" | "models" | "spotify" | "youtube" | "shortcuts">("general");
   const [showNewConfirm, setShowNewConfirm] = useState(false);
   const [showFormatChooser, setShowFormatChooser] = useState(false);
   const [showElrcNotice, setShowElrcNotice] = useState(false);
@@ -589,7 +589,7 @@ function App() {
           <MetaEditor />
         </div>
         <div className="flex flex-col flex-1 p-3 min-h-0">
-          <LrcEditor onPreview={() => setShowPreview(true)} />
+          <LrcEditor onPreview={() => setShowPreview(true)} onOpenShortcuts={() => { setSettingsInitialTab("shortcuts"); setShowSettings(true); }} />
         </div>
       </div>
 

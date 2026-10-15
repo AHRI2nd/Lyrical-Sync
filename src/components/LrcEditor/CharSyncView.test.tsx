@@ -467,3 +467,12 @@ it('clears line repeat when the local audio path changes', () => {
   act(() => useLrcStore.setState({ audioPath: '/music/replacement.mp3' }));
   expect(useLrcStore.getState().loopLineId).toBeNull();
 });
+
+it("opens shortcut settings from the header without a bottom help or overflow menu", () => {
+  const onOpenShortcuts = vi.fn();
+  const view = render(<CharSyncView onOpenShortcuts={onOpenShortcuts} />);
+  fireEvent.click(view.getByRole("button", {name:useI18nStore.getState().t.charSync.shortcuts}));
+  expect(onOpenShortcuts).toHaveBeenCalledOnce();
+  expect(view.container.querySelector("details")).toBeNull();
+  expect(view.getByRole("button",{name:useI18nStore.getState().t.charSync.clearTimingButton})).toBeTruthy();
+});
