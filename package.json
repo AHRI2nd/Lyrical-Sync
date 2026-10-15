@@ -8,7 +8,12 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "predev": "node scripts/check-dependencies.mjs",
+    "prebuild": "node scripts/check-dependencies.mjs",
+    "pretest": "node scripts/check-dependencies.mjs",
+    "pretauri": "node scripts/check-dependencies.mjs",
+    "test:dependencies": "node --test scripts/check-dependencies.node-test.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
