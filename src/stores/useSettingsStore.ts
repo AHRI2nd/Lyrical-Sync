@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage, type StateStorage } from "zustand/middleware";
-import { type KeyAction, DEFAULT_KEYBINDINGS } from "../utils/keybindings";
+import { type KeyAction, DEFAULT_KEYBINDINGS, normalizeKeybindings } from "../utils/keybindings";
 
 // 슬라이더 드래그처럼 짧은 시간에 set()이 연속 호출될 때마다 전체 설정 blob을
 // 매번 동기적으로 localStorage에 직렬화·쓰기하지 않도록, 실제 디스크 쓰기만 디바운스.
@@ -9,12 +9,12 @@ function debouncedLocalStorage(delayMs: number): StateStorage {
   let timer: ReturnType<typeof setTimeout> | null = null;
   let pending: { key: string; value: string } | null = null;
   return {
-    getItem: (key) => localStorage.getItem(key),
+    getItem: (key) => { try { return localStorage.getItem(key); } catch { return null; } },
     setItem: (key, value) => {
       pending = { key, value };
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
-        if (pending) localStorage.setItem(pending.key, pending.value);
+        if (pending) { try { localStorage.setItem(pending.key, pending.value); } catch { /* Keep in-memory settings usable. */ } }
         pending = null;
         timer = null;
       }, delayMs);
@@ -22,7 +22,7 @@ function debouncedLocalStorage(delayMs: number): StateStorage {
     removeItem: (key) => {
       if (timer) { clearTimeout(timer); timer = null; }
       pending = null;
-      localStorage.removeItem(key);
+      try { localStorage.removeItem(key); } catch { /* Storage can be unavailable. */ }
     },
   };
 }
@@ -128,6 +128,33 @@ export interface RecentFileEntry {
 }
 
 const MAX_RECENT_FILES = 8;
+const isPreviewColor = (value: unknown): value is string => typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value);
+function restoreSettings(value: unknown, current: SettingsState): SettingsState {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return current;
+  const saved = value as Record<string, unknown>;
+  const next = { ...current };
+  for (const key of Object.keys(current) as (keyof SettingsState)[]) {
+    const original = current[key]; const restored = saved[key];
+    if (typeof original === "boolean" && typeof restored === "boolean" || typeof original === "string" && typeof restored === "string") {
+      Object.assign(next, { [key]: restored });
+    }
+  }
+  const range = (key: "uiScale" | "lyricsFontScale" | "previewFontScale" | "blankLineOffset", min: number, max: number) => {
+    const item = saved[key];
+    if (typeof item === "number" && Number.isFinite(item) && item >= min && item <= max) next[key] = item;
+  };
+  range("uiScale", .7, 1.3); range("lyricsFontScale", .8, 1.5); range("previewFontScale", .8, 1.5); range("blankLineOffset", 0, 10);
+  next.glyphWaveformHeight = normalizeGlyphWaveformHeight(saved.glyphWaveformHeight);
+  next.glyphWaveformStyle = saved.glyphWaveformStyle === "bars" ? "bars" : "continuous";
+  next.previewActiveColor = isPreviewColor(saved.previewActiveColor) ? saved.previewActiveColor : current.previewActiveColor;
+  next.previewAccentColor = isPreviewColor(saved.previewAccentColor) ? saved.previewAccentColor : current.previewAccentColor;
+  next.ytdlpAudioQuality = ["best", "192", "128"].includes(String(saved.ytdlpAudioQuality)) ? saved.ytdlpAudioQuality as SettingsState["ytdlpAudioQuality"] : current.ytdlpAudioQuality;
+  next.keybindings = normalizeKeybindings(saved.keybindings && typeof saved.keybindings === "object" && !Array.isArray(saved.keybindings) ? Object.fromEntries(Object.entries(saved.keybindings).filter(([, value]) => typeof value === "string")) : undefined);
+  if (Array.isArray(saved.recentFiles)) next.recentFiles = saved.recentFiles.filter((entry): entry is RecentFileEntry =>
+    !!entry && typeof entry === "object" && (entry.lrcPath === null || typeof entry.lrcPath === "string") &&
+    (entry.audioPath === null || typeof entry.audioPath === "string") && typeof entry.openedAt === "number" && Number.isFinite(entry.openedAt)).slice(0, MAX_RECENT_FILES);
+  return next;
+}
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
@@ -172,12 +199,12 @@ export const useSettingsStore = create<SettingsState>()(
       setLyricsFontScale: (v) => set({ lyricsFontScale: v }),
       setShowGlyphTimeMarkers: (v) => set({ showGlyphTimeMarkers: v }),
       setShowSpectrogram: (v) => set({ showSpectrogram: v }),
-      setShowSpellCheck: (v) => set({ showSpellCheck: v }),
-      setShowTranslationLines: (v) => set({ showTranslationLines: v }),
-      setPreviewFontScale: (v) => set({ previewFontScale: v }),
-      setPreviewActiveColor: (v) => set({ previewActiveColor: v }),
-      setPreviewAccentColor: (v) => set({ previewAccentColor: v }),
-      setPreviewGlowEnabled: (v) => set({ previewGlowEnabled: v }),
+      setShowSpellCheck: (v) => { if (typeof v === "boolean") set({ showSpellCheck: v }); },
+      setShowTranslationLines: (v) => { if (typeof v === "boolean") set({ showTranslationLines: v }); },
+      setPreviewFontScale: (v) => { if (Number.isFinite(v) && v >= .8 && v <= 1.5) set({ previewFontScale: v }); },
+      setPreviewActiveColor: (v) => { if (isPreviewColor(v)) set({ previewActiveColor: v }); },
+      setPreviewAccentColor: (v) => { if (isPreviewColor(v)) set({ previewAccentColor: v }); },
+      setPreviewGlowEnabled: (v) => { if (typeof v === "boolean") set({ previewGlowEnabled: v }); },
       setUseVocalSeparation: (v) => set({ useVocalSeparation: v }),
       setUseVad: (v) => set({ useVad: v }),
       setKeybinding: (action, code) =>
@@ -201,13 +228,7 @@ export const useSettingsStore = create<SettingsState>()(
       clearRecentFiles: () => set({ recentFiles: [] }),
     }),
     { name: "lyrical-sync-settings", storage: createJSONStorage(() => debouncedLocalStorage(300)),
-      merge: (persisted, current) => {
-        const saved = persisted as Partial<SettingsState> | undefined;
-        return { ...current, ...saved,
-          glyphWaveformHeight: normalizeGlyphWaveformHeight(saved?.glyphWaveformHeight),
-          glyphWaveformStyle: saved?.glyphWaveformStyle === "bars" ? "bars" : "continuous",
-        };
-      },
+      merge: (persisted, current) => restoreSettings(persisted, current),
     }
   )
 );

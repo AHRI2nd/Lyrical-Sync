@@ -1,3 +1,4 @@
+import { isComposingKeyEvent } from "../../utils/keybindings";
 import { useRef, useEffect, useCallback, useState, useMemo, lazy, Suspense } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useLrcStore } from "../../stores/useLrcStore";
@@ -27,24 +28,10 @@ const BpmSnapModal = lazy(() => import("../AudioPlayer/BpmSnapModal").then((m) =
 // ISO 639-3 codes used by ctc-forced-aligner / MMS model
 const LANG_CODE: Record<string, string> = { ko: "kor", en: "eng", ja: "jpn" };
 
-function suggestTranslationSplit(text: string, caretPos: number, translation: string) {
-  const sourceChars = Array.from(text);
-  const translatedChars = Array.from(translation);
-  const ratio = sourceChars.length ? Array.from(text.slice(0, caretPos)).length / sourceChars.length : 0.5;
-  const target = Math.round(ratio * translatedChars.length);
-  const boundaries = [0, ...translatedChars.flatMap((char, i) => (/\s/.test(char) ? [i + 1] : [])), translatedChars.length];
-  const splitAt = boundaries.reduce((best, current) =>
-    Math.abs(current - target) < Math.abs(best - target) ? current : best, boundaries[0]);
-  return {
-    first: translatedChars.slice(0, splitAt).join("").trim(),
-    second: translatedChars.slice(splitAt).join("").trim(),
-  };
-}
-
 export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   // currentTime은 푸터에서만 쓰므로 구독에서 제외 → 재생 중 줄 목록이 매 프레임 리렌더되지 않음
   const {
-    doc, activeLineId,
+    doc, activeLineId, documentSession,
     addLine, insertLinesAfter, updateLine, deleteLine,
     duplicateLine, mergeLineUp, splitLine, moveLine, scaleTimestamps,
     deleteLines, shiftLines, clearTimestamps,
@@ -57,7 +44,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     loopLineId, setLoopLine,
   } = useLrcStore(
     useShallow((s) => ({
-      doc: s.doc, activeLineId: s.activeLineId,
+      doc: s.doc, activeLineId: s.activeLineId, documentSession: s._documentSession,
       addLine: s.addLine, insertLinesAfter: s.insertLinesAfter, updateLine: s.updateLine, deleteLine: s.deleteLine,
       duplicateLine: s.duplicateLine, mergeLineUp: s.mergeLineUp, splitLine: s.splitLine, moveLine: s.moveLine, scaleTimestamps: s.scaleTimestamps,
       deleteLines: s.deleteLines, shiftLines: s.shiftLines, clearTimestamps: s.clearTimestamps,
@@ -83,7 +70,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   const aiSyncModeUnsupported = spotifyMode || deviceMode;
   const { lines } = doc;
 
-  const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+  const inputRefs = useRef<Map<string, HTMLInputElement | HTMLTextAreaElement>>(new Map());
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const pendingFocusId = useRef<string | null>(null);
 
@@ -122,11 +109,35 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
   const [pendingTranslationSplit, setPendingTranslationSplit] = useState<{
     id: string;
     caretPos: number;
+    session: number;
+    text: string;
+    translation: string;
     first: string;
     second: string;
   } | null>(null);
   const [pendingUnit, setPendingUnit] = useState<SyncUnit | null>(null);
   const [pendingAiSync, setPendingAiSync] = useState(false);
+  useEffect(() => { setPendingTranslationSplit(null); }, [documentSession]);
+  useEffect(() => {
+    if (!pendingTranslationSplit) return;
+    const cancel = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !isComposingKeyEvent(event)) setPendingTranslationSplit(null);
+    };
+    window.addEventListener("keydown", cancel);
+    return () => window.removeEventListener("keydown", cancel);
+  }, [pendingTranslationSplit]);
+  const applyTranslationSplit = () => {
+    const pending = pendingTranslationSplit;
+    if (!pending) return;
+    const current = useLrcStore.getState();
+    const line = current.doc.lines.find(item => item.id === pending.id);
+    if (current._documentSession === pending.session && line?.text === pending.text && line.translation === pending.translation) {
+      const newId = splitLine(pending.id, pending.caretPos, { first: pending.first, second: pending.second });
+      setActiveLineId(newId);
+      pendingFocusId.current = newId;
+    }
+    setPendingTranslationSplit(null);
+  };
   // 드래그 재정렬 상태
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dropGapIdx, setDropGapIdx] = useState<number | null>(null);
@@ -137,6 +148,8 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     setDragIdx(null);
     setDropGapIdx(null);
   };
+
+  useEffect(() => { clearReorder(); }, [documentSession, syncMode]);
 
   const gapAtPoint = (x: number, y: number, list: HTMLDivElement): number | null => {
     const hit = document.elementFromPoint(x, y);
@@ -183,8 +196,9 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
 
   // 텍스트 입력: 글자 타이밍이 있는 줄이면 경고 후 재토큰화 동의 받기
   const handleTextChange = (id: string, value: string) => {
-    const ln = lines.find((l) => l.id === id);
-    if (ln?.syllables?.some((s) => s.time !== null)) {
+    const ln = useLrcStore.getState().doc.lines.find((l) => l.id === id);
+    if (!ln || ln.text === value) return;
+    if (ln.syllables?.some((s) => s.time !== null)) {
       setPendingTextEdit({ id, text: value });
       return;
     }
@@ -281,7 +295,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     }
   });
 
-  const setInputRef = useCallback((id: string) => (el: HTMLInputElement | null) => {
+  const setInputRef = useCallback((id: string) => (el: HTMLInputElement | HTMLTextAreaElement | null) => {
     if (el) inputRefs.current.set(id, el);
     else inputRefs.current.delete(id);
   }, []);
@@ -291,14 +305,17 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
     else rowRefs.current.delete(id);
   }, []);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, id: string) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>, id: string) => {
+    if (isComposingKeyEvent(e.nativeEvent)) return;
     if (e.key === "Enter" && e.shiftKey) {
       // Shift+Enter = 커서 위치에서 줄 분할
       e.preventDefault();
       const caret = e.currentTarget.selectionStart ?? e.currentTarget.value.length;
-      const line = lines.find((item) => item.id === id);
-      if (line?.translation) {
-        setPendingTranslationSplit({ id, caretPos: caret, ...suggestTranslationSplit(line.text, caret, line.translation) });
+      const current = useLrcStore.getState();
+      const line = current.doc.lines.find((item) => item.id === id);
+      if (line?.translation !== undefined) {
+        setPendingTranslationSplit({ id, caretPos: caret, session: current._documentSession, text: line.text,
+          translation: line.translation, first: line.translation, second: "" });
         return;
       }
       const newId = splitLine(id, caret);
@@ -826,6 +843,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
               {t.translationFirstPart}
               <textarea
                 autoFocus
+                spellCheck={showSpellCheck}
                 value={pendingTranslationSplit.first}
                 onChange={(e) => setPendingTranslationSplit((s) => s ? { ...s, first: e.target.value } : s)}
                 className="mt-1 min-h-16 w-full resize-y rounded-lg border border-zinc-700 bg-zinc-950 p-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
@@ -834,6 +852,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
             <label className="mt-3 block text-xs text-zinc-400">
               {t.translationSecondPart}
               <textarea
+                spellCheck={showSpellCheck}
                 value={pendingTranslationSplit.second}
                 onChange={(e) => setPendingTranslationSplit((s) => s ? { ...s, second: e.target.value } : s)}
                 className="mt-1 min-h-16 w-full resize-y rounded-lg border border-zinc-700 bg-zinc-950 p-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
@@ -845,14 +864,7 @@ export function LrcEditor({ onPreview }: { onPreview: () => void }) {
                 className="rounded-lg bg-zinc-700 px-3 py-2 text-xs text-zinc-200 hover:bg-zinc-600"
               >{t.cancelLabel}</button>
               <button
-                onClick={() => {
-                  const pending = pendingTranslationSplit;
-                  if (!pending) return;
-                  const newId = splitLine(pending.id, pending.caretPos, { first: pending.first, second: pending.second });
-                  setPendingTranslationSplit(null);
-                  setActiveLineId(newId);
-                  pendingFocusId.current = newId;
-                }}
+                onClick={applyTranslationSplit}
                 className="rounded-lg bg-indigo-600 px-3 py-2 text-xs text-white hover:bg-indigo-500"
               >{t.translationSplitAction}</button>
             </div>

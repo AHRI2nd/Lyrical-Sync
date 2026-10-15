@@ -76,6 +76,8 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       setDuration: s.setDuration, openAudio: s.openAudio, setAudioPath: s.setAudioPath,
     }))
   );
+  const audioSelection = useLrcStore(s => s._audioSelection);
+  const documentSession = useLrcStore(s => s._documentSession);
   const lines = useLrcStore((s) => s.doc.lines);
   const metadata = useLrcStore((s) => s.doc.metadata);
   const activeLineId = useLrcStore((s) => s.activeLineId);
@@ -97,6 +99,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   useEffect(() => {
     if (!containerRef.current) return;
 
+    let disposed = false;
     const ws = WaveSurfer.create({
       container: containerRef.current,
       waveColor: "#6366f1",
@@ -129,6 +132,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     };
 
     ws.on("ready", () => {
+      if (disposed || wsRef.current !== ws) return;
       const d = ws.getDuration();
       setDurationLocal(d);
       if (!inService()) setDuration(d);
@@ -139,6 +143,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       }
     });
     ws.on("audioprocess", (t) => {
+      if (disposed || wsRef.current !== ws) return;
       setCurrentTimeLocal(t);
       if (!inService()) setCurrentTime(t);
       const { loopLineId, doc } = useLrcStore.getState();
@@ -146,12 +151,16 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       if (range && t >= range.end) ws.seekTo(range.start / ws.getDuration());
     });
     ws.on("seeking", (t) => {
+      if (disposed || wsRef.current !== ws) return;
       setCurrentTimeLocal(t);
       if (!inService()) setCurrentTime(t);
     });
-    ws.on("play", () => { setIsPlayingLocal(true); if (!inService()) setIsPlaying(true); });
-    ws.on("pause", () => { setIsPlayingLocal(false); if (!inService()) setIsPlaying(false); });
+    ws.on("play", () => {
+      if (disposed || wsRef.current !== ws) return; setIsPlayingLocal(true); if (!inService()) setIsPlaying(true); });
+    ws.on("pause", () => {
+      if (disposed || wsRef.current !== ws) return; setIsPlayingLocal(false); if (!inService()) setIsPlaying(false); });
     ws.on("finish", () => {
+      if (disposed || wsRef.current !== ws) return;
       const { loopLineId, doc } = useLrcStore.getState();
       const range = !inService() ? getLinePlaybackRange(doc.lines, loopLineId, ws.getDuration()) : null;
       if (range) {
@@ -167,8 +176,8 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     });
 
     wsRef.current = ws;
-    return () => ws.destroy();
-  }, [setCurrentTime]);
+    return () => { disposed = true; ws.destroy(); clearWaveform(); };
+  }, [setCurrentTime, audioPath, audioSelection, spotifyMode, deviceMode]);
 
   useEffect(() => {
     audioControls.togglePlay = () => wsRef.current?.playPause();
@@ -244,7 +253,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     });
 
     return () => { cancelled = true; clearWaveform(); };
-  }, [audioPath, spotifyMode, deviceMode]);
+  }, [audioPath, audioSelection, spotifyMode, deviceMode]);
 
   // 오디오 열면 파일 태그(ID3 등)에서 메타데이터를 읽어 비어 있는 필드만 자동 채움
   useEffect(() => {
@@ -263,8 +272,8 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         if (Object.keys(patch).length > 0) useLrcStore.getState().setMetadata(patch);
       })
       .catch(() => {});
-    return () => { cancelled = true; clearWaveform(); };
-  }, [audioPath, spotifyMode, deviceMode]);
+    return () => { cancelled = true; };
+  }, [audioPath, audioSelection, documentSession, spotifyMode, deviceMode]);
 
   // 오디오 로드 완료 시 현재 zoom 값 적용 (슬라이더 조작 중 zoom은 debounce로 직접 처리)
   useEffect(() => {
@@ -274,7 +283,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
 
   useEffect(() => {
     wsRef.current?.setVolume(volume);
-  }, [volume]);
+  }, [volume, audioPath, audioSelection, spotifyMode, deviceMode]);
 
   // 마커는 줄 id·타임스탬프·줄번호(인덱스)에만 의존 → 텍스트 편집(타임스탬프 불변)으로는
   // region을 재생성하지 않도록 시그니처로 의존성을 좁힘(키 입력마다 전체 region 재생성 방지).
@@ -350,8 +359,8 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     let cancelled = false;
     let plugin: InstanceType<typeof import("wavesurfer.js/dist/plugins/spectrogram.esm.js").default> | null = null;
     import("wavesurfer.js/dist/plugins/spectrogram.esm.js").then(({ default: SpectrogramPlugin }) => {
-      if (cancelled || !wsRef.current || !spectrogramContainerRef.current) return;
-      plugin = wsRef.current.registerPlugin(
+      if (cancelled || wsRef.current !== ws || !spectrogramContainerRef.current) return;
+      plugin = ws.registerPlugin(
         SpectrogramPlugin.create({ container: spectrogramContainerRef.current, height: 80, labels: false, scale: "mel" })
       );
     });
@@ -359,7 +368,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       cancelled = true;
       plugin?.destroy();
     };
-  }, [showSpectrogram]);
+  }, [showSpectrogram, audioPath, audioSelection, spotifyMode, deviceMode]);
 
   const togglePlay = useCallback(() => wsRef.current?.playPause(), []);
 

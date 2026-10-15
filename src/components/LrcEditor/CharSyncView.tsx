@@ -97,9 +97,10 @@ export function CharSyncView() {
   const stampKey = keyLabel(normalizeKeybindings(useSettingsStore(s => s.keybindings)).stamp);
   const controls = serviceLoggedIn && spotifyMode ? serviceControls : audioControls;
   const controlSource = serviceLoggedIn && spotifyMode ? "spotify" : deviceMode ? "device" : "local";
+  const audioSelection = useLrcStore(s => s._audioSelection);
   const controlIdentity = controlSource === "spotify"
     ? `${serviceTrackUri ?? ""}:${serviceDeviceId ?? ""}`
-    : controlSource === "device" ? deviceIdentity : audioPath ?? "";
+    : controlSource === "device" ? deviceIdentity : `${audioPath ?? ""}:${audioSelection}`;
 
   const lines = doc.lines;
   const lineIdx = activeLineId ? lines.findIndex((l) => l.id === activeLineId) : 0;

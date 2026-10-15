@@ -286,7 +286,7 @@ describe("useLrcStore — line manipulation", () => {
       { ...mk("2", "world", 2), translation: "세계" },
     ]);
     useLrcStore.getState().mergeLineUp("2");
-    expect(lines()[0].translation).toBe("안녕 세계");
+    expect(lines()[0].translation).toBe("안녕\n세계");
   });
 
   it("mergeLineUp on the first line is a no-op", () => {
@@ -370,7 +370,7 @@ describe("useLrcStore — bulk line actions", () => {
     expect(lines().map((l) => l.timestamp)).toEqual([0, null]);
   });
 
-  it("snapLinesToBeatGrid drops syllables on lines that actually move, records no history if nothing moves", () => {
+  it("snapLinesToBeatGrid shifts syllables on lines that actually move, records no history if nothing moves", () => {
     reset([{ id: "1", timestamp: 0, text: "ab", syllables: [{ text: "a", time: 0 }] }]);
     const h0 = useLrcStore.getState()._history.length;
     useLrcStore.getState().snapLinesToBeatGrid(["1"], 120, 0); // already on-grid → no-op
@@ -379,7 +379,7 @@ describe("useLrcStore — bulk line actions", () => {
 
     useLrcStore.getState().snapLinesToBeatGrid(["1"], 100, 0.1); // now actually moves
     expect(useLrcStore.getState()._history.length).toBe(h0 + 1);
-    expect(lines()[0].syllables).toBeUndefined();
+    expect(lines()[0].syllables).toEqual([{ text: "a", time: 0.1 }]);
   });
 });
 
@@ -525,6 +525,7 @@ describe("useLrcStore — save completion races", () => {
     const saving = useLrcStore.getState().saveLrc();
     await Promise.resolve();
     useLrcStore.getState().updateLine("1", { text: "edited while saving" });
+    await vi.waitFor(() => expect(resolveWrite).toBeTypeOf("function"));
     resolveWrite(undefined);
     await saving;
 
@@ -556,11 +557,11 @@ describe("useLrcStore — save completion races", () => {
     const secondSave = useLrcStore.getState().saveLrc();
     await Promise.resolve();
 
-    expect(writes).toHaveLength(1);
+    await vi.waitFor(() => expect(writes).toHaveLength(1));
     writes[0].resolve();
     await Promise.resolve();
     await Promise.resolve();
-    expect(writes).toHaveLength(2);
+    await vi.waitFor(() => expect(writes).toHaveLength(2));
     writes[1].resolve();
     await Promise.all([firstSave, secondSave]);
 
@@ -582,6 +583,7 @@ describe("useLrcStore — save completion races", () => {
     await Promise.resolve();
     await useLrcStore.getState().loadLyricsPath("/tmp/new-song.lrc");
     useLrcStore.getState().updateLine("1", { text: "new text edited" });
+    await vi.waitFor(() => expect(resolveWrite).toBeTypeOf("function"));
     resolveWrite(undefined);
     await saving;
 
@@ -615,6 +617,7 @@ describe("useLrcStore — save completion races", () => {
     const saving = useLrcStore.getState().saveLrcAs("lrc");
     await Promise.resolve();
     useLrcStore.getState().updateLine("1", { text: "edited during Save As" });
+    await vi.waitFor(() => expect(resolveWrite).toBeTypeOf("function"));
     resolveWrite(undefined);
     await saving;
 

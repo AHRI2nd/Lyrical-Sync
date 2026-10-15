@@ -77,3 +77,17 @@ describe("LrcLineRow drag handle", () => {
     expect(onReorderPointerDown).toHaveBeenCalledOnce();
   });
 });
+
+describe("LrcLineRow timestamp input", () => {
+  afterEach(cleanup);
+  it.each([{ isComposing: true }, { keyCode: 229 }])("keeps composition Enter and Escape in the timestamp input (%j)", (composition) => {
+    const onCommitTsEdit = vi.fn();
+    const onCancelTsEdit = vi.fn();
+    render(<LrcLineRow {...makeProps({ editingTsId: "line-1", onCommitTsEdit, onCancelTsEdit })} />);
+    const input = screen.getByPlaceholderText("MM:SS.xx");
+    fireEvent.keyDown(input, { key: "Enter", ...composition });
+    fireEvent.keyDown(input, { key: "Escape", ...composition });
+    expect(onCommitTsEdit).not.toHaveBeenCalled();
+    expect(onCancelTsEdit).not.toHaveBeenCalled();
+  });
+});

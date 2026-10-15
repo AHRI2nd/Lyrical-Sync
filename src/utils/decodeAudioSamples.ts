@@ -1,38 +1,36 @@
 import { readAudioBytes } from "./readAudioBytes";
 
-// 한 번에 처리할 샘플 수 — 이 단위로 끊어서 메인 스레드에 제어권을 양보한다.
-const MIXDOWN_CHUNK_SIZE = 200_000;
-
-function yieldToMainThread(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0));
-}
-
-// 오디오 분석용 원본 PCM 샘플 추출. Wavesurfer의 exportPeaks()는 픽셀당 min/max로
-// 다운샘플된 값이라 BPM 분석 등에는 정밀도가 부족해 별도 디코드한다.
-export async function decodeAudioSamples(audioPath: string): Promise<{ samples: Float32Array; sampleRate: number }> {
+// Decode original PCM for local analysis; display peaks lose transient detail.
+export async function decodeAudioSamples(audioPath: string, signal?: AbortSignal): Promise<{ samples: Float32Array; sampleRate: number }> {
+  const checkCancelled = () => {
+    if (signal?.aborted) throw new DOMException("Audio analysis cancelled", "AbortError");
+  };
+  checkCancelled();
   const { bytes } = await readAudioBytes(audioPath);
+  checkCancelled();
   const ctx = new AudioContext();
   try {
     const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
     const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+    checkCancelled();
     const channels = audioBuffer.numberOfChannels;
     const { length, sampleRate } = audioBuffer;
-    const channelData: Float32Array[] = [];
-    for (let c = 0; c < channels; c++) channelData.push(audioBuffer.getChannelData(c));
-
-    // 채널 평균으로 모노화 — 긴 트랙(수백만 샘플)을 한 번에 돌리면 메인 스레드가
-    // 오래 멈추므로, 청크 단위로 끊어 매 청크 후 이벤트 루프에 제어권을 양보한다.
+    // Average channels in chunks so cancellation and UI events can run.
     const samples = new Float32Array(length);
-    for (let start = 0; start < length; start += MIXDOWN_CHUNK_SIZE) {
-      const end = Math.min(start + MIXDOWN_CHUNK_SIZE, length);
-      for (let c = 0; c < channels; c++) {
-        const data = channelData[c];
+    const channelData = Array.from({ length: channels }, (_, c) => audioBuffer.getChannelData(c));
+    const chunkSize = 200000;
+    for (let start = 0; start < length; start += chunkSize) {
+      checkCancelled();
+      const end = Math.min(length, start + chunkSize);
+      for (const data of channelData) {
         for (let i = start; i < end; i++) samples[i] += data[i] / channels;
       }
-      if (end < length) await yieldToMainThread();
+      if (end < length) await new Promise<void>((resolve) => setTimeout(resolve, 0));
     }
+    checkCancelled();
     return { samples, sampleRate };
   } finally {
-    ctx.close();
+    // Closing a context must not replace the original decode/cancel error.
+    try { await ctx.close(); } catch { /* Context may already be closed. */ }
   }
 }
