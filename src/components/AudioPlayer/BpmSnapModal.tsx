@@ -19,7 +19,8 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
   const tapTimesRef = useRef<number[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const dismissedRef = useRef(false);
-  const ownerRef = useRef({ session, selection, path: audioPath, bookmark: audioBookmark });
+  const [owner, setOwner] = useState({ session, selection, path: audioPath, bookmark: audioBookmark });
+  const ownerRef = useRef(owner);
 
   const isCurrent = () => {
     const state = useLrcStore.getState();
@@ -38,6 +39,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
     const state = useLrcStore.getState();
     const owner = { session, selection, path: state.audioPath, bookmark: state.audioBookmark };
     ownerRef.current = owner;
+    setOwner(owner);
     const controller = new AbortController();
     abortRef.current = controller;
     setBpmStr("");
@@ -88,9 +90,9 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
 
   const bpm = Number(bpmStr);
   const offsetSec = Number(offsetStr);
-  const sourceCurrent = !dismissedRef.current && ownerRef.current.session === session &&
-    ownerRef.current.selection === selection && ownerRef.current.path === audioPath &&
-    ownerRef.current.bookmark === audioBookmark;
+  const sourceCurrent = !dismissedRef.current && owner.session === session &&
+    owner.selection === selection && owner.path === audioPath &&
+    owner.bookmark === audioBookmark;
   const valid = sourceCurrent && bpmStr.trim() !== "" && offsetStr.trim() !== "" &&
     Number.isFinite(bpm) && bpm > 0 && Number.isFinite(60 / bpm) &&
     60 / bpm > 0 && Number.isFinite(offsetSec);

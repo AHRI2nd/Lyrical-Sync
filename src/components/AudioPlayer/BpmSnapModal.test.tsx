@@ -154,3 +154,23 @@ it("cannot apply again after dismissal even if the parent has not unmounted yet"
   fireEvent.click(screen.getByRole("button", { name: "Apply" }));
   expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(1.34);
 });
+
+it("keeps an empty manual grid available after a document replacement without audio", () => {
+  useLrcStore.setState({ audioPath: null });
+  render(<BpmSnapModal onClose={() => {}} selectedIds={[]} />);
+  act(() => useLrcStore.setState({ _documentSession: 1 }));
+  expect(screen.getAllByRole("textbox")).toHaveLength(2);
+  expect(screen.queryByText("Detecting")).toBeNull();
+});
+
+it("computes Tap Tempo without audio and applies the resulting grid", () => {
+  useLrcStore.setState({ audioPath: null });
+  render(<BpmSnapModal onClose={() => {}} selectedIds={["a"]} />);
+  const clock = vi.spyOn(performance, "now").mockReturnValue(1000);
+  fireEvent.click(screen.getByRole("button", { name: "Tap tempo" }));
+  clock.mockReturnValue(1500);
+  fireEvent.click(screen.getByRole("button", { name: "Tap tempo" }));
+  expect(screen.getAllByRole<HTMLInputElement>("textbox")[0].value).toBe("120.0");
+  fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+  expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(1.5);
+});
