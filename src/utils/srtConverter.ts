@@ -42,7 +42,7 @@ export function serializeSrt(doc: LrcDocument, lastCueEnd?: number): string {
   const cues: { start: number; end: number; text: string }[] = [];
   for (let i = 0; i < timed.length; i++) {
     const line = timed[i];
-    if (line.text.trim() === "" && !line.translation?.trim()) continue; // 빈 줄 = 경계 전용
+    if (line.text.trim() === "" && !line.translation?.trim()) continue; // Empty rows provide boundaries only.
     const start = line.timestamp as number;
     const end = nextCueEnd(timed, i, start, lastCueEnd);
     cues.push({ start, end, text: line.text.trim() === "" ? (line.translation ?? "") : line.translation ? `${line.text}\n${line.translation}` : line.text });

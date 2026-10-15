@@ -1,6 +1,7 @@
 export type Lang = "ko" | "en" | "ja";
 
 export interface Translations {
+  close: string;
   // Header
   newFileTitle: string;
   newFileBtn: string;
@@ -668,6 +669,7 @@ const ko: Translations = {
   batchSummaryCancelled: "취소 {count}개",
   batchStopping: "현재 파일 저장 후 중단합니다…",
   bpmManualHint: "오디오 없이 BPM을 입력하거나 탭 템포를 사용하세요.",
+  close: "닫기",
   cancelLabel: "취소",
   applyLabel: "적용",
   batchTitle: "일괄 처리",
@@ -1037,6 +1039,7 @@ const en: Translations = {
   batchSummaryCancelled: "{count} cancelled",
   batchStopping: "Stopping after active saves…",
   bpmManualHint: "Without audio, enter a BPM or use Tap Tempo.",
+  close: "Close",
   cancelLabel: "Cancel",
   applyLabel: "Apply",
   batchTitle: "Batch Tool",
@@ -1405,6 +1408,7 @@ const ja: Translations = {
   batchSummaryCancelled: "{count}件キャンセル",
   batchStopping: "保存中のファイルの完了後に停止します…",
   bpmManualHint: "音声なしではBPMを入力するかタップテンポを使用してください。",
+  close: "閉じる",
   cancelLabel: "キャンセル",
   applyLabel: "適用",
   batchTitle: "一括処理",

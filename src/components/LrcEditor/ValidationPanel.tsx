@@ -22,7 +22,7 @@ export function ValidationPanel({ stats, issues, onJump, onClose }: {
       <div className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden flex flex-col max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-3 border-b border-zinc-800 flex items-center justify-between shrink-0">
           <span className="font-semibold text-zinc-100">{t.validationTitle}</span>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors text-lg leading-none">✕</button>
+          <button onClick={onClose} aria-label={t.close} className="text-zinc-500 hover:text-white transition-colors text-lg leading-none">✕</button>
         </div>
 
         <div className="grid grid-cols-3 gap-2 px-5 py-4 shrink-0">

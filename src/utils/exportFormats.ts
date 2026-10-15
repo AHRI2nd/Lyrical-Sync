@@ -25,7 +25,7 @@ function buildCues(doc: LrcDocument, lastCueEnd?: number, timeUnitsPerSecond = 1
   const cues: Cue[] = [];
   for (let i = 0; i < timed.length; i++) {
     const line = timed[i];
-    if (line.text.trim() === "" && !line.translation?.trim()) continue; // 빈 줄 = 경계 전용
+    if (line.text.trim() === "" && !line.translation?.trim()) continue; // Empty rows provide boundaries only.
     const start = line.timestamp as number;
     const end = nextCueEnd(timed, i, start, lastCueEnd, timeUnitsPerSecond);
     cues.push({ start, end, line });
@@ -42,7 +42,7 @@ function vttTime(seconds: number): string {
   return `${p2(Math.floor(ms / 3600000))}:${p2(Math.floor(ms / 60000) % 60)}:${p2(Math.floor(ms / 1000) % 60)}.${p3(ms % 1000)}`;
 }
 
-// 글자/단어 동기화가 있으면 VTT 인라인 타임스탬프(<HH:MM:SS.mmm>)로 카라오케 표현
+// Timed glyphs use VTT inline timestamps for karaoke.
 function vttText(line: LrcLine): string {
   if (line.text.trim() === "") return line.translation ?? "";
   if (line.syllables?.some((s) => s.time !== null)) {
@@ -67,7 +67,7 @@ function assTime(seconds: number): string {
   return `${Math.floor(cs / 360000)}:${p2(Math.floor(cs / 6000) % 60)}:${p2(Math.floor(cs / 100) % 60)}.${p2(cs % 100)}`;
 }
 
-// ASS 텍스트: 글자 동기화가 있으면 \k(센티초 지속) 카라오케 태그로
+// Timed glyphs use ASS karaoke tags with centisecond durations.
 function escapeAssText(text: string): string {
   return text.replace(/\\/g, "\\\\").replace(/\r\n|\r|\n/g, "\\N");
 }
