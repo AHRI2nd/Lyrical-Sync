@@ -125,48 +125,48 @@ export function YtdlpSection() {
 
   return (
     <div className="p-5 flex flex-col gap-5">
-      <p className="text-xs text-zinc-500 leading-relaxed">{t.ytdlpInfoText}</p>
+      <p className="text-xs text-[var(--ls-text-secondary)] leading-relaxed">{t.ytdlpInfoText}</p>
 
       {/* 설치 상태 */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-zinc-200">{t.ytdlpTitle}</span>
+            <span className="text-sm font-semibold text-[var(--ls-text)]">{t.ytdlpTitle}</span>
             {!checking && (
               <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
-                isInstalled ? "bg-emerald-900/50 text-emerald-400" : "bg-zinc-700 text-zinc-400"
+                isInstalled ? "bg-emerald-900/50 text-emerald-400" : "bg-[var(--ls-control)] text-[var(--ls-text-secondary)]"
               }`}>
                 {isInstalled ? t.ytdlpInstalled : t.ytdlpNotInstalled}
               </span>
             )}
             {checking && (
-              <span className="text-xs text-zinc-500">확인 중…</span>
+              <span className="text-xs text-[var(--ls-text-secondary)]">확인 중…</span>
             )}
           </div>
           <button
             onClick={refresh}
             disabled={checking || downloading}
-            className="px-2.5 py-1 text-xs rounded-md bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors disabled:opacity-40"
+            className="ls-button text-xs transition-colors disabled:opacity-40"
           >
             {t.ytdlpRefresh}
           </button>
         </div>
 
         {isInstalled && version && (
-          <span className="text-xs text-zinc-500 font-mono">
+          <span className="text-xs text-[var(--ls-text-secondary)] font-mono">
             {t.ytdlpVersion}: {version}
           </span>
         )}
 
         {downloading && (
           <div className="flex items-center gap-2">
-            <div className="flex-1 h-1.5 bg-zinc-700 rounded-full overflow-hidden">
+            <div className="flex-1 h-1.5 bg-[var(--ls-control)] rounded-full overflow-hidden">
               <div
                 className="h-full bg-red-500 rounded-full transition-all"
                 style={{ width: `${dlPercent}%` }}
               />
             </div>
-            <span className="text-xs text-zinc-400 tabular-nums w-9 text-right">{dlPercent}%</span>
+            <span className="text-xs text-[var(--ls-text-secondary)] tabular-nums w-9 text-right">{dlPercent}%</span>
           </div>
         )}
 
@@ -177,14 +177,14 @@ export function YtdlpSection() {
           !isInstalled ? (
             <button
               onClick={handleDownload}
-              className="self-start px-3 py-1.5 text-xs rounded-md bg-red-600 hover:bg-red-500 text-white transition-colors"
+              className="ls-button self-start text-xs bg-red-600 hover:bg-red-500 text-white transition-colors"
             >
               {t.ytdlpDownload}
             </button>
           ) : hasUpdate ? (
             <button
               onClick={handleDownload}
-              className="self-start px-2.5 py-1 text-xs rounded-md bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
+              className="ls-button self-start text-xs transition-colors"
             >
               {t.ytdlpUpdate}
             </button>
@@ -192,24 +192,24 @@ export function YtdlpSection() {
         )}
       </div>
 
-      <div className="border-t border-zinc-800" />
+      <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* YouTube 모드 토글 */}
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-medium text-zinc-200">{t.youtubeModeLabel}</span>
-          <span className="text-xs text-zinc-500">
+          <span className="text-sm font-medium text-[var(--ls-text)]">{t.youtubeModeLabel}</span>
+          <span className="text-xs text-[var(--ls-text-secondary)]">
             {youtubeMode && isInstalled ? t.youtubeModeOn : t.youtubeModeOff}
           </span>
         </div>
         <button
           onClick={() => setYoutubeMode(!youtubeMode)}
           disabled={!isInstalled}
-          className={[
+          className={`ls-button ${[
             "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
-            youtubeMode && isInstalled ? "bg-red-600" : "bg-zinc-600",
+            youtubeMode && isInstalled ? "bg-red-600" : "bg-[var(--ls-control)]",
             !isInstalled ? "opacity-40 cursor-not-allowed" : "",
-          ].join(" ")}
+          ].join(" ")}`}
           role="switch"
           aria-checked={youtubeMode}
           title={!isInstalled ? t.ytdlpNotInstalled : undefined}
@@ -223,24 +223,24 @@ export function YtdlpSection() {
         </button>
       </div>
 
-      <div className="border-t border-zinc-800" />
+      <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* 오디오 품질 */}
       <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-zinc-200">{t.ytdlpAudioQuality}</span>
+        <span className="text-sm font-medium text-[var(--ls-text)]">{t.ytdlpAudioQuality}</span>
         <div className="flex flex-col gap-1.5">
           {(["best", "192", "128"] as const).map((q) => (
             <label key={q} className="flex items-center gap-2.5 cursor-pointer group">
               <div
                 className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                  ytdlpAudioQuality === q ? "border-red-500 bg-red-500" : "border-zinc-600 group-hover:border-zinc-400"
+                  ytdlpAudioQuality === q ? "border-red-500 bg-red-500" : "border-[var(--ls-border-control)] group-hover:border-[var(--ls-border-control)]"
                 }`}
                 onClick={() => setYtdlpAudioQuality(q)}
               >
                 {ytdlpAudioQuality === q && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
               </div>
               <span
-                className="text-sm text-zinc-300 cursor-pointer"
+                className="text-sm text-[var(--ls-text-secondary)] cursor-pointer"
                 onClick={() => setYtdlpAudioQuality(q)}
               >
                 {q === "best" ? t.ytdlpQualityBest : q === "192" ? t.ytdlpQuality192 : t.ytdlpQuality128}
@@ -250,26 +250,26 @@ export function YtdlpSection() {
         </div>
       </div>
 
-      <div className="border-t border-zinc-800" />
+      <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* 쿠키 파일 */}
       <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-zinc-200">{t.ytdlpCookiesFile}</span>
-        <p className="text-xs text-zinc-500">{t.ytdlpCookiesFileDesc}</p>
+        <span className="text-sm font-medium text-[var(--ls-text)]">{t.ytdlpCookiesFile}</span>
+        <p className="text-xs text-[var(--ls-text-secondary)]">{t.ytdlpCookiesFileDesc}</p>
         <div className="flex items-center gap-2">
-          <span className="flex-1 text-xs text-zinc-400 bg-zinc-800 rounded px-2 py-1.5 truncate font-mono min-w-0">
+          <span className="flex-1 text-xs text-[var(--ls-text-secondary)] bg-[var(--ls-control)] rounded px-2 py-1.5 truncate font-mono min-w-0">
             {ytdlpCookiesFile || "—"}
           </span>
           <button
             onClick={handleSelectCookies}
-            className="shrink-0 px-2.5 py-1.5 text-xs rounded-md bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
+            className="ls-button shrink-0 text-xs transition-colors"
           >
             {t.ytdlpCookiesSelect}
           </button>
           {ytdlpCookiesFile && (
             <button
               onClick={() => setYtdlpCookiesFile("")}
-              className="shrink-0 px-2.5 py-1.5 text-xs rounded-md bg-zinc-700 hover:bg-zinc-600 text-zinc-400 transition-colors"
+              className="ls-button shrink-0 text-xs transition-colors"
             >
               {t.ytdlpCookiesClear}
             </button>
@@ -277,23 +277,23 @@ export function YtdlpSection() {
         </div>
       </div>
 
-      <div className="border-t border-zinc-800" />
+      <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* 프록시 */}
       <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-zinc-200">{t.ytdlpProxy}</span>
+        <span className="text-sm font-medium text-[var(--ls-text)]">{t.ytdlpProxy}</span>
         <div className="flex gap-2">
           <input
             type="text"
             value={proxyDraft}
             onChange={(e) => { setProxyDraft(e.target.value); setProxySaved(false); }}
             placeholder={t.ytdlpProxyPlaceholder}
-            className="flex-1 px-3 py-1.5 text-sm bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-red-500 font-mono"
+            className="ls-field flex-1 text-sm placeholder-zinc-600 font-mono"
           />
           <button
             onClick={handleSaveProxy}
             disabled={proxyDraft.trim() === ytdlpProxy && !proxySaved}
-            className="px-3 py-1.5 text-xs rounded-lg bg-zinc-700 hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed text-zinc-100 transition-colors"
+            className="ls-button text-xs disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {proxySaved ? "✓" : t.ytdlpProxySave}
           </button>

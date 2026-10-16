@@ -14,19 +14,19 @@ export function NoTrackAlert({ t, onClose }: { t: Translations; onClose: () => v
       onClick={onClose}
     >
       <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
+        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-4 border-b border-zinc-800">
-          <span className="font-semibold text-zinc-100">{t.spotifyNoTrackAlertTitle}</span>
+        <div className="px-5 py-4 border-b border-[var(--ls-border-subtle)]">
+          <span className="font-semibold text-[var(--ls-text)]">{t.spotifyNoTrackAlertTitle}</span>
         </div>
         <div className="px-5 py-4">
-          <p className="text-sm text-zinc-300 whitespace-pre-line">{t.spotifyNoTrackAlertMessage}</p>
+          <p className="text-sm text-[var(--ls-text-secondary)] whitespace-pre-line">{t.spotifyNoTrackAlertMessage}</p>
         </div>
         <div className="flex justify-end px-5 pb-4">
           <button
             onClick={onClose}
-            className="px-5 py-1.5 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100 transition-colors"
+            className="ls-button text-sm transition-colors"
           >
             {t.spotifyNoTrackAlertOk}
           </button>

@@ -66,16 +66,16 @@ export function LrcLibPublishModal({ onClose }: { onClose: () => void }) {
       onClick={() => status !== "publishing" && onClose()}
     >
       <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden flex flex-col"
+        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-3 border-b border-zinc-800">
-          <span className="font-semibold text-zinc-100">{t.lrclibPublish.title}</span>
+        <div className="px-5 py-3 border-b border-[var(--ls-border-subtle)]">
+          <span className="font-semibold text-[var(--ls-text)]">{t.lrclibPublish.title}</span>
         </div>
 
         <div className="p-5 flex flex-col gap-3">
           {/* 업로드 메타 미리보기 */}
-          <div className="rounded-lg bg-zinc-800/60 px-4 py-3 flex flex-col gap-1 text-sm">
+          <div className="rounded-lg bg-[var(--ls-control)]/60 px-4 py-3 flex flex-col gap-1 text-sm">
             <Row label={t.lrclib.fieldTitle} value={title || "—"} />
             <Row label={t.lrclib.fieldArtist} value={artist || "—"} />
             <Row label={t.lrclib.fieldAlbum} value={album || "—"} />
@@ -88,23 +88,23 @@ export function LrcLibPublishModal({ onClose }: { onClose: () => void }) {
           ) : status === "error" ? (
             <p className="text-sm text-rose-400 break-words">{t.lrclibPublish.failed}: {errorMsg}</p>
           ) : status === "confirm" ? (
-            <div className="rounded-lg bg-amber-500/10 border border-amber-500/40 px-4 py-3 flex gap-2.5">
-              <span className="text-amber-400 shrink-0 mt-0.5"><WarnIcon /></span>
-              <p className="text-sm text-amber-200 leading-relaxed">{t.lrclibPublish.warning}</p>
+            <div className="rounded-lg bg-[var(--ls-playhead)]/10 border border-[var(--ls-playhead)]/40 px-4 py-3 flex gap-2.5">
+              <span className="text-[var(--ls-playhead)] shrink-0 mt-0.5"><WarnIcon /></span>
+              <p className="text-sm text-[var(--ls-playhead)] leading-relaxed">{t.lrclibPublish.warning}</p>
             </div>
           ) : missing.length > 0 ? (
-            <div className="text-xs text-amber-400">
+            <div className="text-xs text-[var(--ls-playhead)]">
               <p className="mb-1">{t.lrclibPublish.missing}</p>
-              <ul className="list-disc list-inside text-amber-300/90">
+              <ul className="list-disc list-inside text-[var(--ls-playhead)]/90">
                 {missing.map((m) => <li key={m}>{m}</li>)}
               </ul>
             </div>
           ) : (
-            <p className="text-xs text-zinc-500 leading-relaxed">{t.lrclibPublish.hint}</p>
+            <p className="text-xs text-[var(--ls-text-secondary)] leading-relaxed">{t.lrclibPublish.hint}</p>
           )}
 
           {status === "publishing" && (
-            <p className="text-xs text-indigo-300">{t.lrclibPublish.publishing}</p>
+            <p className="text-xs text-[var(--ls-accent)]">{t.lrclibPublish.publishing}</p>
           )}
         </div>
 
@@ -112,7 +112,7 @@ export function LrcLibPublishModal({ onClose }: { onClose: () => void }) {
           <button
             onClick={() => (status === "confirm" ? setStatus("idle") : onClose())}
             disabled={status === "publishing"}
-            className="px-4 py-1.5 text-sm rounded-lg text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors disabled:opacity-40"
+            className="ls-button text-sm hover:text-white transition-colors disabled:opacity-40"
           >
             {status === "done" ? t.lrclibPublish.close : t.lrclibPublish.cancel}
           </button>
@@ -120,7 +120,7 @@ export function LrcLibPublishModal({ onClose }: { onClose: () => void }) {
             status === "confirm" ? (
               <button
                 onClick={publish}
-                className="px-4 py-1.5 text-sm rounded-lg text-white bg-amber-600 hover:bg-amber-500 transition-colors"
+                className="ls-button text-sm text-white bg-[var(--ls-playhead)] hover:bg-[var(--ls-playhead)] transition-colors"
               >
                 {t.lrclibPublish.confirm}
               </button>
@@ -128,7 +128,7 @@ export function LrcLibPublishModal({ onClose }: { onClose: () => void }) {
               <button
                 onClick={() => setStatus("confirm")}
                 disabled={!canPublish}
-                className="px-4 py-1.5 text-sm rounded-lg text-white bg-indigo-600 hover:bg-indigo-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="ls-button text-sm text-white bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed ls-button--primary"
               >
                 {status === "publishing" ? t.lrclibPublish.publishing : t.lrclibPublish.publish}
               </button>
@@ -143,8 +143,8 @@ export function LrcLibPublishModal({ onClose }: { onClose: () => void }) {
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center gap-2 min-w-0">
-      <span className="text-zinc-500 shrink-0 w-16">{label}</span>
-      <span className="text-zinc-200 truncate">{value}</span>
+      <span className="text-[var(--ls-text-secondary)] shrink-0 w-16">{label}</span>
+      <span className="text-[var(--ls-text)] truncate">{value}</span>
     </div>
   );
 }

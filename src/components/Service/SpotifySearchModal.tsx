@@ -161,17 +161,17 @@ export function SpotifySearchModal({ onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col overflow-hidden max-h-[80vh]"
+        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col overflow-hidden max-h-[80vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800 shrink-0">
-          <span className="font-semibold text-zinc-100">{t.spotifySearchTitle}</span>
-          <button onClick={onClose} aria-label={t.close} className="text-zinc-500 hover:text-white transition-colors text-lg leading-none">✕</button>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)] shrink-0">
+          <span className="font-semibold text-[var(--ls-text)]">{t.spotifySearchTitle}</span>
+          <button onClick={onClose} aria-label={t.close} className="ls-button hover:text-white transition-colors text-lg leading-none">✕</button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-zinc-800 shrink-0">
+        <div className="flex border-b border-[var(--ls-border-subtle)] shrink-0">
           <TabBtn active={tab === "search"} onClick={() => { setTab("search"); setSelectedPlaylist(null); setPlaylistTracks(null); }}>
             {t.spotifySearchPlaceholder.split(",")[0]}
           </TabBtn>
@@ -185,19 +185,19 @@ export function SpotifySearchModal({ onClose }: Props) {
           {error && <p className="px-4 py-3 text-xs text-red-400 bg-red-900/20">{error}</p>}
           {tab === "search" && (
             <div className="flex flex-col">
-              <div className="p-3 sticky top-0 bg-zinc-900 z-10">
+              <div className="p-3 sticky top-0 bg-[var(--ls-surface)] z-10">
                 <input
                   autoFocus
                   type="text"
                   value={query}
                   onChange={(e) => handleSearch(e.target.value)}
                   placeholder={t.spotifySearchPlaceholder}
-                  className="w-full px-3 py-2 text-sm bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
+                  className="ls-field w-full text-sm placeholder-zinc-500"
                 />
               </div>
               {loading && <LoadingRow />}
               {!loading && query && searchResults.length === 0 && (
-                <p className="text-xs text-zinc-500 text-center py-8">{t.spotifyNoResults}</p>
+                <p className="text-xs text-[var(--ls-text-secondary)] text-center py-8">{t.spotifyNoResults}</p>
               )}
               {searchResults.map((track) => (
                 <TrackRow key={track.uri} track={track} onSelect={handleSelectTrack} />
@@ -212,15 +212,15 @@ export function SpotifySearchModal({ onClose }: Props) {
                 <button
                   key={pl.id}
                   onClick={() => openPlaylist(pl)}
-                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-800 transition-colors text-left"
+                  className="ls-button flex items-center gap-3 transition-colors text-left"
                 >
                   {pl.imageUrl
                     ? <img src={pl.imageUrl} alt={pl.name} className="w-10 h-10 rounded shrink-0 object-cover" />
-                    : <div className="w-10 h-10 rounded bg-zinc-700 shrink-0" />
+                    : <div className="w-10 h-10 rounded bg-[var(--ls-control)] shrink-0" />
                   }
                   <div className="flex flex-col min-w-0">
-                    <span className="text-sm text-zinc-100 truncate">{pl.name}</span>
-                    <span className="text-xs text-zinc-500">{pl.trackCount} tracks</span>
+                    <span className="text-sm text-[var(--ls-text)] truncate">{pl.name}</span>
+                    <span className="text-xs text-[var(--ls-text-secondary)]">{pl.trackCount} tracks</span>
                   </div>
                 </button>
               ))}
@@ -231,7 +231,7 @@ export function SpotifySearchModal({ onClose }: Props) {
             <div className="flex flex-col">
               <button
                 onClick={() => { setSelectedPlaylist(null); setPlaylistTracks(null); }}
-                className="flex items-center gap-2 px-4 py-2 text-xs text-zinc-400 hover:text-zinc-200 transition-colors sticky top-0 bg-zinc-900 border-b border-zinc-800"
+                className="ls-button flex items-center gap-2 text-xs transition-colors sticky top-0 border-b"
               >
                 ← {selectedPlaylist.name}
               </button>
@@ -251,32 +251,32 @@ function TrackRow({ track, onSelect }: { track: SpotifyTrack; onSelect: (t: Spot
   return (
     <button
       onClick={() => onSelect(track)}
-      className="flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-800 transition-colors text-left w-full"
+      className="ls-button flex items-center gap-3 transition-colors text-left w-full"
     >
       {track.albumArtUrl
         ? <img src={track.albumArtUrl} alt={track.albumName} className="w-9 h-9 rounded shrink-0 object-cover" />
-        : <div className="w-9 h-9 rounded bg-zinc-700 shrink-0" />
+        : <div className="w-9 h-9 rounded bg-[var(--ls-control)] shrink-0" />
       }
       <div className="flex flex-col min-w-0 flex-1">
-        <span className="text-sm text-zinc-100 truncate">{track.name}</span>
-        <span className="text-xs text-zinc-400 truncate">{track.artistName}</span>
+        <span className="text-sm text-[var(--ls-text)] truncate">{track.name}</span>
+        <span className="text-xs text-[var(--ls-text-secondary)] truncate">{track.artistName}</span>
       </div>
     </button>
   );
 }
 
 function LoadingRow() {
-  return <div className="px-4 py-6 text-xs text-zinc-500 text-center">loading...</div>;
+  return <div className="px-4 py-6 text-xs text-[var(--ls-text-secondary)] text-center">loading...</div>;
 }
 
 function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       onClick={onClick}
-      className={[
+      className={`ls-button ${[
         "px-5 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px",
-        active ? "text-green-400 border-green-500" : "text-zinc-400 border-transparent hover:text-zinc-200",
-      ].join(" ")}
+        active ? "text-green-400 border-green-500" : "text-[var(--ls-text-secondary)] border-transparent hover:text-[var(--ls-text)]",
+      ].join(" ")}`}
     >
       {children}
     </button>
