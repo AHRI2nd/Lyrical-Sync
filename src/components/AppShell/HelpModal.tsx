@@ -71,15 +71,15 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col overflow-hidden"
+        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[calc(100%-2rem)] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800 shrink-0">
-          <span className="font-semibold text-zinc-100">{t.helpTitle}</span>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)] shrink-0">
+          <span className="font-semibold text-[var(--ls-text)]">{t.helpTitle}</span>
           <button
             onClick={onClose}
-            className="text-zinc-500 hover:text-white transition-colors text-lg leading-none"
+            className="ls-button hover:text-white transition-colors text-lg leading-none"
           >
             ✕
           </button>
@@ -90,14 +90,14 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
           <div className="flex flex-col gap-5">
             {shortcutGroups.map((g) => (
               <div key={g.title}>
-                <h3 className="text-xs font-semibold text-zinc-400 mb-2.5">{g.title}</h3>
+                <h3 className="text-xs font-semibold text-[var(--ls-text-secondary)] mb-2.5">{g.title}</h3>
                 <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
                   {g.items.map(({ key, desc }) => (
                     <div key={key} className="flex items-center gap-3">
-                      <kbd className="shrink-0 min-w-[3rem] text-center px-2 py-1 rounded-md bg-zinc-800 border border-zinc-600 text-xs font-mono text-zinc-200 whitespace-nowrap">
+                      <kbd className="shrink-0 min-w-[3rem] text-center px-2 py-1 rounded-md bg-[var(--ls-control)] border border-[var(--ls-border-control)] text-xs font-mono text-[var(--ls-text)] whitespace-nowrap">
                         {key}
                       </kbd>
-                      <span className="text-sm text-zinc-300 leading-snug">{desc}</span>
+                      <span className="text-sm text-[var(--ls-text-secondary)] leading-snug">{desc}</span>
                     </div>
                   ))}
                 </div>
@@ -105,7 +105,7 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
             ))}
             <section aria-label={t.thirdPartyNotices}>
               <button type="button" data-testid="third-party-notices" disabled={loadingNotices}
-                className="text-sm text-sky-400 underline disabled:opacity-50"
+                className="ls-button text-sm text-sky-400 underline disabled:opacity-50"
                 onClick={async () => {
                   setLoadingNotices(true);
                   try { setNotices(await invoke<string>("read_third_party_notices")); }
@@ -114,22 +114,22 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
                 }}>{t.thirdPartyNotices}</button>
               {notices !== null && <textarea readOnly aria-label={t.thirdPartyNotices}
                 data-testid="third-party-notices-text" value={notices}
-                className="mt-3 w-full h-72 bg-zinc-950 text-zinc-200 text-xs p-3 rounded" />}
+                className="ls-field mt-3 w-full h-72 text-xs" />}
             </section>
-            <p className="text-xs text-zinc-500 pt-1">{t.shortcutNote}</p>
-            <section aria-label={t.privacyTitle} className="border-t border-zinc-700 pt-4">
-              <h3 className="text-xs font-semibold text-zinc-400 mb-2">{t.privacyTitle}</h3>
-              <p className="text-sm text-zinc-300 leading-snug">{t.privacySummary}</p>
+            <p className="text-xs text-[var(--ls-text-secondary)] pt-1">{t.shortcutNote}</p>
+            <section aria-label={t.privacyTitle} className="border-t border-[var(--ls-border-subtle)] pt-4">
+              <h3 className="text-xs font-semibold text-[var(--ls-text-secondary)] mb-2">{t.privacyTitle}</h3>
+              <p className="text-sm text-[var(--ls-text-secondary)] leading-snug">{t.privacySummary}</p>
               {navigator.platform.startsWith("Win") && <p data-testid="windows-runtime-privacy"
-                className="mt-2 text-sm text-zinc-300 leading-snug">{t.privacyWindowsRuntime}</p>}
+                className="mt-2 text-sm text-[var(--ls-text-secondary)] leading-snug">{t.privacyWindowsRuntime}</p>}
               {navigator.platform.startsWith("Win") && <button type="button"
-                data-testid="microsoft-privacy-link" className="mt-3 mr-4 text-sm text-sky-400 underline hover:text-sky-300"
+                data-testid="microsoft-privacy-link" className="ls-button mt-3 mr-4 text-sm text-sky-400 underline hover:text-sky-300"
                 onClick={() => { void invoke("open_microsoft_privacy_policy").catch(() => toast.error(t.privacyOpenError)); }}
               >{t.privacyMicrosoftLink}</button>}
               <button
                 type="button"
                 data-testid="privacy-policy-link"
-                className="mt-3 text-sm text-sky-400 underline hover:text-sky-300"
+                className="ls-button mt-3 text-sm text-sky-400 underline hover:text-sky-300"
                 onClick={() => { void invoke("open_privacy_policy", { language: lang }).catch(() => toast.error(t.privacyOpenError)); }}
               >{t.privacyPolicyLink}</button>
             </section>

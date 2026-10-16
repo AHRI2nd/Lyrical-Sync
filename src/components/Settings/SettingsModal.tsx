@@ -45,23 +45,23 @@ export function SettingsModal({ onClose, initialTab = "general" }: { onClose: ()
       onClick={onClose}
     >
       <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden flex flex-col max-h-[85vh]"
+        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden flex flex-col max-h-[calc(100%-2rem)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800 shrink-0">
-          <span className="font-semibold text-zinc-100">{t.settingsTitle}</span>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)] shrink-0">
+          <span className="font-semibold text-[var(--ls-text)]">{t.settingsTitle}</span>
           <button
             onClick={onClose}
             aria-label={t.close}
-            className="text-zinc-500 hover:text-white transition-colors text-lg leading-none"
+            className="ls-button hover:text-white transition-colors text-lg leading-none"
           >
             ✕
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-zinc-800 shrink-0">
+        <div className="flex border-b border-[var(--ls-border-subtle)] shrink-0">
           <TabBtn active={tab === "general"} onClick={() => setTab("general")}>
             {t.settingsTabGeneral}
           </TabBtn>
@@ -78,89 +78,89 @@ export function SettingsModal({ onClose, initialTab = "general" }: { onClose: ()
           {tab === "general" && (
             <div className="p-5 flex flex-col gap-5">
               <section className="flex flex-col gap-2">
-                <button type="button" className="self-start text-sm text-rose-400 underline"
+                <button type="button" className="ls-button self-start text-sm text-rose-400 underline"
                   onClick={() => setConfirmClear(true)}>{t.settingsClearLocal}</button>
-                <p className="text-xs text-zinc-500">{t.settingsClearLocalDesc}</p>
+                <p className="text-xs text-[var(--ls-text-secondary)]">{t.settingsClearLocalDesc}</p>
               </section>
               <section className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-zinc-200">{t.settingsRecovery}</span>
+                  <span className="text-sm font-medium text-[var(--ls-text)]">{t.settingsRecovery}</span>
                   <button type="button" role="switch" aria-label={t.settingsRecovery} aria-checked={recoveryEnabled}
-                    className={`w-10 h-5 rounded-full ${recoveryEnabled ? "bg-indigo-600" : "bg-zinc-600"}`}
+                    className={`ls-button ${`relative w-10 h-5 rounded-full ${recoveryEnabled ? "bg-[var(--ls-primary)]" : "bg-[var(--ls-control)]"}`}`}
                     onClick={() => {
                       if (recoveryEnabled) setConfirmRecoveryOff(true);
                       else if (!configureRecovery(true)) toast.error(t.settingsPrivacyFailure);
                     }}>
-                    <span className={`block w-4 h-4 rounded-full bg-white ${recoveryEnabled ? "translate-x-[22px]" : "translate-x-0.5"}`} />
+                    <span className={`absolute top-[calc(50%-0.5rem)] left-0 w-4 h-4 rounded-full bg-white ${recoveryEnabled ? "translate-x-[22px]" : "translate-x-0.5"}`} />
                   </button>
                 </div>
-                <p className="text-xs text-zinc-500">{t.settingsRecoveryDesc}</p>
+                <p className="text-xs text-[var(--ls-text-secondary)]">{t.settingsRecoveryDesc}</p>
               </section>
-              <div className="border-t border-zinc-800" />
+              <div className="border-t border-[var(--ls-border-subtle)]" />
               {/* Auto save */}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-zinc-200">{t.settingsAutoSave}</span>
+                  <span className="text-sm font-medium text-[var(--ls-text)]">{t.settingsAutoSave}</span>
                   <button
                     onClick={() => setAutoSave(!autoSave)}
-                    className={[
+                    className={`ls-button ${[
                       "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
-                      autoSave ? "bg-indigo-600" : "bg-zinc-600",
-                    ].join(" ")}
+                      autoSave ? "bg-[var(--ls-primary)]" : "bg-[var(--ls-control)]",
+                    ].join(" ")}`}
                     role="switch"
                     aria-checked={autoSave}
                   >
                     <span
                       className={[
-                        "absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                        "absolute top-[calc(50%-0.5rem)] left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
                         autoSave ? "translate-x-[22px]" : "translate-x-0.5",
                       ].join(" ")}
                     />
                   </button>
                 </div>
-                <p className="text-xs text-zinc-500">{t.settingsAutoSaveDesc}</p>
+                <p className="text-xs text-[var(--ls-text-secondary)]">{t.settingsAutoSaveDesc}</p>
               </div>
 
-              <div className="border-t border-zinc-800" />
+              <div className="border-t border-[var(--ls-border-subtle)]" />
 
               {/* Enhanced LRC 저장 알림 */}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-zinc-200">{t.settingsElrcNotice}</span>
+                  <span className="text-sm font-medium text-[var(--ls-text)]">{t.settingsElrcNotice}</span>
                   <button
                     onClick={() => setShowElrcSaveNotice(!showElrcSaveNotice)}
-                    className={[
+                    className={`ls-button ${[
                       "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
-                      showElrcSaveNotice ? "bg-indigo-600" : "bg-zinc-600",
-                    ].join(" ")}
+                      showElrcSaveNotice ? "bg-[var(--ls-primary)]" : "bg-[var(--ls-control)]",
+                    ].join(" ")}`}
                     role="switch"
                     aria-checked={showElrcSaveNotice}
                   >
                     <span
                       className={[
-                        "absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                        "absolute top-[calc(50%-0.5rem)] left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
                         showElrcSaveNotice ? "translate-x-[22px]" : "translate-x-0.5",
                       ].join(" ")}
                     />
                   </button>
                 </div>
-                <p className="text-xs text-zinc-500">{t.settingsElrcNoticeDesc}</p>
+                <p className="text-xs text-[var(--ls-text-secondary)]">{t.settingsElrcNoticeDesc}</p>
               </div>
 
-              <div className="border-t border-zinc-800" />
+              <div className="border-t border-[var(--ls-border-subtle)]" />
 
               {/* UI Scale */}
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-zinc-200">{t.settingsUiScale}</span>
+                  <span className="text-sm font-medium text-[var(--ls-text)]">{t.settingsUiScale}</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm tabular-nums text-zinc-300 w-10 text-right">
+                    <span className="text-sm tabular-nums text-[var(--ls-text-secondary)] w-10 text-right">
                       {scalePercent}%
                     </span>
                     <button
                       onClick={() => setUiScale(1.0)}
                       disabled={uiScale === 1.0}
-                      className="px-2 py-0.5 text-xs rounded text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      className="ls-button text-xs hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       {t.settingsUiScaleReset}
                     </button>
@@ -173,30 +173,30 @@ export function SettingsModal({ onClose, initialTab = "general" }: { onClose: ()
                   step={0.05}
                   value={uiScale}
                   onChange={(e) => setUiScale(Number(e.target.value))}
-                  className="range-slim w-full"
+                  className="ls-range range-slim w-full"
                   style={{ background: `linear-gradient(to right, #6366f1 ${Math.round(((uiScale - 0.7) / 0.6) * 100)}%, #3f3f46 ${Math.round(((uiScale - 0.7) / 0.6) * 100)}%)` }}
                 />
-                <div className="flex justify-between text-xs text-zinc-500 select-none">
+                <div className="flex justify-between text-xs text-[var(--ls-text-secondary)] select-none">
                   <span>70%</span>
                   <span>100%</span>
                   <span>130%</span>
                 </div>
               </div>
 
-              <div className="border-t border-zinc-800" />
+              <div className="border-t border-[var(--ls-border-subtle)]" />
 
               {/* Lyrics font size */}
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-zinc-200">{t.settingsLyricsFontSize}</span>
+                  <span className="text-sm font-medium text-[var(--ls-text)]">{t.settingsLyricsFontSize}</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm tabular-nums text-zinc-300 w-10 text-right">
+                    <span className="text-sm tabular-nums text-[var(--ls-text-secondary)] w-10 text-right">
                       {Math.round(lyricsFontScale * 100)}%
                     </span>
                     <button
                       onClick={() => setLyricsFontScale(1.0)}
                       disabled={lyricsFontScale === 1.0}
-                      className="px-2 py-0.5 text-xs rounded text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      className="ls-button text-xs hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       {t.settingsUiScaleReset}
                     </button>
@@ -209,58 +209,58 @@ export function SettingsModal({ onClose, initialTab = "general" }: { onClose: ()
                   step={0.05}
                   value={lyricsFontScale}
                   onChange={(e) => setLyricsFontScale(Number(e.target.value))}
-                  className="range-slim w-full"
+                  className="ls-range range-slim w-full"
                   style={{ background: `linear-gradient(to right, #6366f1 ${Math.round(((lyricsFontScale - 0.8) / 0.7) * 100)}%, #3f3f46 ${Math.round(((lyricsFontScale - 0.8) / 0.7) * 100)}%)` }}
                 />
               </div>
 
-              <div className="border-t border-zinc-800" />
+              <div className="border-t border-[var(--ls-border-subtle)]" />
 
               <section className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-zinc-200">{t.translationToggle}</span>
+                  <span className="text-sm font-medium text-[var(--ls-text)]">{t.translationToggle}</span>
                   <button type="button" role="switch" aria-label={t.translationToggle} aria-checked={showTranslationLines}
                     onClick={() => { if (showTranslationLines) setShowTranslationLines(false); else setConfirmTranslations(true); }}
-                    className={`relative w-10 h-5 rounded-full shrink-0 ${showTranslationLines ? "bg-indigo-600" : "bg-zinc-600"}`}>
-                    <span className={`absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white ${showTranslationLines ? "translate-x-[22px]" : "translate-x-0.5"}`} />
+                    className={`ls-button ${`relative w-10 h-5 rounded-full shrink-0 ${showTranslationLines ? "bg-[var(--ls-primary)]" : "bg-[var(--ls-control)]"}`}`}>
+                    <span className={`absolute top-[calc(50%-0.5rem)] left-0 w-4 h-4 rounded-full bg-white ${showTranslationLines ? "translate-x-[22px]" : "translate-x-0.5"}`} />
                   </button>
                 </div>
-                <p className="text-xs text-zinc-500">{t.settingsTranslationDesc}</p>
+                <p className="text-xs text-[var(--ls-text-secondary)]">{t.settingsTranslationDesc}</p>
               </section>
               {/* Glyph time markers */}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-zinc-200">{t.settingsGlyphMarkers}</span>
+                  <span className="text-sm font-medium text-[var(--ls-text)]">{t.settingsGlyphMarkers}</span>
                   <button
                     onClick={() => setShowGlyphTimeMarkers(!showGlyphTimeMarkers)}
-                    className={[
+                    className={`ls-button ${[
                       "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
-                      showGlyphTimeMarkers ? "bg-indigo-600" : "bg-zinc-600",
-                    ].join(" ")}
+                      showGlyphTimeMarkers ? "bg-[var(--ls-primary)]" : "bg-[var(--ls-control)]",
+                    ].join(" ")}`}
                     role="switch"
                     aria-checked={showGlyphTimeMarkers}
                   >
                     <span
                       className={[
-                        "absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                        "absolute top-[calc(50%-0.5rem)] left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
                         showGlyphTimeMarkers ? "translate-x-[22px]" : "translate-x-0.5",
                       ].join(" ")}
                     />
                   </button>
                 </div>
-                <p className="text-xs text-zinc-500">{t.settingsGlyphMarkersDesc}</p>
+                <p className="text-xs text-[var(--ls-text-secondary)]">{t.settingsGlyphMarkersDesc}</p>
               </div>
-              <div className="border-t border-zinc-800" />
+              <div className="border-t border-[var(--ls-border-subtle)]" />
               <section className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-zinc-200">{t.settingsSpellCheck}</span>
+                  <span className="text-sm font-medium text-[var(--ls-text)]">{t.settingsSpellCheck}</span>
                   <button type="button" role="switch" aria-label={t.settingsSpellCheck} aria-checked={showSpellCheck}
                     onClick={() => setShowSpellCheck(!showSpellCheck)}
-                    className={`relative w-10 h-5 rounded-full transition-colors shrink-0 overflow-hidden ${showSpellCheck ? "bg-indigo-600" : "bg-zinc-600"}`}>
-                    <span className={`absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white shadow transition-transform ${showSpellCheck ? "translate-x-[22px]" : "translate-x-0.5"}`} />
+                    className={`ls-button ${`relative w-10 h-5 rounded-full transition-colors shrink-0 overflow-hidden ${showSpellCheck ? "bg-[var(--ls-primary)]" : "bg-[var(--ls-control)]"}`}`}>
+                    <span className={`absolute top-[calc(50%-0.5rem)] left-0 w-4 h-4 rounded-full bg-white shadow transition-transform ${showSpellCheck ? "translate-x-[22px]" : "translate-x-0.5"}`} />
                   </button>
                 </div>
-                <p className="text-xs text-zinc-500">{t.settingsSpellCheckDesc}</p>
+                <p className="text-xs text-[var(--ls-text-secondary)]">{t.settingsSpellCheckDesc}</p>
               </section>
             </div>
           )}
@@ -306,12 +306,12 @@ function TabBtn({
   return (
     <button
       onClick={onClick}
-      className={[
+      className={`ls-button ${[
         "px-5 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px",
         active
-          ? "text-indigo-400 border-indigo-500"
-          : "text-zinc-400 border-transparent hover:text-zinc-200",
-      ].join(" ")}
+          ? "text-[var(--ls-accent)] border-[var(--ls-accent)]"
+          : "text-[var(--ls-text-secondary)] border-transparent hover:text-[var(--ls-text)]",
+      ].join(" ")}`}
     >
       {children}
     </button>

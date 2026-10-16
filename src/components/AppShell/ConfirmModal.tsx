@@ -28,20 +28,20 @@ export function ConfirmModal({
       onClick={onCancel}
     >
       <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-4 border-b border-zinc-800">
-          <span className="font-semibold text-zinc-100">{title}</span>
+        <div className="px-5 py-4 border-b border-[var(--ls-border-subtle)]">
+          <span className="font-semibold text-[var(--ls-text)]">{title}</span>
         </div>
         <div className="px-5 py-4">
-          <p className="text-sm text-zinc-300 whitespace-pre-line">{message}</p>
+          <p className="text-sm text-[var(--ls-text-secondary)] whitespace-pre-line">{message}</p>
         </div>
         <div className="flex items-center gap-2 px-5 pb-4">
           {leftLabel && onLeft && (
             <button
               onClick={onLeft}
-              className="px-4 py-1.5 text-sm rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors whitespace-nowrap"
+              className="ls-button text-sm hover:text-white transition-colors whitespace-nowrap"
             >
               {leftLabel}
             </button>
@@ -50,17 +50,17 @@ export function ConfirmModal({
           {cancelLabel && (
             <button
               onClick={onCancel}
-              className="px-4 py-1.5 text-sm rounded-lg text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors whitespace-nowrap"
+              className="ls-button text-sm hover:text-white transition-colors whitespace-nowrap"
             >
               {cancelLabel}
             </button>
           )}
           <button
             onClick={onOk}
-            className={[
+            className={`ls-button ${[
               "px-4 py-1.5 text-sm rounded-lg text-white transition-colors whitespace-nowrap",
               okGreen ? "bg-green-600 hover:bg-green-500" : "bg-rose-600 hover:bg-rose-500",
-            ].join(" ")}
+            ].join(" ")}`}
           >
             {okLabel}
           </button>
