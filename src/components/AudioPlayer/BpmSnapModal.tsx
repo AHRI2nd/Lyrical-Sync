@@ -126,14 +126,14 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
       onClick={close}
     >
       <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
+        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-sm mx-4 max-h-[calc(100%-2rem)] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
-          <span className="font-semibold text-zinc-100 text-sm">{t.bpmTitle}</span>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)]">
+          <span className="font-semibold text-[var(--ls-text)] text-sm">{t.bpmTitle}</span>
           <button
             onClick={close}
-            className="text-zinc-500 hover:text-white transition-colors text-lg leading-none"
+            className="ls-button hover:text-white transition-colors text-lg leading-none"
           >
             ✕
           </button>
@@ -141,15 +141,15 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
 
         <div className="p-5 flex flex-col gap-4">
           {loading || !sourceCurrent ? (
-            <p className="text-sm text-zinc-400">{t.bpmDetecting}</p>
+            <p className="text-sm text-[var(--ls-text-secondary)]">{t.bpmDetecting}</p>
           ) : (
             <>
-              {!audioPath && <p className="text-sm text-amber-400">{t.bpmManualHint}</p>}
-              <p className="text-[11px] leading-relaxed text-zinc-500">{t.bpmHint}</p>
-              {error && <p className="text-xs text-amber-400">{error}</p>}
+              {!audioPath && <p className="text-sm text-[var(--ls-playhead)]">{t.bpmManualHint}</p>}
+              <p className="text-[11px] leading-relaxed text-[var(--ls-text-secondary)]">{t.bpmHint}</p>
+              {error && <p className="text-xs text-[var(--ls-playhead)]">{error}</p>}
 
               <div className="flex items-center justify-between gap-3">
-                <span className="text-xs text-zinc-300">{t.bpmLabel}</span>
+                <span className="text-xs text-[var(--ls-text-secondary)]">{t.bpmLabel}</span>
                 <div className="flex items-center gap-1.5">
                   <input
                     aria-label={t.bpmLabel}
@@ -157,14 +157,14 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
                     inputMode="decimal"
                     value={bpmStr}
                     onChange={(e) => { setBpmStr(e.target.value); setSnappedCount(null); }}
-                    className="w-20 px-2 py-1 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-xs text-right focus:outline-none focus:border-indigo-500 transition-colors"
+                    className="ls-field w-20 text-white text-xs text-right transition-colors"
                   />
-                  <span className="text-[11px] text-zinc-500 w-9">BPM</span>
+                  <span className="text-[11px] text-[var(--ls-text-secondary)] w-9">BPM</span>
                 </div>
               </div>
 
               <div className="flex items-center justify-between gap-3">
-                <span className="text-xs text-zinc-300">{t.bpmOffset}</span>
+                <span className="text-xs text-[var(--ls-text-secondary)]">{t.bpmOffset}</span>
                 <div className="flex items-center gap-1.5">
                   <input
                     aria-label={t.bpmOffset}
@@ -172,27 +172,27 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
                     inputMode="decimal"
                     value={offsetStr}
                     onChange={(e) => { setOffsetStr(e.target.value); setSnappedCount(null); }}
-                    className="w-20 px-2 py-1 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-xs text-right focus:outline-none focus:border-indigo-500 transition-colors"
+                    className="ls-field w-20 text-white text-xs text-right transition-colors"
                   />
-                  <span className="text-[11px] text-zinc-500 w-9">s</span>
+                  <span className="text-[11px] text-[var(--ls-text-secondary)] w-9">s</span>
                 </div>
               </div>
 
               <button
                 onClick={handleTapTempo}
-                className="w-full py-2.5 text-sm rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 transition-colors"
+                className="ls-button w-full text-sm transition-colors"
               >
                 {t.bpmTapTempo}
               </button>
 
-              <div className="border-t border-zinc-800 pt-3 flex items-center justify-between text-xs">
-                <span className="text-zinc-500">
+              <div className="border-t border-[var(--ls-border-subtle)] pt-3 flex items-center justify-between text-xs">
+                <span className="text-[var(--ls-text-secondary)]">
                   {selectedIds.length > 0
                     ? `${t.bpmScopeSelected} (${selectedIds.length})`
                     : t.bpmScopeAll}
                 </span>
                 {confidence !== null && (
-                  <span className="text-zinc-500">{t.bpmConfidence}: {Math.round(confidence * 100)}%</span>
+                  <span className="text-[var(--ls-text-secondary)]">{t.bpmConfidence}: {Math.round(confidence * 100)}%</span>
                 )}
               </div>
               {snappedCount !== null && (
@@ -206,7 +206,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
           <div className="flex justify-end gap-2">
             <button
               onClick={close}
-              className="px-4 py-2 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
+              className="ls-button text-sm transition-colors"
             >
               {t.cancelLabel}
             </button>
@@ -214,7 +214,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
               <button
                 onClick={handleApply}
                 disabled={!valid}
-                className="px-4 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
+                className="ls-button text-sm bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors ls-button--primary"
               >
                 {t.applyLabel}
               </button>

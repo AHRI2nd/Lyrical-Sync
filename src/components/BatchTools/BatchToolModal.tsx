@@ -86,30 +86,30 @@ export function BatchToolModal({ t, onClose }: { t: Translations; onClose: () =>
       if (mounted.current) { setRunning(false); setStopping(false); }
     }
   };
-  const buttonClass = "rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm text-zinc-200 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed";
+  const buttonClass = "rounded-lg border border-[var(--ls-border-subtle)] bg-[var(--ls-control)] px-4 py-2 text-sm text-[var(--ls-text)] hover:bg-[var(--ls-control)] disabled:opacity-40 disabled:cursor-not-allowed";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={close}>
-      <div role="dialog" aria-modal="true" aria-label={t.batchTitle} className="mx-4 flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl" onClick={(event) => event.stopPropagation()}>
-        <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-3">
-          <h2 className="text-sm font-semibold text-zinc-100">{t.batchTitle}</h2>
-          <button type="button" aria-label={t.confirmNewCancel} disabled={busy} onClick={close} className="text-zinc-500 hover:text-white disabled:opacity-40">✕</button>
+      <div role="dialog" aria-modal="true" aria-label={t.batchTitle} className="mx-4 flex max-h-[calc(100%-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-[var(--ls-border-subtle)] bg-[var(--ls-surface)] shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-[var(--ls-border-subtle)] px-5 py-3">
+          <h2 className="text-sm font-semibold text-[var(--ls-text)]">{t.batchTitle}</h2>
+          <button type="button" aria-label={t.confirmNewCancel} disabled={busy} onClick={close} className="ls-button hover:text-white disabled:opacity-40">✕</button>
         </div>
         <div className="flex flex-col gap-4 overflow-y-auto p-5">
-          <p className="text-xs leading-relaxed text-zinc-500">{t.batchHint}</p>
-          <button type="button" disabled={busy} className={buttonClass} onClick={() => void select(false)}>{t.batchSelectFiles}</button>
+          <p className="text-xs leading-relaxed text-[var(--ls-text-secondary)]">{t.batchHint}</p>
+          <button type="button" disabled={busy} className={`ls-button ${buttonClass}`} onClick={() => void select(false)}>{t.batchSelectFiles}</button>
           <BatchFileList t={t} entries={entries} disabled={busy} onRemove={(id) => { if (!abortRef.current && !selectingRef.current) { setEntries((current) => current.filter((entry) => entry.id !== id)); setSummary(null); } }} />
           <div>
-            <button type="button" disabled={busy} className={`${buttonClass} w-full`} onClick={() => void select(true)}>{t.batchOutputFolder}</button>
-            <p className="mt-1 break-all text-xs text-zinc-500">{output?.path ?? t.batchOutputFolderEmpty}</p>
+            <button type="button" disabled={busy} className={`ls-button ${`${buttonClass} w-full`}`} onClick={() => void select(true)}>{t.batchOutputFolder}</button>
+            <p className="mt-1 break-all text-xs text-[var(--ls-text-secondary)]">{output?.path ?? t.batchOutputFolderEmpty}</p>
           </div>
           <BatchOperationPicker t={t} operation={operation} disabled={busy} onChange={(next) => { if (!abortRef.current && !selectingRef.current) { setOperation(next); setSummary(null); } }} />
           {error && <p role="alert" className="break-words text-xs text-red-400">{error}</p>}
-          {summary && <p role="status" className="text-xs text-zinc-300">{summary.done} {t.batchSummaryDone} · {summary.error} {t.batchSummaryError} · {summary.cancelled} {t.batchSummaryCancelled}</p>}
+          {summary && <p role="status" className="text-xs text-[var(--ls-text-secondary)]">{summary.done} {t.batchSummaryDone} · {summary.error} {t.batchSummaryError} · {summary.cancelled} {t.batchSummaryCancelled}</p>}
           <div className="flex justify-end gap-2">
-            <button type="button" disabled={busy} className={buttonClass} onClick={close}>{t.confirmNewCancel}</button>
-            {running ? <button type="button" disabled={stopping} className={`${buttonClass} border-red-800 text-red-300`} onClick={() => { abortRef.current?.abort(); setStopping(true); }}>{stopping ? t.batchStopping : t.batchStop}</button>
-              : <button type="button" disabled={busy || !entries.length || !output || (operation.kind === "offset" && !Number.isFinite(operation.deltaSeconds))} className={`${buttonClass} border-indigo-500 bg-indigo-600 text-white`} onClick={() => void run()}>{t.batchRun}</button>}
+            <button type="button" disabled={busy} className={`ls-button ${buttonClass}`} onClick={close}>{t.confirmNewCancel}</button>
+            {running ? <button type="button" disabled={stopping} className={`ls-button ${`${buttonClass} border-red-800 text-red-300`}`} onClick={() => { abortRef.current?.abort(); setStopping(true); }}>{stopping ? t.batchStopping : t.batchStop}</button>
+              : <button type="button" disabled={busy || !entries.length || !output || (operation.kind === "offset" && !Number.isFinite(operation.deltaSeconds))} className={`ls-button ${`${buttonClass} border-[var(--ls-accent)] bg-[var(--ls-primary)] text-white`}`} onClick={() => void run()}>{t.batchRun}</button>}
           </div>
         </div>
       </div>

@@ -41,29 +41,29 @@ export const CharWaveformPanel = memo(function CharWaveformPanel({ laneRef, onPo
   const pct = (time: number) => Math.max(0, Math.min(100, (time - start) / Math.max(.001, end - start) * 100));
   const timed = syllables.map((s, index) => ({ s, index }))
     .filter(({ s }) => s.time !== null && Number.isFinite(s.time) && isStampable(s) && s.time >= start && s.time <= end);
-  return <div className="shrink-0 min-w-0 overflow-hidden rounded-lg border border-zinc-700/70 bg-zinc-950">
-    <div aria-label={t.charSync.timeRuler} className="relative h-8 border-b border-zinc-800 text-[11px] text-zinc-400 font-mono tabular-nums">
+  return <div className="shrink-0 min-w-0 overflow-hidden rounded-lg border border-[var(--ls-border-subtle)]/70 bg-[var(--ls-canvas)]">
+    <div aria-label={t.charSync.timeRuler} className="relative h-8 border-b border-[var(--ls-border-subtle)] text-[11px] text-[var(--ls-text-secondary)] font-mono tabular-nums">
       {ticks.map(tick => <span key={tick.time} style={{ left: `${tick.percent}%`, transform: "translateX(-50%)" }}
         className="absolute top-1.5 whitespace-nowrap">{formatTimestamp(tick.time)}</span>)}
     </div>
     <div ref={laneRef} onPointerDown={onPointerDown} data-testid="glyph-seek-lane" data-start={start} data-end={end}
       style={{ height, touchAction: "none" }} className="relative overflow-hidden cursor-pointer">
-      <div data-testid="glyph-line-region" data-repeating={repeating} className={`absolute inset-y-0 pointer-events-none ${repeating ? "bg-indigo-400/10" : "bg-indigo-400/5"}`}
+      <div data-testid="glyph-line-region" data-repeating={repeating} className={`absolute inset-y-0 pointer-events-none ${repeating ? "bg-[var(--ls-selection)]/10" : "bg-[var(--ls-selection)]/5"}`}
         style={{ left: `${pct(lineStart)}%`, width: `${Math.max(0, pct(lineEnd) - pct(lineStart))}%` }} />
-      {ticks.map(tick => <div key={tick.time} style={{ left: `${tick.percent}%` }} className="absolute inset-y-0 w-px bg-zinc-800/70 pointer-events-none" />)}
+      {ticks.map(tick => <div key={tick.time} style={{ left: `${tick.percent}%` }} className="absolute inset-y-0 w-px bg-[var(--ls-control)]/70 pointer-events-none" />)}
       {tiles.map(tile => <WaveformTile key={tile.start} envelope={tile} style={style}
         left={(tile.start - start) / (end - start) * 100} width={(tile.end - tile.start) / (end - start) * 100} />)}
-      {!tiles.length && <div className="absolute inset-0 flex items-center justify-center px-4 text-center text-xs text-zinc-400 pointer-events-none">
+      {!tiles.length && <div className="absolute inset-0 flex items-center justify-center px-4 text-center text-xs text-[var(--ls-text-secondary)] pointer-events-none">
         {preparing && path === audioPath ? t.charSync.waveformPreparing : t.charSync.waveformNoAudio}
       </div>}
       {showMarkers && timed.map(({ s, index }) => <div key={index} data-testid={index === activeIndex ? "glyph-selected-marker" : undefined}
-        style={{ left: `${pct(s.time!)}%` }} className={`absolute inset-y-0 w-px pointer-events-none ${index === activeIndex ? "bg-indigo-300 z-10" : "bg-indigo-500/30"}`} />)}
+        style={{ left: `${pct(s.time!)}%` }} className={`absolute inset-y-0 w-px pointer-events-none ${index === activeIndex ? "bg-[var(--ls-accent)] z-10" : "bg-[var(--ls-border-control)]/30"}`} />)}
       {playhead >= start && playhead <= end && <div data-testid="glyph-playhead"
         style={{ left: `${pct(playhead)}%`, transform: `translateX(-${pct(playhead)}%)` }}
-        className="absolute inset-y-0 w-0.5 bg-amber-400 pointer-events-none z-10" />}
+        className="absolute inset-y-0 w-0.5 bg-[var(--ls-playhead)] pointer-events-none z-10" />}
     </div>
     <div data-testid="glyph-marker-lane" aria-label={t.charSync.glyphMarkerLane} style={{ height: cell * 2 }}
-      className="relative border-t border-zinc-800 bg-zinc-900/70">
+      className="relative border-t border-[var(--ls-border-subtle)] bg-[var(--ls-surface)]/70">
       {showMarkers && groups.map(group => {
         const selected = group.indices.indexOf(activeIndex);
         const current = group.indices[selected >= 0 ? selected : 0];
@@ -71,9 +71,9 @@ export const CharWaveformPanel = memo(function CharWaveformPanel({ laneRef, onPo
         return <button key={group.indices[0]} type="button" aria-label={label} aria-pressed={selected >= 0} title={group.indices.length > 1 ? `${label} · ${t.charSync.markerGroupHint}` : label}
           onPointerDown={e => e.stopPropagation()} onClick={e => { onSelect(group.indices[(selected + 1) % group.indices.length]); e.currentTarget.blur(); }}
           style={{ left: `${group.x / width * 100}%`, top: group.row * cell, width: cell, height: cell, transform: "translateX(-50%)" }}
-          className={`absolute flex items-center justify-center rounded text-xs focus-visible:outline focus-visible:outline-indigo-300 ${selected >= 0 ? "bg-indigo-400/15 text-indigo-200" : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"}`}>
+          className={`absolute flex items-center justify-center rounded text-xs focus-visible:outline focus-visible:outline-[var(--ls-accent)] ${selected >= 0 ? "bg-[var(--ls-selection)]/15 text-[var(--ls-accent)]" : "text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-[var(--ls-text)]"}`}>
           <span className="max-w-full truncate px-1">{syllables[current].text.trim()}</span>
-          {group.indices.length > 1 && <span className="absolute top-0 right-0 rounded bg-zinc-800 px-0.5 text-[10px] text-indigo-200">{group.indices.length}</span>}
+          {group.indices.length > 1 && <span className="absolute top-0 right-0 rounded bg-[var(--ls-control)] px-0.5 text-[10px] text-[var(--ls-accent)]">{group.indices.length}</span>}
         </button>;
       })}
     </div>
