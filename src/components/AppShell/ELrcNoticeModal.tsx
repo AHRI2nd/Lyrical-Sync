@@ -25,28 +25,28 @@ export function ELrcNoticeModal({
       onClick={onCancel}
     >
       <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-4 border-b border-zinc-800">
-          <span className="font-semibold text-zinc-100">{t.elrcNotice.title}</span>
+        <div className="px-5 py-4 border-b border-[var(--ls-border-subtle)]">
+          <span className="font-semibold text-[var(--ls-text)]">{t.elrcNotice.title}</span>
         </div>
         <div className="px-5 py-4">
-          <p className="text-sm text-zinc-300 leading-relaxed">{t.elrcNotice.message}</p>
+          <p className="text-sm text-[var(--ls-text-secondary)] leading-relaxed">{t.elrcNotice.message}</p>
         </div>
         <div className="flex items-center justify-between gap-3 px-5 pb-4">
-          <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer select-none">
+          <label className="flex items-center gap-2 text-xs text-[var(--ls-text-secondary)] cursor-pointer select-none">
             <input
               type="checkbox"
               checked={dontShowAgain}
               onChange={(e) => setDontShowAgain(e.target.checked)}
-              className="accent-indigo-600 w-3.5 h-3.5"
+              className="accent-[var(--ls-accent)] w-3.5 h-3.5"
             />
             {t.elrcNotice.dontShowAgain}
           </label>
           <button
             onClick={() => onConfirm(dontShowAgain)}
-            className="px-4 py-1.5 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium transition-colors"
+            className="ls-button text-sm bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] text-white font-medium transition-colors ls-button--primary"
           >
             {t.elrcNotice.confirm}
           </button>

@@ -34,13 +34,13 @@ export function GeneralSettingsTab({
       {/* Auto update */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-zinc-200">{t.settingsAutoUpdate}</span>
+          <span className="text-sm font-medium text-[var(--ls-text)]">{t.settingsAutoUpdate}</span>
           <button
             onClick={() => setAutoCheckUpdate(!autoCheckUpdate)}
-            className={[
+            className={`ls-button ${[
               "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
-              autoCheckUpdate ? "bg-indigo-600" : "bg-zinc-600",
-            ].join(" ")}
+              autoCheckUpdate ? "bg-[var(--ls-primary)]" : "bg-[var(--ls-control)]",
+            ].join(" ")}`}
             role="switch"
             aria-checked={autoCheckUpdate}
           >
@@ -52,13 +52,13 @@ export function GeneralSettingsTab({
             />
           </button>
         </div>
-        <p className="text-xs text-zinc-500">{t.settingsAutoUpdateDesc}</p>
+        <p className="text-xs text-[var(--ls-text-secondary)]">{t.settingsAutoUpdateDesc}</p>
 
         <div className="flex items-center gap-2 mt-1">
           <button
             onClick={onCheckNow}
             disabled={checkState === "checking"}
-            className="px-3 py-1.5 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800 hover:border-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed text-zinc-200 transition-colors"
+            className="ls-button text-xs disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {checkState === "checking" ? t.settingsChecking : t.settingsCheckNow}
           </button>
@@ -68,18 +68,18 @@ export function GeneralSettingsTab({
         </div>
       </div>
 
-      <div className="border-t border-zinc-800" />
+      <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* Auto save */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-zinc-200">{t.settingsAutoSave}</span>
+          <span className="text-sm font-medium text-[var(--ls-text)]">{t.settingsAutoSave}</span>
           <button
             onClick={() => setAutoSave(!autoSave)}
-            className={[
+            className={`ls-button ${[
               "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
-              autoSave ? "bg-indigo-600" : "bg-zinc-600",
-            ].join(" ")}
+              autoSave ? "bg-[var(--ls-primary)]" : "bg-[var(--ls-control)]",
+            ].join(" ")}`}
             role="switch"
             aria-checked={autoSave}
           >
@@ -91,21 +91,21 @@ export function GeneralSettingsTab({
             />
           </button>
         </div>
-        <p className="text-xs text-zinc-500">{t.settingsAutoSaveDesc}</p>
+        <p className="text-xs text-[var(--ls-text-secondary)]">{t.settingsAutoSaveDesc}</p>
       </div>
 
-      <div className="border-t border-zinc-800" />
+      <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* Enhanced LRC 저장 알림 */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-zinc-200">{t.settingsElrcNotice}</span>
+          <span className="text-sm font-medium text-[var(--ls-text)]">{t.settingsElrcNotice}</span>
           <button
             onClick={() => setShowElrcSaveNotice(!showElrcSaveNotice)}
-            className={[
+            className={`ls-button ${[
               "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
-              showElrcSaveNotice ? "bg-indigo-600" : "bg-zinc-600",
-            ].join(" ")}
+              showElrcSaveNotice ? "bg-[var(--ls-primary)]" : "bg-[var(--ls-control)]",
+            ].join(" ")}`}
             role="switch"
             aria-checked={showElrcSaveNotice}
           >
@@ -117,16 +117,16 @@ export function GeneralSettingsTab({
             />
           </button>
         </div>
-        <p className="text-xs text-zinc-500">{t.settingsElrcNoticeDesc}</p>
+        <p className="text-xs text-[var(--ls-text-secondary)]">{t.settingsElrcNoticeDesc}</p>
       </div>
 
-      <div className="border-t border-zinc-800" />
+      <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* Blank line offset */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-zinc-200">{t.aiSyncBlankOffset}</span>
-          <span className="text-sm tabular-nums text-zinc-300 w-12 text-right">
+          <span className="text-sm font-medium text-[var(--ls-text)]">{t.aiSyncBlankOffset}</span>
+          <span className="text-sm tabular-nums text-[var(--ls-text-secondary)] w-12 text-right">
             {blankLineOffset.toFixed(1)}s
           </span>
         </div>
@@ -137,26 +137,26 @@ export function GeneralSettingsTab({
           step={0.1}
           value={blankLineOffset}
           onChange={(e) => setBlankLineOffset(Number(e.target.value))}
-          className="range-slim w-full"
+          className="ls-range range-slim w-full"
           style={{ background: `linear-gradient(to right, #6366f1 ${Math.round((blankLineOffset / 5) * 100)}%, #3f3f46 ${Math.round((blankLineOffset / 5) * 100)}%)` }}
         />
-        <p className="text-xs text-zinc-500">{t.aiSyncBlankOffsetDesc}</p>
+        <p className="text-xs text-[var(--ls-text-secondary)]">{t.aiSyncBlankOffsetDesc}</p>
       </div>
 
-      <div className="border-t border-zinc-800" />
+      <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* UI Scale */}
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-zinc-200">{t.settingsUiScale}</span>
+          <span className="text-sm font-medium text-[var(--ls-text)]">{t.settingsUiScale}</span>
           <div className="flex items-center gap-2">
-            <span className="text-sm tabular-nums text-zinc-300 w-10 text-right">
+            <span className="text-sm tabular-nums text-[var(--ls-text-secondary)] w-10 text-right">
               {scalePercent}%
             </span>
             <button
               onClick={() => setUiScale(1.0)}
               disabled={uiScale === 1.0}
-              className="px-2 py-0.5 text-xs rounded text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="ls-button text-xs hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               {t.settingsUiScaleReset}
             </button>
@@ -169,30 +169,30 @@ export function GeneralSettingsTab({
           step={0.05}
           value={uiScale}
           onChange={(e) => setUiScale(Number(e.target.value))}
-          className="range-slim w-full"
+          className="ls-range range-slim w-full"
           style={{ background: `linear-gradient(to right, #6366f1 ${Math.round(((uiScale - 0.7) / 0.6) * 100)}%, #3f3f46 ${Math.round(((uiScale - 0.7) / 0.6) * 100)}%)` }}
         />
-        <div className="flex justify-between text-xs text-zinc-500 select-none">
+        <div className="flex justify-between text-xs text-[var(--ls-text-secondary)] select-none">
           <span>70%</span>
           <span>100%</span>
           <span>130%</span>
         </div>
       </div>
 
-      <div className="border-t border-zinc-800" />
+      <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* Lyrics font size */}
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-zinc-200">{t.settingsLyricsFontSize}</span>
+          <span className="text-sm font-medium text-[var(--ls-text)]">{t.settingsLyricsFontSize}</span>
           <div className="flex items-center gap-2">
-            <span className="text-sm tabular-nums text-zinc-300 w-10 text-right">
+            <span className="text-sm tabular-nums text-[var(--ls-text-secondary)] w-10 text-right">
               {Math.round(lyricsFontScale * 100)}%
             </span>
             <button
               onClick={() => setLyricsFontScale(1.0)}
               disabled={lyricsFontScale === 1.0}
-              className="px-2 py-0.5 text-xs rounded text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="ls-button text-xs hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               {t.settingsUiScaleReset}
             </button>
@@ -205,23 +205,23 @@ export function GeneralSettingsTab({
           step={0.05}
           value={lyricsFontScale}
           onChange={(e) => setLyricsFontScale(Number(e.target.value))}
-          className="range-slim w-full"
+          className="ls-range range-slim w-full"
           style={{ background: `linear-gradient(to right, #6366f1 ${Math.round(((lyricsFontScale - 0.8) / 0.7) * 100)}%, #3f3f46 ${Math.round(((lyricsFontScale - 0.8) / 0.7) * 100)}%)` }}
         />
       </div>
 
-      <div className="border-t border-zinc-800" />
+      <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* Glyph time markers */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-zinc-200">{t.settingsGlyphMarkers}</span>
+          <span className="text-sm font-medium text-[var(--ls-text)]">{t.settingsGlyphMarkers}</span>
           <button
             onClick={() => setShowGlyphTimeMarkers(!showGlyphTimeMarkers)}
-            className={[
+            className={`ls-button ${[
               "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
-              showGlyphTimeMarkers ? "bg-indigo-600" : "bg-zinc-600",
-            ].join(" ")}
+              showGlyphTimeMarkers ? "bg-[var(--ls-primary)]" : "bg-[var(--ls-control)]",
+            ].join(" ")}`}
             role="switch"
             aria-checked={showGlyphTimeMarkers}
           >
@@ -233,21 +233,21 @@ export function GeneralSettingsTab({
             />
           </button>
         </div>
-        <p className="text-xs text-zinc-500">{t.settingsGlyphMarkersDesc}</p>
+        <p className="text-xs text-[var(--ls-text-secondary)]">{t.settingsGlyphMarkersDesc}</p>
       </div>
 
-      <div className="border-t border-zinc-800" />
+      <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* Spell check */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-zinc-200">{t.settingsSpellCheck}</span>
+          <span className="text-sm font-medium text-[var(--ls-text)]">{t.settingsSpellCheck}</span>
           <button
             onClick={() => setShowSpellCheck(!showSpellCheck)}
-            className={[
+            className={`ls-button ${[
               "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
-              showSpellCheck ? "bg-indigo-600" : "bg-zinc-600",
-            ].join(" ")}
+              showSpellCheck ? "bg-[var(--ls-primary)]" : "bg-[var(--ls-control)]",
+            ].join(" ")}`}
             role="switch"
             aria-checked={showSpellCheck}
           >
@@ -259,21 +259,21 @@ export function GeneralSettingsTab({
             />
           </button>
         </div>
-        <p className="text-xs text-zinc-500">{t.settingsSpellCheckDesc}</p>
+        <p className="text-xs text-[var(--ls-text-secondary)]">{t.settingsSpellCheckDesc}</p>
       </div>
 
-      <div className="border-t border-zinc-800" />
+      <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* Translation lines */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-zinc-200">{t.translationToggle}</span>
+          <span className="text-sm font-medium text-[var(--ls-text)]">{t.translationToggle}</span>
           <button
             onClick={handleToggleTranslation}
-            className={[
+            className={`ls-button ${[
               "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
-              showTranslationLines ? "bg-indigo-600" : "bg-zinc-600",
-            ].join(" ")}
+              showTranslationLines ? "bg-[var(--ls-primary)]" : "bg-[var(--ls-control)]",
+            ].join(" ")}`}
             role="switch"
             aria-checked={showTranslationLines}
           >
@@ -285,7 +285,7 @@ export function GeneralSettingsTab({
             />
           </button>
         </div>
-        <p className="text-xs text-zinc-500">{t.settingsTranslationDesc}</p>
+        <p className="text-xs text-[var(--ls-text-secondary)]">{t.settingsTranslationDesc}</p>
       </div>
 
       {showTranslationWarning && (
