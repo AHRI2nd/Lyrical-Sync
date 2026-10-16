@@ -33,7 +33,7 @@ export function SeekBar({ position, duration, seekContextKey = "", onSeek, accen
           if (target === null || duration <= 0) return;
           e.preventDefault(); scrub.cancel(); onSeek(Math.max(0, Math.min(duration, target)));
         }}
-        className="relative h-1.5 bg-zinc-800 rounded-full cursor-pointer group"
+        className="ls-range relative h-1.5 bg-[var(--ls-control)] rounded-full cursor-pointer group"
         onMouseMove={(e) => {
           const rect = e.currentTarget.getBoundingClientRect();
           if (rect.width <= 0) return;
@@ -44,18 +44,18 @@ export function SeekBar({ position, duration, seekContextKey = "", onSeek, accen
         <div className={`absolute inset-y-0 left-0 rounded-full ${accentClass}`} style={{ width: `${progress * 100}%` }} />
         {hoverRatio !== null && duration > 0 && (
           <div
-            className="absolute -top-6 -translate-x-1/2 text-[10px] text-zinc-300 bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 pointer-events-none whitespace-nowrap"
+            className="absolute -top-6 -translate-x-1/2 text-[10px] text-[var(--ls-text-secondary)] bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] rounded px-1.5 py-0.5 pointer-events-none whitespace-nowrap"
             style={{ left: `${hoverRatio * 100}%` }}
           >
             {formatDisplayTime(hoverRatio * duration)}
           </div>
         )}
       </div>
-      <div className="flex justify-between text-[10px] text-zinc-500 tabular-nums px-0.5">
+      <div className="flex justify-between text-[10px] text-[var(--ls-text-secondary)] tabular-nums px-0.5">
         <span>{formatDisplayTime(displayPosition)}</span>
         <button
           onClick={() => setShowRemaining((p) => !p)}
-          className="hover:text-zinc-300 transition-colors"
+          className="ls-button transition-colors"
         >
           {duration > 0
             ? showRemaining

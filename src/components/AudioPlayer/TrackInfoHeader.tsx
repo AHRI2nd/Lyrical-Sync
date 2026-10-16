@@ -19,7 +19,7 @@ export function TrackInfoHeader({
   if (!title) {
     return (
       <div className="h-10 flex items-center px-1">
-        <span className="text-xs text-zinc-500">{emptyMessage}</span>
+        <span className="text-xs text-[var(--ls-text-secondary)]">{emptyMessage}</span>
       </div>
     );
   }
@@ -34,7 +34,7 @@ export function TrackInfoHeader({
         </div>
       )}
       <div className="flex flex-col min-w-0">
-        <span className="text-sm font-medium text-zinc-100 truncate">
+        <span className="text-sm font-medium text-[var(--ls-text)] truncate">
           {title}
           {linkHint && (
             <svg
@@ -46,8 +46,8 @@ export function TrackInfoHeader({
             </svg>
           )}
         </span>
-        {subtitle && <span className="text-xs text-zinc-400 truncate">{subtitle}</span>}
-        {extraLine && <span className="text-[10px] text-zinc-600 truncate">{extraLine}</span>}
+        {subtitle && <span className="text-xs text-[var(--ls-text-secondary)] truncate">{subtitle}</span>}
+        {extraLine && <span className="text-[10px] text-[var(--ls-text-secondary)] truncate">{extraLine}</span>}
       </div>
     </>
   );
@@ -57,7 +57,7 @@ export function TrackInfoHeader({
       <button
         type="button"
         onClick={onClick}
-        className="group/track flex items-center gap-3 min-w-0 px-1 text-left w-full hover:bg-zinc-800/40 rounded-lg py-1 -my-1 transition-colors"
+        className="ls-button group/track flex items-center gap-3 min-w-0 text-left w-full -my-1 transition-colors"
       >
         {content}
       </button>
