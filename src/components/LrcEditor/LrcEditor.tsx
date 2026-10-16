@@ -661,7 +661,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
               key={line.id}
               ref={setRowRef(line.id)}
               onClick={(e) => handleRowClick(e, line.id, idx)}
-              className={`group/row relative flex items-center gap-2 rounded-lg px-2 py-1 transition-colors cursor-pointer ${
+              className={`group/row relative flex flex-wrap items-center gap-2 rounded-lg px-2 py-1 transition-colors cursor-pointer ${
                 selectedIds.has(line.id)
                   ? "bg-sky-900/30 ring-1 ring-sky-600/60"
                   : isCurrentMatch
@@ -768,7 +768,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
                 </div>
               )}
 
-              <div className="flex-1 min-w-0 flex flex-col gap-1">
+              <div className="flex-1 min-w-32 flex flex-col gap-1">
                 {line.text.includes("\n") ? (
                   <textarea
                     ref={setInputRef(line.id)} value={line.text} rows={Math.max(2, line.text.split("\n").length)}
