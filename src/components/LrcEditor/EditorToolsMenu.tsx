@@ -32,33 +32,33 @@ export function EditorToolsMenu({
     <div className="relative" ref={toolsRef}>
       <button
         onClick={() => setShowTools((v) => !v)}
-        className={`px-3 py-1 text-xs rounded-lg transition-colors ${showTools || showFR || showTS || showScale ? "bg-zinc-700 text-white" : "text-zinc-400 hover:bg-zinc-800 hover:text-white"}`}
+        className={`ls-button ${`px-3 py-1 text-xs rounded-lg transition-colors ${showTools || showFR || showTS || showScale ? "bg-[var(--ls-control)] text-white" : "text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-white"}`}`}
       >
         {t.editorTools}
       </button>
       {showTools && (
-        <div className="absolute right-0 top-full mt-1.5 z-40 w-44 bg-zinc-800 border border-zinc-700 rounded-xl shadow-2xl p-1.5 flex flex-col gap-0.5">
+        <div className="absolute right-0 top-full mt-1.5 z-40 w-44 bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl p-1.5 flex flex-col gap-0.5">
           <button
             onClick={() => { onToggleFR(); setShowTools(false); }}
-            className={`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showFR ? "bg-amber-600 text-white" : "hover:bg-zinc-700 text-zinc-200"}`}
+            className={`ls-button ${`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showFR ? "bg-[var(--ls-playhead)] text-white" : "hover:bg-[var(--ls-control)] text-[var(--ls-text)]"}`}`}
           >
             {t.findReplace}
           </button>
           <button
             onClick={() => { onToggleTS(); setShowTools(false); }}
-            className={`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showTS ? "bg-sky-600 text-white" : "hover:bg-zinc-700 text-zinc-200"}`}
+            className={`ls-button ${`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showTS ? "bg-sky-600 text-white" : "hover:bg-[var(--ls-control)] text-[var(--ls-text)]"}`}`}
           >
             {t.timeShift}
           </button>
           <button
             onClick={() => { onToggleScale(); setShowTools(false); }}
-            className={`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showScale ? "bg-sky-600 text-white" : "hover:bg-zinc-700 text-zinc-200"}`}
+            className={`ls-button ${`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showScale ? "bg-sky-600 text-white" : "hover:bg-[var(--ls-control)] text-[var(--ls-text)]"}`}`}
           >
             {t.tsScale}
           </button>
           <button
             onClick={() => { onOpenBpmSnap(); setShowTools(false); }}
-            className="text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors hover:bg-zinc-700 text-zinc-200"
+            className="ls-button text-left text-xs transition-colors"
           >
             {t.bpmLabel}
           </button>
