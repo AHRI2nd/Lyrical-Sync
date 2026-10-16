@@ -58,14 +58,14 @@ export function KeybindingsSection({ focusCharacterSync = false }: { focusCharac
     ? t.charSync.stampHint
     : action === "prevLine" ? t.charSync.previousSelection : t.keys[action];
   const editableRow = (action: KeyAction) => (
-    <div key={action} className="flex items-center justify-between gap-3 px-2 py-1 rounded-lg hover:bg-zinc-800/40">
-      <span className="text-sm text-zinc-300">{actionLabel(action)}</span>
+    <div key={action} className="flex items-center justify-between gap-3 px-2 py-1 rounded-lg hover:bg-[var(--ls-control)]/40">
+      <span className="text-sm text-[var(--ls-text-secondary)]">{actionLabel(action)}</span>
       <button
         aria-label={`${actionLabel(action)} ${capturing === action ? "…" : keyLabel(kb[action])}`}
         onClick={() => { setCapturing(action); setError(""); }}
-        className={`min-w-[64px] px-2.5 py-1 text-xs rounded-md font-mono transition-colors ${
-          capturing === action ? "bg-indigo-600 text-white" : "bg-zinc-800 text-zinc-200 hover:bg-zinc-700"
-        }`}
+        className={`ls-button ${`min-w-[64px] px-2.5 py-1 text-xs rounded-md font-mono transition-colors ${
+          capturing === action ? "bg-[var(--ls-primary)] text-white" : "bg-[var(--ls-control)] text-[var(--ls-text)] hover:bg-[var(--ls-control)]"
+        }`}`}
       >
         {capturing === action ? "…" : keyLabel(kb[action])}
       </button>
@@ -73,47 +73,47 @@ export function KeybindingsSection({ focusCharacterSync = false }: { focusCharac
   );
   const guideRow = (gesture: string, action: string) => (
     <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-2 py-1">
-      <span className="text-xs text-zinc-400">{action}</span>
-      <span className="text-xs text-zinc-300">{gesture}</span>
+      <span className="text-xs text-[var(--ls-text-secondary)]">{action}</span>
+      <span className="text-xs text-[var(--ls-text-secondary)]">{gesture}</span>
     </div>
   );
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-medium text-zinc-200">{t.keys.title}</span>
+        <span className="text-sm font-medium text-[var(--ls-text)]">{t.keys.title}</span>
         <button
           onClick={resetKeybindings}
-          className="text-xs text-zinc-400 hover:text-white px-2 py-0.5 rounded hover:bg-zinc-800 transition-colors"
+          className="ls-button text-xs hover:text-white transition-colors"
         >
           {t.keys.reset}
         </button>
       </div>
-      <p className="text-xs text-zinc-500">{t.keys.hint}</p>
+      <p className="text-xs text-[var(--ls-text-secondary)]">{t.keys.hint}</p>
       <section className="flex flex-col gap-0.5">
-        <h3 className="text-xs font-medium text-zinc-400 px-2">{t.menu.playback}</h3>
+        <h3 className="text-xs font-medium text-[var(--ls-text-secondary)] px-2">{t.menu.playback}</h3>
         {PLAYBACK_ACTIONS.map(editableRow)}
       </section>
-      <section aria-labelledby={characterHeadingId} className="flex flex-col gap-2 border-t border-zinc-700/60 pt-3">
+      <section aria-labelledby={characterHeadingId} className="flex flex-col gap-2 border-t border-[var(--ls-border-subtle)]/60 pt-3">
         <h3 ref={characterHeading} id={characterHeadingId} tabIndex={-1}
-          className="text-sm font-medium text-zinc-200 rounded focus-visible:outline-2 focus-visible:outline-indigo-400">
+          className="text-sm font-medium text-[var(--ls-text)] rounded focus-visible:outline-2 focus-visible:outline-[var(--ls-accent)]">
           {t.charSync.modeChar}
         </h3>
-        <p className="text-xs text-zinc-500">{t.charSync.shortcutSyncHint}</p>
+        <p className="text-xs text-[var(--ls-text-secondary)]">{t.charSync.shortcutSyncHint}</p>
         <div className="flex flex-col gap-0.5">{editableRow("stamp")}{editableRow("prevLine")}</div>
-        <h4 className="text-xs font-medium text-zinc-400 mt-1">{t.charSync.fixedShortcuts}</h4>
-        <div className="rounded-lg bg-zinc-800/30 py-1">
+        <h4 className="text-xs font-medium text-[var(--ls-text-secondary)] mt-1">{t.charSync.fixedShortcuts}</h4>
+        <div className="rounded-lg bg-[var(--ls-control)]/30 py-1">
           {guideRow("← / →", t.charSync.glyphSelection)}
           {guideRow("Shift + ← / →", t.charSync.nudgeShortcut)}
         </div>
-        <h4 className="text-xs font-medium text-zinc-400 mt-1">{t.charSync.mouseControls}</h4>
-        <div className="rounded-lg bg-zinc-800/30 py-1">
+        <h4 className="text-xs font-medium text-[var(--ls-text-secondary)] mt-1">{t.charSync.mouseControls}</h4>
+        <div className="rounded-lg bg-[var(--ls-control)]/30 py-1">
           {guideRow(t.charSync.paintGesture, t.charSync.paintAction)}
           {guideRow(t.charSync.clearGesture, t.charSync.clearAction)}
           {guideRow(t.charSync.seekGesture, t.charSync.seekAction)}
         </div>
       </section>
-      {capturing && <p role="status" className="text-xs text-indigo-300">{t.keys.capturing}</p>}
+      {capturing && <p role="status" className="text-xs text-[var(--ls-accent)]">{t.keys.capturing}</p>}
       {error && <p role="alert" className="text-xs text-rose-400">{error}</p>}
     </div>
   );

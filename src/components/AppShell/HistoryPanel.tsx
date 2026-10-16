@@ -52,29 +52,29 @@ export function HistoryPanel() {
         aria-expanded={open}
         title={t.historyPanelTitle}
         aria-label={t.historyPanelTitle}
-        className="w-6 h-8 flex items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-800 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        className="ls-button w-6 h-8 flex items-center justify-center hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
       >
         <span aria-hidden="true">▾</span>
       </button>
       {open && (
-        <div className="absolute left-0 top-full mt-1 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-50 overflow-hidden py-1 min-w-[220px] max-h-80 overflow-y-auto">
-          <div className="px-3 py-1.5 text-[11px] font-semibold text-zinc-500 border-b border-zinc-700">
+        <div className="absolute left-0 top-full mt-1 bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] rounded-lg shadow-xl z-50 overflow-hidden py-1 min-w-[220px] max-h-80 overflow-y-auto">
+          <div className="px-3 py-1.5 text-[11px] font-semibold text-[var(--ls-text-secondary)] border-b border-[var(--ls-border-subtle)]">
             {t.historyPanelTitle}
           </div>
           {rows.map((row) => (
             <button
               key={row.index}
               onClick={() => { jumpToHistory(row.index); setOpen(false); }}
-              className={[
+              className={`ls-button ${[
                 "w-full flex items-center justify-between gap-2 px-3 py-1.5 text-left text-xs transition-colors",
                 row.index === currentIndex
-                  ? "bg-indigo-600/25 text-indigo-200"
-                  : "text-zinc-300 hover:bg-zinc-700 hover:text-white",
-              ].join(" ")}
+                  ? "bg-[var(--ls-primary)]/25 text-[var(--ls-accent)]"
+                  : "text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-white",
+              ].join(" ")}`}
             >
               <span className="truncate">{row.label}</span>
               {!row.isCurrent && (
-                <span className="text-[10px] text-zinc-500 shrink-0 tabular-nums">
+                <span className="text-[10px] text-[var(--ls-text-secondary)] shrink-0 tabular-nums">
                   {new Date(row.timestamp).toLocaleTimeString()}
                 </span>
               )}
