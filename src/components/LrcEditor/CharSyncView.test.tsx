@@ -40,7 +40,7 @@ function setup() {
     x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 40, width: 100, height: 40,
     toJSON: () => ({}),
   });
-  return { ...view, lane, playhead: lane.querySelector(".bg-amber-400") as HTMLDivElement };
+  return { ...view, lane, playhead: lane.querySelector('[data-testid="glyph-playhead"]') as HTMLDivElement };
 }
 
 beforeEach(() => {
@@ -475,4 +475,17 @@ it("opens shortcut settings from the header without a bottom help or overflow me
   expect(onOpenShortcuts).toHaveBeenCalledOnce();
   expect(view.container.querySelector("details")).toBeNull();
   expect(view.getByRole("button",{name:useI18nStore.getState().t.charSync.clearTimingButton})).toBeTruthy();
+});
+
+
+it("blocks glyph shortcuts behind the actual clear confirmation dialog", () => {
+  useLrcStore.setState({doc:{...defaultDocument(),lines:[{id:"line-1",timestamp:10,text:"ab",syllables:[{text:"a",time:10},{text:"b",time:11}]}]}});
+  const {getByRole} = setup();
+  const before = useLrcStore.getState();
+  fireEvent.click(getByRole("button",{name:useI18nStore.getState().t.charSync.clearTimingButton}));
+  expect(getByRole("dialog")).toBeTruthy();
+  for (const code of ["Space","Backspace","ArrowLeft","ArrowRight"]) fireEvent.keyDown(window,{code});
+  expect(useLrcStore.getState().doc).toBe(before.doc);
+  expect(useLrcStore.getState().activeSyllableIndex).toBe(before.activeSyllableIndex);
+  expect(useLrcStore.getState()._history).toEqual(before._history);
 });

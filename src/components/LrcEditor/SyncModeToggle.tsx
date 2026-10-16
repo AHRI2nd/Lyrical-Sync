@@ -14,10 +14,10 @@ export function SyncModeToggle({
 }) {
   return (
     <>
-      <div className="inline-flex bg-zinc-800 rounded-lg p-0.5">
+      <div className="inline-flex bg-[var(--ls-control)] rounded-lg p-0.5">
         <button
           onClick={(e) => { onSetSyncMode("line"); e.currentTarget.blur(); }}
-          className={`px-2.5 py-1 text-xs rounded-md transition-colors ${!charMode ? "bg-indigo-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
+          className={`ls-button ${`px-2.5 py-1 text-xs rounded-md transition-colors ${!charMode ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
         >
           {t.charSync.modeLine}
         </button>
@@ -25,7 +25,7 @@ export function SyncModeToggle({
           onClick={(e) => { onSetSyncMode("char"); e.currentTarget.blur(); }}
           disabled={isRunning}
           title={isRunning ? t.aiSyncRunning : undefined}
-          className={`px-2.5 py-1 text-xs rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${charMode ? "bg-indigo-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
+          className={`ls-button ${`px-2.5 py-1 text-xs rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${charMode ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
         >
           {t.charSync.modeChar}
         </button>
@@ -33,17 +33,17 @@ export function SyncModeToggle({
 
       {charMode && (
         <div className="flex items-center gap-1.5">
-          <span className="text-xs text-zinc-500">{t.charSync.unitLabel}</span>
-          <div className="inline-flex bg-zinc-800 rounded-lg p-0.5">
+          <span className="text-xs text-[var(--ls-text-secondary)]">{t.charSync.unitLabel}</span>
+          <div className="inline-flex bg-[var(--ls-control)] rounded-lg p-0.5">
             <button
               onClick={(e) => { onUnitChange("char"); e.currentTarget.blur(); }}
-              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${syncUnit === "char" ? "bg-zinc-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
+              className={`ls-button ${`px-2.5 py-1 text-xs rounded-md transition-colors ${syncUnit === "char" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
             >
               {t.charSync.unitChar}
             </button>
             <button
               onClick={(e) => { onUnitChange("word"); e.currentTarget.blur(); }}
-              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${syncUnit === "word" ? "bg-zinc-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
+              className={`ls-button ${`px-2.5 py-1 text-xs rounded-md transition-colors ${syncUnit === "word" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
             >
               {t.charSync.unitWord}
             </button>

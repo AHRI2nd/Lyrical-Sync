@@ -61,12 +61,12 @@ export function ClearGlyphTimings({ lineId }: { lineId: string }) {
   };
   return <div className="flex flex-wrap items-center gap-2 min-w-0">
     <button ref={trigger} type="button" disabled={!count} onClick={() => setPending({ doc: context.doc, session: context.session, audio: context.audio, lineId })}
-      className="rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-default">
+      className="ls-button text-xs disabled:opacity-40 disabled:cursor-default">
       {t.charSync.clearTimingButton}
     </button>
-    {canUndo && <div role="status" className="flex flex-wrap items-center gap-2 text-xs text-zinc-400">
+    {canUndo && <div role="status" className="flex flex-wrap items-center gap-2 text-xs text-[var(--ls-text-secondary)]">
       <span>{t.charSync.clearTimingDone}</span>
-      <button ref={undoButton} type="button" className="text-indigo-300 underline underline-offset-2" onClick={() => {
+      <button ref={undoButton} type="button" className="ls-button text-[var(--ls-accent)] underline underline-offset-2" onClick={() => {
         if (cleared && isCurrent(cleared) && useLrcStore.getState()._history.length) {
           restoreAfterUndo.current = true;
           useLrcStore.getState().undo();
@@ -76,7 +76,7 @@ export function ClearGlyphTimings({ lineId }: { lineId: string }) {
     </div>}
     {confirming && createPortal(<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setPending(null)}>
       <div role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={messageId}
-        className="w-full max-w-md mx-4 rounded-xl border border-zinc-700 bg-zinc-900 p-5 shadow-2xl" onClick={e => e.stopPropagation()}
+        className="w-full max-w-md mx-4 rounded-xl border border-[var(--ls-border-subtle)] bg-[var(--ls-surface)] p-5 shadow-2xl" onClick={e => e.stopPropagation()}
         onKeyDown={e => {
           if (isComposingKeyEvent(e.nativeEvent)) return;
           if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setPending(null); }
@@ -87,11 +87,11 @@ export function ClearGlyphTimings({ lineId }: { lineId: string }) {
             else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
           }
         }}>
-        <h2 id={titleId} className="font-semibold text-zinc-100">{t.charSync.clearTimingTitle}</h2>
-        <p id={messageId} className="mt-3 text-sm text-zinc-300">{t.charSync.clearTimingMessage.replace("{count}", String(count))}</p>
+        <h2 id={titleId} className="font-semibold text-[var(--ls-text)]">{t.charSync.clearTimingTitle}</h2>
+        <p id={messageId} className="mt-3 text-sm text-[var(--ls-text-secondary)]">{t.charSync.clearTimingMessage.replace("{count}", String(count))}</p>
         <div className="mt-5 flex flex-wrap justify-end gap-2">
-          <button ref={cancel} type="button" onClick={() => setPending(null)} className="rounded-lg px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800">{t.cancelLabel}</button>
-          <button type="button" onClick={clear} className="rounded-lg bg-rose-600 px-3 py-2 text-sm text-white hover:bg-rose-500">{t.charSync.clearTimingConfirm}</button>
+          <button ref={cancel} type="button" onClick={() => setPending(null)} className="ls-button text-sm">{t.cancelLabel}</button>
+          <button type="button" onClick={clear} className="ls-button bg-rose-600 text-sm text-white hover:bg-rose-500">{t.charSync.clearTimingConfirm}</button>
         </div>
       </div>
     </div>, document.body)}

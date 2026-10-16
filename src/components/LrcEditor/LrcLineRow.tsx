@@ -74,8 +74,8 @@ function LrcLineRowImpl({
       ? "bg-yellow-900/50 text-yellow-300 hover:bg-yellow-800/60"
       : "bg-red-900/50 text-red-300 hover:bg-red-800/60"
     : line.timestamp !== null
-    ? "bg-zinc-700 text-indigo-300 hover:bg-zinc-600"
-    : "bg-zinc-800 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300";
+    ? "bg-[var(--ls-control)] text-[var(--ls-accent)] hover:bg-[var(--ls-control)]"
+    : "bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-[var(--ls-text-secondary)]";
 
   return (
     <>
@@ -87,19 +87,19 @@ function LrcLineRowImpl({
         isSelected
           ? "bg-sky-900/30 ring-1 ring-sky-600/60"
           : isCurrentMatch
-          ? "bg-amber-900/30 ring-1 ring-amber-500"
+          ? "bg-[var(--ls-selection)]/30 ring-1 ring-[var(--ls-playhead)]"
           : isActive
-          ? "bg-indigo-900/40 ring-1 ring-indigo-500"
+          ? "bg-[var(--ls-primary)]/40 ring-1 ring-[var(--ls-accent)]"
           : isMatch
-          ? "bg-amber-900/10 ring-1 ring-amber-800"
-          : dragIdx === null ? "hover:bg-zinc-800" : ""
+          ? "bg-[var(--ls-selection)]/10 ring-1 ring-[var(--ls-playhead)]"
+          : dragIdx === null ? "hover:bg-[var(--ls-control)]" : ""
       } ${dragIdx === idx ? "opacity-40" : ""}`}
     >
       {(showInsertionBefore || showInsertionAfter) && (
         <div
           data-testid="line-insertion-marker"
           data-placement={showInsertionBefore ? "before" : "after"}
-          className={`pointer-events-none absolute z-10 left-2 right-2 h-0.5 rounded-full bg-indigo-400 shadow-[0_0_6px_rgba(129,140,248,0.8)] ${showInsertionBefore ? "-top-1" : "-bottom-1"}`}
+          className={`pointer-events-none absolute z-10 left-2 right-2 h-0.5 rounded-full bg-[var(--ls-selection)] shadow-[0_0_6px_rgba(129,140,248,0.8)] ${showInsertionBefore ? "-top-1" : "-bottom-1"}`}
         />
       )}
       <span
@@ -107,7 +107,7 @@ function LrcLineRowImpl({
         onPointerDown={onReorderPointerDown}
         onClick={(e) => e.stopPropagation()}
         title={t.reorderLine}
-        className="w-6 h-7 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing select-none touch-none text-zinc-600 hover:text-zinc-300 opacity-0 group-hover/row:opacity-100 transition-opacity"
+        className="w-6 h-7 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing select-none touch-none text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)] opacity-0 group-hover/row:opacity-100 transition-opacity"
       >
         <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true">
           <circle cx="2.5" cy="2" r="1.2" /><circle cx="7.5" cy="2" r="1.2" />
@@ -115,7 +115,7 @@ function LrcLineRowImpl({
           <circle cx="2.5" cy="12" r="1.2" /><circle cx="7.5" cy="12" r="1.2" />
         </svg>
       </span>
-      <span className="text-zinc-600 text-xs w-5 shrink-0 text-right select-none">
+      <span className="text-[var(--ls-text-secondary)] text-xs w-5 shrink-0 text-right select-none">
         {idx + 1}
       </span>
 
@@ -136,14 +136,14 @@ function LrcLineRowImpl({
             }}
             onBlur={onCommitTsEdit}
             placeholder="MM:SS.xx"
-            className="font-mono text-xs px-2 py-0.5 rounded w-24 bg-zinc-700 text-indigo-200 border border-indigo-500 focus:outline-none placeholder-zinc-500"
+            className="ls-field font-mono text-xs w-24 placeholder-zinc-500"
           />
         ) : (
           // 좌클릭 → 시간 직접 편집 / 우클릭 → 현재 재생 시간으로 설정
           <button
             onClick={(e) => { e.stopPropagation(); onStartTsEdit(); }}
             onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onStampCurrentLine(); }}
-            className={`font-mono text-xs px-2 py-0.5 rounded transition-colors ${tsClass}`}
+            className={`ls-button ${`font-mono text-xs px-2 py-0.5 rounded transition-colors ${tsClass}`}`}
           >
             {line.timestamp !== null ? formatDisplayTime(line.timestamp) : "-:--:--.---"}
           </button>
@@ -156,11 +156,11 @@ function LrcLineRowImpl({
         title={t.loopLine}
         aria-label={t.loopLine}
         aria-pressed={loopLineId === line.id}
-        className={`shrink-0 px-1 transition-opacity disabled:opacity-0 ${
+        className={`ls-button ${`shrink-0 px-1 transition-opacity disabled:opacity-0 ${
           loopLineId === line.id
-            ? "text-indigo-400 opacity-100"
-            : "text-zinc-600 hover:text-indigo-300 opacity-0 group-hover/row:opacity-100 focus:opacity-100"
-        }`}
+            ? "text-[var(--ls-accent)] opacity-100"
+            : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-accent)] opacity-0 group-hover/row:opacity-100 focus:opacity-100"
+        }`}`}
       >
         <LoopIcon size={12} />
       </button>
@@ -168,7 +168,7 @@ function LrcLineRowImpl({
       {hasGlyphSync && (
         <span
           title={t.charSync.badge}
-          className="shrink-0 flex items-center justify-center w-5 h-5 rounded bg-indigo-500/15 text-indigo-300"
+          className="shrink-0 flex items-center justify-center w-5 h-5 rounded bg-[var(--ls-selection)]/15 text-[var(--ls-accent)]"
         >
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
             <path d="M5 8v8M12 5v14M19 8v8" />
@@ -178,9 +178,9 @@ function LrcLineRowImpl({
 
       {warning && (
         <div className="relative group/warn shrink-0">
-          <span className="text-amber-400 text-sm leading-none cursor-help">⚠</span>
+          <span className="text-[var(--ls-playhead)] text-sm leading-none cursor-help">⚠</span>
           <div className={`pointer-events-none absolute left-0 hidden group-hover/warn:block z-30 ${idx < 2 ? "top-full mt-1.5" : "bottom-full mb-1.5"}`}>
-            <div className="bg-zinc-800 border border-amber-700/60 text-amber-200 text-xs rounded-lg px-2.5 py-1.5 shadow-xl whitespace-nowrap">
+            <div className="bg-[var(--ls-control)] border border-[var(--ls-playhead)]/60 text-[var(--ls-playhead)] text-xs rounded-lg px-2.5 py-1.5 shadow-xl whitespace-nowrap">
               {warning === "duplicate" ? t.warnDuplicate : t.warnOutOfOrder}
             </div>
           </div>
@@ -196,7 +196,7 @@ function LrcLineRowImpl({
           onKeyDown={(e) => { if (e.key === "Enter" && e.shiftKey) onKeyDown(e); }}
           onFocus={onFocus}
           spellCheck={showSpellCheck}
-          className="flex-1 min-w-0 resize-y bg-transparent text-white text-sm placeholder-zinc-600 focus:outline-none"
+          className="ls-field flex-1 min-w-0 resize-y text-white text-sm placeholder-zinc-600"
           style={{ fontSize: `${0.875 * lyricsFontScale}rem` }}
           placeholder={t.linePlaceholder}
         />
@@ -210,7 +210,7 @@ function LrcLineRowImpl({
           onFocus={onFocus}
           onPaste={onPaste}
           spellCheck={showSpellCheck}
-          className="flex-1 min-w-0 bg-transparent text-white text-sm placeholder-zinc-600 focus:outline-none"
+          className="ls-field flex-1 min-w-0 text-white text-sm placeholder-zinc-600"
           style={{ fontSize: `${0.875 * lyricsFontScale}rem` }}
           placeholder={t.linePlaceholder}
         />
@@ -219,7 +219,7 @@ function LrcLineRowImpl({
       <button
         onClick={onMergeUp}
         disabled={idx === 0}
-        className="shrink-0 text-zinc-600 hover:text-indigo-300 px-1 opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity disabled:opacity-0"
+        className="ls-button shrink-0 hover:text-[var(--ls-accent)] opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity disabled:opacity-0"
         title={t.mergeLineUp}
         aria-label={t.mergeLineUp}
       >
@@ -229,7 +229,7 @@ function LrcLineRowImpl({
       </button>
       <button
         onClick={onDuplicate}
-        className="shrink-0 text-zinc-600 hover:text-indigo-300 px-1 opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
+        className="ls-button shrink-0 hover:text-[var(--ls-accent)] opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
         title={t.duplicateLine}
         aria-label={t.duplicateLine}
       >
@@ -239,7 +239,7 @@ function LrcLineRowImpl({
       </button>
       <button
         onClick={onDelete}
-        className="shrink-0 text-zinc-600 hover:text-rose-400 text-sm px-1 opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
+        className="ls-button shrink-0 hover:text-rose-400 text-sm opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
         title={t.deleteLine}
         aria-label={t.deleteLine}
       >
@@ -257,7 +257,7 @@ function LrcLineRowImpl({
           onChange={(e) => onTranslationChange(e.target.value)}
           placeholder={t.translationPlaceholder}
           spellCheck={showSpellCheck}
-          className="flex-1 min-w-0 resize-y bg-transparent text-indigo-300/70 text-xs italic placeholder-zinc-700 focus:outline-none"
+          className="ls-field flex-1 min-w-0 resize-y text-xs italic placeholder-zinc-700"
         />
       </div>
     )}

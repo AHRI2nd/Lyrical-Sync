@@ -537,18 +537,18 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
 
   return (
-    <div className="flex flex-col gap-2 p-4 bg-zinc-900 rounded-xl border border-zinc-700 flex-1 min-h-0">
+    <div className="ls-panel flex flex-col gap-2 p-4 border border-transparent flex-1 min-h-0">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 shrink-0">
-          <h2 className="text-sm font-semibold text-zinc-300">{t.lyricsEditor}</h2>
+          <h2 className="text-sm font-semibold text-[var(--ls-text-secondary)]">{t.lyricsEditor}</h2>
           {!charMode && stats.total > 0 && (
             <button
               onClick={() => setShowValidation(true)}
               title={t.validationTitle}
-              className="flex items-center gap-1.5 text-xs rounded-full border px-2 py-0.5 transition-colors border-zinc-700 hover:bg-zinc-800"
+              className="ls-button flex items-center gap-1.5 text-xs transition-colors"
             >
-              <span className={stats.pct === 100 ? "text-emerald-400" : "text-zinc-400"}>{stats.pct}%</span>
-              {warnings.size > 0 && <span className="text-amber-400">⚠ {warnings.size}</span>}
+              <span className={stats.pct === 100 ? "text-emerald-400" : "text-[var(--ls-text-secondary)]"}>{stats.pct}%</span>
+              {warnings.size > 0 && <span className="text-[var(--ls-playhead)]">⚠ {warnings.size}</span>}
             </button>
           )}
         </div>
@@ -565,25 +565,25 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
             <button
               onClick={isRunning ? undefined : handleAiSync}
               disabled={isRunning || !canRunAi || !audioPath || aiSyncModeUnsupported}
-              className={[
+              className={`ls-button ${[
                 "px-3 py-1 text-xs rounded-lg transition-colors",
                 isRunning
-                  ? "bg-indigo-800 text-indigo-300 cursor-not-allowed"
+                  ? "bg-[var(--ls-primary)] text-[var(--ls-accent)] cursor-not-allowed"
                   : canRunAi && audioPath && !aiSyncModeUnsupported
-                  ? "bg-indigo-600 hover:bg-indigo-500 text-white"
-                  : "bg-zinc-700 text-zinc-500 cursor-not-allowed",
-              ].join(" ")}
+                  ? "bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] text-white"
+                  : "bg-[var(--ls-control)] text-[var(--ls-text-secondary)] cursor-not-allowed",
+              ].join(" ")}`}
             >
               {isRunning ? t.aiSyncRunning : t.aiAutoSync}
             </button>
             {!isRunning && (aiSyncModeUnsupported || !canRunAi || !audioPath) && (
-              <div className="absolute top-full right-0 mt-1.5 hidden group-hover:block z-20 w-60 bg-zinc-800 border border-zinc-600 text-xs text-zinc-300 rounded-lg px-3 py-2 shadow-xl pointer-events-none">
+              <div className="absolute top-full right-0 mt-1.5 hidden group-hover:block z-20 w-60 bg-[var(--ls-control)] border border-[var(--ls-border-control)] text-xs text-[var(--ls-text-secondary)] rounded-lg px-3 py-2 shadow-xl pointer-events-none">
                 {aiSyncModeUnsupported ? (
                   t.aiSyncModeUnsupported
                 ) : !canRunAi ? (
                   <>
-                    <p className="font-medium text-zinc-200 mb-1">{t.aiSyncNoModel}</p>
-                    <ul className="flex flex-col gap-0.5 text-zinc-400">
+                    <p className="font-medium text-[var(--ls-text)] mb-1">{t.aiSyncNoModel}</p>
+                    <ul className="flex flex-col gap-0.5 text-[var(--ls-text-secondary)]">
                       {!pythonReady && <li>· {t.settingsVenvTitle}</li>}
                       {missingModels.map((name) => <li key={name}>· {name}</li>)}
                     </ul>
@@ -599,7 +599,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
           {isRunning && (
             <button
               onClick={cancelAiSync}
-              className="px-3 py-1 text-xs rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors"
+              className="ls-button text-xs hover:text-white transition-colors"
             >
               {t.aiSyncCancel}
             </button>
@@ -609,7 +609,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
           {aiDraftConfidence && !isRunning && (
             <button
               onClick={clearAiDraft}
-              className="px-3 py-1 text-xs rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors"
+              className="ls-button text-xs hover:text-white transition-colors"
             >
               {t.aiSyncClear}
             </button>
@@ -625,14 +625,14 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
           </>)}
           <button
             onClick={onPreview}
-            className="px-3 py-1 text-xs rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors"
+            className="ls-button text-xs hover:text-white transition-colors"
           >
             {t.previewBtn}
           </button>
           {!charMode && (
           <button
             onClick={handleAddLine}
-            className="px-3 py-1 text-xs rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+            className="ls-button text-xs bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] text-white transition-colors ls-button--primary"
           >
             {t.addLine}
           </button>
@@ -653,7 +653,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
           "text-xs px-2 py-1 rounded",
           aiSyncStatus === "error"
             ? "text-red-300 bg-red-900/30"
-            : "text-indigo-300 bg-indigo-900/30",
+            : "text-[var(--ls-accent)] bg-[var(--ls-primary)]/30",
         ].join(" ")}>
           {displayMessage}
         </div>
@@ -713,7 +713,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
       >
         {lines.length === 0 && (
           <p
-            className="text-zinc-500 text-sm text-center py-8 cursor-pointer"
+            className="text-[var(--ls-text-secondary)] text-sm text-center py-8 cursor-pointer"
             onDoubleClick={handleAddLine}
           >{t.noLines}</p>
         )}
@@ -832,40 +832,40 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
             role="dialog"
             aria-modal="true"
             aria-labelledby="translation-split-title"
-            className="w-full max-w-md mx-4 rounded-xl border border-zinc-700 bg-zinc-900 p-5 shadow-2xl"
+            className="w-full max-w-md mx-4 rounded-xl border border-[var(--ls-border-subtle)] bg-[var(--ls-surface)] p-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 id="translation-split-title" className="text-sm font-semibold text-zinc-100">
+            <h2 id="translation-split-title" className="text-sm font-semibold text-[var(--ls-text)]">
               {t.translationSplitTitle}
             </h2>
-            <p className="mt-2 text-xs text-zinc-400">{t.translationSplitHint}</p>
-            <label className="mt-4 block text-xs text-zinc-400">
+            <p className="mt-2 text-xs text-[var(--ls-text-secondary)]">{t.translationSplitHint}</p>
+            <label className="mt-4 block text-xs text-[var(--ls-text-secondary)]">
               {t.translationFirstPart}
               <textarea
                 autoFocus
                 spellCheck={showSpellCheck}
                 value={pendingTranslationSplit.first}
                 onChange={(e) => setPendingTranslationSplit((s) => s ? { ...s, first: e.target.value } : s)}
-                className="mt-1 min-h-16 w-full resize-y rounded-lg border border-zinc-700 bg-zinc-950 p-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
+                className="ls-field mt-1 min-h-16 w-full resize-y text-sm"
               />
             </label>
-            <label className="mt-3 block text-xs text-zinc-400">
+            <label className="mt-3 block text-xs text-[var(--ls-text-secondary)]">
               {t.translationSecondPart}
               <textarea
                 spellCheck={showSpellCheck}
                 value={pendingTranslationSplit.second}
                 onChange={(e) => setPendingTranslationSplit((s) => s ? { ...s, second: e.target.value } : s)}
-                className="mt-1 min-h-16 w-full resize-y rounded-lg border border-zinc-700 bg-zinc-950 p-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
+                className="ls-field mt-1 min-h-16 w-full resize-y text-sm"
               />
             </label>
             <div className="mt-4 flex justify-end gap-2">
               <button
                 onClick={() => setPendingTranslationSplit(null)}
-                className="rounded-lg bg-zinc-700 px-3 py-2 text-xs text-zinc-200 hover:bg-zinc-600"
+                className="ls-button text-xs"
               >{t.cancelLabel}</button>
               <button
                 onClick={applyTranslationSplit}
-                className="rounded-lg bg-indigo-600 px-3 py-2 text-xs text-white hover:bg-indigo-500"
+                className="ls-button bg-[var(--ls-primary)] text-xs text-white hover:bg-[var(--ls-selection)] ls-button--primary"
               >{t.translationSplitAction}</button>
             </div>
           </div>
