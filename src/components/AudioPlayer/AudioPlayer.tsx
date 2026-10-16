@@ -403,25 +403,25 @@ export function AudioPlayer() {
   }, []);
 
   return (
-    <div className="flex flex-col gap-3 p-4 bg-zinc-900 rounded-xl border border-zinc-700">
+    <div className="ls-panel flex flex-col gap-3 p-4 border border-transparent">
       {/* WaveSurfer container must always remain in the DOM while the component
           is mounted — removing it detaches the canvas and breaks the instance
           when switching view modes. Hide with display:none instead. */}
       <div
         ref={containerRef}
-        className="w-full rounded-lg overflow-hidden bg-zinc-800 cursor-pointer"
+        className="w-full rounded-lg overflow-hidden bg-[var(--ls-control)] cursor-pointer"
         style={{ minHeight: 80, display: viewMode === "bar" ? "none" : "" }}
       />
       <div
         ref={spectrogramContainerRef}
-        className="w-full rounded-lg overflow-hidden bg-zinc-800"
+        className="w-full rounded-lg overflow-hidden bg-[var(--ls-control)]"
         style={{ minHeight: 80, display: (viewMode === "bar" || !showSpectrogram) ? "none" : "" }}
       />
 
       {viewMode === "bar" && (
         <TrackInfoHeader
           icon={<FileGlyph />}
-          iconBgClass="bg-indigo-500/15 text-indigo-300"
+          iconBgClass="bg-[var(--ls-selection)]/15 text-[var(--ls-accent)]"
           title={metadata.title || (audioPath ? (audioPath.split(/[\\/]/).pop() ?? "") : "")}
           subtitle={[metadata.artist, metadata.album].filter(Boolean).join(" · ")}
           emptyMessage={t.noAudioShort}
@@ -434,13 +434,13 @@ export function AudioPlayer() {
           duration={duration}
           seekContextKey={JSON.stringify([audioSelection, audioPath])}
           onSeek={audioControls.seekTo}
-          accentClass="bg-indigo-500"
+          accentClass="bg-[var(--ls-accent)]"
         />
       )}
 
       {/* 시간 표시 (파형 모드에서만) */}
       {viewMode === "waveform" && (
-        <div className="flex justify-between text-xs text-zinc-400 font-mono px-1">
+        <div className="flex justify-between text-xs text-[var(--ls-text-secondary)] font-mono px-1">
           <span>{formatDisplayTime(currentTime)}</span>
           <span>{formatDisplayTime(duration)}</span>
         </div>
@@ -479,38 +479,38 @@ export function AudioPlayer() {
           <MoreIcon />
         </CtrlBtn>
         {showMore && (
-          <div className="absolute right-0 top-full mt-2 z-40 w-56 bg-zinc-800 border border-zinc-700 rounded-xl shadow-2xl p-3 flex flex-col gap-2.5">
+          <div className="absolute right-0 top-full mt-2 z-40 w-56 bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl p-3 flex flex-col gap-2.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-300">{t.tooltipLoop}</span>
-                <button onClick={toggleLoop} className={popToggleCls(isLooping)} title={t.tooltipLoop}>
+                <span className="text-xs text-[var(--ls-text-secondary)]">{t.tooltipLoop}</span>
+                <button onClick={toggleLoop} className={`ls-button ls-button--icon ${popToggleCls(isLooping)}`} title={t.tooltipLoop}>
                   <LoopIcon />
                 </button>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-300">{t.tooltipMarkers}</span>
-                <button onClick={() => setShowMarkers((v) => !v)} className={popToggleCls(showMarkers)} title={t.tooltipMarkers}>
+                <span className="text-xs text-[var(--ls-text-secondary)]">{t.tooltipMarkers}</span>
+                <button onClick={() => setShowMarkers((v) => !v)} className={`ls-button ls-button--icon ${popToggleCls(showMarkers)}`} title={t.tooltipMarkers}>
                   <MarkerIcon />
                 </button>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-300">{t.tooltipSpectrogram}</span>
-                <button onClick={() => setShowSpectrogram(!showSpectrogram)} className={popToggleCls(showSpectrogram)} title={t.tooltipSpectrogram}>
+                <span className="text-xs text-[var(--ls-text-secondary)]">{t.tooltipSpectrogram}</span>
+                <button onClick={() => setShowSpectrogram(!showSpectrogram)} className={`ls-button ls-button--icon ${popToggleCls(showSpectrogram)}`} title={t.tooltipSpectrogram}>
                   <SpectrogramIcon />
                 </button>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-300">{t.playerSpeed}</span>
+                <span className="text-xs text-[var(--ls-text-secondary)]">{t.playerSpeed}</span>
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => adjustSpeed(-1)}
                     disabled={playbackRate <= SPEED_STEPS[0]}
-                    className="w-6 h-6 flex items-center justify-center rounded-md bg-zinc-700 hover:bg-zinc-600 disabled:opacity-30 text-zinc-200 text-sm font-bold leading-none transition-colors"
+                    className="ls-button ls-button--icon w-8 h-8 flex items-center justify-center disabled:opacity-30 text-sm font-bold leading-none transition-colors"
                   >−</button>
-                  <span className="w-12 text-center text-xs font-mono text-zinc-200 tabular-nums">{playbackRate.toFixed(2)}×</span>
+                  <span className="w-12 text-center text-xs font-mono text-[var(--ls-text)] tabular-nums">{playbackRate.toFixed(2)}×</span>
                   <button
                     onClick={() => adjustSpeed(1)}
                     disabled={playbackRate >= SPEED_STEPS[SPEED_STEPS.length - 1]}
-                    className="w-6 h-6 flex items-center justify-center rounded-md bg-zinc-700 hover:bg-zinc-600 disabled:opacity-30 text-zinc-200 text-sm font-bold leading-none transition-colors"
+                    className="ls-button ls-button--icon w-8 h-8 flex items-center justify-center disabled:opacity-30 text-sm font-bold leading-none transition-colors"
                   >+</button>
                 </div>
               </div>
@@ -521,25 +521,25 @@ export function AudioPlayer() {
       {/* 열기 버튼 */}
       <button
         onClick={openAudio}
-        className="w-full py-2 rounded-lg border border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800 text-zinc-300 text-sm transition-colors text-center truncate"
+        className="ls-button w-full text-sm transition-colors text-center truncate"
       >
         {t.openAudio}
       </button>
 
       {/* 볼륨 (스피커 아이콘 + 슬림 슬라이더) */}
-      <div className="flex items-center gap-2.5 text-zinc-400" title={`${t.volume} ${Math.round(volume * 100)}%`}>
+      <div className="flex items-center gap-2.5 text-[var(--ls-text-secondary)]" title={`${t.volume} ${Math.round(volume * 100)}%`}>
         <span className="shrink-0"><VolumeIcon /></span>
         <input
           type="range" min={0} max={1} step={0.01} value={volume}
           onChange={(e) => setVolume(parseFloat(Number(e.target.value).toFixed(2)))}
-          className="range-slim min-w-0 flex-1"
+          className="ls-range range-slim min-w-0 flex-1"
           style={{ background: `linear-gradient(to right, #6366f1 ${Math.round(volume * 100)}%, #3f3f46 ${Math.round(volume * 100)}%)` }}
         />
-        <span className="shrink-0 w-9 text-right text-xs text-zinc-400 tabular-nums">{Math.round(volume * 100)}%</span>
+        <span className="shrink-0 w-9 text-right text-xs text-[var(--ls-text-secondary)] tabular-nums">{Math.round(volume * 100)}%</span>
       </div>
 
       {/* 줌 + 뷰 토글 */}
-      <div className="flex items-center gap-2.5 text-zinc-400">
+      <div className="flex items-center gap-2.5 text-[var(--ls-text-secondary)]">
         {viewMode === "waveform" ? (
           <>
             <span className="shrink-0"><ZoomIcon /></span>
@@ -553,27 +553,27 @@ export function AudioPlayer() {
                   if (wsRef.current && isAudioReady) wsRef.current.zoom(zoomLevelToPixels(v));
                 }, 80);
               }}
-              className="range-slim min-w-0 flex-1"
+              className="ls-range range-slim min-w-0 flex-1"
               style={{ background: `linear-gradient(to right, #6366f1 ${zoomLevel}%, #3f3f46 ${zoomLevel}%)` }}
             />
           </>
         ) : (
           <div className="flex-1" />
         )}
-        <div className="flex shrink-0 bg-zinc-800 rounded-lg p-0.5">
+        <div className="flex shrink-0 bg-[var(--ls-control)] rounded-lg p-0.5">
           <button
             onClick={() => setViewMode("waveform")}
-            className={`px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors ${
-              viewMode === "waveform" ? "bg-zinc-600 text-white" : "text-zinc-500 hover:text-zinc-300"
-            }`}
+            className={`ls-button ${`px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors ${
+              viewMode === "waveform" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)]"
+            }`}`}
           >
             {t.tooltipViewWaveform}
           </button>
           <button
             onClick={() => setViewMode("bar")}
-            className={`px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors ${
-              viewMode === "bar" ? "bg-zinc-600 text-white" : "text-zinc-500 hover:text-zinc-300"
-            }`}
+            className={`ls-button ${`px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors ${
+              viewMode === "bar" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)]"
+            }`}`}
           >
             {t.tooltipViewSeekBar}
           </button>
@@ -581,7 +581,7 @@ export function AudioPlayer() {
       </div>
 
       {!audioPath && (
-        <p className="text-center text-zinc-500 text-sm">{t.noAudio}</p>
+        <p className="text-center text-[var(--ls-text-secondary)] text-sm">{t.noAudio}</p>
       )}
     </div>
   );
@@ -602,15 +602,15 @@ function CtrlBtn({
       onClick={onClick}
       title={title}
       disabled={disabled}
-      className={[
+      className={`ls-button ${[
         "flex items-center justify-center text-sm transition-colors",
         "disabled:opacity-30 disabled:cursor-not-allowed",
         accent
-          ? "w-9 h-9 rounded-full bg-indigo-500 hover:bg-indigo-400 active:bg-indigo-600 text-white"
+          ? "ls-button--play"
           : active
-            ? "h-9 px-2 rounded-lg bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25"
-            : "h-9 px-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white",
-      ].join(" ")}
+            ? "ls-button--selected h-9 px-2"
+            : "h-9 px-2",
+      ].join(" ")}`}
     >
       {children}
     </button>
@@ -621,7 +621,7 @@ function CtrlBtn({
 function popToggleCls(active: boolean): string {
   return [
     "w-8 h-8 flex items-center justify-center rounded-lg transition-colors",
-    active ? "bg-indigo-500 text-white hover:bg-indigo-400" : "bg-zinc-700 text-zinc-200 hover:bg-zinc-600",
+    active ? "ls-button--selected" : "bg-[var(--ls-control)] text-[var(--ls-text)] hover:bg-[var(--ls-control)]",
   ].join(" ");
 }
 
