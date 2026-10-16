@@ -115,7 +115,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
       onClick={close}
     >
       <div
-        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
+        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-sm mx-4 max-h-[calc(100%-2rem)] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)]">

@@ -588,7 +588,7 @@ function App() {
           />
           <MetaEditor />
         </div>
-        <div className="flex flex-col flex-1 p-3 min-h-0">
+        <div className="flex flex-col flex-1 p-3 min-h-0 min-w-0">
           <LrcEditor onPreview={() => setShowPreview(true)} onOpenShortcuts={() => { setSettingsInitialTab("shortcuts"); setShowSettings(true); }} />
         </div>
       </div>
