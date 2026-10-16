@@ -66,7 +66,7 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
 
   const field = (label: string, value: string, onChange: (v: string) => void, suffix: string) => (
     <div className="flex items-center justify-between gap-3">
-      <span className="text-xs text-zinc-300">{label}</span>
+      <span className="text-xs text-[var(--ls-text-secondary)]">{label}</span>
       <div className="flex items-center gap-1.5">
         <input
           type="text"
@@ -76,9 +76,9 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
             setAddedCount(null);
             onChange(e.target.value);
           }}
-          className="w-16 px-2 py-1 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-xs text-right focus:outline-none focus:border-indigo-500 transition-colors"
+          className="ls-field w-16 text-white text-xs text-right transition-colors"
         />
-        <span className="text-[11px] text-zinc-500 w-6">{suffix}</span>
+        <span className="text-[11px] text-[var(--ls-text-secondary)] w-6">{suffix}</span>
       </div>
     </div>
   );
@@ -89,14 +89,14 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
+        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-sm mx-4 max-h-[calc(100%-2rem)] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
-          <span className="font-semibold text-zinc-100 text-sm">{t.autoSpotTitle}</span>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)]">
+          <span className="font-semibold text-[var(--ls-text)] text-sm">{t.autoSpotTitle}</span>
           <button
             onClick={onClose}
-            className="text-zinc-500 hover:text-white transition-colors text-lg leading-none"
+            className="ls-button hover:text-white transition-colors text-lg leading-none"
           >
             ✕
           </button>
@@ -104,22 +104,22 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
 
         <div className="p-5 flex flex-col gap-4">
           {!audioPath ? (
-            <p className="text-sm text-amber-400">{t.autoSpotNeedsAudio}</p>
+            <p className="text-sm text-[var(--ls-playhead)]">{t.autoSpotNeedsAudio}</p>
           ) : loading ? (
-            <p className="text-sm text-zinc-400">{t.autoSpotDecoding}</p>
+            <p className="text-sm text-[var(--ls-text-secondary)]">{t.autoSpotDecoding}</p>
           ) : error ? (
             <p className="text-sm text-red-400">{error}</p>
           ) : (
             <>
-              <p className="text-[11px] leading-relaxed text-zinc-500">{t.autoSpotHint}</p>
+              <p className="text-[11px] leading-relaxed text-[var(--ls-text-secondary)]">{t.autoSpotHint}</p>
 
               {field(t.autoSpotThreshold, thresholdDb, setThresholdDb, "dB")}
               {field(t.autoSpotMinSilence, minSilenceMs, setMinSilenceMs, "ms")}
               {field(t.autoSpotMinSpeech, minSpeechMs, setMinSpeechMs, "ms")}
               {field(t.autoSpotPadding, paddingMs, setPaddingMs, "ms")}
 
-              <div className="border-t border-zinc-800 pt-3 flex items-center justify-between text-xs">
-                <span className={preview.length > 0 ? "text-indigo-300" : "text-zinc-500"}>
+              <div className="border-t border-[var(--ls-border-subtle)] pt-3 flex items-center justify-between text-xs">
+                <span className={preview.length > 0 ? "text-[var(--ls-accent)]" : "text-[var(--ls-text-secondary)]"}>
                   {preview.length} {t.autoSpotSegmentsFound}
                 </span>
                 {addedCount !== null && (
@@ -132,7 +132,7 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
           <div className="flex justify-end gap-2">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
+              className="ls-button text-sm transition-colors"
             >
               {t.autoSpotCancel}
             </button>
@@ -140,7 +140,7 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
               <button
                 onClick={handleApply}
                 disabled={preview.length === 0}
-                className="px-4 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
+                className="ls-button text-sm bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors ls-button--primary"
               >
                 {t.autoSpotApply}
               </button>
