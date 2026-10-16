@@ -17,16 +17,12 @@ export function IconBtn({
         onClick={onClick}
         disabled={disabled}
         aria-label={title}
-        className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-          accent
-            ? "bg-indigo-600 hover:bg-indigo-500 text-white"
-            : "text-zinc-400 hover:bg-zinc-800 hover:text-white"
-        }`}
+        className={`ls-button ls-button--icon ${accent ? "ls-button--secondary" : "ls-button--ghost"}`}
       >
         {children}
       </button>
-      <div className={`pointer-events-none absolute top-full ${tooltipPos} mt-1.5 hidden group-hover/ibtn:block z-30`}>
-        <div className="bg-zinc-800 border border-zinc-600 text-zinc-200 text-xs rounded-lg px-2.5 py-1.5 shadow-xl whitespace-nowrap">
+      <div className={`pointer-events-none absolute top-full ${tooltipPos} mt-1.5 hidden group-hover/ibtn:block group-focus-within/ibtn:block z-30`}>
+        <div className="bg-[var(--ls-control)] border border-[var(--ls-border-control)] text-[var(--ls-text)] text-xs rounded-lg px-2.5 py-1.5 shadow-xl whitespace-nowrap">
           {title}
         </div>
       </div>

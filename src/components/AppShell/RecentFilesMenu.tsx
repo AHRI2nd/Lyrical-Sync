@@ -33,12 +33,12 @@ export function RecentFilesMenu({ onOpen }: { onOpen: (entry: RecentFileEntry) =
         onClick={() => setOpen((v) => !v)}
         title={t.recentFiles}
         aria-label={t.recentFiles}
-        className="w-8 h-8 flex items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors"
+        className="ls-button w-8 h-8 flex items-center justify-center rounded-lg text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-white transition-colors"
       >
         <HistoryIcon />
       </button>
       {open && (
-        <div className="absolute left-0 top-full mt-1 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-50 overflow-hidden py-1 min-w-[240px] max-w-[320px]">
+        <div className="absolute left-0 top-full mt-1 bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] rounded-lg shadow-xl z-50 overflow-hidden py-1 min-w-[240px] max-w-[320px]">
           {recentFiles.map((entry, i) => {
             const primary = entry.lrcPath ?? entry.audioPath ?? "";
             const secondary = entry.lrcPath && entry.audioPath ? entry.audioPath : null;
@@ -46,19 +46,19 @@ export function RecentFilesMenu({ onOpen }: { onOpen: (entry: RecentFileEntry) =
               <button
                 key={`${entry.lrcPath ?? ""}|${entry.audioPath ?? ""}|${i}`}
                 onClick={() => handleSelect(entry)}
-                className="w-full flex flex-col items-start px-3 py-1.5 text-left hover:bg-zinc-700 transition-colors"
+                className="ls-button w-full flex flex-col items-start px-3 py-1.5 text-left hover:bg-[var(--ls-control)] transition-colors"
               >
-                <span className="text-xs text-zinc-100 truncate w-full">{basename(primary)}</span>
+                <span className="text-xs text-[var(--ls-text)] truncate w-full">{basename(primary)}</span>
                 {secondary && (
-                  <span className="text-[10px] text-zinc-500 truncate w-full">{basename(secondary)}</span>
+                  <span className="text-[10px] text-[var(--ls-text-secondary)] truncate w-full">{basename(secondary)}</span>
                 )}
               </button>
             );
           })}
-          <div className="border-t border-zinc-700 mt-1 pt-1">
+          <div className="border-t border-[var(--ls-border-subtle)] mt-1 pt-1">
             <button
               onClick={() => { clearRecentFiles(); setOpen(false); }}
-              className="w-full text-left px-3 py-1.5 text-[11px] text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300 transition-colors"
+              className="ls-button w-full text-left px-3 py-1.5 text-[11px] text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-[var(--ls-text-secondary)] transition-colors"
             >
               {t.clearRecentFiles}
             </button>

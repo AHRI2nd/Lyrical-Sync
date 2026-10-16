@@ -427,7 +427,7 @@ function App() {
 
   return (
     <div
-      className="flex flex-col bg-zinc-950 text-white overflow-hidden"
+      className="flex flex-col bg-[var(--ls-canvas)] text-white overflow-hidden"
       style={{
         transform: `scale(${uiScale})`,
         transformOrigin: "top left",
@@ -435,10 +435,10 @@ function App() {
         height: `${(100 / uiScale).toFixed(4)}vh`,
       }}
     >
-      <header className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border-b border-zinc-800 shrink-0">
-        <span className="font-semibold text-indigo-400 mr-2 shrink-0">Lyrical Sync</span>
+      <header className="flex items-center gap-2 px-4 py-2 bg-[var(--ls-surface)] border-b border-[var(--ls-border-subtle)] shrink-0">
+        <span className="font-semibold text-[var(--ls-accent)] mr-2 shrink-0">Lyrical Sync</span>
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className="text-zinc-400 text-sm truncate">
+          <span className="text-[var(--ls-text-secondary)] text-sm truncate">
             {title}
             {isDirty && (
               <span className="text-rose-400 ml-1 text-xs align-middle" title={t.unsavedChanges}>●</span>
@@ -452,14 +452,14 @@ function App() {
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <ModeSelectButton />
-          <div className="w-px h-5 bg-zinc-700 mx-0.5" />
+          <div className="w-px h-5 bg-[var(--ls-control)] mx-0.5" />
           {/* 파일 액션 그룹 */}
           <IconBtn onClick={handleNewLrc} title={t.newFileBtn}><NewFileIcon /></IconBtn>
           <IconBtn onClick={handleOpenLrc} title={t.openLrc}><OpenFolderIcon /></IconBtn>
           <RecentFilesMenu onOpen={handleRecentOpen} />
           <IconBtn onClick={handleSave} accent title={t.save} tooltipAlign="right"><SaveIcon /></IconBtn>
           <IconBtn onClick={() => setShowFormatChooser(true)} title={t.saveAs} tooltipAlign="right"><SaveAsIcon /></IconBtn>
-          <div className="w-px h-5 bg-zinc-700 mx-0.5" />
+          <div className="w-px h-5 bg-[var(--ls-control)] mx-0.5" />
           <LangDropdown />
         </div>
       </header>
@@ -572,16 +572,16 @@ function App() {
         />
       )}
       {isDragOver && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-indigo-950/60 backdrop-blur-sm pointer-events-none border-4 border-dashed border-indigo-400/70 m-2 rounded-2xl">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[var(--ls-primary)]/60 backdrop-blur-sm pointer-events-none border-4 border-dashed border-[var(--ls-accent)]/70 m-2 rounded-2xl">
           <div className="text-center">
-            <p className="text-xl font-semibold text-indigo-100">{t.drop.overlayHint}</p>
-            <p className="text-sm text-indigo-300 mt-1 font-mono">Audio · LRC · SRT</p>
+            <p className="text-xl font-semibold text-[var(--ls-accent)]">{t.drop.overlayHint}</p>
+            <p className="text-sm text-[var(--ls-accent)] mt-1 font-mono">Audio · LRC · SRT</p>
           </div>
         </div>
       )}
 
       <div className="flex flex-1 min-h-0 gap-0">
-        <div className="flex flex-col gap-3 p-3 w-80 shrink-0 overflow-y-auto border-r border-zinc-800">
+        <div className="flex flex-col gap-3 p-3 w-80 shrink-0 overflow-y-auto border-r border-[var(--ls-border-subtle)]">
           <AudioPlayer
             onSpotifySearch={() => setShowSpotifySearch(true)}
             onSpotifyNoClientId={() => { setSettingsInitialTab("spotify"); setShowSettings(true); }}
@@ -598,7 +598,7 @@ function App() {
           onClick={() => { setSettingsInitialTab("general"); setShowSettings(true); }}
           title={t.settingsTitle}
           aria-label={t.settingsTitle}
-          className="w-8 h-8 rounded-full bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white transition-colors flex items-center justify-center shadow-lg"
+          className="ls-button w-8 h-8 rounded-full bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:text-white transition-colors flex items-center justify-center shadow-lg"
         >
           <GearIcon />
         </button>
@@ -606,7 +606,7 @@ function App() {
           onClick={() => setShowBatchTool(true)}
           title={t.batchTitle}
           aria-label={t.batchTitle}
-          className="w-8 h-8 rounded-full bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white transition-colors flex items-center justify-center shadow-lg"
+          className="ls-button w-8 h-8 rounded-full bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:text-white transition-colors flex items-center justify-center shadow-lg"
         >
           <BatchIcon />
         </button>
@@ -614,7 +614,7 @@ function App() {
           onClick={() => setShowHelp(true)}
           title={t.shortcutsTitle}
           aria-label={t.shortcutsTitle}
-          className="w-8 h-8 rounded-full bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white text-sm font-bold transition-colors flex items-center justify-center shadow-lg"
+          className="ls-button w-8 h-8 rounded-full bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:text-white text-sm font-bold transition-colors flex items-center justify-center shadow-lg"
         >
           ?
         </button>
