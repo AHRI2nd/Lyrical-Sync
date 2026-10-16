@@ -490,7 +490,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           duration={duration}
           seekContextKey={`${youtubeMode ? "youtube" : "local"}:${audioPath ?? ytUrl}`}
           onSeek={audioControls.seekTo}
-          accentClass={youtubeMode ? "bg-red-500" : "bg-[var(--ls-selection)]"}
+          accentClass={youtubeMode ? "bg-red-500" : "bg-[var(--ls-accent)]"}
         />
       )}
 
@@ -602,7 +602,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           <button
             onClick={() => setViewMode("waveform")}
             className={`ls-button ${`px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors ${
-              viewMode === "waveform" ? "bg-[var(--ls-control)] text-white" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)]"
+              viewMode === "waveform" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)]"
             }`}`}
           >
             {t.tooltipViewWaveform}
@@ -610,7 +610,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           <button
             onClick={() => setViewMode("bar")}
             className={`ls-button ${`px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors ${
-              viewMode === "bar" ? "bg-[var(--ls-control)] text-white" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)]"
+              viewMode === "bar" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)]"
             }`}`}
           >
             {t.tooltipViewSeekBar}

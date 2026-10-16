@@ -43,7 +43,7 @@ export function DevicePlayerPanel() {
         duration={durationSec}
         seekContextKey={JSON.stringify([hasSession, sourceApp, trackName, artistName, albumName])}
         onSeek={(s) => deviceControls.seekTo(s)}
-        accentClass="bg-[var(--ls-selection)]"
+        accentClass="bg-[var(--ls-accent)]"
       />
 
       {/* 컨트롤 */}

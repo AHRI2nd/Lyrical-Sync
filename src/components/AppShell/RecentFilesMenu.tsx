@@ -33,7 +33,7 @@ export function RecentFilesMenu({ onOpen }: { onOpen: (entry: RecentFileEntry) =
         onClick={() => setOpen((v) => !v)}
         title={t.recentFiles}
         aria-label={t.recentFiles}
-        className="ls-button w-8 h-8 flex items-center justify-center rounded-lg text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-white transition-colors"
+        className="ls-button ls-button--icon w-8 h-8 flex items-center justify-center rounded-lg text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-white transition-colors"
       >
         <HistoryIcon />
       </button>

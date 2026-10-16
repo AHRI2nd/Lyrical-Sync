@@ -64,7 +64,7 @@ export function UpdateModal() {
               <p className="text-sm text-[var(--ls-text-secondary)]">{t.updater.downloading}</p>
               <div className="w-full h-2 bg-[var(--ls-control)] rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-[var(--ls-selection)] transition-all duration-200"
+                  className="h-full bg-[var(--ls-accent)] transition-all duration-200"
                   style={{ width: `${progress}%` }}
                 />
               </div>

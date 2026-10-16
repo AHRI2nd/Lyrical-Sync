@@ -120,7 +120,7 @@ export function LrcLibPublishModal({ onClose }: { onClose: () => void }) {
             status === "confirm" ? (
               <button
                 onClick={publish}
-                className="ls-button text-sm text-white bg-[var(--ls-playhead)] hover:bg-[var(--ls-playhead)] transition-colors"
+                className="ls-button text-sm text-[var(--ls-canvas)] bg-[var(--ls-playhead)] hover:bg-[var(--ls-playhead)] transition-colors"
               >
                 {t.lrclibPublish.confirm}
               </button>

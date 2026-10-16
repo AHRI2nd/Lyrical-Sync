@@ -48,7 +48,6 @@ input[type="range"].range-slim {
   border-radius: 9999px;
   background: #3f3f46;
   cursor: pointer;
-  outline: none;
 }
 input[type="range"].range-slim::-webkit-slider-runnable-track {
   height: 5px;

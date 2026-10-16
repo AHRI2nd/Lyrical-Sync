@@ -99,7 +99,7 @@ function LrcLineRowImpl({
         <div
           data-testid="line-insertion-marker"
           data-placement={showInsertionBefore ? "before" : "after"}
-          className={`pointer-events-none absolute z-10 left-2 right-2 h-0.5 rounded-full bg-[var(--ls-selection)] shadow-[0_0_6px_rgba(129,140,248,0.8)] ${showInsertionBefore ? "-top-1" : "-bottom-1"}`}
+          className={`pointer-events-none absolute z-10 left-2 right-2 h-0.5 rounded-full bg-[var(--ls-accent)] shadow-[0_0_6px_rgba(129,140,248,0.8)] ${showInsertionBefore ? "-top-1" : "-bottom-1"}`}
         />
       )}
       <span

@@ -246,7 +246,7 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
           className="h-full bg-[var(--ls-accent)] group-hover:bg-[var(--ls-accent)] transition-colors relative"
           style={{ width: `${progress * 100}%` }}
         >
-          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-[var(--ls-selection)] opacity-0 group-hover:opacity-100 transition-opacity translate-x-1/2" />
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-[var(--ls-accent)] opacity-0 group-hover:opacity-100 transition-opacity translate-x-1/2" />
         </div>
       </div>
 
@@ -290,7 +290,7 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
             onClick={onOpenStyleSettings}
             title={t.previewStyleSettingsTooltip}
             aria-label={t.previewStyleSettingsTooltip}
-            className="ls-button w-8 h-8 flex items-center justify-center hover:text-white transition-colors"
+            className="ls-button ls-button--icon w-8 h-8 flex items-center justify-center hover:text-white transition-colors"
           >
             <GearIcon />
           </button>
