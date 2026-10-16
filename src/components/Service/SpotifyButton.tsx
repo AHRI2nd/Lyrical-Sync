@@ -41,14 +41,14 @@ export function SpotifyButton({ onNoClientId, onConnected }: Props) {
     <button
       onClick={handleClick}
       title="Spotify"
-      className={[
+      className={`ls-button ${[
         "flex items-center gap-1.5 px-3 py-1 text-xs rounded-lg transition-colors font-medium shrink-0",
         isReady
           ? "bg-green-700 hover:bg-green-600 text-white"
           : isLoggedIn
           ? "bg-green-900/50 hover:bg-green-800/60 text-green-300 border border-green-800"
-          : "bg-zinc-700 hover:bg-zinc-600 text-zinc-100",
-      ].join(" ")}
+          : "bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text)]",
+      ].join(" ")}`}
     >
       <SpotifyIcon />
       <span className="max-w-[120px] truncate">{label}</span>

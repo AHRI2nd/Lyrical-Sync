@@ -42,14 +42,14 @@ export function DevicePickerModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden flex flex-col max-h-[80vh]"
+        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden flex flex-col max-h-[80vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800 shrink-0">
-          <span className="font-semibold text-zinc-100">{t.devicePicker.title}</span>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)] shrink-0">
+          <span className="font-semibold text-[var(--ls-text)]">{t.devicePicker.title}</span>
           <button
             onClick={load}
-            className="text-xs text-zinc-400 hover:text-white px-2 py-1 rounded hover:bg-zinc-800 transition-colors"
+            className="ls-button text-xs hover:text-white transition-colors"
           >
             {t.devicePicker.refresh}
           </button>
@@ -57,32 +57,32 @@ export function DevicePickerModal({ onClose }: { onClose: () => void }) {
 
         <div className="p-3 flex-1 overflow-y-auto flex flex-col gap-1 min-h-[120px]">
           {loading ? (
-            <p className="text-sm text-zinc-500 text-center py-8">{t.devicePicker.loading}</p>
+            <p className="text-sm text-[var(--ls-text-secondary)] text-center py-8">{t.devicePicker.loading}</p>
           ) : devices.length === 0 ? (
-            <p className="text-sm text-zinc-500 text-center py-8 px-4 leading-relaxed">{t.devicePicker.empty}</p>
+            <p className="text-sm text-[var(--ls-text-secondary)] text-center py-8 px-4 leading-relaxed">{t.devicePicker.empty}</p>
           ) : (
             devices.map((d) => (
               <button
                 key={d.id}
                 onClick={() => !d.is_active && select(d.id)}
                 disabled={d.is_active || busyId !== null}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors disabled:cursor-default ${
+                className={`ls-button ${`flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors disabled:cursor-default ${
                   d.is_active
                     ? "bg-green-500/15 border border-green-500/40"
-                    : "border border-transparent hover:bg-zinc-800"
-                }`}
+                    : "border border-transparent hover:bg-[var(--ls-control)]"
+                }`}`}
               >
-                <span className={d.is_active ? "text-green-400" : "text-zinc-400"}>
+                <span className={d.is_active ? "text-green-400" : "text-[var(--ls-text-secondary)]"}>
                   <DeviceIcon type={d.type} />
                 </span>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm text-zinc-100 truncate">{d.name}</div>
-                  <div className="text-xs text-zinc-500 truncate">
+                  <div className="text-sm text-[var(--ls-text)] truncate">{d.name}</div>
+                  <div className="text-xs text-[var(--ls-text-secondary)] truncate">
                     {d.type}{d.volume_percent != null ? ` · ${d.volume_percent}%` : ""}
                   </div>
                 </div>
                 {busyId === d.id ? (
-                  <span className="text-xs text-zinc-400 shrink-0">…</span>
+                  <span className="text-xs text-[var(--ls-text-secondary)] shrink-0">…</span>
                 ) : d.is_active ? (
                   <span className="text-xs text-green-400 shrink-0">{t.devicePicker.active}</span>
                 ) : null}
@@ -91,11 +91,11 @@ export function DevicePickerModal({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
-        <div className="px-5 py-3 border-t border-zinc-800 flex items-center justify-between gap-3 shrink-0">
-          <p className="text-[11px] text-zinc-500 leading-snug">{t.devicePicker.hint}</p>
+        <div className="px-5 py-3 border-t border-[var(--ls-border-subtle)] flex items-center justify-between gap-3 shrink-0">
+          <p className="text-[11px] text-[var(--ls-text-secondary)] leading-snug">{t.devicePicker.hint}</p>
           <button
             onClick={onClose}
-            className="shrink-0 px-4 py-1.5 text-sm rounded-lg text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
+            className="ls-button shrink-0 text-sm hover:text-white transition-colors"
           >
             {t.devicePicker.close}
           </button>

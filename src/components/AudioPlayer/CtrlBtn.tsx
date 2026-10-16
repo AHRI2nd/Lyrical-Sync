@@ -24,7 +24,7 @@ export function CtrlBtn({
       disabled={disabled}
       className={`ls-button ${[
         "flex items-center justify-center text-sm transition-colors",
-        "disabled:opacity-30 disabled:cursor-not-allowed",
+        "disabled:cursor-not-allowed",
         accent ? accentClass : active ? activeClass : baseClass,
       ].join(" ")}`}
     >

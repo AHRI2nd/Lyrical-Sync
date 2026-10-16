@@ -20,38 +20,38 @@ export function MorePopover({
   onSpeedUp: () => void;
 }) {
   return (
-    <div className="absolute right-0 top-full mt-2 z-40 w-56 bg-zinc-800 border border-zinc-700 rounded-xl shadow-2xl p-3 flex flex-col gap-2.5">
+    <div className="absolute right-0 top-full mt-2 z-40 w-56 bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl p-3 flex flex-col gap-2.5">
       <div className="flex items-center justify-between">
-        <span className="text-xs text-zinc-300">{t.tooltipLoop}</span>
-        <button onClick={onToggleLoop} className={popToggleCls(isLooping)} title={t.tooltipLoop} aria-label={t.tooltipLoop} aria-pressed={isLooping}>
+        <span className="text-xs text-[var(--ls-text-secondary)]">{t.tooltipLoop}</span>
+        <button onClick={onToggleLoop} className={`ls-button ${popToggleCls(isLooping)}`} title={t.tooltipLoop} aria-label={t.tooltipLoop} aria-pressed={isLooping}>
           <LoopIcon />
         </button>
       </div>
       <div className="flex items-center justify-between">
-        <span className="text-xs text-zinc-300">{t.tooltipMarkers}</span>
-        <button onClick={onToggleMarkers} className={popToggleCls(showMarkers)} title={t.tooltipMarkers} aria-label={t.tooltipMarkers} aria-pressed={showMarkers}>
+        <span className="text-xs text-[var(--ls-text-secondary)]">{t.tooltipMarkers}</span>
+        <button onClick={onToggleMarkers} className={`ls-button ${popToggleCls(showMarkers)}`} title={t.tooltipMarkers} aria-label={t.tooltipMarkers} aria-pressed={showMarkers}>
           <MarkerIcon />
         </button>
       </div>
       <div className="flex items-center justify-between">
-        <span className="text-xs text-zinc-300">{t.tooltipSpectrogram}</span>
-        <button onClick={onToggleSpectrogram} className={popToggleCls(showSpectrogram)} title={t.tooltipSpectrogram} aria-label={t.tooltipSpectrogram} aria-pressed={showSpectrogram}>
+        <span className="text-xs text-[var(--ls-text-secondary)]">{t.tooltipSpectrogram}</span>
+        <button onClick={onToggleSpectrogram} className={`ls-button ${popToggleCls(showSpectrogram)}`} title={t.tooltipSpectrogram} aria-label={t.tooltipSpectrogram} aria-pressed={showSpectrogram}>
           <SpectrogramIcon />
         </button>
       </div>
       <div className="flex items-center justify-between">
-        <span className="text-xs text-zinc-300">{t.playerSpeed}</span>
+        <span className="text-xs text-[var(--ls-text-secondary)]">{t.playerSpeed}</span>
         <div className="flex items-center gap-1">
           <button
             onClick={onSpeedDown}
             disabled={playbackRate <= speedMin}
-            className="w-6 h-6 flex items-center justify-center rounded-md bg-zinc-700 hover:bg-zinc-600 disabled:opacity-30 text-zinc-200 text-sm font-bold leading-none transition-colors"
+            className="ls-button w-6 h-6 flex items-center justify-center disabled:opacity-30 text-sm font-bold leading-none transition-colors"
           >−</button>
-          <span className="w-12 text-center text-xs font-mono text-zinc-200 tabular-nums">{playbackRate.toFixed(2)}×</span>
+          <span className="w-12 text-center text-xs font-mono text-[var(--ls-text)] tabular-nums">{playbackRate.toFixed(2)}×</span>
           <button
             onClick={onSpeedUp}
             disabled={playbackRate >= speedMax}
-            className="w-6 h-6 flex items-center justify-center rounded-md bg-zinc-700 hover:bg-zinc-600 disabled:opacity-30 text-zinc-200 text-sm font-bold leading-none transition-colors"
+            className="ls-button w-6 h-6 flex items-center justify-center disabled:opacity-30 text-sm font-bold leading-none transition-colors"
           >+</button>
         </div>
       </div>
@@ -63,6 +63,6 @@ export function MorePopover({
 function popToggleCls(active: boolean): string {
   return [
     "w-8 h-8 flex items-center justify-center rounded-lg transition-colors",
-    active ? "bg-indigo-500 text-white hover:bg-indigo-400" : "bg-zinc-700 text-zinc-200 hover:bg-zinc-600",
+    active ? "bg-[var(--ls-selection)] text-white hover:bg-[var(--ls-selection)]" : "bg-[var(--ls-control)] text-[var(--ls-text)] hover:bg-[var(--ls-control)]",
   ].join(" ");
 }

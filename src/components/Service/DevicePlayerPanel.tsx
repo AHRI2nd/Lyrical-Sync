@@ -11,8 +11,8 @@ function DeviceCtrlBtn(props: Omit<React.ComponentProps<typeof CtrlBtn>, "accent
   return (
     <CtrlBtn
       {...props}
-      accentClass="h-8 px-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white"
-      baseClass="h-8 px-2.5 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white"
+      accentClass="h-8 px-2.5 rounded-lg bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] text-white"
+      baseClass="h-8 px-2.5 rounded-lg text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-white"
     />
   );
 }
@@ -31,7 +31,7 @@ export function DevicePlayerPanel() {
     <div className="flex flex-col gap-3 min-h-[80px] justify-center">
       <TrackInfoHeader
         icon={<DeviceGlyph />}
-        iconBgClass="bg-indigo-500/15 text-indigo-300"
+        iconBgClass="bg-[var(--ls-selection)]/15 text-[var(--ls-accent)]"
         title={hasSession ? trackName : ""}
         subtitle={artistName + (albumName ? ` · ${albumName}` : "")}
         extraLine={sourceApp ? `${t.deviceSourceApp}: ${sourceApp}` : undefined}
@@ -43,7 +43,7 @@ export function DevicePlayerPanel() {
         duration={durationSec}
         seekContextKey={JSON.stringify([hasSession, sourceApp, trackName, artistName, albumName])}
         onSeek={(s) => deviceControls.seekTo(s)}
-        accentClass="bg-indigo-500"
+        accentClass="bg-[var(--ls-selection)]"
       />
 
       {/* 컨트롤 */}
