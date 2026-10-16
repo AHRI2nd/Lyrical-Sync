@@ -468,7 +468,7 @@ function ModelRow({
         <div className="pl-4 flex items-center gap-2">
           <div className="flex-1 h-1.5 bg-[var(--ls-control)] rounded-full overflow-hidden">
             <div
-              className="h-full bg-[var(--ls-selection)] rounded-full"
+              className="h-full bg-[var(--ls-accent)] rounded-full"
               style={{ width: `${progress.toFixed(1)}%` }}
             />
           </div>

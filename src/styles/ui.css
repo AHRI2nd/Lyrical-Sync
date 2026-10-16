@@ -43,7 +43,7 @@
   .ls-button--play { min-width: 2.5rem; min-height: 2.5rem; padding: 0.5rem; border-radius: 50%; background: var(--ls-text); color: var(--ls-surface); }
   .ls-button--play:hover:not(:disabled) { background: var(--ls-text-secondary); color: var(--ls-surface); }
   .ls-button[aria-pressed="true"] { background: var(--ls-selection); color: var(--ls-accent); }
-  .ls-button--selected { background: var(--ls-control); color: var(--ls-text); }
+  .ls-button--selected { background: var(--ls-selection); color: var(--ls-text); border-bottom-color: var(--ls-accent); }
   .ls-button:focus-visible, .ls-field:focus-visible, .ls-range:focus-visible {
     outline: 2px solid var(--ls-accent);
     outline-offset: 2px;

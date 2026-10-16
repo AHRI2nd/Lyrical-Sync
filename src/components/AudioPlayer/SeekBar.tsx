@@ -144,7 +144,7 @@ export function SeekBar({ position, duration, seekContextKey = "", onSeek, accen
           pendingTimerRef.current = setTimeout(() => { pendingTimerRef.current = null; setPendingPosition(null); }, 750);
           onSeekRef.current(bounded);
         }}
-        className="relative h-1.5 bg-[var(--ls-control)] rounded-full cursor-pointer group"
+        className="ls-range relative h-1.5 bg-[var(--ls-control)] rounded-full cursor-pointer group"
         onPointerDown={beginScrub}
         onMouseMove={(e) => {
           const rect = e.currentTarget.getBoundingClientRect();

@@ -28,7 +28,7 @@ export function LangDropdown() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="ls-button w-8 h-8 flex items-center justify-center rounded-lg bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text)] transition-colors"
+        className="ls-button ls-button--icon w-8 h-8 flex items-center justify-center rounded-lg bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text)] transition-colors"
       >
         <GlobeIcon />
       </button>

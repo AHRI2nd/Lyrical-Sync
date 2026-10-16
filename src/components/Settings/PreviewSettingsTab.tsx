@@ -50,7 +50,7 @@ export function PreviewSettingsTab() {
         <button type="button" role="switch" aria-label={t.previewGlowLabel} aria-checked={previewGlowEnabled}
           onClick={() => setPreviewGlowEnabled(!previewGlowEnabled)}
           className={`ls-button ${`relative w-10 h-5 rounded-full transition-colors shrink-0 overflow-hidden ${previewGlowEnabled ? "bg-[var(--ls-primary)]" : "bg-[var(--ls-control)]"}`}`}>
-          <span className={`absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white shadow transition-transform ${previewGlowEnabled ? "translate-x-[22px]" : "translate-x-0.5"}`} />
+          <span className={`absolute top-[calc(50%-0.5rem)] left-0 w-4 h-4 rounded-full bg-white shadow transition-transform ${previewGlowEnabled ? "translate-x-[22px]" : "translate-x-0.5"}`} />
         </button>
       </div>
     </div>

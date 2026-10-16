@@ -598,7 +598,7 @@ function App() {
           onClick={() => { setSettingsInitialTab("general"); setShowSettings(true); }}
           title={t.settingsTitle}
           aria-label={t.settingsTitle}
-          className="ls-button w-8 h-8 rounded-full bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:text-white transition-colors flex items-center justify-center shadow-lg"
+          className="ls-button ls-button--icon w-8 h-8 rounded-full bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:text-white transition-colors flex items-center justify-center shadow-lg"
         >
           <GearIcon />
         </button>
@@ -606,7 +606,7 @@ function App() {
           onClick={() => setShowBatchTool(true)}
           title={t.batchTitle}
           aria-label={t.batchTitle}
-          className="ls-button w-8 h-8 rounded-full bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:text-white transition-colors flex items-center justify-center shadow-lg"
+          className="ls-button ls-button--icon w-8 h-8 rounded-full bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:text-white transition-colors flex items-center justify-center shadow-lg"
         >
           <BatchIcon />
         </button>
@@ -614,7 +614,7 @@ function App() {
           onClick={() => setShowHelp(true)}
           title={t.shortcutsTitle}
           aria-label={t.shortcutsTitle}
-          className="ls-button w-8 h-8 rounded-full bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:text-white text-sm font-bold transition-colors flex items-center justify-center shadow-lg"
+          className="ls-button ls-button--icon w-8 h-8 rounded-full bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:text-white text-sm font-bold transition-colors flex items-center justify-center shadow-lg"
         >
           ?
         </button>

@@ -86,7 +86,7 @@ export function SpotifySection({
         >
           <span
             className={[
-              "absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
+              "absolute top-[calc(50%-0.5rem)] left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
               spotifyMode && isLoggedIn ? "translate-x-[22px]" : "translate-x-0.5",
             ].join(" ")}
           />
