@@ -83,7 +83,7 @@ function LrcLineRowImpl({
       ref={rowRef}
       data-line-id={line.id}
       onClick={(e) => onRowClick(e, line.id, idx)}
-      className={`group/row relative flex items-center gap-2 rounded-lg px-2 py-1 transition-colors cursor-pointer ${
+      className={`group/row relative flex flex-wrap items-center gap-2 rounded-lg px-2 py-1 transition-colors cursor-pointer ${
         isSelected
           ? "bg-sky-900/30 ring-1 ring-sky-600/60"
           : isCurrentMatch
@@ -196,7 +196,7 @@ function LrcLineRowImpl({
           onKeyDown={(e) => { if (e.key === "Enter" && e.shiftKey) onKeyDown(e); }}
           onFocus={onFocus}
           spellCheck={showSpellCheck}
-          className="ls-field flex-1 min-w-0 resize-y text-white text-sm placeholder-zinc-600"
+          className="ls-field flex-1 min-w-32 resize-y text-white text-sm placeholder-zinc-600"
           style={{ fontSize: `${0.875 * lyricsFontScale}rem` }}
           placeholder={t.linePlaceholder}
         />
@@ -210,7 +210,7 @@ function LrcLineRowImpl({
           onFocus={onFocus}
           onPaste={onPaste}
           spellCheck={showSpellCheck}
-          className="ls-field flex-1 min-w-0 text-white text-sm placeholder-zinc-600"
+          className="ls-field flex-1 min-w-32 text-white text-sm placeholder-zinc-600"
           style={{ fontSize: `${0.875 * lyricsFontScale}rem` }}
           placeholder={t.linePlaceholder}
         />
@@ -257,7 +257,7 @@ function LrcLineRowImpl({
           onChange={(e) => onTranslationChange(e.target.value)}
           placeholder={t.translationPlaceholder}
           spellCheck={showSpellCheck}
-          className="ls-field flex-1 min-w-0 resize-y text-xs italic placeholder-zinc-700"
+          className="ls-field flex-1 min-w-32 resize-y text-xs italic placeholder-zinc-700"
         />
       </div>
     )}

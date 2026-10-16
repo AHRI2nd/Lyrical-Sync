@@ -161,7 +161,7 @@ export function SpotifySearchModal({ onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col overflow-hidden max-h-[80vh]"
+        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col overflow-hidden max-h-[calc(100%-2rem)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

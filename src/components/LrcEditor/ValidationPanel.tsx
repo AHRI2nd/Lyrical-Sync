@@ -19,7 +19,7 @@ export function ValidationPanel({ stats, issues, onJump, onClose }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden flex flex-col max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden flex flex-col max-h-[calc(100%-2rem)]" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-3 border-b border-[var(--ls-border-subtle)] flex items-center justify-between shrink-0">
           <span className="font-semibold text-[var(--ls-text)]">{t.validationTitle}</span>
           <button onClick={onClose} aria-label={t.close} className="ls-button hover:text-white transition-colors text-lg leading-none">✕</button>

@@ -64,7 +64,7 @@ export function SettingsModal({
       onClick={onClose}
     >
       <div
-        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden flex flex-col max-h-[85vh]"
+        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden flex flex-col max-h-[calc(100%-2rem)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
