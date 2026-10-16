@@ -168,16 +168,16 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
                 if (e.key === "Escape") setEditingId(null);
               }}
               placeholder="00:00.00"
-              className="w-20 bg-zinc-800 border border-indigo-500 rounded px-1.5 py-0.5 text-xs font-mono text-indigo-300 focus:outline-none text-right"
+              className="ls-field w-20 text-xs font-mono text-right"
             />
           ) : (
             <button
               onClick={() => startEdit(line.id, line.timestamp)}
-              className={`font-mono text-xs px-1.5 py-0.5 rounded transition-colors text-right w-full
+              className={`ls-button ${`font-mono text-xs px-1.5 py-0.5 rounded transition-colors text-right w-full
                 ${line.timestamp !== null
-                  ? "hover:bg-zinc-800 hover:text-indigo-300"
-                  : "text-zinc-700 hover:bg-zinc-800 hover:text-zinc-500"
-                }`}
+                  ? "hover:bg-[var(--ls-control)] hover:text-[var(--ls-accent)]"
+                  : "text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-[var(--ls-text-secondary)]"
+                }`}`}
             >
               {line.timestamp !== null ? formatTimestamp(line.timestamp) : "—"}
             </button>
@@ -236,28 +236,28 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
   }, [controls, playbackDuration]);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-zinc-950">
+    <div className="fixed inset-0 z-50 flex flex-col bg-[var(--ls-canvas)]">
       {/* 진행 상태바 */}
       <div
-        className="shrink-0 h-1 bg-zinc-800 cursor-pointer group"
+        className="shrink-0 h-1 bg-[var(--ls-control)] cursor-pointer group"
         onClick={handleSeek}
       >
         <div
-          className="h-full bg-indigo-500 group-hover:bg-indigo-400 transition-colors relative"
+          className="h-full bg-[var(--ls-accent)] group-hover:bg-[var(--ls-accent)] transition-colors relative"
           style={{ width: `${progress * 100}%` }}
         >
-          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-indigo-300 opacity-0 group-hover:opacity-100 transition-opacity translate-x-1/2" />
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-[var(--ls-selection)] opacity-0 group-hover:opacity-100 transition-opacity translate-x-1/2" />
         </div>
       </div>
 
       {/* 상단 바 */}
-      <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-zinc-800/60">
+      <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-[var(--ls-border-subtle)]/60">
         <div className="flex flex-col gap-0.5 min-w-0">
           <span className="text-white font-serif text-lg tracking-tight truncate leading-tight">
             {doc.metadata.title || t.previewUntitled}
           </span>
           {doc.metadata.artist && (
-            <span className="text-zinc-400 font-serif italic text-sm truncate leading-tight">
+            <span className="text-[var(--ls-text-secondary)] font-serif italic text-sm truncate leading-tight">
               {doc.metadata.artist}
             </span>
           )}
@@ -280,7 +280,7 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
           <PreviewBtn onClick={() => skip(5)} title="+5s">
             <span className="text-[10px] font-bold mr-0.5">5</span><SkipFwdIcon />
           </PreviewBtn>
-          <span className="font-mono text-xs text-zinc-400 tabular-nums w-24 text-center">
+          <span className="font-mono text-xs text-[var(--ls-text-secondary)] tabular-nums w-24 text-center">
             {formatDisplayTime(playbackTime)}
           </span>
         </div>
@@ -290,13 +290,13 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
             onClick={onOpenStyleSettings}
             title={t.previewStyleSettingsTooltip}
             aria-label={t.previewStyleSettingsTooltip}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors"
+            className="ls-button w-8 h-8 flex items-center justify-center hover:text-white transition-colors"
           >
             <GearIcon />
           </button>
           <button
             onClick={onClose}
-            className="px-3 py-1.5 rounded-lg text-sm bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors"
+            className="ls-button text-sm hover:text-white transition-colors"
           >
             {t.previewClose}
           </button>
@@ -310,12 +310,12 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
       >
         {doc.lines.length === 0 ? (
           <div className="flex items-center justify-center h-full">
-            <span className="text-zinc-600 font-serif italic text-lg">{t.previewNoLyrics}</span>
+            <span className="text-[var(--ls-text-secondary)] font-serif italic text-lg">{t.previewNoLyrics}</span>
           </div>
         ) : (
           <div className="flex flex-col gap-4 max-w-2xl mx-auto font-serif">
             {!hasTimestamps && (
-              <p className="text-zinc-700 text-sm text-center mb-2 not-italic font-sans">{t.previewNoTimestamps}</p>
+              <p className="text-[var(--ls-text-secondary)] text-sm text-center mb-2 not-italic font-sans">{t.previewNoTimestamps}</p>
             )}
             {linesContent}
             <div className="h-24 shrink-0" />
@@ -387,12 +387,12 @@ function PreviewBtn({
       onClick={onClick}
       title={title}
       aria-label={title}
-      className={[
+      className={`ls-button ${[
         "flex items-center justify-center text-sm transition-colors",
         accent
-          ? "w-9 h-9 rounded-full bg-indigo-500 hover:bg-indigo-400 text-white"
-          : "h-9 px-2 rounded-lg text-zinc-300 hover:bg-white/10 hover:text-white",
-      ].join(" ")}
+          ? "w-9 h-9 rounded-full bg-[var(--ls-selection)] hover:bg-[var(--ls-selection)] text-white"
+          : "h-9 px-2 rounded-lg text-[var(--ls-text-secondary)] hover:bg-white/10 hover:text-white",
+      ].join(" ")}`}
     >
       {children}
     </button>
