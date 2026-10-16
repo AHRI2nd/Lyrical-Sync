@@ -450,18 +450,18 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           />
         </Suspense>
       )}
-    <div className="flex flex-col gap-3 p-4 bg-zinc-900 rounded-xl border border-zinc-700">
+    <div className="ls-panel flex flex-col gap-3 p-4 border border-transparent">
       {/* WaveSurfer container must always remain in the DOM while the component
           is mounted — removing it detaches the canvas and breaks the instance
           when switching back from Spotify mode. Hide with display:none instead. */}
       <div
         ref={containerRef}
-        className="w-full rounded-lg overflow-hidden bg-zinc-800 cursor-pointer"
+        className="w-full rounded-lg overflow-hidden bg-[var(--ls-control)] cursor-pointer"
         style={{ minHeight: 80, display: (isServiceMode || deviceMode || viewMode === "bar") ? "none" : "" }}
       />
       <div
         ref={spectrogramContainerRef}
-        className="w-full rounded-lg overflow-hidden bg-zinc-800"
+        className="w-full rounded-lg overflow-hidden bg-[var(--ls-control)]"
         style={{ minHeight: 80, display: (isServiceMode || deviceMode || viewMode === "bar" || !showSpectrogram) ? "none" : "" }}
       />
 
@@ -477,7 +477,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       {viewMode === "bar" && (
         <TrackInfoHeader
           icon={youtubeMode ? <YouTubeGlyph /> : <FileGlyph />}
-          iconBgClass={youtubeMode ? "bg-red-500/15 text-red-400" : "bg-indigo-500/15 text-indigo-300"}
+          iconBgClass={youtubeMode ? "bg-red-500/15 text-red-400" : "bg-[var(--ls-selection)]/15 text-[var(--ls-accent)]"}
           title={metadata.title || (audioPath ? (audioPath.split(/[\\/]/).pop() ?? "") : "")}
           subtitle={[metadata.artist, metadata.album].filter(Boolean).join(" · ")}
           emptyMessage={t.noAudioShort}
@@ -490,13 +490,13 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           duration={duration}
           seekContextKey={`${youtubeMode ? "youtube" : "local"}:${audioPath ?? ytUrl}`}
           onSeek={audioControls.seekTo}
-          accentClass={youtubeMode ? "bg-red-500" : "bg-indigo-500"}
+          accentClass={youtubeMode ? "bg-red-500" : "bg-[var(--ls-selection)]"}
         />
       )}
 
       {/* 시간 표시 (파형 모드에서만) */}
       {viewMode === "waveform" && (
-        <div className="flex justify-between text-xs text-zinc-400 font-mono px-1">
+        <div className="flex justify-between text-xs text-[var(--ls-text-secondary)] font-mono px-1">
           <span>{formatDisplayTime(currentTime)}</span>
           <span>{formatDisplayTime(duration)}</span>
         </div>
@@ -527,7 +527,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         !isLoggedIn ? (
           <button
             onClick={handleSpotifyLogin}
-            className="w-full py-1.5 rounded-lg bg-green-700 hover:bg-green-600 text-white text-sm transition-colors text-center truncate"
+            className="ls-button w-full bg-green-700 hover:bg-green-600 text-white text-sm transition-colors text-center truncate"
           >
             {t.spotifyConnect}
           </button>
@@ -535,13 +535,13 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           <div className="flex gap-2">
             <button
               onClick={handleLoadCurrent}
-              className="flex-1 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm transition-colors text-center truncate"
+              className="ls-button flex-1 text-white text-sm transition-colors text-center truncate"
             >
               {t.spotifyLoadCurrent}
             </button>
             <button
               onClick={onSpotifySearch}
-              className="flex-1 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm transition-colors text-center truncate"
+              className="ls-button flex-1 text-white text-sm transition-colors text-center truncate"
             >
               {t.spotifySearchTrack}
             </button>
@@ -550,7 +550,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       ) : youtubeMode ? (
         <button
           onClick={() => setYtModalOpen(true)}
-          className="w-full py-1.5 rounded-lg bg-red-700 hover:bg-red-600 text-white text-sm transition-colors text-center truncate flex items-center justify-center gap-2"
+          className="ls-button w-full bg-red-700 hover:bg-red-600 text-white text-sm transition-colors text-center truncate flex items-center justify-center gap-2"
         >
           <YouTubeLinkIcon />
           {ytLoading ? t.youtubeLoading : t.youtubeOpenLink}
@@ -558,26 +558,26 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       ) : (
         <button
           onClick={openAudio}
-          className="w-full py-2 rounded-lg border border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800 text-zinc-300 text-sm transition-colors text-center truncate"
+          className="ls-button w-full text-sm transition-colors text-center truncate"
         >
           {t.openAudio}
         </button>
       )}
 
       {/* 볼륨 (스피커 아이콘 + 슬림 슬라이더) */}
-      <div className="flex items-center gap-2.5 text-zinc-400" title={`${t.volume} ${Math.round(volume * 100)}%`}>
+      <div className="flex items-center gap-2.5 text-[var(--ls-text-secondary)]" title={`${t.volume} ${Math.round(volume * 100)}%`}>
         <span className="shrink-0"><VolumeIcon /></span>
         <input
           type="range" min={0} max={1} step={0.01} value={volume}
           onChange={(e) => setVolume(parseFloat(Number(e.target.value).toFixed(2)))}
-          className="range-slim min-w-0 flex-1"
+          className="ls-range range-slim min-w-0 flex-1"
           style={{ background: `linear-gradient(to right, #6366f1 ${Math.round(volume * 100)}%, #3f3f46 ${Math.round(volume * 100)}%)` }}
         />
-        <span className="shrink-0 w-9 text-right text-xs text-zinc-400 tabular-nums">{Math.round(volume * 100)}%</span>
+        <span className="shrink-0 w-9 text-right text-xs text-[var(--ls-text-secondary)] tabular-nums">{Math.round(volume * 100)}%</span>
       </div>
 
       {/* 줌 + 뷰 토글 */}
-      <div className="flex items-center gap-2.5 text-zinc-400">
+      <div className="flex items-center gap-2.5 text-[var(--ls-text-secondary)]">
         {viewMode === "waveform" ? (
           <>
             <span className="shrink-0"><ZoomIcon /></span>
@@ -591,27 +591,27 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
                   if (wsRef.current && isAudioReady) wsRef.current.zoom(zoomLevelToPixels(v));
                 }, 80);
               }}
-              className="range-slim min-w-0 flex-1"
+              className="ls-range range-slim min-w-0 flex-1"
               style={{ background: `linear-gradient(to right, #6366f1 ${zoomLevel}%, #3f3f46 ${zoomLevel}%)` }}
             />
           </>
         ) : (
           <div className="flex-1" />
         )}
-        <div className="flex shrink-0 bg-zinc-800 rounded-lg p-0.5">
+        <div className="flex shrink-0 bg-[var(--ls-control)] rounded-lg p-0.5">
           <button
             onClick={() => setViewMode("waveform")}
-            className={`px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors ${
-              viewMode === "waveform" ? "bg-zinc-600 text-white" : "text-zinc-500 hover:text-zinc-300"
-            }`}
+            className={`ls-button ${`px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors ${
+              viewMode === "waveform" ? "bg-[var(--ls-control)] text-white" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)]"
+            }`}`}
           >
             {t.tooltipViewWaveform}
           </button>
           <button
             onClick={() => setViewMode("bar")}
-            className={`px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors ${
-              viewMode === "bar" ? "bg-zinc-600 text-white" : "text-zinc-500 hover:text-zinc-300"
-            }`}
+            className={`ls-button ${`px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors ${
+              viewMode === "bar" ? "bg-[var(--ls-control)] text-white" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)]"
+            }`}`}
           >
             {t.tooltipViewSeekBar}
           </button>
@@ -619,7 +619,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       </div>
 
       {!audioPath && (
-        <p className="text-center text-zinc-500 text-sm">{t.noAudio}</p>
+        <p className="text-center text-[var(--ls-text-secondary)] text-sm">{t.noAudio}</p>
       )}
       </>
       )}

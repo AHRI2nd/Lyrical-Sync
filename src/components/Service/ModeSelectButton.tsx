@@ -65,7 +65,7 @@ export function ModeSelectButton() {
     : t.modeFile;
 
   const currentColor = deviceMode
-    ? "bg-indigo-700 hover:bg-indigo-600 text-white"
+    ? "bg-[var(--ls-primary)] hover:bg-[var(--ls-primary)] text-white"
     : youtubeMode
     ? "bg-red-700 hover:bg-red-600 text-white"
     : spotifyMode
@@ -73,8 +73,8 @@ export function ModeSelectButton() {
       ? "bg-green-700 hover:bg-green-600 text-white"
       : isLoggedIn
       ? "bg-green-900/50 hover:bg-green-800/60 text-green-300 border border-green-800"
-      : "bg-zinc-700 hover:bg-zinc-600 text-zinc-100"
-    : "bg-zinc-700 hover:bg-zinc-600 text-zinc-100";
+      : "bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text)]"
+    : "bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text)]";
 
   // 모드 이탈 시 이전 재생 정지(공통 헬퍼)
   const stopCurrentPlayback = () => {
@@ -104,10 +104,10 @@ export function ModeSelectButton() {
     <div ref={ref} className="relative shrink-0">
       <button
         onClick={() => { setOpen((v) => !v); checkYtdlp(); }}
-        className={`h-8 flex items-center gap-1.5 px-3 text-xs rounded-lg transition-colors font-medium ${currentColor}`}
+        className={`ls-button ${`h-8 flex items-center gap-1.5 px-3 text-xs rounded-lg transition-colors font-medium ${currentColor}`}`}
       >
-        <span className="text-zinc-400 font-normal">{t.modeSelect}</span>
-        <span className="text-[10px] text-zinc-500">|</span>
+        <span className="text-[var(--ls-text-secondary)] font-normal">{t.modeSelect}</span>
+        <span className="text-[10px] text-[var(--ls-text-secondary)]">|</span>
         {spotifyMode && !youtubeMode && !deviceMode && <SpotifyIcon />}
         {youtubeMode && <YouTubeIcon />}
         {deviceMode && <DeviceIcon />}
@@ -116,7 +116,7 @@ export function ModeSelectButton() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-48 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-50 overflow-hidden py-1">
+        <div className="absolute right-0 top-full mt-1 w-48 bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] rounded-lg shadow-xl z-50 overflow-hidden py-1">
           <ModeOption
             label={t.modeFile}
             active={!spotifyMode && !youtubeMode && !deviceMode}
@@ -163,18 +163,18 @@ function ModeOption({
     <button
       onClick={onClick}
       disabled={disabled}
-      className={[
+      className={`ls-button ${[
         "w-full flex items-center gap-2.5 px-3 py-2 text-xs text-left transition-colors",
         disabled
-          ? "text-zinc-600 cursor-not-allowed"
+          ? "text-[var(--ls-text-secondary)] cursor-not-allowed"
           : active
-          ? "text-white bg-zinc-700"
-          : "text-zinc-300 hover:bg-zinc-700 hover:text-white",
-      ].join(" ")}
+          ? "text-white bg-[var(--ls-control)]"
+          : "text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-white",
+      ].join(" ")}`}
     >
       <span className="shrink-0 opacity-80">{icon}</span>
       <span className="truncate">{label}</span>
-      {active && <span className="ml-auto text-indigo-400 text-[10px]">✓</span>}
+      {active && <span className="ml-auto text-[var(--ls-accent)] text-[10px]">✓</span>}
     </button>
   );
 }
