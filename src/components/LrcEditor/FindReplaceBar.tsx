@@ -45,13 +45,13 @@ export function FindReplaceBar({
             if (e.key === "Enter") { e.preventDefault(); e.shiftKey ? onPrev() : onNext(); }
           }}
           placeholder={t.findPlaceholder}
-          className="ls-field flex-1 min-w-0 text-sm text-white placeholder-zinc-500 transition-colors"
+          className="ls-field flex-1 min-w-0 text-sm text-white transition-colors"
         />
         {/* 대소문자 구분 */}
         <div className="relative group/aa">
           <button
             onClick={onCaseSensitiveToggle}
-            className={`ls-button ${`px-2 py-1 text-xs rounded-lg font-mono transition-colors ${
+            className={`ls-button ls-button--compact ${`  text-xs rounded-lg font-mono transition-colors ${
               caseSensitive
                 ? "bg-[var(--ls-playhead)] text-[var(--ls-canvas)]"
                 : "bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text-secondary)]"
@@ -70,14 +70,14 @@ export function FindReplaceBar({
           {countLabel}
         </span>
         {/* 이전/다음 */}
-        <button onClick={onPrev} disabled={matchCount === 0} className="ls-button w-6 h-6 flex items-center justify-center hover:text-white disabled:opacity-30 transition-colors" title="이전 (Shift+Enter)" aria-label="이전 (Shift+Enter)">
+        <button onClick={onPrev} disabled={matchCount === 0} className="ls-button ls-button--compact w-6 h-6 flex items-center justify-center hover:text-white disabled:opacity-30 transition-colors" title={`${t.findPrevious} (Shift+Enter)`} aria-label={`${t.findPrevious} (Shift+Enter)`}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="18 15 12 9 6 15"/></svg>
         </button>
-        <button onClick={onNext} disabled={matchCount === 0} className="ls-button w-6 h-6 flex items-center justify-center hover:text-white disabled:opacity-30 transition-colors" title="다음 (Enter)" aria-label="다음 (Enter)">
+        <button onClick={onNext} disabled={matchCount === 0} className="ls-button ls-button--compact w-6 h-6 flex items-center justify-center hover:text-white disabled:opacity-30 transition-colors" title={`${t.findNext} (Enter)`} aria-label={`${t.findNext} (Enter)`}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
         {/* 닫기 */}
-        <button onClick={onClose} className="ls-button w-6 h-6 flex items-center justify-center hover:text-white transition-colors">
+        <button onClick={onClose} title={t.close} aria-label={t.close} className="ls-button ls-button--compact w-6 h-6 flex items-center justify-center hover:text-white transition-colors">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
@@ -89,19 +89,19 @@ export function FindReplaceBar({
           onChange={(e) => onReplaceChange(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onReplace(); } }}
           placeholder={t.replacePlaceholder}
-          className="ls-field flex-1 min-w-0 text-sm text-white placeholder-zinc-500 transition-colors"
+          className="ls-field flex-1 min-w-0 text-sm text-white transition-colors"
         />
         <button
           onClick={onReplace}
           disabled={matchCount === 0}
-          className="ls-button shrink-0 text-xs disabled:opacity-40 transition-colors"
+          className="ls-button ls-button--compact shrink-0 text-xs disabled:opacity-40 transition-colors"
         >
           {t.replaceBtn}
         </button>
         <button
           onClick={onReplaceAll}
           disabled={matchCount === 0}
-          className="ls-button shrink-0 text-xs bg-[var(--ls-playhead)] hover:bg-[var(--ls-playhead)] text-[var(--ls-canvas)] disabled:opacity-40 transition-colors"
+          className="ls-button ls-button--compact shrink-0 text-xs bg-[var(--ls-playhead)] hover:bg-[var(--ls-playhead)] text-[var(--ls-canvas)] disabled:opacity-40 transition-colors"
         >
           {t.replaceAll}
         </button>

@@ -152,6 +152,8 @@ export interface Translations {
   addLine: string;
   findReplace: string;
   editorTools: string;
+  findPrevious: string;
+  findNext: string;
   findPlaceholder: string;
   replacePlaceholder: string;
   replaceBtn: string;
@@ -519,6 +521,8 @@ const ko: Translations = {
   addLine: "+ 줄 추가",
   findReplace: "찾기/바꾸기",
   editorTools: "도구",
+  findPrevious: "이전 일치",
+  findNext: "다음 일치",
   findPlaceholder: "찾기...",
   replacePlaceholder: "바꾸기...",
   replaceBtn: "바꾸기",
@@ -908,6 +912,8 @@ const en: Translations = {
   addLine: "+ Add Line",
   findReplace: "Find/Replace",
   editorTools: "Tools",
+  findPrevious: "Previous match",
+  findNext: "Next match",
   findPlaceholder: "Find...",
   replacePlaceholder: "Replace...",
   replaceBtn: "Replace",
@@ -1296,6 +1302,8 @@ const ja: Translations = {
   addLine: "+ 行を追加",
   findReplace: "検索/置換",
   editorTools: "ツール",
+  findPrevious: "前の一致",
+  findNext: "次の一致",
   findPlaceholder: "検索...",
   replacePlaceholder: "置換...",
   replaceBtn: "置換",
