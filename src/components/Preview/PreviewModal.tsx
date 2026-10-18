@@ -5,7 +5,7 @@ import { useLrcStore } from "../../stores/useLrcStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { audioControls } from "../../utils/audioControls";
-import { formatDisplayTime, formatTimestamp, parseTimestampInput, isStampable } from "../../utils/lrcParser";
+import { formatDisplayTime, parseTimestampInput, isStampable } from "../../utils/lrcParser";
 import type { LrcSyllable } from "../../types/lrc";
 
 export function PreviewModal({ onClose }: { onClose: () => void }) {
@@ -85,12 +85,13 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
 
   const startEdit = useCallback((id: string, currentTs: number | null) => {
     setEditingId(id);
-    setEditValue(currentTs !== null ? formatTimestamp(currentTs) : "");
+    setEditValue(currentTs !== null ? formatDisplayTime(currentTs) : "");
   }, []);
 
   const commitEdit = useCallback((id: string) => {
     const parsed = parseTimestampInput(editValue);
-    if (parsed !== null) {
+    const current = useLrcStore.getState().doc.lines.find((line) => line.id === id)?.timestamp;
+    if (parsed !== null && parsed !== current && (current == null || editValue.trim() !== formatDisplayTime(current))) {
       updateLine(id, { timestamp: parsed });
     }
     setEditingId(null);
@@ -122,7 +123,7 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
         className="flex items-baseline gap-4 transition-all duration-300"
         style={{ color: lineColor }}
       >
-        <div className="w-20 shrink-0 flex justify-end">
+        <div className="w-28 shrink-0 flex justify-end">
           {editingId === line.id ? (
             <input
               ref={editInputRef}
@@ -135,19 +136,19 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
                 if (e.key === "Enter") commitEdit(line.id);
                 if (e.key === "Escape") setEditingId(null);
               }}
-              placeholder="00:00.00"
-              className="ls-field w-20 text-xs font-mono text-right"
+              placeholder="H:MM:SS.mmm"
+              className="ls-field ls-row-input ls-time-input w-full text-xs font-mono"
             />
           ) : (
             <button
               onClick={() => startEdit(line.id, line.timestamp)}
-              className={`ls-button ${`font-mono text-xs px-1.5 py-0.5 rounded transition-colors text-right w-full
+              className={`ls-button ls-button--compact ls-time-button ${`font-mono text-xs transition-colors w-full
                 ${line.timestamp !== null
                   ? "hover:bg-[var(--ls-control)] hover:text-[var(--ls-accent)]"
                   : "text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-[var(--ls-text-secondary)]"
                 }`}`}
             >
-              {line.timestamp !== null ? formatTimestamp(line.timestamp) : "—"}
+              {line.timestamp !== null ? formatDisplayTime(line.timestamp) : "—"}
             </button>
           )}
         </div>
@@ -227,7 +228,7 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
           <PreviewBtn onClick={() => skip(-1)} title="-1s">
             <TriLeftIcon /><span className="text-[10px] font-bold ml-0.5">1</span>
           </PreviewBtn>
-          <PreviewBtn onClick={togglePlay} accent>
+          <PreviewBtn onClick={togglePlay} title={t.keys.playPause} pressed={playbackIsPlaying} accent>
             {playbackIsPlaying ? <PauseIcon /> : <PlayIcon />}
           </PreviewBtn>
           <PreviewBtn onClick={() => skip(1)} title="+1s">
@@ -320,21 +321,24 @@ function KaraokeText({
 }
 
 function PreviewBtn({
-  onClick, title, accent, children,
+  onClick, title, accent, pressed, children,
 }: {
   onClick: () => void;
   title?: string;
   accent?: boolean;
+  pressed?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <button
       onClick={onClick}
       title={title}
+      aria-label={title}
+      aria-pressed={pressed}
       className={`ls-button ${[
         "flex items-center justify-center text-sm transition-colors",
         accent
-          ? "w-9 h-9 rounded-full bg-[var(--ls-selection)] hover:bg-[var(--ls-selection)] text-white"
+          ? "ls-button--play"
           : "h-9 px-2 rounded-lg text-[var(--ls-text-secondary)] hover:bg-white/10 hover:text-white",
       ].join(" ")}`}
     >
