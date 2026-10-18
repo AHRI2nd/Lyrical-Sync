@@ -15,6 +15,9 @@
 }
 
 @layer components {
+  .ls-sidebar { min-width: 0; scrollbar-gutter: stable; }
+  .ls-transport .ls-button--play { flex-shrink: 0; }
+
   .ls-button {
     display: inline-flex;
     align-items: center;
@@ -74,4 +77,8 @@
   @media (prefers-reduced-motion: reduce) {
     .ls-button { transition: none; }
   }
+}
+
+@layer utilities {
+  .ls-transport .ls-button:not(.ls-button--play) { width: 2rem; min-width: 2rem; height: 2rem; min-height: 2rem; padding: 0.125rem; gap: 0; }
 }

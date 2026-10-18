@@ -46,7 +46,7 @@ export function TransportControls({
 
   return (
     // relative를 행 전체에 두어 팝오버가 좁은 카드 폭(우측 정렬) 안에 들어오게 함
-    <div className="relative flex items-center gap-0.5" ref={moreRef}>
+    <div className="ls-transport relative flex items-center gap-0.5" ref={moreRef}>
       <CtrlBtn onClick={stopAndReset} title={t.tooltipStop}>
         <StopIcon />
       </CtrlBtn>

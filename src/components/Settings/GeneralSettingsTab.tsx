@@ -138,7 +138,7 @@ export function GeneralSettingsTab({
           value={blankLineOffset}
           onChange={(e) => setBlankLineOffset(Number(e.target.value))}
           className="ls-range range-slim w-full"
-          style={{ background: `linear-gradient(to right, #6366f1 ${Math.round((blankLineOffset / 5) * 100)}%, #3f3f46 ${Math.round((blankLineOffset / 5) * 100)}%)` }}
+          style={{ backgroundImage: `linear-gradient(to right, #6366f1 ${Math.round((blankLineOffset / 5) * 100)}%, #3f3f46 ${Math.round((blankLineOffset / 5) * 100)}%)` }}
         />
         <p className="text-xs text-[var(--ls-text-secondary)]">{t.aiSyncBlankOffsetDesc}</p>
       </div>
@@ -170,7 +170,7 @@ export function GeneralSettingsTab({
           value={uiScale}
           onChange={(e) => setUiScale(Number(e.target.value))}
           className="ls-range range-slim w-full"
-          style={{ background: `linear-gradient(to right, #6366f1 ${Math.round(((uiScale - 0.7) / 0.6) * 100)}%, #3f3f46 ${Math.round(((uiScale - 0.7) / 0.6) * 100)}%)` }}
+          style={{ backgroundImage: `linear-gradient(to right, #6366f1 ${Math.round(((uiScale - 0.7) / 0.6) * 100)}%, #3f3f46 ${Math.round(((uiScale - 0.7) / 0.6) * 100)}%)` }}
         />
         <div className="flex justify-between text-xs text-[var(--ls-text-secondary)] select-none">
           <span>70%</span>
@@ -206,7 +206,7 @@ export function GeneralSettingsTab({
           value={lyricsFontScale}
           onChange={(e) => setLyricsFontScale(Number(e.target.value))}
           className="ls-range range-slim w-full"
-          style={{ background: `linear-gradient(to right, #6366f1 ${Math.round(((lyricsFontScale - 0.8) / 0.7) * 100)}%, #3f3f46 ${Math.round(((lyricsFontScale - 0.8) / 0.7) * 100)}%)` }}
+          style={{ backgroundImage: `linear-gradient(to right, #6366f1 ${Math.round(((lyricsFontScale - 0.8) / 0.7) * 100)}%, #3f3f46 ${Math.round(((lyricsFontScale - 0.8) / 0.7) * 100)}%)` }}
         />
       </div>
 
