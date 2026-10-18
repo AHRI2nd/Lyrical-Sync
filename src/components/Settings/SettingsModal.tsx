@@ -174,7 +174,7 @@ export function SettingsModal({ onClose, initialTab = "general" }: { onClose: ()
                   value={uiScale}
                   onChange={(e) => setUiScale(Number(e.target.value))}
                   className="ls-range range-slim w-full"
-                  style={{ background: `linear-gradient(to right, #6366f1 ${Math.round(((uiScale - 0.7) / 0.6) * 100)}%, #3f3f46 ${Math.round(((uiScale - 0.7) / 0.6) * 100)}%)` }}
+                  style={{ backgroundImage: `linear-gradient(to right, #6366f1 ${Math.round(((uiScale - 0.7) / 0.6) * 100)}%, #3f3f46 ${Math.round(((uiScale - 0.7) / 0.6) * 100)}%)` }}
                 />
                 <div className="flex justify-between text-xs text-[var(--ls-text-secondary)] select-none">
                   <span>70%</span>
@@ -210,7 +210,7 @@ export function SettingsModal({ onClose, initialTab = "general" }: { onClose: ()
                   value={lyricsFontScale}
                   onChange={(e) => setLyricsFontScale(Number(e.target.value))}
                   className="ls-range range-slim w-full"
-                  style={{ background: `linear-gradient(to right, #6366f1 ${Math.round(((lyricsFontScale - 0.8) / 0.7) * 100)}%, #3f3f46 ${Math.round(((lyricsFontScale - 0.8) / 0.7) * 100)}%)` }}
+                  style={{ backgroundImage: `linear-gradient(to right, #6366f1 ${Math.round(((lyricsFontScale - 0.8) / 0.7) * 100)}%, #3f3f46 ${Math.round(((lyricsFontScale - 0.8) / 0.7) * 100)}%)` }}
                 />
               </div>
 
