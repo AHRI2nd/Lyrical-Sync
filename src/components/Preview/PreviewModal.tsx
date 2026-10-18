@@ -272,7 +272,7 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
           <PreviewBtn onClick={() => skip(-1)} title="-1s">
             <TriLeftIcon /><span className="text-[10px] font-bold ml-0.5">1</span>
           </PreviewBtn>
-          <PreviewBtn onClick={togglePlay} accent>
+          <PreviewBtn onClick={togglePlay} title={t.keys.playPause} pressed={playbackIsPlaying} accent>
             {playbackIsPlaying ? <PauseIcon /> : <PlayIcon />}
           </PreviewBtn>
           <PreviewBtn onClick={() => skip(1)} title="+1s">
@@ -376,11 +376,12 @@ function KaraokeText({
 }
 
 function PreviewBtn({
-  onClick, title, accent, children,
+  onClick, title, accent, pressed, children,
 }: {
   onClick: () => void;
   title?: string;
   accent?: boolean;
+  pressed?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -388,6 +389,7 @@ function PreviewBtn({
       onClick={onClick}
       title={title}
       aria-label={title}
+      aria-pressed={pressed}
       className={`ls-button ${[
         "flex items-center justify-center text-sm transition-colors",
         accent

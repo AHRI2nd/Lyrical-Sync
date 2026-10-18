@@ -275,3 +275,14 @@ it('keeps the selected volume when the audio engine is replaced', async () => {
     expect(volumeSpy).toHaveBeenCalledWith(.25);
   } finally { view.unmount(); volumeSpy.mockRestore(); }
 });
+
+it("exposes waveform and seek bar selection states", async () => {
+  const { useI18nStore } = await import("../../stores/useI18nStore");
+  useSettingsStore.setState({ spotifyMode: false, deviceMode: false, youtubeMode: false });
+  resetLrc([], null);
+  const { getByRole } = render(<AudioPlayer />), t = useI18nStore.getState().t;
+  expect(getByRole("button", { name: t.tooltipViewWaveform }).getAttribute("aria-pressed")).toBe("true");
+  fireEvent.click(getByRole("button", { name: t.tooltipViewSeekBar }));
+  expect(getByRole("button", { name: t.tooltipViewSeekBar }).getAttribute("aria-pressed")).toBe("true");
+  expect(getByRole("button", { name: t.tooltipViewWaveform }).getAttribute("aria-pressed")).toBe("false");
+});

@@ -70,14 +70,14 @@ export function FindReplaceBar({
           {countLabel}
         </span>
         {/* 이전/다음 */}
-        <button onClick={onPrev} disabled={matchCount === 0} className="ls-button ls-button--compact w-6 h-6 flex items-center justify-center hover:text-white disabled:opacity-30 transition-colors" title="이전 (Shift+Enter)" aria-label="이전 (Shift+Enter)">
+        <button onClick={onPrev} disabled={matchCount === 0} className="ls-button ls-button--compact w-6 h-6 flex items-center justify-center hover:text-white disabled:opacity-30 transition-colors" title={`${t.findPrevious} (Shift+Enter)`} aria-label={`${t.findPrevious} (Shift+Enter)`}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="18 15 12 9 6 15"/></svg>
         </button>
-        <button onClick={onNext} disabled={matchCount === 0} className="ls-button ls-button--compact w-6 h-6 flex items-center justify-center hover:text-white disabled:opacity-30 transition-colors" title="다음 (Enter)" aria-label="다음 (Enter)">
+        <button onClick={onNext} disabled={matchCount === 0} className="ls-button ls-button--compact w-6 h-6 flex items-center justify-center hover:text-white disabled:opacity-30 transition-colors" title={`${t.findNext} (Enter)`} aria-label={`${t.findNext} (Enter)`}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
         {/* 닫기 */}
-        <button onClick={onClose} className="ls-button ls-button--compact w-6 h-6 flex items-center justify-center hover:text-white transition-colors">
+        <button onClick={onClose} title={t.close} aria-label={t.close} className="ls-button ls-button--compact w-6 h-6 flex items-center justify-center hover:text-white transition-colors">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>

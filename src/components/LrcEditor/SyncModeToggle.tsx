@@ -17,12 +17,14 @@ export function SyncModeToggle({
       <div className="inline-flex bg-[var(--ls-control)] rounded-lg p-0.5">
         <button
           onClick={(e) => { onSetSyncMode("line"); e.currentTarget.blur(); }}
+          aria-pressed={!charMode}
           className={`ls-button ls-button--compact ${`  text-xs rounded-md transition-colors ${!charMode ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
         >
           {t.charSync.modeLine}
         </button>
         <button
           onClick={(e) => { onSetSyncMode("char"); e.currentTarget.blur(); }}
+          aria-pressed={charMode}
           disabled={isRunning}
           title={isRunning ? t.aiSyncRunning : undefined}
           className={`ls-button ls-button--compact ${`  text-xs rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${charMode ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
@@ -37,12 +39,14 @@ export function SyncModeToggle({
           <div className="inline-flex bg-[var(--ls-control)] rounded-lg p-0.5">
             <button
               onClick={(e) => { onUnitChange("char"); e.currentTarget.blur(); }}
+              aria-pressed={syncUnit === "char"}
               className={`ls-button ls-button--compact ${`  text-xs rounded-md transition-colors ${syncUnit === "char" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
             >
               {t.charSync.unitChar}
             </button>
             <button
               onClick={(e) => { onUnitChange("word"); e.currentTarget.blur(); }}
+              aria-pressed={syncUnit === "word"}
               className={`ls-button ls-button--compact ${`  text-xs rounded-md transition-colors ${syncUnit === "word" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
             >
               {t.charSync.unitWord}
