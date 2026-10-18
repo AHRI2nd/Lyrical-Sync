@@ -3,7 +3,7 @@ import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
-import { formatDisplayTime, formatTimestamp, parseTimestampInput, validateTimestamps, type SyncUnit } from "../../utils/lrcParser";
+import { formatDisplayTime, parseTimestampInput, validateTimestamps, type SyncUnit } from "../../utils/lrcParser";
 import { audioControls } from "../../utils/audioControls";
 import { CurrentTimeFooter } from "./CurrentTimeFooter";
 import { MiniConfirm } from "./MiniConfirm";
@@ -225,13 +225,16 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   const startTsEdit = (id: string, timestamp: number | null) => {
     tsEditCancel.current = false;
     setActiveLineId(id);
-    setEditTsValue(timestamp !== null ? formatTimestamp(timestamp) : "");
+    setEditTsValue(timestamp !== null ? formatDisplayTime(timestamp) : "");
     setEditingTsId(id);
   };
   const commitTsEdit = (id: string) => {
     if (tsEditCancel.current) { tsEditCancel.current = false; return; }
     const parsed = parseTimestampInput(editTsValue.trim());
-    if (parsed !== null) updateLine(id, { timestamp: parsed });
+    const current = useLrcStore.getState().doc.lines.find((line) => line.id === id)?.timestamp;
+    if (parsed !== null && parsed !== current && (current == null || editTsValue.trim() !== formatDisplayTime(current))) {
+      updateLine(id, { timestamp: parsed });
+    }
     setEditingTsId(null);
   };
   const cancelTsEdit = () => {
@@ -484,14 +487,16 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
           {/* 줄 ↔ 글자 동기화 모드 토글 */}
           <div className="inline-flex bg-[var(--ls-control)] rounded-lg p-0.5">
             <button
+              aria-pressed={!charMode}
               onClick={(e) => { setSyncMode("line"); e.currentTarget.blur(); }}
-              className={`ls-button ${`px-2.5 py-1 text-xs rounded-md transition-colors ${!charMode ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
+              className={`ls-button ls-button--compact ${`text-xs rounded-md transition-colors ${!charMode ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
             >
               {t.charSync.modeLine}
             </button>
             <button
+              aria-pressed={charMode}
               onClick={(e) => { setSyncMode("char"); e.currentTarget.blur(); }}
-              className={`ls-button ${`px-2.5 py-1 text-xs rounded-md transition-colors ${charMode ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
+              className={`ls-button ls-button--compact ${`text-xs rounded-md transition-colors ${charMode ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
             >
               {t.charSync.modeChar}
             </button>
@@ -502,14 +507,16 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
               <span className="text-xs text-[var(--ls-text-secondary)]">{t.charSync.unitLabel}</span>
               <div className="inline-flex bg-[var(--ls-control)] rounded-lg p-0.5">
                 <button
-                  onClick={(e) => { handleUnitChange("char"); e.currentTarget.blur(); }}
-                  className={`ls-button ${`px-2.5 py-1 text-xs rounded-md transition-colors ${syncUnit === "char" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
+                  aria-pressed={syncUnit === "char"}
+              onClick={(e) => { handleUnitChange("char"); e.currentTarget.blur(); }}
+                  className={`ls-button ls-button--compact ${`text-xs rounded-md transition-colors ${syncUnit === "char" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
                 >
                   {t.charSync.unitChar}
                 </button>
                 <button
-                  onClick={(e) => { handleUnitChange("word"); e.currentTarget.blur(); }}
-                  className={`ls-button ${`px-2.5 py-1 text-xs rounded-md transition-colors ${syncUnit === "word" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
+                  aria-pressed={syncUnit === "word"}
+              onClick={(e) => { handleUnitChange("word"); e.currentTarget.blur(); }}
+                  className={`ls-button ls-button--compact ${`text-xs rounded-md transition-colors ${syncUnit === "word" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
                 >
                   {t.charSync.unitWord}
                 </button>
@@ -605,12 +612,12 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
           <span className="text-sky-300 font-medium shrink-0">{selectedIds.size} {t.bulkSelected}</span>
           <div className="w-px h-4 bg-[var(--ls-control)] shrink-0" />
           <span className="text-[var(--ls-text-secondary)] shrink-0">{t.bulkShift}</span>
-          <button onClick={() => shiftLines([...selectedIds], -0.1)} className="ls-button transition-colors">−0.1s</button>
-          <button onClick={() => shiftLines([...selectedIds], 0.1)} className="ls-button transition-colors">+0.1s</button>
+          <button onClick={() => shiftLines([...selectedIds], -0.1)} className="ls-button ls-button--compact transition-colors">−0.1s</button>
+          <button onClick={() => shiftLines([...selectedIds], 0.1)} className="ls-button ls-button--compact transition-colors">+0.1s</button>
           <div className="w-px h-4 bg-[var(--ls-control)] shrink-0" />
-          <button onClick={() => clearTimestamps([...selectedIds])} className="ls-button transition-colors">{t.bulkClearTs}</button>
-          <button onClick={() => { deleteLines([...selectedIds]); setSelectedIds(new Set()); }} className="ls-button bg-rose-700 hover:bg-rose-600 text-white transition-colors">{t.bulkDelete}</button>
-          <button onClick={() => setSelectedIds(new Set())} className="ls-button ml-auto hover:text-white transition-colors">{t.bulkDeselect}</button>
+          <button onClick={() => clearTimestamps([...selectedIds])} className="ls-button ls-button--compact transition-colors">{t.bulkClearTs}</button>
+          <button onClick={() => { deleteLines([...selectedIds]); setSelectedIds(new Set()); }} className="ls-button ls-button--compact bg-rose-700 hover:bg-rose-600 text-white transition-colors">{t.bulkDelete}</button>
+          <button onClick={() => setSelectedIds(new Set())} className="ls-button ls-button--compact ml-auto hover:text-white transition-colors">{t.bulkDeselect}</button>
         </div>
       )}
 
@@ -635,7 +642,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
       <div
         ref={rowViewportRef}
-        className="flex-1 overflow-y-auto flex flex-col gap-1 px-1 py-1"
+        className="ls-line-list flex-1 min-w-0 overflow-y-auto flex flex-col gap-1 px-1 py-1"
         onDoubleClick={(e) => { if (e.target === e.currentTarget) handleAddLine(); }}
       >
         {lines.length === 0 && (
@@ -659,9 +666,10 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
           return (
             <div
               key={line.id}
+              data-line-id={line.id}
               ref={setRowRef(line.id)}
               onClick={(e) => handleRowClick(e, line.id, idx)}
-              className={`group/row relative flex flex-wrap items-center gap-2 rounded-lg px-2 py-1 transition-colors cursor-pointer ${
+              className={`ls-line-row group/row relative rounded-lg transition-colors cursor-pointer ${
                 selectedIds.has(line.id)
                   ? "bg-sky-900/30 ring-1 ring-sky-600/60"
                   : isCurrentMatch
@@ -682,7 +690,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
                 style={{ touchAction: "none" }}
                 onClick={(e) => e.stopPropagation()}
                 title={t.reorderLine}
-                className="shrink-0 cursor-grab active:cursor-grabbing text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)] opacity-0 group-hover/row:opacity-100 transition-opacity"
+                className="ls-line-drag w-4 h-7 shrink-0 cursor-grab active:cursor-grabbing text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)] opacity-0 group-hover/row:opacity-100 transition-opacity"
               >
                 <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true">
                   <circle cx="2.5" cy="2" r="1.2" /><circle cx="7.5" cy="2" r="1.2" />
@@ -690,13 +698,13 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
                   <circle cx="2.5" cy="12" r="1.2" /><circle cx="7.5" cy="12" r="1.2" />
                 </svg>
               </span>
-              <span className="text-[var(--ls-text-secondary)] text-xs w-5 shrink-0 text-right select-none">
+              <span className="ls-line-number text-[var(--ls-text-secondary)] text-xs w-5 shrink-0 text-right select-none">
                 {idx + 1}
               </span>
 
-              <div className="shrink-0">
+              <div className="ls-line-time min-w-0">
                 {editingTsId === line.id ? (
-                  // 좌클릭 시 인라인 편집: 숫자키로 MM:SS.xx 직접 입력
+                  // Edit full millisecond timestamps without changing untouched values.
                   <input
                     autoFocus
                     type="text"
@@ -710,21 +718,22 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
                       else if (e.key === "Escape") { e.preventDefault(); cancelTsEdit(); }
                     }}
                     onBlur={() => commitTsEdit(line.id)}
-                    placeholder="MM:SS.xx"
-                    className="ls-field font-mono text-xs w-24 placeholder-zinc-500"
+                    placeholder="H:MM:SS.mmm"
+                    className="ls-field ls-row-input ls-time-input font-mono text-xs w-full"
                   />
                 ) : (
                   // 좌클릭 → 시간 직접 편집 / 우클릭 → 현재 재생 시간으로 설정
                   <button
                     onClick={(e) => { e.stopPropagation(); startTsEdit(line.id, line.timestamp); }}
                     onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); stampCurrentLine(line.id); }}
-                    className={`ls-button ${`font-mono text-xs px-2 py-0.5 rounded transition-colors ${tsClass}`}`}
+                    className={`ls-button ls-button--compact ls-time-button w-full truncate ${`font-mono text-xs rounded transition-colors ${tsClass}`}`}
                   >
                     {line.timestamp !== null ? formatDisplayTime(line.timestamp) : "-:--:--.---"}
                   </button>
                 )}
               </div>
 
+              <div className="ls-line-status">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -737,15 +746,16 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
                 title={t.loopLine}
                 aria-label={t.loopLine}
                 aria-pressed={loopLineId === line.id}
-                className={`ls-button ${`shrink-0 px-1 transition-opacity disabled:opacity-0 ${
+                className={`ls-button ls-button--compact ls-button--icon-compact ${`shrink-0 transition-opacity disabled:opacity-30 ${
                   loopLineId === line.id
                     ? "text-[var(--ls-accent)] opacity-100"
-                    : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-accent)] opacity-0 group-hover/row:opacity-100 focus:opacity-100"
+                    : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-accent)] opacity-70 group-hover/row:opacity-100 focus:opacity-100"
                 }`}`}
               >
                 <LoopIcon size={12} />
               </button>
 
+              <div className="ls-line-status-slot">
               {hasGlyphSync && (
                 <span
                   title={t.charSync.badge}
@@ -757,18 +767,22 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
                 </span>
               )}
 
+              </div>
+              <div className="ls-line-status-slot">
               {warning && (
                 <div className="relative group/warn shrink-0">
                   <span className="text-[var(--ls-playhead)] text-sm leading-none cursor-help">⚠</span>
-                  <div className={`pointer-events-none absolute left-0 hidden group-hover/warn:block z-30 ${idx < 2 ? "top-full mt-1.5" : "bottom-full mb-1.5"}`}>
-                    <div className="bg-[var(--ls-control)] border border-[var(--ls-playhead)]/60 text-[var(--ls-playhead)] text-xs rounded-lg px-2.5 py-1.5 shadow-xl whitespace-nowrap">
+                  <div className={`ls-line-warning-tooltip pointer-events-none absolute hidden group-hover/warn:block z-30 ${idx < 2 ? "top-full mt-1.5" : "bottom-full mb-1.5"}`}>
+                    <div className="bg-[var(--ls-control)] border border-[var(--ls-playhead)]/60 text-[var(--ls-playhead)] text-xs rounded-lg px-2.5 py-1.5 shadow-xl break-words">
                       {warning === "duplicate" ? t.warnDuplicate : t.warnOutOfOrder}
                     </div>
                   </div>
                 </div>
               )}
 
-              <div className="flex-1 min-w-32 flex flex-col gap-1">
+              </div>
+              </div>
+              <div className="ls-line-content">
                 {line.text.includes("\n") ? (
                   <textarea
                     ref={setInputRef(line.id)} value={line.text} rows={Math.max(2, line.text.split("\n").length)}
@@ -776,7 +790,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
                     onChange={(e) => handleTextChange(line.id, e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter" && e.shiftKey) handleKeyDown(e, line.id); }}
                     onFocus={() => setActiveLineId(line.id)}
-                    className="ls-field w-full resize-y text-white placeholder-zinc-600"
+                    className="ls-field ls-row-input w-full min-w-0 resize-y text-white"
                     style={{ fontSize: `${0.875 * lyricsFontScale}rem` }} placeholder={t.linePlaceholder}
                   />
                 ) : (
@@ -786,7 +800,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
                     onKeyDown={(e) => handleKeyDown(e, line.id)}
                     onFocus={() => setActiveLineId(line.id)}
                     onPaste={(e) => handlePaste(e, line.id, line.text)}
-                    className="ls-field w-full text-white placeholder-zinc-600"
+                    className="ls-field ls-row-input w-full min-w-0 text-white"
                     style={{ fontSize: `${0.875 * lyricsFontScale}rem` }} placeholder={t.linePlaceholder}
                   />
                 )}
@@ -798,12 +812,13 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
                     onClick={(e) => e.stopPropagation()}
                     onFocus={() => setActiveLineId(line.id)}
                     onChange={(e) => updateLine(line.id, { translation: e.target.value })}
-                    className="ls-field w-full resize-y placeholder-zinc-600"
+                    className="ls-field ls-row-input w-full min-w-0 resize-y"
                     style={{ fontSize: `${0.75 * lyricsFontScale}rem` }}
                   />
                 )}
               </div>
 
+              <div className="ls-line-actions">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -812,7 +827,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
                   if (pid) { setActiveLineId(pid); pendingFocusId.current = pid; }
                 }}
                 disabled={idx === 0}
-                className="ls-button shrink-0 hover:text-[var(--ls-accent)] opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity disabled:opacity-0"
+                className="ls-button ls-button--compact ls-button--icon-compact shrink-0 hover:text-[var(--ls-accent)] opacity-70 group-hover/row:opacity-100 focus:opacity-100 transition-opacity disabled:opacity-30"
                 title={t.mergeLineUp}
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -825,7 +840,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
                   const nid = duplicateLine(line.id);
                   setActiveLineId(nid); pendingFocusId.current = nid;
                 }}
-                className="ls-button shrink-0 hover:text-[var(--ls-accent)] opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
+                className="ls-button ls-button--compact ls-button--icon-compact shrink-0 hover:text-[var(--ls-accent)] opacity-70 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
                 title={t.duplicateLine}
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -834,11 +849,12 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); deleteLine(line.id); }}
-                className="ls-button shrink-0 hover:text-rose-400 text-sm opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
+                className="ls-button ls-button--compact ls-button--icon-compact shrink-0 hover:text-rose-400 text-sm opacity-70 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
                 title={t.deleteLine}
               >
                 ✕
               </button>
+              </div>
             </div>
           );
         })}

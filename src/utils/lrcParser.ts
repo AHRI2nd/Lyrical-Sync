@@ -80,14 +80,15 @@ export function parseTimestamp(ts: string): number | null {
   return parseInt(m[1], 10) * 60 + parseInt(m[2], 10) + fracToSeconds(m[3]);
 }
 
-// MM:SS.xx 형식의 사용자 입력을 초(number)로 파싱
+// Accept both legacy minute timestamps and the hour-aware millisecond UI format.
 export function parseTimestampInput(input: string): number | null {
-  const m = /^(\d+):(\d{2})\.(\d{2,3})$/.exec(input.trim());
+  const m = /^(?:(\d+):)?(\d+):(\d{2})\.(\d{2,3})$/.exec(input.trim());
   if (!m) return null;
-  const mins = parseInt(m[1], 10);
-  const secs = parseInt(m[2], 10);
-  const frac = m[3].length === 2 ? parseInt(m[3], 10) / 100 : parseInt(m[3], 10) / 1000;
-  return mins * 60 + secs + frac;
+  const hours = m[1] ? parseInt(m[1], 10) : 0;
+  const mins = parseInt(m[2], 10);
+  const secs = parseInt(m[3], 10);
+  const fractionMs = parseInt(m[4], 10) * (m[4].length === 2 ? 10 : 1);
+  return ((hours * 3600 + mins * 60 + secs) * 1000 + fractionMs) / 1000;
 }
 
 // LRC 파일 직렬화용 [MM:SS.xx]
