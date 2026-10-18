@@ -18,12 +18,12 @@ export function BulkActionsBar({
       <span className="text-sky-300 font-medium shrink-0">{count} {t.bulkSelected}</span>
       <div className="w-px h-4 bg-[var(--ls-control)] shrink-0" />
       <span className="text-[var(--ls-text-secondary)] shrink-0">{t.bulkShift}</span>
-      <button onClick={onShiftMinus} className="ls-button transition-colors">−0.1s</button>
-      <button onClick={onShiftPlus} className="ls-button transition-colors">+0.1s</button>
+      <button onClick={onShiftMinus} className="ls-button ls-button--compact transition-colors">−0.1s</button>
+      <button onClick={onShiftPlus} className="ls-button ls-button--compact transition-colors">+0.1s</button>
       <div className="w-px h-4 bg-[var(--ls-control)] shrink-0" />
-      <button onClick={onClearTs} className="ls-button transition-colors">{t.bulkClearTs}</button>
-      <button onClick={onDelete} className="ls-button bg-rose-700 hover:bg-rose-600 text-white transition-colors">{t.bulkDelete}</button>
-      <button onClick={onDeselect} className="ls-button ml-auto hover:text-white transition-colors">{t.bulkDeselect}</button>
+      <button onClick={onClearTs} className="ls-button ls-button--compact transition-colors">{t.bulkClearTs}</button>
+      <button onClick={onDelete} className="ls-button ls-button--compact bg-rose-700 hover:bg-rose-600 text-white transition-colors">{t.bulkDelete}</button>
+      <button onClick={onDeselect} className="ls-button ls-button--compact ml-auto hover:text-white transition-colors">{t.bulkDeselect}</button>
     </div>
   );
 }

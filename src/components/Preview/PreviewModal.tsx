@@ -390,7 +390,7 @@ function PreviewBtn({
       className={`ls-button ${[
         "flex items-center justify-center text-sm transition-colors",
         accent
-          ? "w-9 h-9 rounded-full bg-[var(--ls-selection)] hover:bg-[var(--ls-selection)] text-white"
+          ? "ls-button--play"
           : "h-9 px-2 rounded-lg text-[var(--ls-text-secondary)] hover:bg-white/10 hover:text-white",
       ].join(" ")}`}
     >
