@@ -82,7 +82,7 @@ export function YouTubeModal({
               placeholder={t.youtubeUrlPlaceholder}
               disabled={ytLoading}
               autoFocus
-              className="ls-field flex-1 min-w-0 text-sm placeholder-zinc-600 font-mono disabled:opacity-50"
+              className="ls-field flex-1 min-w-0 text-sm font-mono disabled:opacity-50"
             />
           </div>
 

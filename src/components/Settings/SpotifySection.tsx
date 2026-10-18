@@ -50,7 +50,7 @@ export function SpotifySection({
             value={draft}
             onChange={(e) => { setDraft(e.target.value); setSaved(false); }}
             placeholder={t.spotifyClientIdPlaceholder}
-            className="ls-field flex-1 text-sm placeholder-zinc-600"
+            className="ls-field flex-1 text-sm"
           />
           <button
             onClick={handleSave}
