@@ -297,3 +297,9 @@ it("does not merge pre-marker or mismatched repeated timestamps", () => {
 it("retains ordinary LRC whitespace normalization around timestamps", () => {
   expect(parseLrc("  [00:01.00]hello  ").lines[0]).toMatchObject({ timestamp: 1, text: "hello" });
 });
+
+it("parses the millisecond timestamp displayed by hour-aware inline editors", () => {
+  expect(parseTimestampInput("1:00:02.369")).toBe(3602.369);
+  expect(parseTimestampInput("0:00:02.369")).toBe(2.369);
+  expect(parseTimestampInput("60:02.369")).toBe(3602.369);
+});

@@ -6,7 +6,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
-import { formatTimestamp, parseTimestampInput, validateTimestamps, type SyncUnit } from "../../utils/lrcParser";
+import { formatDisplayTime, parseTimestampInput, validateTimestamps, type SyncUnit } from "../../utils/lrcParser";
 import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
 import { MODEL_DEFS } from "../../utils/modelDefs";
@@ -231,13 +231,16 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   const startTsEdit = (id: string, timestamp: number | null) => {
     tsEditCancel.current = false;
     setActiveLineId(id);
-    setEditTsValue(timestamp !== null ? formatTimestamp(timestamp) : "");
+    setEditTsValue(timestamp !== null ? formatDisplayTime(timestamp) : "");
     setEditingTsId(id);
   };
   const commitTsEdit = (id: string) => {
     if (tsEditCancel.current) { tsEditCancel.current = false; return; }
     const parsed = parseTimestampInput(editTsValue.trim());
-    if (parsed !== null) updateLine(id, { timestamp: parsed });
+    const current = useLrcStore.getState().doc.lines.find((line) => line.id === id)?.timestamp;
+    if (parsed !== null && parsed !== current && (current == null || editTsValue.trim() !== formatDisplayTime(current))) {
+      updateLine(id, { timestamp: parsed });
+    }
     setEditingTsId(null);
   };
   const cancelTsEdit = () => {

@@ -125,3 +125,35 @@ it("requires explicit parts for an empty translation and retains both empty stri
   fireEvent.click(getByRole("button", { name: t.translationSplitAction }));
   expect(useLrcStore.getState().doc.lines.map(line => [line.text, line.translation])).toEqual([["ori", ""], ["ginal", ""]]);
 });
+
+it.each([2.369, 3602.369, 2.36912345])("preserves timestamp %s and history when inline editing is left unchanged", (timestamp) => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "precise", timestamp }] }, _history: [], _future: [] });
+  const original = useLrcStore.getState().doc;
+  const { container, getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  const timestampButton = container.querySelector('[data-line-id="a"] .ls-line-time button')!;
+  fireEvent.click(timestampButton);
+  const input = container.querySelector('[data-line-id="a"] .ls-line-time input')!;
+  fireEvent.blur(input);
+  expect(useLrcStore.getState().doc).toBe(original);
+  expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(timestamp);
+  expect(useLrcStore.getState()._history).toHaveLength(0);
+  expect(getByRole("textbox").getAttribute("value")).toBe("precise");
+});
+
+it("commits an hour-aware timestamp while composition and Escape preserve the original", () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "precise", timestamp: 2.369 }] }, _history: [] });
+  const { container, getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getByRole("button", { name: "0:00:02.369" }));
+  let input = container.querySelector('.ls-line-time input')!;
+  fireEvent.change(input, { target: { value: "1:00:02.369" } });
+  fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+  expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(2.369);
+  fireEvent.keyDown(input, { key: "Escape" });
+  expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(2.369);
+  fireEvent.click(getByRole("button", { name: "0:00:02.369" }));
+  input = container.querySelector('.ls-line-time input')!;
+  fireEvent.change(input, { target: { value: "1:00:02.369" } });
+  fireEvent.keyDown(input, { key: "Enter" });
+  expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(3602.369);
+  expect(useLrcStore.getState()._history).toHaveLength(1);
+});
