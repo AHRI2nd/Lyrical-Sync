@@ -56,8 +56,8 @@ it("uses the selected active color for timed glyph fill", async () => {
 
 it("ignores composition Enter and Escape while editing timestamps", () => {
   const close = vi.fn();
-  const { getByText, getByRole, queryByRole } = render(<PreviewModal onOpenStyleSettings={() => {}} onClose={close} />);
-  fireEvent.click(getByText("00:01.00"));
+  const { getByRole, queryByRole } = render(<PreviewModal onOpenStyleSettings={() => {}} onClose={close} />);
+  fireEvent.click(getByRole("button", { name: "0:00:01.000" }));
   const input = getByRole("textbox");
   fireEvent.change(input, { target: { value: "00:02.00" } });
   fireEvent.keyDown(input, { key: "Enter", isComposing: true });
@@ -88,4 +88,15 @@ it("renders translations and multiline originals without guessing or joining tex
   expect(container.textContent).toContain("translated\ncontinued");
   expect(getByText(/translated/).style.whiteSpace).toBe("pre-wrap");
   expect(getByText(/first/).closest("div")!.style.whiteSpace).toBe("pre-wrap");
+});
+
+it("preserves millisecond and submillisecond timestamps on an unchanged preview edit", () => {
+  const timestamp = 3602.36912345;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "precise", timestamp }] }, _history: [], _future: [] });
+  const original = useLrcStore.getState().doc;
+  const { getByRole } = render(<PreviewModal onOpenStyleSettings={() => {}} onClose={() => {}} />);
+  fireEvent.click(getByRole("button", { name: "1:00:02.369" }));
+  fireEvent.blur(getByRole("textbox"));
+  expect(useLrcStore.getState().doc).toBe(original);
+  expect(useLrcStore.getState()._history).toHaveLength(0);
 });

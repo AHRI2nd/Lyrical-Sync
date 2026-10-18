@@ -134,7 +134,7 @@ function LrcLineRowImpl({
               else if (e.key === "Escape") { e.preventDefault(); onCancelTsEdit(); }
             }}
             onBlur={onCommitTsEdit}
-            placeholder="MM:SS.xx"
+            placeholder="H:MM:SS.mmm"
             className="ls-field ls-row-input ls-time-input font-mono text-xs w-full placeholder-zinc-500"
           />
         ) : (

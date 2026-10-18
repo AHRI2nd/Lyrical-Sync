@@ -7,7 +7,7 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
-import { formatDisplayTime, formatTimestamp, parseTimestampInput, isStampable } from "../../utils/lrcParser";
+import { formatDisplayTime, parseTimestampInput, isStampable } from "../../utils/lrcParser";
 import type { LrcSyllable } from "../../types/lrc";
 import { GearIcon } from "../AppShell/icons";
 
@@ -117,12 +117,13 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
 
   const startEdit = useCallback((id: string, currentTs: number | null) => {
     setEditingId(id);
-    setEditValue(currentTs !== null ? formatTimestamp(currentTs) : "");
+    setEditValue(currentTs !== null ? formatDisplayTime(currentTs) : "");
   }, []);
 
   const commitEdit = useCallback((id: string) => {
     const parsed = parseTimestampInput(editValue);
-    if (parsed !== null) {
+    const current = useLrcStore.getState().doc.lines.find((line) => line.id === id)?.timestamp;
+    if (parsed !== null && parsed !== current && (current == null || editValue.trim() !== formatDisplayTime(current))) {
       updateLine(id, { timestamp: parsed });
     }
     setEditingId(null);
@@ -154,7 +155,7 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
         className="flex items-baseline gap-4 transition-all duration-300"
         style={{ color: lineColor }}
       >
-        <div className="w-20 shrink-0 flex justify-end">
+        <div className="w-28 shrink-0 flex justify-end">
           {editingId === line.id ? (
             <input
               ref={editInputRef}
@@ -167,19 +168,19 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
                 if (e.key === "Enter") commitEdit(line.id);
                 if (e.key === "Escape") setEditingId(null);
               }}
-              placeholder="00:00.00"
-              className="ls-field w-20 text-xs font-mono text-right"
+              placeholder="H:MM:SS.mmm"
+              className="ls-field ls-row-input ls-time-input w-full text-xs font-mono"
             />
           ) : (
             <button
               onClick={() => startEdit(line.id, line.timestamp)}
-              className={`ls-button ${`font-mono text-xs px-1.5 py-0.5 rounded transition-colors text-right w-full
+              className={`ls-button ls-button--compact ls-time-button ${`font-mono text-xs transition-colors w-full
                 ${line.timestamp !== null
                   ? "hover:bg-[var(--ls-control)] hover:text-[var(--ls-accent)]"
                   : "text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-[var(--ls-text-secondary)]"
                 }`}`}
             >
-              {line.timestamp !== null ? formatTimestamp(line.timestamp) : "—"}
+              {line.timestamp !== null ? formatDisplayTime(line.timestamp) : "—"}
             </button>
           )}
         </div>
