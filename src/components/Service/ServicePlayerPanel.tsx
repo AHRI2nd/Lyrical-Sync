@@ -111,7 +111,7 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
             setSpotifyVolume(v).catch(() => {});
           }}
           className="ls-range range-slim min-w-0 flex-1"
-          style={{ background: `linear-gradient(to right, #22c55e ${Math.round(volume * 100)}%, #3f3f46 ${Math.round(volume * 100)}%)`, ["--slim-accent" as string]: "#22c55e" }}
+          style={{ backgroundImage: `linear-gradient(to right, #22c55e ${Math.round(volume * 100)}%, #3f3f46 ${Math.round(volume * 100)}%)`, ["--slim-accent" as string]: "#22c55e" }}
         />
         <span className="shrink-0 w-9 text-right text-xs text-[var(--ls-text-secondary)] tabular-nums">{Math.round(volume * 100)}%</span>
       </div>

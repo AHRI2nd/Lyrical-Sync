@@ -17,6 +17,7 @@ body,
 
 ::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -40,13 +41,15 @@ body,
   -ms-overflow-style: none;
 }
 
-/* 슬림 커스텀 슬라이더 (볼륨·줌 등). 채움은 인라인 그라데이션으로 지정 */
+/* Keep a slim visual track inside a larger native pointer target. */
 input[type="range"].range-slim {
   -webkit-appearance: none;
   appearance: none;
-  height: 5px;
+  height: 24px;
+  padding: 9.5px 0;
   border-radius: 9999px;
-  background: #3f3f46;
+  background-color: #3f3f46;
+  background-clip: content-box;
   cursor: pointer;
 }
 input[type="range"].range-slim::-webkit-slider-runnable-track {

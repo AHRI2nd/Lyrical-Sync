@@ -581,7 +581,7 @@ function App() {
       )}
 
       <div className="flex flex-1 min-h-0 gap-0">
-        <div className="flex flex-col gap-3 p-3 w-80 shrink-0 overflow-y-auto border-r border-[var(--ls-border-subtle)]">
+        <div className="ls-sidebar flex flex-col gap-3 p-3 w-80 shrink-0 overflow-y-auto border-r border-[var(--ls-border-subtle)]">
           <AudioPlayer
             onSpotifySearch={() => setShowSpotifySearch(true)}
             onSpotifyNoClientId={() => { setSettingsInitialTab("spotify"); setShowSettings(true); }}
