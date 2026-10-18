@@ -78,12 +78,11 @@ function LrcLineRowImpl({
     : "bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-[var(--ls-text-secondary)]";
 
   return (
-    <>
     <div
       ref={rowRef}
       data-line-id={line.id}
       onClick={(e) => onRowClick(e, line.id, idx)}
-      className={`group/row relative flex flex-wrap items-center gap-2 rounded-lg px-2 py-1 transition-colors cursor-pointer ${
+      className={`ls-line-row group/row relative rounded-lg transition-colors cursor-pointer ${
         isSelected
           ? "bg-sky-900/30 ring-1 ring-sky-600/60"
           : isCurrentMatch
@@ -107,7 +106,7 @@ function LrcLineRowImpl({
         onPointerDown={onReorderPointerDown}
         onClick={(e) => e.stopPropagation()}
         title={t.reorderLine}
-        className="w-6 h-7 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing select-none touch-none text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)] opacity-0 group-hover/row:opacity-100 transition-opacity"
+        className="ls-line-drag w-4 h-7 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing select-none touch-none text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)] opacity-0 group-hover/row:opacity-100 transition-opacity"
       >
         <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true">
           <circle cx="2.5" cy="2" r="1.2" /><circle cx="7.5" cy="2" r="1.2" />
@@ -115,11 +114,11 @@ function LrcLineRowImpl({
           <circle cx="2.5" cy="12" r="1.2" /><circle cx="7.5" cy="12" r="1.2" />
         </svg>
       </span>
-      <span className="text-[var(--ls-text-secondary)] text-xs w-5 shrink-0 text-right select-none">
+      <span className="ls-line-number text-[var(--ls-text-secondary)] text-xs w-5 shrink-0 text-right select-none">
         {idx + 1}
       </span>
 
-      <div className="shrink-0">
+      <div className="ls-line-time min-w-0">
         {editingTsId === line.id ? (
           // 좌클릭 시 인라인 편집: 숫자키로 MM:SS.xx 직접 입력
           <input
@@ -136,35 +135,37 @@ function LrcLineRowImpl({
             }}
             onBlur={onCommitTsEdit}
             placeholder="MM:SS.xx"
-            className="ls-field font-mono text-xs w-24 placeholder-zinc-500"
+            className="ls-field ls-row-input ls-time-input font-mono text-xs w-full placeholder-zinc-500"
           />
         ) : (
           // 좌클릭 → 시간 직접 편집 / 우클릭 → 현재 재생 시간으로 설정
           <button
             onClick={(e) => { e.stopPropagation(); onStartTsEdit(); }}
             onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onStampCurrentLine(); }}
-            className={`ls-button ${`font-mono text-xs px-2 py-0.5 rounded transition-colors ${tsClass}`}`}
+            className={`ls-button ls-button--compact ls-time-button w-full truncate ${`font-mono text-xs transition-colors ${tsClass}`}`}
           >
             {line.timestamp !== null ? formatDisplayTime(line.timestamp) : "-:--:--.---"}
           </button>
         )}
       </div>
 
+      <div className="ls-line-status">
       <button
         onClick={onToggleLoop}
         disabled={line.timestamp === null}
         title={t.loopLine}
         aria-label={t.loopLine}
         aria-pressed={loopLineId === line.id}
-        className={`ls-button ${`shrink-0 px-1 transition-opacity disabled:opacity-0 ${
+        className={`ls-button ls-button--compact ls-button--icon-compact ${`shrink-0 transition-opacity disabled:opacity-30 ${
           loopLineId === line.id
             ? "text-[var(--ls-accent)] opacity-100"
-            : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-accent)] opacity-0 group-hover/row:opacity-100 focus:opacity-100"
+            : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-accent)] opacity-70 group-hover/row:opacity-100 focus:opacity-100"
         }`}`}
       >
         <LoopIcon size={12} />
       </button>
 
+      <div className="ls-line-status-slot">
       {hasGlyphSync && (
         <span
           title={t.charSync.badge}
@@ -175,7 +176,8 @@ function LrcLineRowImpl({
           </svg>
         </span>
       )}
-
+      </div>
+      <div className="ls-line-status-slot">
       {warning && (
         <div className="relative group/warn shrink-0">
           <span className="text-[var(--ls-playhead)] text-sm leading-none cursor-help">⚠</span>
@@ -186,7 +188,9 @@ function LrcLineRowImpl({
           </div>
         </div>
       )}
-
+      </div>
+      </div>
+      <div className="ls-line-content">
       {line.text.includes("\n") ? (
         <textarea
           ref={inputRef}
@@ -196,7 +200,7 @@ function LrcLineRowImpl({
           onKeyDown={(e) => { if (e.key === "Enter" && e.shiftKey) onKeyDown(e); }}
           onFocus={onFocus}
           spellCheck={showSpellCheck}
-          className="ls-field flex-1 min-w-32 resize-y text-white text-sm placeholder-zinc-600"
+          className="ls-field ls-row-input w-full min-w-0 resize-y text-white text-sm placeholder-zinc-600"
           style={{ fontSize: `${0.875 * lyricsFontScale}rem` }}
           placeholder={t.linePlaceholder}
         />
@@ -210,44 +214,14 @@ function LrcLineRowImpl({
           onFocus={onFocus}
           onPaste={onPaste}
           spellCheck={showSpellCheck}
-          className="ls-field flex-1 min-w-32 text-white text-sm placeholder-zinc-600"
+          className="ls-field ls-row-input w-full min-w-0 text-white text-sm placeholder-zinc-600"
           style={{ fontSize: `${0.875 * lyricsFontScale}rem` }}
           placeholder={t.linePlaceholder}
         />
       )}
 
-      <button
-        onClick={onMergeUp}
-        disabled={idx === 0}
-        className="ls-button shrink-0 hover:text-[var(--ls-accent)] opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity disabled:opacity-0"
-        title={t.mergeLineUp}
-        aria-label={t.mergeLineUp}
-      >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M8 7l4-4 4 4" /><path d="M12 3v8" /><path d="M5 21h14" /><path d="M5 15h14" />
-        </svg>
-      </button>
-      <button
-        onClick={onDuplicate}
-        className="ls-button shrink-0 hover:text-[var(--ls-accent)] opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
-        title={t.duplicateLine}
-        aria-label={t.duplicateLine}
-      >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" />
-        </svg>
-      </button>
-      <button
-        onClick={onDelete}
-        className="ls-button shrink-0 hover:text-rose-400 text-sm opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
-        title={t.deleteLine}
-        aria-label={t.deleteLine}
-      >
-        ✕
-      </button>
-    </div>
     {showTranslationLines && (
-      <div className="flex items-center pl-11 pr-2 -mt-0.5 pb-0.5">
+      <div className="ls-line-translation">
         <textarea
           value={line.translation ?? ""}
           rows={Math.max(1, (line.translation ?? "").split("\n").length)}
@@ -257,11 +231,44 @@ function LrcLineRowImpl({
           onChange={(e) => onTranslationChange(e.target.value)}
           placeholder={t.translationPlaceholder}
           spellCheck={showSpellCheck}
-          className="ls-field flex-1 min-w-32 resize-y text-xs italic placeholder-zinc-700"
+          className="ls-field ls-row-input w-full min-w-0 resize-y text-xs italic placeholder-zinc-700"
         />
       </div>
     )}
-    </>
+      </div>
+      <div className="ls-line-actions">
+      <button
+        onClick={onMergeUp}
+        disabled={idx === 0}
+        className="ls-button ls-button--compact ls-button--icon-compact shrink-0 hover:text-[var(--ls-accent)] opacity-70 group-hover/row:opacity-100 focus:opacity-100 transition-opacity disabled:opacity-30"
+        title={t.mergeLineUp}
+        aria-label={t.mergeLineUp}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M8 7l4-4 4 4" /><path d="M12 3v8" /><path d="M5 21h14" /><path d="M5 15h14" />
+        </svg>
+      </button>
+      <button
+        onClick={onDuplicate}
+        className="ls-button ls-button--compact ls-button--icon-compact shrink-0 hover:text-[var(--ls-accent)] opacity-70 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
+        title={t.duplicateLine}
+        aria-label={t.duplicateLine}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" />
+        </svg>
+      </button>
+      <button
+        onClick={onDelete}
+        className="ls-button ls-button--compact ls-button--icon-compact shrink-0 hover:text-rose-400 text-sm opacity-70 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
+        title={t.deleteLine}
+        aria-label={t.deleteLine}
+      >
+        ✕
+      </button>
+      </div>
+    </div>
+
   );
 }
 

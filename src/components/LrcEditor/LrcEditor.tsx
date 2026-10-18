@@ -704,7 +704,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
       )}
 
       <div
-        className="flex-1 overflow-y-auto flex flex-col gap-1 px-1 py-1"
+        className="ls-line-list flex-1 min-w-0 overflow-y-auto flex flex-col gap-1 px-1 py-1"
         onPointerMove={handleReorderMove}
         onPointerUp={handleReorderUp}
         onPointerCancel={clearReorder}
