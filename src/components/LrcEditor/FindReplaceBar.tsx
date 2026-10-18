@@ -45,7 +45,7 @@ export function FindReplaceBar({
             if (e.key === "Enter") { e.preventDefault(); e.shiftKey ? onPrev() : onNext(); }
           }}
           placeholder={t.findPlaceholder}
-          className="ls-field flex-1 min-w-0 text-sm text-white placeholder-zinc-500 transition-colors"
+          className="ls-field flex-1 min-w-0 text-sm text-white transition-colors"
         />
         {/* 대소문자 구분 */}
         <div className="relative group/aa">
@@ -89,7 +89,7 @@ export function FindReplaceBar({
           onChange={(e) => onReplaceChange(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onReplace(); } }}
           placeholder={t.replacePlaceholder}
-          className="ls-field flex-1 min-w-0 text-sm text-white placeholder-zinc-500 transition-colors"
+          className="ls-field flex-1 min-w-0 text-sm text-white transition-colors"
         />
         <button
           onClick={onReplace}

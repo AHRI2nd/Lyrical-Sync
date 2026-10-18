@@ -288,7 +288,7 @@ export function YtdlpSection() {
             value={proxyDraft}
             onChange={(e) => { setProxyDraft(e.target.value); setProxySaved(false); }}
             placeholder={t.ytdlpProxyPlaceholder}
-            className="ls-field flex-1 text-sm placeholder-zinc-600 font-mono"
+            className="ls-field flex-1 text-sm font-mono"
           />
           <button
             onClick={handleSaveProxy}

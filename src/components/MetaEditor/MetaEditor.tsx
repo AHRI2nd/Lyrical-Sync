@@ -140,7 +140,7 @@ function Field({
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="ls-field w-full text-white text-sm placeholder-zinc-600 transition-colors"
+        className="ls-field w-full text-white text-sm transition-colors"
       />
     </div>
   );

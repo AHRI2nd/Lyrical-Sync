@@ -135,7 +135,7 @@ function LrcLineRowImpl({
             }}
             onBlur={onCommitTsEdit}
             placeholder="H:MM:SS.mmm"
-            className="ls-field ls-row-input ls-time-input font-mono text-xs w-full placeholder-zinc-500"
+            className="ls-field ls-row-input ls-time-input font-mono text-xs w-full"
           />
         ) : (
           // 좌클릭 → 시간 직접 편집 / 우클릭 → 현재 재생 시간으로 설정
@@ -200,7 +200,7 @@ function LrcLineRowImpl({
           onKeyDown={(e) => { if (e.key === "Enter" && e.shiftKey) onKeyDown(e); }}
           onFocus={onFocus}
           spellCheck={showSpellCheck}
-          className="ls-field ls-row-input w-full min-w-0 resize-y text-white text-sm placeholder-zinc-600"
+          className="ls-field ls-row-input w-full min-w-0 resize-y text-white text-sm"
           style={{ fontSize: `${0.875 * lyricsFontScale}rem` }}
           placeholder={t.linePlaceholder}
         />
@@ -214,7 +214,7 @@ function LrcLineRowImpl({
           onFocus={onFocus}
           onPaste={onPaste}
           spellCheck={showSpellCheck}
-          className="ls-field ls-row-input w-full min-w-0 text-white text-sm placeholder-zinc-600"
+          className="ls-field ls-row-input w-full min-w-0 text-white text-sm"
           style={{ fontSize: `${0.875 * lyricsFontScale}rem` }}
           placeholder={t.linePlaceholder}
         />
@@ -231,7 +231,7 @@ function LrcLineRowImpl({
           onChange={(e) => onTranslationChange(e.target.value)}
           placeholder={t.translationPlaceholder}
           spellCheck={showSpellCheck}
-          className="ls-field ls-row-input w-full min-w-0 resize-y text-xs italic placeholder-zinc-700"
+          className="ls-field ls-row-input w-full min-w-0 resize-y text-xs italic"
         />
       </div>
     )}

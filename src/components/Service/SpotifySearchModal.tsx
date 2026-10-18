@@ -192,7 +192,7 @@ export function SpotifySearchModal({ onClose }: Props) {
                   value={query}
                   onChange={(e) => handleSearch(e.target.value)}
                   placeholder={t.spotifySearchPlaceholder}
-                  className="ls-field w-full text-sm placeholder-zinc-500"
+                  className="ls-field w-full text-sm"
                 />
               </div>
               {loading && <LoadingRow />}

@@ -84,7 +84,7 @@ describe("LrcLineRow timestamp input", () => {
     const onCommitTsEdit = vi.fn();
     const onCancelTsEdit = vi.fn();
     render(<LrcLineRow {...makeProps({ editingTsId: "line-1", onCommitTsEdit, onCancelTsEdit })} />);
-    const input = screen.getByPlaceholderText("MM:SS.xx");
+    const input = screen.getByPlaceholderText("H:MM:SS.mmm");
     fireEvent.keyDown(input, { key: "Enter", ...composition });
     fireEvent.keyDown(input, { key: "Escape", ...composition });
     expect(onCommitTsEdit).not.toHaveBeenCalled();

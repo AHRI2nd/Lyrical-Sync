@@ -221,7 +221,7 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter") onEnter(); }}
-        className="ls-field text-sm placeholder-zinc-600"
+        className="ls-field text-sm"
       />
     </div>
   );
