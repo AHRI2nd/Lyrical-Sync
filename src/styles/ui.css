@@ -114,3 +114,17 @@
     }
   }
 }
+
+@layer utilities {
+  /* Typography is independent of control target sizes and playback geometry. */
+  .ls-readable .text-xs { font-size: 0.8125rem; line-height: 1.45; }
+  .ls-readable .ls-button { font-size: 0.875rem; font-weight: 500; line-height: 1.25; }
+  .ls-readable .ls-button--compact { font-size: 0.8125rem; }
+  .ls-readable .ls-field { font-size: 0.875rem; line-height: 1.5; }
+  .ls-readable .ls-label { font-size: 0.8125rem; line-height: 1.45; }
+  .ls-readable h2.text-sm, .ls-readable h3.text-sm { font-size: 0.9375rem; line-height: 1.4; }
+  .ls-readable .ls-line-number { line-height: 1.75rem; }
+  .ls-readable .ls-time-input, .ls-readable .ls-time-button { font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+  .ls-readable .ls-lyric-input { font-weight: 400; line-height: 1.5; }
+  .ls-readable .ls-translation-input { font-style: normal; font-weight: 400; line-height: 1.5; color: var(--ls-text-secondary); }
+}
