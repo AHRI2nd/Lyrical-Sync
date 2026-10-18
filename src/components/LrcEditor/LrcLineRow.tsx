@@ -200,8 +200,8 @@ function LrcLineRowImpl({
           onKeyDown={(e) => { if (e.key === "Enter" && e.shiftKey) onKeyDown(e); }}
           onFocus={onFocus}
           spellCheck={showSpellCheck}
-          className="ls-field ls-row-input w-full min-w-0 resize-y text-white text-sm"
-          style={{ fontSize: `${0.875 * lyricsFontScale}rem` }}
+          className="ls-field ls-row-input ls-lyric-input w-full min-w-0 resize-y text-white text-sm"
+          style={{ fontSize: `${lyricsFontScale}rem` }}
           placeholder={t.linePlaceholder}
         />
       ) : (
@@ -214,8 +214,8 @@ function LrcLineRowImpl({
           onFocus={onFocus}
           onPaste={onPaste}
           spellCheck={showSpellCheck}
-          className="ls-field ls-row-input w-full min-w-0 text-white text-sm"
-          style={{ fontSize: `${0.875 * lyricsFontScale}rem` }}
+          className="ls-field ls-row-input ls-lyric-input w-full min-w-0 text-white text-sm"
+          style={{ fontSize: `${lyricsFontScale}rem` }}
           placeholder={t.linePlaceholder}
         />
       )}
@@ -231,7 +231,8 @@ function LrcLineRowImpl({
           onChange={(e) => onTranslationChange(e.target.value)}
           placeholder={t.translationPlaceholder}
           spellCheck={showSpellCheck}
-          className="ls-field ls-row-input w-full min-w-0 resize-y text-xs italic"
+          className="ls-field ls-row-input ls-translation-input w-full min-w-0 resize-y"
+          style={{ fontSize: `${0.875 * lyricsFontScale}rem` }}
         />
       </div>
     )}
