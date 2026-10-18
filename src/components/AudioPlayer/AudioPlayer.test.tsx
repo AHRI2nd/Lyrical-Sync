@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 
 // Supply controlled engine events; test the component's loop policy, not decoding.
 const { handlers, seekTo, play, load, engines, spectrogramCreated, spectrogramDestroyed } = vi.hoisted(() => ({
@@ -273,4 +273,14 @@ describe("AudioPlayer loop-line boundaries", () => {
     expect(useLrcStore.getState()).toMatchObject({ duration: 0, currentTime: 0, isPlaying: false });
   });
 
+});
+
+it("exposes waveform and seek bar selection states", async () => {
+  const { useI18nStore } = await import("../../stores/useI18nStore");
+  useLrcStore.setState({ doc: defaultDocument(), audioPath: null });
+  const { getByRole } = render(<AudioPlayer />), t = useI18nStore.getState().t;
+  expect(getByRole("button", { name: t.tooltipViewWaveform }).getAttribute("aria-pressed")).toBe("true");
+  fireEvent.click(getByRole("button", { name: t.tooltipViewSeekBar }));
+  expect(getByRole("button", { name: t.tooltipViewSeekBar }).getAttribute("aria-pressed")).toBe("true");
+  expect(getByRole("button", { name: t.tooltipViewWaveform }).getAttribute("aria-pressed")).toBe("false");
 });

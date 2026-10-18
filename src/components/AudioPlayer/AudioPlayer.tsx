@@ -448,7 +448,7 @@ export function AudioPlayer() {
 
       {/* 재생 컨트롤 한 줄: 정지(좌) · 전송(중앙) · 더보기(우). relative를 행 전체에
           두어 팝오버가 좁은 카드 폭(우측 정렬) 안에 들어오게 함 */}
-      <div className="relative flex items-center gap-0.5" ref={moreRef}>
+      <div className="ls-transport relative flex items-center gap-0.5" ref={moreRef}>
         <CtrlBtn onClick={stopAndReset} title={t.tooltipStop}>
           <StopIcon />
         </CtrlBtn>
@@ -504,13 +504,13 @@ export function AudioPlayer() {
                   <button
                     onClick={() => adjustSpeed(-1)}
                     disabled={playbackRate <= SPEED_STEPS[0]}
-                    className="ls-button ls-button--icon w-8 h-8 flex items-center justify-center disabled:opacity-30 text-sm font-bold leading-none transition-colors"
+                    className="ls-button ls-button--compact ls-button--icon-compact w-6 h-6 flex items-center justify-center disabled:opacity-30 text-sm font-bold leading-none transition-colors"
                   >−</button>
                   <span className="w-12 text-center text-xs font-mono text-[var(--ls-text)] tabular-nums">{playbackRate.toFixed(2)}×</span>
                   <button
                     onClick={() => adjustSpeed(1)}
                     disabled={playbackRate >= SPEED_STEPS[SPEED_STEPS.length - 1]}
-                    className="ls-button ls-button--icon w-8 h-8 flex items-center justify-center disabled:opacity-30 text-sm font-bold leading-none transition-colors"
+                    className="ls-button ls-button--compact ls-button--icon-compact w-6 h-6 flex items-center justify-center disabled:opacity-30 text-sm font-bold leading-none transition-colors"
                   >+</button>
                 </div>
               </div>
@@ -533,7 +533,7 @@ export function AudioPlayer() {
           type="range" min={0} max={1} step={0.01} value={volume}
           onChange={(e) => setVolume(parseFloat(Number(e.target.value).toFixed(2)))}
           className="ls-range range-slim min-w-0 flex-1"
-          style={{ background: `linear-gradient(to right, #6366f1 ${Math.round(volume * 100)}%, #3f3f46 ${Math.round(volume * 100)}%)` }}
+          style={{ backgroundImage: `linear-gradient(to right, #6366f1 ${Math.round(volume * 100)}%, #3f3f46 ${Math.round(volume * 100)}%)` }}
         />
         <span className="shrink-0 w-9 text-right text-xs text-[var(--ls-text-secondary)] tabular-nums">{Math.round(volume * 100)}%</span>
       </div>
@@ -554,7 +554,7 @@ export function AudioPlayer() {
                 }, 80);
               }}
               className="ls-range range-slim min-w-0 flex-1"
-              style={{ background: `linear-gradient(to right, #6366f1 ${zoomLevel}%, #3f3f46 ${zoomLevel}%)` }}
+              style={{ backgroundImage: `linear-gradient(to right, #6366f1 ${zoomLevel}%, #3f3f46 ${zoomLevel}%)` }}
             />
           </>
         ) : (
@@ -563,7 +563,8 @@ export function AudioPlayer() {
         <div className="flex shrink-0 bg-[var(--ls-control)] rounded-lg p-0.5">
           <button
             onClick={() => setViewMode("waveform")}
-            className={`ls-button ${`px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors ${
+            aria-pressed={viewMode === "waveform"}
+            className={`ls-button ls-button--compact ${`  rounded-md text-xs font-medium transition-colors ${
               viewMode === "waveform" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)]"
             }`}`}
           >
@@ -571,7 +572,8 @@ export function AudioPlayer() {
           </button>
           <button
             onClick={() => setViewMode("bar")}
-            className={`ls-button ${`px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors ${
+            aria-pressed={viewMode === "bar"}
+            className={`ls-button ls-button--compact ${`  rounded-md text-xs font-medium transition-colors ${
               viewMode === "bar" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)]"
             }`}`}
           >
@@ -620,7 +622,7 @@ function CtrlBtn({
 // 오버플로우 팝오버 내 토글 버튼 스타일
 function popToggleCls(active: boolean): string {
   return [
-    "w-8 h-8 flex items-center justify-center rounded-lg transition-colors",
+    "ls-button--compact ls-button--icon-compact w-6 h-6 flex items-center justify-center rounded-lg transition-colors",
     active ? "ls-button--selected" : "bg-[var(--ls-control)] text-[var(--ls-text)] hover:bg-[var(--ls-control)]",
   ].join(" ");
 }
