@@ -790,8 +790,8 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
                     onChange={(e) => handleTextChange(line.id, e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter" && e.shiftKey) handleKeyDown(e, line.id); }}
                     onFocus={() => setActiveLineId(line.id)}
-                    className="ls-field ls-row-input w-full min-w-0 resize-y text-white"
-                    style={{ fontSize: `${0.875 * lyricsFontScale}rem` }} placeholder={t.linePlaceholder}
+                    className="ls-field ls-row-input ls-lyric-input w-full min-w-0 resize-y text-white"
+                    style={{ fontSize: `${lyricsFontScale}rem` }} placeholder={t.linePlaceholder}
                   />
                 ) : (
                   <input
@@ -800,8 +800,8 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
                     onKeyDown={(e) => handleKeyDown(e, line.id)}
                     onFocus={() => setActiveLineId(line.id)}
                     onPaste={(e) => handlePaste(e, line.id, line.text)}
-                    className="ls-field ls-row-input w-full min-w-0 text-white"
-                    style={{ fontSize: `${0.875 * lyricsFontScale}rem` }} placeholder={t.linePlaceholder}
+                    className="ls-field ls-row-input ls-lyric-input w-full min-w-0 text-white"
+                    style={{ fontSize: `${lyricsFontScale}rem` }} placeholder={t.linePlaceholder}
                   />
                 )}
                 {showTranslationLines && (
@@ -812,8 +812,8 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
                     onClick={(e) => e.stopPropagation()}
                     onFocus={() => setActiveLineId(line.id)}
                     onChange={(e) => updateLine(line.id, { translation: e.target.value })}
-                    className="ls-field ls-row-input w-full min-w-0 resize-y"
-                    style={{ fontSize: `${0.75 * lyricsFontScale}rem` }}
+                    className="ls-field ls-row-input ls-translation-input w-full min-w-0 resize-y"
+                    style={{ fontSize: `${0.875 * lyricsFontScale}rem` }}
                   />
                 )}
               </div>

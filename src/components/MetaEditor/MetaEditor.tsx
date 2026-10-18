@@ -107,7 +107,7 @@ function Field({
 }) {
   return (
     <div className="min-w-0">
-      <label className="block text-[11px] text-[var(--ls-text-secondary)] mb-1">{label}</label>
+      <label className="ls-label block text-[var(--ls-text-secondary)] mb-1">{label}</label>
       <input
         type="text"
         value={value}
