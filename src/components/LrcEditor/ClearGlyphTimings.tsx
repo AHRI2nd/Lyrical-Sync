@@ -61,12 +61,12 @@ export function ClearGlyphTimings({ lineId }: { lineId: string }) {
   };
   return <div className="flex flex-wrap items-center gap-2 min-w-0">
     <button ref={trigger} type="button" disabled={!count} onClick={() => setPending({ doc: context.doc, session: context.session, audio: context.audio, lineId })}
-      className="ls-button text-xs disabled:opacity-40 disabled:cursor-default">
+      className="ls-button ls-button--compact text-xs disabled:opacity-40 disabled:cursor-default">
       {t.charSync.clearTimingButton}
     </button>
     {canUndo && <div role="status" className="flex flex-wrap items-center gap-2 text-xs text-[var(--ls-text-secondary)]">
       <span>{t.charSync.clearTimingDone}</span>
-      <button ref={undoButton} type="button" className="ls-button text-[var(--ls-accent)] underline underline-offset-2" onClick={() => {
+      <button ref={undoButton} type="button" className="ls-button ls-button--compact text-[var(--ls-accent)] underline underline-offset-2" onClick={() => {
         if (cleared && isCurrent(cleared) && useLrcStore.getState()._history.length) {
           restoreAfterUndo.current = true;
           useLrcStore.getState().undo();
@@ -90,8 +90,8 @@ export function ClearGlyphTimings({ lineId }: { lineId: string }) {
         <h2 id={titleId} className="font-semibold text-[var(--ls-text)]">{t.charSync.clearTimingTitle}</h2>
         <p id={messageId} className="mt-3 text-sm text-[var(--ls-text-secondary)]">{t.charSync.clearTimingMessage.replace("{count}", String(count))}</p>
         <div className="mt-5 flex flex-wrap justify-end gap-2">
-          <button ref={cancel} type="button" onClick={() => setPending(null)} className="ls-button text-sm">{t.cancelLabel}</button>
-          <button type="button" onClick={clear} className="ls-button bg-rose-600 text-sm text-white hover:bg-rose-500">{t.charSync.clearTimingConfirm}</button>
+          <button ref={cancel} type="button" onClick={() => setPending(null)} className="ls-button ls-button--compact text-sm">{t.cancelLabel}</button>
+          <button type="button" onClick={clear} className="ls-button ls-button--compact bg-rose-600 text-sm text-white hover:bg-rose-500">{t.charSync.clearTimingConfirm}</button>
         </div>
       </div>
     </div>, document.body)}

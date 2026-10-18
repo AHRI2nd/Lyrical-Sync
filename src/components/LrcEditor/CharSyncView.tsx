@@ -305,13 +305,13 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
   return <div className="flex flex-col flex-1 min-h-0 overflow-y-auto gap-4 pr-1">
     <div className="flex flex-wrap items-center gap-2 px-2 py-1.5 border-b border-[var(--ls-border-subtle)] shrink-0">
       <span className="text-sm text-[var(--ls-text)] shrink-0">{t.charSync.modeChar}</span>
-      {onOpenShortcuts && <button type="button" onClick={onOpenShortcuts} className="ls-button text-xs">{t.charSync.shortcuts}</button>}
+      {onOpenShortcuts && <button type="button" onClick={onOpenShortcuts} className="ls-button ls-button--compact text-xs">{t.charSync.shortcuts}</button>}
       <LineDots lines={lines} activeIdx={lineIdx} onSelect={setActiveLineId} />
       <button type="button" onClick={e => { gotoLine(lineIdx - 1); e.currentTarget.blur(); }} disabled={lineIdx <= 0}
-        className="ls-button hover:text-white disabled:opacity-30">‹</button>
+        className="ls-button ls-button--compact hover:text-white disabled:opacity-30">‹</button>
       <span className="text-xs text-[var(--ls-text-secondary)] font-mono shrink-0">{lineIdx + 1}/{lines.length}</span>
       <button type="button" onClick={e => { gotoLine(lineIdx + 1); e.currentTarget.blur(); }} disabled={lineIdx >= lines.length - 1}
-        className="ls-button hover:text-white disabled:opacity-30">›</button>
+        className="ls-button ls-button--compact hover:text-white disabled:opacity-30">›</button>
     </div>
     <div className="shrink-0 min-w-0">
       <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--ls-text-secondary)] mb-3">
@@ -339,16 +339,16 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
         <span className="text-[var(--ls-text-secondary)] font-mono tabular-nums">{t.charSync.displaySpan.replace("{seconds}", String(Number((viewEnd - viewStart).toFixed(2))))}</span>
         <div className="flex items-center flex-wrap gap-1.5">
           <button type="button" aria-label={t.charSync.prevWindow} onClick={e => { pan(-1); e.currentTarget.blur(); }} disabled={viewStart <= 0}
-            className="ls-button disabled:opacity-30">‹</button>
+            className="ls-button ls-button--compact disabled:opacity-30">‹</button>
           <button type="button" aria-label={t.zoom} onClick={e => { setZoomStep(-1); e.currentTarget.blur(); }} disabled={zoom <= 1}
-            className="ls-button disabled:opacity-30">−</button>
+            className="ls-button ls-button--compact disabled:opacity-30">−</button>
           <span className="text-[var(--ls-text-secondary)] font-mono">{zoom}×</span>
           <button type="button" aria-label={`${t.zoom} +`} onClick={e => { setZoomStep(1); e.currentTarget.blur(); }} disabled={zoom >= 8}
-            className="ls-button disabled:opacity-30">+</button>
+            className="ls-button ls-button--compact disabled:opacity-30">+</button>
           <button type="button" aria-label={t.charSync.nextWindow} onClick={e => { pan(1); e.currentTarget.blur(); }} disabled={duration > 0 && viewEnd >= duration}
-            className="ls-button disabled:opacity-30">›</button>
+            className="ls-button ls-button--compact disabled:opacity-30">›</button>
           <button type="button" aria-pressed={follow} onClick={e => { setFollow(v => !v); setAnchor((viewStart + viewEnd) / 2); e.currentTarget.blur(); }}
-            className={`ls-button ${`px-2 py-1.5 rounded border border-[var(--ls-border-subtle)] ${follow ? "bg-[var(--ls-selection)]/15 text-[var(--ls-accent)]" : "text-[var(--ls-text-secondary)]"}`}`}>{t.charSync.followPlayback}</button>
+            className={`ls-button ls-button--compact ${`rounded border border-[var(--ls-border-subtle)] ${follow ? "bg-[var(--ls-selection)]/15 text-[var(--ls-accent)]" : "text-[var(--ls-text-secondary)]"}`}`}>{t.charSync.followPlayback}</button>
           <WaveformViewMenu />
         </div>
       </div>
@@ -364,14 +364,14 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
     </div>
     <div className="flex items-center justify-between gap-2 flex-wrap shrink-0">
       <div className="flex items-center gap-2 flex-wrap">
-        <button type="button" onClick={e => { replayLine(); e.currentTarget.blur(); }} className="ls-button text-xs">↺ {t.charSync.replayLine}</button>
+        <button type="button" onClick={e => { replayLine(); e.currentTarget.blur(); }} className="ls-button ls-button--compact text-xs">↺ {t.charSync.replayLine}</button>
         <button type="button" aria-label={t.charSync.repeatLine} aria-pressed={loopLineId === line.id} disabled={!canRepeat}
           title={canRepeat ? t.charSync.repeatLine : t.charSync.repeatUnavailable}
           onClick={e => {
             if (loopLineId === line.id) setLoopLine(null);
             else if (canRepeat && repeatRange) { setLoopLine(line.id); setFollow(true); controls.seekTo(repeatRange.start); }
             e.currentTarget.blur();
-          }} className={`ls-button ${`px-3 py-2 text-xs rounded-md border border-[var(--ls-border-subtle)] disabled:opacity-30 ${loopLineId === line.id ? "bg-[var(--ls-selection)]/15 text-[var(--ls-accent)]" : "text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)]"}`}`}>
+          }} className={`ls-button ls-button--compact ${`text-xs rounded-md border border-[var(--ls-border-subtle)] disabled:opacity-30 ${loopLineId === line.id ? "bg-[var(--ls-selection)]/15 text-[var(--ls-accent)]" : "text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)]"}`}`}>
           {t.charSync.repeatLine} · {loopLineId === line.id ? t.charSync.repeatOn : t.charSync.repeatOff}
         </button>
       </div>
