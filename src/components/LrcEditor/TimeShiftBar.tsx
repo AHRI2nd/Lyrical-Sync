@@ -60,7 +60,7 @@ export function TimeShiftBar({
       {/* 이동량 */}
       <span className="text-[var(--ls-text-secondary)] shrink-0">{t.timeShiftDelta}</span>
       <div className="flex items-center gap-1">
-        <button onClick={() => step(-0.1)} className="ls-button w-6 h-6 flex items-center justify-center transition-colors">−</button>
+        <button onClick={() => step(-0.1)} className="ls-button ls-button--compact w-6 h-6 flex items-center justify-center transition-colors">−</button>
         <input
           type="number"
           step={0.1}
@@ -68,7 +68,7 @@ export function TimeShiftBar({
           onChange={(e) => setDelta(parseFloat(e.target.value) || 0)}
           className="ls-field w-20 text-white text-center transition-colors"
         />
-        <button onClick={() => step(0.1)} className="ls-button w-6 h-6 flex items-center justify-center transition-colors">+</button>
+        <button onClick={() => step(0.1)} className="ls-button ls-button--compact w-6 h-6 flex items-center justify-center transition-colors">+</button>
         <span className="text-[var(--ls-text-secondary)]">{t.timeShiftSec}</span>
       </div>
 
@@ -78,11 +78,11 @@ export function TimeShiftBar({
       <button
         onClick={handleApply}
         disabled={delta === 0}
-        className="ls-button bg-sky-700 hover:bg-sky-600 text-white disabled:opacity-40 transition-colors"
+        className="ls-button ls-button--compact bg-sky-700 hover:bg-sky-600 text-white disabled:opacity-40 transition-colors"
       >
         {t.timeShiftApply}
       </button>
-      <button onClick={onClose} className="ls-button w-6 h-6 flex items-center justify-center hover:text-white transition-colors">
+      <button onClick={onClose} className="ls-button ls-button--compact w-6 h-6 flex items-center justify-center hover:text-white transition-colors">
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>

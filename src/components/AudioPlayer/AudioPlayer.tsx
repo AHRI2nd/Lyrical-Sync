@@ -601,7 +601,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         <div className="flex shrink-0 bg-[var(--ls-control)] rounded-lg p-0.5">
           <button
             onClick={() => setViewMode("waveform")}
-            className={`ls-button ${`px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors ${
+            className={`ls-button ls-button--compact ${`  rounded-md text-xs font-medium transition-colors ${
               viewMode === "waveform" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)]"
             }`}`}
           >
@@ -609,7 +609,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           </button>
           <button
             onClick={() => setViewMode("bar")}
-            className={`ls-button ${`px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors ${
+            className={`ls-button ls-button--compact ${`  rounded-md text-xs font-medium transition-colors ${
               viewMode === "bar" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)]"
             }`}`}
           >

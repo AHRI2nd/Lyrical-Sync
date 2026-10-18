@@ -19,7 +19,7 @@ export function WaveformViewMenu() {
   }, [open]);
   return <div ref={ref} className="relative">
     <button ref={trigger} type="button" aria-expanded={open} onClick={() => setOpen(v => !v)}
-      className="ls-button text-xs">{t.charSync.waveformView}</button>
+      className="ls-button ls-button--compact text-xs">{t.charSync.waveformView}</button>
     {open && <div className="absolute right-0 top-full mt-2 z-40 w-60 max-w-[calc(100vw-2rem)] rounded-lg border border-[var(--ls-border-control)] bg-[var(--ls-surface)] p-3 shadow-xl text-xs text-[var(--ls-text-secondary)]"
       role="group" aria-label={t.charSync.waveformView}>
       <label className="flex flex-col gap-2 mb-3">{t.charSync.waveformHeight} · {height}px
