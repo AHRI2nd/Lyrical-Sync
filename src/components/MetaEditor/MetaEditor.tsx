@@ -202,7 +202,7 @@ function RawEditorModal({
     >
       <div
         className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl flex flex-col w-full max-w-2xl mx-4"
-        style={{ height: "70vh" }}
+        style={{ height: "70%", maxHeight: "calc(100% - 2rem)" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)] shrink-0">

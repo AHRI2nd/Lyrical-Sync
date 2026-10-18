@@ -90,7 +90,7 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-2xl h-[80vh] mx-4 flex flex-col overflow-hidden"
+        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-2xl h-4/5 max-h-[calc(100%-2rem)] mx-4 flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -123,7 +123,7 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
         </div>
 
         {/* 결과 리스트 */}
-        <div className="flex-1 overflow-y-auto px-3 py-2">
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
           {status === "loading" && <p className="text-center text-[var(--ls-text-secondary)] text-sm py-8">{t.lrclib.searching}</p>}
           {status === "error" && <p className="text-center text-rose-400 text-sm py-8">{t.lrclib.error}</p>}
           {status === "done" && filtered.length === 0 && <p className="text-center text-[var(--ls-text-secondary)] text-sm py-8">{t.lrclib.noResults}</p>}
@@ -148,7 +148,7 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
           onClick={(e) => { e.stopPropagation(); setPreview(null); }}
         >
           <div
-            className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-2xl h-[80vh] mx-4 flex flex-col overflow-hidden"
+            className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-2xl h-4/5 max-h-[calc(100%-2rem)] mx-4 flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)] shrink-0">
@@ -169,7 +169,7 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
                 <button onClick={() => setPreview(null)} aria-label={t.close} className="ls-button hover:text-white transition-colors text-lg leading-none">✕</button>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto px-5 py-4">
+            <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
               {preview.syncedLyrics || preview.plainLyrics ? (
                 <pre className="text-sm text-[var(--ls-text)] whitespace-pre-wrap font-mono leading-relaxed">
                   {preview.syncedLyrics ?? preview.plainLyrics}
