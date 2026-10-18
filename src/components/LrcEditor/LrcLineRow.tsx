@@ -181,8 +181,8 @@ function LrcLineRowImpl({
       {warning && (
         <div className="relative group/warn shrink-0">
           <span className="text-[var(--ls-playhead)] text-sm leading-none cursor-help">⚠</span>
-          <div className={`pointer-events-none absolute left-0 hidden group-hover/warn:block z-30 ${idx < 2 ? "top-full mt-1.5" : "bottom-full mb-1.5"}`}>
-            <div className="bg-[var(--ls-control)] border border-[var(--ls-playhead)]/60 text-[var(--ls-playhead)] text-xs rounded-lg px-2.5 py-1.5 shadow-xl whitespace-nowrap">
+          <div className={`ls-line-warning-tooltip pointer-events-none absolute hidden group-hover/warn:block z-30 ${idx < 2 ? "top-full mt-1.5" : "bottom-full mb-1.5"}`}>
+            <div className="bg-[var(--ls-control)] border border-[var(--ls-playhead)]/60 text-[var(--ls-playhead)] text-xs rounded-lg px-2.5 py-1.5 shadow-xl break-words">
               {warning === "duplicate" ? t.warnDuplicate : t.warnOutOfOrder}
             </div>
           </div>
