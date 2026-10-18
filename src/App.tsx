@@ -276,7 +276,7 @@ function App() {
 
   return (
     <div
-      className="flex flex-col bg-[var(--ls-canvas)] text-white overflow-hidden"
+      className="ls-readable flex flex-col bg-[var(--ls-canvas)] text-white overflow-hidden"
       style={{
         transform: `scale(${uiScale})`,
         transformOrigin: "top left",
