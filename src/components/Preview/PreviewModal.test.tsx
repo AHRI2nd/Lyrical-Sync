@@ -100,3 +100,12 @@ it("preserves millisecond and submillisecond timestamps on an unchanged preview 
   expect(useLrcStore.getState().doc).toBe(original);
   expect(useLrcStore.getState()._history).toHaveLength(0);
 });
+
+it("names the preview playback control and exposes playback state", async () => {
+  const { useI18nStore } = await import("../../stores/useI18nStore");
+  const { getByRole } = render(<PreviewModal onOpenStyleSettings={() => {}} onClose={() => {}} />);
+  const play = getByRole("button", { name: useI18nStore.getState().t.keys.playPause });
+  expect(play.getAttribute("aria-pressed")).toBe("false");
+  act(() => useLrcStore.setState({ isPlaying: true }));
+  expect(play.getAttribute("aria-pressed")).toBe("true");
+});
