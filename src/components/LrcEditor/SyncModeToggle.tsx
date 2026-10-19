@@ -3,7 +3,7 @@ import { type SyncUnit } from "../../utils/lrcParser";
 
 // 줄 ↔ 글자 동기화 모드 토글 + (글자 모드일 때) 글자/단어 단위 토글.
 export function SyncModeToggle({
-  t, charMode, onSetSyncMode, syncUnit, onUnitChange, isRunning,
+  t, charMode, onSetSyncMode, syncUnit, onUnitChange, isRunning, runningTitle,
 }: {
   t: Translations;
   charMode: boolean;
@@ -11,6 +11,7 @@ export function SyncModeToggle({
   syncUnit: SyncUnit;
   onUnitChange: (u: SyncUnit) => void;
   isRunning: boolean;
+  runningTitle?: string;
 }) {
   return (
     <>
@@ -26,7 +27,7 @@ export function SyncModeToggle({
           onClick={(e) => { onSetSyncMode("char"); e.currentTarget.blur(); }}
           aria-pressed={charMode}
           disabled={isRunning}
-          title={isRunning ? t.aiSyncRunning : undefined}
+          title={isRunning ? runningTitle : undefined}
           className={`ls-button ls-button--compact ${`  text-xs rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${charMode ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
         >
           {t.charSync.modeChar}

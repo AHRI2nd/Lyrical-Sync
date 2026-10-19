@@ -559,7 +559,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
           <SyncModeToggle
             t={t} charMode={charMode} onSetSyncMode={setSyncMode}
-            syncUnit={syncUnit} onUnitChange={handleUnitChange} isRunning={isRunning}
+            syncUnit={syncUnit} onUnitChange={handleUnitChange} isRunning={isRunning} runningTitle={t.aiSyncRunning}
           />
 
           {!charMode && (<>
