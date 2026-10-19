@@ -145,7 +145,7 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
     const lineEnd = lineEnds[i];
 
     const lineColor = hexToRgba(previewActiveColor, isActive ? 1 : (DIST_OPACITY[dist] ?? DIST_OPACITY_FAR));
-    const fontWeightClass = isActive ? "font-bold" : dist === 1 ? "font-medium" : "";
+    const fontWeightClass = isActive ? "font-semibold" : dist === 1 ? "font-medium" : "";
     const fontRem = (DIST_FONT_REM[dist] ?? DIST_FONT_REM_FAR) * previewFontScale;
 
     return (
@@ -254,11 +254,11 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
       {/* 상단 바 */}
       <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-[var(--ls-border-subtle)]/60">
         <div className="flex flex-col gap-0.5 min-w-0">
-          <span className="text-white font-serif text-lg tracking-tight truncate leading-tight">
+          <span className="text-white font-sans text-lg tracking-tight truncate leading-tight">
             {doc.metadata.title || t.previewUntitled}
           </span>
           {doc.metadata.artist && (
-            <span className="text-[var(--ls-text-secondary)] font-serif italic text-sm truncate leading-tight">
+            <span className="text-[var(--ls-text-secondary)] font-sans text-sm truncate leading-tight">
               {doc.metadata.artist}
             </span>
           )}
@@ -311,10 +311,10 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
       >
         {doc.lines.length === 0 ? (
           <div className="flex items-center justify-center h-full">
-            <span className="text-[var(--ls-text-secondary)] font-serif italic text-lg">{t.previewNoLyrics}</span>
+            <span className="text-[var(--ls-text-secondary)] font-sans text-lg">{t.previewNoLyrics}</span>
           </div>
         ) : (
-          <div className="flex flex-col gap-4 max-w-2xl mx-auto font-serif">
+          <div className="flex flex-col gap-4 max-w-2xl mx-auto font-sans">
             {!hasTimestamps && (
               <p className="text-[var(--ls-text-secondary)] text-sm text-center mb-2 not-italic font-sans">{t.previewNoTimestamps}</p>
             )}
