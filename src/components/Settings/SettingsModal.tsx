@@ -80,7 +80,7 @@ export function SettingsModal({
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-[var(--ls-border-subtle)] shrink-0">
+        <div className="ls-settings-tabs flex min-w-0 overflow-x-auto overflow-y-hidden border-b border-[var(--ls-border-subtle)] shrink-0">
           <TabBtn active={tab === "general"} onClick={() => setTab("general")}>
             {t.settingsTabGeneral}
           </TabBtn>
@@ -182,7 +182,7 @@ function TabBtn({
     <button
       onClick={onClick}
       className={`ls-button ${[
-        "px-5 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px",
+        "shrink-0 whitespace-nowrap px-3 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px focus-visible:outline-offset-[-2px]",
         active
           ? "text-[var(--ls-accent)] border-[var(--ls-accent)]"
           : "text-[var(--ls-text-secondary)] border-transparent hover:text-[var(--ls-text)]",
