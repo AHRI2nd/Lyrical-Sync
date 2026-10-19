@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "upstreamBaseline": "1a24c95beaac122c1c0f2c83ef57aae3c561e643",
-  "storeBaseline": "4f2cd20a7719c4badadf3d35b0e90c41f9891b5e",
+  "upstreamBaseline": "1c6a11f2b5b616deff76440efa7a086477616657",
+  "storeBaseline": "d24b6993bb2e3e72d3d11458329ba1deabedec2d",
   "sourceInventory": [
     "src-tauri/src/audio_decode.rs",
     "src-tauri/src/batch_output.rs",
@@ -63,6 +63,7 @@
     "src/components/LrcEditor/LrcLineRow.tsx",
     "src/components/LrcEditor/MiniConfirm.tsx",
     "src/components/LrcEditor/ScaleBar.tsx",
+    "src/components/LrcEditor/SyncModeToggle.tsx",
     "src/components/LrcEditor/TimeShiftBar.tsx",
     "src/components/LrcEditor/ValidationPanel.tsx",
     "src/components/LrcEditor/WaveformViewMenu.tsx",
@@ -173,7 +174,6 @@
     "src/components/AudioPlayer/useYouTubeLoad.ts",
     "src/components/LrcEditor/EditorToolsMenu.tsx",
     "src/components/LrcEditor/LrcEditor.reorder.test.tsx",
-    "src/components/LrcEditor/SyncModeToggle.tsx",
     "src/components/LrcLib/LrcLibModal.tsx",
     "src/components/LrcLib/LrcLibPublishModal.tsx",
     "src/components/Service/DevicePickerModal.tsx",

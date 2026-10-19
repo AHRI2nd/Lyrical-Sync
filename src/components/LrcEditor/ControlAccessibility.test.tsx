@@ -2,6 +2,7 @@
 import { createRef } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render } from "@testing-library/react";
+import { SyncModeToggle } from "./SyncModeToggle";
 import { FindReplaceBar } from "./FindReplaceBar";
 import { translations, type Lang } from "../../i18n/translations";
 import { useI18nStore } from "../../stores/useI18nStore";
@@ -27,3 +28,17 @@ it.each([
   expect(onClose).toHaveBeenCalledTimes(1);
 });
 
+it("exposes the selected sync mode and unit while preserving disabled transitions", () => {
+  const t = translations.en, onSetSyncMode = vi.fn(), onUnitChange = vi.fn();
+  const { getByRole, rerender } = render(<SyncModeToggle t={t} charMode={false} syncUnit="char" onSetSyncMode={onSetSyncMode} onUnitChange={onUnitChange} isRunning={false} />);
+  expect(getByRole("button", { name: t.charSync.modeLine }).getAttribute("aria-pressed")).toBe("true");
+  fireEvent.click(getByRole("button", { name: t.charSync.modeChar }));
+  expect(onSetSyncMode).toHaveBeenCalledExactlyOnceWith("char");
+  rerender(<SyncModeToggle t={t} charMode syncUnit="word" onSetSyncMode={onSetSyncMode} onUnitChange={onUnitChange} isRunning runningTitle="Synchronization running" />);
+  expect(getByRole("button", { name: t.charSync.modeChar }).getAttribute("aria-pressed")).toBe("true");
+  expect((getByRole("button", { name: t.charSync.modeChar }) as HTMLButtonElement).disabled).toBe(true);
+  expect(getByRole("button", { name: t.charSync.modeChar }).getAttribute("title")).toBe("Synchronization running");
+  expect(getByRole("button", { name: t.charSync.unitWord }).getAttribute("aria-pressed")).toBe("true");
+  fireEvent.click(getByRole("button", { name: t.charSync.unitChar }));
+  expect(onUnitChange).toHaveBeenCalledExactlyOnceWith("char");
+});

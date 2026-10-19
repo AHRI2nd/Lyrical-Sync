@@ -1,734 +1,999 @@
 {
-  "upstream": "1a24c95beaac122c1c0f2c83ef57aae3c561e643",
-  "storeBaseline": "4f2cd20a7719c4badadf3d35b0e90c41f9891b5e",
-  "reviewedDifferences": [
-    {
-      "path": ".gitattributes",
-      "resolution": "store-edition-adapter"
-    },
+  "upstream": "1c6a11f2b5b616deff76440efa7a086477616657",
+  "storeParent": "d24b6993bb2e3e72d3d11458329ba1deabedec2d",
+  "previousMergeBase": "6442b90c80ede6ca0e6076bb7a87bad058b7b950",
+  "newSharedViews": [
+    "src/components/LrcEditor/ControlAccessibility.test.tsx",
+    "src/components/LrcEditor/SyncModeToggle.tsx"
+  ],
+  "sharedFilesResolvedFromUpstream": [
+    "LICENSE",
+    "etc/AI_Installation_guide.en.md",
+    "etc/AI_Installation_guide.ja.md",
+    "etc/AI_Installation_guide.ko.md",
+    "etc/Spotify_Connection_guide.en.md",
+    "etc/Spotify_Connection_guide.ja.md",
+    "etc/Spotify_Connection_guide.ko.md",
+    "etc/YouTube_guide.en.md",
+    "etc/YouTube_guide.ja.md",
+    "etc/YouTube_guide.ko.md",
+    "img/main_en.png",
+    "img/main_ja.png",
+    "img/main_ko.png",
+    "public/tauri.svg",
+    "public/vite.svg",
+    "scripts/check-dependencies.mjs",
+    "scripts/check-dependencies.node-test.mjs",
+    "src-tauri/.gitignore",
+    "src-tauri/dmg/dmg-background.png",
+    "src-tauri/icons/128x128.png",
+    "src-tauri/icons/128x128@2x.png",
+    "src-tauri/icons/32x32.png",
+    "src-tauri/icons/64x64.png",
+    "src-tauri/icons/Square107x107Logo.png",
+    "src-tauri/icons/Square142x142Logo.png",
+    "src-tauri/icons/Square150x150Logo.png",
+    "src-tauri/icons/Square284x284Logo.png",
+    "src-tauri/icons/Square30x30Logo.png",
+    "src-tauri/icons/Square310x310Logo.png",
+    "src-tauri/icons/Square44x44Logo.png",
+    "src-tauri/icons/Square71x71Logo.png",
+    "src-tauri/icons/Square89x89Logo.png",
+    "src-tauri/icons/StoreLogo.png",
+    "src-tauri/icons/android/mipmap-anydpi-v26/ic_launcher.xml",
+    "src-tauri/icons/android/mipmap-hdpi/ic_launcher.png",
+    "src-tauri/icons/android/mipmap-hdpi/ic_launcher_foreground.png",
+    "src-tauri/icons/android/mipmap-hdpi/ic_launcher_round.png",
+    "src-tauri/icons/android/mipmap-mdpi/ic_launcher.png",
+    "src-tauri/icons/android/mipmap-mdpi/ic_launcher_foreground.png",
+    "src-tauri/icons/android/mipmap-mdpi/ic_launcher_round.png",
+    "src-tauri/icons/android/mipmap-xhdpi/ic_launcher.png",
+    "src-tauri/icons/android/mipmap-xhdpi/ic_launcher_foreground.png",
+    "src-tauri/icons/android/mipmap-xhdpi/ic_launcher_round.png",
+    "src-tauri/icons/android/mipmap-xxhdpi/ic_launcher.png",
+    "src-tauri/icons/android/mipmap-xxhdpi/ic_launcher_foreground.png",
+    "src-tauri/icons/android/mipmap-xxhdpi/ic_launcher_round.png",
+    "src-tauri/icons/android/mipmap-xxxhdpi/ic_launcher.png",
+    "src-tauri/icons/android/mipmap-xxxhdpi/ic_launcher_foreground.png",
+    "src-tauri/icons/android/mipmap-xxxhdpi/ic_launcher_round.png",
+    "src-tauri/icons/android/values/ic_launcher_background.xml",
+    "src-tauri/icons/icon.icns",
+    "src-tauri/icons/icon.ico",
+    "src-tauri/icons/icon.png",
+    "src-tauri/icons/ios/AppIcon-20x20@1x.png",
+    "src-tauri/icons/ios/AppIcon-20x20@2x-1.png",
+    "src-tauri/icons/ios/AppIcon-20x20@2x.png",
+    "src-tauri/icons/ios/AppIcon-20x20@3x.png",
+    "src-tauri/icons/ios/AppIcon-29x29@1x.png",
+    "src-tauri/icons/ios/AppIcon-29x29@2x-1.png",
+    "src-tauri/icons/ios/AppIcon-29x29@2x.png",
+    "src-tauri/icons/ios/AppIcon-29x29@3x.png",
+    "src-tauri/icons/ios/AppIcon-40x40@1x.png",
+    "src-tauri/icons/ios/AppIcon-40x40@2x-1.png",
+    "src-tauri/icons/ios/AppIcon-40x40@2x.png",
+    "src-tauri/icons/ios/AppIcon-40x40@3x.png",
+    "src-tauri/icons/ios/AppIcon-512@2x.png",
+    "src-tauri/icons/ios/AppIcon-60x60@2x.png",
+    "src-tauri/icons/ios/AppIcon-60x60@3x.png",
+    "src-tauri/icons/ios/AppIcon-76x76@1x.png",
+    "src-tauri/icons/ios/AppIcon-76x76@2x.png",
+    "src-tauri/icons/ios/AppIcon-83.5x83.5@2x.png",
+    "src-tauri/src/main.rs",
+    "src/App.css",
+    "src/ErrorBoundary.tsx",
+    "src/assets/react.svg",
+    "src/components/AppShell/ConfirmModal.tsx",
+    "src/components/AppShell/ELrcNoticeModal.tsx",
+    "src/components/AppShell/SaveFormatModal.tsx",
+    "src/components/AudioPlayer/CtrlBtn.tsx",
+    "src/components/AudioPlayer/MorePopover.tsx",
+    "src/components/AudioPlayer/TransportControls.tsx",
+    "src/components/BatchTools/BatchFileList.tsx",
+    "src/components/BatchTools/BatchOperationPicker.tsx",
+    "src/components/LrcEditor/BulkActionsBar.tsx",
+    "src/components/LrcEditor/ClearGlyphTimings.test.tsx",
+    "src/components/LrcEditor/ClearGlyphTimings.tsx",
+    "src/components/LrcEditor/CurrentTimeFooter.tsx",
+    "src/components/LrcEditor/FindReplaceBar.tsx",
+    "src/components/LrcEditor/LineNavigator.test.tsx",
+    "src/components/LrcEditor/LineNavigator.tsx",
+    "src/components/LrcEditor/LrcLineRow.test.tsx",
+    "src/components/LrcEditor/LrcLineRow.tsx",
+    "src/components/LrcEditor/MiniConfirm.tsx",
+    "src/components/LrcEditor/ScaleBar.tsx",
+    "src/components/LrcEditor/TimeShiftBar.tsx",
+    "src/components/LrcEditor/ValidationPanel.tsx",
+    "src/components/LrcEditor/WaveformViewMenu.tsx",
+    "src/components/Settings/KeybindingsSection.tsx",
+    "src/components/Settings/PreviewSettingsTab.tsx",
+    "src/components/Settings/SettingsModal.test.tsx",
+    "src/components/Settings/SettingsTabs.test.tsx",
+    "src/components/Settings/SettingsTabs.tsx",
+    "src/components/Toast/ToastContainer.tsx",
+    "src/index.css",
+    "src/main.tsx",
+    "src/stores/useLrcStore.bpm.test.ts",
+    "src/stores/useToastStore.ts",
+    "src/stores/useWaveformStore.test.ts",
+    "src/stores/useWaveformStore.ts",
+    "src/styles/ui.css",
+    "src/utils/batchProcessor.test.ts",
+    "src/utils/batchProcessor.ts",
+    "src/utils/bpmDetect.test.ts",
+    "src/utils/bpmDetect.ts",
+    "src/utils/exportFormats.test.ts",
+    "src/utils/exportFormats.ts",
+    "src/utils/keybindings.dom.test.ts",
+    "src/utils/keybindings.test.ts",
+    "src/utils/keybindings.ts",
+    "src/utils/linePlaybackRange.test.ts",
+    "src/utils/linePlaybackRange.ts",
+    "src/utils/lrcParser.test.ts",
+    "src/utils/lrcParser.ts",
+    "src/utils/modalGuard.test.ts",
+    "src/utils/modalGuard.ts",
+    "src/utils/pathWriteQueue.test.ts",
+    "src/utils/pathWriteQueue.ts",
+    "src/utils/recovery.test.ts",
+    "src/utils/recovery.ts",
+    "src/utils/safeUnlisten.ts",
+    "src/utils/srtConverter.test.ts",
+    "src/utils/srtConverter.ts",
+    "src/utils/storage.ts",
+    "src/utils/waveformEnvelope.test.ts",
+    "src/utils/waveformEnvelope.ts",
+    "src/utils/waveformTimeline.test.ts",
+    "src/utils/waveformTimeline.ts",
+    "src/vite-env.d.ts",
+    "tsconfig.json",
+    "tsconfig.node.json",
+    "vite.config.ts"
+  ],
+  "upstreamChangeCoverage": [
     {
       "path": ".github/ISSUE_TEMPLATE/bug_report.yml",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": ".github/ISSUE_TEMPLATE/config.yml",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": ".github/ISSUE_TEMPLATE/feature_request.yml",
-      "resolution": "excluded-direct-edition"
-    },
-    {
-      "path": ".github/workflows/build.yml",
-      "resolution": "store-edition-adapter"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": ".github/workflows/release.yml",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": ".gitignore",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "1a24ef1f4c6e9ed1442762d3075df5bd04031f80dc47c4471a6223010f693649"
     },
     {
       "path": "README.ja.md",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "373e3bb47b4d0a7c0e94a848b9ed787159924205d3a9921003812cfb58393b9f"
     },
     {
       "path": "README.ko.md",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "203fd2a1d57385c839560d47e2bb9d68eabc00a28a6396a1a590ab2e5c0056d8"
     },
     {
       "path": "README.md",
-      "resolution": "store-edition-adapter"
-    },
-    {
-      "path": "index.html",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "9d96320e81d880b144abaf4fbb86005e3cc37c644cff500a30c761be8d089767"
     },
     {
       "path": "package-lock.json",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-platform-contract",
+      "resolvedSha256": "6f75c9b59f697690bae483445b779ac3c82b5d07caace239a97465ce2a493187"
     },
     {
       "path": "package.json",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-platform-contract",
+      "resolvedSha256": "a882d81b21c728feb286201429ad4501c23bee8bb4c2e05fd37b16bb10976bdc"
     },
     {
-      "path": "packaging/licenses/inventory.json",
-      "resolution": "store-only"
+      "path": "scripts/check-dependencies.mjs",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "6eefdba7fc5f38f49043f22bb3a2c43f9a951eed489297c335f4560707720a1c"
     },
     {
-      "path": "packaging/licenses/upstream-index.json",
-      "resolution": "store-only"
-    },
-    {
-      "path": "packaging/licenses/upstream/0884e92e74c08412d08bb7cbd121e3c09cbf2ae357972440b06f81b3305b0176.txt",
-      "resolution": "store-only"
-    },
-    {
-      "path": "packaging/licenses/upstream/0dcf41516e608bbcb6cdc5229feb7b86fe4a643b85e7df251133c93408fdac73.txt",
-      "resolution": "store-only"
-    },
-    {
-      "path": "packaging/licenses/upstream/23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3.txt",
-      "resolution": "store-only"
-    },
-    {
-      "path": "packaging/licenses/upstream/33ee463a651c2dd0417e68e97d97c811c7bb19280c2116bff9906fe8d2718551.txt",
-      "resolution": "store-only"
-    },
-    {
-      "path": "packaging/licenses/upstream/766674381e88a468d55e07de3596987391cf0e8beebe51baf4fddf11078785b3.txt",
-      "resolution": "store-only"
-    },
-    {
-      "path": "packaging/licenses/upstream/7f976f7e9cb2d87df7230606feb932c3f21ac0e664045a775b600046ff850c54.txt",
-      "resolution": "store-only"
-    },
-    {
-      "path": "packaging/licenses/upstream/a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2.txt",
-      "resolution": "store-only"
-    },
-    {
-      "path": "packaging/licenses/upstream/c0c56f26d9c051cac4d200c34c84e7ae9aaa853e01a982a1df08b09931e518ae.txt",
-      "resolution": "store-only"
-    },
-    {
-      "path": "packaging/licenses/upstream/c76f740d1521b9bed9ca7a04ad526c310493c62621b1341d623b431736533b30.txt",
-      "resolution": "store-only"
-    },
-    {
-      "path": "packaging/licenses/upstream/f5c342c49f3ac804f3e8e7bb62a8040a44c50d47bb36902b1abd13f66a1adf8b.txt",
-      "resolution": "store-only"
-    },
-    {
-      "path": "packaging/msix/AppxManifest.xml.in",
-      "resolution": "store-only"
-    },
-    {
-      "path": "packaging/msix/store.json",
-      "resolution": "store-only"
-    },
-    {
-      "path": "scripts/appstore-build.sh",
-      "resolution": "store-only"
-    },
-    {
-      "path": "scripts/appstore-preflight.node-test.mjs",
-      "resolution": "store-only"
-    },
-    {
-      "path": "scripts/appstore-profile.py",
-      "resolution": "store-only"
-    },
-    {
-      "path": "scripts/check-notices.mjs",
-      "resolution": "store-only"
-    },
-    {
-      "path": "scripts/generate-notices.py",
-      "resolution": "store-only"
-    },
-    {
-      "path": "scripts/msix-stage.mjs",
-      "resolution": "store-only"
-    },
-    {
-      "path": "scripts/msix-stage.node-test.mjs",
-      "resolution": "store-only"
-    },
-    {
-      "path": "scripts/msstore-build.ps1",
-      "resolution": "store-only"
-    },
-    {
-      "path": "scripts/notices.node-test.mjs",
-      "resolution": "store-only"
-    },
-    {
-      "path": "scripts/store-offline.node-test.mjs",
-      "resolution": "store-only"
+      "path": "scripts/check-dependencies.node-test.mjs",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "c81b792e7e29c9b5fb145debd9a1445a92920de23521a4b3721f76963d56a87d"
     },
     {
       "path": "src-tauri/Cargo.lock",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-platform-contract",
+      "resolvedSha256": "a75a3d47f86cd04a1400e24bdc2991c002c8fe57c2d19ee4646e70313fc7bb70"
     },
     {
       "path": "src-tauri/Cargo.toml",
-      "resolution": "store-platform-contract"
-    },
-    {
-      "path": "src-tauri/PrivacyInfo.xcprivacy",
-      "resolution": "store-only"
-    },
-    {
-      "path": "src-tauri/ThirdPartyNotices.txt",
-      "resolution": "store-only"
-    },
-    {
-      "path": "src-tauri/build.rs",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-platform-contract",
+      "resolvedSha256": "b76a68e8db3573cf694453e3d2111333e95cec55c21f74260222b093cce39733"
     },
     {
       "path": "src-tauri/capabilities/default.json",
-      "resolution": "store-platform-contract"
-    },
-    {
-      "path": "src-tauri/entitlements.plist",
-      "resolution": "store-only"
+      "resolution": "store-platform-contract",
+      "resolvedSha256": "418064c63306957706bf83f3faf57017c79a9a632b5fedb9e602e864b203b185"
     },
     {
       "path": "src-tauri/resources/mediaremote-adapter/LICENSE",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src-tauri/resources/mediaremote-adapter/MediaRemoteAdapter.framework/MediaRemoteAdapter",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src-tauri/resources/mediaremote-adapter/VENDORED.txt",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src-tauri/resources/mediaremote-adapter/mediaremote-adapter.pl",
-      "resolution": "excluded-direct-edition"
-    },
-    {
-      "path": "src-tauri/src/align.py",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src-tauri/src/alignment.rs",
-      "resolution": "excluded-direct-edition"
-    },
-    {
-      "path": "src-tauri/src/audio_decode.rs",
-      "resolution": "store-only"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src-tauri/src/batch_output.rs",
-      "resolution": "store-edition-adapter"
-    },
-    {
-      "path": "src-tauri/src/bookmark.rs",
-      "resolution": "store-only"
-    },
-    {
-      "path": "src-tauri/src/bookmark_unsupported.rs",
-      "resolution": "store-only"
-    },
-    {
-      "path": "src-tauri/src/file_access.rs",
-      "resolution": "store-only"
+      "resolution": "store-platform-contract",
+      "resolvedSha256": "ffe382712e9099073aff322ebad6adad9b158f6e4cac60bbd5ee9aa227f0482d"
     },
     {
       "path": "src-tauri/src/lib.rs",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-platform-contract",
+      "resolvedSha256": "ddd03d4ab7323939af42720b3a1baff70a4ff6608ff76c31fad559ec40adfaf1"
     },
     {
       "path": "src-tauri/src/lrclib.rs",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src-tauri/src/models.rs",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src-tauri/src/now_playing.rs",
-      "resolution": "excluded-direct-edition"
-    },
-    {
-      "path": "src-tauri/src/privacy_policy.rs",
-      "resolution": "store-only"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src-tauri/src/python_env.rs",
-      "resolution": "excluded-direct-edition"
-    },
-    {
-      "path": "src-tauri/src/separate.py",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src-tauri/src/service_auth.rs",
-      "resolution": "excluded-direct-edition"
-    },
-    {
-      "path": "src-tauri/src/store_runtime.rs",
-      "resolution": "store-only"
-    },
-    {
-      "path": "src-tauri/src/third_party_notices.rs",
-      "resolution": "store-only"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src-tauri/src/ytdlp.rs",
-      "resolution": "excluded-direct-edition"
-    },
-    {
-      "path": "src-tauri/tauri.appstore.conf.json",
-      "resolution": "store-only"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src-tauri/tauri.conf.json",
-      "resolution": "store-platform-contract"
-    },
-    {
-      "path": "src-tauri/tauri.macos.conf.json",
-      "resolution": "store-only"
-    },
-    {
-      "path": "src-tauri/tauri.msstore.conf.json",
-      "resolution": "store-only"
+      "resolution": "store-platform-contract",
+      "resolvedSha256": "1dfe310c7591778d1b2a6eaa5642981864dee745e6a4c7a6de8afc4afbaea824"
     },
     {
       "path": "src-tauri/tauri.updater.conf.json",
-      "resolution": "excluded-direct-edition"
-    },
-    {
-      "path": "src-tauri/tauri.windows.conf.json",
-      "resolution": "store-only"
-    },
-    {
-      "path": "src-tauri/windows-app.manifest",
-      "resolution": "store-only"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/App.test.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "dfabdc3e3418e93152e3fc974e27b95ea80d55aa0f45cff9a75c12050fcdc710"
     },
     {
       "path": "src/App.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "14260724aac38dd515eb4179002eff103fcfb768e550741e5bf1c873a7e3134e"
     },
     {
-      "path": "src/components/AppShell/HelpModal.test.tsx",
-      "resolution": "store-only"
+      "path": "src/components/AppShell/ConfirmModal.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "92c2f4cfdeba0d3af15d8133ac556689f183e3d3cc1c1414f6641d5c8f72b825"
+    },
+    {
+      "path": "src/components/AppShell/ELrcNoticeModal.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "6fdcaa317f12349e10b94e16344a0f1a0eaea27eaf3b4e76a132f901097c96fc"
     },
     {
       "path": "src/components/AppShell/HelpModal.tsx",
-      "resolution": "store-edition-adapter"
-    },
-    {
-      "path": "src/components/AppShell/HistoryPanel.test.tsx",
-      "resolution": "store-only"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "f2efea457836a27032c788868588f98e3a1d6479acbe6a6822eb24f147acc8c5"
     },
     {
       "path": "src/components/AppShell/HistoryPanel.tsx",
-      "resolution": "store-edition-adapter"
-    },
-    {
-      "path": "src/components/AppShell/IconBtn.test.tsx",
-      "resolution": "store-only"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "bcbfe72b36d356a1eba7d7bf5190d2bb8b42eb36d6262cd629326891d9f1734e"
     },
     {
       "path": "src/components/AppShell/IconBtn.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "a095f00e87a39a42eb1aebf50fc33b7a2e747106f5b173400342be628d3655f6"
     },
     {
       "path": "src/components/AppShell/LangDropdown.tsx",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/components/AppShell/RecentFilesMenu.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "5bdd054285712cf7710da1504e90d1943bdf4bf9ac3a38be6072cd293a857dc8"
+    },
+    {
+      "path": "src/components/AppShell/SaveFormatModal.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "b093562a15485cf91b43391d5209076e1ad7a8411320152c4a5683361dc9e213"
     },
     {
       "path": "src/components/AppShell/icons.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "928b217d76cc347bb210b7579c6590182242ca61ad0c2814f78bf97a04e365cc"
     },
     {
       "path": "src/components/AudioPlayer/AudioPlayer.test.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "03efe317d6e9929ff163e3b709c284822bb416d5ccd5bfd5489bd61775f44e34"
     },
     {
       "path": "src/components/AudioPlayer/AudioPlayer.tsx",
-      "resolution": "store-edition-adapter"
-    },
-    {
-      "path": "src/components/AudioPlayer/AutoSpotModal.tsx",
-      "resolution": "store-only"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "52d96b8fb586786f868f81e35cf6839337a491e26256bf14f8ffb669865202ed"
     },
     {
       "path": "src/components/AudioPlayer/BpmSnapModal.test.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "00a738acaf684eabad6330be62b91b11dee3c71314e8000711e0ad685776fb57"
     },
     {
       "path": "src/components/AudioPlayer/BpmSnapModal.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "0424eb098016907f84898b7fd046f3806ac111fb56b754a5f15e3baf7872076d"
+    },
+    {
+      "path": "src/components/AudioPlayer/CtrlBtn.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "637340c6b9f44e612fb17a92e69148801cf83c1d60b0da3dd7a5a9abf508aa46"
+    },
+    {
+      "path": "src/components/AudioPlayer/MorePopover.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "7424af62aef13705c8f8a0d39e3d2affa60203b8df70339578fe3193b90390a7"
     },
     {
       "path": "src/components/AudioPlayer/NoTrackAlert.tsx",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/components/AudioPlayer/SeekBar.test.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "1a8d925c1f3f0298690210662df20270f61b729a0e85938fba9468425ac1483e"
     },
     {
       "path": "src/components/AudioPlayer/SeekBar.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "05aaee82d79a02b7dbb2d8bcf3cc94611ffadb5f13f2392c3521228cfd65d8b9"
     },
     {
       "path": "src/components/AudioPlayer/TrackInfoHeader.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "48e33831e5c8cc3bb112401dad3063b6e53ce72724c70c82035769ed17eeeba1"
+    },
+    {
+      "path": "src/components/AudioPlayer/TransportControls.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "cd5285bbddd758a9bc28ede9d047d3a822060ae2c7594e670a04366fe50da006"
     },
     {
       "path": "src/components/AudioPlayer/WaveSurferSeekBehavior.test.ts",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/components/AudioPlayer/YouTubeModal.tsx",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/components/AudioPlayer/icons.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "4ca6a42b93b735b89d6727eeb57060e2cd0e02dcc47beaf263686065f4df7844"
     },
     {
       "path": "src/components/AudioPlayer/useYouTubeLoad.test.tsx",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/components/AudioPlayer/useYouTubeLoad.ts",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
+    },
+    {
+      "path": "src/components/BatchTools/BatchFileList.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "f9e9fed6b370f22e55344d246aa1a4d79cb4fb7314d16019df703e8d1b7723f1"
+    },
+    {
+      "path": "src/components/BatchTools/BatchOperationPicker.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "7d2d7ac8aaf1fad2be454f50700ef73d5c0786a3cf9e9c949fd902761253e506"
     },
     {
       "path": "src/components/BatchTools/BatchToolModal.test.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "3ebdaa03cefef0c3fe49a9693eac493585d6ef492e55dcff8e5a16891824118d"
     },
     {
       "path": "src/components/BatchTools/BatchToolModal.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "c7e59a901b4e14bcd1fc97c01416a91067cd2019db076dd6efda8d879b5c0821"
+    },
+    {
+      "path": "src/components/LrcEditor/BulkActionsBar.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "6a15caf7d20dc029fde5d84065eb249f80883d0cb961afb75056f5974c92d729"
     },
     {
       "path": "src/components/LrcEditor/CharSyncView.test.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "0736c38d8954c57aeb1522ed2825e45de417b2e520d0f79adce2359acb4ae64f"
     },
     {
       "path": "src/components/LrcEditor/CharSyncView.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "c4614f6c37f1b4797096443cbd95415148d762d199d6e4a2545581c70b7dd1fc"
     },
     {
       "path": "src/components/LrcEditor/CharWaveformPanel.test.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "3e2bd457831c97828c3a743b702eb3fa1a43a163af181f0b1fc79dbcad49a2f3"
     },
     {
       "path": "src/components/LrcEditor/CharWaveformPanel.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "e7cd0c37d99cb4931382ef1561943805f17e81e61474c2a9ae27ead66f80fb5a"
+    },
+    {
+      "path": "src/components/LrcEditor/ClearGlyphTimings.test.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "407b018e317892519425ae1ef023239eb68dc1d2b853b6b56ab1c55ace48eca3"
+    },
+    {
+      "path": "src/components/LrcEditor/ClearGlyphTimings.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "8ea949f2a4468247fecfbbfd4c345fb412dc7d81383fb17be5ba709726a08e93"
     },
     {
       "path": "src/components/LrcEditor/ControlAccessibility.test.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "shared-upstream",
+      "resolvedSha256": "57007b09aa6a1c4b56d00962ba8ad6b61a268352ac07afa0150979dad4976970"
+    },
+    {
+      "path": "src/components/LrcEditor/CurrentTimeFooter.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "dd78a88d209a2921dcd1bc7e6baead2ea3751633daba1ec811d11a097ff2bc21"
     },
     {
       "path": "src/components/LrcEditor/EditorToolsMenu.tsx",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
+    },
+    {
+      "path": "src/components/LrcEditor/FindReplaceBar.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "2cab79708d074af8e6309a9507e395b95f8eca50dad564c70117a5ceb38d31ef"
+    },
+    {
+      "path": "src/components/LrcEditor/LineNavigator.test.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "696ddcb7539e7a632c24881eb61db0a1533ba51f478c7873f7ddea0a8d1b1160"
+    },
+    {
+      "path": "src/components/LrcEditor/LineNavigator.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "830af5cb42938988589f433637810d6e44a5def0bff8ba93449aa0116214a581"
     },
     {
       "path": "src/components/LrcEditor/LrcEditor.reorder.test.tsx",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/components/LrcEditor/LrcEditor.test.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "2c10c3bcc9d6abed111c95fe895fddf2f6b7a160c88ca126c508be17c6da3fd1"
     },
     {
       "path": "src/components/LrcEditor/LrcEditor.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "c484a4a832a01b7a1f1ab976d7ec8fb417fd2399ef1225c7605b31fb6efb19aa"
+    },
+    {
+      "path": "src/components/LrcEditor/LrcLineRow.test.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "975163e3e6b6d962d0f6b6e48a29e9409639de93d4b79ab0dc65f3786b10d984"
+    },
+    {
+      "path": "src/components/LrcEditor/LrcLineRow.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "7b8e545d3e7452d246b94b08a131cdb53cfa4e2b8c41bb3acfb799fb37c7c6cd"
+    },
+    {
+      "path": "src/components/LrcEditor/MiniConfirm.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "b7644fb6498f4e0decc4a2638ef7aefed7bddc127a278ddd02d80164607fb20b"
+    },
+    {
+      "path": "src/components/LrcEditor/ScaleBar.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "040d28f3f05ca7cec1e116ca03e394dc238156f28626a688a60f75b0d250be85"
     },
     {
       "path": "src/components/LrcEditor/SyncModeToggle.tsx",
-      "resolution": "excluded-direct-edition"
+      "resolution": "shared-upstream",
+      "resolvedSha256": "d6cd068a762203f208e4a1cac8522ae0674dbbbf27ffb154e49c7d187f1c541c"
+    },
+    {
+      "path": "src/components/LrcEditor/TimeShiftBar.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "ce16372a7cfba1abe3b7f9be8d9585f28ad8b667eebcef29f7b91cf051716087"
+    },
+    {
+      "path": "src/components/LrcEditor/ValidationPanel.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "911522a14d8053f30012fc64d20f3cbcc8e6df7089993b2e8c7d7a834387dc5c"
+    },
+    {
+      "path": "src/components/LrcEditor/WaveformViewMenu.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "d6c0f6e9853bbf010a2c8a69768632045d19ca53eb7f072c17c547efd895ae04"
     },
     {
       "path": "src/components/LrcLib/LrcLibModal.tsx",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/components/LrcLib/LrcLibPublishModal.tsx",
-      "resolution": "excluded-direct-edition"
-    },
-    {
-      "path": "src/components/MetaEditor/MetaEditor.test.tsx",
-      "resolution": "store-only"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/components/MetaEditor/MetaEditor.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "d3f8fe9d8a67e02c3672caa94f39efed671846cb5c953452d1c6a2f1a1d4d921"
     },
     {
       "path": "src/components/Preview/PreviewModal.test.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "cce6651006da361a41e3643836654a605586d7301832499bbaf5a8c78b6dc0b8"
     },
     {
       "path": "src/components/Preview/PreviewModal.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "e32ed0f865563187b0a36c1599e03701d6f6b11bf119911bd9f209e69e3fa651"
     },
     {
       "path": "src/components/Service/DevicePickerModal.tsx",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/components/Service/DevicePlayerPanel.tsx",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/components/Service/ModeSelectButton.tsx",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/components/Service/ServicePlayerPanel.tsx",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/components/Service/SpotifyButton.tsx",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/components/Service/SpotifySearchModal.tsx",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/components/Settings/GeneralSettingsTab.tsx",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/components/Settings/KeybindingsSection.test.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "fc4cc27495b072b870da594f8dde6f5f66361eed18f78a9e3fd33a02c2c718dd"
+    },
+    {
+      "path": "src/components/Settings/KeybindingsSection.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "2f6c6c92c6ce1ffcddc2b973de5ce121cd790009fe3ae13de8c95c3b8dcf3129"
     },
     {
       "path": "src/components/Settings/ModelDownloadSection.tsx",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
+    },
+    {
+      "path": "src/components/Settings/PreviewSettingsTab.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "786c572ef4665b1804a2bc9d965da51790a6dbe67b41e7d90b33acc0c0e26548"
     },
     {
       "path": "src/components/Settings/PythonEnvSection.tsx",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
-      "path": "src/components/Settings/SettingsModal.preferences.test.tsx",
-      "resolution": "store-only"
-    },
-    {
-      "path": "src/components/Settings/SettingsModal.privacy.test.tsx",
-      "resolution": "store-only"
+      "path": "src/components/Settings/SettingsModal.test.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "00123a021763c4af3dd4563f39ced28524634677e7c5d009b67ff025aa4ec31d"
     },
     {
       "path": "src/components/Settings/SettingsModal.tsx",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "c72a5b7b9b95f10ce76cfd0deb4df10efa22f5a7601eee7a402bda382207259c"
+    },
+    {
+      "path": "src/components/Settings/SettingsTabs.test.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "7c171cdc463018036e1fe165a998900ffceeebfb28c0f2c66c8de810ac3ff836"
+    },
+    {
+      "path": "src/components/Settings/SettingsTabs.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "66623d5fc9f979cc9627112c427b8303eeb14fcee75afcd7ce6468dd9968dd6f"
     },
     {
       "path": "src/components/Settings/SpotifySection.tsx",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/components/Settings/YtdlpSection.tsx",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
+    },
+    {
+      "path": "src/components/Toast/ToastContainer.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "d8092bfb11d4bfa44ea7510a2539269020a78ce72d6e561eb7c191b5514f74d8"
     },
     {
       "path": "src/components/Update/UpdateModal.tsx",
-      "resolution": "excluded-direct-edition"
-    },
-    {
-      "path": "src/hooks/useMacMenu.ts",
-      "resolution": "store-edition-adapter"
-    },
-    {
-      "path": "src/hooks/usePointerScrub.ts",
-      "resolution": "store-only"
-    },
-    {
-      "path": "src/hooks/useRecoverySnapshots.test.tsx",
-      "resolution": "store-only"
-    },
-    {
-      "path": "src/hooks/useRecoverySnapshots.ts",
-      "resolution": "store-only"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/i18n/translations.ts",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "755f5aba70998ac7292eb03eb0e827c12a0de66eb9f8ee99f7e64966d7ea29d5"
+    },
+    {
+      "path": "src/index.css",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "a3c8b22db0544ac3b4fb7de7a2eeb2496e7dd4653037a7befac456af0b2f3901"
     },
     {
       "path": "src/stores/useBusyStore.test.ts",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/stores/useBusyStore.ts",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/stores/useDeviceStore.test.ts",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/stores/useDeviceStore.ts",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
-      "path": "src/stores/useI18nStore.ts",
-      "resolution": "store-edition-adapter"
-    },
-    {
-      "path": "src/stores/useLrcStore.files.test.mjs",
-      "resolution": "store-only"
-    },
-    {
-      "path": "src/stores/useLrcStore.history.test.ts",
-      "resolution": "store-only"
+      "path": "src/stores/useLrcStore.bpm.test.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "4cd41694b7ee54c8ddf2776fd774c9dcb65ecd529215fcd94f8de2c02bab492c"
     },
     {
       "path": "src/stores/useLrcStore.test.ts",
-      "resolution": "store-edition-adapter"
-    },
-    {
-      "path": "src/stores/useLrcStore.transitions.test.ts",
-      "resolution": "store-only"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "1cb6d1d018ad8cac2ebb16249aa85cccc2a32617daed39361ce1dadbf8c75130"
     },
     {
       "path": "src/stores/useLrcStore.translation.test.ts",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "c2baf77f9fb47199cbbda6bb087fe0631e61a7c52e3866112859763bfec7b965"
     },
     {
       "path": "src/stores/useLrcStore.ts",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "2f14c949553fd2c154071fe09952d2b2971264725f445e9c828d1522f162ba40"
     },
     {
       "path": "src/stores/useServiceStore.test.ts",
-      "resolution": "excluded-direct-edition"
-    },
-    {
-      "path": "src/stores/useServiceStore.ts",
-      "resolution": "excluded-direct-edition"
-    },
-    {
-      "path": "src/stores/useSettingsStore.persistence.test.ts",
-      "resolution": "store-only"
-    },
-    {
-      "path": "src/stores/useSettingsStore.preferences.test.ts",
-      "resolution": "store-only"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/stores/useSettingsStore.sync.test.ts",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/stores/useSettingsStore.test.ts",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "d77e5f8b56e5762a4d4f755aae52b3c28ba64fc8184a76d4f3d554466563124c"
     },
     {
       "path": "src/stores/useSettingsStore.ts",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "2d76bc3e5c15af21603c7eac4cf4933ea7f8a3694cd5a317e18450d3d374ec8f"
     },
     {
       "path": "src/stores/useUpdaterStore.test.ts",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/stores/useUpdaterStore.ts",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
+    },
+    {
+      "path": "src/stores/useWaveformStore.test.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "ea518ff02b0dc96d9eb55db95f6c9344544f6413dd041e8e178452bb2c26230e"
+    },
+    {
+      "path": "src/stores/useWaveformStore.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "40e2f4f86e7f334000ae9591f8dfc39249265b51fd6d63e0c8cf763ad5846122"
+    },
+    {
+      "path": "src/styles/ui.css",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "99d5629ce44a6e87a21357c76189fd7f5df8adab2134ea7bd3a8ddec652bad4b"
     },
     {
       "path": "src/types/history.ts",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/types/lrc.ts",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "1e62ac356413005e01c9709f5d058458f033c8cc52b7269fa48b9f8aa46d4317"
     },
     {
       "path": "src/utils/audioControls.ts",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "7f7d0a96d86ab1d6984ef31913802bdcb30710960c828de467fd8344f867fabb"
     },
     {
-      "path": "src/utils/autoSpot.test.ts",
-      "resolution": "store-only"
+      "path": "src/utils/batchProcessor.test.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "634e6dd654430a871169b29bb1485ce2f742555add5d38530852af7b0273b49e"
     },
     {
-      "path": "src/utils/autoSpot.ts",
-      "resolution": "store-only"
+      "path": "src/utils/batchProcessor.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "109e554afb753638a7f3add8af9d82d2b642a1514da763b72fc43a7698b6cff4"
+    },
+    {
+      "path": "src/utils/bpmDetect.test.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "81f90676261388aef28fbb6b7d3de6cbbfec4a529841875d23601e4a942282f6"
+    },
+    {
+      "path": "src/utils/bpmDetect.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "f62f66d95ba16f47e548462629fd2b08f94786182f8a95d6a90989a98c2f280f"
     },
     {
       "path": "src/utils/decodeAudioSamples.test.ts",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "89fb10a1b54f82d0d961b3bc3def5258be8cbf85af2101eac56fd525cb54ba6d"
     },
     {
       "path": "src/utils/decodeAudioSamples.ts",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "1adfbc01238861fe93a0ee2d4338ff53e27bf2d3db55f0ecdcf7368c8e67baa6"
     },
     {
       "path": "src/utils/deviceControls.ts",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
-      "path": "src/utils/documentTransition.test.ts",
-      "resolution": "store-only"
+      "path": "src/utils/exportFormats.test.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "8047da481fb8d7b676ecdcc1b82942e006c10da83577aa4745049cbd6e798e78"
     },
     {
-      "path": "src/utils/documentTransition.ts",
-      "resolution": "store-only"
-    },
-    {
-      "path": "src/utils/fileAccess.test.ts",
-      "resolution": "store-only"
+      "path": "src/utils/exportFormats.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "2bd911a9a991ca85d7f3b789b7cb8ea6fef6da0811b1b16765698ed5d4bd769e"
     },
     {
       "path": "src/utils/fileAccess.ts",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "43884b6f69ae515a9380d0ae14525bb0c45f37ea7dd8d7f0d8e5ffb24b0cb2d6"
     },
     {
-      "path": "src/utils/localPrivacy.test.ts",
-      "resolution": "store-only"
+      "path": "src/utils/keybindings.dom.test.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "8de6c808b8572f6d308992e097c2ea232211847a74ebedd1b19cf4b5788e385b"
     },
     {
-      "path": "src/utils/localPrivacy.ts",
-      "resolution": "store-only"
+      "path": "src/utils/keybindings.test.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "99c75b6fdda3195bf152aedfc73223d600d5ef20811bc4d83877f0b4e1d71cf8"
+    },
+    {
+      "path": "src/utils/keybindings.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "037e0269451e58a54cf656eed82a7c68f321da858cab65f64addf8ff7f235b5b"
+    },
+    {
+      "path": "src/utils/linePlaybackRange.test.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "98c1dd4d562de8781a2906d7f26a24625ed348a3d95e45dd951f8a96893d1cd4"
+    },
+    {
+      "path": "src/utils/linePlaybackRange.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "c6df3d45efb610d865fda500e3eef03f72197a93da8eaf63ba4b49d0209bc32c"
+    },
+    {
+      "path": "src/utils/lrcParser.test.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "ad484e85cbd65d2f89adae2b50a90d8cf3deae947d44ca4eae6177219088ff0a"
+    },
+    {
+      "path": "src/utils/lrcParser.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "98f6e0b163b2dcda3b9531d7a3da99e2ee96e627a36e8d171ae6045bdb516fa0"
     },
     {
       "path": "src/utils/lrclib.test.ts",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
-      "path": "src/utils/lrclib.ts",
-      "resolution": "excluded-direct-edition"
+      "path": "src/utils/modalGuard.test.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "f0db4ae36f9c030d9822114acd5bb2410897eeaebb61276ec3f1cf04a50389fe"
     },
     {
       "path": "src/utils/modelDefs.ts",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
+    },
+    {
+      "path": "src/utils/pathWriteQueue.test.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "05e084e890fc10aed63fb35d97a607acc0cd0935069a9afe11749389657d2206"
+    },
+    {
+      "path": "src/utils/pathWriteQueue.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "bc901b3e04cd540a9d113f18b6f4da8041324ee5f77bd54dd530afbc13ff6923"
     },
     {
       "path": "src/utils/readAudioBytes.test.ts",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "af3ba76a6e18640381904a63bbd0dec272dfed02f41adccc0553549a4ebe2f6c"
     },
     {
       "path": "src/utils/readAudioBytes.ts",
-      "resolution": "store-edition-adapter"
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "fb33bcf34fb78193e58d9b65683b7d6436714eadcb906c5a4f3aa53b785d502e"
+    },
+    {
+      "path": "src/utils/recovery.test.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "035553528508d50d8ef438a117824990fcfb5783d46f03634fd113b4c7d368f9"
+    },
+    {
+      "path": "src/utils/recovery.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "40bd63373b868f52e876cd508f14fe34b2d310ad0d1bdb6859cd5bd05d458428"
     },
     {
       "path": "src/utils/safeListen.test.ts",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/utils/safeListen.ts",
-      "resolution": "excluded-direct-edition"
-    },
-    {
-      "path": "src/utils/serviceControls.ts",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
       "path": "src/utils/spotifyAuth.test.ts",
-      "resolution": "excluded-direct-edition"
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
-      "path": "src/utils/spotifyAuth.ts",
-      "resolution": "excluded-direct-edition"
+      "path": "src/utils/srtConverter.test.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "9b272f86e01a153f438f9d2edc04481522e82d2bfafaa658f4dae254ed673b2d"
     },
     {
-      "path": "src/utils/spotifyPlayer.ts",
-      "resolution": "excluded-direct-edition"
+      "path": "src/utils/srtConverter.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "8cdb4c2ea2e088cda042cee79d9f0a69931ab05e7991dd45cb5edc8b1be8d9ae"
+    },
+    {
+      "path": "src/utils/storage.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "59a45e0548b32c2b256eeebf9002acf1701ddde3499ae10fa7cc6005652a8809"
+    },
+    {
+      "path": "src/utils/updateCheck.ts",
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
+    },
+    {
+      "path": "src/utils/waveformEnvelope.test.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "b2d8b6df1d7c3546d9baf968bc3ee708fee06f54e845822948a60b2f404bc664"
+    },
+    {
+      "path": "src/utils/waveformEnvelope.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "f772d624e1bffcf2518c253148393c27e2430b8b10ac200e444ae4160ba200a2"
+    },
+    {
+      "path": "src/utils/waveformTimeline.test.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "f9841d2a809a3a91d5c3211901c9f906b4cd85373e9abc0951c4ee522bf18c64"
+    },
+    {
+      "path": "src/utils/waveformTimeline.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "779f851817761f4c6ca1cf2a60d80c5b6d8a006b7d1a7e212fac7c204bd5c390"
     }
   ]
 }
