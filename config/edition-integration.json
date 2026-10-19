@@ -1,0 +1,734 @@
+{
+  "upstream": "1a24c95beaac122c1c0f2c83ef57aae3c561e643",
+  "storeBaseline": "4f2cd20a7719c4badadf3d35b0e90c41f9891b5e",
+  "reviewedDifferences": [
+    {
+      "path": ".gitattributes",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/bug_report.yml",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/config.yml",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/feature_request.yml",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": ".github/workflows/build.yml",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": ".github/workflows/release.yml",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": ".gitignore",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "README.ja.md",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "README.ko.md",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "README.md",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "index.html",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "package-lock.json",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "package.json",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "packaging/licenses/inventory.json",
+      "resolution": "store-only"
+    },
+    {
+      "path": "packaging/licenses/upstream-index.json",
+      "resolution": "store-only"
+    },
+    {
+      "path": "packaging/licenses/upstream/0884e92e74c08412d08bb7cbd121e3c09cbf2ae357972440b06f81b3305b0176.txt",
+      "resolution": "store-only"
+    },
+    {
+      "path": "packaging/licenses/upstream/0dcf41516e608bbcb6cdc5229feb7b86fe4a643b85e7df251133c93408fdac73.txt",
+      "resolution": "store-only"
+    },
+    {
+      "path": "packaging/licenses/upstream/23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3.txt",
+      "resolution": "store-only"
+    },
+    {
+      "path": "packaging/licenses/upstream/33ee463a651c2dd0417e68e97d97c811c7bb19280c2116bff9906fe8d2718551.txt",
+      "resolution": "store-only"
+    },
+    {
+      "path": "packaging/licenses/upstream/766674381e88a468d55e07de3596987391cf0e8beebe51baf4fddf11078785b3.txt",
+      "resolution": "store-only"
+    },
+    {
+      "path": "packaging/licenses/upstream/7f976f7e9cb2d87df7230606feb932c3f21ac0e664045a775b600046ff850c54.txt",
+      "resolution": "store-only"
+    },
+    {
+      "path": "packaging/licenses/upstream/a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2.txt",
+      "resolution": "store-only"
+    },
+    {
+      "path": "packaging/licenses/upstream/c0c56f26d9c051cac4d200c34c84e7ae9aaa853e01a982a1df08b09931e518ae.txt",
+      "resolution": "store-only"
+    },
+    {
+      "path": "packaging/licenses/upstream/c76f740d1521b9bed9ca7a04ad526c310493c62621b1341d623b431736533b30.txt",
+      "resolution": "store-only"
+    },
+    {
+      "path": "packaging/licenses/upstream/f5c342c49f3ac804f3e8e7bb62a8040a44c50d47bb36902b1abd13f66a1adf8b.txt",
+      "resolution": "store-only"
+    },
+    {
+      "path": "packaging/msix/AppxManifest.xml.in",
+      "resolution": "store-only"
+    },
+    {
+      "path": "packaging/msix/store.json",
+      "resolution": "store-only"
+    },
+    {
+      "path": "scripts/appstore-build.sh",
+      "resolution": "store-only"
+    },
+    {
+      "path": "scripts/appstore-preflight.node-test.mjs",
+      "resolution": "store-only"
+    },
+    {
+      "path": "scripts/appstore-profile.py",
+      "resolution": "store-only"
+    },
+    {
+      "path": "scripts/check-notices.mjs",
+      "resolution": "store-only"
+    },
+    {
+      "path": "scripts/generate-notices.py",
+      "resolution": "store-only"
+    },
+    {
+      "path": "scripts/msix-stage.mjs",
+      "resolution": "store-only"
+    },
+    {
+      "path": "scripts/msix-stage.node-test.mjs",
+      "resolution": "store-only"
+    },
+    {
+      "path": "scripts/msstore-build.ps1",
+      "resolution": "store-only"
+    },
+    {
+      "path": "scripts/notices.node-test.mjs",
+      "resolution": "store-only"
+    },
+    {
+      "path": "scripts/store-offline.node-test.mjs",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src-tauri/Cargo.lock",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src-tauri/Cargo.toml",
+      "resolution": "store-platform-contract"
+    },
+    {
+      "path": "src-tauri/PrivacyInfo.xcprivacy",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src-tauri/ThirdPartyNotices.txt",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src-tauri/build.rs",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src-tauri/capabilities/default.json",
+      "resolution": "store-platform-contract"
+    },
+    {
+      "path": "src-tauri/entitlements.plist",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src-tauri/resources/mediaremote-adapter/LICENSE",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src-tauri/resources/mediaremote-adapter/MediaRemoteAdapter.framework/MediaRemoteAdapter",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src-tauri/resources/mediaremote-adapter/VENDORED.txt",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src-tauri/resources/mediaremote-adapter/mediaremote-adapter.pl",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src-tauri/src/align.py",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src-tauri/src/alignment.rs",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src-tauri/src/audio_decode.rs",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src-tauri/src/batch_output.rs",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src-tauri/src/bookmark.rs",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src-tauri/src/bookmark_unsupported.rs",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src-tauri/src/file_access.rs",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src-tauri/src/lib.rs",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src-tauri/src/lrclib.rs",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src-tauri/src/models.rs",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src-tauri/src/now_playing.rs",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src-tauri/src/privacy_policy.rs",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src-tauri/src/python_env.rs",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src-tauri/src/separate.py",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src-tauri/src/service_auth.rs",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src-tauri/src/store_runtime.rs",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src-tauri/src/third_party_notices.rs",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src-tauri/src/ytdlp.rs",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src-tauri/tauri.appstore.conf.json",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src-tauri/tauri.conf.json",
+      "resolution": "store-platform-contract"
+    },
+    {
+      "path": "src-tauri/tauri.macos.conf.json",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src-tauri/tauri.msstore.conf.json",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src-tauri/tauri.updater.conf.json",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src-tauri/tauri.windows.conf.json",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src-tauri/windows-app.manifest",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src/App.test.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/App.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/AppShell/HelpModal.test.tsx",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src/components/AppShell/HelpModal.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/AppShell/HistoryPanel.test.tsx",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src/components/AppShell/HistoryPanel.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/AppShell/IconBtn.test.tsx",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src/components/AppShell/IconBtn.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/AppShell/LangDropdown.tsx",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/components/AppShell/RecentFilesMenu.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/AppShell/icons.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/AudioPlayer/AudioPlayer.test.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/AudioPlayer/AudioPlayer.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/AudioPlayer/AutoSpotModal.tsx",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src/components/AudioPlayer/BpmSnapModal.test.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/AudioPlayer/BpmSnapModal.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/AudioPlayer/NoTrackAlert.tsx",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/components/AudioPlayer/SeekBar.test.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/AudioPlayer/SeekBar.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/AudioPlayer/TrackInfoHeader.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/AudioPlayer/WaveSurferSeekBehavior.test.ts",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/components/AudioPlayer/YouTubeModal.tsx",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/components/AudioPlayer/icons.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/AudioPlayer/useYouTubeLoad.test.tsx",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/components/AudioPlayer/useYouTubeLoad.ts",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/components/BatchTools/BatchToolModal.test.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/BatchTools/BatchToolModal.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/LrcEditor/CharSyncView.test.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/LrcEditor/CharSyncView.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/LrcEditor/CharWaveformPanel.test.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/LrcEditor/CharWaveformPanel.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/LrcEditor/ControlAccessibility.test.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/LrcEditor/EditorToolsMenu.tsx",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/components/LrcEditor/LrcEditor.reorder.test.tsx",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/components/LrcEditor/LrcEditor.test.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/LrcEditor/LrcEditor.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/LrcEditor/SyncModeToggle.tsx",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/components/LrcLib/LrcLibModal.tsx",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/components/LrcLib/LrcLibPublishModal.tsx",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/components/MetaEditor/MetaEditor.test.tsx",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src/components/MetaEditor/MetaEditor.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/Preview/PreviewModal.test.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/Preview/PreviewModal.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/Service/DevicePickerModal.tsx",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/components/Service/DevicePlayerPanel.tsx",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/components/Service/ModeSelectButton.tsx",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/components/Service/ServicePlayerPanel.tsx",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/components/Service/SpotifyButton.tsx",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/components/Service/SpotifySearchModal.tsx",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/components/Settings/GeneralSettingsTab.tsx",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/components/Settings/KeybindingsSection.test.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/Settings/ModelDownloadSection.tsx",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/components/Settings/PythonEnvSection.tsx",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/components/Settings/SettingsModal.preferences.test.tsx",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src/components/Settings/SettingsModal.privacy.test.tsx",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src/components/Settings/SettingsModal.tsx",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/components/Settings/SpotifySection.tsx",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/components/Settings/YtdlpSection.tsx",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/components/Update/UpdateModal.tsx",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/hooks/useMacMenu.ts",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/hooks/usePointerScrub.ts",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src/hooks/useRecoverySnapshots.test.tsx",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src/hooks/useRecoverySnapshots.ts",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src/i18n/translations.ts",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/stores/useBusyStore.test.ts",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/stores/useBusyStore.ts",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/stores/useDeviceStore.test.ts",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/stores/useDeviceStore.ts",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/stores/useI18nStore.ts",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/stores/useLrcStore.files.test.mjs",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src/stores/useLrcStore.history.test.ts",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src/stores/useLrcStore.test.ts",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/stores/useLrcStore.transitions.test.ts",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src/stores/useLrcStore.translation.test.ts",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/stores/useLrcStore.ts",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/stores/useServiceStore.test.ts",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/stores/useServiceStore.ts",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/stores/useSettingsStore.persistence.test.ts",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src/stores/useSettingsStore.preferences.test.ts",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src/stores/useSettingsStore.sync.test.ts",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/stores/useSettingsStore.test.ts",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/stores/useSettingsStore.ts",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/stores/useUpdaterStore.test.ts",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/stores/useUpdaterStore.ts",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/types/history.ts",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/types/lrc.ts",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/utils/audioControls.ts",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/utils/autoSpot.test.ts",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src/utils/autoSpot.ts",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src/utils/decodeAudioSamples.test.ts",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/utils/decodeAudioSamples.ts",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/utils/deviceControls.ts",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/utils/documentTransition.test.ts",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src/utils/documentTransition.ts",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src/utils/fileAccess.test.ts",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src/utils/fileAccess.ts",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/utils/localPrivacy.test.ts",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src/utils/localPrivacy.ts",
+      "resolution": "store-only"
+    },
+    {
+      "path": "src/utils/lrclib.test.ts",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/utils/lrclib.ts",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/utils/modelDefs.ts",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/utils/readAudioBytes.test.ts",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/utils/readAudioBytes.ts",
+      "resolution": "store-edition-adapter"
+    },
+    {
+      "path": "src/utils/safeListen.test.ts",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/utils/safeListen.ts",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/utils/serviceControls.ts",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/utils/spotifyAuth.test.ts",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/utils/spotifyAuth.ts",
+      "resolution": "excluded-direct-edition"
+    },
+    {
+      "path": "src/utils/spotifyPlayer.ts",
+      "resolution": "excluded-direct-edition"
+    }
+  ]
+}
