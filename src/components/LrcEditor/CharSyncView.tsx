@@ -662,12 +662,12 @@ const LineDots = memo(function LineDots({
   onSelect: (id: string) => void;
 }) {
   return (
-    <div className="flex-1 flex items-center gap-1.5 overflow-x-auto py-1">
+    <div className="flex-1 flex items-center gap-1.5 overflow-x-auto px-1 py-1">
       {lines.map((l, i) => {
         const st = lineSyncState(l);
         const active = i === activeIdx;
         const color =
-          st === "done" ? "bg-emerald-500" : st === "partial" ? "bg-[var(--ls-accent)]" : "bg-[var(--ls-control)]";
+          st === "done" ? "bg-emerald-500" : st === "partial" ? "bg-[var(--ls-accent)]" : "bg-transparent border border-[var(--ls-border-control)]";
         return (
           <button
             key={l.id}
@@ -675,7 +675,7 @@ const LineDots = memo(function LineDots({
             title={`${i + 1}. ${l.text}`}
             aria-label={`${i + 1}. ${l.text}`}
             className={`shrink-0 rounded-full transition-all ${color} ${
-              active ? "w-2.5 h-2.5 ring-2 ring-[var(--ls-accent)]/60" : "w-2 h-2 opacity-70 hover:opacity-100"
+              active ? "w-2.5 h-2.5 ring-2 ring-[var(--ls-accent)]/60" : `w-2 h-2 ${st === "none" ? "opacity-100" : "opacity-70 hover:opacity-100"}`
             }`}
           />
         );
