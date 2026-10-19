@@ -6,3 +6,20 @@ package-lock.json text eol=lf
 scripts/generate-notices.py text eol=lf
 packaging/licenses/** text eol=lf
 src-tauri/ThirdPartyNotices.txt text eol=lf
+
+# Keep reviewed Store platform hashes identical on macOS and Windows.
+src-tauri/entitlements.plist text eol=lf
+src-tauri/PrivacyInfo.xcprivacy text eol=lf
+src-tauri/capabilities/default.json text eol=lf
+src-tauri/tauri.conf.json text eol=lf
+src-tauri/tauri.appstore.conf.json text eol=lf
+src-tauri/tauri.msstore.conf.json text eol=lf
+src-tauri/tauri.macos.conf.json text eol=lf
+src-tauri/tauri.windows.conf.json text eol=lf
+src-tauri/windows-app.manifest text eol=lf
+packaging/msix/AppxManifest.xml.in text eol=lf
+packaging/msix/store.json text eol=lf
+scripts/appstore-build.sh text eol=lf
+scripts/appstore-profile.py text eol=lf
+scripts/msstore-build.ps1 text eol=lf
+scripts/msix-stage.mjs text eol=lf

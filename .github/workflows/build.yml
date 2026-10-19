@@ -3,7 +3,12 @@ name: Build
 on:
   push:
     branches: [store-lite]
+  pull_request:
+    branches: [store-lite]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   verify:
@@ -29,6 +34,10 @@ jobs:
         with:
           workspaces: src-tauri -> target
           key: ${{ matrix.target }}-store
+      - name: Verify Store merge boundaries
+        run: |
+          node --test scripts/store-boundaries.node-test.mjs
+          node scripts/check-store-boundaries.mjs
       - name: Install dependencies
         run: npm ci
       - name: Test frontend
