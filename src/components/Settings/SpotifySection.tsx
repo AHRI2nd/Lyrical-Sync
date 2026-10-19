@@ -75,7 +75,7 @@ export function SpotifySection({
         <button
           onClick={() => onToggleMode(!spotifyMode)}
           disabled={!isLoggedIn}
-          className={`ls-button ${[
+          className={`ls-button ls-switch--spotify ${[
             "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
             spotifyMode && isLoggedIn ? "bg-green-600" : "bg-[var(--ls-control)]",
             !isLoggedIn ? "opacity-40 cursor-not-allowed" : "",

@@ -205,7 +205,7 @@ export function YtdlpSection() {
         <button
           onClick={() => setYoutubeMode(!youtubeMode)}
           disabled={!isInstalled}
-          className={`ls-button ${[
+          className={`ls-button ls-switch--youtube ${[
             "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
             youtubeMode && isInstalled ? "bg-red-600" : "bg-[var(--ls-control)]",
             !isInstalled ? "opacity-40 cursor-not-allowed" : "",
