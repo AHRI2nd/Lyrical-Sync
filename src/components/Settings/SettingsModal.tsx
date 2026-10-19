@@ -1,3 +1,4 @@
+import { SettingsTabBar, TabBtn } from "./SettingsTabs";
 import { isComposingKeyEvent } from "../../utils/keybindings";
 import { useEffect, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -80,7 +81,7 @@ export function SettingsModal({
         </div>
 
         {/* Tabs */}
-        <div className="ls-settings-tabs flex min-w-0 overflow-x-auto overflow-y-hidden border-b border-[var(--ls-border-subtle)] shrink-0">
+        <SettingsTabBar>
           <TabBtn active={tab === "general"} onClick={() => setTab("general")}>
             {t.settingsTabGeneral}
           </TabBtn>
@@ -99,7 +100,7 @@ export function SettingsModal({
           <TabBtn active={tab === "youtube"} onClick={() => setTab("youtube")}>
             {t.settingsTabYouTube}
           </TabBtn>
-        </div>
+        </SettingsTabBar>
 
         {/* Scrollable content */}
         <div className="overflow-y-auto flex-1">
@@ -165,30 +166,6 @@ function GuideBanner({ color, url, label }: { color: "indigo" | "green" | "red";
     >
       <span>{label}</span>
       <span className="opacity-70">↗</span>
-    </button>
-  );
-}
-
-function TabBtn({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`ls-button ${[
-        "shrink-0 whitespace-nowrap px-3 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px focus-visible:outline-offset-[-2px]",
-        active
-          ? "text-[var(--ls-accent)] border-[var(--ls-accent)]"
-          : "text-[var(--ls-text-secondary)] border-transparent hover:text-[var(--ls-text)]",
-      ].join(" ")}`}
-    >
-      {children}
     </button>
   );
 }
