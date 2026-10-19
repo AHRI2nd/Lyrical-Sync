@@ -34,9 +34,10 @@ it("exposes the selected sync mode and unit while preserving disabled transition
   expect(getByRole("button", { name: t.charSync.modeLine }).getAttribute("aria-pressed")).toBe("true");
   fireEvent.click(getByRole("button", { name: t.charSync.modeChar }));
   expect(onSetSyncMode).toHaveBeenCalledExactlyOnceWith("char");
-  rerender(<SyncModeToggle t={t} charMode syncUnit="word" onSetSyncMode={onSetSyncMode} onUnitChange={onUnitChange} isRunning />);
+  rerender(<SyncModeToggle t={t} charMode syncUnit="word" onSetSyncMode={onSetSyncMode} onUnitChange={onUnitChange} isRunning runningTitle="Synchronization running" />);
   expect(getByRole("button", { name: t.charSync.modeChar }).getAttribute("aria-pressed")).toBe("true");
   expect((getByRole("button", { name: t.charSync.modeChar }) as HTMLButtonElement).disabled).toBe(true);
+  expect(getByRole("button", { name: t.charSync.modeChar }).getAttribute("title")).toBe("Synchronization running");
   expect(getByRole("button", { name: t.charSync.unitWord }).getAttribute("aria-pressed")).toBe("true");
   fireEvent.click(getByRole("button", { name: t.charSync.unitChar }));
   expect(onUnitChange).toHaveBeenCalledExactlyOnceWith("char");
