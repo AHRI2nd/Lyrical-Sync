@@ -47,8 +47,9 @@ it("updates rendered lyric font, active color and accent glow when preview setti
   expect(lyric.parentElement!.style.color).toBe("rgb(255, 0, 0)");
   expect(lyric.style.textShadow).toContain("0, 255, 0");
   const underline = getByText("first").querySelector("span")!;
-  expect(underline.style.background).toContain("rgb(0, 255, 0)");
-  expect(underline.style.boxShadow).not.toBe("");
+  expect(underline.style.backgroundColor).toBe("rgb(0, 255, 0)");
+  expect(underline.style.backgroundImage).toBe("");
+  expect(underline.style.boxShadow).toBe("");
   act(() => useSettingsStore.getState().setPreviewGlowEnabled(false));
   expect(lyric.style.textShadow).toBe("");
   expect(underline.style.boxShadow).toBe("");
