@@ -1,3 +1,4 @@
+import { SyncModeToggle } from "./SyncModeToggle";
 import { useRef, useEffect, useCallback, useState, useMemo, lazy, Suspense } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
@@ -485,45 +486,8 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
         </div>
         <div className="flex gap-2 items-center flex-wrap justify-end">
 
-          {/* 줄 ↔ 글자 동기화 모드 토글 */}
-          <div className="inline-flex bg-[var(--ls-control)] rounded-lg p-0.5">
-            <button
-              aria-pressed={!charMode}
-              onClick={(e) => { setSyncMode("line"); e.currentTarget.blur(); }}
-              className={`ls-button ls-button--compact ${`text-xs rounded-md transition-colors ${!charMode ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
-            >
-              {t.charSync.modeLine}
-            </button>
-            <button
-              aria-pressed={charMode}
-              onClick={(e) => { setSyncMode("char"); e.currentTarget.blur(); }}
-              className={`ls-button ls-button--compact ${`text-xs rounded-md transition-colors ${charMode ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
-            >
-              {t.charSync.modeChar}
-            </button>
-          </div>
-
-          {charMode && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-[var(--ls-text-secondary)]">{t.charSync.unitLabel}</span>
-              <div className="inline-flex bg-[var(--ls-control)] rounded-lg p-0.5">
-                <button
-                  aria-pressed={syncUnit === "char"}
-              onClick={(e) => { handleUnitChange("char"); e.currentTarget.blur(); }}
-                  className={`ls-button ls-button--compact ${`text-xs rounded-md transition-colors ${syncUnit === "char" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
-                >
-                  {t.charSync.unitChar}
-                </button>
-                <button
-                  aria-pressed={syncUnit === "word"}
-              onClick={(e) => { handleUnitChange("word"); e.currentTarget.blur(); }}
-                  className={`ls-button ls-button--compact ${`text-xs rounded-md transition-colors ${syncUnit === "word" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
-                >
-                  {t.charSync.unitWord}
-                </button>
-              </div>
-            </div>
-          )}
+          <SyncModeToggle t={t} charMode={charMode} syncUnit={syncUnit}
+            onSetSyncMode={setSyncMode} onUnitChange={handleUnitChange} isRunning={false} />
 
           {!charMode && (<>
           {/* 도구 오버플로우: 찾기/바꾸기 · 구간 오프셋 */}
