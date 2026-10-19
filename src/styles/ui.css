@@ -128,3 +128,37 @@
   .ls-readable .ls-lyric-input { font-weight: 400; line-height: 1.5; }
   .ls-readable .ls-translation-input { font-style: normal; font-weight: 400; line-height: 1.5; color: var(--ls-text-secondary); }
 }
+
+@layer utilities {
+  /* Draw the track independently of the larger native button hit area. */
+  .ls-button[role="switch"] {
+    --ls-switch-active: var(--ls-primary);
+    position: relative;
+    width: 2.5rem;
+    min-width: 2.5rem;
+    height: 2rem;
+    min-height: 2rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  .ls-button[role="switch"]::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 100%;
+    height: 1.25rem;
+    transform: translateY(-50%);
+    border-radius: 9999px;
+    background-color: var(--ls-control);
+    pointer-events: none;
+    transition: background-color 120ms;
+  }
+  .ls-button[role="switch"][aria-checked="true"]:not(:disabled)::before { background-color: var(--ls-switch-active); }
+  .ls-button[role="switch"].ls-switch--spotify { --ls-switch-active: var(--color-green-600); }
+  .ls-button[role="switch"].ls-switch--youtube { --ls-switch-active: var(--color-red-600); }
+  @media (prefers-reduced-motion: reduce) {
+    .ls-button[role="switch"]::before { transition: none; }
+  }
+}

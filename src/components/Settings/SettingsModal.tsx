@@ -1,3 +1,4 @@
+import { SettingsTabBar, TabBtn } from "./SettingsTabs";
 import { isComposingKeyEvent } from "../../utils/keybindings";
 import { useEffect, useRef, useState } from "react";
 import { useI18nStore } from "../../stores/useI18nStore";
@@ -61,7 +62,7 @@ export function SettingsModal({ onClose, initialTab = "general" }: { onClose: ()
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-[var(--ls-border-subtle)] shrink-0">
+        <SettingsTabBar>
           <TabBtn active={tab === "general"} onClick={() => setTab("general")}>
             {t.settingsTabGeneral}
           </TabBtn>
@@ -71,7 +72,7 @@ export function SettingsModal({ onClose, initialTab = "general" }: { onClose: ()
           <TabBtn active={tab === "shortcuts"} onClick={() => setTab("shortcuts")}>
             {t.settingsTabShortcuts}
           </TabBtn>
-        </div>
+        </SettingsTabBar>
 
         {/* Scrollable content */}
         <div className="overflow-y-auto flex-1">
@@ -291,29 +292,5 @@ export function SettingsModal({ onClose, initialTab = "general" }: { onClose: ()
         else toast.error(t.settingsPrivacyFailure);
       }} />}
     </>
-  );
-}
-
-function TabBtn({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`ls-button ${[
-        "px-5 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px",
-        active
-          ? "text-[var(--ls-accent)] border-[var(--ls-accent)]"
-          : "text-[var(--ls-text-secondary)] border-transparent hover:text-[var(--ls-text)]",
-      ].join(" ")}`}
-    >
-      {children}
-    </button>
   );
 }
