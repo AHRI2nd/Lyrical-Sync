@@ -113,7 +113,7 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
     const lineEnd = lineEnds[i];
 
     const lineColor = hexToRgba(previewActiveColor, isActive ? 1 : dist === 1 ? 0.8 : dist === 2 ? 0.45 : 0.2);
-    const fontWeightClass = isActive ? "font-bold" : dist === 1 ? "font-medium" : "";
+    const fontWeightClass = isActive ? "font-semibold" : dist === 1 ? "font-medium" : "";
     const fontRem = (isActive ? 1.5 : dist === 1 ? 1.25 : dist === 2 ? 1.125 : 1) * previewFontScale;
 
     return (
