@@ -55,7 +55,7 @@ interface LrcLineRowProps {
 // 토글·글자 동기화 배지·경고 아이콘·텍스트 입력·병합/복제/삭제 버튼.
 // 상호작용 상태(드래그·타임스탬프 편집 등)는 LrcEditor가 소유하고 이벤트 핸들러로 전달 —
 // 이 컴포넌트는 순수 렌더링(+ line 자체에서 파생되는 hasGlyphSync/tsClass만 내부 계산).
-function LrcLineRowImpl({
+export function LrcLineRowImpl({
   t, line, idx, isActive, isSelected, confidence, isMatch, isCurrentMatch, warning,
   loopLineId, lyricsFontScale, showSpellCheck, showTranslationLines,
   dragIdx, showInsertionBefore, showInsertionAfter, onReorderPointerDown,
@@ -102,6 +102,7 @@ function LrcLineRowImpl({
         />
       )}
       <span
+        data-reorder-handle
         draggable={false}
         onPointerDown={onReorderPointerDown}
         onClick={(e) => e.stopPropagation()}

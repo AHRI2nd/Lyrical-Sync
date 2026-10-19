@@ -643,4 +643,3 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
 
   </div>;
 }
-
