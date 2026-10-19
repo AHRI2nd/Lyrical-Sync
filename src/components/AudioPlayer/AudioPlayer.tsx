@@ -1,3 +1,4 @@
+import { TransportControls } from "./TransportControls";
 import { clearWaveform, prepareWaveform } from "../../stores/useWaveformStore";
 import { getLinePlaybackRange } from "../../utils/linePlaybackRange";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
@@ -14,10 +15,7 @@ import { readAudioBytes } from "../../utils/readAudioBytes";
 import { formatDisplayTime } from "../../utils/lrcParser";
 import { TrackInfoHeader } from "./TrackInfoHeader";
 import { SeekBar } from "./SeekBar";
-import {
-  FileGlyph, PlayIcon, PauseIcon, StopIcon, SkipBackIcon, SkipFwdIcon, TriLeftIcon, TriRightIcon,
-  VolumeIcon, ZoomIcon, MarkerIcon, LoopIcon, SpectrogramIcon, MoreIcon,
-} from "./icons";
+import { FileGlyph, VolumeIcon, ZoomIcon } from "./icons";
 
 const AUDIO_MIME: Record<string, string> = {
   mp3: "audio/mpeg", flac: "audio/flac", wav: "audio/wav",
@@ -49,7 +47,6 @@ export function AudioPlayer() {
   const isLoopingRef = useRef(false);
   const playbackRateRef = useRef(1.0);
   const zoomDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const moreRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlayingLocal] = useState(false);
   const [isAudioReady, setIsAudioReady] = useState(false);
   const [duration, setDurationLocal] = useState(0);
@@ -73,7 +70,6 @@ export function AudioPlayer() {
   const metadata = useLrcStore((s) => s.doc.metadata);
   const activeLineId = useLrcStore((s) => s.activeLineId);
   const [showMarkers, setShowMarkers] = useState(true);
-  const [showMore, setShowMore] = useState(false);
   const { t } = useI18nStore();
   const { showSpectrogram, setShowSpectrogram } = useSettingsStore();
 
@@ -264,16 +260,6 @@ export function AudioPlayer() {
     wsRef.current?.setVolume(volume);
   }, [volume]);
 
-  // 보조기능 오버플로우(⋯) 바깥 클릭 시 닫기
-  useEffect(() => {
-    if (!showMore) return;
-    const h = (e: MouseEvent) => {
-      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setShowMore(false);
-    };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [showMore]);
-
   // 마커는 줄 id·타임스탬프·줄번호(인덱스)에만 의존 → 텍스트 편집(타임스탬프 불변)으로는
   // region을 재생성하지 않도록 시그니처로 의존성을 좁힘(키 입력마다 전체 region 재생성 방지).
   const markerSig = useMemo(
@@ -448,75 +434,13 @@ export function AudioPlayer() {
 
       {/* 재생 컨트롤 한 줄: 정지(좌) · 전송(중앙) · 더보기(우). relative를 행 전체에
           두어 팝오버가 좁은 카드 폭(우측 정렬) 안에 들어오게 함 */}
-      <div className="ls-transport relative flex items-center gap-0.5" ref={moreRef}>
-        <CtrlBtn onClick={stopAndReset} title={t.tooltipStop}>
-          <StopIcon />
-        </CtrlBtn>
-
-        <div className="flex-1 flex items-center justify-center gap-0.5">
-          <CtrlBtn onClick={() => skip(-5)} title={t.tooltipSkipBack5}>
-            <SkipBackIcon /><span className="text-[10px] font-bold ml-0.5">5</span>
-          </CtrlBtn>
-          <CtrlBtn onClick={() => skip(-1)} title={t.tooltipSkipBack1}>
-            <TriLeftIcon /><span className="text-[10px] font-bold ml-0.5">1</span>
-          </CtrlBtn>
-          <CtrlBtn onClick={togglePlay} disabled={!audioPath} title={t.tooltipPlayPause} accent>
-            {isPlaying ? <PauseIcon /> : <PlayIcon />}
-          </CtrlBtn>
-          <CtrlBtn onClick={() => skip(1)} title={t.tooltipSkipFwd1}>
-            <span className="text-[10px] font-bold mr-0.5">1</span><TriRightIcon />
-          </CtrlBtn>
-          <CtrlBtn onClick={() => skip(5)} title={t.tooltipSkipFwd5}>
-            <span className="text-[10px] font-bold mr-0.5">5</span><SkipFwdIcon />
-          </CtrlBtn>
-        </div>
-
-        <CtrlBtn
-          onClick={() => setShowMore((v) => !v)}
-          title={t.playerMore}
-          active={showMore || isLooping || playbackRate !== 1.0 || showSpectrogram}
-        >
-          <MoreIcon />
-        </CtrlBtn>
-        {showMore && (
-          <div className="absolute right-0 top-full mt-2 z-40 w-56 bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl p-3 flex flex-col gap-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[var(--ls-text-secondary)]">{t.tooltipLoop}</span>
-                <button onClick={toggleLoop} className={`ls-button ls-button--icon ${popToggleCls(isLooping)}`} title={t.tooltipLoop}>
-                  <LoopIcon />
-                </button>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[var(--ls-text-secondary)]">{t.tooltipMarkers}</span>
-                <button onClick={() => setShowMarkers((v) => !v)} className={`ls-button ls-button--icon ${popToggleCls(showMarkers)}`} title={t.tooltipMarkers}>
-                  <MarkerIcon />
-                </button>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[var(--ls-text-secondary)]">{t.tooltipSpectrogram}</span>
-                <button onClick={() => setShowSpectrogram(!showSpectrogram)} className={`ls-button ls-button--icon ${popToggleCls(showSpectrogram)}`} title={t.tooltipSpectrogram}>
-                  <SpectrogramIcon />
-                </button>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[var(--ls-text-secondary)]">{t.playerSpeed}</span>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => adjustSpeed(-1)}
-                    disabled={playbackRate <= SPEED_STEPS[0]}
-                    className="ls-button ls-button--compact ls-button--icon-compact w-6 h-6 flex items-center justify-center disabled:opacity-30 text-sm font-bold leading-none transition-colors"
-                  >−</button>
-                  <span className="w-12 text-center text-xs font-mono text-[var(--ls-text)] tabular-nums">{playbackRate.toFixed(2)}×</span>
-                  <button
-                    onClick={() => adjustSpeed(1)}
-                    disabled={playbackRate >= SPEED_STEPS[SPEED_STEPS.length - 1]}
-                    className="ls-button ls-button--compact ls-button--icon-compact w-6 h-6 flex items-center justify-center disabled:opacity-30 text-sm font-bold leading-none transition-colors"
-                  >+</button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+      <TransportControls t={t} audioPath={audioPath} isPlaying={isPlaying}
+        togglePlay={togglePlay} skip={skip} stopAndReset={stopAndReset}
+        isLooping={isLooping} onToggleLoop={toggleLoop} showMarkers={showMarkers}
+        onToggleMarkers={() => setShowMarkers((v) => !v)} showSpectrogram={showSpectrogram}
+        onToggleSpectrogram={() => setShowSpectrogram(!showSpectrogram)} playbackRate={playbackRate}
+        speedMin={SPEED_STEPS[0]} speedMax={SPEED_STEPS[SPEED_STEPS.length - 1]}
+        onSpeedDown={() => adjustSpeed(-1)} onSpeedUp={() => adjustSpeed(1)} />
 
       {/* 열기 버튼 */}
       <button
@@ -588,42 +512,3 @@ export function AudioPlayer() {
     </div>
   );
 }
-
-function CtrlBtn({
-  onClick, title, children, active, accent, disabled,
-}: {
-  onClick: () => void;
-  title?: string;
-  children: React.ReactNode;
-  active?: boolean;
-  accent?: boolean;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      title={title}
-      disabled={disabled}
-      className={`ls-button ${[
-        "flex items-center justify-center text-sm transition-colors",
-        "disabled:opacity-30 disabled:cursor-not-allowed",
-        accent
-          ? "ls-button--play"
-          : active
-            ? "ls-button--selected h-9 px-2"
-            : "h-9 px-2",
-      ].join(" ")}`}
-    >
-      {children}
-    </button>
-  );
-}
-
-// 오버플로우 팝오버 내 토글 버튼 스타일
-function popToggleCls(active: boolean): string {
-  return [
-    "ls-button--compact ls-button--icon-compact w-6 h-6 flex items-center justify-center rounded-lg transition-colors",
-    active ? "ls-button--selected" : "bg-[var(--ls-control)] text-[var(--ls-text)] hover:bg-[var(--ls-control)]",
-  ].join(" ");
-}
-
