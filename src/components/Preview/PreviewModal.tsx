@@ -204,8 +204,7 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
               <span
                 className="absolute -bottom-1.5 left-0 right-0 h-px"
                 style={{
-                  background: `linear-gradient(90deg, transparent, ${previewAccentColor}, transparent)`,
-                  boxShadow: previewGlowEnabled ? `0 0 12px 1px ${hexToRgba(previewAccentColor, 0.55)}` : undefined,
+                  backgroundColor: previewAccentColor,
                 }}
               />
             </span>
