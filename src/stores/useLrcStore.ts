@@ -23,6 +23,7 @@ interface AlignmentResult {
 }
 
 interface AlignmentProgressEvent {
+  runId: number;
   status: string;
   message: string;
   percent: number;
@@ -170,9 +171,10 @@ export const useLrcStore = create<LrcStore>((set, get) => {
   });
 
   const invalidateAiRun = () => {
+    const cancelledRunId = aiRunId;
     aiRunId += 1;
     if (get().aiSyncStatus === "running") {
-      void invoke("cancel_alignment").catch(() => {});
+      void invoke("cancel_alignment", { runId: cancelledRunId }).catch(() => {});
     }
     return resetAiState();
   };
@@ -809,10 +811,12 @@ export const useLrcStore = create<LrcStore>((set, get) => {
 
     try {
       unlisten = await listen<AlignmentProgressEvent>("alignment-progress", (e) => {
-        if (runId === aiRunId) {
+        if (runId === aiRunId && e.payload.runId === runId) {
           set({ aiSyncProgressStatus: e.payload.status, aiSyncMessage: e.payload.message });
         }
       });
+
+      if (runId !== aiRunId) return;
 
       // Only pass non-empty lines to Python; track their original indices
       const nonBlank = doc.lines
@@ -825,6 +829,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
       }));
 
       const resultJson = await invoke<string>("run_alignment", {
+        runId,
         audioPath,
         linesJson: JSON.stringify(linesInput),
         language,
