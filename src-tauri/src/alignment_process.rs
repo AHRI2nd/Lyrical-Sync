@@ -17,30 +17,34 @@ pub async fn run_child(
         }
         Ok::<_, String>(bytes)
     });
-    let stderr = child.stderr.take();
+    let mut stderr = child.stderr.take().map(|pipe| BufReader::new(pipe).lines());
     let result = async {
-        if let Some(stderr) = stderr {
-            let mut lines = BufReader::new(stderr).lines();
-            loop {
-                if cancel.load(Ordering::Relaxed) { return Err("cancelled".into()); }
-                match tokio::time::timeout(Duration::from_millis(50), lines.next_line()).await {
-                    Err(_) => continue,
-                    Ok(Ok(Some(line))) => progress(&line)?,
-                    Ok(Ok(None)) => break,
-                    Ok(Err(error)) => return Err(error.to_string()),
-                }
-            }
-        }
         let status = loop {
             if cancel.load(Ordering::Relaxed) { return Err("cancelled".into()); }
-            match tokio::time::timeout(Duration::from_millis(50), child.wait()).await {
-                Err(_) => continue,
-                Ok(result) => break result.map_err(|e| e.to_string())?,
+            // Child exit is independent of EOF: descendants can inherit pipes.
+            if let Some(status) = child.try_wait().map_err(|e| e.to_string())? { break status; }
+            if let Some(lines) = stderr.as_mut() {
+                match tokio::time::timeout(Duration::from_millis(50), lines.next_line()).await {
+                    Err(_) => (),
+                    Ok(Ok(Some(line))) => progress(&line)?,
+                    Ok(Ok(None)) => stderr = None,
+                    Ok(Err(error)) => return Err(error.to_string()),
+                }
+            } else {
+                tokio::time::sleep(Duration::from_millis(50)).await;
             }
         };
         if !status.success() { return Err(format!("Python exited with status {status}")); }
-        // A descendant must not keep an inherited pipe alive indefinitely.
-        tokio::time::timeout(Duration::from_millis(500), &mut output).await
+        let deadline = tokio::time::Instant::now() + Duration::from_millis(500);
+        if let Some(mut lines) = stderr {
+            // Drain already emitted progress, then release inherited handles.
+            let drained = tokio::time::timeout_at(deadline, async {
+                while let Some(line) = lines.next_line().await.map_err(|e| e.to_string())? { progress(&line)?; }
+                Ok::<(), String>(())
+            }).await;
+            if let Ok(result) = drained { result?; }
+        }
+        tokio::time::timeout_at(deadline, &mut output).await
             .map_err(|_| "Python output did not close".to_string())?
             .map_err(|e| e.to_string())?
     }.await;
@@ -64,6 +68,14 @@ mod tests {
                 std::io::stdout().write_all(&vec![b'x'; 262144]).unwrap();
                 eprintln!("progress");
             }
+            Ok("inherited") => {
+                std::process::Command::new(std::env::current_exe().unwrap())
+                    .args(["--exact", "alignment_process::tests::child_fixture", "--nocapture"])
+                    .env("LYRICAL_PROCESS_FIXTURE", "inherited_hold")
+                    .stdout(std::process::Stdio::null()).stderr(std::process::Stdio::inherit())
+                    .spawn().unwrap();
+            }
+            Ok("inherited_hold") => std::thread::sleep(Duration::from_secs(2)),
             Ok("failure") => std::process::exit(7),
             _ => (),
         }
@@ -98,6 +110,15 @@ mod tests {
             })).await.unwrap().unwrap();
             assert!(progress);
             assert!(output.contains(&"x".repeat(262144)));
+        });
+    }
+    #[test]
+    fn observes_parent_exit_even_when_a_descendant_keeps_stderr_open() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let result = tokio::time::timeout(Duration::from_millis(1500),
+                run_child(child("inherited"), Arc::new(AtomicBool::new(false)), |_| Ok(()))).await;
+            assert!(result.is_ok(), "inherited stderr must not hide parent exit");
+            assert!(result.unwrap().is_ok());
         });
     }
     #[test]
