@@ -116,14 +116,14 @@
 | 상태 관리 | Zustand | 5.0.14 |
 | 파형 | Wavesurfer.js | 7.12.10 |
 | AI 런타임 | 내장 Python | 3.11.10 (빌드 20241016) |
-| AI 정렬 | ctc-forced-aligner + MMS-300M | `<2` (pip 범위); Hugging Face `main` (버전 고정 없음) |
-| 보컬 분리 | Demucs + htdemucs 체크포인트 | Demucs 버전 미고정; 체크포인트 SHA-256 `8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4` |
+| AI 정렬 | ctc-forced-aligner + MMS-300M | `1.0.2`; ONNX revision `77d85f9` + SHA-256 |
+| 보컬 분리 | Demucs + htdemucs 체크포인트 | Demucs `4.0.1`; 체크포인트 SHA-256 `8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4` |
 | 오디오 태그 / 트랜스코딩 | lofty + Symphonia (Rust) | 0.22.4, 0.5.5 |
 | 파일 I/O / 다이얼로그 | Tauri fs / dialog 플러그인 | 2.5.1, 2.7.1 |
 | YouTube 다운로더 | yt-dlp | 실행 시점 GitHub 최신 릴리즈 |
 | macOS 미디어 어댑터 | mediaremote-adapter | 벤더링 커밋 `3ac3d4bdf862c7b5399b4fba4df5689f5c38609a` |
 
-배지는 현재 앱 버전을 표시합니다. 정확한 JavaScript 및 Rust 의존성 버전은 `package-lock.json`과 `src-tauri/Cargo.lock` 기준입니다. AI 패키지와 리소스 정책도 코드에 지정된 그대로 표시했습니다. 정렬기와 Demucs Python 패키지는 정확한 릴리즈 버전으로 잠겨 있지 않고, MMS 모델은 변경 가능한 Hugging Face `main` 브랜치를 사용하며, yt-dlp는 실행 시점의 최신 릴리즈를 받습니다. Demucs 체크포인트는 SHA-256으로 검증합니다.
+배지는 현재 앱 버전을 표시합니다. JavaScript/Rust 버전은 각 lockfile 기준입니다. AI 직접 의존성은 `src-tauri/requirements-ai.txt`, Python·정렬기 소스·실제 ONNX 모델의 고정 URL과 SHA-256은 `src-tauri/ai-manifest.json`에 기록합니다. 설치는 임시 환경에서 import 및 `pip check`를 통과한 뒤 교체하며, 전이 의존성의 실제 설치 버전도 기록합니다. 전이 의존성 전체를 고정한 플랫폼별 lockfile은 아직 없습니다. yt-dlp는 실행 시점의 최신 릴리즈를 받으며 공식 체크섬을 검증합니다.
 
 ---
 

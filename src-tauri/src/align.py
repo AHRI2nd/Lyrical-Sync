@@ -9,6 +9,7 @@ import json
 import argparse
 import math
 import os
+import hashlib
 
 
 def progress(status: str, message: str = "", percent: float = 0.0):
@@ -65,9 +66,20 @@ def detect_vocal_segments(waveform, sr=16000, hop=0.01, win=0.025,
         return []
 
 
+def verify_model_file(path, expected_sha256):
+    """Inference never installs a model or trusts an interrupted download."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as model:
+        for chunk in iter(lambda: model.read(1024 * 1024), b""):
+            digest.update(chunk)
+    if digest.hexdigest() != expected_sha256:
+        raise ValueError("Model checksum mismatch. Download it again in Settings > AI Models.")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--models-dir", required=True)
+    parser.add_argument("--model-sha256", required=True)
     parser.add_argument("--audio", required=True)
     parser.add_argument("--lines", required=True)
     parser.add_argument("--language", default="eng",
@@ -103,8 +115,6 @@ def main():
             get_alignments,
             get_spans,
             postprocess_results,
-            ensure_onnx_model,
-            MODEL_URL,
             Tokenizer,
         )
     except ImportError as e:
@@ -118,7 +128,7 @@ def main():
 
     progress("loading_model", "Loading model...", 0.05)
     try:
-        ensure_onnx_model(onnx_path, MODEL_URL)
+        verify_model_file(onnx_path, args.model_sha256)
         import onnxruntime as ort
         session = ort.InferenceSession(onnx_path)
         tokenizer = Tokenizer()

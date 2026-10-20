@@ -61,6 +61,7 @@ pub async fn run_alignment(
     use_separation: bool,
     use_vad: bool,
 ) -> Result<String, String> {
+    let _environment = crate::python_runtime::ENV_LOCK.try_lock().map_err(|_| "AI environment is busy")?;
     // Use the app-embedded Python (downloaded once via Settings > AI Models)
     let python_exe = embedded_python_exe(&app)?;
     if !python_exe.exists() {
@@ -141,6 +142,8 @@ pub async fn run_alignment(
         audio_for_align = audio_path.clone();
     }
 
+    let manifest: serde_json::Value = serde_json::from_str(crate::python_runtime::MANIFEST).map_err(|e| e.to_string())?;
+    let model_sha256 = manifest["model"]["sha256"].as_str().ok_or("Missing model checksum")?;
     let script_str = align_script_path.to_string_lossy().into_owned();
     // VAD on the audio is only meaningful when it's the isolated vocal stem
     let separated_flag = if audio_for_align != audio_path { "true" } else { "false" };
@@ -149,6 +152,7 @@ pub async fn run_alignment(
         .args([
             script_str.as_str(),
             "--models-dir", &models_dir_str,
+            "--model-sha256", model_sha256,
             "--audio",      &audio_for_align,
             "--lines",      &lines_json,
             "--language",   &language,
