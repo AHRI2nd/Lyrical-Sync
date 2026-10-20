@@ -117,6 +117,7 @@ describe("useUpdaterStore — restart", () => {
     reset();
     relaunch.mockReset();
     saveRecoverySnapshot.mockReset();
+    saveRecoverySnapshot.mockReturnValue(true);
     invoke.mockReset();
     invoke.mockResolvedValue(undefined);
     useLrcStore.setState({
@@ -167,5 +168,48 @@ describe("useUpdaterStore — dismiss", () => {
     expect(useUpdaterStore.getState()).toMatchObject({
       status: "idle", version: null, body: null, progress: 0, error: null, _update: null,
     });
+  });
+});
+
+
+describe("useUpdaterStore — restart durability failures", () => {
+  beforeEach(() => {
+    reset(); relaunch.mockReset(); invoke.mockReset(); saveRecoverySnapshot.mockReset();
+    useLrcStore.setState({ isDirty: true, lrcPath: "/song.lrc", audioPath: null });
+  });
+  it("does not relaunch if neither file save nor snapshot succeeds", async () => {
+    invoke.mockRejectedValue(new Error("disk full"));
+    saveRecoverySnapshot.mockReturnValue(false);
+    await useUpdaterStore.getState().restart();
+    expect(relaunch).not.toHaveBeenCalled();
+    expect(useUpdaterStore.getState().status).toBe("error");
+    expect(useUpdaterStore.getState().error).toBeTruthy();
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+  it("does not relaunch an unsaved document if the snapshot fails", async () => {
+    useLrcStore.setState({ lrcPath: null });
+    saveRecoverySnapshot.mockReturnValue(false);
+    await useUpdaterStore.getState().restart();
+    expect(relaunch).not.toHaveBeenCalled();
+    expect(useUpdaterStore.getState().status).toBe("error");
+  });
+  it("protects edits made while the forced file save was pending", async () => {
+    let finish!: () => void;
+    invoke.mockImplementation(() => new Promise<void>(resolve => { finish = resolve; }));
+    saveRecoverySnapshot.mockReturnValue(true);
+    const restarting = useUpdaterStore.getState().restart();
+    await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
+    useLrcStore.getState().setMetadata({ title: "edited during save" });
+    finish();
+    await restarting;
+    expect(saveRecoverySnapshot).toHaveBeenCalledWith(expect.objectContaining({ metadata: expect.objectContaining({ title: "edited during save" }) }), "/song.lrc", null);
+    expect(relaunch).toHaveBeenCalledOnce();
+  });
+  it("reports a relaunch error without leaving an unhandled rejection", async () => {
+    useLrcStore.setState({ isDirty: false });
+    relaunch.mockRejectedValueOnce(new Error("restart unavailable"));
+    await expect(useUpdaterStore.getState().restart()).resolves.toBeUndefined();
+    expect(useUpdaterStore.getState().status).toBe("error");
+    expect(useUpdaterStore.getState().error).toContain("restart unavailable");
   });
 });

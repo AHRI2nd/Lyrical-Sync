@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Update } from "@tauri-apps/plugin-updater";
 import { useLrcStore } from "./useLrcStore";
+import { useI18nStore } from "./useI18nStore";
 import { saveRecoverySnapshot } from "../utils/recovery";
 
 export type UpdaterStatus =
@@ -71,20 +72,22 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
   },
 
   restart: async () => {
-    // 재시작으로 프로세스가 죽기 전, 디바운스된 자동저장/복구 스냅샷이 미처 못 돈 채로
-    // 최근 편집이 유실되지 않도록 즉시(디바운스 없이) 저장을 강제한다.
-    const lrc = useLrcStore.getState();
-    if (lrc.isDirty) {
-      if (lrc.lrcPath) {
-        try { await lrc.saveLrc(); } catch { /* 실패해도 아래 스냅샷이 안전망 */ }
+    try {
+      // Resolve the module before capturing the final document to protect.
+      const { relaunch } = await import("@tauri-apps/plugin-process");
+      const lrc = useLrcStore.getState();
+      if (lrc.isDirty && lrc.lrcPath) {
+        try { await lrc.saveLrc(); } catch { /* Fall back to a durable recovery copy. */ }
       }
       const after = useLrcStore.getState();
-      if (after.isDirty) {
-        saveRecoverySnapshot(after.doc, after.lrcPath, after.audioPath);
+      if (after.isDirty && !saveRecoverySnapshot(after.doc, after.lrcPath, after.audioPath)) {
+        set({ status: "error", error: useI18nStore.getState().t.toast.recoveryFailed });
+        return;
       }
+      await relaunch();
+    } catch (error) {
+      set({ status: "error", error: String(error) });
     }
-    const { relaunch } = await import("@tauri-apps/plugin-process");
-    await relaunch();
   },
 
   dismiss: () => set({ status: "idle", version: null, body: null, progress: 0, error: null, _update: null }),
