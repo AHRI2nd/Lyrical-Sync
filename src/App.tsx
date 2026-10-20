@@ -300,8 +300,7 @@ function App() {
 
   const applyDocumentOpen = ({ lyricsPath, audioPath }: { lyricsPath: string; audioPath?: string | null }) => {
     const st = useLrcStore.getState();
-    if (audioPath) st.setAudioPath(audioPath);
-    st.loadLyricsPath(lyricsPath).catch(() => toast.error(t.toast.openFailed));
+    st.loadLyricsPath(lyricsPath, audioPath ? { audioPath } : undefined).catch(() => toast.error(t.toast.openFailed));
   };
 
   const requestDocumentOpen = (entry: { lyricsPath: string; audioPath?: string | null }) => {
@@ -329,8 +328,8 @@ function App() {
   // 드롭된 파일을 실제로 연다 (오디오 → 오디오 경로, lrc/srt → 가사)
   const applyDrop = (d: { audio?: string; lyrics?: string }) => {
     const st = useLrcStore.getState();
-    if (d.audio) st.setAudioPath(d.audio);
-    if (d.lyrics) st.loadLyricsPath(d.lyrics).catch(() => toast.error(t.toast.openFailed));
+    if (d.lyrics) st.loadLyricsPath(d.lyrics, d.audio ? { audioPath: d.audio } : undefined).catch(() => toast.error(t.toast.openFailed));
+    else if (d.audio) st.setAudioPath(d.audio);
   };
 
   // 파일 드래그앤드롭 열기 (Tauri 네이티브 드롭 이벤트 → 파일 경로 제공)

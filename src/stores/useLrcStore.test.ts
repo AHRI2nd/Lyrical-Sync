@@ -707,3 +707,55 @@ describe("useLrcStore — audio changes during alignment", () => {
     expect(useLrcStore.getState().isDirty).toBe(false);
   });
 });
+
+
+describe("useLrcStore — document load transactions", () => {
+  beforeEach(() => {
+    reset([{ id: "1", text: "original", timestamp: 1 }]);
+    useLrcStore.setState({ lrcPath: "/old.lrc", audioPath: "/old.mp3" });
+    vi.mocked(invoke).mockReset();
+  });
+  it("preserves edits and undo history made while the read is pending", async () => {
+    let finish!: (value: string) => void;
+    vi.mocked(invoke).mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    const loading = useLrcStore.getState().loadLyricsPath("/new.lrc");
+    useLrcStore.getState().updateLine("1", { text: "new edit" });
+    const history = useLrcStore.getState()._history;
+    finish("[00:02.00]incoming");
+    await expect(loading).rejects.toThrow("document_changed_during_load");
+    expect(lines()[0].text).toBe("new edit");
+    expect(useLrcStore.getState()._history).toBe(history);
+    expect(useLrcStore.getState().isDirty).toBe(true);
+    useLrcStore.getState().undo();
+    expect(lines()[0].text).toBe("original");
+  });
+  it("does not replace either member of a pair when lyrics cannot be read", async () => {
+    vi.mocked(invoke).mockRejectedValue(new Error("unreadable"));
+    await expect(useLrcStore.getState().loadLyricsPath("/new.lrc", { audioPath: "/new.mp3" })).rejects.toThrow("unreadable");
+    expect(useLrcStore.getState().audioPath).toBe("/old.mp3");
+    expect(useLrcStore.getState().lrcPath).toBe("/old.lrc");
+  });
+  it("publishes the new lyrics and audio in one store transition", async () => {
+    vi.mocked(invoke).mockResolvedValue("[00:02.00]incoming");
+    const observed: string[] = [];
+    const unsubscribe = useLrcStore.subscribe(s => {
+      if (s.audioPath === "/new.mp3") observed.push(s.doc.lines[0]?.text);
+    });
+    await useLrcStore.getState().loadLyricsPath("/new.lrc", { audioPath: "/new.mp3" });
+    unsubscribe();
+    expect(useLrcStore.getState().audioPath).toBe("/new.mp3");
+    expect(observed.length).toBeGreaterThan(0);
+    expect(observed.every(text => text === "incoming")).toBe(true);
+  });
+  it("does not overwrite an audio selection made after a paired load starts", async () => {
+    let finish!: (value: string) => void;
+    vi.mocked(invoke).mockImplementation(command => command === "read_lrc_file"
+      ? new Promise(resolve => { finish = resolve; }) : Promise.resolve(undefined));
+    const loading = useLrcStore.getState().loadLyricsPath("/new.lrc", { audioPath: "/new.mp3" });
+    useLrcStore.getState().setAudioPath("/chosen.mp3");
+    finish("[00:02.00]incoming");
+    await expect(loading).rejects.toThrow("document_changed_during_load");
+    expect(useLrcStore.getState().audioPath).toBe("/chosen.mp3");
+    expect(lines()[0].text).toBe("original");
+  });
+});

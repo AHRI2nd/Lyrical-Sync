@@ -109,7 +109,7 @@ interface LrcStore {
   setAudioPath: (path: string | null) => void;
   openAudio: () => Promise<void>;
   openLrc: () => Promise<void>;
-  loadLyricsPath: (path: string) => Promise<void>;
+  loadLyricsPath: (path: string, options?: { audioPath?: string | null }) => Promise<void>;
   applyFetchedLyrics: (lrcText: string, meta?: { title: string; artist: string; album: string }) => void;
   // 반환값: 실제로 파일을 썼으면 true, 사용자가 저장 다이얼로그를 취소하면 false
   saveLrc: () => Promise<boolean>;
@@ -644,10 +644,16 @@ export const useLrcStore = create<LrcStore>((set, get) => {
   },
 
   // 경로로 가사 로드 (확장자로 LRC/SRT 분기). 다이얼로그/드래그앤드롭 공용.
-  loadLyricsPath: async (path) => {
+  loadLyricsPath: async (path, options) => {
+    const initial = get();
     const requestId = ++lyricLoadGeneration;
     const content: string = await invoke("read_lrc_file", { path });
     if (requestId !== lyricLoadGeneration) return;
+    const current = get();
+    if (current.doc !== initial.doc || current._history !== initial._history ||
+        current._future !== initial._future || current._audioSelection !== initial._audioSelection) {
+      throw new Error("document_changed_during_load");
+    }
     const isSrt = path.split(".").pop()?.toLowerCase() === "srt";
     const doc = isSrt ? parseSrt(content) : parseLrc(content);
     let id = 1;
@@ -655,7 +661,9 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     nextId = id;
     const firstId = doc.lines[0]?.id ?? null;
     beginDocumentSession();
-    set({ doc, lrcPath: path, isDirty: false, activeLineId: firstId, loopLineId: null, _history: [], _future: [], _lastEditKey: null, ...invalidateAiRun() });
+    const audioChange = options?.audioPath !== undefined
+      ? { audioPath: options.audioPath, _audioSelection: current._audioSelection + 1 } : {};
+    set({ doc, lrcPath: path, ...audioChange, isDirty: false, activeLineId: firstId, loopLineId: null, _history: [], _future: [], _lastEditKey: null, ...invalidateAiRun() });
     useSettingsStore.getState().addRecentFile({ lrcPath: path, audioPath: get().audioPath });
   },
 

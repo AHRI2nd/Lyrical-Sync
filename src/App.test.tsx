@@ -155,7 +155,7 @@ describe("App — drag-and-drop conflict resolution", () => {
     expect(loadLyricsPathSpy).not.toHaveBeenCalled();
 
     await user.click(screen.getByText("교체"));
-    expect(loadLyricsPathSpy).toHaveBeenCalledWith("/music/new.lrc");
+    expect(loadLyricsPathSpy).toHaveBeenCalledWith("/music/new.lrc", undefined);
   });
 
   it("does not intercept Space on a focused button as a stamp shortcut", async () => {
@@ -270,5 +270,27 @@ describe("App — recovery lifecycle", () => {
     useLrcStore.getState().loadFromRawText("[00:01.00]latest edit");
     fireEvent(window, new Event("pagehide"));
     expect(loadRecoverySnapshot()?.doc.lines[0].text).toBe("latest edit");
+  });
+});
+
+
+import { invoke } from "@tauri-apps/api/core";
+describe("App — paired drop transactions", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetLrc({ audioPath: "/old.mp3", lrcPath: "/old.lrc" });
+    vi.mocked(invoke).mockReset();
+    useSettingsStore.setState({ autoCheckUpdate: false, spotifyMode: false, deviceMode: false });
+  });
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+  it("retains the old audio if the confirmed replacement lyrics fail to read", async () => {
+    vi.mocked(invoke).mockImplementation(command => command === "read_lrc_file"
+      ? Promise.reject(new Error("unreadable")) : Promise.resolve(undefined));
+    render(<App />);
+    act(() => dragDropHandler.current?.({ payload: { type: "drop", paths: ["/new.mp3", "/new.lrc"] } }));
+    await userEvent.setup().click(screen.getByText(useI18nStore.getState().t.drop.replaceOk));
+    expect(await screen.findByText(useI18nStore.getState().t.toast.openFailed)).toBeTruthy();
+    expect(useLrcStore.getState().audioPath).toBe("/old.mp3");
+    expect(useLrcStore.getState().lrcPath).toBe("/old.lrc");
   });
 });
