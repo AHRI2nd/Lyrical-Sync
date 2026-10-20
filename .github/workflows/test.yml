@@ -1,0 +1,43 @@
+name: Test
+
+on:
+  push:
+    branches: [main, dev-next]
+  pull_request:
+    branches: [main, dev-next]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - run: npm ci
+      - run: npm run test:dependencies
+      - run: npm test
+      - run: python scripts/test_ai_sidecars.py
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+      - name: Build native debug application
+        run: npm run tauri -- build --debug --no-bundle
