@@ -1,0 +1,26 @@
+{
+  "runtimeId": "cpython-3.11.10-20241016-v1",
+  "python": {
+    "aarch64-apple-darwin": {
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20241016/cpython-3.11.10%2B20241016-aarch64-apple-darwin-install_only.tar.gz",
+      "sha256": "5a69382da99c4620690643517ca1f1f53772331b347e75f536088c42a4cf6620"
+    },
+    "x86_64-apple-darwin": {
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20241016/cpython-3.11.10%2B20241016-x86_64-apple-darwin-install_only.tar.gz",
+      "sha256": "1e23ffe5bc473e1323ab8f51464da62d77399afb423babf67f8e13c82b69c674"
+    },
+    "x86_64-pc-windows-msvc": {
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20241016/cpython-3.11.10%2B20241016-x86_64-pc-windows-msvc-install_only.tar.gz",
+      "sha256": "647b66ff4552e70aec3bf634dd470891b4a2b291e8e8715b3bdb162f577d4c55"
+    }
+  },
+  "aligner": {
+    "url": "https://files.pythonhosted.org/packages/5f/5a/0cf21de3ddc9f2696039063a290f8a4bb9059c9ac64fa325b08ef2769efd/ctc_forced_aligner-1.0.2.tar.gz",
+    "sha256": "8bb863316ad4ee30a28f00227b38c9b8451df53097a82a70d29f75d34ff6b7ff"
+  },
+  "model": {
+    "filename": "ctc-forced-aligner.onnx",
+    "url": "https://huggingface.co/deskpai/ctc_forced_aligner/resolve/77d85f9ffaa8cd367699ecff985c70e9064ca41c/04ac86b67129634da93aea76e0147ef3.onnx",
+    "sha256": "e8bad67fd3533b3d3c145b0ca31bb15383945c13384dd8975baaa7b73f7b61ac"
+  }
+}

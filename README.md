@@ -116,14 +116,14 @@ Default bindings — all of these can be remapped in **Settings → Shortcuts**.
 | State management | Zustand | 5.0.14 |
 | Waveform | Wavesurfer.js | 7.12.10 |
 | AI runtime | Embedded Python | 3.11.10 (build 20241016) |
-| AI alignment | ctc-forced-aligner + MMS-300M | `<2` (pip range); Hugging Face `main` (unpinned) |
-| Vocal separation | Demucs + htdemucs checkpoint | Demucs unpinned; checkpoint SHA-256 `8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4` |
+| AI alignment | ctc-forced-aligner + MMS-300M | `1.0.2`; ONNX revision `77d85f9` + SHA-256 |
+| Vocal separation | Demucs + htdemucs checkpoint | Demucs `4.0.1`; checkpoint SHA-256 `8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4` |
 | Audio tags / transcode | lofty + Symphonia (Rust) | 0.22.4, 0.5.5 |
 | File I/O / dialogs | Tauri fs / dialog plugins | 2.5.1, 2.7.1 |
 | YouTube downloader | yt-dlp | Latest GitHub release at runtime |
 | macOS media adapter | mediaremote-adapter | Vendored commit `3ac3d4bdf862c7b5399b4fba4df5689f5c38609a` |
 
-The badge shows the current application version. Exact JavaScript and Rust dependency versions are taken from `package-lock.json` and `src-tauri/Cargo.lock`. AI package and resource policies match the code: the aligner and Demucs Python packages are not locked to exact releases, the MMS model uses the mutable Hugging Face `main` branch, and yt-dlp follows the latest release. The Demucs checkpoint is SHA-256 verified.
+The badge shows the app version. JavaScript/Rust versions are defined by their lockfiles. Direct AI dependencies are pinned in `src-tauri/requirements-ai.txt`; immutable Python/aligner/ONNX URLs and SHA-256 values are in `src-tauri/ai-manifest.json`. Installation is staged and committed only after imports and `pip check` succeed; installed transitive versions are recorded. A fully locked per-platform transitive dependency graph is not yet provided. yt-dlp uses the latest release and verifies its published checksum.
 
 ---
 

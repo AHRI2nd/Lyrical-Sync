@@ -115,6 +115,20 @@ pub async fn check_model_files(
         .collect())
 }
 
+async fn hash_model_file(path: &std::path::Path) -> Result<String, std::io::Error> {
+    use sha2::{Digest, Sha256};
+    use tokio::io::AsyncReadExt;
+    let mut file = tokio::fs::File::open(path).await?;
+    let mut digest = Sha256::new();
+    let mut buffer = [0u8; 65536];
+    loop {
+        let read = file.read(&mut buffer).await?;
+        if read == 0 { break; }
+        digest.update(&buffer[..read]);
+    }
+    Ok(format!("{:x}", digest.finalize()))
+}
+
 /// 모델 파일 목록을 다운로드합니다. 진행 상황은 `model-download-progress` 이벤트로 전달됩니다.
 #[tauri::command]
 pub async fn download_model(
@@ -161,11 +175,8 @@ pub async fn download_model(
         if dest.exists() {
             let existing_valid = match spec.sha256.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
                 Some(expected) => {
-                    use sha2::{Digest, Sha256};
-                    tokio::fs::read(&dest).await.ok().map(|bytes| {
-                        let got = format!("{:x}", Sha256::digest(&bytes));
-                        got.eq_ignore_ascii_case(expected)
-                    }).unwrap_or(false)
+                    hash_model_file(&dest).await.ok()
+                        .is_some_and(|got| got.eq_ignore_ascii_case(expected))
                 }
                 None => true,
             };
@@ -346,4 +357,19 @@ pub async fn delete_model_files(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod integrity_tests {
+    use super::*;
+    #[test]
+    fn validates_model_checksum_from_disk() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join("model");
+            std::fs::write(&path, b"abc").unwrap();
+            assert_eq!(hash_model_file(&path).await.unwrap(), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+            assert!(hash_model_file(&dir.path().join("missing")).await.is_err());
+        });
+    }
 }
