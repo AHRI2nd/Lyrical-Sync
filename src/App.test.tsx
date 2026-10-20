@@ -294,3 +294,15 @@ describe("App — paired drop transactions", () => {
     expect(useLrcStore.getState().lrcPath).toBe("/old.lrc");
   });
 });
+
+it("shows a recoverable error without losing the current document", () => {
+  localStorage.clear(); resetLrc();
+  useSettingsStore.setState({ autoCheckUpdate: false, spotifyMode: false, deviceMode: false });
+  const view = render(<App />);
+  act(() => useLrcStore.getState().loadFromRawText("[00:01.00]current edit"));
+  fireEvent(window, new CustomEvent("lyrical-runtime-error", { detail: "background error" }));
+  expect(screen.getByText(useI18nStore.getState().t.toast.runtimeFailed)).toBeTruthy();
+  expect(useLrcStore.getState().doc.lines[0].text).toBe("current edit");
+  expect(useLrcStore.getState().isDirty).toBe(true);
+  view.unmount();
+});

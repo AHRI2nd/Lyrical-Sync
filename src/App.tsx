@@ -176,6 +176,11 @@ function useAutoUpdateCheck(enabled: boolean) {
 
 function App() {
   useGlobalKeys();
+  useEffect(() => {
+    const report = () => toast.error(useI18nStore.getState().t.toast.runtimeFailed);
+    window.addEventListener("lyrical-runtime-error", report);
+    return () => window.removeEventListener("lyrical-runtime-error", report);
+  }, []);
 
   // 시작 시(이펙트 실행 전) 스냅샷을 캡처 — dirty 해제 이펙트가 지우기 전에 확보
   const [recovery, setRecovery] = useState<RecoverySnapshot | null>(() => {
