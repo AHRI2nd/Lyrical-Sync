@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 // zustand persist(useSettingsStore/useI18nStore/useLrcStore 등)용 최소 localStorage 폴리필
@@ -193,5 +193,82 @@ describe("App — drag-and-drop conflict resolution", () => {
     fireEvent.keyDown(surface, { code: "Space", key: " " });
 
     expect(stampSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+import { saveRecoverySnapshot, loadRecoverySnapshot } from "./utils/recovery";
+import { useSettingsStore } from "./stores/useSettingsStore";
+import { useI18nStore } from "./stores/useI18nStore";
+
+// These exercise the actual startup effects and persisted bytes, not a mocked recovery hook.
+describe("App — recovery lifecycle", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetLrc();
+    useSettingsStore.setState({ autoCheckUpdate: false, autoSave: false, spotifyMode: false, deviceMode: false });
+  });
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.useRealTimers(); });
+  const snapshot = (withLines = true) => {
+    const doc = defaultDocument();
+    doc.metadata.title = "Recovered title";
+    if (withLines) doc.lines = [{ id: "1", text: "Recovered lyric", timestamp: 1 }];
+    expect(saveRecoverySnapshot(doc, null, null)).toBe(true);
+    return doc;
+  };
+  it("retains persisted recovery while awaiting a decision across remounts", () => {
+    const doc = snapshot();
+    const first = render(<App />);
+    expect(loadRecoverySnapshot()?.doc).toEqual(doc);
+    first.unmount();
+    render(<App />);
+    expect(screen.getByText(useI18nStore.getState().t.recovery.title)).toBeTruthy();
+    expect(loadRecoverySnapshot()?.doc).toEqual(doc);
+  });
+  it("offers metadata-only recovery", () => {
+    const doc = snapshot(false);
+    render(<App />);
+    expect(screen.getByText(useI18nStore.getState().t.recovery.title)).toBeTruthy();
+    expect(loadRecoverySnapshot()?.doc).toEqual(doc);
+  });
+  it("retains a durable copy immediately after restoring", () => {
+    const doc = snapshot();
+    render(<App />);
+    fireEvent.click(screen.getByText(useI18nStore.getState().t.recovery.restore));
+    expect(useLrcStore.getState().doc.metadata.title).toBe(doc.metadata.title);
+    expect(useLrcStore.getState().isDirty).toBe(true);
+    expect(loadRecoverySnapshot()?.doc.metadata.title).toBe(doc.metadata.title);
+  });
+  it("removes the expected snapshot on explicit discard", () => {
+    snapshot();
+    render(<App />);
+    fireEvent.click(screen.getByText(useI18nStore.getState().t.recovery.discard));
+    expect(loadRecoverySnapshot()).toBeNull();
+  });
+  it("keeps a recovery checkpoint during continuous edits", () => {
+    vi.useFakeTimers();
+    render(<App />);
+    act(() => useLrcStore.getState().loadFromRawText("[00:01.00]start"));
+    const id = useLrcStore.getState().doc.lines[0].id;
+    for (let i = 1; i <= 6; i++) {
+      act(() => { useLrcStore.getState().updateLine(id, { text: `edit ${i}` }); vi.advanceTimersByTime(1000); });
+    }
+    expect(loadRecoverySnapshot()?.doc.lines[0].text).toBe("edit 5");
+  });
+  it("reports a failed recovery write without destroying the editor", () => {
+    render(<App />);
+    act(() => useLrcStore.getState().loadFromRawText("[00:01.00]not saved"));
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("quota exceeded"); });
+    fireEvent(window, new Event("pagehide"));
+    expect(screen.getByText(useI18nStore.getState().t.toast.recoveryFailed)).toBeTruthy();
+    expect(useLrcStore.getState().doc.lines[0].text).toBe("not saved");
+  });
+  it("flushes the latest edits on pagehide before the debounce fires", () => {
+    render(<App />);
+    // Direct store action is the same edit boundary used by editor components.
+    fireEvent(window, new Event("pagehide"));
+    useLrcStore.getState().loadFromRawText("[00:01.00]latest edit");
+    fireEvent(window, new Event("pagehide"));
+    expect(loadRecoverySnapshot()?.doc.lines[0].text).toBe("latest edit");
   });
 });

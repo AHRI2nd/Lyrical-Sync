@@ -114,14 +114,22 @@ function useGlobalKeys() {
 
 // 저장 경로(lrcPath)가 지정된 파일에 한해, 변경 후 일정 시간 멈추면 자동 저장.
 // 새 문서(lrcPath 없음)는 저장 위치가 없으므로 자동 저장하지 않음.
-function useAutoSave() {
+function useAutoSave(recoveryPending: boolean) {
+  const recoveryFailed = useRef(false);
+  const persistRecovery = () => {
+    const st = useLrcStore.getState();
+    if (!st.isDirty || recoveryPending) return;
+    const saved = saveRecoverySnapshot(st.doc, st.lrcPath, st.audioPath);
+    if (!saved && !recoveryFailed.current) toast.error(useI18nStore.getState().t.toast.recoveryFailed);
+    recoveryFailed.current = !saved;
+  };
   const isDirty = useLrcStore((s) => s.isDirty);
   const lrcPath = useLrcStore((s) => s.lrcPath);
   const doc = useLrcStore((s) => s.doc);
   const autoSave = useSettingsStore((s) => s.autoSave);
 
   useEffect(() => {
-    if (!autoSave || !lrcPath || !isDirty) return;
+    if (recoveryPending || !autoSave || !lrcPath || !isDirty) return;
     const id = setTimeout(() => {
       // 자동저장: 성공은 조용히, 실패만 토스트로 알림
       useLrcStore.getState().saveLrc().catch(() => {
@@ -130,30 +138,31 @@ function useAutoSave() {
     }, 1500);
     return () => clearTimeout(id);
     // doc 변경마다 타이머 리셋 → 입력이 멈춘 뒤에만 저장(디바운스)
-  }, [autoSave, lrcPath, isDirty, doc]);
+  }, [autoSave, lrcPath, isDirty, doc, recoveryPending]);
 
   // 미저장 작업 자동 복구 스냅샷: dirty면 디바운스로 저장, 저장되면(dirty 해제) 제거.
   // 저장 경로가 없어도 보호되므로 autoSave와 독립적으로 동작.
   useEffect(() => {
+    if (recoveryPending) return;
     if (!isDirty) { clearRecoverySnapshot(); return; }
-    const id = setTimeout(() => {
-      const st = useLrcStore.getState();
-      saveRecoverySnapshot(st.doc, st.lrcPath, st.audioPath);
-    }, 2000);
+    const id = setTimeout(persistRecovery, 2000);
     return () => clearTimeout(id);
-  }, [isDirty, doc]);
+  }, [isDirty, doc, recoveryPending]);
 
   // 위 디바운스는 doc이 바뀔 때마다 리셋되므로 끊임없이 타이핑하는 구간에서는
   // 한 번도 실행되지 못할 수 있다. dirty가 유지되는 동안 일정 간격으로 강제
   // 플러시해 그런 연속 편집 구간에도 최소한의 복구 지점을 남긴다.
   useEffect(() => {
-    if (!isDirty) return;
-    const id = setInterval(() => {
-      const st = useLrcStore.getState();
-      saveRecoverySnapshot(st.doc, st.lrcPath, st.audioPath);
-    }, 5000);
+    if (recoveryPending || !isDirty) return;
+    const id = setInterval(persistRecovery, 5000);
     return () => clearInterval(id);
-  }, [isDirty]);
+  }, [isDirty, recoveryPending]);
+
+  useEffect(() => {
+    const flush = () => persistRecovery();
+    window.addEventListener("pagehide", flush);
+    return () => window.removeEventListener("pagehide", flush);
+  }, [recoveryPending]);
 }
 
 // 시작 시 조용히(silent) 확인 — 새 버전이 있을 때만 스토어 상태가 "available"로 바뀌어
@@ -167,13 +176,13 @@ function useAutoUpdateCheck(enabled: boolean) {
 
 function App() {
   useGlobalKeys();
-  useAutoSave();
 
   // 시작 시(이펙트 실행 전) 스냅샷을 캡처 — dirty 해제 이펙트가 지우기 전에 확보
   const [recovery, setRecovery] = useState<RecoverySnapshot | null>(() => {
     const snap = loadRecoverySnapshot();
-    return snap && snap.doc.lines.length > 0 ? snap : null;
+    return snap;
   });
+  useAutoSave(recovery !== null);
   const [showHelp, setShowHelp] = useState(false);
   const [showBatchTool, setShowBatchTool] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -502,10 +511,10 @@ function App() {
           cancelLabel={t.recovery.discard}
           onOk={() => {
             useLrcStore.getState().restoreDoc(recovery.doc, recovery.lrcPath, recovery.audioPath);
-            clearRecoverySnapshot();
+            // Keep the durable snapshot until the restored document is saved.
             setRecovery(null);
           }}
-          onCancel={() => { clearRecoverySnapshot(); setRecovery(null); }}
+          onCancel={() => { clearRecoverySnapshot(recovery); setRecovery(null); }}
         />
       )}
       {showNewConfirm && (

@@ -377,6 +377,7 @@ export interface Translations {
   toast: {
     saved: string;
     saveFailed: string;
+    recoveryFailed: string;
     openFailed: string;
     audioLoadFailed: string;
     aiSyncDone: string;
@@ -978,6 +979,7 @@ const ko: Translations = {
   toast: {
     saved: "저장되었습니다",
     saveFailed: "저장에 실패했습니다",
+    recoveryFailed: "복구 사본을 저장할 수 없습니다. 작업을 파일로 저장해 주세요.",
     openFailed: "파일을 열지 못했습니다",
     audioLoadFailed: "오디오를 불러오지 못했습니다",
     aiSyncDone: "AI 정렬이 완료되었습니다",
@@ -1577,6 +1579,7 @@ const en: Translations = {
   toast: {
     saved: "Saved",
     saveFailed: "Failed to save",
+    recoveryFailed: "Cannot save a recovery copy. Please save your work to a file.",
     openFailed: "Couldn't open file",
     audioLoadFailed: "Couldn't load audio",
     aiSyncDone: "AI alignment complete",
@@ -2175,6 +2178,7 @@ const ja: Translations = {
   toast: {
     saved: "保存しました",
     saveFailed: "保存に失敗しました",
+    recoveryFailed: "復元用コピーを保存できません。作業をファイルに保存してください。",
     openFailed: "ファイルを開けませんでした",
     audioLoadFailed: "オーディオを読み込めませんでした",
     aiSyncDone: "AI 整列が完了しました",
