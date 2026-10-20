@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
 use serde::Serialize;
 
+use crate::alignment_process::run_child;
 use crate::models::{models_dir, ModelsDirState};
 use crate::python_env::{embedded_python_exe, python_cmd_inference};
 
@@ -10,20 +11,34 @@ use crate::python_env::{embedded_python_exe, python_cmd_inference};
 const ALIGN_SCRIPT: &str = include_str!("align.py");
 const SEPARATE_SCRIPT: &str = include_str!("separate.py");
 
-/// Cancel flag for the currently running alignment process.
+/// The active run owns its cancellation flag until its child has been reaped.
+#[derive(Default)]
 pub struct AlignmentState {
-    cancel_flag: Mutex<Arc<AtomicBool>>,
+    active: Mutex<Option<(u64, Arc<AtomicBool>)>>,
 }
-
-impl Default for AlignmentState {
-    fn default() -> Self {
-        Self { cancel_flag: Mutex::new(Arc::new(AtomicBool::new(false))) }
+struct AlignmentRun<'a> { state: &'a AlignmentState, cancel: Arc<AtomicBool> }
+impl AlignmentState {
+    fn begin(&self, id: u64) -> Result<AlignmentRun<'_>, String> {
+        let mut active = self.active.lock().unwrap_or_else(|e| e.into_inner());
+        if active.is_some() { return Err("Alignment is still running or cancelling".into()); }
+        let cancel = Arc::new(AtomicBool::new(false));
+        *active = Some((id, cancel.clone()));
+        Ok(AlignmentRun { state: self, cancel })
     }
+    fn cancel(&self, id: u64) {
+        if let Some((active_id, flag)) = &*self.active.lock().unwrap_or_else(|e| e.into_inner()) {
+            if *active_id == id { flag.store(true, Ordering::Relaxed); }
+        }
+    }
+}
+impl Drop for AlignmentRun<'_> {
+    fn drop(&mut self) { *self.state.active.lock().unwrap_or_else(|e| e.into_inner()) = None; }
 }
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct AlignmentProgressEvent {
+    run_id: u64,
     status: String,
     message: String,
     percent: f32,
@@ -37,6 +52,7 @@ struct AlignmentProgressEvent {
 #[tauri::command]
 pub async fn run_alignment(
     app: AppHandle,
+    run_id: u64,
     dir_state: tauri::State<'_, ModelsDirState>,
     al_state: tauri::State<'_, AlignmentState>,
     audio_path: String,
@@ -54,11 +70,19 @@ pub async fn run_alignment(
     }
     let python_str = python_exe.to_string_lossy().into_owned();
 
-    // Fresh cancel flag for this run
-    let cancel = {
-        let new_flag = Arc::new(AtomicBool::new(false));
-        *al_state.cancel_flag.lock().unwrap_or_else(|e| e.into_inner()) = new_flag.clone();
-        new_flag
+    let run = al_state.begin(run_id)?;
+    let cancel = run.cancel.clone();
+    let progress = |line: &str| -> Result<(), String> {
+        if let Ok(val) = serde_json::from_str::<serde_json::Value>(line) {
+            let status = val["status"].as_str().unwrap_or("").to_string();
+            let message = val["message"].as_str().unwrap_or("").to_string();
+            let percent = val["percent"].as_f64().unwrap_or(0.0) as f32;
+            let _ = app.emit("alignment-progress", AlignmentProgressEvent {
+                run_id, status: status.clone(), message: message.clone(), percent,
+            });
+            if status == "error" { return Err(message); }
+        }
+        Ok(())
     };
 
     // 실행별 고유 임시 파일을 사용한다. 동시 정렬이 서로의 스크립트·보컬 스템을 덮어쓰지
@@ -76,7 +100,6 @@ pub async fn run_alignment(
     let models_dir_path = models_dir(&app, &dir_state)?;
     let models_dir_str = models_dir_path.to_string_lossy().into_owned();
 
-    use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader as ABufReader};
 
     // ── Vocal separation (Demucs) if model is available ──────────────────────
     let demucs_model = models_dir_path.join("demucs").join("htdemucs.th");
@@ -99,7 +122,7 @@ pub async fn run_alignment(
             .await
             .map_err(|e| format!("스크립트 쓰기 실패: {e}"))?;
 
-        let mut sep_child = python_cmd_inference(&python_str)
+        let sep_child = python_cmd_inference(&python_str)
             .args([
                 sep_script_path.to_string_lossy().as_ref(),
                 "--model-path", &demucs_model.to_string_lossy(),
@@ -108,37 +131,11 @@ pub async fn run_alignment(
             ])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::piped())
+            .kill_on_drop(true)
             .spawn()
             .map_err(|e| format!("Python 실행 실패: {e}"))?;
 
-        let sep_stderr = sep_child.stderr.take().ok_or("분리 프로세스 stderr를 열 수 없습니다")?;
-        let mut sep_reader = ABufReader::new(sep_stderr).lines();
-        let mut sep_error: Option<String> = None;
-
-        while let Ok(Some(line)) = sep_reader.next_line().await {
-            if cancel.load(Ordering::Relaxed) {
-                let _ = sep_child.kill().await;
-                return Err("cancelled".into());
-            }
-            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&line) {
-                let status  = val["status"].as_str().unwrap_or("").to_string();
-                let message = val["message"].as_str().unwrap_or("").to_string();
-                let percent = val["percent"].as_f64().unwrap_or(0.0) as f32;
-                let _ = app.emit("alignment-progress", AlignmentProgressEvent {
-                    status: status.clone(), message: message.clone(), percent,
-                });
-                if status == "error" {
-                    sep_error = Some(message);
-                    let _ = sep_child.kill().await;
-                    break;
-                }
-            }
-        }
-
-        if let Some(err) = sep_error {
-            return Err(err);
-        }
-        let _ = sep_child.wait().await;
+        run_child(sep_child, cancel.clone(), &progress).await?;
         audio_for_align = vocals_tmp_path.to_string_lossy().into_owned();
     } else {
         audio_for_align = audio_path.clone();
@@ -148,7 +145,7 @@ pub async fn run_alignment(
     // VAD on the audio is only meaningful when it's the isolated vocal stem
     let separated_flag = if audio_for_align != audio_path { "true" } else { "false" };
     let vad_flag = if use_vad { "true" } else { "false" };
-    let mut child = python_cmd_inference(&python_str)
+    let child = python_cmd_inference(&python_str)
         .args([
             script_str.as_str(),
             "--models-dir", &models_dir_str,
@@ -160,64 +157,32 @@ pub async fn run_alignment(
         ])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true)
         .spawn()
         .map_err(|e| format!("Python 실행 실패: {e}"))?;
 
-    let stderr = child.stderr.take().ok_or("정렬 프로세스 stderr를 열 수 없습니다")?;
-    let stdout = child.stdout.take().ok_or("정렬 프로세스 stdout을 열 수 없습니다")?;
-
-    // Stream stderr line by line for progress events
-    let mut stderr_reader = ABufReader::new(stderr).lines();
-    let mut last_error: Option<String> = None;
-
-    while let Ok(Some(line)) = stderr_reader.next_line().await {
-        if cancel.load(Ordering::Relaxed) {
-            let _ = child.kill().await;
-            return Err("cancelled".into());
-        }
-        if let Ok(val) = serde_json::from_str::<serde_json::Value>(&line) {
-            let status = val["status"].as_str().unwrap_or("").to_string();
-            let message = val["message"].as_str().unwrap_or("").to_string();
-            let percent = val["percent"].as_f64().unwrap_or(0.0) as f32;
-
-            let _ = app.emit("alignment-progress", AlignmentProgressEvent {
-                status: status.clone(),
-                message: message.clone(),
-                percent,
-            });
-
-            if status == "error" {
-                last_error = Some(message);
-                let _ = child.kill().await;
-                break;
-            }
-        }
-    }
-
-    if let Some(err) = last_error {
-        return Err(err);
-    }
-
-    // Collect stdout (final JSON result)
-    let mut stdout_data = String::new();
-    ABufReader::new(stdout)
-        .read_to_string(&mut stdout_data)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let status = child.wait().await.map_err(|e| e.to_string())?;
-
-    if !status.success() {
-        return Err(format!(
-            "정렬 스크립트 오류 (exit {})",
-            status.code().unwrap_or(-1)
-        ));
-    }
-
-    Ok(stdout_data.trim().to_string())
+    let output = run_child(child, cancel, progress).await?;
+    Ok(output.trim().to_string())
 }
 
 #[tauri::command]
-pub fn cancel_alignment(al_state: tauri::State<'_, AlignmentState>) {
-    al_state.cancel_flag.lock().unwrap_or_else(|e| e.into_inner()).store(true, Ordering::Relaxed);
+pub fn cancel_alignment(al_state: tauri::State<'_, AlignmentState>, run_id: u64) {
+    al_state.cancel(run_id);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn cancelled_run_retains_ownership_until_reaped_and_stale_cancels_are_ignored() {
+        let state = AlignmentState::default();
+        let first = state.begin(1).unwrap();
+        state.cancel(1);
+        assert!(first.cancel.load(Ordering::Relaxed));
+        assert!(state.begin(2).is_err());
+        drop(first);
+        let second = state.begin(2).unwrap();
+        state.cancel(1);
+        assert!(!second.cancel.load(Ordering::Relaxed));
+    }
 }

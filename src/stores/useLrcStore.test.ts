@@ -23,6 +23,7 @@ import type { LrcLine, LrcDocument } from "../types/lrc";
 import { saveRecoverySnapshot, loadRecoverySnapshot, clearRecoverySnapshot } from "../utils/recovery";
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
+import { listen } from "@tauri-apps/api/event";
 
 const reset = (lines: LrcLine[], offset = 0) =>
   useLrcStore.setState({
@@ -758,4 +759,19 @@ describe("useLrcStore — document load transactions", () => {
     expect(useLrcStore.getState().audioPath).toBe("/chosen.mp3");
     expect(lines()[0].text).toBe("original");
   });
+});
+
+
+it("does not launch a cancelled AI request after delayed listener registration", async () => {
+  reset([{ id: "1", text: "lyrics", timestamp: null }]);
+  useLrcStore.setState({ audioPath: "/song.mp3" });
+  vi.mocked(invoke).mockReset(); vi.mocked(invoke).mockResolvedValue(undefined);
+  let register!: (fn: () => void) => void;
+  vi.mocked(listen).mockImplementationOnce(() => new Promise(resolve => { register = resolve; }));
+  const running = useLrcStore.getState().runAiSync("ko", 0.5, false, false);
+  useLrcStore.getState().cancelAiSync();
+  register(() => {});
+  await running;
+  expect(vi.mocked(invoke).mock.calls.some(([command]) => command === "run_alignment")).toBe(false);
+  expect(useLrcStore.getState().aiSyncStatus).toBe("idle");
 });

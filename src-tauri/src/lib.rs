@@ -1,3 +1,4 @@
+mod alignment_process;
 mod atomic_write;
 mod batch_output;
 mod service_auth;
