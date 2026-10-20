@@ -1,3 +1,4 @@
+mod atomic_write;
 mod batch_output;
 mod service_auth;
 use service_auth::*;
@@ -23,7 +24,7 @@ async fn read_lrc_file(path: String) -> Result<String, String> {
 
 #[tauri::command]
 async fn write_lrc_file(path: String, content: String) -> Result<(), String> {
-    std::fs::write(&path, content).map_err(|e| e.to_string())
+    atomic_write::write_atomic(std::path::Path::new(&path), &content).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
