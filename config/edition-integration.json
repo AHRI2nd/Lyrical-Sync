@@ -1,5 +1,5 @@
 {
-  "upstream": "879ae22b97d6bfe2f4f54574c46e3fb03c0591d0",
+  "upstream": "7508c5b8fceff710a07af0c683cbbe7fa85d28cc",
   "storeParent": "5a61233844bb807f6bcbcbd588d76607e2f4ffff",
   "previousMergeBase": "744df0f0f037caac82d277c6b46ced218dc0e47f",
   "previousIntegration": {
@@ -84,5 +84,11 @@
     "Shared line timing helper and regressions adopted; Store async test setup uses explicit discard confirmation",
     "AI/YouTube modules excluded; common literal replace/LRC roundtrip/SRT hour fixes adopted",
     "Review fix: whitespace-prefixed literal brackets escaped in marked LRC"
-  ]
+  ],
+  "followUpMerge": {
+    "storeParent": "12971ec0878b40be729b5a90ea5d16c6102e59e9",
+    "upstream": "7508c5b8fceff710a07af0c683cbbe7fa85d28cc",
+    "previousMergeBase": "879ae22",
+    "resolution": "Review follow-up parser/source tests already present byte-for-byte in Store; update ancestry and ledger"
+  }
 }
