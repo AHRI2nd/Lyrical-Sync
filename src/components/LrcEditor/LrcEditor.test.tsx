@@ -244,3 +244,14 @@ it("commits an hour-aware timestamp while composition and Escape preserve the or
   expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(3602.369);
   expect(useLrcStore.getState()._history).toHaveLength(1);
 });
+
+it.each([false,true])('keeps replacement dollar text literal in the editor (all=%s)', all => {
+ const t=useI18nStore.getState().t;
+ useLrcStore.setState({doc:{...defaultDocument(),lines:[{id:'a',text:'original original',timestamp:1}]}});
+ const {getByPlaceholderText,getByRole}=render(<LrcEditor onPreview={()=>{}} />);
+ fireEvent.keyDown(window,{code:'KeyF',ctrlKey:true});
+ fireEvent.change(getByPlaceholderText(t.findPlaceholder),{target:{value:'original'}});
+ fireEvent.change(getByPlaceholderText(t.replacePlaceholder),{target:{value:'$&'}});
+ fireEvent.click(getByRole('button',{name:all?t.replaceAll:t.replaceBtn}));
+ expect(useLrcStore.getState().doc.lines[0].text).toBe(all?'$& $&':'$& original');
+});

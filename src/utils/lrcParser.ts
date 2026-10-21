@@ -150,11 +150,11 @@ const TRANSLATION_TAG = "x-lyrical-translations";
 
 // Escaping applies only to marked documents, leaving ordinary LRC slash text literal.
 function escapeTranslationText(text: string): string {
-  return text.replace(/\\/g, "\\\\").replace(/\r/g, "\\r").replace(/\n/g, "\\n").replace(/^\//, "\\/");
+  return text.replace(/\\/g, "\\\\").replace(/\r/g, "\\r").replace(/\n/g, "\\n").replace(/^\//, "\\/").replace(/^(\s*)\[/, "$1\\[");
 }
 function unescapeTranslationText(text: string): string {
   if (text === "\\0") return "";
-  return text.replace(/\\([\\/nr])/g, (_, char: string) => char === "n" ? "\n" : char === "r" ? "\r" : char);
+  return text.replace(/\\([\\/nr\[])/g, (_, char: string) => char === "n" ? "\n" : char === "r" ? "\r" : char);
 }
 
 export function parseLrc(raw: string): LrcDocument {
@@ -216,7 +216,7 @@ export function parseLrc(raw: string): LrcDocument {
 export function serializeLrc(doc: LrcDocument, enhanced = true): string {
   const { metadata, lines, extraTags } = doc;
   const parts: string[] = [];
-  const translationMode = lines.some(line => typeof line.translation === "string" || /[\r\n]/.test(line.text));
+  const translationMode = lines.some(line => typeof line.translation === "string" || /[\r\n]/.test(line.text) || /^\s*\[/.test(line.text));
   const encode = (text: string) => translationMode ? escapeTranslationText(text) : text;
 
   if (metadata.title) parts.push(`[ti:${metadata.title}]`);
