@@ -17,7 +17,7 @@ function formatSrtTime(seconds: number): string {
 }
 
 // HH:MM:SS,mmm 또는 H:MM:SS.mmm 등 허용 (콤마/마침표 모두)
-const SRT_TIME_RE = /(\d{1,2}):(\d{2}):(\d{2})[.,](\d{1,3})/;
+const SRT_TIME_RE = /^(\d+):([0-5]\d):([0-5]\d)[.,](\d{1,3})(?=\s|$)/;
 
 function parseSrtTime(str: string): number | null {
   const m = SRT_TIME_RE.exec(str.trim());
@@ -26,7 +26,8 @@ function parseSrtTime(str: string): number | null {
   const min = parseInt(m[2], 10);
   const s = parseInt(m[3], 10);
   const frac = parseInt(m[4].padEnd(3, "0").slice(0, 3), 10) / 1000;
-  return h * 3600 + min * 60 + s + frac;
+  const seconds = h * 3600 + min * 60 + s + frac;
+  return Number.isFinite(seconds) ? seconds : null;
 }
 
 /**
