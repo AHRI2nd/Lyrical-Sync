@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "upstreamBaseline": "11a61255f11f5c3c2008d1efd76a6705bcca9149",
+  "upstreamBaseline": "744df0f0f037caac82d277c6b46ced218dc0e47f",
   "storeBaseline": "2a44b7157ff8b1283a9d0a451ff60590db977884",
   "sourceInventory": [
     "src-tauri/src/atomic_write.rs",
