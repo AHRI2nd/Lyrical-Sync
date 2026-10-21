@@ -154,3 +154,15 @@ it("retains the end of a valid sub-centisecond final subtitle", () => {
   const doc = parseSrt("1\n00:00:10,000 --> 00:00:10,004\nshort\n");
   expect(serializeSrt(doc)).toContain("00:00:10,000 --> 00:00:10,004");
 });
+
+it.each([100,1000])('round-trips subtitle starts and ends at %s hours', hours => {
+ const start=hours*3600+2.125;
+ const restored=parseSrt(serializeSrt(docOf([{id:'a',timestamp:start,text:'late'}]),start+4));
+ expect(restored.lines.map(l=>l.timestamp)).toEqual([start,start+4]);
+});
+it.each(['junk00:00:01,000','00:61:01,000','00:00:61,000','00:00:01,0000',`${'9'.repeat(400)}:00:01,000`])('rejects malformed or non-finite SRT start: %s', start => {
+ expect(parseSrt(`1\n${start} --> 00:00:05,000\ninvalid`).lines).toEqual([]);
+});
+it('retains compatibility with whitespace-separated cue position settings', () => {
+ expect(parseSrt('1\n00:00:01,250 --> 00:00:03,500 X1:10 X2:20\ntext').lines.map(l=>l.timestamp)).toEqual([1.25,3.5]);
+});
