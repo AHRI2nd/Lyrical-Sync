@@ -256,6 +256,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     const futureEntry: HistoryEntry = { doc, timestamp: Date.now(), label: prevEntry.label, count: prevEntry.count };
     set({
       doc: prevEntry.doc,
+      ...invalidateAiRun(),
       _history: _history.slice(0, -1),
       _future: [futureEntry, ..._future].slice(0, MAX_HISTORY),
       isDirty: true,
@@ -270,6 +271,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     const historyEntry: HistoryEntry = { doc, timestamp: Date.now(), label: nextEntry.label, count: nextEntry.count };
     set({
       doc: nextEntry.doc,
+      ...invalidateAiRun(),
       _history: [..._history, historyEntry].slice(-MAX_HISTORY),
       _future: _future.slice(1),
       isDirty: true,
