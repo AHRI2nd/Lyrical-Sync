@@ -56,6 +56,7 @@ fn persist_windows(
     use std::os::windows::ffi::OsStrExt;
     #[link(name = "kernel32")]
     extern "system" {
+        fn SetFileAttributesW(path: *const u16, attributes: u32) -> i32;
         fn ReplaceFileW(
             replaced: *const u16,
             replacement: *const u16,
@@ -71,13 +72,13 @@ fn persist_windows(
             .map_err(|error| error.error)?;
         return Ok(());
     }
+    // Keep cleanup ownership while closing the file before exclusive replacement.
+    let stage = stage.into_temp_path();
     let target: Vec<u16> = target.as_os_str().encode_wide().chain(Some(0)).collect();
-    let replacement: Vec<u16> = stage
-        .path()
-        .as_os_str()
-        .encode_wide()
-        .chain(Some(0))
-        .collect();
+    let replacement: Vec<u16> = stage.as_os_str().encode_wide().chain(Some(0)).collect();
+    if unsafe { SetFileAttributesW(replacement.as_ptr(), 0x80) } == 0 {
+        return Err(io::Error::last_os_error());
+    }
     // ReplaceFile preserves the destination's DACL, encryption and named streams.
     // Do not ignore metadata merge errors or fall back to a broader temporary ACL.
     let replaced = unsafe {
@@ -228,6 +229,25 @@ mod windows_metadata_tests {
         );
         result
     }
+    #[test]
+    fn failed_replacement_preserves_original_and_cleans_temporary_path() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("locked.lrc");
+        fs::write(&target, "original").unwrap();
+        let lock = OpenOptions::new()
+            .read(true)
+            .share_mode(3)
+            .open(&target)
+            .unwrap();
+        assert!(write_atomic(&target, "updated").is_err());
+        assert_eq!(fs::read_to_string(&target).unwrap(), "original");
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+        drop(lock);
+        write_atomic(&target, "updated").unwrap();
+        assert_eq!(fs::read_to_string(&target).unwrap(), "updated");
+    }
+
     #[test]
     fn replacement_preserves_explicit_dacl_and_alternate_streams() {
         let dir = tempfile::tempdir().unwrap();
