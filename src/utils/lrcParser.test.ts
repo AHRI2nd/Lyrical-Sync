@@ -303,3 +303,23 @@ it("parses the millisecond timestamp displayed by hour-aware inline editors", ()
   expect(parseTimestampInput("0:00:02.369")).toBe(2.369);
   expect(parseTimestampInput("60:02.369")).toBe(3602.369);
 });
+
+it.each(['[Intro: Instrumental]', '[ti:literal title]', '[00:02.00]literal cue'])('retains untimed bracket syntax as literal lyrics: %s', text => {
+ const doc=docOf([{id:'a',timestamp:null,text}]);
+ doc.metadata.title='actual title';
+ const restored=parseLrc(serializeLrc(doc));
+ expect(restored.lines.map(l=>[l.timestamp,l.text])).toEqual([[null,text]]);
+ expect(restored.metadata.title).toBe('actual title');
+});
+it('retains timestamp-like lyric text after a real timestamp', () => {
+ const restored=parseLrc(serializeLrc(docOf([{id:'a',timestamp:1,text:'[00:02.00]echo'}])));
+ expect(restored.lines.map(l=>[l.timestamp,l.text])).toEqual([[1,'[00:02.00]echo']]);
+});
+it('keeps marked bracket lyrics and translations distinct from legacy tags', () => {
+ const doc=docOf([{id:'a',timestamp:null,text:'[by:literal]',translation:'[Intro: translated]'},
+  {id:'b',timestamp:null,text:'\\[literal]',translation:'\\path'}]);
+ const restored=parseLrc(serializeLrc(doc));
+ expect(restored.lines.map(l=>[l.text,l.translation])).toEqual([['[by:literal]','[Intro: translated]'],['\\[literal]','\\path']]);
+ expect(parseLrc('[ti:legacy]\n[00:01.00]hello').metadata.title).toBe('legacy');
+ expect(parseLrc('\\[literal]').lines[0].text).toBe('\\[literal]');
+});
