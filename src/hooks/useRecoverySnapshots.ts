@@ -40,7 +40,11 @@ export function useRecoverySnapshots(pendingRecovery: boolean): boolean {
     };
     flush();
     const interval = setInterval(flush, 5000);
-    return () => clearInterval(interval);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("pagehide", flush);
+    };
   }, [dirty, session, pendingRecovery, enabled]);
   return failed;
 }

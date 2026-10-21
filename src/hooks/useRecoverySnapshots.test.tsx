@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, renderHook } from "@testing-library/react";
+import { act, cleanup, fireEvent, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
@@ -87,4 +87,22 @@ it("stops all backup writes while disabled and resumes the latest edited documen
   act(() => useSettingsStore.setState({ recoveryEnabled: true }));
   expect(loadRecoverySnapshot()?.doc.lines[0].text).toBe("unsaved working text");
   unmount();
+});
+
+it("flushes the latest document and bookmarks on pagehide before the interval", () => {
+  renderHook(() => useRecoverySnapshots(false));
+  act(() => {
+    useLrcStore.getState().setMetadata({ title: "last keystroke" });
+    useLrcStore.setState({ lrcBookmark: "fresh-grant", audioBookmark: "audio-grant" });
+    fireEvent(window, new Event("pagehide"));
+  });
+  expect(loadRecoverySnapshot()?.doc.metadata.title).toBe("last keystroke");
+  expect(loadRecoverySnapshot()?.lrcBookmark).toBe("fresh-grant");
+});
+it("pagehide never recreates recovery after local privacy opt-out", () => {
+  renderHook(() => useRecoverySnapshots(false));
+  act(() => useSettingsStore.setState({ recoveryEnabled: false }));
+  localStorage.removeItem("lyrical-sync-recovery");
+  act(() => fireEvent(window, new Event("pagehide")));
+  expect(loadRecoverySnapshot()).toBeNull();
 });

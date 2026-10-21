@@ -1,3 +1,4 @@
+mod atomic_write;
 mod batch_output;
 mod audio_decode;
 mod file_access;
@@ -23,7 +24,7 @@ async fn read_lrc_file(path: String, bookmark: Option<String>) -> Result<String,
 #[tauri::command]
 async fn write_lrc_file(path: String, content: String, bookmark: Option<String>) -> Result<(), String> {
     let access = file_access::FileAccess::open(path, bookmark)?;
-    std::fs::write(access.path(), content).map_err(|e| e.to_string())
+    atomic_write::write_atomic(&access.path(), &content).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
