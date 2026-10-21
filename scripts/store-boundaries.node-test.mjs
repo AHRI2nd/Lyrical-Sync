@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -61,4 +62,18 @@ test('protects the shipped public runtime script against unreviewed changes', ()
   assert.deepEqual(checkStoreBoundaries(root, policy), []);
   put(path, 'fetch("https://example.com/runtime.js");');
   assert.match(checkStoreBoundaries(root, policy).join('\n'), /platform contract changed: public\/runtime-errors\.js/);
+}));
+
+test('keeps the protected public script unchanged under Windows checkout conversion', () => fixture(({ root, put, policy }) => {
+  const path = 'public/runtime-errors.js';
+  const shippedPolicy = JSON.parse(readFileSync(new URL('../config/store-boundaries.json', import.meta.url), 'utf8'));
+  policy.protectedFiles[path] = shippedPolicy.protectedFiles[path];
+  put('.gitattributes', readFileSync(new URL('../.gitattributes', import.meta.url)));
+  put(path, readFileSync(new URL('../public/runtime-errors.js', import.meta.url)));
+  const git = (...args) => execFileSync('git', ['-C', root, '-c', 'core.autocrlf=true', '-c', 'core.eol=crlf', ...args], { stdio: 'pipe' });
+  git('init', '--quiet');
+  git('add', '.gitattributes', path);
+  rmSync(join(root, path));
+  git('checkout-index', '--all', '--force');
+  assert.deepEqual(checkStoreBoundaries(root, policy), []);
 }));

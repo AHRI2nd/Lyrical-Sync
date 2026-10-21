@@ -23,3 +23,6 @@ scripts/appstore-build.sh text eol=lf
 scripts/appstore-profile.py text eol=lf
 scripts/msstore-build.ps1 text eol=lf
 scripts/msix-stage.mjs text eol=lf
+
+# Keep the reviewed pre-module runtime script byte-identical on Windows.
+public/runtime-errors.js text eol=lf
