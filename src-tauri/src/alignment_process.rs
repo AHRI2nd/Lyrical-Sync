@@ -68,11 +68,24 @@ mod tests {
                 std::io::stdout().write_all(&vec![b'x'; 262144]).unwrap();
                 eprintln!("progress");
             }
-            Ok("inherited") => {
+            Ok(mode @ ("inherited" | "inherited_stdout")) => {
+                // Windows inherits other inheritable handles even when the new
+                // standard stdout is NUL. Keep this fixture stderr-only.
+                #[cfg(windows)]
+                if mode == "inherited" { unsafe {
+                    use std::ffi::c_void;
+                    #[link(name = "kernel32")]
+                    extern "system" {
+                        fn GetStdHandle(kind: u32) -> *mut c_void;
+                        fn SetHandleInformation(handle: *mut c_void, mask: u32, flags: u32) -> i32;
+                    }
+                    assert_ne!(SetHandleInformation(GetStdHandle(-11i32 as u32), 1, 0), 0);
+                } }
                 std::process::Command::new(std::env::current_exe().unwrap())
                     .args(["--exact", "alignment_process::tests::child_fixture", "--nocapture"])
                     .env("LYRICAL_PROCESS_FIXTURE", "inherited_hold")
-                    .stdout(std::process::Stdio::null()).stderr(std::process::Stdio::inherit())
+                    .stdout(if mode == "inherited" { std::process::Stdio::null() } else { std::process::Stdio::inherit() })
+                    .stderr(if mode == "inherited" { std::process::Stdio::inherit() } else { std::process::Stdio::null() })
                     .spawn().unwrap();
             }
             Ok("inherited_hold") => std::thread::sleep(Duration::from_secs(2)),
@@ -119,6 +132,14 @@ mod tests {
                 run_child(child("inherited"), Arc::new(AtomicBool::new(false)), |_| Ok(()))).await;
             assert!(result.is_ok(), "inherited stderr must not hide parent exit");
             result.unwrap().expect("parent exit must release inherited stderr without an output error");
+        });
+    }
+    #[test]
+    fn rejects_incomplete_output_when_a_descendant_keeps_stdout_open() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let result = tokio::time::timeout(Duration::from_millis(1500),
+                run_child(child("inherited_stdout"), Arc::new(AtomicBool::new(false)), |_| Ok(()))).await;
+            assert_eq!(result.expect("inherited stdout must have a bounded wait").unwrap_err(), "Python output did not close");
         });
     }
     #[test]
