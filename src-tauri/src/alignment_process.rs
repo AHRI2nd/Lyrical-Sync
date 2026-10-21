@@ -118,7 +118,7 @@ mod tests {
             let result = tokio::time::timeout(Duration::from_millis(1500),
                 run_child(child("inherited"), Arc::new(AtomicBool::new(false)), |_| Ok(()))).await;
             assert!(result.is_ok(), "inherited stderr must not hide parent exit");
-            assert!(result.unwrap().is_ok());
+            result.unwrap().expect("parent exit must release inherited stderr without an output error");
         });
     }
     #[test]
