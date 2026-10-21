@@ -323,3 +323,13 @@ it('keeps marked bracket lyrics and translations distinct from legacy tags', () 
  expect(parseLrc('[ti:legacy]\n[00:01.00]hello').metadata.title).toBe('legacy');
  expect(parseLrc('\\[literal]').lines[0].text).toBe('\\[literal]');
 });
+
+it.each([' [ti:literal title]', '\t[Intro: Instrumental]'])('preserves whitespace-prefixed bracket lyrics with or without translations: %s', text => {
+ for(const translated of [false,true]) {
+  const doc=docOf([{id:'a',timestamp:null,text,...(translated?{translation:'translated'}:{})}]);
+  doc.metadata.title='actual title';
+  const restored=parseLrc(serializeLrc(doc));
+  expect(restored.lines.map(l=>l.text)).toEqual([text]);
+  expect(restored.metadata.title).toBe('actual title');
+ }
+});
