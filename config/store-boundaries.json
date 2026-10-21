@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "upstreamBaseline": "744df0f0f037caac82d277c6b46ced218dc0e47f",
-  "storeBaseline": "2a44b7157ff8b1283a9d0a451ff60590db977884",
+  "upstreamBaseline": "879ae22b97d6bfe2f4f54574c46e3fb03c0591d0",
+  "storeBaseline": "5a61233844bb807f6bcbcbd588d76607e2f4ffff",
   "sourceInventory": [
     "src-tauri/src/atomic_write.rs",
     "src-tauri/src/audio_decode.rs",
@@ -95,6 +95,7 @@
     "src/stores/useLrcStore.files.test.mjs",
     "src/stores/useLrcStore.history.test.ts",
     "src/stores/useLrcStore.test.ts",
+    "src/stores/useLrcStore.timing.test.ts",
     "src/stores/useLrcStore.transitions.test.ts",
     "src/stores/useLrcStore.translation.test.ts",
     "src/stores/useLrcStore.ts",
@@ -127,6 +128,7 @@
     "src/utils/keybindings.ts",
     "src/utils/linePlaybackRange.test.ts",
     "src/utils/linePlaybackRange.ts",
+    "src/utils/lineTiming.ts",
     "src/utils/localPrivacy.test.ts",
     "src/utils/localPrivacy.ts",
     "src/utils/lrcParser.test.ts",
@@ -202,6 +204,7 @@
     "src/stores/useBusyStore.ts",
     "src/stores/useDeviceStore.test.ts",
     "src/stores/useDeviceStore.ts",
+    "src/stores/useLrcStore.aiHistory.test.ts",
     "src/stores/useServiceStore.test.ts",
     "src/stores/useServiceStore.ts",
     "src/stores/useSettingsStore.sync.test.ts",

@@ -1,190 +1,88 @@
 {
-  "upstream": "744df0f0f037caac82d277c6b46ced218dc0e47f",
-  "storeParent": "2a44b7157ff8b1283a9d0a451ff60590db977884",
-  "previousMergeBase": "1c6a11f2b5b616deff76440efa7a086477616657",
-  "newSharedViews": [],
-  "sharedFilesResolvedFromUpstream": [
-    "public/runtime-errors.js",
-    "src/runtimeErrors.test.ts"
-  ],
+  "upstream": "879ae22b97d6bfe2f4f54574c46e3fb03c0591d0",
+  "storeParent": "5a61233844bb807f6bcbcbd588d76607e2f4ffff",
+  "previousMergeBase": "744df0f0f037caac82d277c6b46ced218dc0e47f",
+  "previousIntegration": {
+    "upstream": "744df0f0f037caac82d277c6b46ced218dc0e47f",
+    "storeParent": "2a44b7157ff8b1283a9d0a451ff60590db977884",
+    "previousMergeBase": "1c6a11f2b5b616deff76440efa7a086477616657"
+  },
   "upstreamChangeCoverage": [
     {
-      "path": ".github/workflows/test.yml",
+      "path": "src/components/AudioPlayer/useYouTubeLoad.test.tsx",
       "resolution": "excluded-direct-edition",
       "resolvedSha256": null
     },
     {
-      "path": "README.ja.md",
-      "resolution": "retained-store-documentation",
-      "resolvedSha256": "373e3bb47b4d0a7c0e94a848b9ed787159924205d3a9921003812cfb58393b9f"
+      "path": "src/components/AudioPlayer/useYouTubeLoad.ts",
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
     },
     {
-      "path": "README.ko.md",
-      "resolution": "retained-store-documentation",
-      "resolvedSha256": "203fd2a1d57385c839560d47e2bb9d68eabc00a28a6396a1a590ab2e5c0056d8"
-    },
-    {
-      "path": "README.md",
-      "resolution": "retained-store-documentation",
-      "resolvedSha256": "9d96320e81d880b144abaf4fbb86005e3cc37c644cff500a30c761be8d089767"
-    },
-    {
-      "path": "index.html",
+      "path": "src/components/LrcEditor/LrcEditor.test.tsx",
       "resolution": "store-edition-adapter",
-      "resolvedSha256": "f4392efd8918405dccd85636b307618ed2b7a6fa7ebb84946ac7dc5be8535b24"
+      "resolvedSha256": "92ced7684fb338912bab1286af394fda71196ecca45253f66f01bb914896cc18"
     },
     {
-      "path": "public/runtime-errors.js",
-      "resolution": "shared-upstream",
-      "resolvedSha256": "7542486f15d54e62724fd7a1f131b614d2c531f6d1117be9dcabd5eec189ecc9"
-    },
-    {
-      "path": "scripts/test_ai_sidecars.py",
-      "resolution": "excluded-direct-edition",
-      "resolvedSha256": null
-    },
-    {
-      "path": "src-tauri/ai-manifest.json",
-      "resolution": "excluded-direct-edition",
-      "resolvedSha256": null
-    },
-    {
-      "path": "src-tauri/requirements-ai.txt",
-      "resolution": "excluded-direct-edition",
-      "resolvedSha256": null
-    },
-    {
-      "path": "src-tauri/src/align.py",
-      "resolution": "excluded-direct-edition",
-      "resolvedSha256": null
-    },
-    {
-      "path": "src-tauri/src/alignment.rs",
-      "resolution": "excluded-direct-edition",
-      "resolvedSha256": null
-    },
-    {
-      "path": "src-tauri/src/alignment_process.rs",
-      "resolution": "excluded-direct-edition",
-      "resolvedSha256": null
-    },
-    {
-      "path": "src-tauri/src/atomic_write.rs",
+      "path": "src/components/LrcEditor/LrcEditor.tsx",
       "resolution": "store-edition-adapter",
-      "resolvedSha256": "68d6a41c1d80091e2442224ab5608577c075ac8b750ff3a2418fcf60303cacd0"
+      "resolvedSha256": "0834a5523a234aaff4c63d9bb6a18ed62f81124a1af69f507ff23f6cbbcf567b"
     },
     {
-      "path": "src-tauri/src/install_ctc.py",
+      "path": "src/stores/useLrcStore.aiHistory.test.ts",
       "resolution": "excluded-direct-edition",
       "resolvedSha256": null
-    },
-    {
-      "path": "src-tauri/src/lib.rs",
-      "resolution": "store-edition-adapter",
-      "resolvedSha256": "ca1f7dc35c924a772da10d24b1570e393081ea4de1f91b2ba4e2b3be0c2eb0a3"
-    },
-    {
-      "path": "src-tauri/src/models.rs",
-      "resolution": "excluded-direct-edition",
-      "resolvedSha256": null
-    },
-    {
-      "path": "src-tauri/src/probe_ai.py",
-      "resolution": "excluded-direct-edition",
-      "resolvedSha256": null
-    },
-    {
-      "path": "src-tauri/src/python_env.rs",
-      "resolution": "excluded-direct-edition",
-      "resolvedSha256": null
-    },
-    {
-      "path": "src-tauri/src/python_runtime.rs",
-      "resolution": "excluded-direct-edition",
-      "resolvedSha256": null
-    },
-    {
-      "path": "src/App.test.tsx",
-      "resolution": "store-edition-adapter",
-      "resolvedSha256": "fc905d6901235fbe749c96d659cafc67eb404615985adfd2b942255c8ff0e080"
-    },
-    {
-      "path": "src/App.tsx",
-      "resolution": "store-edition-adapter",
-      "resolvedSha256": "be07f55c41d984a67c582fb4bf9f90de2f80e2ea6bf1778a591844aa844d05d1"
-    },
-    {
-      "path": "src/i18n/translations.ts",
-      "resolution": "store-edition-adapter",
-      "resolvedSha256": "11e4bd5840365eddb4bff2fd0de2d92a6d1a36ccfdee7270a53d57d1ebe0f364"
-    },
-    {
-      "path": "src/runtimeErrors.test.ts",
-      "resolution": "shared-upstream",
-      "resolvedSha256": "5381d6b2730b17dd05c9158348cdaa7ee00a06874c90a1c04dbdd6437f75adf4"
     },
     {
       "path": "src/stores/useLrcStore.test.ts",
       "resolution": "store-edition-adapter",
-      "resolvedSha256": "1cb6d1d018ad8cac2ebb16249aa85cccc2a32617daed39361ce1dadbf8c75130"
+      "resolvedSha256": "ae60c649c85a983c126d2a833ca82218162dcc241477a717064eb03f98946c94"
+    },
+    {
+      "path": "src/stores/useLrcStore.timing.test.ts",
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "b34e509496f4b306b520bd407a8de5b8fcc9be8a215e45abd6de633dfba8364d"
     },
     {
       "path": "src/stores/useLrcStore.ts",
       "resolution": "store-edition-adapter",
-      "resolvedSha256": "2f14c949553fd2c154071fe09952d2b2971264725f445e9c828d1522f162ba40"
+      "resolvedSha256": "4b54ae759d40221dc9b17be4585b04d63e7eab60f476a523c435476f8c5a05fd"
     },
     {
-      "path": "src/stores/useUpdaterStore.test.ts",
-      "resolution": "excluded-direct-edition",
-      "resolvedSha256": null
+      "path": "src/utils/lineTiming.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "2169b6b2885606668b056408e492519d9e9dd3c44fff645592e13e05f7fa9c48"
     },
     {
-      "path": "src/stores/useUpdaterStore.ts",
-      "resolution": "excluded-direct-edition",
-      "resolvedSha256": null
+      "path": "src/utils/lrcParser.test.ts",
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "2325cf50a48a02e8915ed09706a12b001a5aaf2bad079a393b472524762056d0"
     },
     {
-      "path": "src/utils/modelDefs.ts",
-      "resolution": "excluded-direct-edition",
-      "resolvedSha256": null
+      "path": "src/utils/lrcParser.ts",
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "20cf4bf6727f9d9ec21c1645bba52c358d43a677e13db34e7b0a0c59a18cd318"
+    },
+    {
+      "path": "src/utils/srtConverter.test.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "2739e08f7dceaca767d30db6d780f265569de49ca865a8654134b21839b9343e"
+    },
+    {
+      "path": "src/utils/srtConverter.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "08291250cd2b2a4f871015622541f771cdd62c97aab4e2d21cd23a8344ebd460"
     }
   ],
-  "previousIntegration": {
-    "upstream": "1c6a11f2b5b616deff76440efa7a086477616657",
-    "storeParent": "d24b6993bb2e3e72d3d11458329ba1deabedec2d",
-    "previousMergeBase": "6442b90c80ede6ca0e6076bb7a87bad058b7b950"
-  },
+  "sharedFilesResolvedFromUpstream": [
+    "src/utils/lineTiming.ts",
+    "src/utils/srtConverter.test.ts",
+    "src/utils/srtConverter.ts"
+  ],
   "storeAdaptations": [
-    "Foundation atomic writer retains FileAccess security scope",
-    "Existing recovery/document transition engine retained; pagehide flush added with privacy opt-out",
-    "Store CI extended with dependency and Rust tests; direct/Python workflow excluded",
-    "Windows ReplaceFileW preserves destination security and alternate streams; platform regression added",
-    "Public runtime script SHA protected by Store boundary guard"
-  ],
-  "followUpMerge": {
-    "storeParent": "4239eaebf63258e8711f2d0a0efd5ad32c4d49d0",
-    "upstream": "8682dfa47d095f28985409380c7a95c3754bbc9c",
-    "previousMergeBase": "d281e38535a76500a3c8a957fc808d811ca380fb",
-    "resolution": "Identical Windows adapter and regression already present; retain Foundation and FileAccess on macOS"
-  },
-  "repairIntegrations": [
-    {
-      "storeParent": "e7550c3de5edf7ac91f2ab9ac589b9dfb3685a9a",
-      "upstream": "11a61255f11f5c3c2008d1efd76a6705bcca9149",
-      "previousMergeBase": "8682dfa47d095f28985409380c7a95c3754bbc9c",
-      "resolutions": {
-        "src-tauri/src/atomic_write.rs": "Close Windows replacement stage handle; retain Foundation/FileAccess on macOS",
-        "src-tauri/src/alignment_process.rs": "Excluded Dev-only process runner remains absent"
-      }
-    },
-    {
-      "storeParent": "8d4d9c7d6bae0d81817f709b661f5a854462fcd5",
-      "upstream": "744df0f0f037caac82d277c6b46ced218dc0e47f",
-      "previousMergeBase": "11a6125",
-      "resolutions": {
-        "src-tauri/src/atomic_write.rs": "Compare ACL bytes/protection independently of Windows bookkeeping; production writer unchanged",
-        "src-tauri/src/alignment_process.rs": "Excluded Dev-only process test fixture remains absent"
-      }
-    }
+    "Store history and scoped file/document transition adapters retained",
+    "Shared line timing helper and regressions adopted; Store async test setup uses explicit discard confirmation",
+    "AI/YouTube modules excluded; common literal replace/LRC roundtrip/SRT hour fixes adopted",
+    "Review fix: whitespace-prefixed literal brackets escaped in marked LRC"
   ]
 }

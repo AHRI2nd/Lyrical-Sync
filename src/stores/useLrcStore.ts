@@ -1,3 +1,4 @@
+import { retimeLine } from "../utils/lineTiming";
 import { nearestBeat } from "../utils/bpmDetect";
 import { create } from "zustand";
 import { LrcDocument, LrcLine, LrcMetadata, LrcSyllable, defaultDocument } from "../types/lrc";
@@ -302,7 +303,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
 
     const idx = lines.findIndex((l) => l.id === activeLineId);
     const stamped = lines.map((l) =>
-      l.id === activeLineId ? { ...l, timestamp: currentTime } : l
+      l.id === activeLineId ? retimeLine(l, currentTime) : l
     );
     const next = stamped[idx + 1];
 
@@ -384,7 +385,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     const fields = (Object.keys(patch) as (keyof typeof patch)[]).filter((field) => !Object.is(line[field], patch[field]));
     if (fields.length === 0) return;
     const key = fields.length === 1 && (fields[0] === "text" || fields[0] === "translation") ? `line:${id}:${fields[0]}` : null;
-    set({ ...pushHistory(doc, key), doc: { ...doc, lines: doc.lines.map((item) => item.id === id ? { ...item, ...patch } : item) }, isDirty: true });
+    set({ ...pushHistory(doc, key), doc: { ...doc, lines: doc.lines.map((item) => item.id === id ? { ...(patch.timestamp !== undefined ? retimeLine(item, patch.timestamp) : item), ...patch } : item) }, isDirty: true });
   },
 
   deleteLine: (id) => {
@@ -770,7 +771,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
       if (!matches) return l;
       count += matches.length;
       // 텍스트가 바뀌면 옛 토큰 경계가 무효 → 글자 동기화 해제
-      return { ...l, text: l.text.replace(re, replace), syllables: undefined };
+      return { ...l, text: l.text.replace(re, () => replace), syllables: undefined };
     });
     if (count === 0) return 0;
     set({ ...pushHistory(doc, null, "replaceAll", count), doc: { ...doc, lines: newLines }, isDirty: true });
