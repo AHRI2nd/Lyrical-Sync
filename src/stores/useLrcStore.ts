@@ -1,3 +1,4 @@
+import { retimeLine } from "../utils/lineTiming";
 import { enqueuePathWrite } from "../utils/pathWriteQueue";
 import { create } from "zustand";
 import { LrcDocument, LrcLine, LrcMetadata, LrcSyllable, defaultDocument } from "../types/lrc";
@@ -309,7 +310,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
 
     const idx = lines.findIndex((l) => l.id === activeLineId);
     const stamped = lines.map((l) =>
-      l.id === activeLineId ? { ...l, timestamp: currentTime } : l
+      l.id === activeLineId ? retimeLine(l, currentTime) : l
     );
     const next = stamped[idx + 1];
 
@@ -398,7 +399,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     set((s) => ({
       doc: {
         ...s.doc,
-        lines: s.doc.lines.map((l) => (l.id === id ? { ...l, ...patch } : l)),
+        lines: s.doc.lines.map((l) => (l.id === id ? { ...(patch.timestamp !== undefined ? retimeLine(l, patch.timestamp) : l), ...patch } : l)),
       },
       isDirty: true,
       _lastEditKey: key,
