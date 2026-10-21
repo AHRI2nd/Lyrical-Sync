@@ -1,5 +1,5 @@
 {
-  "upstream": "8682dfa47d095f28985409380c7a95c3754bbc9c",
+  "upstream": "11a61255f11f5c3c2008d1efd76a6705bcca9149",
   "storeParent": "2a44b7157ff8b1283a9d0a451ff60590db977884",
   "previousMergeBase": "1c6a11f2b5b616deff76440efa7a086477616657",
   "newSharedViews": [],
@@ -71,7 +71,7 @@
     {
       "path": "src-tauri/src/atomic_write.rs",
       "resolution": "store-edition-adapter",
-      "resolvedSha256": "d6a8e868570dc5c123cae1a4c2c745cf04d569e4c219c0c1a29c722c6acfbed0"
+      "resolvedSha256": "9f44b19f23f489ebe652f4fe859bf0b267b220ab7d8efa5690900096f77404d0"
     },
     {
       "path": "src-tauri/src/install_ctc.py",
@@ -166,5 +166,16 @@
     "upstream": "8682dfa47d095f28985409380c7a95c3754bbc9c",
     "previousMergeBase": "d281e38535a76500a3c8a957fc808d811ca380fb",
     "resolution": "Identical Windows adapter and regression already present; retain Foundation and FileAccess on macOS"
-  }
+  },
+  "repairIntegrations": [
+    {
+      "storeParent": "e7550c3de5edf7ac91f2ab9ac589b9dfb3685a9a",
+      "upstream": "11a61255f11f5c3c2008d1efd76a6705bcca9149",
+      "previousMergeBase": "8682dfa47d095f28985409380c7a95c3754bbc9c",
+      "resolutions": {
+        "src-tauri/src/atomic_write.rs": "Close Windows replacement stage handle; retain Foundation/FileAccess on macOS",
+        "src-tauri/src/alignment_process.rs": "Excluded Dev-only process runner remains absent"
+      }
+    }
+  ]
 }
