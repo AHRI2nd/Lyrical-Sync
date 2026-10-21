@@ -1,5 +1,5 @@
 {
-  "upstream": "d281e38535a76500a3c8a957fc808d811ca380fb",
+  "upstream": "8682dfa47d095f28985409380c7a95c3754bbc9c",
   "storeParent": "2a44b7157ff8b1283a9d0a451ff60590db977884",
   "previousMergeBase": "1c6a11f2b5b616deff76440efa7a086477616657",
   "newSharedViews": [],
@@ -160,5 +160,11 @@
     "Store CI extended with dependency and Rust tests; direct/Python workflow excluded",
     "Windows ReplaceFileW preserves destination security and alternate streams; platform regression added",
     "Public runtime script SHA protected by Store boundary guard"
-  ]
+  ],
+  "followUpMerge": {
+    "storeParent": "4239eaebf63258e8711f2d0a0efd5ad32c4d49d0",
+    "upstream": "8682dfa47d095f28985409380c7a95c3754bbc9c",
+    "previousMergeBase": "d281e38535a76500a3c8a957fc808d811ca380fb",
+    "resolution": "Identical Windows adapter and regression already present; retain Foundation and FileAccess on macOS"
+  }
 }
