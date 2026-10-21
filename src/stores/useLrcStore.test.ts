@@ -775,3 +775,11 @@ it("does not launch a cancelled AI request after delayed listener registration",
   expect(vi.mocked(invoke).mock.calls.some(([command]) => command === "run_alignment")).toBe(false);
   expect(useLrcStore.getState().aiSyncStatus).toBe("idle");
 });
+
+it.each(['$&', '$$', '$`', "$'", '$1'])('replaces all occurrences with literal dollar text: %s', replacement => {
+ reset([{id:'a',timestamp:1,text:'original original'}]);
+ useLrcStore.getState().replaceInLines('original',replacement,true);
+ expect(lines()[0].text).toBe(`${replacement} ${replacement}`);
+ useLrcStore.getState().undo();
+ expect(lines()[0].text).toBe('original original');
+});

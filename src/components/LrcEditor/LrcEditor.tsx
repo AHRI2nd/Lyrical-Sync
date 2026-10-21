@@ -494,7 +494,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     if (!line) return;
     const escaped = findText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const re = new RegExp(escaped, caseSensitive ? "" : "i");
-    const newText = line.text.replace(re, replaceText);
+    const newText = line.text.replace(re, () => replaceText);
     if (newText !== line.text) updateLine(id, { text: newText });
     // 다음 매치로 이동 (matchIds는 갱신되므로 다음 렌더 후 자동 이동)
     setMatchPos((p) => (p < matchIds.length - 1 ? p + 1 : 0));
