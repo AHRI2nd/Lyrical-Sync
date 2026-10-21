@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { checkStoreBoundaries, sha256 } from './check-store-boundaries.mjs';
@@ -51,4 +51,14 @@ test('rejects new native commands and external process execution', () => fixture
 test('rejects deletion of reviewed Store sources', () => fixture(({ root, policy }) => {
   rmSync(join(root, 'src/App.tsx'));
   assert.match(checkStoreBoundaries(root, policy).join('\n'), /Reviewed Store source removed/);
+}));
+
+test('protects the shipped public runtime script against unreviewed changes', () => fixture(({ root, put, policy }) => {
+  const shippedPolicy = JSON.parse(readFileSync(new URL('../config/store-boundaries.json', import.meta.url), 'utf8'));
+  const path = 'public/runtime-errors.js';
+  put(path, readFileSync(new URL('../public/runtime-errors.js', import.meta.url)));
+  if (shippedPolicy.protectedFiles[path]) policy.protectedFiles[path] = shippedPolicy.protectedFiles[path];
+  assert.deepEqual(checkStoreBoundaries(root, policy), []);
+  put(path, 'fetch("https://example.com/runtime.js");');
+  assert.match(checkStoreBoundaries(root, policy).join('\n'), /platform contract changed: public\/runtime-errors\.js/);
 }));

@@ -1,8 +1,9 @@
 {
   "schemaVersion": 1,
-  "upstreamBaseline": "1c6a11f2b5b616deff76440efa7a086477616657",
-  "storeBaseline": "d24b6993bb2e3e72d3d11458329ba1deabedec2d",
+  "upstreamBaseline": "d281e38535a76500a3c8a957fc808d811ca380fb",
+  "storeBaseline": "2a44b7157ff8b1283a9d0a451ff60590db977884",
   "sourceInventory": [
+    "src-tauri/src/atomic_write.rs",
     "src-tauri/src/audio_decode.rs",
     "src-tauri/src/batch_output.rs",
     "src-tauri/src/bookmark.rs",
@@ -88,6 +89,7 @@
     "src/i18n/translations.ts",
     "src/index.css",
     "src/main.tsx",
+    "src/runtimeErrors.test.ts",
     "src/stores/useI18nStore.ts",
     "src/stores/useLrcStore.bpm.test.ts",
     "src/stores/useLrcStore.files.test.mjs",
@@ -152,16 +154,24 @@
     ".github/ISSUE_TEMPLATE/config.yml",
     ".github/ISSUE_TEMPLATE/feature_request.yml",
     ".github/workflows/release.yml",
+    ".github/workflows/test.yml",
+    "scripts/test_ai_sidecars.py",
+    "src-tauri/ai-manifest.json",
+    "src-tauri/requirements-ai.txt",
     "src-tauri/resources/mediaremote-adapter/LICENSE",
     "src-tauri/resources/mediaremote-adapter/MediaRemoteAdapter.framework/MediaRemoteAdapter",
     "src-tauri/resources/mediaremote-adapter/VENDORED.txt",
     "src-tauri/resources/mediaremote-adapter/mediaremote-adapter.pl",
     "src-tauri/src/align.py",
     "src-tauri/src/alignment.rs",
+    "src-tauri/src/alignment_process.rs",
+    "src-tauri/src/install_ctc.py",
     "src-tauri/src/lrclib.rs",
     "src-tauri/src/models.rs",
     "src-tauri/src/now_playing.rs",
+    "src-tauri/src/probe_ai.py",
     "src-tauri/src/python_env.rs",
+    "src-tauri/src/python_runtime.rs",
     "src-tauri/src/separate.py",
     "src-tauri/src/service_auth.rs",
     "src-tauri/src/ytdlp.rs",
@@ -262,6 +272,7 @@
     "scripts/appstore-build.sh": "0a24a0df191be5833eb06bd5e818314dc95ce3afd102a3eaf5e0636ff892c6b8",
     "scripts/appstore-profile.py": "ac0e46498508fa6d4a66fd1cdeef4c527645af0ff89d72c5564eb98da9bfae2c",
     "scripts/msstore-build.ps1": "53d1baa59781797534c7934ef5f788822ce0f0377f60f5594518701c25ac4fec",
-    "scripts/msix-stage.mjs": "8e191451cc2f8213e9cfbd09b8e57b45a47885bb9756fad76f014bcd3e27eb05"
+    "scripts/msix-stage.mjs": "8e191451cc2f8213e9cfbd09b8e57b45a47885bb9756fad76f014bcd3e27eb05",
+    "public/runtime-errors.js": "7542486f15d54e62724fd7a1f131b614d2c531f6d1117be9dcabd5eec189ecc9"
   }
 }

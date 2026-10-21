@@ -200,3 +200,23 @@ it("a write to the old destination cannot clean a newer Save As target", async (
   await saveOld;
   expect(useLrcStore.getState().isDirty).toBe(true);
 });
+
+
+it("reconfirms edits made while a file read is pending and preserves them on cancellation", async () => {
+  const read = deferred<string>();
+  const confirm = vi.fn(async () => "cancel" as const);
+  setDocumentConfirmation(confirm);
+  vi.mocked(invoke).mockImplementation(cmd => cmd === "read_lrc_file" ? read.promise : Promise.resolve(null));
+  const loading = useLrcStore.getState().loadLyricsPath("/incoming.lrc");
+  await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("read_lrc_file", expect.anything()));
+  useLrcStore.getState().addLine("latest edit");
+  const history = useLrcStore.getState()._history;
+  read.resolve("[00:02.00]incoming");
+  await loading;
+  expect(confirm).toHaveBeenCalledOnce();
+  expect(useLrcStore.getState().doc.lines[0].text).toBe("latest edit");
+  expect(useLrcStore.getState()._history).toBe(history);
+  expect(useLrcStore.getState().isDirty).toBe(true);
+  useLrcStore.getState().undo();
+  expect(useLrcStore.getState().doc.lines).toHaveLength(0);
+});

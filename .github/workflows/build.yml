@@ -40,6 +40,12 @@ jobs:
           node scripts/check-store-boundaries.mjs
       - name: Install dependencies
         run: npm ci
+      - name: Test dependency restoration
+        run: npm run test:dependencies
+      - name: Test native Store adapters
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+      - name: Test Microsoft Store feature
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked --features msstore
       - name: Test frontend
         run: npm test
       - name: Test license notice integrity

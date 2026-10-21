@@ -194,3 +194,35 @@ describe("App document confirmation and keyboard boundaries", () => {
   });
 
 });
+
+
+describe("Store shared recovery and error regression coverage", () => {
+  beforeEach(() => {
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
+    localStorage.clear();
+    vi.mocked(invoke).mockReset().mockResolvedValue(null);
+    useSettingsStore.setState({ autoSave: false, recoveryEnabled: true });
+    useLrcStore.setState({ doc: defaultDocument(), isDirty: false, lrcPath: null, audioPath: null, lrcBookmark: null, audioBookmark: null, _history: [], _future: [] });
+  });
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); localStorage.clear(); });
+  it("offers metadata-only recovery and keeps it across remount before deciding", async () => {
+    const doc = defaultDocument(); doc.metadata.title = "metadata-only draft";
+    saveRecoverySnapshot(doc, null, null);
+    const first = render(<App />);
+    expect(await screen.findByRole("button", { name: useI18nStore.getState().t.recovery.restore })).toBeTruthy();
+    first.unmount();
+    render(<App />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: useI18nStore.getState().t.recovery.restore }));
+    await waitFor(() => expect(useLrcStore.getState().doc.metadata.title).toBe("metadata-only draft"));
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+  it("keeps the current document editable after a background error", () => {
+    render(<App />);
+    act(() => useLrcStore.getState().addLine("saved from runtime error"));
+    fireEvent(window, new CustomEvent("lyrical-runtime-error", { detail: "background failure" }));
+    expect(screen.getByText(useI18nStore.getState().t.toast.runtimeFailed)).toBeTruthy();
+    expect(useLrcStore.getState().doc.lines[0].text).toBe("saved from runtime error");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+});

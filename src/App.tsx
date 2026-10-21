@@ -117,6 +117,11 @@ function useAutoSave() {
 
 function App() {
   useGlobalKeys();
+  useEffect(() => {
+    const report = () => toast.error(useI18nStore.getState().t.toast.runtimeFailed);
+    window.addEventListener("lyrical-runtime-error", report);
+    return () => window.removeEventListener("lyrical-runtime-error", report);
+  }, []);
   useAutoSave();
 
   // Capture startup recovery before any backup effect starts.
