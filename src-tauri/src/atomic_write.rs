@@ -22,17 +22,77 @@ fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> i
         Err(error) if error.kind() == io::ErrorKind::NotFound => (PathBuf::from(path), None),
         Err(error) => return Err(error),
     };
-    let parent = target.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
+    #[cfg(windows)]
+    let replace_existing = permissions.is_some();
+    let parent = target
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
     let mut stage = tempfile::NamedTempFile::new_in(parent)?;
     write(stage.as_file_mut())?;
-    if let Some(permissions) = permissions { stage.as_file().set_permissions(permissions)?; }
+    if let Some(permissions) = permissions {
+        stage.as_file().set_permissions(permissions)?;
+    }
     stage.as_file_mut().flush()?;
     stage.as_file().sync_all()?;
+    #[cfg(windows)]
+    persist_windows(stage, &target, replace_existing)?;
+    #[cfg(not(windows))]
     stage.persist(&target).map_err(|error| error.error)?;
     // A successful return includes directory durability on Unix. A sync failure
     // after the rename is reported as uncertain durability, never as success.
     #[cfg(unix)]
     File::open(parent)?.sync_all()?;
+    Ok(())
+}
+
+#[cfg(windows)]
+fn persist_windows(
+    stage: tempfile::NamedTempFile,
+    target: &Path,
+    replace_existing: bool,
+) -> io::Result<()> {
+    use std::ffi::c_void;
+    use std::os::windows::ffi::OsStrExt;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn ReplaceFileW(
+            replaced: *const u16,
+            replacement: *const u16,
+            backup: *const u16,
+            flags: u32,
+            exclude: *mut c_void,
+            reserved: *mut c_void,
+        ) -> i32;
+    }
+    if !replace_existing {
+        stage
+            .persist_noclobber(target)
+            .map_err(|error| error.error)?;
+        return Ok(());
+    }
+    let target: Vec<u16> = target.as_os_str().encode_wide().chain(Some(0)).collect();
+    let replacement: Vec<u16> = stage
+        .path()
+        .as_os_str()
+        .encode_wide()
+        .chain(Some(0))
+        .collect();
+    // ReplaceFile preserves the destination's DACL, encryption and named streams.
+    // Do not ignore metadata merge errors or fall back to a broader temporary ACL.
+    let replaced = unsafe {
+        ReplaceFileW(
+            target.as_ptr(),
+            replacement.as_ptr(),
+            std::ptr::null(),
+            0,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+        )
+    };
+    if replaced == 0 {
+        return Err(io::Error::last_os_error());
+    }
     Ok(())
 }
 
@@ -86,9 +146,15 @@ mod tests {
         std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o640)).unwrap();
         symlink(&target, &link).unwrap();
         write_atomic(&link, "updated").unwrap();
-        assert!(std::fs::symlink_metadata(&link).unwrap().file_type().is_symlink());
+        assert!(std::fs::symlink_metadata(&link)
+            .unwrap()
+            .file_type()
+            .is_symlink());
         assert_eq!(std::fs::read_to_string(&target).unwrap(), "updated");
-        assert_eq!(std::fs::metadata(&target).unwrap().permissions().mode() & 0o777, 0o640);
+        assert_eq!(
+            std::fs::metadata(&target).unwrap().permissions().mode() & 0o777,
+            0o640
+        );
     }
 
     #[cfg(unix)]
@@ -104,6 +170,97 @@ mod tests {
         let link = dir.path().join("dangling.lrc");
         symlink(dir.path().join("missing.lrc"), &link).unwrap();
         assert!(write_atomic(&link, "updated").is_err());
-        assert!(std::fs::symlink_metadata(&link).unwrap().file_type().is_symlink());
+        assert!(std::fs::symlink_metadata(&link)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+    }
+}
+
+#[cfg(all(test, windows))]
+mod windows_metadata_tests {
+    use super::*;
+    use std::ffi::c_void;
+    use std::os::windows::ffi::OsStrExt;
+    #[link(name = "advapi32")]
+    extern "system" {
+        fn ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            text: *const u16,
+            revision: u32,
+            descriptor: *mut *mut c_void,
+            size: *mut u32,
+        ) -> i32;
+        fn SetFileSecurityW(path: *const u16, information: u32, descriptor: *mut c_void) -> i32;
+        fn GetFileSecurityW(
+            path: *const u16,
+            information: u32,
+            descriptor: *mut c_void,
+            size: u32,
+            needed: *mut u32,
+        ) -> i32;
+    }
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn LocalFree(memory: *mut c_void) -> *mut c_void;
+    }
+    fn wide(path: &Path) -> Vec<u16> {
+        path.as_os_str().encode_wide().chain(Some(0)).collect()
+    }
+    fn dacl(path: &Path) -> Vec<u8> {
+        let path = wide(path);
+        let mut needed = 0;
+        unsafe {
+            GetFileSecurityW(path.as_ptr(), 4, std::ptr::null_mut(), 0, &mut needed);
+        }
+        assert!(needed > 0);
+        let mut result = vec![0u8; needed as usize];
+        assert_ne!(
+            unsafe {
+                GetFileSecurityW(
+                    path.as_ptr(),
+                    4,
+                    result.as_mut_ptr().cast(),
+                    needed,
+                    &mut needed,
+                )
+            },
+            0
+        );
+        result
+    }
+    #[test]
+    fn replacement_preserves_explicit_dacl_and_alternate_streams() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("private.lrc");
+        fs::write(&target, "original").unwrap();
+        let stream = dir.path().join("private.lrc:review-note");
+        fs::write(&stream, "keep stream").unwrap();
+        let sddl: Vec<u16> = "D:P(A;;FA;;;OW)".encode_utf16().chain(Some(0)).collect();
+        let mut descriptor = std::ptr::null_mut();
+        assert_ne!(
+            unsafe {
+                ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                    sddl.as_ptr(),
+                    1,
+                    &mut descriptor,
+                    std::ptr::null_mut(),
+                )
+            },
+            0
+        );
+        let result = unsafe { SetFileSecurityW(wide(&target).as_ptr(), 0x80000004, descriptor) };
+        unsafe {
+            LocalFree(descriptor);
+        }
+        assert_ne!(result, 0, "{}", io::Error::last_os_error());
+        let before = dacl(&target);
+        write_atomic(&target, "updated").unwrap();
+        assert_eq!(fs::read_to_string(&target).unwrap(), "updated");
+        assert_eq!(
+            dacl(&target),
+            before,
+            "explicit security descriptor must survive save"
+        );
+        assert_eq!(fs::read_to_string(&stream).unwrap(), "keep stream");
     }
 }
