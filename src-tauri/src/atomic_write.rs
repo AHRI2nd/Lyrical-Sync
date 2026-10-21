@@ -216,6 +216,17 @@ mod windows_metadata_tests {
             size: *mut u32,
         ) -> i32;
         fn SetFileSecurityW(path: *const u16, information: u32, descriptor: *mut c_void) -> i32;
+        fn GetSecurityDescriptorDacl(
+            descriptor: *mut c_void,
+            present: *mut i32,
+            dacl: *mut *mut c_void,
+            defaulted: *mut i32,
+        ) -> i32;
+        fn GetSecurityDescriptorControl(
+            descriptor: *mut c_void,
+            control: *mut u16,
+            revision: *mut u32,
+        ) -> i32;
         fn GetFileSecurityW(
             path: *const u16,
             information: u32,
@@ -231,7 +242,7 @@ mod windows_metadata_tests {
     fn wide(path: &Path) -> Vec<u16> {
         path.as_os_str().encode_wide().chain(Some(0)).collect()
     }
-    fn dacl(path: &Path) -> Vec<u8> {
+    fn dacl(path: &Path) -> (bool, Vec<u8>) {
         let path = wide(path);
         let mut needed = 0;
         unsafe {
@@ -251,7 +262,39 @@ mod windows_metadata_tests {
             },
             0
         );
-        result
+        let mut present = 0;
+        let mut acl: *mut c_void = std::ptr::null_mut();
+        let mut defaulted = 0;
+        let mut control = 0;
+        let mut revision = 0;
+        assert_ne!(
+            unsafe {
+                GetSecurityDescriptorDacl(
+                    result.as_mut_ptr().cast(),
+                    &mut present,
+                    &mut acl,
+                    &mut defaulted,
+                )
+            },
+            0
+        );
+        assert_ne!(present, 0);
+        assert!(!acl.is_null());
+        assert_ne!(
+            unsafe {
+                GetSecurityDescriptorControl(
+                    result.as_mut_ptr().cast(),
+                    &mut control,
+                    &mut revision,
+                )
+            },
+            0
+        );
+        // Compare effective ACL bytes and protection, not Windows' bookkeeping
+        // flags such as SE_DACL_AUTO_INHERITED added by ReplaceFile.
+        let acl_size = unsafe { std::ptr::read_unaligned(acl.cast::<u16>().add(1)) } as usize;
+        let acl = unsafe { std::slice::from_raw_parts(acl.cast::<u8>(), acl_size) }.to_vec();
+        (control & 0x1000 != 0, acl)
     }
     #[test]
     fn failed_replacement_preserves_original_and_cleans_temporary_path() {
@@ -298,6 +341,7 @@ mod windows_metadata_tests {
         }
         assert_ne!(result, 0, "{}", io::Error::last_os_error());
         let before = dacl(&target);
+        assert!(before.0, "fixture DACL must be protected from inheritance");
         write_atomic(&target, "updated").unwrap();
         assert_eq!(fs::read_to_string(&target).unwrap(), "updated");
         assert_eq!(

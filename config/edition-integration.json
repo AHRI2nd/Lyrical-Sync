@@ -1,5 +1,5 @@
 {
-  "upstream": "11a61255f11f5c3c2008d1efd76a6705bcca9149",
+  "upstream": "744df0f0f037caac82d277c6b46ced218dc0e47f",
   "storeParent": "2a44b7157ff8b1283a9d0a451ff60590db977884",
   "previousMergeBase": "1c6a11f2b5b616deff76440efa7a086477616657",
   "newSharedViews": [],
@@ -71,7 +71,7 @@
     {
       "path": "src-tauri/src/atomic_write.rs",
       "resolution": "store-edition-adapter",
-      "resolvedSha256": "9f44b19f23f489ebe652f4fe859bf0b267b220ab7d8efa5690900096f77404d0"
+      "resolvedSha256": "68d6a41c1d80091e2442224ab5608577c075ac8b750ff3a2418fcf60303cacd0"
     },
     {
       "path": "src-tauri/src/install_ctc.py",
@@ -175,6 +175,15 @@
       "resolutions": {
         "src-tauri/src/atomic_write.rs": "Close Windows replacement stage handle; retain Foundation/FileAccess on macOS",
         "src-tauri/src/alignment_process.rs": "Excluded Dev-only process runner remains absent"
+      }
+    },
+    {
+      "storeParent": "8d4d9c7d6bae0d81817f709b661f5a854462fcd5",
+      "upstream": "744df0f0f037caac82d277c6b46ced218dc0e47f",
+      "previousMergeBase": "11a6125",
+      "resolutions": {
+        "src-tauri/src/atomic_write.rs": "Compare ACL bytes/protection independently of Windows bookkeeping; production writer unchanged",
+        "src-tauri/src/alignment_process.rs": "Excluded Dev-only process test fixture remains absent"
       }
     }
   ]
