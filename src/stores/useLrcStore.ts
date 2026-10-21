@@ -796,7 +796,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
       if (!matches) return l;
       count += matches.length;
       // 텍스트가 바뀌면 옛 토큰 경계가 무효 → 글자 동기화 해제
-      return { ...l, text: l.text.replace(re, replace), syllables: undefined };
+      return { ...l, text: l.text.replace(re, () => replace), syllables: undefined };
     });
     if (count === 0) return 0;
     pushHistory("replaceAll", count);
