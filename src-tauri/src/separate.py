@@ -6,6 +6,8 @@ Stderr: JSON progress lines  {"status":…,"message":…,"percent":…}
 import sys
 import json
 import argparse
+import hashlib
+import tempfile
 import numpy as np
 import torch
 
@@ -39,9 +41,24 @@ def load_audio(path: str) -> tuple:
     return wav, sr
 
 
+def load_verified_checkpoint(path, expected_sha256, loader):
+    """Deserialize only the private bytes that passed the trusted digest check."""
+    digest = hashlib.sha256()
+    with tempfile.TemporaryFile(mode="w+b") as verified:
+        with open(path, "rb") as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(chunk)
+                verified.write(chunk)
+        if digest.hexdigest() != expected_sha256:
+            raise ValueError("Model checksum mismatch. Download it again in Settings > AI Models.")
+        verified.seek(0)
+        return loader(verified, map_location="cpu", weights_only=False)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-path", required=True)
+    parser.add_argument("--model-sha256", required=True)
     parser.add_argument("--audio", required=True)
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
@@ -56,7 +73,7 @@ def main():
         sys.exit(1)
 
     try:
-        pkg = torch.load(args.model_path, map_location="cpu", weights_only=False)
+        pkg = load_verified_checkpoint(args.model_path, args.model_sha256, torch.load)
         if isinstance(pkg, dict):
             klass = pkg["klass"]
             model = klass(*pkg.get("args", []), **pkg.get("kwargs", {}))

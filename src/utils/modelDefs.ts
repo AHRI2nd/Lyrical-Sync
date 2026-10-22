@@ -30,13 +30,7 @@ export const MODEL_DEFS: ModelDef[] = [
       en: "Isolates vocals before transcription for better accuracy",
       ja: "文字起こし前にボーカルを分離して精度を向上させます",
     },
-    files: [
-      {
-        filename: "demucs/htdemucs.th",
-        url: "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th",
-        sha256: "8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4",
-      },
-    ],
+    files: [{ ...aiManifest.demucs }],
     totalSizeMb: 83,
     required: false,
   },

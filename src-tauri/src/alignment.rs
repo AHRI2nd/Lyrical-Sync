@@ -112,7 +112,9 @@ pub async fn run_alignment(
         .into_temp_path();
     let audio_for_align: String;
 
+    let manifest: serde_json::Value = serde_json::from_str(crate::python_runtime::MANIFEST).map_err(|e| e.to_string())?;
     if use_separation && demucs_model.exists() {
+        let demucs_sha256 = manifest["demucs"]["sha256"].as_str().ok_or("Missing Demucs checksum")?;
         let sep_script_path = tempfile::Builder::new()
             .prefix("lyrical_sync_separate_")
             .suffix(".py")
@@ -127,6 +129,7 @@ pub async fn run_alignment(
             .args([
                 sep_script_path.to_string_lossy().as_ref(),
                 "--model-path", &demucs_model.to_string_lossy(),
+                "--model-sha256", demucs_sha256,
                 "--audio",      &audio_path,
                 "--output",     &vocals_tmp_path.to_string_lossy().as_ref(),
             ])
@@ -142,7 +145,6 @@ pub async fn run_alignment(
         audio_for_align = audio_path.clone();
     }
 
-    let manifest: serde_json::Value = serde_json::from_str(crate::python_runtime::MANIFEST).map_err(|e| e.to_string())?;
     let model_sha256 = manifest["model"]["sha256"].as_str().ok_or("Missing model checksum")?;
     let script_str = align_script_path.to_string_lossy().into_owned();
     // VAD on the audio is only meaningful when it's the isolated vocal stem
