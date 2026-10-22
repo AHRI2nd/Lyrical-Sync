@@ -1,10 +1,11 @@
-# Direct dependencies are pinned; the installed transitive graph is recorded after validation.
-setuptools==75.6.0
-wheel==0.45.1
+# Direct dependencies are pinned; the complete installed graph must pass the OSV audit.
+pip==26.2.2
+setuptools==84.2.1
+wheel==0.48.0
 numpy==1.26.4
 onnxruntime==1.20.1
 librosa==0.10.2.post1
 Unidecode==1.3.8
 demucs==4.0.1
-torch==2.5.1
-torchaudio==2.5.1
+torch==2.14.1
+torchaudio==2.11.0

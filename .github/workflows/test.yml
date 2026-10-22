@@ -38,6 +38,8 @@ jobs:
       - run: npm run test:dependencies
       - run: npm test
       - run: python scripts/test_ai_sidecars.py
+      - run: python scripts/test_ai_dependency_audit.py
+      - run: python scripts/audit_ai_dependencies.py --requirements src-tauri/requirements-ai.txt
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
       - run: python scripts/test_updater_security.py
       - name: Build native debug application

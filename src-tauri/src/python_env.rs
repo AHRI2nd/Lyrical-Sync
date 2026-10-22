@@ -81,6 +81,10 @@ pub struct PythonEnvInfo {
     python_path: String,
 }
 
+pub async fn packages_ready(python: &Path) -> bool {
+    probe(python, PACKAGE_PROBE).await
+}
+
 async fn probe(python: &Path, source: &str) -> bool {
     tokio::time::timeout(
         Duration::from_secs(90),
@@ -316,6 +320,11 @@ pub async fn install_python_packages(app: AppHandle) -> Result<(), String> {
         if !probe(&python, PACKAGE_PROBE).await {
             return Err("AI package validation failed; previous installation was retained".into());
         }
+        // Approve the complete resolved graph before replacing the live runtime.
+        let audit = stage.path().join("audit_ai_dependencies.py");
+        tokio::fs::write(&audit, include_str!("../../scripts/audit_ai_dependencies.py"))
+            .await.map_err(|e| e.to_string())?;
+        install_step(&app, python_cmd(&python).arg(&audit).arg("--installed")).await?;
         let graph = python_cmd(&python)
             .args(["-m", "pip", "freeze", "--all"])
             .kill_on_drop(true)

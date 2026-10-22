@@ -108,8 +108,7 @@ class PackageProbeTests(unittest.TestCase):
         # metadata machinery and the shipped readiness probe run unchanged.
         versions = {"ctc-forced-aligner": "1.0.2", "demucs": "4.0.1", "numpy": "1.26.4", "onnxruntime": "1.20.1", "librosa": "0.10.2.post1", "Unidecode": "1.3.8"}
         import platform
-        version = "2.5.1"
-        versions.update(torch=version, torchaudio=version)
+        versions.update(torch="2.14.1", torchaudio="2.11.0", setuptools="84.2.1", wheel="0.48.0", pip="26.2.2")
         for name, version in versions.items():
             dist = root / (name.replace("-", "_") + "-" + version + ".dist-info")
             dist.mkdir()
