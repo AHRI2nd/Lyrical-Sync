@@ -44,6 +44,19 @@ struct AlignmentProgressEvent {
     percent: f32,
 }
 
+async fn wait_for_package_probe(
+    probe: impl std::future::Future<Output = bool>, cancel: &AtomicBool,
+) -> Result<bool, String> {
+    tokio::pin!(probe);
+    loop {
+        if cancel.load(Ordering::Relaxed) { return Err("cancelled".into()); }
+        if let Ok(ready) = tokio::time::timeout(std::time::Duration::from_millis(100), &mut probe).await {
+            if cancel.load(Ordering::Relaxed) { return Err("cancelled".into()); }
+            return Ok(ready);
+        }
+    }
+}
+
 /// Run the Python ctc-forced-aligner sidecar script using the app-managed venv.
 /// `lines_json`: JSON array of `{"index": number, "text": string}` (non-empty lines only).
 /// `language`:   ISO 639-3 code, e.g. "eng" / "kor" / "jpn".
@@ -69,13 +82,13 @@ pub async fn run_alignment(
             "Python이 설정되지 않았습니다. 설정 > AI 모델 탭에서 Python을 다운로드하세요.".to_string()
         );
     }
-    if !crate::python_env::packages_ready(&python_exe).await {
+    let run = al_state.begin(run_id)?;
+    let cancel = run.cancel.clone();
+    if !wait_for_package_probe(crate::python_env::packages_ready(&python_exe), &cancel).await? {
         return Err("AI packages are outdated or incomplete. Reinstall them in Settings > AI Models.".into());
     }
     let python_str = python_exe.to_string_lossy().into_owned();
 
-    let run = al_state.begin(run_id)?;
-    let cancel = run.cancel.clone();
     let progress = |line: &str| -> Result<(), String> {
         if let Ok(val) = serde_json::from_str::<serde_json::Value>(line) {
             let status = val["status"].as_str().unwrap_or("").to_string();
@@ -182,6 +195,21 @@ pub fn cancel_alignment(al_state: tauri::State<'_, AlignmentState>, run_id: u64)
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn cancellation_interrupts_a_pending_environment_probe() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let cancel = Arc::new(AtomicBool::new(false));
+            let pending = cancel.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                pending.store(true, Ordering::Relaxed);
+            });
+            let result = tokio::time::timeout(std::time::Duration::from_secs(1),
+                wait_for_package_probe(std::future::pending::<bool>(), &cancel)).await.unwrap();
+            assert_eq!(result.unwrap_err(), "cancelled");
+        });
+    }
+
     #[test]
     fn cancelled_run_retains_ownership_until_reaped_and_stale_cancels_are_ignored() {
         let state = AlignmentState::default();
