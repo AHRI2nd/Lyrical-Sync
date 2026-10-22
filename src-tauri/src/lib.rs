@@ -9,6 +9,7 @@ mod service_auth;
 use service_auth::*;
 mod now_playing;
 use now_playing::*;
+mod model_store;
 mod models;
 use models::*;
 mod python_env;

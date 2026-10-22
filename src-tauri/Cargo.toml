@@ -26,6 +26,8 @@ reqwest = { version = "0.12", default-features = false, features = ["native-tls"
 tokio = { version = "1", features = ["fs", "process", "io-util", "time", "rt"] }
 sha2 = "0.10"
 tempfile = "3"
+cap-std = "4.0.3"
+cap-tempfile = "4.0.3"
 keyring = { version = "3", features = ["apple-native", "windows-native"] }
 lofty = "0.22"
 # Releases use raw Windows installers and macOS tar.gz; disable legacy ZIP extraction.
