@@ -118,8 +118,6 @@ fn manifest() -> Result<serde_json::Value, String> {
 fn platform_key() -> &'static str {
     if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
         "aarch64-apple-darwin"
-    } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
-        "x86_64-apple-darwin"
     } else if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
         "x86_64-pc-windows-msvc"
     } else {
