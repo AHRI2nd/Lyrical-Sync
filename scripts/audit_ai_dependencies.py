@@ -59,7 +59,7 @@ def main():
     group.add_argument('--installed', action='store_true')
     args = parser.parse_args()
     if args.requirements:
-        packages = parse_requirements(args.requirements.read_text())
+        packages = parse_requirements(args.requirements.read_text(encoding="utf-8"))
     else:
         packages = sorted({(d.metadata['Name'], d.version) for d in importlib.metadata.distributions()})
     print(json.dumps(audit_packages(packages)))
