@@ -7,6 +7,9 @@ expected = {'ctc-forced-aligner': '1.0.2', 'demucs': '4.0.1', 'numpy': '1.26.4',
 for package, version in expected.items():
     assert m.version(package) == version, package
 import torch, torchaudio
-version = '2.5.1'
-assert m.version('torch').split('+')[0] == version
-assert m.version('torchaudio').split('+')[0] == version
+assert m.version('torch').split('+')[0] == '2.14.1'
+assert m.version('torchaudio').split('+')[0] == '2.11.0'
+assert m.version('setuptools') == '84.2.1'
+assert m.version('wheel') == '0.48.0'
+
+assert m.version('pip') == '26.2.2'

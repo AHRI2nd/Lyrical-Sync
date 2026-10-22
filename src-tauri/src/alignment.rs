@@ -69,6 +69,9 @@ pub async fn run_alignment(
             "Python이 설정되지 않았습니다. 설정 > AI 모델 탭에서 Python을 다운로드하세요.".to_string()
         );
     }
+    if !crate::python_env::packages_ready(&python_exe).await {
+        return Err("AI packages are outdated or incomplete. Reinstall them in Settings > AI Models.".into());
+    }
     let python_str = python_exe.to_string_lossy().into_owned();
 
     let run = al_state.begin(run_id)?;
