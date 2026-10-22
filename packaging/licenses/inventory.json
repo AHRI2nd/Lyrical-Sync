@@ -103,13 +103,13 @@
       "license": "MIT OR Apache-2.0",
       "name": "anyhow",
       "repository": "https://github.com/dtolnay/anyhow",
-      "sourceArchive": "https://crates.io/api/v1/crates/anyhow/1.0.102/download",
-      "sourceCommit": "5c657b32522023a9f7ef883fb08582fd8e656b1a",
+      "sourceArchive": "https://crates.io/api/v1/crates/anyhow/1.0.103/download",
+      "sourceCommit": "5bdb0e24db3994be119d42f18fe2d655e1f68f4a",
       "targets": [
         "macOS ARM64",
         "Windows x64"
       ],
-      "version": "1.0.102"
+      "version": "1.0.103"
     },
     {
       "documents": [
@@ -178,6 +178,29 @@
         "Windows x64"
       ],
       "version": "0.22.1"
+    },
+    {
+      "documents": [
+        {
+          "file": "LICENSE-APACHE",
+          "text": "143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "text": "ab499c75a0f0da8e0fe83bf9ba3a27e5c39705310f07107c6c66b69958d2401c"
+        }
+      ],
+      "ecosystem": "cargo",
+      "license": "MIT OR Apache-2.0",
+      "name": "base64",
+      "repository": "https://github.com/marshallpierce/rust-base64",
+      "sourceArchive": "https://crates.io/api/v1/crates/base64/0.23.1/download",
+      "sourceCommit": "069bf7067b949f5c0a92b6ceb82492920502f2c2",
+      "targets": [
+        "macOS ARM64",
+        "Windows x64"
+      ],
+      "version": "0.23.1"
     },
     {
       "documents": [
@@ -3177,13 +3200,13 @@
       "license": "MIT",
       "name": "plist",
       "repository": "https://github.com/ebarnard/rust-plist/",
-      "sourceArchive": "https://crates.io/api/v1/crates/plist/1.9.0/download",
-      "sourceCommit": "06a7be6505196c818fb489082886b689ccb0cb63",
+      "sourceArchive": "https://crates.io/api/v1/crates/plist/1.10.3/download",
+      "sourceCommit": "a2d3e61cb9956965e89b7541f21ab965cdb6d9fa",
       "targets": [
         "macOS ARM64",
         "Windows x64"
       ],
-      "version": "1.9.0"
+      "version": "1.10.3"
     },
     {
       "documents": [
@@ -3325,13 +3348,13 @@
       "license": "MIT",
       "name": "quick-xml",
       "repository": "https://github.com/tafia/quick-xml",
-      "sourceArchive": "https://crates.io/api/v1/crates/quick-xml/0.39.3/download",
-      "sourceCommit": "e156b0bfbd49f4295eb6290b296ea8462c23cba8",
+      "sourceArchive": "https://crates.io/api/v1/crates/quick-xml/0.42.0/download",
+      "sourceCommit": "36a2c52a4f6c90878c3f60c3c3b5c62efaef28a9",
       "targets": [
         "macOS ARM64",
         "Windows x64"
       ],
-      "version": "0.39.3"
+      "version": "0.42.0"
     },
     {
       "documents": [
@@ -6508,7 +6531,7 @@
     }
   ],
   "inputs": {
-    "package-lock.json": "6f75c9b59f697690bae483445b779ac3c82b5d07caace239a97465ce2a493187",
+    "package-lock.json": "0b124fa0ffc855499990c5788bf52c63cfe336c703912947e6b93e012e3f876a",
     "package.json": "a882d81b21c728feb286201429ad4501c23bee8bb4c2e05fd37b16bb10976bdc",
     "packaging/licenses/upstream-index.json": "4d06cce6a46a7ac03536b1b73a7754f14564703c513db5c68e32cdbc923d178f",
     "packaging/licenses/upstream/0884e92e74c08412d08bb7cbd121e3c09cbf2ae357972440b06f81b3305b0176.txt": "0884e92e74c08412d08bb7cbd121e3c09cbf2ae357972440b06f81b3305b0176",
@@ -6522,9 +6545,9 @@
     "packaging/licenses/upstream/c76f740d1521b9bed9ca7a04ad526c310493c62621b1341d623b431736533b30.txt": "c76f740d1521b9bed9ca7a04ad526c310493c62621b1341d623b431736533b30",
     "packaging/licenses/upstream/f5c342c49f3ac804f3e8e7bb62a8040a44c50d47bb36902b1abd13f66a1adf8b.txt": "f5c342c49f3ac804f3e8e7bb62a8040a44c50d47bb36902b1abd13f66a1adf8b",
     "scripts/generate-notices.py": "4953e82aee8e9a07168fcc6d17467c02a83d28d51ba69de00efb62fb91151c0e",
-    "src-tauri/Cargo.lock": "a75a3d47f86cd04a1400e24bdc2991c002c8fe57c2d19ee4646e70313fc7bb70",
+    "src-tauri/Cargo.lock": "8207d990ac1c835f0e45e4cbba1421bd9ff60e9f346e381974fbc14d5fa71759",
     "src-tauri/Cargo.toml": "b76a68e8db3573cf694453e3d2111333e95cec55c21f74260222b093cce39733"
   },
-  "noticeSha256": "34f3cdf8c2b7397e7879851773cb28d9bf8ca6b9b3aa4d86dd0c6528540985a9",
+  "noticeSha256": "9a67fe56b15cb3d0ec385df339991f8908ed9cf3cf6744a37def4a148413f487",
   "schema": 1
 }

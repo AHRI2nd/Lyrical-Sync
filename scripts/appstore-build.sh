@@ -12,7 +12,7 @@ case "${1:-}" in
 esac
 if [[ "$(uname -s)" != "Darwin" ]]; then echo "Run this script on macOS" >&2; exit 1; fi
 TARGET="${APPSTORE_TARGET:-aarch64-apple-darwin}"
-case "$TARGET" in aarch64-apple-darwin|x86_64-apple-darwin|universal-apple-darwin) ;; *) echo "Unsupported Mac target: $TARGET" >&2; exit 1 ;; esac
+case "$TARGET" in aarch64-apple-darwin) ;; *) echo "Unsupported Mac target: $TARGET" >&2; exit 1 ;; esac
 for tool in node npm cargo rustup python3 plutil codesign security productbuild pkgutil; do command -v "$tool" >/dev/null; done
 node scripts/check-notices.mjs
 VERSION=$(node -p "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json','utf8')).version")
@@ -43,11 +43,7 @@ if [[ "$MODE" != "unsigned" ]]; then
   echo "Validated profile for $BUNDLE_ID, team $TEAM"
 fi
 if [[ "$MODE" == "check" ]]; then echo "App Store preflight passed"; exit 0; fi
-if [[ "$TARGET" == "universal-apple-darwin" ]]; then
-  rustup target add aarch64-apple-darwin x86_64-apple-darwin
-else
-  rustup target add "$TARGET"
-fi
+rustup target add "$TARGET"
 # Explicitly suppress automatic signing/notarization from Tauri or inherited environment.
 # Scope the macOS 27 host-library workaround to this Mac build process.
 CARGO_PROFILE_RELEASE_BUILD_OVERRIDE_STRIP=none npm run tauri -- build --config src-tauri/tauri.appstore.conf.json --bundles app --target "$TARGET" --no-sign -- --locked

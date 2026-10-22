@@ -45,12 +45,12 @@ Repository: https://github.com/dropbox/rust-alloc-no-stdlib
 Source revision: 6032b6a9b20e03737135c55a0270ccffcc1438ef
 License text: c0c56f26d9c051cac4d200c34c84e7ae9aaa853e01a982a1df08b09931e518ae (https://github.com/dropbox/rust-alloc-no-stdlib/blob/6032b6a9b20e03737135c55a0270ccffcc1438ef/LICENSE)
 
-anyhow 1.0.102 (cargo)
+anyhow 1.0.103 (cargo)
 License: MIT OR Apache-2.0
 Scope: macOS ARM64, Windows x64
-Source archive: https://crates.io/api/v1/crates/anyhow/1.0.102/download
+Source archive: https://crates.io/api/v1/crates/anyhow/1.0.103/download
 Repository: https://github.com/dtolnay/anyhow
-Source revision: 5c657b32522023a9f7ef883fb08582fd8e656b1a
+Source revision: 5bdb0e24db3994be119d42f18fe2d655e1f68f4a
 License text: b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e (LICENSE-APACHE)
 License text: 23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3 (LICENSE-MIT)
 
@@ -80,6 +80,15 @@ Repository: https://github.com/marshallpierce/rust-base64
 Source revision: e14400697453bcc85997119b874bc03d9601d0af
 License text: 143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4 (LICENSE-APACHE)
 License text: 0dd882e53de11566d50f8e8e2d5a651bcf3fabee4987d70f306233cf39094ba7 (LICENSE-MIT)
+
+base64 0.23.1 (cargo)
+License: MIT OR Apache-2.0
+Scope: macOS ARM64, Windows x64
+Source archive: https://crates.io/api/v1/crates/base64/0.23.1/download
+Repository: https://github.com/marshallpierce/rust-base64
+Source revision: 069bf7067b949f5c0a92b6ceb82492920502f2c2
+License text: 143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4 (LICENSE-APACHE)
+License text: ab499c75a0f0da8e0fe83bf9ba3a27e5c39705310f07107c6c66b69958d2401c (LICENSE-MIT)
 
 bit-set 0.8.0 (cargo)
 License: Apache-2.0 OR MIT
@@ -1285,12 +1294,12 @@ Source revision: 3bdf763446aa78f90e3bdac1ef583e014832ab4c
 License text: bb28c48e3e078166e91cfc2b6db7ffebb8a0973b9e23b3df060561292d8d69ec (LICENSE-APACHE)
 License text: 23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3 (LICENSE-MIT)
 
-plist 1.9.0 (cargo)
+plist 1.10.3 (cargo)
 License: MIT
 Scope: macOS ARM64, Windows x64
-Source archive: https://crates.io/api/v1/crates/plist/1.9.0/download
+Source archive: https://crates.io/api/v1/crates/plist/1.10.3/download
 Repository: https://github.com/ebarnard/rust-plist/
-Source revision: 06a7be6505196c818fb489082886b689ccb0cb63
+Source revision: a2d3e61cb9956965e89b7541f21ab965cdb6d9fa
 License text: b61cf1a75b378860940eb420fd0fd1d8e747fd5dae5f5a2f2c9cd4454e1db78a (LICENCE)
 
 png 0.17.16 (cargo)
@@ -1344,12 +1353,12 @@ Source revision: 58ab776b95a4c2865554badbb6629c50971a9118
 License text: b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e (LICENSE-APACHE)
 License text: 23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3 (LICENSE-MIT)
 
-quick-xml 0.39.3 (cargo)
+quick-xml 0.42.0 (cargo)
 License: MIT
 Scope: macOS ARM64, Windows x64
-Source archive: https://crates.io/api/v1/crates/quick-xml/0.39.3/download
+Source archive: https://crates.io/api/v1/crates/quick-xml/0.42.0/download
 Repository: https://github.com/tafia/quick-xml
-Source revision: e156b0bfbd49f4295eb6290b296ea8462c23cba8
+Source revision: 36a2c52a4f6c90878c3f60c3c3b5c62efaef28a9
 License text: f0cf9b1c62bbe3bd3a69f5f79c7158f513f612b4940a0a812d1db39d605318bc (LICENSE-MIT.md)
 
 quote 1.0.45 (cargo)
@@ -9262,6 +9271,29 @@ Apache License
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+
+--- ab499c75a0f0da8e0fe83bf9ba3a27e5c39705310f07107c6c66b69958d2401c ---
+The MIT License (MIT)
+
+Copyright (c) 2025 Alice Maz, Marshall Pierce
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 
 --- adb48f9ee5be072e48dea05c2a289da330aae14467f7474c4a1f00a81cf8d5ef ---
 Apache License

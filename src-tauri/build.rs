@@ -1,4 +1,10 @@
 fn main() {
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    let target_arch = std::env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
+    assert!(
+        target_os != "macos" || target_arch == "aarch64",
+        "Lyrical Sync supports Apple Silicon Macs only; Intel macOS is unsupported."
+    );
     println!("cargo:rerun-if-changed=windows-app.manifest");
     let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("windows-app.manifest");

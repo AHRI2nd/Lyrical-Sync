@@ -1,3 +1,6 @@
+#[cfg(all(target_os = "macos", not(target_arch = "aarch64")))]
+compile_error!("Lyrical Sync supports Apple Silicon Macs only; Intel macOS is unsupported.");
+
 mod atomic_write;
 mod batch_output;
 mod audio_decode;

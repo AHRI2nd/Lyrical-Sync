@@ -20,7 +20,7 @@ Lyrical Sync는 yt-dlp를 통해 YouTube 영상의 오디오를 임시 파일로
 3. **"yt-dlp 다운로드"** 버튼을 클릭합니다.
 4. 다운로드가 완료되면 상태 배지가 **"설치됨"** 으로 바뀝니다.
 
-> macOS에서는 최신 arm64+x86_64 유니버설 바이너리가 설치됩니다.
+> Lyrical Sync의 macOS 지원 대상은 Apple Silicon입니다. Intel Mac은 지원하지 않습니다.
 
 ---
 

@@ -9,12 +9,14 @@ Optionally, Demucs vocal separation can be used as a preprocessing step to impro
 
 | Item | Minimum |
 |------|---------|
-| OS | macOS 12+, Windows 10+ |
+| OS | macOS 14+ (Apple Silicon), Windows 10+ (x64) |
 | RAM | 8 GB (16 GB recommended) |
 | Storage | Required models only: ~3 GB / Full: ~5 GB |
 | Internet | Required for initial setup |
 
 > **GPU Acceleration**: The current version uses CPU inference. Performance depends on your CPU speed.
+
+> AI package installation checks the complete installed package graph against OSV. Only public package names and versions are sent. If the audit is unavailable or finds an advisory, the previous environment is retained. Reinstall packages after a security update; outdated environments cannot run AI alignment.
 
 ---
 
