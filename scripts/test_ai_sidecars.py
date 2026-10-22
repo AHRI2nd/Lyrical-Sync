@@ -40,7 +40,7 @@ class PlatformSupportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             source = root / "check.rs"
-            source.write_text('mod tauri_build { pub fn build() {} }\ninclude!(' + repr(str(ROOT / "src-tauri/build.rs")).replace("'", '"') + ');')
+            source.write_text('mod tauri_build { pub fn build() {} }\ninclude!(' + repr(str(ROOT / "src-tauri/build.rs")).replace("'", '"') + ');', encoding="utf-8")
             binary = root / ("check.exe" if os.name == "nt" else "check")
             subprocess.run(["rustc", "--edition=2021", str(source), "-o", str(binary)], check=True, capture_output=True)
             for target_os, arch, supported in [("macos", "x86_64", False), ("macos", "aarch64", True), ("windows", "x86_64", True)]:
@@ -49,7 +49,7 @@ class PlatformSupportTests(unittest.TestCase):
 
     def test_embedded_runtime_has_no_intel_macos_distribution(self):
         import json
-        manifest = json.loads((ROOT / "src-tauri/ai-manifest.json").read_text())
+        manifest = json.loads((ROOT / "src-tauri/ai-manifest.json").read_text(encoding="utf-8"))
         self.assertNotIn("x86_64-apple-darwin", manifest["python"])
         self.assertIn("aarch64-apple-darwin", manifest["python"])
         self.assertIn("x86_64-pc-windows-msvc", manifest["python"])
@@ -64,7 +64,7 @@ class DemucsIntegrityTests(unittest.TestCase):
         import types
         from unittest.mock import patch
         with patch.dict(sys.modules, {"numpy": types.ModuleType("numpy"), "torch": types.ModuleType("torch")}):
-            exec(compile(source.read_text(), str(source), "exec"), module.__dict__)
+            exec(compile(source.read_text(encoding="utf-8"), str(source), "exec"), module.__dict__)
         return module.load_verified_checkpoint(path, expected, loader)
 
     def test_changed_checkpoint_never_reaches_deserializer(self):
@@ -102,6 +102,22 @@ class DemucsIntegrityTests(unittest.TestCase):
                 self.load(path, hashlib.sha256(b"good").hexdigest(), lambda *a, **kw: self.fail("loader called"))
 
 
+class SourceEncodingTests(unittest.TestCase):
+    def test_checkpoint_source_loads_with_a_cp1252_default_locale(self):
+        import io
+        import hashlib
+        from unittest.mock import patch
+        original = io.text_encoding
+        def cp1252_default(encoding, stacklevel=2):
+            return "cp1252" if encoding is None else original(encoding, stacklevel)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "model.th"
+            path.write_bytes(b"trusted")
+            with patch("io.text_encoding", side_effect=cp1252_default):
+                result = DemucsIntegrityTests().load(path, hashlib.sha256(b"trusted").hexdigest(), lambda handle, **_: handle.read())
+            self.assertEqual(result, b"trusted")
+
+
 class PackageProbeTests(unittest.TestCase):
     def environment(self, root):
         # Only the external ML boundary is substituted. Python's import and
@@ -112,13 +128,13 @@ class PackageProbeTests(unittest.TestCase):
         for name, version in versions.items():
             dist = root / (name.replace("-", "_") + "-" + version + ".dist-info")
             dist.mkdir()
-            (dist / "METADATA").write_text("Metadata-Version: 2.1\nName: " + name + "\nVersion: " + version + "\n")
+            (dist / "METADATA").write_text("Metadata-Version: 2.1\nName: " + name + "\nVersion: " + version + "\n", encoding="utf-8")
         for name in ["onnxruntime", "unidecode", "demucs", "torch", "torchaudio"]:
-            (root / (name + ".py")).write_text("")
+            (root / (name + ".py")).write_text("", encoding="utf-8")
         package = root / "ctc_forced_aligner"
         package.mkdir()
         exports = ["load_audio", "generate_emissions", "preprocess_text", "get_alignments", "get_spans", "postprocess_results", "Tokenizer"]
-        (package / "__init__.py").write_text("\n".join(name + " = None" for name in exports))
+        (package / "__init__.py").write_text("\n".join(name + " = None" for name in exports), encoding="utf-8")
         return package
 
     def run_probe(self, root):
@@ -136,7 +152,7 @@ class PackageProbeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             package = self.environment(root)
-            (package / "ctc_aligner.py").write_text('raise OSError("native library cannot load")')
+            (package / "ctc_aligner.py").write_text('raise OSError("native library cannot load")', encoding="utf-8")
             result = self.run_probe(root)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("native library cannot load", result.stderr)
@@ -145,8 +161,8 @@ class PackageProbeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             package = self.environment(root)
-            (package / "ctc_aligner.py").write_text("")
-            (root / "torch-2.14.1.dist-info/METADATA").write_text("Metadata-Version: 2.1\nName: torch\nVersion: 2.5.1\n")
+            (package / "ctc_aligner.py").write_text("", encoding="utf-8")
+            (root / "torch-2.14.1.dist-info/METADATA").write_text("Metadata-Version: 2.1\nName: torch\nVersion: 2.5.1\n", encoding="utf-8")
             result = subprocess.run([sys.executable, "-O", "-S", str(ROOT / "src-tauri/src/probe_ai.py")], env={**os.environ, "PYTHONPATH": str(root)}, capture_output=True, text=True, timeout=10)
             self.assertNotEqual(result.returncode, 0)
 
@@ -154,7 +170,7 @@ class PackageProbeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             package = self.environment(root)
-            (package / "ctc_aligner.py").write_text("")
+            (package / "ctc_aligner.py").write_text("", encoding="utf-8")
             result = self.run_probe(root)
             self.assertEqual(result.returncode, 0, result.stderr)
 

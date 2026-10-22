@@ -29,7 +29,7 @@ class UpdaterSecurityTests(unittest.TestCase):
         self.assertIn('flate2 v', result.stdout)
 
     def test_release_uses_current_raw_installer_artifacts(self):
-        config = json.loads((ROOT / 'src-tauri/tauri.updater.conf.json').read_text())
+        config = json.loads((ROOT / 'src-tauri/tauri.updater.conf.json').read_text(encoding="utf-8"))
         self.assertIs(config['bundle']['createUpdaterArtifacts'], True)
 
 
