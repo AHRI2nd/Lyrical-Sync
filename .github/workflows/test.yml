@@ -39,5 +39,6 @@ jobs:
       - run: npm test
       - run: python scripts/test_ai_sidecars.py
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+      - run: python scripts/test_updater_security.py
       - name: Build native debug application
         run: npm run tauri -- build --debug --no-bundle
