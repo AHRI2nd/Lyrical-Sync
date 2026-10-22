@@ -22,5 +22,10 @@
     "filename": "ctc-forced-aligner.onnx",
     "url": "https://huggingface.co/deskpai/ctc_forced_aligner/resolve/77d85f9ffaa8cd367699ecff985c70e9064ca41c/04ac86b67129634da93aea76e0147ef3.onnx",
     "sha256": "e8bad67fd3533b3d3c145b0ca31bb15383945c13384dd8975baaa7b73f7b61ac"
+  },
+  "demucs": {
+    "filename": "demucs/htdemucs.th",
+    "url": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th",
+    "sha256": "8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4"
   }
 }

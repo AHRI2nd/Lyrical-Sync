@@ -35,6 +35,53 @@ class ModelIntegrityTests(unittest.TestCase):
             self.assertEqual(list(Path(folder).iterdir()), [])
 
 
+class DemucsIntegrityTests(unittest.TestCase):
+    def load(self, path, expected, loader):
+        source = ROOT / "src-tauri/src/separate.py"
+        module_spec = importlib.util.spec_from_file_location("lyrical_separate", source)
+        module = importlib.util.module_from_spec(module_spec)
+        # Stub only imports required by the old implementation, never execute pickle.
+        import types
+        from unittest.mock import patch
+        with patch.dict(sys.modules, {"numpy": types.ModuleType("numpy"), "torch": types.ModuleType("torch")}):
+            exec(compile(source.read_text(), str(source), "exec"), module.__dict__)
+        return module.load_verified_checkpoint(path, expected, loader)
+
+    def test_changed_checkpoint_never_reaches_deserializer(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "model.th"
+            path.write_bytes(b"changed")
+            calls = []
+            with self.assertRaisesRegex(ValueError, "checksum"):
+                self.load(path, "0" * 64, lambda *a, **kw: calls.append(a))
+            self.assertEqual(calls, [])
+
+    def test_validated_copy_survives_source_replacement(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "model.th"
+            path.write_bytes(b"trusted")
+            def loader(handle, **options):
+                path.write_bytes(b"changed")
+                self.assertEqual(handle.read(), b"trusted")
+                self.assertEqual(options, {"map_location": "cpu", "weights_only": False})
+                return "loaded"
+            self.assertEqual(self.load(path, hashlib.sha256(b"trusted").hexdigest(), loader), "loaded")
+
+    def test_missing_checkpoint_never_reaches_deserializer(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaises(FileNotFoundError):
+                self.load(Path(folder) / "missing", "0" * 64, lambda *a, **kw: self.fail("loader called"))
+
+    def test_same_size_modification_is_rejected(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "model.th"
+            path.write_bytes(b"evil")
+            with self.assertRaisesRegex(ValueError, "checksum"):
+                self.load(path, hashlib.sha256(b"good").hexdigest(), lambda *a, **kw: self.fail("loader called"))
+
+
 class PackageProbeTests(unittest.TestCase):
     def environment(self, root):
         # Only the external ML boundary is substituted. Python's import and
