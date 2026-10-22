@@ -1,13 +1,11 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::io::{Read, Write};
-use std::net::TcpListener;
+use std::io::Write;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Manager, Emitter};
 
-static OAUTH_LISTENING: AtomicBool = AtomicBool::new(false);
+static OAUTH_SERVER: crate::oauth_listener::OAuthServer = crate::oauth_listener::OAuthServer::new();
 
 fn token_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     app.path().app_data_dir()
@@ -200,49 +198,17 @@ pub fn load_refresh_token(app: AppHandle) -> Result<Option<String>, String> {
     Ok(if trimmed.is_empty() { None } else { Some(trimmed) })
 }
 
-/// Binds a one-shot HTTP server on port 8888 and waits for the Spotify OAuth callback.
-/// On success, emits a "spotify-callback" event with the full callback URL string.
+/// Replace any pending login with a bounded listener authenticated by its random state.
 #[tauri::command]
-pub async fn start_oauth_listener(app: AppHandle) -> Result<(), String> {
-    // Already listening — reuse existing listener instead of double-binding
-    if OAUTH_LISTENING.swap(true, Ordering::SeqCst) {
-        return Ok(());
-    }
+pub async fn start_oauth_listener(app: AppHandle, state: String) -> Result<(), String> {
+    OAUTH_SERVER.start("127.0.0.1:8888", state, move |url| {
+        let _ = app.emit("spotify-callback", url);
+    }).await.map(|_| ()).map_err(|e| format!("OAuth listener failed: {e}"))
+}
 
-    let listener = match TcpListener::bind("127.0.0.1:8888") {
-        Ok(l) => l,
-        Err(e) => {
-            OAUTH_LISTENING.store(false, Ordering::SeqCst);
-            return Err(format!("포트 8888 사용 불가: {e}\n다른 프로그램이 해당 포트를 사용 중입니다."));
-        }
-    };
-
-    tokio::task::spawn_blocking(move || {
-        if let Ok((mut stream, _)) = listener.accept() {
-            let mut buf = vec![0u8; 4096];
-            let n = stream.read(&mut buf).unwrap_or(0);
-            let request = String::from_utf8_lossy(&buf[..n]).to_string();
-
-            // Parse path from "GET /callback?code=...&state=... HTTP/1.1"
-            let path = request.split_whitespace().nth(1).unwrap_or("/callback");
-            let callback_url = format!("http://127.0.0.1:8888{path}");
-
-            let body = "<html><body style='font-family:sans-serif;text-align:center;padding:60px;background:#111;color:#eee'>\
-                <h2 style='color:#1db954'>✅ 연결 완료</h2>\
-                <p>이 창을 닫고 Lyrical Sync로 돌아가세요.</p>\
-                </body></html>";
-            let response = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\n\r\n{}",
-                body.len(), body
-            );
-            let _ = stream.write_all(response.as_bytes());
-
-            let _ = app.emit("spotify-callback", callback_url);
-        }
-        OAUTH_LISTENING.store(false, Ordering::SeqCst);
-    });
-
-    Ok(())
+#[tauri::command]
+pub async fn cancel_oauth_listener() {
+    OAUTH_SERVER.cancel().await;
 }
 
 #[tauri::command]

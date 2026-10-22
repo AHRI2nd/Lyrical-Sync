@@ -176,3 +176,20 @@ describe("useServiceStore — session restore & logout", () => {
     expect(invoke).toHaveBeenCalledWith("clear_refresh_token");
   });
 });
+
+describe("OAuth listener security", () => {
+  beforeEach(() => { reset(); invoke.mockReset(); invoke.mockResolvedValue(undefined); });
+  it("passes the pending random state to the native listener", async () => {
+    const { useSettingsStore } = await import("./useSettingsStore");
+    useSettingsStore.setState({ spotifyClientId: "public-client-id" });
+    await useServiceStore.getState().startLogin();
+    expect(invoke).toHaveBeenCalledWith("start_oauth_listener", { state: useServiceStore.getState()._pendingOAuthState });
+  });
+  it("logout cancels the listener and invalidates pending callback credentials", () => {
+    useServiceStore.setState({ _pendingOAuthState: "old-state", _pendingCodeVerifier: "old-verifier" });
+    useServiceStore.getState().logout();
+    expect(invoke).toHaveBeenCalledWith("cancel_oauth_listener");
+    expect(useServiceStore.getState()._pendingOAuthState).toBeNull();
+    expect(useServiceStore.getState()._pendingCodeVerifier).toBeNull();
+  });
+});

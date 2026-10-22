@@ -117,7 +117,7 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
     set({ _pendingCodeVerifier: codeVerifier, _pendingOAuthState: state });
 
     // Start local HTTP listener before opening the browser so the callback is captured
-    await invoke("start_oauth_listener");
+    await invoke("start_oauth_listener", { state });
     const authUrl = buildAuthUrl(clientId, codeChallenge, state);
     await openUrl(authUrl);
   },
@@ -220,8 +220,11 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
 
   logout: () => {
     get()._stopInterpolation();
+    invoke("cancel_oauth_listener").catch(() => {});
     invoke("clear_refresh_token").catch(() => {});
     set({
+      _pendingOAuthState: null,
+      _pendingCodeVerifier: null,
       isLoggedIn: false,
       accessToken: null,
       tokenExpiresAt: null,
