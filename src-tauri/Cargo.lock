@@ -2257,6 +2257,7 @@ dependencies = [
  "cap-tempfile",
  "hound",
  "keyring",
+ "libc",
  "lofty",
  "reqwest 0.12.28",
  "serde",

@@ -40,7 +40,15 @@ impl ModelStore {
         })
     }
     pub fn read(&self, name: &str) -> io::Result<std::fs::File> {
-        let file = self.root.open(relative(name)?)?;
+        let mut options = cap_std::fs::OpenOptions::new();
+        options.read(true);
+        #[cfg(unix)]
+        {
+            use cap_std::fs::OpenOptionsExt;
+            // Inspect the opened descriptor without ever waiting for a FIFO writer.
+            options.custom_flags(libc::O_NONBLOCK);
+        }
+        let file = self.root.open_with(relative(name)?, &options)?;
         if !file.metadata()?.is_file() {
             return Err(io::Error::other("Model is not a regular file"));
         }
@@ -70,6 +78,35 @@ impl ModelStore {
 mod tests {
     use super::*;
     use std::io::Write;
+    #[cfg(unix)]
+    #[test]
+    fn fifo_models_are_rejected_without_waiting_for_a_writer() {
+        use std::os::unix::ffi::OsStrExt;
+        use std::os::unix::fs::OpenOptionsExt;
+        let root = tempfile::tempdir().unwrap();
+        let fifo = root.path().join("model.th");
+        let name = std::ffi::CString::new(fifo.as_os_str().as_bytes()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(name.as_ptr(), 0o600) }, 0);
+        let store = ModelStore::open(root.path()).unwrap();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = sender.send(store.read("model.th").is_err());
+        });
+        let result = receiver.recv_timeout(std::time::Duration::from_secs(2));
+        if result.is_err() {
+            // Release the old blocking implementation so the failing probe cleans up.
+            let _ = std::fs::OpenOptions::new()
+                .write(true)
+                .custom_flags(libc::O_NONBLOCK)
+                .open(&fifo);
+        }
+        assert_eq!(
+            result.ok(),
+            Some(true),
+            "Model checks must not wait on a FIFO"
+        );
+    }
+
     #[test]
     fn traversal_and_platform_ambiguous_names_are_rejected() {
         let root = tempfile::tempdir().unwrap();
