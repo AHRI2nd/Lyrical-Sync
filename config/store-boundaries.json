@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "upstreamBaseline": "7508c5b8fceff710a07af0c683cbbe7fa85d28cc",
-  "storeBaseline": "5a61233844bb807f6bcbcbd588d76607e2f4ffff",
+  "upstreamBaseline": "ca27fa46bed99ba9d426449fe2aa8b3cc8a5480a",
+  "storeBaseline": "ac91536d3eb1b93704da89109b7f2c7718e1a8f7",
   "sourceInventory": [
     "src-tauri/src/atomic_write.rs",
     "src-tauri/src/audio_decode.rs",
@@ -157,7 +157,10 @@
     ".github/ISSUE_TEMPLATE/feature_request.yml",
     ".github/workflows/release.yml",
     ".github/workflows/test.yml",
+    "scripts/audit_ai_dependencies.py",
+    "scripts/test_ai_dependency_audit.py",
     "scripts/test_ai_sidecars.py",
+    "scripts/test_updater_security.py",
     "src-tauri/ai-manifest.json",
     "src-tauri/requirements-ai.txt",
     "src-tauri/resources/mediaremote-adapter/LICENSE",
@@ -169,8 +172,10 @@
     "src-tauri/src/alignment_process.rs",
     "src-tauri/src/install_ctc.py",
     "src-tauri/src/lrclib.rs",
+    "src-tauri/src/model_store.rs",
     "src-tauri/src/models.rs",
     "src-tauri/src/now_playing.rs",
+    "src-tauri/src/oauth_listener.rs",
     "src-tauri/src/probe_ai.py",
     "src-tauri/src/python_env.rs",
     "src-tauri/src/python_runtime.rs",
@@ -272,10 +277,11 @@
     "src-tauri/windows-app.manifest": "08309be0fa431341a9df433ed4f0ad4581ab558906c291080c06a05fd64ac296",
     "packaging/msix/AppxManifest.xml.in": "3cb02fa8600d0871cb230b0eeb462a8625fa2408b3d8771d8e1fe698423713eb",
     "packaging/msix/store.json": "10c3a64285a3ff9fdad0eaf51189d14ecc123e5491633123e9f3050a79f2c979",
-    "scripts/appstore-build.sh": "0a24a0df191be5833eb06bd5e818314dc95ce3afd102a3eaf5e0636ff892c6b8",
+    "scripts/appstore-build.sh": "9a05cc569f6e06b08243d9db46b6e9b7f0cf0ebcde7d862be7e50e3ca719ec5f",
     "scripts/appstore-profile.py": "ac0e46498508fa6d4a66fd1cdeef4c527645af0ff89d72c5564eb98da9bfae2c",
     "scripts/msstore-build.ps1": "53d1baa59781797534c7934ef5f788822ce0f0377f60f5594518701c25ac4fec",
     "scripts/msix-stage.mjs": "8e191451cc2f8213e9cfbd09b8e57b45a47885bb9756fad76f014bcd3e27eb05",
-    "public/runtime-errors.js": "7542486f15d54e62724fd7a1f131b614d2c531f6d1117be9dcabd5eec189ecc9"
+    "public/runtime-errors.js": "7542486f15d54e62724fd7a1f131b614d2c531f6d1117be9dcabd5eec189ecc9",
+    "src-tauri/build.rs": "c2af8726350e168a916cdec1fe97766f7717301f8ccabe167db7a98b1d24c559"
   }
 }

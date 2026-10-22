@@ -20,7 +20,7 @@ Lyrical Sync uses yt-dlp to download audio from YouTube videos to a temporary fi
 3. Click the **"Download yt-dlp"** button.
 4. Once the download is complete, the status badge will change to **"Installed"**.
 
-> On macOS, the latest universal binary (arm64 + x86_64) is installed.
+> Lyrical Sync supports Apple Silicon Macs. Intel Macs are unsupported.
 
 ---
 

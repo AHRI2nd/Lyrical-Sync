@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -61,3 +61,19 @@ test('rejects a profile that forbids the WebKit runtime network entitlement', t 
   const f = fixture(t, { Entitlements: { 'com.apple.application-identifier': '7N6XWH2333.com.arisair.lyrical-sync', 'com.apple.developer.team-identifier': '7N6XWH2333', 'com.apple.security.network.client': false } });
   const r = f.run(); assert.notEqual(r.status, 0); assert.match(r.stderr, /forbids required entitlement.*network.client/i);
 });
+
+for (const target of ['x86_64-apple-darwin', 'universal-apple-darwin']) {
+  test(`rejects unsupported App Store target ${target} before preflight`, { skip: process.platform !== 'darwin' }, t => {
+    const dir = mkdtempSync(join(tmpdir(), 'appstore-target-test-'));
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+    const node = join(dir, 'node');
+    writeFileSync(node, '#!/bin/sh\necho "Unexpected preflight execution" >&2\nexit 93\n');
+    chmodSync(node, 0o755);
+    const result = spawnSync('/bin/bash', [resolve('scripts/appstore-build.sh'), '--unsigned'], {
+      encoding: 'utf8', env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, APPSTORE_TARGET: target }, timeout: 10000,
+    });
+    assert.equal(result.status, 1, result.stderr);
+    assert.match(result.stderr, new RegExp(`Unsupported Mac target: ${target}`));
+    assert.doesNotMatch(result.stderr, /Unexpected preflight/);
+  });
+}

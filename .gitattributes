@@ -26,3 +26,5 @@ scripts/msix-stage.mjs text eol=lf
 
 # Keep the reviewed pre-module runtime script byte-identical on Windows.
 public/runtime-errors.js text eol=lf
+
+src-tauri/build.rs text eol=lf
