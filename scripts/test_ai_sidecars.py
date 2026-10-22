@@ -141,6 +141,15 @@ class PackageProbeTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("native library cannot load", result.stderr)
 
+    def test_optimized_python_cannot_skip_security_version_checks(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            package = self.environment(root)
+            (package / "ctc_aligner.py").write_text("")
+            (root / "torch-2.14.1.dist-info/METADATA").write_text("Metadata-Version: 2.1\nName: torch\nVersion: 2.5.1\n")
+            result = subprocess.run([sys.executable, "-O", "-S", str(ROOT / "src-tauri/src/probe_ai.py")], env={**os.environ, "PYTHONPATH": str(root)}, capture_output=True, text=True, timeout=10)
+            self.assertNotEqual(result.returncode, 0)
+
     def test_valid_native_loader_and_versions_are_ready(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

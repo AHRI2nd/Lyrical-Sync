@@ -56,7 +56,10 @@ use std::path::Path;
 use std::time::Duration;
 
 const REQUIREMENTS: &str = include_str!("../requirements-ai.txt");
-const RUNTIME_PROBE: &str = "import ssl, ensurepip, venv, ctypes, sqlite3; import sys; assert sys.version_info[:3] == (3, 11, 10)";
+const RUNTIME_PROBE: &str = r#"import ssl, ensurepip, venv, ctypes, sqlite3, sys
+if sys.version_info[:3] != (3, 11, 10):
+    raise RuntimeError("Unsupported embedded Python version")
+"#;
 const PACKAGE_PROBE: &str = include_str!("probe_ai.py");
 
 #[derive(Serialize, Clone)]
