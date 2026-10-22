@@ -35,6 +35,26 @@ class ModelIntegrityTests(unittest.TestCase):
             self.assertEqual(list(Path(folder).iterdir()), [])
 
 
+class PlatformSupportTests(unittest.TestCase):
+    def test_build_script_rejects_intel_mac_but_accepts_release_targets(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "check.rs"
+            source.write_text('mod tauri_build { pub fn build() {} }\ninclude!(' + repr(str(ROOT / "src-tauri/build.rs")).replace("'", '"') + ');')
+            binary = root / ("check.exe" if os.name == "nt" else "check")
+            subprocess.run(["rustc", "--edition=2021", str(source), "-o", str(binary)], check=True, capture_output=True)
+            for target_os, arch, supported in [("macos", "x86_64", False), ("macos", "aarch64", True), ("windows", "x86_64", True)]:
+                result = subprocess.run([str(binary)], env={**os.environ, "CARGO_CFG_TARGET_OS": target_os, "CARGO_CFG_TARGET_ARCH": arch}, capture_output=True, text=True)
+                self.assertEqual(result.returncode == 0, supported, result.stderr)
+
+    def test_embedded_runtime_has_no_intel_macos_distribution(self):
+        import json
+        manifest = json.loads((ROOT / "src-tauri/ai-manifest.json").read_text())
+        self.assertNotIn("x86_64-apple-darwin", manifest["python"])
+        self.assertIn("aarch64-apple-darwin", manifest["python"])
+        self.assertIn("x86_64-pc-windows-msvc", manifest["python"])
+
+
 class DemucsIntegrityTests(unittest.TestCase):
     def load(self, path, expected, loader):
         source = ROOT / "src-tauri/src/separate.py"
@@ -88,7 +108,7 @@ class PackageProbeTests(unittest.TestCase):
         # metadata machinery and the shipped readiness probe run unchanged.
         versions = {"ctc-forced-aligner": "1.0.2", "demucs": "4.0.1", "numpy": "1.26.4", "onnxruntime": "1.20.1", "librosa": "0.10.2.post1", "Unidecode": "1.3.8"}
         import platform
-        version = "2.2.2" if sys.platform == "darwin" and platform.machine() == "x86_64" else "2.5.1"
+        version = "2.5.1"
         versions.update(torch=version, torchaudio=version)
         for name, version in versions.items():
             dist = root / (name.replace("-", "_") + "-" + version + ".dist-info")

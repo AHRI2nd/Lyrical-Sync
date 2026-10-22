@@ -5,10 +5,6 @@
       "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20241016/cpython-3.11.10%2B20241016-aarch64-apple-darwin-install_only.tar.gz",
       "sha256": "5a69382da99c4620690643517ca1f1f53772331b347e75f536088c42a4cf6620"
     },
-    "x86_64-apple-darwin": {
-      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20241016/cpython-3.11.10%2B20241016-x86_64-apple-darwin-install_only.tar.gz",
-      "sha256": "1e23ffe5bc473e1323ab8f51464da62d77399afb423babf67f8e13c82b69c674"
-    },
     "x86_64-pc-windows-msvc": {
       "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20241016/cpython-3.11.10%2B20241016-x86_64-pc-windows-msvc-install_only.tar.gz",
       "sha256": "647b66ff4552e70aec3bf634dd470891b4a2b291e8e8715b3bdb162f577d4c55"
