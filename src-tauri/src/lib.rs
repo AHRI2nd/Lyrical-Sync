@@ -5,6 +5,7 @@ mod python_runtime;
 mod alignment_process;
 mod atomic_write;
 mod batch_output;
+mod oauth_listener;
 mod service_auth;
 use service_auth::*;
 mod now_playing;
@@ -196,6 +197,7 @@ pub fn run() {
             run_alignment,
             cancel_alignment,
             start_oauth_listener,
+            cancel_oauth_listener,
             exchange_spotify_token,
             refresh_spotify_token,
             save_refresh_token,
