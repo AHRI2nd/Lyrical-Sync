@@ -18,6 +18,7 @@
     "prebuild": "node scripts/check-dependencies.mjs",
     "pretest": "node scripts/check-dependencies.mjs",
     "pretauri": "node scripts/check-dependencies.mjs",
+    "test:build-commands": "node --test scripts/windows-build-commands.node-test.mjs scripts/windows-pe.node-test.mjs",
     "test:dependencies": "node --test scripts/check-dependencies.node-test.mjs"
   },
   "dependencies": {

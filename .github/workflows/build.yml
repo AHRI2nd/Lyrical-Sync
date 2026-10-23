@@ -42,6 +42,8 @@ jobs:
         run: npm ci
       - name: Test dependency restoration
         run: npm run test:dependencies
+      - name: Test Windows architecture and build commands
+        run: npm run test:build-commands
       - name: Test native Store adapters
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked
       - name: Test Microsoft Store feature
