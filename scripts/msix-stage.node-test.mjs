@@ -71,3 +71,34 @@ test('rejects symlink runtime files instead of copying files outside its source'
 test('rejects a tested OS version below the package minimum', t => {
   const f = fixture(t); const r = f.run(['--max-version-tested', '10.0.17763.0']); assert.notEqual(r.status, 0); assert.match(r.stderr, /version|minimum/i);
 });
+
+function machine(file, value) {
+  const bytes = readFileSync(file); bytes.writeUInt16LE(value, 132); writeFileSync(file, bytes);
+}
+test('stages native ARM64 app and runtime with the same Store identity and version mapping', t => {
+  const f = fixture(t); machine(f.binary, 0xaa64); machine(join(f.runtime, 'msedgewebview2.exe'), 0xaa64);
+  const r = f.run(['--architecture', 'arm64']); assert.equal(r.status, 0, r.stderr);
+  const payload = JSON.parse(r.stdout);
+  assert.equal(payload.architecture, 'arm64'); assert.equal(payload.version, '1.6.101.0');
+  assert.deepEqual(payload.identity, f.identity);
+  const xml = readFileSync(join(f.stage, 'AppxManifest.xml'), 'utf8');
+  assert.match(xml, /ProcessorArchitecture="arm64"/);
+  assert.match(xml, /Name="TsukimoriAhri\.LyricalSync"/);
+  assert.match(xml, /Publisher="CN=2D6FFCE0-A794-4D2D-ACC8-9021F42D6211"/);
+  assert.equal(payload.files.some(file => file.path === 'WebView2/msedgewebview2.exe'), true);
+});
+test('rejects x64 app with native ARM runtime in an ARM package', t => {
+  const f = fixture(t); machine(join(f.runtime, 'msedgewebview2.exe'), 0xaa64);
+  const r = f.run(['--architecture', 'arm64']); assert.notEqual(r.status, 0); assert.match(r.stderr, /architecture|arm64/i); assert.equal(existsSync(f.stage), false);
+});
+test('rejects x64 runtime in an ARM package', t => {
+  const f = fixture(t); machine(f.binary, 0xaa64);
+  const r = f.run(['--architecture', 'arm64']); assert.notEqual(r.status, 0); assert.match(r.stderr, /architecture|arm64/i); assert.equal(existsSync(f.stage), false);
+});
+test('rejects ARM runtime in an x64 package', t => {
+  const f = fixture(t); machine(join(f.runtime, 'msedgewebview2.exe'), 0xaa64);
+  const r = f.run(); assert.notEqual(r.status, 0); assert.match(r.stderr, /architecture|x64/i); assert.equal(existsSync(f.stage), false);
+});
+test('rejects unsupported package architecture before creating staging', t => {
+  const f = fixture(t); const r = f.run(['--architecture', 'any']); assert.notEqual(r.status, 0); assert.match(r.stderr, /architecture/i); assert.equal(existsSync(f.stage), false);
+});
