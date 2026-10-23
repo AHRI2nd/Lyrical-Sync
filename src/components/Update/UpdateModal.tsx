@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useId, useRef } from "react";
+import { useModalFocus } from "../../hooks/useModalFocus";
 import { useUpdaterStore } from "../../stores/useUpdaterStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useBusyStore } from "../../stores/useBusyStore";
@@ -16,14 +17,9 @@ export function UpdateModal() {
 
   const visible = status === "available" || status === "downloading" || status === "ready" || status === "error";
 
-  useEffect(() => {
-    if (!visible) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && status !== "downloading") dismiss();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [visible, status, dismiss]);
+  const dialog = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useModalFocus(dialog, status === "downloading" ? undefined : dismiss, visible);
 
   if (!visible) return null;
 
@@ -32,12 +28,12 @@ export function UpdateModal() {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={() => { if (status !== "downloading") dismiss(); }}
     >
-      <div
+      <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
         className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-5 py-4 border-b border-[var(--ls-border-subtle)]">
-          <span className="font-semibold text-[var(--ls-text)]">
+          <span id={titleId} className="font-semibold text-[var(--ls-text)]">
             {status === "ready" ? t.updater.readyTitle : status === "error" ? t.updater.errorTitle : t.updater.title}
           </span>
         </div>

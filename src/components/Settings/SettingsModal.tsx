@@ -1,6 +1,6 @@
 import { SettingsTabBar, TabBtn } from "./SettingsTabs";
-import { isComposingKeyEvent } from "../../utils/keybindings";
-import { useEffect, useRef, useState } from "react";
+import { useModalFocus } from "../../hooks/useModalFocus";
+import { useId, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -33,19 +33,9 @@ export function SettingsModal({
   const youtubeGuideUrl = `https://ahri2nd.xyz/posts/lyrical-sync-youtube-guide-${guideSuffix}/`;
   const [checkState, setCheckState] = useState<CheckState>("idle");
   const [tab, setTab] = useState<Tab>(initialTab);
-  const returnFocus = useRef(document.activeElement);
-  useEffect(() => () => {
-    const target = returnFocus.current;
-    if (target instanceof HTMLElement && target.isConnected) target.focus({ preventScroll: true });
-  }, []);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !isComposingKeyEvent(e)) onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
+  const dialog = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useModalFocus(dialog, onClose);
 
   const handleCheckNow = async () => {
     setCheckState("checking");
@@ -64,13 +54,13 @@ export function SettingsModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={onClose}
     >
-      <div
+      <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
         className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden flex flex-col max-h-[calc(100%-2rem)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)] shrink-0">
-          <span className="font-semibold text-[var(--ls-text)]">{t.settingsTitle}</span>
+          <span id={titleId} className="font-semibold text-[var(--ls-text)]">{t.settingsTitle}</span>
           <button
             onClick={onClose}
             aria-label={t.close}
