@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        os: [macos-latest, windows-latest, windows-11-arm]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -28,14 +28,19 @@ jobs:
           node-version: 22
           cache: npm
       - uses: actions/setup-python@v5
+        if: matrix.os != 'windows-11-arm'
         with:
           python-version: '3.11'
+      - name: Verify native ARM64 test interpreter
+        if: matrix.os == 'windows-11-arm'
+        run: python -c "import sysconfig; assert sysconfig.get_platform() == 'win-arm64', sysconfig.get_platform()"
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
       - run: npm ci
       - run: npm run test:dependencies
+      - run: node --test scripts/windows-build-commands.node-test.mjs
       - run: npm test
       - run: python scripts/test_ai_sidecars.py
       - run: python scripts/test_ai_profiles.py
@@ -47,5 +52,6 @@ jobs:
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
       - run: python scripts/test_updater_security.py
       - run: python scripts/test_release_manifest.py
+      - run: python scripts/test_windows_build.py
       - name: Build native debug application
-        run: npm run tauri -- build --debug --no-bundle
+        run: npm run tauri -- build --debug --no-bundle -- --locked

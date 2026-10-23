@@ -75,7 +75,9 @@
 
 ### Windows
 
-[Releases](../../releases) ページから最新の `.msi` または `_x64-setup.exe` インストーラーをダウンロードして実行します。
+[Releases](../../releases) でアーキテクチャに合うインストーラーを選びます。**x64** は `.msi` または `_x64-setup.exe`、**ARM64** は `_arm64-setup.exe`（NSIS）を使用します。ARM64 の AI ツールは CPU でネイティブ実行されます。
+
+更新はインストール済みアプリのアーキテクチャを維持します。Windows ARM 上の x64 アプリも x64 更新を受け取ります。変更する場合は対応するインストーラーで明示的に再インストールしてください。ARM64 の Python と yt-dlp のキャッシュは既存の x64 キャッシュから分離されます。
 
 > **SmartScreen の警告**
 >
@@ -144,3 +146,19 @@ npm test            # フロントエンド単体テスト
 ```
 
 ビルド成果物は `src-tauri/target/release/bundle/` に出力されます。
+
+
+### Windows architecture builds
+
+```sh
+npm ci
+npm run build:windows-arm64
+npm run build:windows-x64
+```
+
+Install the matching Rust target and MSVC C++ build tools first. ARM64 builds also
+require LLVM/clang on PATH for the cryptography dependency. ARM64 uses NSIS;
+x64 retains NSIS and MSI. Output paths include the Rust target triple under
+`src-tauri/target/`. Native ARM64 AI wheel provenance and rebuild instructions
+are in `src-tauri/resources/windows-arm64-ai/README.md`. The ARM-specific package
+pins are in `src-tauri/requirements-ai-windows-arm64.txt`.

@@ -75,7 +75,9 @@ Download the latest `.dmg` installer from the [Releases](../../releases) page an
 
 ### Windows
 
-Download the latest `.msi` or `_x64-setup.exe` installer from the [Releases](../../releases) page and run it.
+Choose the installer for your architecture from [Releases](../../releases): **x64** uses `.msi` or `_x64-setup.exe`; **ARM64** uses `_arm64-setup.exe` (NSIS). ARM64 AI tools run natively on the CPU.
+
+Updates retain the installed app architecture, including an x64 app running on Windows ARM. Switch architectures through a deliberate reinstall. ARM64 Python and yt-dlp caches are separate from existing x64 caches.
 
 > **SmartScreen warning**
 >
@@ -115,7 +117,7 @@ Default bindings — all of these can be remapped in **Settings → Shortcuts**.
 | Styling | Tailwind CSS + @tailwindcss/vite | 4.3.2 |
 | State management | Zustand | 5.0.14 |
 | Waveform | Wavesurfer.js | 7.12.10 |
-| AI runtime | Embedded Python | 3.11.10 (build 20241016) |
+| AI runtime | Embedded Python | 3.11.10 (build 20241016); Windows ARM64: 3.12.15 (build 20261021) |
 | AI alignment | ctc-forced-aligner + MMS-300M | `1.0.2`; ONNX revision `77d85f9` + SHA-256 |
 | Vocal separation | Demucs + htdemucs checkpoint | Demucs `4.0.1`; checkpoint SHA-256 `8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4` |
 | Audio tags / transcode | lofty + Symphonia (Rust) | 0.22.4, 0.5.5 |
@@ -144,3 +146,19 @@ npm test            # frontend unit tests
 ```
 
 Build output is placed in `src-tauri/target/release/bundle/`.
+
+
+### Windows architecture builds
+
+```sh
+npm ci
+npm run build:windows-arm64
+npm run build:windows-x64
+```
+
+Install the matching Rust target and MSVC C++ build tools first. ARM64 builds also
+require LLVM/clang on PATH for the cryptography dependency. ARM64 uses NSIS;
+x64 retains NSIS and MSI. Output paths include the Rust target triple under
+`src-tauri/target/`. Native ARM64 AI wheel provenance and rebuild instructions
+are in `src-tauri/resources/windows-arm64-ai/README.md`. The ARM-specific package
+pins are in `src-tauri/requirements-ai-windows-arm64.txt`.

@@ -59,7 +59,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          args: --locked --target ${{ matrix.target }} ${{ matrix.bundleArgs }}
+          args: --target ${{ matrix.target }} ${{ matrix.bundleArgs }} -- --locked
+
+      - name: Verify Windows artifact architecture
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          ARCH=x64
+          if [ "${{ matrix.target }}" = "aarch64-pc-windows-msvc" ]; then ARCH=arm64; fi
+          python scripts/verify_windows_build.py --architecture "$ARCH" --version "$VERSION" --binary "src-tauri/target/${{ matrix.target }}/release/lyrical-sync.exe" --installer-dir "src-tauri/target/${{ matrix.target }}/release/bundle/nsis"
 
       - name: Upload artifacts (macOS)
         if: runner.os == 'macOS'
