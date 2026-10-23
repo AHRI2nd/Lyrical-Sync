@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "upstreamBaseline": "ca27fa46bed99ba9d426449fe2aa8b3cc8a5480a",
-  "storeBaseline": "ac91536d3eb1b93704da89109b7f2c7718e1a8f7",
+  "upstreamBaseline": "de300f26b89297f8e4d0f65e77f3170af09b60b4",
+  "storeBaseline": "21a8117efbc134ffd652f0f7513f41389bc6c6b6",
   "sourceInventory": [
     "src-tauri/src/atomic_write.rs",
     "src-tauri/src/audio_decode.rs",
