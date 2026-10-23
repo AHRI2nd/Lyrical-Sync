@@ -5,7 +5,7 @@ import importlib.metadata as metadata
 import json
 import os
 from pathlib import Path
-import platform
+import sysconfig
 import subprocess
 import sys
 import tarfile
@@ -23,7 +23,7 @@ def main():
     parser.add_argument('--work-dir',type=Path,required=True)
     parser.add_argument('--output',type=Path,required=True)
     args=parser.parse_args()
-    if sys.platform!='win32' or platform.machine().upper()!='ARM64' or sys.version_info[:2]!=(3,12):
+    if sys.platform!='win32' or sysconfig.get_platform()!='win-arm64' or sys.version_info[:2]!=(3,12):
         raise RuntimeError('Run under native Windows ARM64 CPython 3.12')
     for name,version in {'torch':'2.14.1+cpu','numpy':'2.5.4','setuptools':'84.2.1','wheel':'0.48.0'}.items():
         if metadata.version(name)!=version:raise RuntimeError(f'Unsupported build dependency: {name}')

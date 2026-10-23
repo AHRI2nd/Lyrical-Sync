@@ -67,16 +67,16 @@ if sys.version_info[:3] != (3, 11, 10):
     raise RuntimeError("Unsupported embedded Python version")
 "#;
 #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
-const RUNTIME_PROBE: &str = r#"import ssl, ensurepip, venv, ctypes, sqlite3, sys, platform
-if sys.version_info[:3] != (3, 12, 15) or sys.platform != "win32" or platform.machine().upper() != "ARM64":
+const RUNTIME_PROBE: &str = r#"import ssl, ensurepip, venv, ctypes, sqlite3, sys, sysconfig
+if sys.version_info[:3] != (3, 12, 15) or sys.platform != "win32" or sysconfig.get_platform() != "win-arm64":
     raise RuntimeError("Unsupported Windows ARM64 embedded Python")
 "#;
 #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
 const PACKAGE_PROBE: &str = include_str!("probe_ai.py");
 #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
 const PACKAGE_PROBE: &str = concat!(
-    r#"import sys, platform
-if sys.platform != "win32" or platform.machine().upper() != "ARM64":
+    r#"import sys, sysconfig
+if sys.platform != "win32" or sysconfig.get_platform() != "win-arm64":
     raise RuntimeError("Windows ARM64 requires a native interpreter")
 "#,
     include_str!("probe_ai.py")
