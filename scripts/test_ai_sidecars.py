@@ -4,6 +4,7 @@ import tempfile
 import subprocess
 import sys
 import os
+import sysconfig
 import unittest
 from pathlib import Path
 
@@ -43,7 +44,7 @@ class PlatformSupportTests(unittest.TestCase):
             source.write_text('mod tauri_build { pub fn build() {} }\ninclude!(' + repr(str(ROOT / "src-tauri/build.rs")).replace("'", '"') + ');', encoding="utf-8")
             binary = root / ("check.exe" if os.name == "nt" else "check")
             subprocess.run(["rustc", "--edition=2021", str(source), "-o", str(binary)], check=True, capture_output=True)
-            for target_os, arch, supported in [("macos", "x86_64", False), ("macos", "aarch64", True), ("windows", "x86_64", True)]:
+            for target_os, arch, supported in [("macos", "x86_64", False), ("macos", "aarch64", True), ("windows", "x86_64", True), ("windows", "aarch64", True)]:
                 result = subprocess.run([str(binary)], env={**os.environ, "CARGO_CFG_TARGET_OS": target_os, "CARGO_CFG_TARGET_ARCH": arch}, capture_output=True, text=True)
                 self.assertEqual(result.returncode == 0, supported, result.stderr)
 
@@ -123,14 +124,20 @@ class PackageProbeTests(unittest.TestCase):
         # Only the external ML boundary is substituted. Python's import and
         # metadata machinery and the shipped readiness probe run unchanged.
         versions = {"ctc-forced-aligner": "1.0.2", "demucs": "4.0.1", "numpy": "1.26.4", "onnxruntime": "1.20.1", "librosa": "0.10.2.post1", "Unidecode": "1.3.8"}
-        import platform
         versions.update(torch="2.14.1", torchaudio="2.11.0", setuptools="84.2.1", wheel="0.48.0", pip="26.2.2")
+        native_arm = sys.platform == "win32" and sysconfig.get_platform() == "win-arm64"
+        if native_arm:
+            versions.update(numpy="2.5.4", onnxruntime="1.31.0", torch="2.14.1+cpu", soxr="1.1.0")
         for name, version in versions.items():
             dist = root / (name.replace("-", "_") + "-" + version + ".dist-info")
             dist.mkdir()
             (dist / "METADATA").write_text("Metadata-Version: 2.1\nName: " + name + "\nVersion: " + version + "\n", encoding="utf-8")
         for name in ["onnxruntime", "unidecode", "demucs", "torch", "torchaudio"]:
             (root / (name + ".py")).write_text("", encoding="utf-8")
+        (root / "torch.py").write_text(
+            "from types import SimpleNamespace\nversion = SimpleNamespace(cuda=None)\n__version__ = " + repr(versions["torch"]) + "\n",
+            encoding="utf-8",
+        )
         package = root / "ctc_forced_aligner"
         package.mkdir()
         exports = ["load_audio", "generate_emissions", "preprocess_text", "get_alignments", "get_spans", "postprocess_results", "Tokenizer"]
@@ -162,7 +169,7 @@ class PackageProbeTests(unittest.TestCase):
             root = Path(folder)
             package = self.environment(root)
             (package / "ctc_aligner.py").write_text("", encoding="utf-8")
-            (root / "torch-2.14.1.dist-info/METADATA").write_text("Metadata-Version: 2.1\nName: torch\nVersion: 2.5.1\n", encoding="utf-8")
+            (next(root.glob("torch-*.dist-info")) / "METADATA").write_text("Metadata-Version: 2.1\nName: torch\nVersion: 2.5.1\n", encoding="utf-8")
             result = subprocess.run([sys.executable, "-O", "-S", str(ROOT / "src-tauri/src/probe_ai.py")], env={**os.environ, "PYTHONPATH": str(root)}, capture_output=True, text=True, timeout=10)
             self.assertNotEqual(result.returncode, 0)
 
