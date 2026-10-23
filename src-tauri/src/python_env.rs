@@ -2,13 +2,15 @@ use serde::Serialize;
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Manager};
 
-// A self-contained Python 3.11 is downloaded once into the app data directory.
+// A verified self-contained Python is downloaded into an architecture-specific directory.
 // This removes any dependency on the user's system Python / conda / pyenv.
 
 pub fn embedded_python_dir(app: &AppHandle) -> Result<PathBuf, String> {
     app.path()
         .app_data_dir()
-        .map(|d| d.join("embedded_python"))
+        .map(|d| {
+            crate::platform_profile::python_root(&d, std::env::consts::OS, std::env::consts::ARCH)
+        })
         .map_err(|e| e.to_string())
 }
 
@@ -55,12 +57,30 @@ use sha2::{Digest, Sha256};
 use std::path::Path;
 use std::time::Duration;
 
+#[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
 const REQUIREMENTS: &str = include_str!("../requirements-ai.txt");
+#[cfg(all(target_os = "windows", target_arch = "aarch64"))]
+const REQUIREMENTS: &str = include_str!("../requirements-ai-windows-arm64.txt");
+#[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
 const RUNTIME_PROBE: &str = r#"import ssl, ensurepip, venv, ctypes, sqlite3, sys
 if sys.version_info[:3] != (3, 11, 10):
     raise RuntimeError("Unsupported embedded Python version")
 "#;
+#[cfg(all(target_os = "windows", target_arch = "aarch64"))]
+const RUNTIME_PROBE: &str = r#"import ssl, ensurepip, venv, ctypes, sqlite3, sys, platform
+if sys.version_info[:3] != (3, 12, 15) or sys.platform != "win32" or platform.machine().upper() != "ARM64":
+    raise RuntimeError("Unsupported Windows ARM64 embedded Python")
+"#;
+#[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
 const PACKAGE_PROBE: &str = include_str!("probe_ai.py");
+#[cfg(all(target_os = "windows", target_arch = "aarch64"))]
+const PACKAGE_PROBE: &str = concat!(
+    r#"import sys, platform
+if sys.platform != "win32" or platform.machine().upper() != "ARM64":
+    raise RuntimeError("Windows ARM64 requires a native interpreter")
+"#,
+    include_str!("probe_ai.py")
+);
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -127,6 +147,8 @@ fn platform_key() -> &'static str {
         "aarch64-apple-darwin"
     } else if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
         "x86_64-pc-windows-msvc"
+    } else if cfg!(all(target_os = "windows", target_arch = "aarch64")) {
+        "aarch64-pc-windows-msvc"
     } else {
         "unsupported"
     }
@@ -287,46 +309,61 @@ pub async fn install_python_packages(app: AppHandle) -> Result<(), String> {
         tokio::fs::write(&requirements, REQUIREMENTS)
             .await
             .map_err(|e| e.to_string())?;
-        install_step(
-            &app,
-            python_cmd(&python)
-                .args([
-                    "-m",
-                    "pip",
-                    "install",
-                    "--prefer-binary",
-                    "--disable-pip-version-check",
-                    "-r",
-                ])
-                .arg(&requirements),
-        )
-        .await?;
-        let archive = stage.path().join("ctc_forced_aligner-1.0.2.tar.gz");
-        download_verified(&app, &manifest()?["aligner"], &archive, false).await?;
-        #[cfg(windows)]
+        let mut packages = python_cmd(&python);
+        packages
+            .args([
+                "-m",
+                "pip",
+                "install",
+                "--prefer-binary",
+                "--disable-pip-version-check",
+                "-r",
+            ])
+            .arg(&requirements);
+        #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
         {
-            let patch = stage.path().join("install_ctc.py");
-            tokio::fs::write(&patch, include_str!("install_ctc.py"))
-                .await
-                .map_err(|e| e.to_string())?;
-            install_step(&app, python_cmd(&python).arg(&patch).arg(&archive)).await?;
+            // Explicit local wheel inputs cannot be substituted by an index candidate.
+            let wheels = stage.path().join("verified-wheels");
+            let bundled = crate::arm_ai::stage_bundled_wheels(&wheels)?;
+            let data = manifest()?;
+            let torch = wheels.join("torch-2.14.1+cpu-cp312-cp312-win_arm64.whl");
+            download_verified(&app, &data["windowsArm64Torch"], &torch, false).await?;
+            packages.args(&bundled).arg(&torch);
         }
-        #[cfg(not(windows))]
-        install_step(
-            &app,
-            python_cmd(&python)
-                .args(["-m", "pip", "install", "--no-build-isolation", "--no-deps"])
-                .arg(&archive),
-        )
-        .await?;
+        install_step(&app, &mut packages).await?;
+        #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+        {
+            let archive = stage.path().join("ctc_forced_aligner-1.0.2.tar.gz");
+            download_verified(&app, &manifest()?["aligner"], &archive, false).await?;
+            #[cfg(windows)]
+            {
+                let patch = stage.path().join("install_ctc.py");
+                tokio::fs::write(&patch, include_str!("install_ctc.py"))
+                    .await
+                    .map_err(|e| e.to_string())?;
+                install_step(&app, python_cmd(&python).arg(&patch).arg(&archive)).await?;
+            }
+            #[cfg(not(windows))]
+            install_step(
+                &app,
+                python_cmd(&python)
+                    .args(["-m", "pip", "install", "--no-build-isolation", "--no-deps"])
+                    .arg(&archive),
+            )
+            .await?;
+        }
         install_step(&app, python_cmd(&python).args(["-m", "pip", "check"])).await?;
         if !probe(&python, PACKAGE_PROBE).await {
             return Err("AI package validation failed; previous installation was retained".into());
         }
         // Approve the complete resolved graph before replacing the live runtime.
         let audit = stage.path().join("audit_ai_dependencies.py");
-        tokio::fs::write(&audit, include_str!("../../scripts/audit_ai_dependencies.py"))
-            .await.map_err(|e| e.to_string())?;
+        tokio::fs::write(
+            &audit,
+            include_str!("../../scripts/audit_ai_dependencies.py"),
+        )
+        .await
+        .map_err(|e| e.to_string())?;
         install_step(&app, python_cmd(&python).arg(&audit).arg("--installed")).await?;
         let graph = python_cmd(&python)
             .args(["-m", "pip", "freeze", "--all"])

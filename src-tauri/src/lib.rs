@@ -2,6 +2,9 @@
 compile_error!("Lyrical Sync supports Apple Silicon Macs only; Intel macOS is unsupported.");
 
 mod python_runtime;
+mod platform_profile;
+#[cfg(any(all(target_os = "windows", target_arch = "aarch64"), test))]
+mod arm_ai;
 mod alignment_process;
 mod atomic_write;
 mod batch_output;
