@@ -43,6 +43,7 @@ export function GeneralSettingsTab({
             ].join(" ")}`}
             role="switch"
             aria-checked={autoCheckUpdate}
+            aria-label={t.settingsAutoUpdate}
           >
             <span
               className={[
@@ -82,6 +83,7 @@ export function GeneralSettingsTab({
             ].join(" ")}`}
             role="switch"
             aria-checked={autoSave}
+            aria-label={t.settingsAutoSave}
           >
             <span
               className={[
@@ -108,6 +110,7 @@ export function GeneralSettingsTab({
             ].join(" ")}`}
             role="switch"
             aria-checked={showElrcSaveNotice}
+            aria-label={t.settingsElrcNotice}
           >
             <span
               className={[
@@ -224,6 +227,7 @@ export function GeneralSettingsTab({
             ].join(" ")}`}
             role="switch"
             aria-checked={showGlyphTimeMarkers}
+            aria-label={t.settingsGlyphMarkers}
           >
             <span
               className={[
@@ -250,6 +254,7 @@ export function GeneralSettingsTab({
             ].join(" ")}`}
             role="switch"
             aria-checked={showSpellCheck}
+            aria-label={t.settingsSpellCheck}
           >
             <span
               className={[
@@ -276,6 +281,7 @@ export function GeneralSettingsTab({
             ].join(" ")}`}
             role="switch"
             aria-checked={showTranslationLines}
+            aria-label={t.translationToggle}
           >
             <span
               className={[
