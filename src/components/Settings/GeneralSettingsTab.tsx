@@ -3,7 +3,7 @@ import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { ConfirmModal } from "../AppShell/ConfirmModal";
 
-export type CheckState = "idle" | "checking" | "upToDate";
+export type CheckState = "idle" | "checking" | "upToDate" | "error";
 
 export function GeneralSettingsTab({
   checkState,
@@ -63,6 +63,9 @@ export function GeneralSettingsTab({
           >
             {checkState === "checking" ? t.settingsChecking : t.settingsCheckNow}
           </button>
+          {checkState === "error" && (
+            <span role="alert" className="text-xs text-rose-400">{t.updater.errorTitle}</span>
+          )}
           {checkState === "upToDate" && (
             <span className="text-xs text-emerald-400">{t.settingsUpToDate}</span>
           )}
