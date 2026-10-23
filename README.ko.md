@@ -41,3 +41,12 @@ Windows MSIX에는 Fixed Version WebView2가 포함됩니다. `runFullTrust`는 
 ## 라이선스
 
 [MIT](LICENSE). 외부 구성요소의 라이선스는 별도로 적용됩니다. 사용 권한이 있는 파일을 선택하세요.
+
+## Windows Store 아키텍처
+
+Store 패키징은 `x64`(기본값)와 `arm64`를 지원합니다. 각 패키지와 같은 아키텍처의 Microsoft Fixed Version WebView2 런타임을 지정해야 합니다. 앱·런타임·MSIX의 아키텍처가 다르면 패키징을 거부합니다. 기존 Store ID와 버전 매핑은 유지합니다. CI는 두 아키텍처를 컴파일하고 실행 파일을 별도 아티팩트로 업로드합니다. 전체 MSIX 생성은 아래 명령을 사용하며, 앱 업데이트는 Microsoft Store에서 제공합니다.
+
+```powershell
+npm run build:msstore -- -Architecture x64 -RuntimePath "C:\WebView2\x64"
+npm run build:msstore -- -Architecture arm64 -RuntimePath "C:\WebView2\arm64"
+```

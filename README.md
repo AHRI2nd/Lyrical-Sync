@@ -41,3 +41,12 @@ For local development, install Node.js, Rust and the platform build tools, then 
 ## License
 
 [MIT](LICENSE). Third-party components retain their own licenses. Choose files you have permission to use.
+
+## Windows Store architectures
+
+The Store packaging script supports `x64` (default) and `arm64`. Supply the matching Microsoft Fixed Version WebView2 runtime for each package. The app, runtime and MSIX architecture must agree; mixed payloads are rejected. Both use the existing Store identity and version mapping. CI compiles both architectures and uploads separate executable artifacts; full MSIX packaging uses the commands below. Store updates continue through Microsoft Store.
+
+```powershell
+npm run build:msstore -- -Architecture x64 -RuntimePath "C:\WebView2\x64"
+npm run build:msstore -- -Architecture arm64 -RuntimePath "C:\WebView2\arm64"
+```

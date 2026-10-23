@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -21,3 +22,12 @@ for (const [arch, machine] of [['x64', 0x8664], ['arm64', 0xaa64]]) {
 }
 test('rejects unsupported architecture instead of accepting an arbitrary machine', async t => assert.throws(await check(t, 0x8664, 'ia32'), /architecture/i));
 test('rejects an unrecognized PE machine', async t => assert.throws(await check(t, 0, 'x64'), /architecture/i));
+
+test('build preflight CLI rejects an incompatible executable', async t => {
+  const module = new URL('./windows-pe.mjs', import.meta.url);
+  const { spawnSync } = await import('node:child_process');
+  const folder = mkdtempSync(join(tmpdir(), 'store-pe-cli-')); t.after(() => rmSync(folder, { recursive: true, force: true }));
+  const file = join(folder, 'bad.exe'); writeFileSync(file, 'not PE');
+  const result = spawnSync(process.execPath, [fileURLToPath(module), file, 'arm64'], { encoding: 'utf8' });
+  assert.notEqual(result.status, 0); assert.match(result.stderr, /PE/);
+});

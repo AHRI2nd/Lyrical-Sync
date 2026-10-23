@@ -1,4 +1,6 @@
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /** Validate the real machine field, independently of file names and host CPU. */
 export function assertMachine(file, architecture) {
@@ -11,4 +13,11 @@ export function assertMachine(file, architecture) {
   const machine = bytes.readUInt16LE(offset + 4);
   if (machine !== expected) throw new Error(`Executable architecture must be ${architecture}: ${file}`);
   return machine;
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try {
+    const machine = assertMachine(process.argv[2], process.argv[3]);
+    console.log(`Verified ${process.argv[3]} PE: 0x${machine.toString(16)}`);
+  } catch (error) { console.error(error.message); process.exitCode = 1; }
 }
