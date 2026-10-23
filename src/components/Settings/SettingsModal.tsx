@@ -1,6 +1,6 @@
 import { SettingsTabBar, TabBtn } from "./SettingsTabs";
-import { isComposingKeyEvent } from "../../utils/keybindings";
-import { useEffect, useRef, useState } from "react";
+import { useModalFocus } from "../../hooks/useModalFocus";
+import { useId, useRef, useState } from "react";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { ConfirmModal } from "../AppShell/ConfirmModal";
@@ -22,21 +22,9 @@ export function SettingsModal({ onClose, initialTab = "general" }: { onClose: ()
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmRecoveryOff, setConfirmRecoveryOff] = useState(false);
   const [tab, setTab] = useState<Tab>(initialTab);
-  const returnFocus = useRef(document.activeElement);
-  useEffect(() => () => {
-    const target = returnFocus.current;
-    if (target instanceof HTMLElement && target.isConnected) target.focus({ preventScroll: true });
-  }, []);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (isComposingKeyEvent(e)) return;
-      if (e.key === "Escape" && !confirmRecoveryOff && !confirmClear && !confirmTranslations) onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose, confirmRecoveryOff, confirmClear, confirmTranslations]);
-
+  const dialog = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useModalFocus(dialog, onClose);
   const scalePercent = Math.round(uiScale * 100);
 
   return (
@@ -45,13 +33,13 @@ export function SettingsModal({ onClose, initialTab = "general" }: { onClose: ()
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={onClose}
     >
-      <div
+      <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
         className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden flex flex-col max-h-[calc(100%-2rem)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)] shrink-0">
-          <span className="font-semibold text-[var(--ls-text)]">{t.settingsTitle}</span>
+          <span id={titleId} className="font-semibold text-[var(--ls-text)]">{t.settingsTitle}</span>
           <button
             onClick={onClose}
             aria-label={t.close}
@@ -110,6 +98,7 @@ export function SettingsModal({ onClose, initialTab = "general" }: { onClose: ()
                     ].join(" ")}`}
                     role="switch"
                     aria-checked={autoSave}
+                    aria-label={t.settingsAutoSave}
                   >
                     <span
                       className={[
@@ -136,6 +125,7 @@ export function SettingsModal({ onClose, initialTab = "general" }: { onClose: ()
                     ].join(" ")}`}
                     role="switch"
                     aria-checked={showElrcSaveNotice}
+                    aria-label={t.settingsElrcNotice}
                   >
                     <span
                       className={[
@@ -240,6 +230,7 @@ export function SettingsModal({ onClose, initialTab = "general" }: { onClose: ()
                     ].join(" ")}`}
                     role="switch"
                     aria-checked={showGlyphTimeMarkers}
+                    aria-label={t.settingsGlyphMarkers}
                   >
                     <span
                       className={[

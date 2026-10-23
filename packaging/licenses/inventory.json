@@ -6531,8 +6531,8 @@
     }
   ],
   "inputs": {
-    "package-lock.json": "0b124fa0ffc855499990c5788bf52c63cfe336c703912947e6b93e012e3f876a",
-    "package.json": "a882d81b21c728feb286201429ad4501c23bee8bb4c2e05fd37b16bb10976bdc",
+    "package-lock.json": "35b652ef66d2e64f2f2ede82041460e8698740a83fcdf482e78f4ebd3d0e0678",
+    "package.json": "9f99e25e362278aee7ee3a09bd1fe1ff7e0040a243a8ddfe6cc489482f12e4fe",
     "packaging/licenses/upstream-index.json": "4d06cce6a46a7ac03536b1b73a7754f14564703c513db5c68e32cdbc923d178f",
     "packaging/licenses/upstream/0884e92e74c08412d08bb7cbd121e3c09cbf2ae357972440b06f81b3305b0176.txt": "0884e92e74c08412d08bb7cbd121e3c09cbf2ae357972440b06f81b3305b0176",
     "packaging/licenses/upstream/0dcf41516e608bbcb6cdc5229feb7b86fe4a643b85e7df251133c93408fdac73.txt": "0dcf41516e608bbcb6cdc5229feb7b86fe4a643b85e7df251133c93408fdac73",
@@ -6545,8 +6545,8 @@
     "packaging/licenses/upstream/c76f740d1521b9bed9ca7a04ad526c310493c62621b1341d623b431736533b30.txt": "c76f740d1521b9bed9ca7a04ad526c310493c62621b1341d623b431736533b30",
     "packaging/licenses/upstream/f5c342c49f3ac804f3e8e7bb62a8040a44c50d47bb36902b1abd13f66a1adf8b.txt": "f5c342c49f3ac804f3e8e7bb62a8040a44c50d47bb36902b1abd13f66a1adf8b",
     "scripts/generate-notices.py": "4953e82aee8e9a07168fcc6d17467c02a83d28d51ba69de00efb62fb91151c0e",
-    "src-tauri/Cargo.lock": "8207d990ac1c835f0e45e4cbba1421bd9ff60e9f346e381974fbc14d5fa71759",
-    "src-tauri/Cargo.toml": "b76a68e8db3573cf694453e3d2111333e95cec55c21f74260222b093cce39733"
+    "src-tauri/Cargo.lock": "3e501c239321fd4f490e671c1256cc7906e9b630e0c2375791a9c69e2ae0c906",
+    "src-tauri/Cargo.toml": "741f2832213417680c19e4d1caed85b348f51dbf861bdfcbb5f40eecbd1713e3"
   },
   "noticeSha256": "9a67fe56b15cb3d0ec385df339991f8908ed9cf3cf6744a37def4a148413f487",
   "schema": 1
