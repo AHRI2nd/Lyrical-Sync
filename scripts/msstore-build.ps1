@@ -44,8 +44,8 @@ function Find-Dumpbin {
     if (!(Test-Path -LiteralPath $vswhere)) { throw 'Install Visual Studio C++ build tools (dumpbin.exe)' }
     foreach ($hostTool in @($hostArchitecture, 'x64') | Select-Object -Unique) {
         foreach ($toolTarget in @($Architecture, 'x64') | Select-Object -Unique) {
-            $toolMatches = @(& $vswhere -latest -products '*' -find "VC\Tools\MSVC\**\bin\Host$hostTool\$toolTarget\dumpbin.exe")
-            if ($LASTEXITCODE -eq 0 -and $toolMatches.Count) { return $toolMatches[-1] }
+            $toolMatches = @(& $vswhere -products '*' -sort -find "VC\Tools\MSVC\**\bin\Host$hostTool\$toolTarget\dumpbin.exe")
+            if ($LASTEXITCODE -eq 0 -and $toolMatches.Count) { return $toolMatches[0] }
         }
     }
     throw 'Cannot locate a compatible dumpbin.exe in Visual Studio C++ build tools'

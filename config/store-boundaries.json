@@ -306,7 +306,7 @@
     "packaging/msix/store.json": "10c3a64285a3ff9fdad0eaf51189d14ecc123e5491633123e9f3050a79f2c979",
     "scripts/appstore-build.sh": "9a05cc569f6e06b08243d9db46b6e9b7f0cf0ebcde7d862be7e50e3ca719ec5f",
     "scripts/appstore-profile.py": "ac0e46498508fa6d4a66fd1cdeef4c527645af0ff89d72c5564eb98da9bfae2c",
-    "scripts/msstore-build.ps1": "11347d7f2d6596fd7557cb9e8a0d3133e36a5c4149720c369b8049375845b6c6",
+    "scripts/msstore-build.ps1": "be33e3a274e5e7095bf051f121b1fe99927984fd436ed9f3d54480d95c82abdc",
     "scripts/msix-stage.mjs": "bac98695159f6c074b4005bef503bcab54259c2144b03d74ad8454c7672bc624",
     "public/runtime-errors.js": "7542486f15d54e62724fd7a1f131b614d2c531f6d1117be9dcabd5eec189ecc9",
     "src-tauri/build.rs": "edff7fd35e42ad418dde44d3bbed23c96ab070f8fa928913a60812a4366f8350",
