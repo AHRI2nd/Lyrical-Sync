@@ -42,5 +42,6 @@ jobs:
       - run: python scripts/audit_ai_dependencies.py --requirements src-tauri/requirements-ai.txt
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
       - run: python scripts/test_updater_security.py
+      - run: python scripts/test_release_manifest.py
       - name: Build native debug application
         run: npm run tauri -- build --debug --no-bundle

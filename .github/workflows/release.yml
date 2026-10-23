@@ -8,6 +8,10 @@ on:
       - 'v*'
   workflow_dispatch:
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -19,8 +23,13 @@ jobs:
         include:
           - os: macos-latest
             target: aarch64-apple-darwin
+            bundleArgs: ""
           - os: windows-latest
             target: x86_64-pc-windows-msvc
+            bundleArgs: ""
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            bundleArgs: "--bundles nsis"
 
     runs-on: ${{ matrix.os }}
 
@@ -112,9 +121,10 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: 'Lyrical Sync v__VERSION__'
+          includeUpdaterJson: false
           releaseDraft: true
           prerelease: false
-          args: --target ${{ matrix.target }} --config src-tauri/tauri.updater.conf.json
+          args: --locked --target ${{ matrix.target }} ${{ matrix.bundleArgs }} --config src-tauri/tauri.updater.conf.json
 
       - name: Build & release (Windows)
         if: runner.os == 'Windows'
@@ -126,64 +136,26 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: 'Lyrical Sync v__VERSION__'
+          includeUpdaterJson: false
           releaseDraft: true
           prerelease: false
-          args: --target ${{ matrix.target }} --config src-tauri/tauri.updater.conf.json
+          args: --locked --target ${{ matrix.target }} ${{ matrix.bundleArgs }} --config src-tauri/tauri.updater.conf.json
 
-      # WiX(MSI)는 파일명 끝에 언어 코드(_en-US.msi)를 붙이는 옵션밖에 없어 Tauri 설정으로
-      # 바꿀 수 없음. NSIS(_x64-setup.exe)와 명명을 맞추기 위해 업로드된 자산을 재명명.
-      #
-      # 주의: GitHub는 업로드 시 자산 파일명의 공백을 점(.)으로 치환한다. 로컬 디스크의
-      # 파일명(공백 포함)을 그대로 삭제 대상 이름으로 쓰면 실제 자산명과 안 맞아 삭제가
-      # 조용히 실패한다(예전에 이 문제로 _en-US.msi가 안 지워지고 남아있던 적 있음) — 반드시
-      # 릴리스에 실제로 올라간 자산 목록에서 이름을 찾아 사용한다. latest.json도 옛 파일명을
-      # 참조하므로 같이 갱신하지 않으면 업데이터가 삭제된 자산을 가리키게 된다.
-      - name: Rename MSI asset (_en-US.msi -> _setup.msi)
-        if: runner.os == 'Windows'
-        shell: bash
+
+  updater-manifest:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify updater architecture contract
+        run: python scripts/test_release_manifest.py
+      - name: Assemble complete updater manifest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_REPO: ${{ github.repository }}
         run: |
-          set -e
-          REPO="${{ github.repository }}"
-          VERSION=$(jq -r .version src-tauri/tauri.conf.json)
-          TAG="v${VERSION}"
-          MSI_PATH=$(find src-tauri/target -type f -path "*/bundle/msi/*.msi" | head -1)
-          if [ -z "$MSI_PATH" ]; then
-            echo "MSI file not found, skipping rename"
-            exit 0
-          fi
-          LOCAL_NAME=$(basename "$MSI_PATH")
-          NEW_NAME=$(echo "$LOCAL_NAME" | sed -E 's/_[a-z]{2}-[A-Z]{2}\.msi$/_setup.msi/')
-          if [ "$LOCAL_NAME" = "$NEW_NAME" ]; then
-            echo "Filename already matches expected pattern, skipping"
-            exit 0
-          fi
-
-          NEW_PATH="$(dirname "$MSI_PATH")/$NEW_NAME"
-          cp "$MSI_PATH" "$NEW_PATH"
-          gh release upload "$TAG" "$NEW_PATH" --repo "$REPO" --clobber
-
-          # GitHub가 업로드 시 파일명을 어떻게 정리(공백 -> 점 등)했는지 목록에서 다시 조회해
-          # 실제 자산명을 확인한다(로컬 파일명을 그대로 신뢰하지 않음 — 새 이름도 마찬가지).
-          ACTUAL_NEW_NAME=$(gh release view "$TAG" --repo "$REPO" --json assets \
-            --jq '.assets[].name' | grep -F "_setup.msi" | grep -v '\.sig$' || true)
-          OLD_ASSET_NAME=$(gh release view "$TAG" --repo "$REPO" --json assets \
-            --jq '.assets[].name' | grep -F "_en-US.msi" | grep -v '\.sig$' || true)
-          OLD_SIG_NAME=$(gh release view "$TAG" --repo "$REPO" --json assets \
-            --jq '.assets[].name' | grep -F "_en-US.msi.sig" || true)
-
-          if [ -n "$OLD_ASSET_NAME" ]; then
-            gh release delete-asset "$TAG" "$OLD_ASSET_NAME" --repo "$REPO" --yes
-          fi
-          if [ -n "$OLD_SIG_NAME" ]; then
-            gh release delete-asset "$TAG" "$OLD_SIG_NAME" --repo "$REPO" --yes
-          fi
-
-          # latest.json이 삭제된 옛 msi 파일명을 계속 참조하지 않도록 갱신(실제 업로드된
-          # 이름 기준으로 치환 — 로컬 파일명을 쓰면 공백/점 불일치로 링크가 깨진다)
-          if [ -n "$OLD_ASSET_NAME" ] && [ -n "$ACTUAL_NEW_NAME" ]; then
-            gh release download "$TAG" --repo "$REPO" -p latest.json -O latest.json --clobber
-            sed -i.bak "s|$OLD_ASSET_NAME|$ACTUAL_NEW_NAME|g" latest.json
-            gh release upload "$TAG" latest.json --repo "$REPO" --clobber
-          fi
+          VERSION=$(python -c 'import json; print(json.load(open("src-tauri/tauri.conf.json"))["version"])')
+          python scripts/assemble_updater.py --repo "$RELEASE_REPO" --version "$VERSION"
