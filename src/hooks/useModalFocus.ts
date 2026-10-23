@@ -3,6 +3,7 @@ import { isComposingKeyEvent } from '../utils/keybindings';
 
 interface Scope { element: HTMLElement; priority: number }
 const scopes: Scope[] = [];
+let activeScope: Scope | undefined;
 const madeInert = new Set<HTMLElement>();
 function topScope() {
   return scopes.filter(s => s.element.isConnected).reduce<Scope | undefined>((top, scope) => {
@@ -14,7 +15,8 @@ function topScope() {
 function updateBackground() {
   for (const element of madeInert) element.removeAttribute('inert');
   madeInert.clear();
-  let current = topScope()?.element;
+  activeScope = topScope();
+  let current = activeScope?.element;
   while (current?.parentElement && current !== document.body) {
     for (const sibling of current.parentElement.children) {
       if (sibling !== current && sibling instanceof HTMLElement && !sibling.hasAttribute('inert')) {
@@ -66,7 +68,7 @@ export function useModalFocus(ref: RefObject<HTMLElement | null>, onEscape?: () 
     document.addEventListener('keydown', onKey);
     return () => {
       // Passive cleanup may run after React has detached the dialog.
-      const owned = topScope() === scope || !topScope();
+      const owned = activeScope === scope || !activeScope;
       scopes.splice(scopes.indexOf(scope), 1); updateBackground();
       document.removeEventListener('focusin', onFocus); document.removeEventListener('keydown', onKey);
       if (owned && previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true });
