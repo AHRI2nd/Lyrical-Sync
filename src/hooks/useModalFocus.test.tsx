@@ -45,3 +45,9 @@ it('selects an initially mounted child despite its effect running before its par
  const parent=vi.fn(),child=vi.fn();render(<Dialog name="Parent" onClose={parent}><button>Parent control</button><Dialog name="Child" onClose={child}><button>Child control</button></Dialog></Dialog>);
  expect(document.activeElement).toBe(screen.getByRole('button',{name:'Child control'}));fireEvent.keyDown(document.activeElement!,{key:'Escape'});expect(child).toHaveBeenCalledOnce();expect(parent).not.toHaveBeenCalled();
 });
+it('recovers focus when state changes remove the active control',async()=>{
+ const view=render(<Dialog name="Update"><button>Update now</button></Dialog>);expect(document.activeElement).toBe(screen.getByRole('button',{name:'Update now'}));
+ view.rerender(<Dialog name="Update"><p>Downloading</p></Dialog>);expect(document.activeElement).toBe(screen.getByRole('dialog'));
+ view.rerender(<Dialog name="Update"><button>Restart</button></Dialog>);expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(true);
+ screen.getByRole('button',{name:'Restart'}).focus();view.rerender(<Dialog name="Update"><button key="error">Close error</button></Dialog>);expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(true);
+});

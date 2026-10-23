@@ -76,4 +76,9 @@ export function useModalFocus(ref: RefObject<HTMLElement | null>, onEscape?: () 
       if (next && !next.element.contains(document.activeElement)) focusInside(next.element);
     };
   }, [ref, enabled, priority]);
+  // Removing a focused control can move focus to BODY without a focusin event.
+  useEffect(() => {
+    const element = ref.current;
+    if (enabled && element && topScope()?.element === element && !element.contains(document.activeElement)) focusInside(element);
+  });
 }
