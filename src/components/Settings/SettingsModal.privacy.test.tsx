@@ -27,7 +27,7 @@ it("requires confirmation to stop recovery, and cancelling preserves the backup"
 it("Escape dismisses only the privacy confirmation", () => {
   const close = vi.fn(); render(<SettingsModal onClose={close} />);
   fireEvent.click(screen.getByRole("switch", { name: "Save recovery copies" }));
-  fireEvent.keyDown(window, { key: "Escape" });
+  fireEvent.keyDown(document.activeElement!, { key: "Escape" });
   expect(close).not.toHaveBeenCalled();
   expect(screen.queryByRole("button", { name: "Turn off and delete copies" })).toBeNull();
 });

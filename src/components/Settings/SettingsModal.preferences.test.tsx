@@ -41,9 +41,9 @@ it("updates preview settings using labeled controls in the preview tab", () => {
 it("keeps settings open when Escape belongs to an IME composition", () => {
   const close = vi.fn();
   render(<SettingsModal onClose={close} />);
-  fireEvent.keyDown(window, { key: "Escape", isComposing: true });
+  fireEvent.keyDown(document.activeElement!, { key: "Escape", isComposing: true });
   expect(close).not.toHaveBeenCalled();
-  fireEvent.keyDown(window, { key: "Escape" });
+  fireEvent.keyDown(document.activeElement!, { key: "Escape" });
   expect(close).toHaveBeenCalledTimes(1);
 });
 

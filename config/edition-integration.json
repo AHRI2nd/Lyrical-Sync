@@ -1,283 +1,367 @@
 {
-  "upstream": "de300f26b89297f8e4d0f65e77f3170af09b60b4",
-  "storeParent": "21a8117efbc134ffd652f0f7513f41389bc6c6b6",
-  "previousMergeBase": "ca27fa46bed99ba9d426449fe2aa8b3cc8a5480a",
+  "upstream": "38c65b23b2420c36c585f90baf9641d153cf015f",
+  "storeParent": "1d42b718a20b33136d737aca0ea883347bbc69d0",
+  "previousMergeBase": "de300f26b89297f8e4d0f65e77f3170af09b60b4",
   "previousIntegration": {
-    "upstream": "ca27fa46bed99ba9d426449fe2aa8b3cc8a5480a",
-    "storeParent": "ac91536d3eb1b93704da89109b7f2c7718e1a8f7",
-    "previousMergeBase": "7508c5b8fceff710a07af0c683cbbe7fa85d28cc",
+    "upstream": "de300f26b89297f8e4d0f65e77f3170af09b60b4",
+    "storeParent": "21a8117efbc134ffd652f0f7513f41389bc6c6b6",
+    "previousMergeBase": "ca27fa46bed99ba9d426449fe2aa8b3cc8a5480a",
     "previousIntegration": {
-      "upstream": "7508c5b8fceff710a07af0c683cbbe7fa85d28cc",
-      "storeParent": "5a61233844bb807f6bcbcbd588d76607e2f4ffff",
-      "previousMergeBase": "744df0f0f037caac82d277c6b46ced218dc0e47f",
+      "upstream": "ca27fa46bed99ba9d426449fe2aa8b3cc8a5480a",
+      "storeParent": "ac91536d3eb1b93704da89109b7f2c7718e1a8f7",
+      "previousMergeBase": "7508c5b8fceff710a07af0c683cbbe7fa85d28cc",
       "previousIntegration": {
-        "upstream": "744df0f0f037caac82d277c6b46ced218dc0e47f",
-        "storeParent": "2a44b7157ff8b1283a9d0a451ff60590db977884",
-        "previousMergeBase": "1c6a11f2b5b616deff76440efa7a086477616657"
+        "upstream": "7508c5b8fceff710a07af0c683cbbe7fa85d28cc",
+        "storeParent": "5a61233844bb807f6bcbcbd588d76607e2f4ffff",
+        "previousMergeBase": "744df0f0f037caac82d277c6b46ced218dc0e47f",
+        "previousIntegration": {
+          "upstream": "744df0f0f037caac82d277c6b46ced218dc0e47f",
+          "storeParent": "2a44b7157ff8b1283a9d0a451ff60590db977884",
+          "previousMergeBase": "1c6a11f2b5b616deff76440efa7a086477616657"
+        },
+        "upstreamChangeCoverage": [
+          {
+            "path": "src/components/AudioPlayer/useYouTubeLoad.test.tsx",
+            "resolution": "excluded-direct-edition",
+            "resolvedSha256": null
+          },
+          {
+            "path": "src/components/AudioPlayer/useYouTubeLoad.ts",
+            "resolution": "excluded-direct-edition",
+            "resolvedSha256": null
+          },
+          {
+            "path": "src/components/LrcEditor/LrcEditor.test.tsx",
+            "resolution": "store-edition-adapter",
+            "resolvedSha256": "92ced7684fb338912bab1286af394fda71196ecca45253f66f01bb914896cc18"
+          },
+          {
+            "path": "src/components/LrcEditor/LrcEditor.tsx",
+            "resolution": "store-edition-adapter",
+            "resolvedSha256": "0834a5523a234aaff4c63d9bb6a18ed62f81124a1af69f507ff23f6cbbcf567b"
+          },
+          {
+            "path": "src/stores/useLrcStore.aiHistory.test.ts",
+            "resolution": "excluded-direct-edition",
+            "resolvedSha256": null
+          },
+          {
+            "path": "src/stores/useLrcStore.test.ts",
+            "resolution": "store-edition-adapter",
+            "resolvedSha256": "ae60c649c85a983c126d2a833ca82218162dcc241477a717064eb03f98946c94"
+          },
+          {
+            "path": "src/stores/useLrcStore.timing.test.ts",
+            "resolution": "store-edition-adapter",
+            "resolvedSha256": "b34e509496f4b306b520bd407a8de5b8fcc9be8a215e45abd6de633dfba8364d"
+          },
+          {
+            "path": "src/stores/useLrcStore.ts",
+            "resolution": "store-edition-adapter",
+            "resolvedSha256": "4b54ae759d40221dc9b17be4585b04d63e7eab60f476a523c435476f8c5a05fd"
+          },
+          {
+            "path": "src/utils/lineTiming.ts",
+            "resolution": "shared-upstream",
+            "resolvedSha256": "2169b6b2885606668b056408e492519d9e9dd3c44fff645592e13e05f7fa9c48"
+          },
+          {
+            "path": "src/utils/lrcParser.test.ts",
+            "resolution": "store-edition-adapter",
+            "resolvedSha256": "2325cf50a48a02e8915ed09706a12b001a5aaf2bad079a393b472524762056d0"
+          },
+          {
+            "path": "src/utils/lrcParser.ts",
+            "resolution": "store-edition-adapter",
+            "resolvedSha256": "20cf4bf6727f9d9ec21c1645bba52c358d43a677e13db34e7b0a0c59a18cd318"
+          },
+          {
+            "path": "src/utils/srtConverter.test.ts",
+            "resolution": "shared-upstream",
+            "resolvedSha256": "2739e08f7dceaca767d30db6d780f265569de49ca865a8654134b21839b9343e"
+          },
+          {
+            "path": "src/utils/srtConverter.ts",
+            "resolution": "shared-upstream",
+            "resolvedSha256": "08291250cd2b2a4f871015622541f771cdd62c97aab4e2d21cd23a8344ebd460"
+          }
+        ],
+        "sharedFilesResolvedFromUpstream": [
+          "src/utils/lineTiming.ts",
+          "src/utils/srtConverter.test.ts",
+          "src/utils/srtConverter.ts"
+        ],
+        "storeAdaptations": [
+          "Store history and scoped file/document transition adapters retained",
+          "Shared line timing helper and regressions adopted; Store async test setup uses explicit discard confirmation",
+          "AI/YouTube modules excluded; common literal replace/LRC roundtrip/SRT hour fixes adopted",
+          "Review fix: whitespace-prefixed literal brackets escaped in marked LRC"
+        ],
+        "followUpMerge": {
+          "storeParent": "12971ec0878b40be729b5a90ea5d16c6102e59e9",
+          "upstream": "7508c5b8fceff710a07af0c683cbbe7fa85d28cc",
+          "previousMergeBase": "879ae22",
+          "resolution": "Review follow-up parser/source tests already present byte-for-byte in Store; update ancestry and ledger"
+        }
       },
       "upstreamChangeCoverage": [
         {
-          "path": "src/components/AudioPlayer/useYouTubeLoad.test.tsx",
+          "path": ".github/workflows/test.yml",
           "resolution": "excluded-direct-edition",
           "resolvedSha256": null
         },
         {
-          "path": "src/components/AudioPlayer/useYouTubeLoad.ts",
+          "path": "etc/AI_Installation_guide.en.md",
+          "resolution": "shared-upstream",
+          "resolvedSha256": "6364926fe99e0cb3e432d4fc05cae6b42588da4a6e64c5ed3263c63ee2f3e1b6"
+        },
+        {
+          "path": "etc/AI_Installation_guide.ja.md",
+          "resolution": "shared-upstream",
+          "resolvedSha256": "fbdca1f00b9a5e4501fc63b7111de506579cd62a620d339614069493de87aaa6"
+        },
+        {
+          "path": "etc/AI_Installation_guide.ko.md",
+          "resolution": "shared-upstream",
+          "resolvedSha256": "72b02ea851b4f26a4d70db260c870c88bcf5c49fb193172b954140f9335835c7"
+        },
+        {
+          "path": "etc/YouTube_guide.en.md",
+          "resolution": "shared-upstream",
+          "resolvedSha256": "33cde1a0c875fe8bf005f11252f848ccb4163590e63773f87d46edd735f9607a"
+        },
+        {
+          "path": "etc/YouTube_guide.ja.md",
+          "resolution": "shared-upstream",
+          "resolvedSha256": "06f6fc810acdc5a1c74728d5db12241a60fd86f690db377387556f4088a543a8"
+        },
+        {
+          "path": "etc/YouTube_guide.ko.md",
+          "resolution": "shared-upstream",
+          "resolvedSha256": "21ce5231591001c27ab06212e58f6e578fda8185225e3fa26511dc1d7d6c6ed9"
+        },
+        {
+          "path": "package-lock.json",
+          "resolution": "store-edition-adapter",
+          "resolvedSha256": "0b124fa0ffc855499990c5788bf52c63cfe336c703912947e6b93e012e3f876a"
+        },
+        {
+          "path": "scripts/audit_ai_dependencies.py",
           "resolution": "excluded-direct-edition",
           "resolvedSha256": null
         },
         {
-          "path": "src/components/LrcEditor/LrcEditor.test.tsx",
-          "resolution": "store-edition-adapter",
-          "resolvedSha256": "92ced7684fb338912bab1286af394fda71196ecca45253f66f01bb914896cc18"
-        },
-        {
-          "path": "src/components/LrcEditor/LrcEditor.tsx",
-          "resolution": "store-edition-adapter",
-          "resolvedSha256": "0834a5523a234aaff4c63d9bb6a18ed62f81124a1af69f507ff23f6cbbcf567b"
-        },
-        {
-          "path": "src/stores/useLrcStore.aiHistory.test.ts",
+          "path": "scripts/test_ai_dependency_audit.py",
           "resolution": "excluded-direct-edition",
           "resolvedSha256": null
         },
         {
-          "path": "src/stores/useLrcStore.test.ts",
+          "path": "scripts/test_ai_sidecars.py",
+          "resolution": "excluded-direct-edition",
+          "resolvedSha256": null
+        },
+        {
+          "path": "scripts/test_updater_security.py",
+          "resolution": "excluded-direct-edition",
+          "resolvedSha256": null
+        },
+        {
+          "path": "src-tauri/Cargo.lock",
           "resolution": "store-edition-adapter",
-          "resolvedSha256": "ae60c649c85a983c126d2a833ca82218162dcc241477a717064eb03f98946c94"
+          "resolvedSha256": "8207d990ac1c835f0e45e4cbba1421bd9ff60e9f346e381974fbc14d5fa71759"
         },
         {
-          "path": "src/stores/useLrcStore.timing.test.ts",
+          "path": "src-tauri/Cargo.toml",
           "resolution": "store-edition-adapter",
-          "resolvedSha256": "b34e509496f4b306b520bd407a8de5b8fcc9be8a215e45abd6de633dfba8364d"
+          "resolvedSha256": "b76a68e8db3573cf694453e3d2111333e95cec55c21f74260222b093cce39733"
         },
         {
-          "path": "src/stores/useLrcStore.ts",
+          "path": "src-tauri/ai-manifest.json",
+          "resolution": "excluded-direct-edition",
+          "resolvedSha256": null
+        },
+        {
+          "path": "src-tauri/build.rs",
           "resolution": "store-edition-adapter",
-          "resolvedSha256": "4b54ae759d40221dc9b17be4585b04d63e7eab60f476a523c435476f8c5a05fd"
+          "resolvedSha256": "c2af8726350e168a916cdec1fe97766f7717301f8ccabe167db7a98b1d24c559"
         },
         {
-          "path": "src/utils/lineTiming.ts",
-          "resolution": "shared-upstream",
-          "resolvedSha256": "2169b6b2885606668b056408e492519d9e9dd3c44fff645592e13e05f7fa9c48"
+          "path": "src-tauri/requirements-ai.txt",
+          "resolution": "excluded-direct-edition",
+          "resolvedSha256": null
         },
         {
-          "path": "src/utils/lrcParser.test.ts",
+          "path": "src-tauri/src/alignment.rs",
+          "resolution": "excluded-direct-edition",
+          "resolvedSha256": null
+        },
+        {
+          "path": "src-tauri/src/lib.rs",
           "resolution": "store-edition-adapter",
-          "resolvedSha256": "2325cf50a48a02e8915ed09706a12b001a5aaf2bad079a393b472524762056d0"
+          "resolvedSha256": "0aab3a4ee766e8c181f3715183c5d37970cdca4817f706825220b82bf7220293"
         },
         {
-          "path": "src/utils/lrcParser.ts",
-          "resolution": "store-edition-adapter",
-          "resolvedSha256": "20cf4bf6727f9d9ec21c1645bba52c358d43a677e13db34e7b0a0c59a18cd318"
+          "path": "src-tauri/src/model_store.rs",
+          "resolution": "excluded-direct-edition",
+          "resolvedSha256": null
         },
         {
-          "path": "src/utils/srtConverter.test.ts",
-          "resolution": "shared-upstream",
-          "resolvedSha256": "2739e08f7dceaca767d30db6d780f265569de49ca865a8654134b21839b9343e"
+          "path": "src-tauri/src/models.rs",
+          "resolution": "excluded-direct-edition",
+          "resolvedSha256": null
         },
         {
-          "path": "src/utils/srtConverter.ts",
-          "resolution": "shared-upstream",
-          "resolvedSha256": "08291250cd2b2a4f871015622541f771cdd62c97aab4e2d21cd23a8344ebd460"
+          "path": "src-tauri/src/oauth_listener.rs",
+          "resolution": "excluded-direct-edition",
+          "resolvedSha256": null
+        },
+        {
+          "path": "src-tauri/src/probe_ai.py",
+          "resolution": "excluded-direct-edition",
+          "resolvedSha256": null
+        },
+        {
+          "path": "src-tauri/src/python_env.rs",
+          "resolution": "excluded-direct-edition",
+          "resolvedSha256": null
+        },
+        {
+          "path": "src-tauri/src/separate.py",
+          "resolution": "excluded-direct-edition",
+          "resolvedSha256": null
+        },
+        {
+          "path": "src-tauri/src/service_auth.rs",
+          "resolution": "excluded-direct-edition",
+          "resolvedSha256": null
+        },
+        {
+          "path": "src/stores/useServiceStore.test.ts",
+          "resolution": "excluded-direct-edition",
+          "resolvedSha256": null
+        },
+        {
+          "path": "src/stores/useServiceStore.ts",
+          "resolution": "excluded-direct-edition",
+          "resolvedSha256": null
+        },
+        {
+          "path": "src/utils/modelDefs.ts",
+          "resolution": "excluded-direct-edition",
+          "resolvedSha256": null
         }
       ],
       "sharedFilesResolvedFromUpstream": [
-        "src/utils/lineTiming.ts",
-        "src/utils/srtConverter.test.ts",
-        "src/utils/srtConverter.ts"
+        "etc/AI_Installation_guide.en.md",
+        "etc/AI_Installation_guide.ja.md",
+        "etc/AI_Installation_guide.ko.md",
+        "etc/YouTube_guide.en.md",
+        "etc/YouTube_guide.ja.md",
+        "etc/YouTube_guide.ko.md"
       ],
       "storeAdaptations": [
-        "Store history and scoped file/document transition adapters retained",
-        "Shared line timing helper and regressions adopted; Store async test setup uses explicit discard confirmation",
-        "AI/YouTube modules excluded; common literal replace/LRC roundtrip/SRT hour fixes adopted",
-        "Review fix: whitespace-prefixed literal brackets escaped in marked LRC"
-      ],
-      "followUpMerge": {
-        "storeParent": "12971ec0878b40be729b5a90ea5d16c6102e59e9",
-        "upstream": "7508c5b8fceff710a07af0c683cbbe7fa85d28cc",
-        "previousMergeBase": "879ae22",
-        "resolution": "Review follow-up parser/source tests already present byte-for-byte in Store; update ancestry and ledger"
-      }
+        "Preserve Store dependency manifests, Windows resource embedding, sandbox/bookmark/privacy/MSIX adapters and macOS 12 minimum",
+        "Apply compatible plist/XML, anyhow, event-listener and scoped npm security patches using Store lockfiles; regenerate notices",
+        "Exclude Dev AI/Python/model/OAuth/service/updater code and workflow; inventory new exclusions explicitly",
+        "Reject Intel macOS through native build/library guards and ARM64-only App Store build script; protect build.rs with LF checkout policy",
+        "Keep guide updates as reference documentation without enabling excluded functionality"
+      ]
     },
     "upstreamChangeCoverage": [
       {
-        "path": ".github/workflows/test.yml",
+        "path": "src/stores/useUpdaterStore.test.ts",
         "resolution": "excluded-direct-edition",
         "resolvedSha256": null
       },
       {
-        "path": "etc/AI_Installation_guide.en.md",
-        "resolution": "shared-upstream",
-        "resolvedSha256": "6364926fe99e0cb3e432d4fc05cae6b42588da4a6e64c5ed3263c63ee2f3e1b6"
-      },
-      {
-        "path": "etc/AI_Installation_guide.ja.md",
-        "resolution": "shared-upstream",
-        "resolvedSha256": "fbdca1f00b9a5e4501fc63b7111de506579cd62a620d339614069493de87aaa6"
-      },
-      {
-        "path": "etc/AI_Installation_guide.ko.md",
-        "resolution": "shared-upstream",
-        "resolvedSha256": "72b02ea851b4f26a4d70db260c870c88bcf5c49fb193172b954140f9335835c7"
-      },
-      {
-        "path": "etc/YouTube_guide.en.md",
-        "resolution": "shared-upstream",
-        "resolvedSha256": "33cde1a0c875fe8bf005f11252f848ccb4163590e63773f87d46edd735f9607a"
-      },
-      {
-        "path": "etc/YouTube_guide.ja.md",
-        "resolution": "shared-upstream",
-        "resolvedSha256": "06f6fc810acdc5a1c74728d5db12241a60fd86f690db377387556f4088a543a8"
-      },
-      {
-        "path": "etc/YouTube_guide.ko.md",
-        "resolution": "shared-upstream",
-        "resolvedSha256": "21ce5231591001c27ab06212e58f6e578fda8185225e3fa26511dc1d7d6c6ed9"
-      },
-      {
-        "path": "package-lock.json",
-        "resolution": "store-edition-adapter",
-        "resolvedSha256": "0b124fa0ffc855499990c5788bf52c63cfe336c703912947e6b93e012e3f876a"
-      },
-      {
-        "path": "scripts/audit_ai_dependencies.py",
-        "resolution": "excluded-direct-edition",
-        "resolvedSha256": null
-      },
-      {
-        "path": "scripts/test_ai_dependency_audit.py",
-        "resolution": "excluded-direct-edition",
-        "resolvedSha256": null
-      },
-      {
-        "path": "scripts/test_ai_sidecars.py",
-        "resolution": "excluded-direct-edition",
-        "resolvedSha256": null
-      },
-      {
-        "path": "scripts/test_updater_security.py",
-        "resolution": "excluded-direct-edition",
-        "resolvedSha256": null
-      },
-      {
-        "path": "src-tauri/Cargo.lock",
-        "resolution": "store-edition-adapter",
-        "resolvedSha256": "8207d990ac1c835f0e45e4cbba1421bd9ff60e9f346e381974fbc14d5fa71759"
-      },
-      {
-        "path": "src-tauri/Cargo.toml",
-        "resolution": "store-edition-adapter",
-        "resolvedSha256": "b76a68e8db3573cf694453e3d2111333e95cec55c21f74260222b093cce39733"
-      },
-      {
-        "path": "src-tauri/ai-manifest.json",
-        "resolution": "excluded-direct-edition",
-        "resolvedSha256": null
-      },
-      {
-        "path": "src-tauri/build.rs",
-        "resolution": "store-edition-adapter",
-        "resolvedSha256": "c2af8726350e168a916cdec1fe97766f7717301f8ccabe167db7a98b1d24c559"
-      },
-      {
-        "path": "src-tauri/requirements-ai.txt",
-        "resolution": "excluded-direct-edition",
-        "resolvedSha256": null
-      },
-      {
-        "path": "src-tauri/src/alignment.rs",
-        "resolution": "excluded-direct-edition",
-        "resolvedSha256": null
-      },
-      {
-        "path": "src-tauri/src/lib.rs",
-        "resolution": "store-edition-adapter",
-        "resolvedSha256": "0aab3a4ee766e8c181f3715183c5d37970cdca4817f706825220b82bf7220293"
-      },
-      {
-        "path": "src-tauri/src/model_store.rs",
-        "resolution": "excluded-direct-edition",
-        "resolvedSha256": null
-      },
-      {
-        "path": "src-tauri/src/models.rs",
-        "resolution": "excluded-direct-edition",
-        "resolvedSha256": null
-      },
-      {
-        "path": "src-tauri/src/oauth_listener.rs",
-        "resolution": "excluded-direct-edition",
-        "resolvedSha256": null
-      },
-      {
-        "path": "src-tauri/src/probe_ai.py",
-        "resolution": "excluded-direct-edition",
-        "resolvedSha256": null
-      },
-      {
-        "path": "src-tauri/src/python_env.rs",
-        "resolution": "excluded-direct-edition",
-        "resolvedSha256": null
-      },
-      {
-        "path": "src-tauri/src/separate.py",
-        "resolution": "excluded-direct-edition",
-        "resolvedSha256": null
-      },
-      {
-        "path": "src-tauri/src/service_auth.rs",
-        "resolution": "excluded-direct-edition",
-        "resolvedSha256": null
-      },
-      {
-        "path": "src/stores/useServiceStore.test.ts",
-        "resolution": "excluded-direct-edition",
-        "resolvedSha256": null
-      },
-      {
-        "path": "src/stores/useServiceStore.ts",
-        "resolution": "excluded-direct-edition",
-        "resolvedSha256": null
-      },
-      {
-        "path": "src/utils/modelDefs.ts",
+        "path": "src/stores/useUpdaterStore.ts",
         "resolution": "excluded-direct-edition",
         "resolvedSha256": null
       }
     ],
-    "sharedFilesResolvedFromUpstream": [
-      "etc/AI_Installation_guide.en.md",
-      "etc/AI_Installation_guide.ja.md",
-      "etc/AI_Installation_guide.ko.md",
-      "etc/YouTube_guide.en.md",
-      "etc/YouTube_guide.ja.md",
-      "etc/YouTube_guide.ko.md"
-    ],
+    "sharedFilesResolvedFromUpstream": [],
     "storeAdaptations": [
-      "Preserve Store dependency manifests, Windows resource embedding, sandbox/bookmark/privacy/MSIX adapters and macOS 12 minimum",
-      "Apply compatible plist/XML, anyhow, event-listener and scoped npm security patches using Store lockfiles; regenerate notices",
-      "Exclude Dev AI/Python/model/OAuth/service/updater code and workflow; inventory new exclusions explicitly",
-      "Reject Intel macOS through native build/library guards and ARM64-only App Store build script; protect build.rs with LF checkout policy",
-      "Keep guide updates as reference documentation without enabling excluded functionality"
+      "Direct-edition updater durability and download resource lifetime fixes reviewed; Store excludes updater runtime and tests",
+      "No Store product, platform, dependency, identity, permission or notices change"
     ]
   },
   "upstreamChangeCoverage": [
     {
-      "path": "src/stores/useUpdaterStore.test.ts",
+      "path": "package-lock.json",
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "35b652ef66d2e64f2f2ede82041460e8698740a83fcdf482e78f4ebd3d0e0678"
+    },
+    {
+      "path": "package.json",
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "9f99e25e362278aee7ee3a09bd1fe1ff7e0040a243a8ddfe6cc489482f12e4fe"
+    },
+    {
+      "path": "src-tauri/Cargo.lock",
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "3e501c239321fd4f490e671c1256cc7906e9b630e0c2375791a9c69e2ae0c906"
+    },
+    {
+      "path": "src-tauri/Cargo.toml",
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "741f2832213417680c19e4d1caed85b348f51dbf861bdfcbb5f40eecbd1713e3"
+    },
+    {
+      "path": "src-tauri/tauri.conf.json",
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "0dfe4cd6be129311adfff393d8f44a766ef8bdf10267d1504a06b8a6b6fbe271"
+    },
+    {
+      "path": "src/components/AppShell/ConfirmModal.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "98883d624572915dbb2af33cbfc26ac5d8e8f2901ea4e0299b1793da2bb7673c"
+    },
+    {
+      "path": "src/components/Settings/GeneralSettingsTab.accessibility.test.tsx",
       "resolution": "excluded-direct-edition",
       "resolvedSha256": null
     },
     {
-      "path": "src/stores/useUpdaterStore.ts",
+      "path": "src/components/Settings/GeneralSettingsTab.tsx",
       "resolution": "excluded-direct-edition",
       "resolvedSha256": null
+    },
+    {
+      "path": "src/components/Settings/SettingsModal.tsx",
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "dd96d96cce8eaaca9df8e06faee4a1870a37cdff839025a04633f7edfd3f956a"
+    },
+    {
+      "path": "src/components/Settings/SettingsModal.usability.test.tsx",
+      "resolution": "store-edition-adapter",
+      "resolvedSha256": "b18019d7d36dde796494811fc17952f16b189079b0cfc42134d9783d57531c5e"
+    },
+    {
+      "path": "src/components/Update/UpdateModal.tsx",
+      "resolution": "excluded-direct-edition",
+      "resolvedSha256": null
+    },
+    {
+      "path": "src/hooks/useModalFocus.test.tsx",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "b267312234df2542e0df5f1a3fa18a2585c1c470bccdc467248b89db7a660c32"
+    },
+    {
+      "path": "src/hooks/useModalFocus.ts",
+      "resolution": "shared-upstream",
+      "resolvedSha256": "46ed380a0e7c35b2149c4fdfd641c2dd5c14e4513453eb8e5703aa91ef7f9205"
     }
   ],
-  "sharedFilesResolvedFromUpstream": [],
+  "sharedFilesResolvedFromUpstream": [
+    "src/components/AppShell/ConfirmModal.tsx",
+    "src/hooks/useModalFocus.test.tsx",
+    "src/hooks/useModalFocus.ts"
+  ],
   "storeAdaptations": [
-    "Direct-edition updater durability and download resource lifetime fixes reviewed; Store excludes updater runtime and tests",
-    "No Store product, platform, dependency, identity, permission or notices change"
+    "Adopt stacked modal focus/inert restoration and Confirm dialog semantics; Store settings retains privacy/recovery/reset and three tabs",
+    "Port switch names into the Store inline settings adapter, with localized and nested privacy/translation tests",
+    "Keep direct updater and GeneralSettingsTab source/tests excluded; updater error UI has no Store equivalent",
+    "Bump application versions to0.7.0 on original Store manifests/locks; preserve identities, capabilities, dependencies, MSIX version mapping; regenerate notices/protected hashes",
+    "Update protected Windows executable assembly identity version0.7.0.0; preserve DPI/CommonControls/no-elevation and MSIXmajor+1version1.7.0.0 mapping"
   ]
 }
