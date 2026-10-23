@@ -78,7 +78,11 @@ describe("useUpdaterStore — checkForUpdate", () => {
 });
 
 describe("useUpdaterStore — downloadAndInstall", () => {
-  beforeEach(() => reset());
+  beforeEach(() => {
+    reset(); relaunch.mockReset(); invoke.mockReset(); invoke.mockResolvedValue(undefined);
+    saveRecoverySnapshot.mockReset(); saveRecoverySnapshot.mockReturnValue(true);
+    useLrcStore.setState({ isDirty: false, lrcPath: null, audioPath: null });
+  });
 
   it("is a no-op when there is no pending update", async () => {
     await useUpdaterStore.getState().downloadAndInstall();
@@ -88,7 +92,8 @@ describe("useUpdaterStore — downloadAndInstall", () => {
   it("tracks progress from Started/Progress/Finished events and ends ready", async () => {
     const mockUpdate = {
       version: "1.2.3",
-      downloadAndInstall: vi.fn(async (cb: (e: unknown) => void) => {
+      install: vi.fn(async () => {}),
+      download: vi.fn(async (cb: (e: unknown) => void) => {
         cb({ event: "Started", data: { contentLength: 100 } });
         cb({ event: "Progress", data: { chunkLength: 50 } });
         cb({ event: "Progress", data: { chunkLength: 50 } });
@@ -103,7 +108,7 @@ describe("useUpdaterStore — downloadAndInstall", () => {
   });
 
   it("sets status=error when downloadAndInstall() rejects", async () => {
-    const mockUpdate = { version: "1.2.3", downloadAndInstall: vi.fn().mockRejectedValue(new Error("disk full")) };
+    const mockUpdate = { version: "1.2.3", install: vi.fn(), download: vi.fn().mockRejectedValue(new Error("disk full")) };
     useUpdaterStore.setState({ status: "available", _update: mockUpdate as unknown as Update });
     await useUpdaterStore.getState().downloadAndInstall();
     const s = useUpdaterStore.getState();
@@ -211,5 +216,89 @@ describe("useUpdaterStore — restart durability failures", () => {
     await expect(useUpdaterStore.getState().restart()).resolves.toBeUndefined();
     expect(useUpdaterStore.getState().status).toBe("error");
     expect(useUpdaterStore.getState().error).toContain("restart unavailable");
+  });
+});
+
+describe("useUpdaterStore — installation durability", () => {
+  beforeEach(() => {
+    reset(); relaunch.mockReset(); invoke.mockReset(); invoke.mockResolvedValue(undefined);
+    saveRecoverySnapshot.mockReset(); saveRecoverySnapshot.mockReturnValue(true);
+    useLrcStore.setState({ isDirty: true, lrcPath: null, audioPath: null });
+  });
+  function update(download = vi.fn(async () => {}), install = vi.fn(async () => {})) {
+    const close = vi.fn(async () => {});
+    useUpdaterStore.setState({ _update: { download, install, close } as unknown as Update });
+    return { download, install, close };
+  }
+  it("preserves the latest edits after download before entering the installer", async () => {
+    const u = update(vi.fn(async () => { useLrcStore.getState().setMetadata({ title: "edited while downloading" }); }), vi.fn(async () => {
+      expect(saveRecoverySnapshot).toHaveBeenCalledWith(expect.objectContaining({ metadata: expect.objectContaining({ title: "edited while downloading" }) }), null, null);
+    }));
+    await useUpdaterStore.getState().downloadAndInstall();
+    expect(u.download).toHaveBeenCalledOnce(); expect(u.install).toHaveBeenCalledOnce();
+    expect(useUpdaterStore.getState().status).toBe("ready");
+  });
+  it("does not install an unsaved document when recovery cannot be persisted", async () => {
+    saveRecoverySnapshot.mockReturnValue(false); const u = update();
+    await useUpdaterStore.getState().downloadAndInstall();
+    expect(u.install).not.toHaveBeenCalled(); expect(useUpdaterStore.getState().status).toBe("error");
+  });
+  it("blocks installation when both file save and recovery fail", async () => {
+    useLrcStore.setState({ lrcPath: "/song.lrc" });
+    invoke.mockRejectedValue(new Error("disk full")); saveRecoverySnapshot.mockReturnValue(false);
+    const u = update(); await useUpdaterStore.getState().downloadAndInstall();
+    expect(invoke).toHaveBeenCalled(); expect(u.install).not.toHaveBeenCalled();
+    expect(useUpdaterStore.getState().status).toBe("error");
+  });
+  it("saves known files before installing without requiring recovery storage", async () => {
+    useLrcStore.setState({ lrcPath: "/song.lrc" }); saveRecoverySnapshot.mockReturnValue(false);
+    const u = update(); await useUpdaterStore.getState().downloadAndInstall();
+    expect(invoke).toHaveBeenCalledWith("write_lrc_file", expect.objectContaining({ path: "/song.lrc" }));
+    expect(saveRecoverySnapshot).not.toHaveBeenCalled(); expect(u.install).toHaveBeenCalledOnce();
+  });
+  it("protects edits made while the file save is pending", async () => {
+    useLrcStore.setState({ lrcPath: "/song.lrc" });
+    let finish!: () => void;
+    invoke.mockImplementation(() => new Promise<void>(resolve => { finish = resolve; }));
+    const u = update(); const task = useUpdaterStore.getState().downloadAndInstall();
+    await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
+    useLrcStore.getState().setMetadata({ title: "edited during update save" }); finish(); await task;
+    expect(saveRecoverySnapshot).toHaveBeenCalledWith(expect.objectContaining({ metadata: expect.objectContaining({ title: "edited during update save" }) }), "/song.lrc", null);
+    expect(u.install).toHaveBeenCalledOnce();
+  });
+  it("closes a failed update and retries with a fresh checked resource", async () => {
+    const u = update(undefined, vi.fn().mockRejectedValue(new Error("installer unavailable")));
+    await useUpdaterStore.getState().downloadAndInstall();
+    expect(useUpdaterStore.getState().error).toContain("installer unavailable");
+    expect(u.close).toHaveBeenCalledOnce(); expect(useUpdaterStore.getState()._update).toBeNull();
+    const fresh = update();
+    const checked = useUpdaterStore.getState()._update;
+    useUpdaterStore.setState({ _update: null }); check.mockResolvedValueOnce(checked);
+    await useUpdaterStore.getState().checkForUpdate();
+    await useUpdaterStore.getState().downloadAndInstall();
+    expect(u.download).toHaveBeenCalledOnce(); expect(fresh.install).toHaveBeenCalledOnce();
+    expect(useUpdaterStore.getState().status).toBe("ready");
+  });
+  it("releases downloaded resources when preservation fails", async () => {
+    saveRecoverySnapshot.mockReturnValue(false); const u = update();
+    await useUpdaterStore.getState().downloadAndInstall();
+    expect(u.close).toHaveBeenCalledOnce(); expect(useUpdaterStore.getState()._update).toBeNull();
+    expect(u.install).not.toHaveBeenCalled();
+  });
+  it("keeps the original failure when resource cleanup also fails", async () => {
+    const u = update(undefined, vi.fn().mockRejectedValue(new Error("install failed")));
+    u.close.mockRejectedValueOnce(new Error("cleanup failed"));
+    await expect(useUpdaterStore.getState().downloadAndInstall()).resolves.toBeUndefined();
+    expect(useUpdaterStore.getState().error).toContain("install failed");
+    expect(useUpdaterStore.getState()._update).toBeNull();
+  });
+  it("does not start a second download or restart while installation is active", async () => {
+    let finish!: () => void;
+    const u = update(vi.fn(() => new Promise<void>(resolve => { finish = resolve; })));
+    const first = useUpdaterStore.getState().downloadAndInstall();
+    await useUpdaterStore.getState().downloadAndInstall();
+    await useUpdaterStore.getState().restart();
+    expect(u.download).toHaveBeenCalledOnce(); expect(relaunch).not.toHaveBeenCalled(); finish(); await first;
+    expect(u.install).toHaveBeenCalledOnce();
   });
 });

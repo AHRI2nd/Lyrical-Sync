@@ -21,6 +21,21 @@ interface UpdaterState {
   dismiss: () => void;
 }
 
+// Windows installation exits the process before the separate restart action.
+// Invoke the destructive action in the same turn as the final recovery snapshot.
+let updateOperationActive = false;
+async function preserveBefore(action: () => Promise<void>): Promise<void> {
+  const lrc = useLrcStore.getState();
+  if (lrc.isDirty && lrc.lrcPath) {
+    try { await lrc.saveLrc(); } catch { /* Fall back to a durable recovery copy. */ }
+  }
+  const after = useLrcStore.getState();
+  if (after.isDirty && !saveRecoverySnapshot(after.doc, after.lrcPath, after.audioPath)) {
+    throw new Error(useI18nStore.getState().t.toast.recoveryFailed);
+  }
+  return action();
+}
+
 export const useUpdaterStore = create<UpdaterState>((set, get) => ({
   status: "idle",
   version: null,
@@ -46,12 +61,13 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
 
   downloadAndInstall: async () => {
     const { _update } = get();
-    if (!_update) return;
+    if (!_update || updateOperationActive) return;
+    updateOperationActive = true;
     set({ status: "downloading", progress: 0, error: null });
     try {
       let total = 0;
       let downloaded = 0;
-      await _update.downloadAndInstall((event) => {
+      await _update.download((event) => {
         switch (event.event) {
           case "Started":
             total = event.data.contentLength ?? 0;
@@ -65,28 +81,29 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
             break;
         }
       });
+      await preserveBefore(() => _update.install());
       set({ status: "ready" });
     } catch (e) {
-      set({ status: "error", error: String(e) });
+      // Separate downloads own a native byte buffer until installation or close.
+      // A failed attempt must be checked again rather than overwrite that buffer.
+      try { await _update.close(); } catch { /* Preserve the original failure. */ }
+      set({ status: "error", error: String(e), _update: null });
+    } finally {
+      updateOperationActive = false;
     }
   },
 
   restart: async () => {
+    if (updateOperationActive) return;
+    updateOperationActive = true;
     try {
       // Resolve the module before capturing the final document to protect.
       const { relaunch } = await import("@tauri-apps/plugin-process");
-      const lrc = useLrcStore.getState();
-      if (lrc.isDirty && lrc.lrcPath) {
-        try { await lrc.saveLrc(); } catch { /* Fall back to a durable recovery copy. */ }
-      }
-      const after = useLrcStore.getState();
-      if (after.isDirty && !saveRecoverySnapshot(after.doc, after.lrcPath, after.audioPath)) {
-        set({ status: "error", error: useI18nStore.getState().t.toast.recoveryFailed });
-        return;
-      }
-      await relaunch();
+      await preserveBefore(relaunch);
     } catch (error) {
       set({ status: "error", error: String(error) });
+    } finally {
+      updateOperationActive = false;
     }
   },
 
