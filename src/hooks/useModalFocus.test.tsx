@@ -19,7 +19,7 @@ it('wraps Tab in both directions, redirects outside focus and restores preexisti
  view.unmount();expect(document.activeElement).toBe(outside);expect(outside.hasAttribute('inert')).toBe(false);expect(inert.hasAttribute('inert')).toBe(true);outside.remove();inert.remove();
 });
 it('handles only the top nested dialog and restores focus to its opener',async()=>{
- const parentClosed=vi.fn();function Fixture(){const[child,setChild]=useState(false);return <Dialog name="Parent" onClose={parentClosed}><button onClick={()=>setChild(true)}>Open child</button>{child&&<Dialog name="Child" onClose={()=>setChild(false)}><button>Child control</button></Dialog>}</Dialog>;}
+ const parentClosed=vi.fn();function Fixture(){const[child,setChild]=useState(false);return <Dialog name="Parent" onClose={parentClosed}><button>Earlier control</button><button onClick={()=>setChild(true)}>Open child</button>{child&&<Dialog name="Child" onClose={()=>setChild(false)}><button>Child control</button></Dialog>}</Dialog>;}
  render(<Fixture/>);const user=userEvent.setup();const opener=screen.getByRole('button',{name:'Open child'});await user.click(opener);
  expect(document.activeElement).toBe(screen.getByRole('button',{name:'Child control'}));await user.keyboard('{Escape}');
  expect(screen.queryByRole('dialog',{name:'Child'})).toBeNull();expect(document.activeElement).toBe(opener);expect(parentClosed).not.toHaveBeenCalled();
