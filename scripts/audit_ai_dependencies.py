@@ -33,6 +33,8 @@ def query_osv(payload):
 def audit_packages(packages, query=query_osv):
     if not packages:
         raise ValueError('No AI packages to audit')
+    packages = [(name, version.split('+', 1)[0] if name.lower().replace('_', '-') in ('torch', 'torchaudio') else version)
+                for name, version in packages]
     findings = []
     for start in range(0, len(packages), 100):
         batch = packages[start:start + 100]

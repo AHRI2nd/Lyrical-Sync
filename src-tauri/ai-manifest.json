@@ -8,6 +8,10 @@
     "x86_64-pc-windows-msvc": {
       "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20241016/cpython-3.11.10%2B20241016-x86_64-pc-windows-msvc-install_only.tar.gz",
       "sha256": "647b66ff4552e70aec3bf634dd470891b4a2b291e8e8715b3bdb162f577d4c55"
+    },
+    "aarch64-pc-windows-msvc": {
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261021/cpython-3.12.15%2B20261021-aarch64-pc-windows-msvc-install_only.tar.gz",
+      "sha256": "c0660992e1907a8dc31e9069676b1415d585b53f17d0aa7e9075f4b06f38fd65"
     }
   },
   "aligner": {
@@ -23,5 +27,10 @@
     "filename": "demucs/htdemucs.th",
     "url": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th",
     "sha256": "8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4"
+  },
+  "windowsArm64Torch": {
+    "filename": "torch-2.14.1+cpu-cp312-cp312-win_arm64.whl",
+    "url": "https://download-r2.pytorch.org/whl/cpu/torch-2.14.1%2Bcpu-cp312-cp312-win_arm64.whl",
+    "sha256": "2f8162c6b265eaf2b0bdd6bef20e96cece430f308e1477a32d0aef51e472124c"
   }
 }

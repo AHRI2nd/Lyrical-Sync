@@ -35,6 +35,13 @@ class AuditTests(unittest.TestCase):
             return {'results': [{}]}
         self.assertEqual(audit.audit_packages([('torch', '2.14.1')], query)['vulnerabilities'], [])
 
+    def test_cpu_wheel_local_version_cannot_hide_a_base_version_advisory(self):
+        def query(payload):
+            version = payload['queries'][0]['version']
+            return {'results': [{'vulns': [{'id':'GHSA-test'}]}] if version == '2.5.1' else [{}]}
+        with self.assertRaisesRegex(ValueError, 'GHSA-test'):
+            audit.audit_packages([('torch','2.5.1+cpu')],query)
+
     def test_vulnerability_blocks_publication(self):
         with self.assertRaisesRegex(ValueError, 'torch.*GHSA-test'):
             audit.audit_packages([('torch', '2.5.1')], lambda _: {'results': [{'vulns': [{'id': 'GHSA-test'}]}]})
