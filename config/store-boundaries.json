@@ -306,10 +306,11 @@
     "packaging/msix/store.json": "10c3a64285a3ff9fdad0eaf51189d14ecc123e5491633123e9f3050a79f2c979",
     "scripts/appstore-build.sh": "9a05cc569f6e06b08243d9db46b6e9b7f0cf0ebcde7d862be7e50e3ca719ec5f",
     "scripts/appstore-profile.py": "ac0e46498508fa6d4a66fd1cdeef4c527645af0ff89d72c5564eb98da9bfae2c",
-    "scripts/msstore-build.ps1": "53d1baa59781797534c7934ef5f788822ce0f0377f60f5594518701c25ac4fec",
+    "scripts/msstore-build.ps1": "11347d7f2d6596fd7557cb9e8a0d3133e36a5c4149720c369b8049375845b6c6",
     "scripts/msix-stage.mjs": "bac98695159f6c074b4005bef503bcab54259c2144b03d74ad8454c7672bc624",
     "public/runtime-errors.js": "7542486f15d54e62724fd7a1f131b614d2c531f6d1117be9dcabd5eec189ecc9",
-    "src-tauri/build.rs": "c2af8726350e168a916cdec1fe97766f7717301f8ccabe167db7a98b1d24c559",
-    "scripts/windows-pe.mjs": "102fb78d884309af90581ae682c92a32cc95c0c20bad698de0f7234e36aab062"
+    "src-tauri/build.rs": "edff7fd35e42ad418dde44d3bbed23c96ab070f8fa928913a60812a4366f8350",
+    "scripts/windows-pe.mjs": "f5ba3b48df5091e427deb968086d233cab298d73daff8cec0667296be0a57df7",
+    "src-tauri/windows_manifest.rs": "463d4889edcdbb168995be658952a1a2f22215e5b7eaf9ff5f65076dc998684a"
   }
 }
