@@ -28,3 +28,6 @@ scripts/msix-stage.mjs text eol=lf
 public/runtime-errors.js text eol=lf
 
 src-tauri/build.rs text eol=lf
+# Keep the ARM-aware packaging helpers identical in Windows checkouts.
+scripts/windows-pe.mjs text eol=lf
+src-tauri/windows_manifest.rs text eol=lf

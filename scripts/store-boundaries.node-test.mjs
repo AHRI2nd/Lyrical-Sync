@@ -77,3 +77,15 @@ test('keeps the protected public script unchanged under Windows checkout convers
   git('checkout-index', '--all', '--force');
   assert.deepEqual(checkStoreBoundaries(root, policy), []);
 }));
+
+test('keeps every protected platform file byte-identical under Windows checkout conversion', () => fixture(({ root, put, policy }) => {
+  const shipped = JSON.parse(readFileSync(new URL('../config/store-boundaries.json', import.meta.url), 'utf8'));
+  policy.protectedFiles = shipped.protectedFiles;
+  put('.gitattributes', readFileSync(new URL('../.gitattributes', import.meta.url)));
+  for (const path of Object.keys(policy.protectedFiles)) put(path, readFileSync(new URL('../' + path, import.meta.url)));
+  const git = (...args) => execFileSync('git', ['-C', root, '-c', 'core.autocrlf=true', '-c', 'core.eol=crlf', ...args], { stdio: 'pipe' });
+  git('init', '--quiet'); git('add', '.gitattributes', ...Object.keys(policy.protectedFiles));
+  for (const path of Object.keys(policy.protectedFiles)) rmSync(join(root, path));
+  git('checkout-index', '--all', '--force');
+  assert.deepEqual(checkStoreBoundaries(root, policy), []);
+}));
