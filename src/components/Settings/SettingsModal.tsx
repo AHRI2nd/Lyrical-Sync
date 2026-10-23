@@ -45,7 +45,7 @@ export function SettingsModal({
       onClose();
       onUpdateFound();
     } else {
-      setCheckState("upToDate");
+      setCheckState(status === "up-to-date" ? "upToDate" : status === "error" ? "error" : "idle");
     }
   };
 
