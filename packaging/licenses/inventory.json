@@ -5056,13 +5056,13 @@
       "license": "MIT",
       "name": "tokio",
       "repository": "https://github.com/tokio-rs/tokio",
-      "sourceArchive": "https://crates.io/api/v1/crates/tokio/1.52.2/download",
-      "sourceCommit": "4abe9d732eb01f7b092a571c3dcc4fbd266f4067",
+      "sourceArchive": "https://crates.io/api/v1/crates/tokio/1.53.3/download",
+      "sourceCommit": "a85c3f5baa298a6b554fd3700daf0342289881af",
       "targets": [
         "macOS ARM64",
         "Windows x64"
       ],
-      "version": "1.52.2"
+      "version": "1.53.3"
     },
     {
       "documents": [
@@ -6545,9 +6545,9 @@
     "packaging/licenses/upstream/c76f740d1521b9bed9ca7a04ad526c310493c62621b1341d623b431736533b30.txt": "c76f740d1521b9bed9ca7a04ad526c310493c62621b1341d623b431736533b30",
     "packaging/licenses/upstream/f5c342c49f3ac804f3e8e7bb62a8040a44c50d47bb36902b1abd13f66a1adf8b.txt": "f5c342c49f3ac804f3e8e7bb62a8040a44c50d47bb36902b1abd13f66a1adf8b",
     "scripts/generate-notices.py": "4953e82aee8e9a07168fcc6d17467c02a83d28d51ba69de00efb62fb91151c0e",
-    "src-tauri/Cargo.lock": "3e501c239321fd4f490e671c1256cc7906e9b630e0c2375791a9c69e2ae0c906",
+    "src-tauri/Cargo.lock": "dfb15998e2249dac2b3a93d5ead21685e7b741e9ceffab4c5aa2114fdc8a3de8",
     "src-tauri/Cargo.toml": "741f2832213417680c19e4d1caed85b348f51dbf861bdfcbb5f40eecbd1713e3"
   },
-  "noticeSha256": "9a67fe56b15cb3d0ec385df339991f8908ed9cf3cf6744a37def4a148413f487",
+  "noticeSha256": "1c743311ecff62c490e35342714e0cf0bf7b8beb717b11fb9753ffc19fb78eed",
   "schema": 1
 }

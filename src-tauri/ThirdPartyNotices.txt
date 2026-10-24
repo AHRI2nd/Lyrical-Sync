@@ -2031,12 +2031,12 @@ Repository: https://github.com/unicode-org/icu4x
 Source revision: c9fac4e625ccb2c6a7aa35079fff9709db4385ac
 License text: f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2 (LICENSE)
 
-tokio 1.52.2 (cargo)
+tokio 1.53.3 (cargo)
 License: MIT
 Scope: macOS ARM64, Windows x64
-Source archive: https://crates.io/api/v1/crates/tokio/1.52.2/download
+Source archive: https://crates.io/api/v1/crates/tokio/1.53.3/download
 Repository: https://github.com/tokio-rs/tokio
-Source revision: 4abe9d732eb01f7b092a571c3dcc4fbd266f4067
+Source revision: a85c3f5baa298a6b554fd3700daf0342289881af
 License text: 253cd04c6714889df2d32f3f64d669179a1c95c76ac43c40882c52eb06bc3552 (LICENSE)
 
 toml 1.1.2+spec-1.1.0 (cargo)

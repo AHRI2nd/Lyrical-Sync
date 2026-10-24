@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "upstreamBaseline": "1b33ed36a40915e558da750abdf6c12d7560b8b3",
-  "storeBaseline": "1b1b02884bb48eabbcad53f74165b83151817240",
+  "upstreamBaseline": "8e73cd9944bc853412ecb7e2ef6f28b0ed6b8714",
+  "storeBaseline": "d2ed3d743959b1749a30ad176760827ef4eaf6d7",
   "sourceInventory": [
     "src-tauri/src/atomic_write.rs",
     "src-tauri/src/audio_decode.rs",
@@ -252,7 +252,14 @@
     "src/utils/serviceControls.ts",
     "src/utils/spotifyAuth.test.ts",
     "src/utils/spotifyAuth.ts",
-    "src/utils/spotifyPlayer.ts"
+    "src/utils/spotifyPlayer.ts",
+    "scripts/test_python_runtime.py",
+    "src-tauri/resources/windows-arm64-ai/ctc_forced_aligner-1.0.2-cp313-cp313-win_arm64.whl",
+    "src-tauri/resources/windows-arm64-ai/torchaudio-2.11.0-cp313-cp313-win_arm64.whl",
+    "src-tauri/src/probe_runtime.py",
+    "src/components/AppShell/LangDropdown.test.tsx",
+    "src/components/LrcLib/LrcLibPublishModal.test.tsx",
+    "src/components/Settings/PythonEnvSection.test.tsx"
   ],
   "dependencies": [
     "@tauri-apps/api",
