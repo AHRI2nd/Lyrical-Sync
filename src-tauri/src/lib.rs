@@ -169,6 +169,7 @@ pub fn run() {
         .manage(ModelsDirState::default())
         .manage(AlignmentState::default())
         .manage(YtdlpState::default())
+        .manage(lrclib::PublishState::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
@@ -211,6 +212,7 @@ pub fn run() {
             ytdlp_load_audio,
             cancel_ytdlp_load,
             lrclib_publish,
+            cancel_lrclib_publish,
             get_now_playing,
             now_playing_toggle_play_pause,
             now_playing_seek,

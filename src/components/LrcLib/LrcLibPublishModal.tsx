@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useModalFocus } from "../../hooks/useModalFocus";
 import { invoke } from "@tauri-apps/api/core";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
@@ -13,6 +14,21 @@ export function LrcLibPublishModal({ onClose }: { onClose: () => void }) {
 
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const activeRun = useRef<string | null>(null);
+  const dialog = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const cancel = () => {
+    const runId = activeRun.current;
+    activeRun.current = null;
+    if (runId) void invoke("cancel_lrclib_publish", { runId }).catch(() => {});
+    onClose();
+  };
+  useModalFocus(dialog, cancel, true, 60);
+  useEffect(() => () => {
+    const runId = activeRun.current;
+    activeRun.current = null;
+    if (runId) void invoke("cancel_lrclib_publish", { runId }).catch(() => {});
+  }, []);
 
   const title = doc.metadata.title.trim();
   const artist = doc.metadata.artist.trim();
@@ -35,17 +51,15 @@ export function LrcLibPublishModal({ onClose }: { onClose: () => void }) {
   if (!hasSync) missing.push(t.lrclibPublish.needSync);
   const canPublish = missing.length === 0 && status !== "publishing";
 
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape" && status !== "publishing") onClose(); };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [onClose, status]);
-
   const publish = async () => {
+    if (activeRun.current) return;
+    const runId = crypto.randomUUID();
+    activeRun.current = runId;
     setStatus("publishing");
     setErrorMsg("");
     try {
       await invoke("lrclib_publish", {
+        runId,
         trackName: title,
         artistName: artist,
         albumName: album,
@@ -53,8 +67,12 @@ export function LrcLibPublishModal({ onClose }: { onClose: () => void }) {
         plainLyrics,
         syncedLyrics,
       });
+      if (activeRun.current !== runId) return;
+      activeRun.current = null;
       setStatus("done");
     } catch (e) {
+      if (activeRun.current !== runId) return;
+      activeRun.current = null;
       setErrorMsg(String(e));
       setStatus("error");
     }
@@ -63,14 +81,14 @@ export function LrcLibPublishModal({ onClose }: { onClose: () => void }) {
   return (
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={() => status !== "publishing" && onClose()}
+      onClick={cancel}
     >
-      <div
+      <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
         className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-5 py-3 border-b border-[var(--ls-border-subtle)]">
-          <span className="font-semibold text-[var(--ls-text)]">{t.lrclibPublish.title}</span>
+          <span id={titleId} className="font-semibold text-[var(--ls-text)]">{t.lrclibPublish.title}</span>
         </div>
 
         <div className="p-5 flex flex-col gap-3">
@@ -104,14 +122,13 @@ export function LrcLibPublishModal({ onClose }: { onClose: () => void }) {
           )}
 
           {status === "publishing" && (
-            <p className="text-xs text-[var(--ls-accent)]">{t.lrclibPublish.publishing}</p>
+            <div role="status" className="text-xs text-[var(--ls-accent)]"><p>{t.lrclibPublish.publishing}</p><p>{t.lrclibPublish.cancelNotice}</p></div>
           )}
         </div>
 
         <div className="flex items-center justify-end gap-2 px-5 pb-4">
           <button
-            onClick={() => (status === "confirm" ? setStatus("idle") : onClose())}
-            disabled={status === "publishing"}
+            onClick={() => (status === "confirm" ? setStatus("idle") : cancel())}
             className="ls-button text-sm hover:text-white transition-colors disabled:opacity-40"
           >
             {status === "done" ? t.lrclibPublish.close : t.lrclibPublish.cancel}

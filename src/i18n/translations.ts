@@ -175,6 +175,7 @@ export interface Translations {
     confirm: string;
     publish: string;
     publishing: string;
+    cancelNotice: string;
     success: string;
     failed: string;
     close: string;
@@ -769,6 +770,7 @@ const ko: Translations = {
     confirm: "확인했으며 업로드",
     publish: "업로드",
     publishing: "업로드 중… (작업 증명 계산, 수 초 소요)",
+    cancelNotice: "취소하면 대기를 중단합니다. 이미 전송된 요청은 서버에서 처리될 수 있으므로 재시도 전에 확인하세요.",
     success: "업로드 완료! 기여해 주셔서 감사합니다.",
     failed: "업로드 실패",
     close: "닫기",
@@ -1369,6 +1371,7 @@ const en: Translations = {
     confirm: "I've checked — upload",
     publish: "Publish",
     publishing: "Publishing… (computing proof-of-work, a few seconds)",
+    cancelNotice: "Cancel stops waiting. A request already sent may still be accepted; check before retrying.",
     success: "Published! Thanks for contributing.",
     failed: "Publish failed",
     close: "Close",
@@ -1970,6 +1973,7 @@ const ja: Translations = {
     confirm: "確認のうえ公開",
     publish: "公開",
     publishing: "公開中…（証明計算、数秒かかります）",
+    cancelNotice: "キャンセルすると待機を中止します。送信済みのリクエストは処理される場合があるため、再試行前に確認してください。",
     success: "公開しました！ご貢献ありがとうございます。",
     failed: "公開に失敗しました",
     close: "閉じる",
