@@ -61,17 +61,10 @@ A desktop app for creating, syncing, and editing `.lrc` (LRC) lyric files
 
 ### macOS
 
-Download the latest `.dmg` installer from the [Releases](../../releases) page and drag Lyrical Sync into your Applications folder.
+Lyrical Sync supports **Apple Silicon Macs only**. Intel Macs are not supported.
+AI alignment and vocal separation require **macOS 14 or later**; the editor and AI tools have separate system requirements.
 
-> **Unsigned app warning**
->
-> Run the following command in Terminal after installation:
->
-> ```bash
-> xattr -cr /Applications/Lyrical\ Sync.app
-> ```
->
-> Then open the app normally.
+Download the `.dmg` installer from the [Releases](../../releases) page and drag Lyrical Sync into your Applications folder. Official releases are intended to be signed and notarized. If macOS rejects an official download, check the release notes and report the exact warning before changing system security settings.
 
 ### Windows
 
@@ -107,6 +100,14 @@ Default bindings — all of these can be remapped in **Settings → Shortcuts**.
 > Shortcuts are disabled while an input field is focused.
 
 ---
+
+## Updating to 0.7.0
+
+Save all open work before updating, especially when upgrading from 0.6.3: the old application's updater cannot gain the new unsaved-work protections retroactively. Keep your normal document backups.
+
+The embedded AI runtime is now Python 3.13.17 on all supported systems. Existing AI environments may require an update from Settings > AI Models. The replacement environment is installed and validated before the previous environment is replaced; a failed installation retains the previous files. AI model downloads are separate from the runtime update.
+
+Keep the installed Windows architecture when updating. Switching between x64 and ARM64 requires a deliberate reinstall; their Python and yt-dlp caches remain separate.
 
 ## Tech Stack
 
