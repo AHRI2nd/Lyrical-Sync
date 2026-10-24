@@ -16,6 +16,7 @@ export interface Translations {
   newFileBtn: string;
   openLrc: string;
   recentFiles: string;
+  languagePicker: string;
   clearRecentFiles: string;
   save: string;
   saveAs: string;
@@ -559,6 +560,7 @@ const ko: Translations = {
   newFileBtn: "새로 만들기",
   openLrc: "가사 열기",
   recentFiles: "최근 파일",
+  languagePicker: "언어 선택",
   clearRecentFiles: "최근 파일 목록 지우기",
   save: "저장",
   saveAs: "다른 이름으로 저장",
@@ -1160,6 +1162,7 @@ const en: Translations = {
   newFileBtn: "New",
   openLrc: "Open Lyrics",
   recentFiles: "Recent Files",
+  languagePicker: "Choose language",
   clearRecentFiles: "Clear recent files",
   save: "Save",
   saveAs: "Save As",
@@ -1762,6 +1765,7 @@ const ja: Translations = {
   newFileBtn: "新規作成",
   openLrc: "歌詞を開く",
   recentFiles: "最近使ったファイル",
+  languagePicker: "言語を選択",
   clearRecentFiles: "最近使ったファイルをクリア",
   save: "保存",
   saveAs: "名前を付けて保存",
