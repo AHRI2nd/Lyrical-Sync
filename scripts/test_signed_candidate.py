@@ -22,6 +22,18 @@ class SignedCandidateTests(unittest.TestCase):
         self.assertIn('actions/upload-artifact@v4',source)
         self.assertIn('scripts/record_signed_candidate.py',source)
 
+    def test_registered_build_can_dispatch_candidate_without_changing_main(self):
+        source=(ROOT/'.github/workflows/build.yml').read_text()
+        self.assertIn('signed_candidate:',source)
+        self.assertIn('type: boolean',source)
+        self.assertIn('default: false',source)
+        self.assertIn('contents: read',source)
+        self.assertIn("if: ${{ inputs.signed_candidate == true }}",source)
+        self.assertIn("if: ${{ inputs.signed_candidate != true }}",source)
+        self.assertIn('uses: ./.github/workflows/candidate.yml',source)
+        self.assertIn('secrets: inherit',source)
+        self.assertIn('workflow_call:',(ROOT/'.github/workflows/candidate.yml').read_text())
+
     def recorder(self):
         path=ROOT/'scripts/record_signed_candidate.py'
         self.assertTrue(path.is_file())

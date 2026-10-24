@@ -5,9 +5,23 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      signed_candidate:
+        description: Build signed qualification artifacts without publishing a release
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
 
 jobs:
+  signed-candidate:
+    if: ${{ inputs.signed_candidate == true }}
+    uses: ./.github/workflows/candidate.yml
+    secrets: inherit
+
   build:
+    if: ${{ inputs.signed_candidate != true }}
     strategy:
       fail-fast: false
       matrix:
