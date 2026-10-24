@@ -1,0 +1,120 @@
+name: Signed candidate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: signed-candidate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  candidate:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            bundleArgs: ""
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundleArgs: ""
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            bundleArgs: "--bundles nsis"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Add cargo to PATH
+        shell: bash
+        run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: ${{ matrix.target }}
+
+      - name: Install frontend deps
+        run: npm ci
+
+      - name: Write Apple API key file
+        if: runner.os == 'macOS'
+        shell: bash
+        run: echo "${{ secrets.APPLE_API_KEY }}" > "${{ runner.temp }}/apple_api_key.p8"
+
+      - name: Import Apple certificate
+        if: runner.os == 'macOS'
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      - name: Sign bundled mediaremote-adapter binary
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -e
+          BIN="src-tauri/resources/mediaremote-adapter/MediaRemoteAdapter.framework/MediaRemoteAdapter"
+          codesign --force --sign "${{ secrets.APPLE_SIGNING_IDENTITY }}" --options runtime --timestamp "$BIN"
+          codesign --verify --strict --verbose=2 "$BIN"
+
+      - name: Build signed macOS candidate
+        if: runner.os == 'macOS'
+        uses: tauri-apps/tauri-action@v0.5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_KEY_PATH: ${{ runner.temp }}/apple_api_key.p8
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          includeUpdaterJson: false
+          args: --target ${{ matrix.target }} ${{ matrix.bundleArgs }} --config src-tauri/tauri.updater.conf.json -- --locked
+
+      - name: Build updater-signed Windows candidate
+        if: runner.os == 'Windows'
+        uses: tauri-apps/tauri-action@v0.5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          includeUpdaterJson: false
+          args: --target ${{ matrix.target }} ${{ matrix.bundleArgs }} --config src-tauri/tauri.updater.conf.json -- --locked
+      - name: Verify Windows artifact architecture
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          ARCH=x64
+          if [ "${{ matrix.target }}" = "aarch64-pc-windows-msvc" ]; then ARCH=arm64; fi
+          python scripts/verify_windows_build.py --architecture "$ARCH" --version "$VERSION" --binary "src-tauri/target/${{ matrix.target }}/release/lyrical-sync.exe" --installer-dir "src-tauri/target/${{ matrix.target }}/release/bundle/nsis"
+
+      - name: Record exact source and signed candidate hashes
+        run: python scripts/record_signed_candidate.py --target ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signed-candidate-${{ matrix.target }}
+          path: src-tauri/target/${{ matrix.target }}/release/bundle/
+          if-no-files-found: error

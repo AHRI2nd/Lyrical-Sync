@@ -53,6 +53,7 @@ jobs:
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
       - run: python scripts/test_updater_security.py
       - run: python scripts/test_release_manifest.py
+      - run: python scripts/test_signed_candidate.py
       - run: python scripts/test_windows_build.py
       - name: Build native debug application
         run: npm run tauri -- build --debug --no-bundle -- --locked
