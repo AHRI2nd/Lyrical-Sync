@@ -24,6 +24,15 @@ class ARMArtifactsTests(unittest.TestCase):
     def test_committed_native_wheels_have_valid_digests_machine_types_and_licenses(self):
         self.assertEqual(len(self.verify(BUNDLED)),3)
 
+    def test_bundled_wheel_tags_are_installable_by_the_embedded_interpreter(self):
+        from zipfile import ZipFile
+        for wheel in BUNDLED.glob('*.whl'):
+            with ZipFile(wheel) as archive:
+                metadata=next(name for name in archive.namelist() if name.endswith('.dist-info/WHEEL'))
+                tags=[line.removeprefix('Tag: ') for line in archive.read(metadata).decode().splitlines() if line.startswith('Tag: ')]
+            compatible=any(tag=='cp313-cp313-win_arm64' or tag=='cp312-abi3-win_arm64' for tag in tags)
+            self.assertTrue(compatible,f'{wheel.name} cannot be installed by standard-GIL CPython3.13 ARM64')
+
     def test_changed_wheel_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)/'bundle';shutil.copytree(BUNDLED,root)

@@ -8,9 +8,9 @@ import struct
 import zipfile
 
 ROOT=Path(__file__).resolve().parents[1]/'src-tauri/resources/windows-arm64-ai'
-EXPECTED={'torchaudio-2.11.0-cp312-cp312-win_arm64.whl',
+EXPECTED={'torchaudio-2.11.0-cp313-cp313-win_arm64.whl',
           'soxr-1.1.0-cp312-abi3-win_arm64.whl',
-          'ctc_forced_aligner-1.0.2-cp312-cp312-win_arm64.whl'}
+          'ctc_forced_aligner-1.0.2-cp313-cp313-win_arm64.whl'}
 
 
 def verify(root=ROOT):

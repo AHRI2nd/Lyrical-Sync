@@ -3,17 +3,17 @@ use std::path::{Path, PathBuf};
 const PROVENANCE: &str = include_str!("../resources/windows-arm64-ai/provenance.json");
 const WHEELS: &[(&str, &[u8])] = &[
     (
-        "torchaudio-2.11.0-cp312-cp312-win_arm64.whl",
-        include_bytes!("../resources/windows-arm64-ai/torchaudio-2.11.0-cp312-cp312-win_arm64.whl"),
+        "torchaudio-2.11.0-cp313-cp313-win_arm64.whl",
+        include_bytes!("../resources/windows-arm64-ai/torchaudio-2.11.0-cp313-cp313-win_arm64.whl"),
     ),
     (
         "soxr-1.1.0-cp312-abi3-win_arm64.whl",
         include_bytes!("../resources/windows-arm64-ai/soxr-1.1.0-cp312-abi3-win_arm64.whl"),
     ),
     (
-        "ctc_forced_aligner-1.0.2-cp312-cp312-win_arm64.whl",
+        "ctc_forced_aligner-1.0.2-cp313-cp313-win_arm64.whl",
         include_bytes!(
-            "../resources/windows-arm64-ai/ctc_forced_aligner-1.0.2-cp312-cp312-win_arm64.whl"
+            "../resources/windows-arm64-ai/ctc_forced_aligner-1.0.2-cp313-cp313-win_arm64.whl"
         ),
     ),
 ];

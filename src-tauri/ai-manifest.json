@@ -1,17 +1,17 @@
 {
-  "runtimeId": "cpython-3.11.10-20241016-v1",
+  "runtimeId": "cpython-3.13.17-20261021-v1",
   "python": {
     "aarch64-apple-darwin": {
-      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20241016/cpython-3.11.10%2B20241016-aarch64-apple-darwin-install_only.tar.gz",
-      "sha256": "5a69382da99c4620690643517ca1f1f53772331b347e75f536088c42a4cf6620"
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261021/cpython-3.13.17%2B20261021-aarch64-apple-darwin-install_only.tar.gz",
+      "sha256": "9c985cbf327425873469896ce748c7134b6deca8edb81e93c589ad2fc5aff445"
     },
     "x86_64-pc-windows-msvc": {
-      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20241016/cpython-3.11.10%2B20241016-x86_64-pc-windows-msvc-install_only.tar.gz",
-      "sha256": "647b66ff4552e70aec3bf634dd470891b4a2b291e8e8715b3bdb162f577d4c55"
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261021/cpython-3.13.17%2B20261021-x86_64-pc-windows-msvc-install_only.tar.gz",
+      "sha256": "e10b46d9b03a3a494297f336770f55f86474d683061137b1cf595e12e47bcef5"
     },
     "aarch64-pc-windows-msvc": {
-      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261021/cpython-3.12.15%2B20261021-aarch64-pc-windows-msvc-install_only.tar.gz",
-      "sha256": "c0660992e1907a8dc31e9069676b1415d585b53f17d0aa7e9075f4b06f38fd65"
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261021/cpython-3.13.17%2B20261021-aarch64-pc-windows-msvc-install_only.tar.gz",
+      "sha256": "dd7f2c489a30356b02dc0aca8c210400a09952b06a955d432313d605f8850765"
     }
   },
   "aligner": {
@@ -29,8 +29,8 @@
     "sha256": "8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4"
   },
   "windowsArm64Torch": {
-    "filename": "torch-2.14.1+cpu-cp312-cp312-win_arm64.whl",
-    "url": "https://download-r2.pytorch.org/whl/cpu/torch-2.14.1%2Bcpu-cp312-cp312-win_arm64.whl",
-    "sha256": "2f8162c6b265eaf2b0bdd6bef20e96cece430f308e1477a32d0aef51e472124c"
+    "filename": "torch-2.14.1+cpu-cp313-cp313-win_arm64.whl",
+    "url": "https://download-r2.pytorch.org/whl/cpu/torch-2.14.1%2Bcpu-cp313-cp313-win_arm64.whl",
+    "sha256": "a46884e8b38cbdf5af8d4fdd39223a5fa97491419c3417c93f9b3e28749fa356"
   }
 }

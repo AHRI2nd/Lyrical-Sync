@@ -5,10 +5,11 @@ import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-LEGACY = {'ctc-forced-aligner':'1.0.2','demucs':'4.0.1','numpy':'1.26.4',
-    'onnxruntime':'1.20.1','librosa':'0.10.2.post1','Unidecode':'1.3.8',
-    'torch':'2.14.1','torchaudio':'2.11.0','setuptools':'84.2.1','wheel':'0.48.0','pip':'26.2.2'}
-ARM = {**LEGACY,'numpy':'2.5.4','onnxruntime':'1.31.0','torch':'2.14.1+cpu','soxr':'1.1.0'}
+COMMON = {'ctc-forced-aligner':'1.0.2','demucs':'4.0.1','numpy':'2.5.4',
+    'onnxruntime':'1.31.0','librosa':'0.10.2.post1','Unidecode':'1.3.8',
+    'torch':'2.14.1','torchaudio':'2.11.0','setuptools':'84.2.1','wheel':'0.48.0','pip':'26.2.2','soxr':'1.1.0'}
+LEGACY = {**COMMON,'numpy':'1.26.4','onnxruntime':'1.20.1'}
+ARM = {**COMMON,'numpy':'2.5.4','onnxruntime':'1.31.0','torch':'2.14.1+cpu','soxr':'1.1.0'}
 
 
 def run_probe(machine, versions, cuda=None, interpreter=None):
@@ -30,16 +31,16 @@ runpy.run_path(PROBE)
 
 
 class AIProfileTests(unittest.TestCase):
-    def test_existing_windows_x64_package_set_is_unchanged(self):
-        result=run_probe('AMD64',LEGACY)
+    def test_common_windows_x64_package_set_is_accepted(self):
+        result=run_probe('AMD64',COMMON)
         self.assertEqual(result.returncode,0,result.stderr)
 
-    def test_emulated_x64_on_arm_host_keeps_legacy_package_set(self):
-        result=run_probe('ARM64',LEGACY,interpreter='win-amd64')
+    def test_emulated_x64_on_arm_host_keeps_x64_profile(self):
+        result=run_probe('ARM64',COMMON,interpreter='win-amd64')
         self.assertEqual(result.returncode,0,result.stderr)
 
-    def test_emulated_x64_on_arm_host_rejects_arm_package_set(self):
-        self.assertNotEqual(run_probe('ARM64',ARM,interpreter='win-amd64').returncode,0)
+    def test_emulated_x64_on_arm_host_accepts_cpu_variant(self):
+        self.assertEqual(run_probe('ARM64',ARM,interpreter='win-amd64').returncode,0)
 
     def test_native_arm_package_set_is_accepted(self):
         result=run_probe('ARM64',ARM)
@@ -48,8 +49,8 @@ class AIProfileTests(unittest.TestCase):
     def test_arm_interpreter_cannot_adopt_legacy_x64_package_versions(self):
         self.assertNotEqual(run_probe('ARM64',LEGACY).returncode,0)
 
-    def test_x64_interpreter_cannot_adopt_arm_package_versions(self):
-        self.assertNotEqual(run_probe('AMD64',ARM).returncode,0)
+    def test_x64_interpreter_rejects_stale_package_versions(self):
+        self.assertNotEqual(run_probe('AMD64',LEGACY).returncode,0)
 
     def test_arm_cuda_variant_is_not_the_verified_cpu_runtime(self):
         self.assertNotEqual(run_probe('ARM64',ARM,'13.4').returncode,0)

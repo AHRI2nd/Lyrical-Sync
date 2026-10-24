@@ -30,7 +30,7 @@ jobs:
       - uses: actions/setup-python@v5
         if: matrix.os != 'windows-11-arm'
         with:
-          python-version: '3.11'
+          python-version: '3.13'
       - name: Verify native ARM64 test interpreter
         if: matrix.os == 'windows-11-arm'
         run: python -c "import sysconfig; assert sysconfig.get_platform() == 'win-arm64', sysconfig.get_platform()"
@@ -44,6 +44,7 @@ jobs:
       - run: npm test
       - run: python scripts/test_ai_sidecars.py
       - run: python scripts/test_ai_profiles.py
+      - run: python scripts/test_python_runtime.py
       - run: python scripts/test_arm_ai_artifacts.py
       - run: python scripts/verify_windows_arm64_ai.py
       - run: python scripts/test_ai_dependency_audit.py

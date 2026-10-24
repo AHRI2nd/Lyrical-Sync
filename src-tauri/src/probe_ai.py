@@ -8,10 +8,10 @@ from ctc_forced_aligner import load_audio, generate_emissions, preprocess_text, 
 import torch, torchaudio
 
 expected = {
-    'ctc-forced-aligner': '1.0.2', 'demucs': '4.0.1', 'numpy': '1.26.4',
-    'onnxruntime': '1.20.1', 'librosa': '0.10.2.post1', 'Unidecode': '1.3.8',
+    'ctc-forced-aligner': '1.0.2', 'demucs': '4.0.1', 'numpy': '2.5.4',
+    'onnxruntime': '1.31.0', 'librosa': '0.10.2.post1', 'Unidecode': '1.3.8',
     'torch': '2.14.1', 'torchaudio': '2.11.0', 'setuptools': '84.2.1',
-    'wheel': '0.48.0', 'pip': '26.2.2',
+    'wheel': '0.48.0', 'pip': '26.2.2', 'soxr': '1.1.0',
 }
 if sys.platform == 'win32' and sysconfig.get_platform() == 'win-arm64':
     expected.update({'numpy': '2.5.4', 'onnxruntime': '1.31.0', 'soxr': '1.1.0'})

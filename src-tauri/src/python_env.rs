@@ -61,16 +61,14 @@ use std::time::Duration;
 const REQUIREMENTS: &str = include_str!("../requirements-ai.txt");
 #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
 const REQUIREMENTS: &str = include_str!("../requirements-ai-windows-arm64.txt");
-#[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
-const RUNTIME_PROBE: &str = r#"import ssl, ensurepip, venv, ctypes, sqlite3, sys
-if sys.version_info[:3] != (3, 11, 10):
-    raise RuntimeError("Unsupported embedded Python version")
-"#;
+#[cfg(target_os = "macos")]
+const RUNTIME_PROBE: &str = concat!("EXPECTED_PLATFORM = 'macos-arm64'\n", include_str!("probe_runtime.py"));
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+const RUNTIME_PROBE: &str = concat!("EXPECTED_PLATFORM = 'win-amd64'\n", include_str!("probe_runtime.py"));
 #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
-const RUNTIME_PROBE: &str = r#"import ssl, ensurepip, venv, ctypes, sqlite3, sys, sysconfig
-if sys.version_info[:3] != (3, 12, 15) or sys.platform != "win32" or sysconfig.get_platform() != "win-arm64":
-    raise RuntimeError("Unsupported Windows ARM64 embedded Python")
-"#;
+const RUNTIME_PROBE: &str = concat!("EXPECTED_PLATFORM = 'win-arm64'\n", include_str!("probe_runtime.py"));
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+const RUNTIME_PROBE: &str = "raise RuntimeError('Unsupported embedded Python platform')";
 #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
 const PACKAGE_PROBE: &str = include_str!("probe_ai.py");
 #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
@@ -105,7 +103,7 @@ pub struct PythonEnvInfo {
 }
 
 pub async fn packages_ready(python: &Path) -> bool {
-    probe(python, PACKAGE_PROBE).await
+    probe(python, RUNTIME_PROBE).await && probe(python, PACKAGE_PROBE).await
 }
 
 async fn probe(python: &Path, source: &str) -> bool {
@@ -326,7 +324,7 @@ pub async fn install_python_packages(app: AppHandle) -> Result<(), String> {
             let wheels = stage.path().join("verified-wheels");
             let bundled = crate::arm_ai::stage_bundled_wheels(&wheels)?;
             let data = manifest()?;
-            let torch = wheels.join("torch-2.14.1+cpu-cp312-cp312-win_arm64.whl");
+            let torch = wheels.join("torch-2.14.1+cpu-cp313-cp313-win_arm64.whl");
             download_verified(&app, &data["windowsArm64Torch"], &torch, false).await?;
             packages.args(&bundled).arg(&torch);
         }

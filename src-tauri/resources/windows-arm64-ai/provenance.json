@@ -1,11 +1,11 @@
 {
   "platform": "aarch64-pc-windows-msvc",
-  "python": "3.12",
+  "python": "3.13",
   "compiler": "MSVC 19.51.36260 ARM64 / Windows SDK 10.0.26100.0",
   "wheels": [
     {
-      "file": "ctc_forced_aligner-1.0.2-cp312-cp312-win_arm64.whl",
-      "sha256": "1e8adec1c627130eb402cbc8b48df3c3a9c2470b3deff85757e75a8362b9e4cf",
+      "file": "ctc_forced_aligner-1.0.2-cp313-cp313-win_arm64.whl",
+      "sha256": "b55371b3de322dbb1147a3b25f187b5759a791a8bdfac6341f6156bbf376ddc7",
       "source": {
         "version": "1.0.2",
         "url": "https://files.pythonhosted.org/packages/5f/5a/0cf21de3ddc9f2696039063a290f8a4bb9059c9ac64fa325b08ef2769efd/ctc_forced_aligner-1.0.2.tar.gz",
@@ -22,8 +22,8 @@
       }
     },
     {
-      "file": "torchaudio-2.11.0-cp312-cp312-win_arm64.whl",
-      "sha256": "ad8c4a7277f3fd266d758a387803cf3f13af811418422a6e2234483986b277d6",
+      "file": "torchaudio-2.11.0-cp313-cp313-win_arm64.whl",
+      "sha256": "3d54ced185653e21a2e3ec3f567a5261ff27e2a43c367d00fa1e8d99f9a37e6a",
       "source": {
         "version": "2.11.0",
         "revision": "34c52a67e8941bbd8e6adaca0eb0b9eabec11d78",

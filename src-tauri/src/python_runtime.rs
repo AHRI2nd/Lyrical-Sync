@@ -1,10 +1,7 @@
 use std::io;
 use std::path::{Path, PathBuf};
 pub const READY_MARKER: &str = ".lyrical-runtime-ready";
-#[cfg(all(target_os = "windows", target_arch = "aarch64"))]
-pub const RUNTIME_ID: &str = "cpython-3.12.15-20261021-windows-arm64-v1";
-#[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
-pub const RUNTIME_ID: &str = "cpython-3.11.10-20241016-v1";
+pub const RUNTIME_ID: &str = "cpython-3.13.17-20261021-v1";
 pub const MANIFEST: &str = include_str!("../ai-manifest.json");
 pub static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
