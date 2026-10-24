@@ -80,11 +80,16 @@ export function PythonEnvSection() {
   const handleDownload = async () => {
     setDownloading(true);
     setDlPercent(0);
+    setInstallLog([]);
+    setInstallError(null);
     try {
       await invoke("download_embedded_python");
     } catch (e) {
       setDownloading(false);
       setInstallError(String(e));
+    } finally {
+      setDownloading(false);
+      await refresh();
     }
   };
 
@@ -95,8 +100,10 @@ export function PythonEnvSection() {
     try {
       await invoke("install_python_packages");
     } catch (e) {
-      setInstalling(false);
       setInstallError(String(e));
+    } finally {
+      setInstalling(false);
+      await refresh();
     }
   };
 
@@ -163,16 +170,19 @@ export function PythonEnvSection() {
         <div className="flex flex-col gap-2">
           <button
             onClick={handleInstall}
-            disabled={installing}
+            disabled={installing || downloading}
             className="ls-button self-start text-xs bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors ls-button--primary"
           >
             {installing ? t.settingsVenvInstalling : t.settingsVenvInstallBtn}
           </button>
-          {installing && (
-            <p className="text-xs text-[var(--ls-playhead)]/80">{t.settingsVenvCmdWarning}</p>
-          )}
+        </div>
+      )}
+      {(downloading || installing) && (
+        <p className="text-xs text-[var(--ls-playhead)]/80">{t.settingsVenvCmdWarning}</p>
+      )}
+      <div className="flex flex-col gap-2">
           {installError && (
-            <span className="text-xs text-red-400 break-all">{installError}</span>
+            <span role="alert" className="text-xs text-red-400 break-all">{installError}</span>
           )}
           {installLog.length > 0 && (
             <div
@@ -184,8 +194,7 @@ export function PythonEnvSection() {
               ))}
             </div>
           )}
-        </div>
-      )}
+      </div>
     </div>
   );
 }

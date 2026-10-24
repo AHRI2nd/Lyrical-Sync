@@ -246,11 +246,8 @@ pub async fn download_embedded_python(app: AppHandle) -> Result<(), String> {
                 .map_err(|e| e.to_string())?;
         }
     } else {
-        let parent = destination.parent().ok_or("Missing data directory")?;
-        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-        let stage = tempfile::tempdir_in(parent).map_err(|e| e.to_string())?;
-        prepare_runtime(&app, stage.path()).await?;
-        publish_runtime(stage.path(), &destination).map_err(|e| e.to_string())?;
+        // Upgrade the interpreter and packages together; never publish a bare replacement.
+        install_python_packages_unlocked(app.clone()).await?;
     }
     let _ = app.emit(
         "python-download-progress",
@@ -295,6 +292,11 @@ async fn install_step(
 #[tauri::command]
 pub async fn install_python_packages(app: AppHandle) -> Result<(), String> {
     let _environment = ENV_LOCK.try_lock().map_err(|_| "AI environment is busy")?;
+    install_python_packages_unlocked(app).await
+}
+
+// The caller owns ENV_LOCK for the entire staging, validation and publication transaction.
+async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> {
     let result = async {
         let destination = embedded_python_dir(&app)?;
         let parent = destination.parent().ok_or("Missing data directory")?;
