@@ -90,6 +90,21 @@ describe("AudioPlayer — local audio loading", () => {
     cleanup();
   });
 
+  it("does not show an empty-state hint in the waveform area", () => {
+    resetLrc([], null);
+    const showSpectrogram = useSettingsStore.getState().showSpectrogram;
+    useSettingsStore.setState({ showSpectrogram: true });
+    const view = render(<AudioPlayer />);
+    try {
+      expect(view.queryByText(/Open an audio file to display the waveform|오디오 파일을 열어 파형을 표시합니다|音声ファイルを開いて波形を表示します/)).toBeNull();
+      const waveformAreas = view.container.querySelectorAll<HTMLDivElement>(".ls-panel > div:nth-child(-n+2)");
+      expect([...waveformAreas].map((area) => area.style.display)).toEqual(["none", "none"]);
+    } finally {
+      view.unmount();
+      useSettingsStore.setState({ showSpectrogram });
+    }
+  });
+
   it("passes MP3 bytes to WaveSurfer as a typed Blob, without fetching a Blob URL", async () => {
     vi.mocked(readAudioBytes).mockResolvedValue({
       bytes: Uint8Array.from([0x49, 0x44, 0x33]),
