@@ -457,7 +457,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       <div
         ref={containerRef}
         className="w-full rounded-lg overflow-hidden bg-[var(--ls-control)] cursor-pointer"
-        style={{ minHeight: 80, display: (!audioPath || isServiceMode || deviceMode || viewMode === "bar") ? "none" : "" }}
+        style={{ minHeight: 80, display: (isServiceMode || deviceMode || viewMode === "bar") ? "none" : "" }}
       />
       <div
         ref={spectrogramContainerRef}
