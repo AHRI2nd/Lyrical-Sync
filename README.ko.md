@@ -7,7 +7,7 @@
 ![main](img/main_ko.png)
 
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
-![버전](https://img.shields.io/badge/version-0.6.3-green)
+![버전](https://img.shields.io/badge/version-0.7.0-green)
 ![Tauri](https://img.shields.io/badge/Tauri-v2-24C8D8)
 ![React](https://img.shields.io/badge/React-19-61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6)
@@ -62,16 +62,6 @@
 ### macOS
 
 [Releases](../../releases) 페이지에서 최신 `.dmg` 설치 파일을 받아 Lyrical Sync를 응용 프로그램 폴더로 드래그합니다.
-
-> **서명되지 않은 앱 경고**
->
-> 설치 후 터미널에서 다음 명령을 실행하세요:
->
-> ```bash
-> xattr -cr /Applications/Lyrical\ Sync.app
-> ```
->
-> 그다음 앱을 정상적으로 엽니다.
 
 ### Windows
 

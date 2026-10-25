@@ -7,7 +7,7 @@
 ![main](img/main_ja.png)
 
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
-![バージョン](https://img.shields.io/badge/version-0.6.3-green)
+![バージョン](https://img.shields.io/badge/version-0.7.0-green)
 ![Tauri](https://img.shields.io/badge/Tauri-v2-24C8D8)
 ![React](https://img.shields.io/badge/React-19-61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6)
@@ -62,16 +62,6 @@
 ### macOS
 
 [Releases](../../releases) ページから最新の `.dmg` インストーラーをダウンロードし、Lyrical Sync をアプリケーションフォルダにドラッグします。
-
-> **未署名アプリの警告**
->
-> インストール後、ターミナルで次のコマンドを実行してください：
->
-> ```bash
-> xattr -cr /Applications/Lyrical\ Sync.app
-> ```
->
-> その後、通常どおりアプリを開きます。
 
 ### Windows
 
