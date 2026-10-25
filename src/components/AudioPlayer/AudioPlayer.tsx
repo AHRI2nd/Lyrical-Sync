@@ -401,7 +401,7 @@ export function AudioPlayer() {
       <div
         ref={spectrogramContainerRef}
         className="w-full rounded-lg overflow-hidden bg-[var(--ls-control)]"
-        style={{ minHeight: 80, display: (viewMode === "bar" || !showSpectrogram) ? "none" : "" }}
+        style={{ minHeight: 80, display: (!audioPath || viewMode === "bar" || !showSpectrogram) ? "none" : "" }}
       />
 
       {viewMode === "bar" && (
@@ -506,9 +506,6 @@ export function AudioPlayer() {
         </div>
       </div>
 
-      {!audioPath && (
-        <p className="text-center text-[var(--ls-text-secondary)] text-sm">{t.noAudio}</p>
-      )}
     </div>
   );
 }

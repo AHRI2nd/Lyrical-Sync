@@ -130,7 +130,6 @@ export interface Translations {
   openAudio: string;
   zoom: string;
   volume: string;
-  noAudio: string;
   noAudioShort: string;
   previewNoAudio: string;
   unsavedChanges: string;
@@ -501,7 +500,6 @@ const ko: Translations = {
   openAudio: "오디오 열기",
   zoom: "줌",
   volume: "볼륨",
-  noAudio: "오디오 파일을 열어 파형을 표시합니다",
   noAudioShort: "열린 오디오 파일 없음",
   previewNoAudio: "오디오 파일을 열면 가사와 함께 재생할 수 있습니다.",
   unsavedChanges: "저장되지 않은 변경사항이 있습니다",
@@ -892,7 +890,6 @@ const en: Translations = {
   openAudio: "Open Audio",
   zoom: "Zoom",
   volume: "Volume",
-  noAudio: "Open an audio file to display the waveform",
   noAudioShort: "No audio file open",
   previewNoAudio: "Open an audio file to play along with the lyrics.",
   unsavedChanges: "You have unsaved changes",
@@ -1284,7 +1281,6 @@ const ja: Translations = {
   openAudio: "音声を開く",
   zoom: "ズーム",
   volume: "音量",
-  noAudio: "音声ファイルを開いて波形を表示します",
   noAudioShort: "開いている音声ファイルなし",
   previewNoAudio: "音声ファイルを開くと歌詞と一緒に再生できます。",
   unsavedChanges: "未保存の変更があります",

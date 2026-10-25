@@ -42,11 +42,13 @@ import { readAudioBytes } from "../../utils/readAudioBytes";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { AudioPlayer } from "./AudioPlayer";
+import { useI18nStore } from "../../stores/useI18nStore";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { audioControls } from "../../utils/audioControls";
 import { defaultDocument } from "../../types/lrc";
 import { useWaveformStore, clearWaveform } from "../../stores/useWaveformStore";
+import { translations } from "../../i18n/translations";
 
 const originalControls = { ...audioControls };
 
@@ -271,6 +273,59 @@ describe("AudioPlayer loop-line boundaries", () => {
     unmount();
     act(() => { old.get("ready")?.(); old.get("play")?.(); old.get("audioprocess")?.(50); });
     expect(useLrcStore.getState()).toMatchObject({ duration: 0, currentTime: 0, isPlaying: false });
+  });
+
+  it("keeps the empty waveform and hides the empty spectrogram and hint in every language", () => {
+    const previousLanguage = useI18nStore.getState();
+    const previousSpectrogram = useSettingsStore.getState().showSpectrogram;
+    const emptyWaveformHints = {
+      ko: "오디오 파일을 열어 파형을 표시합니다",
+      en: "Open an audio file to display the waveform",
+      ja: "音声ファイルを開いて波形を表示します",
+    };
+    useSettingsStore.setState({ showSpectrogram: true });
+    useLrcStore.setState({ doc: defaultDocument(), audioPath: null });
+
+    try {
+      for (const lang of ["ko", "en", "ja"] as const) {
+        useI18nStore.setState({ lang, t: translations[lang] });
+        const view = render(<AudioPlayer />);
+        const panel = view.container.querySelector(".ls-panel")!;
+        const waveform = panel.children[0] as HTMLElement;
+        const spectrogram = panel.children[1] as HTMLElement;
+
+        expect(waveform.style.display).not.toBe("none");
+        expect(spectrogram.style.display).toBe("none");
+        expect(view.queryByText(emptyWaveformHints[lang])).toBeNull();
+        view.unmount();
+      }
+    } finally {
+      cleanup();
+      useI18nStore.setState(previousLanguage);
+      useSettingsStore.setState({ showSpectrogram: previousSpectrogram });
+    }
+  });
+
+  it("preserves the loaded waveform container and audio engine when switching views", async () => {
+    const file = { path: "/song.mp3", bookmark: null };
+    vi.mocked(readAudioBytes).mockResolvedValue({ file, bytes: new Uint8Array([1]), transcoded: false });
+    useLrcStore.setState({ audioPath: file.path });
+    const view = render(<AudioPlayer />);
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+    const panel = view.container.querySelector(".ls-panel")!;
+    const waveform = panel.children[0];
+    const engineCount = engines.length;
+    const t = useI18nStore.getState().t;
+
+    fireEvent.click(view.getByRole("button", { name: t.tooltipViewSeekBar }));
+    expect(panel.children[0]).toBe(waveform);
+    expect((waveform as HTMLElement).style.display).toBe("none");
+    fireEvent.click(view.getByRole("button", { name: t.tooltipViewWaveform }));
+    expect(panel.children[0]).toBe(waveform);
+    expect((waveform as HTMLElement).style.display).not.toBe("none");
+    expect(engines).toHaveLength(engineCount);
+    expect(load).toHaveBeenCalledTimes(1);
+    view.unmount();
   });
 
 });
