@@ -32,7 +32,7 @@ MP3, WAV, FLAC, OGG/Opus, M4A/AAC, AIFF/AIF 등을 처리합니다. 실제 재�
 
 ## 배포와 개발
 
-Mac App Store와 Microsoft Store 배포를 대상으로 합니다. 실제 제공 여부는 게시와 Store 심사에 따라 결정되며, 이 저장소가 출시 완료를 의미하지 않습니다. 업데이트는 각 Store에서 제공합니다. macOS 빌드 대상은 Apple Silicon·macOS 12 이상, Windows는 x64·Windows 10 빌드19041 이상입니다. 이는 빌드 기준이며 실기기 검증 범위와 구분합니다.
+Mac App Store와 Microsoft Store 배포를 대상으로 합니다. 실제 제공 여부는 게시와 Store 심사에 따라 결정되며, 이 저장소가 출시 완료를 의미하지 않습니다. 업데이트는 각 Store에서 제공합니다. macOS 빌드 대상은 Apple Silicon·macOS 12 이상, Windows는 x64와 ARM64·Windows 10 빌드19041 이상입니다. 이는 빌드 기준이며 실기기 검증 범위와 구분합니다.
 
 Windows MSIX에는 Fixed Version WebView2가 포함됩니다. `runFullTrust`는 데스크톱 편집기를 실행하기 위한 기능이며 관리자 권한 상승을 요청하지 않습니다. 서명되지 않은 Store 제출 패키지는 일반 로컬 설치 패키지가 아닙니다.
 

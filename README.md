@@ -32,7 +32,7 @@ Lyrics, audio and editing data are processed on the device. This edition has no 
 
 ## Distribution and development
 
-The intended distribution is the Mac App Store and Microsoft Store. Availability depends on publication and Store review; this repository does not establish that either listing is live. Store updates are delivered through the respective Store. macOS target: Apple Silicon, macOS 12 or later. Windows target: x64, Windows 10 build 19041 or later. These are build baselines; platform acceptance is verified on tested devices.
+The intended distribution is the Mac App Store and Microsoft Store. Availability depends on publication and Store review; this repository does not establish that either listing is live. Store updates are delivered through the respective Store. macOS target: Apple Silicon, macOS 12 or later. Windows targets: x64 and ARM64, Windows 10 build 19041 or later. These are build baselines; platform acceptance is verified on tested devices.
 
 Windows MSIX bundles a Fixed Version WebView2 runtime. `runFullTrust` runs the desktop editor; it does not request administrator elevation. Unsigned Store submission packages are not ordinary locally installable packages.
 
