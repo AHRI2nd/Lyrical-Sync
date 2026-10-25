@@ -194,7 +194,6 @@ export interface Translations {
   zoomIn: string;
   zoomOut: string;
   volume: string;
-  noAudio: string;
   noAudioShort: string;
   tooltipSkipBack5: string;
   tooltipSkipBack1: string;
@@ -804,7 +803,6 @@ const ko: Translations = {
   zoomIn: "확대",
   zoomOut: "축소",
   volume: "볼륨",
-  noAudio: "오디오 파일을 열어 파형을 표시합니다",
   noAudioShort: "열린 오디오 파일 없음",
   tooltipSkipBack5: "[1] −5초",
   tooltipSkipBack1: "[2] −1초",
@@ -1406,7 +1404,6 @@ const en: Translations = {
   zoomIn: "Zoom in",
   zoomOut: "Zoom out",
   volume: "Volume",
-  noAudio: "Open an audio file to display the waveform",
   noAudioShort: "No audio file open",
   tooltipSkipBack5: "[1] −5s",
   tooltipSkipBack1: "[2] −1s",
@@ -2009,7 +2006,6 @@ const ja: Translations = {
   zoomIn: "拡大",
   zoomOut: "縮小",
   volume: "音量",
-  noAudio: "音声ファイルを開いて波形を表示します",
   noAudioShort: "開いている音声ファイルなし",
   tooltipSkipBack5: "[1] −5秒",
   tooltipSkipBack1: "[2] −1秒",
