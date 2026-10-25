@@ -49,18 +49,23 @@ class ReleaseManifestTests(unittest.TestCase):
     def test_final_publication_renames_only_x64_msi_and_preserves_both_architectures(self):
         self.assemble()
         assets = [{'id':i+1,'name':a['name'].replace('_setup.msi','_en-US.msi')} for i,a in enumerate(self.assets)]
+        draft = {'id':99,'tag_name':'v0.7.0','draft':True,'assets':assets}
         uploaded = []
         def fake_gh(*args, binary=False):
             if args[0]=='release':
                 uploaded.append(json.loads(Path(args[3]).read_text()))
                 return ''
+            if args[0]=='api' and '--paginate' in args:
+                self.assertIn('repos/AHRI2nd/Lyrical-Sync/releases?per_page=100', args)
+                self.assertIn('.[] | select(.tag_name == "v0.7.0" and .draft == true)', args)
+                return json.dumps(draft)
+            if args[0]=='api' and '/releases/tags/' in args[1]:
+                self.fail('Draft releases must not be looked up with the published-release endpoint')
             if '--method' in args:
                 asset_id=int(args[3].split('/')[-1])
                 name=args[5].removeprefix('name=')
                 next(a for a in assets if a['id']==asset_id)['name']=name
                 return '{}'
-            if args[1].endswith('/tags/v0.7.0'):
-                return json.dumps({'draft':True,'assets':assets})
             asset_id=int(args[1].split('/')[-1])
             name=next(a for a in assets if a['id']==asset_id)['name']
             return self.signatures[name].encode()

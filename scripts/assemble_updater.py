@@ -66,9 +66,20 @@ def gh(*args, binary=False):
     return subprocess.check_output(['gh', *args], text=not binary)
 
 
+def get_draft_release(repo, tag):
+    # GitHub's /releases/tags/{tag} endpoint only returns published releases.
+    # Draft releases must be found through the authenticated releases list.
+    query = f'.[] | select(.tag_name == {json.dumps(tag)} and .draft == true)'
+    result = gh('api', '--paginate', f'repos/{repo}/releases?per_page=100',
+        '--jq', query)
+    if not result.strip():
+        raise ValueError(f'No draft release found for tag {tag}')
+    return json.loads(result)
+
+
 def publish(repo, version, output):
     tag = 'v' + version
-    release = json.loads(gh('api', f'repos/{repo}/releases/tags/{tag}'))
+    release = get_draft_release(repo, tag)
     if not release.get('draft'):
         raise ValueError('Updater assembly only modifies a draft release')
     # Rename only this version's x64 MSI assets, after all platform jobs finish.
@@ -84,7 +95,7 @@ def publish(repo, version, output):
             raise ValueError(f'Duplicate MSI asset: {new_name}')
         gh('api', '--method', 'PATCH', f'repos/{repo}/releases/assets/{asset["id"]}',
            '-f', f'name={new_name}')
-    release = json.loads(gh('api', f'repos/{repo}/releases/tags/{tag}'))
+    release = get_draft_release(repo, tag)
     signatures = {}
     for asset in release['assets']:
         if asset['name'].endswith('.sig'):
