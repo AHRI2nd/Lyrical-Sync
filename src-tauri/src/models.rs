@@ -1,9 +1,9 @@
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager};
-use serde::{Deserialize, Serialize};
 
 pub struct DownloadState {
     cancels: Mutex<HashMap<String, Arc<AtomicBool>>>,
@@ -11,7 +11,9 @@ pub struct DownloadState {
 
 impl Default for DownloadState {
     fn default() -> Self {
-        Self { cancels: Mutex::new(HashMap::new()) }
+        Self {
+            cancels: Mutex::new(HashMap::new()),
+        }
     }
 }
 
@@ -22,7 +24,9 @@ pub struct ModelsDirState {
 
 impl Default for ModelsDirState {
     fn default() -> Self {
-        Self { custom_path: Mutex::new(None) }
+        Self {
+            custom_path: Mutex::new(None),
+        }
     }
 }
 
@@ -48,7 +52,10 @@ struct DownloadProgressEvent {
 }
 
 pub fn models_dir(app: &AppHandle, dir_state: &ModelsDirState) -> Result<PathBuf, String> {
-    let custom = dir_state.custom_path.lock().unwrap_or_else(|e| e.into_inner());
+    let custom = dir_state
+        .custom_path
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     if let Some(ref p) = *custom {
         return Ok(p.clone());
     }
@@ -64,7 +71,10 @@ pub fn set_models_dir_override(
     dir_state: tauri::State<'_, ModelsDirState>,
     path: Option<String>,
 ) -> Result<(), String> {
-    let mut custom = dir_state.custom_path.lock().unwrap_or_else(|e| e.into_inner());
+    let mut custom = dir_state
+        .custom_path
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     *custom = path.filter(|p| !p.is_empty()).map(PathBuf::from);
     Ok(())
 }
@@ -79,26 +89,6 @@ pub async fn get_models_dir(
     Ok(dir.to_string_lossy().into_owned())
 }
 
-/// `filename`이 `..`/절대경로 등으로 `base` 밖을 벗어나지 않는지 검증한 뒤 합쳐진 경로를 반환합니다.
-/// (다운로드 대상 파일은 아직 존재하지 않을 수 있어 `canonicalize` 기반 검증 대신
-/// 경로 컴포넌트 자체를 허용목록 방식으로 검사합니다.)
-fn safe_join(base: &std::path::Path, filename: &str) -> Result<PathBuf, String> {
-    use std::path::Component;
-    let candidate = std::path::Path::new(filename);
-    for comp in candidate.components() {
-        if !matches!(comp, Component::Normal(_)) {
-            return Err(format!("잘못된 파일 경로: {filename}"));
-        }
-    }
-    Ok(base.join(candidate))
-}
-
-fn partial_path(dest: &std::path::Path) -> PathBuf {
-    let mut path = dest.as_os_str().to_os_string();
-    path.push(".part");
-    PathBuf::from(path)
-}
-
 /// 각 파일이 models 디렉터리에 존재하는지 확인합니다.
 #[tauri::command]
 pub async fn check_model_files(
@@ -107,12 +97,34 @@ pub async fn check_model_files(
     filenames: Vec<String>,
 ) -> Result<Vec<bool>, String> {
     let base = models_dir(&app, &dir_state)?;
+    let store = crate::model_store::ModelStore::open(&base);
     Ok(filenames
         .iter()
-        .map(|f| safe_join(&base, f).map(|p| {
-            std::fs::metadata(p).map(|m| m.is_file() && m.len() > 0).unwrap_or(false)
-        }).unwrap_or(false))
+        .map(|name| {
+            store
+                .as_ref()
+                .ok()
+                .and_then(|store| store.read(name).ok())
+                .and_then(|file| file.metadata().ok())
+                .is_some_and(|m| m.len() > 0)
+        })
         .collect())
+}
+
+async fn hash_model_file(file: std::fs::File) -> Result<String, std::io::Error> {
+    use sha2::{Digest, Sha256};
+    use tokio::io::AsyncReadExt;
+    let mut file = tokio::fs::File::from_std(file);
+    let mut digest = Sha256::new();
+    let mut buffer = [0u8; 65536];
+    loop {
+        let read = file.read(&mut buffer).await?;
+        if read == 0 {
+            break;
+        }
+        digest.update(&buffer[..read]);
+    }
+    Ok(format!("{:x}", digest.finalize()))
 }
 
 /// 모델 파일 목록을 다운로드합니다. 진행 상황은 `model-download-progress` 이벤트로 전달됩니다.
@@ -125,58 +137,66 @@ pub async fn download_model(
     files: Vec<FileSpec>,
 ) -> Result<(), String> {
     let cancel = Arc::new(AtomicBool::new(false));
-    dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner()).insert(model_id.clone(), cancel.clone());
+    {
+        let mut active = dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner());
+        if active.contains_key(&model_id) {
+            return Err("Model download is already running".into());
+        }
+        active.insert(model_id.clone(), cancel.clone());
+    }
+    let result = download_files(&app, &dir_state, &model_id, &files, cancel).await;
+    dl_state
+        .cancels
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .remove(&model_id);
+    result
+}
 
-    let base = models_dir(&app, &dir_state)?;
-    let file_count = files.len();
-    let client = reqwest::Client::new();
-
+async fn download_files(
+    app: &AppHandle,
+    dir_state: &ModelsDirState,
+    model_id: &str,
+    files: &[FileSpec],
+    cancel: Arc<AtomicBool>,
+) -> Result<(), String> {
+    use sha2::{Digest, Sha256};
+    use std::io::Write;
+    let base = models_dir(app, dir_state)?;
+    std::fs::create_dir_all(&base).map_err(|e| e.to_string())?;
+    let store = crate::model_store::ModelStore::open(&base).map_err(|e| e.to_string())?;
+    let client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(30))
+        .timeout(std::time::Duration::from_secs(3600))
+        .build()
+        .map_err(|e| e.to_string())?;
     for (i, spec) in files.iter().enumerate() {
         if cancel.load(Ordering::Relaxed) {
-            dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner()).remove(&model_id);
             return Err("cancelled".into());
         }
-
-        let dest = match safe_join(&base, &spec.filename) {
-            Ok(p) => p,
-            Err(e) => {
-                dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner()).remove(&model_id);
-                return Err(e);
-            }
-        };
-        let part = partial_path(&dest);
-        // 이전 중단 시 남은 임시 파일은 절대 설치된 모델로 취급하지 않고, 재시도 전에 제거한다.
-        let _ = tokio::fs::remove_file(&part).await;
-        if let Some(parent) = dest.parent() {
-            if let Err(e) = std::fs::create_dir_all(parent) {
-                dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner()).remove(&model_id);
-                return Err(e.to_string());
-            }
-        }
-
-        // 여러 파일 중 일부만 실패했다가 재시도하는 경우, 이미 온전히 받아진 파일은
-        // 다시 받지 않고 건너뛴다(체크섬 지정 시 일치 확인, 없으면 존재만 확인 —
-        // check_model_files와 동일 기준). 안 그러면 마지막 파일 하나만 실패해도
-        // 이미 받은 대용량 파일들까지 매번 처음부터 다시 받게 된다.
-        if dest.exists() {
-            let existing_valid = match spec.sha256.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-                Some(expected) => {
-                    use sha2::{Digest, Sha256};
-                    tokio::fs::read(&dest).await.ok().map(|bytes| {
-                        let got = format!("{:x}", Sha256::digest(&bytes));
-                        got.eq_ignore_ascii_case(expected)
-                    }).unwrap_or(false)
-                }
-                None => true,
+        let (parent, filename) = store
+            .destination(&spec.filename)
+            .map_err(|e| e.to_string())?;
+        let verify = spec
+            .sha256
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+        if let Ok(file) = store.read(&spec.filename) {
+            let size = file.metadata().map_err(|e| e.to_string())?.len();
+            let valid = match verify {
+                Some(expected) => hash_model_file(file)
+                    .await
+                    .is_ok_and(|got| got.eq_ignore_ascii_case(expected)),
+                None => size > 0,
             };
-            if existing_valid {
-                let size = tokio::fs::metadata(&dest).await.map(|m| m.len()).unwrap_or(0);
+            if valid {
                 let _ = app.emit(
                     "model-download-progress",
                     DownloadProgressEvent {
-                        model_id: model_id.clone(),
+                        model_id: model_id.into(),
                         file_index: i,
-                        file_count,
+                        file_count: files.len(),
                         downloaded: size,
                         total: size,
                         done: false,
@@ -185,141 +205,66 @@ pub async fn download_model(
                 );
                 continue;
             }
-            // 손상/불일치 — 지우고 정상적으로 다시 받는다.
-            let _ = tokio::fs::remove_file(&dest).await;
         }
-
-        let mut resp = match client.get(&spec.url).send().await {
-            Ok(response) => response,
-            Err(e) => {
-                dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner()).remove(&model_id);
-                return Err(format!("요청 실패: {e}"));
-            }
-        };
-
-        if !resp.status().is_success() {
-            let status = resp.status();
-            dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner()).remove(&model_id);
-            return Err(format!("HTTP {status}"));
-        }
-
-        let total = resp.content_length().unwrap_or(0);
-        let mut downloaded: u64 = 0;
-
-        use tokio::io::AsyncWriteExt;
-        use sha2::{Digest, Sha256};
-        let mut hasher = Sha256::new();
-        let verify = spec.sha256.as_deref().map(str::trim).filter(|s| !s.is_empty());
-        let mut file = match tokio::fs::File::create(&part).await {
-            Ok(file) => file,
-            Err(e) => {
-                dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner()).remove(&model_id);
-                return Err(e.to_string());
-            }
-        };
-
-        loop {
+        let mut response = client
+            .get(&spec.url)
+            .send()
+            .await
+            .map_err(|e| e.to_string())?
+            .error_for_status()
+            .map_err(|e| e.to_string())?;
+        let total = response.content_length().unwrap_or(0);
+        let mut downloaded = 0u64;
+        let mut digest = Sha256::new();
+        // Unique staging remains owned by this operation and is removed on every failure.
+        // All publication paths are relative to the already-open destination directory.
+        let mut stage = cap_tempfile::TempFile::new(&parent).map_err(|e| e.to_string())?;
+        while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
             if cancel.load(Ordering::Relaxed) {
-                drop(file);
-                let _ = tokio::fs::remove_file(&part).await;
-                dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner()).remove(&model_id);
                 return Err("cancelled".into());
             }
-
-            match resp.chunk().await {
-                Ok(Some(chunk)) => {
-                    if let Err(e) = file.write_all(&chunk).await {
-                        drop(file);
-                        let _ = tokio::fs::remove_file(&part).await;
-                        dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner()).remove(&model_id);
-                        return Err(e.to_string());
-                    }
-                    if verify.is_some() { hasher.update(&chunk); }
-                    downloaded += chunk.len() as u64;
-                    let _ = app.emit(
-                        "model-download-progress",
-                        DownloadProgressEvent {
-                            model_id: model_id.clone(),
-                            file_index: i,
-                            file_count,
-                            downloaded,
-                            total,
-                            done: false,
-                            error: None,
-                        },
-                    );
-                }
-                Ok(None) => {
-                    if let Err(e) = file.flush().await {
-                        drop(file);
-                        let _ = tokio::fs::remove_file(&part).await;
-                        dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner()).remove(&model_id);
-                        return Err(e.to_string());
-                    }
-                    if total > 0 && downloaded != total {
-                        drop(file);
-                        let _ = tokio::fs::remove_file(&part).await;
-                        dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner()).remove(&model_id);
-                        return Err(format!("다운로드가 완전하지 않습니다 ({} / {} bytes)", downloaded, total));
-                    }
-                    // 무결성 검증 (sha256 지정된 파일만)
-                    if let Some(expected) = verify {
-                        let got = format!("{:x}", hasher.finalize());
-                        if !got.eq_ignore_ascii_case(expected) {
-                            drop(file);
-                            let _ = tokio::fs::remove_file(&part).await;
-                            dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner()).remove(&model_id);
-                            return Err(format!(
-                                "체크섬 불일치 ({}): 예상 {} / 실제 {}",
-                                spec.filename, expected, got
-                            ));
-                        }
-                    }
-                    break;
-                }
-                Err(e) => {
-                    drop(file);
-                    let _ = tokio::fs::remove_file(&part).await;
-                    let _ = app.emit(
-                        "model-download-progress",
-                        DownloadProgressEvent {
-                            model_id: model_id.clone(),
-                            file_index: i,
-                            file_count,
-                            downloaded,
-                            total,
-                            done: true,
-                            error: Some(e.to_string()),
-                        },
-                    );
-                    dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner()).remove(&model_id);
-                    return Err(e.to_string());
-                }
-            }
+            stage.write_all(&chunk).map_err(|e| e.to_string())?;
+            digest.update(&chunk);
+            downloaded += chunk.len() as u64;
+            let _ = app.emit(
+                "model-download-progress",
+                DownloadProgressEvent {
+                    model_id: model_id.into(),
+                    file_index: i,
+                    file_count: files.len(),
+                    downloaded,
+                    total,
+                    done: false,
+                    error: None,
+                },
+            );
         }
-
-        drop(file);
-        if let Err(e) = tokio::fs::rename(&part, &dest).await {
-            let _ = tokio::fs::remove_file(&part).await;
-            dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner()).remove(&model_id);
-            return Err(format!("모델 파일 확정 실패: {e}"));
+        if cancel.load(Ordering::Relaxed) {
+            return Err("cancelled".into());
         }
+        if total > 0 && total != downloaded {
+            return Err("Incomplete model download".into());
+        }
+        if verify.is_some_and(|expected| {
+            !format!("{:x}", digest.finalize()).eq_ignore_ascii_case(expected)
+        }) {
+            return Err(format!("Model checksum mismatch: {}", spec.filename));
+        }
+        stage.as_file().sync_all().map_err(|e| e.to_string())?;
+        stage.replace(&filename).map_err(|e| e.to_string())?;
     }
-
     let _ = app.emit(
         "model-download-progress",
         DownloadProgressEvent {
-            model_id: model_id.clone(),
-            file_index: file_count,
-            file_count,
+            model_id: model_id.into(),
+            file_index: files.len(),
+            file_count: files.len(),
             downloaded: 0,
             total: 0,
             done: true,
             error: None,
         },
     );
-
-    dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner()).remove(&model_id);
     Ok(())
 }
 
@@ -339,11 +284,48 @@ pub async fn delete_model_files(
     filenames: Vec<String>,
 ) -> Result<(), String> {
     let base = models_dir(&app, &dir_state)?;
-    for f in &filenames {
-        let path = safe_join(&base, f)?;
-        if path.exists() {
-            std::fs::remove_file(&path).map_err(|e| e.to_string())?;
-        }
+    let store = crate::model_store::ModelStore::open(&base).map_err(|e| e.to_string())?;
+    for name in filenames {
+        store.remove(&name).map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod integrity_tests {
+    use super::*;
+    #[cfg(unix)]
+    #[test]
+    fn model_parent_symlink_cannot_delete_outside_store() {
+        let root = tempfile::tempdir().unwrap();
+        let base = root.path().join("models");
+        let outside = root.path().join("outside");
+        std::fs::create_dir_all(&base).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        let victim = outside.join("htdemucs.th");
+        std::fs::write(&victim, b"preserve").unwrap();
+        std::os::unix::fs::symlink(&outside, base.join("demucs")).unwrap();
+        // Exercise the production validation and deletion operation.
+        let result = crate::model_store::ModelStore::open(&base)
+            .unwrap()
+            .remove("demucs/htdemucs.th");
+        assert!(result.is_err());
+        assert_eq!(std::fs::read(victim).unwrap(), b"preserve");
+    }
+
+    #[test]
+    fn validates_model_checksum_from_disk() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join("model");
+            std::fs::write(&path, b"abc").unwrap();
+            assert_eq!(
+                hash_model_file(std::fs::File::open(&path).unwrap())
+                    .await
+                    .unwrap(),
+                "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+            );
+            assert!(std::fs::File::open(dir.path().join("missing")).is_err());
+        });
+    }
 }

@@ -1,0 +1,59 @@
+name: Test
+
+on:
+  push:
+    branches: [main, dev-next]
+  pull_request:
+    branches: [main, dev-next]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, windows-11-arm]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        if: matrix.os != 'windows-11-arm'
+        with:
+          python-version: '3.13'
+      - name: Verify native ARM64 test interpreter
+        if: matrix.os == 'windows-11-arm'
+        run: python -c "import sysconfig; assert sysconfig.get_platform() == 'win-arm64', sysconfig.get_platform()"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - run: npm ci
+      - run: npm run test:dependencies
+      - run: node --test scripts/windows-build-commands.node-test.mjs
+      - run: npm test
+      - run: python scripts/test_ai_sidecars.py
+      - run: python scripts/test_ai_profiles.py
+      - run: python scripts/test_python_runtime.py
+      - run: python scripts/test_arm_ai_artifacts.py
+      - run: python scripts/verify_windows_arm64_ai.py
+      - run: python scripts/test_ai_dependency_audit.py
+      - run: python scripts/audit_ai_dependencies.py --requirements src-tauri/requirements-ai.txt
+      - run: python scripts/audit_ai_dependencies.py --requirements src-tauri/requirements-ai-windows-arm64.txt
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+      - run: python scripts/test_updater_security.py
+      - run: python scripts/test_release_manifest.py
+      - run: python scripts/test_signed_candidate.py
+      - run: python scripts/test_windows_build.py
+      - name: Build native debug application
+        run: npm run tauri -- build --debug --no-bundle -- --locked

@@ -2,9 +2,9 @@
 // 세 곳에서 색상·크기만 다르게 재사용. 색상/크기는 각 호출부가 정확한 기존 클래스를 넘긴다.
 export function CtrlBtn({
   onClick, title, children, active, accent, disabled,
-  accentClass = "w-9 h-9 rounded-full bg-indigo-500 hover:bg-indigo-400 active:bg-indigo-600 text-white",
-  activeClass = "h-9 px-2 rounded-lg bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25",
-  baseClass = "h-9 px-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white",
+  accentClass = "ls-button--play",
+  activeClass = "ls-button--selected h-9 px-2",
+  baseClass = "h-9 px-2",
 }: {
   onClick: () => void;
   title?: string;
@@ -22,11 +22,11 @@ export function CtrlBtn({
       title={title}
       aria-label={title}
       disabled={disabled}
-      className={[
+      className={`ls-button ${[
         "flex items-center justify-center text-sm transition-colors",
-        "disabled:opacity-30 disabled:cursor-not-allowed",
+        "disabled:cursor-not-allowed",
         accent ? accentClass : active ? activeClass : baseClass,
-      ].join(" ")}
+      ].join(" ")}`}
     >
       {children}
     </button>

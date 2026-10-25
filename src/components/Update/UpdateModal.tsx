@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useId, useRef } from "react";
+import { useModalFocus } from "../../hooks/useModalFocus";
 import { useUpdaterStore } from "../../stores/useUpdaterStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useBusyStore } from "../../stores/useBusyStore";
@@ -16,14 +17,9 @@ export function UpdateModal() {
 
   const visible = status === "available" || status === "downloading" || status === "ready" || status === "error";
 
-  useEffect(() => {
-    if (!visible) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && status !== "downloading") dismiss();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [visible, status, dismiss]);
+  const dialog = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useModalFocus(dialog, status === "downloading" ? undefined : dismiss, visible);
 
   if (!visible) return null;
 
@@ -32,12 +28,12 @@ export function UpdateModal() {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={() => { if (status !== "downloading") dismiss(); }}
     >
-      <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+      <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
+        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-4 border-b border-zinc-800">
-          <span className="font-semibold text-zinc-100">
+        <div className="px-5 py-4 border-b border-[var(--ls-border-subtle)]">
+          <span id={titleId} className="font-semibold text-[var(--ls-text)]">
             {status === "ready" ? t.updater.readyTitle : status === "error" ? t.updater.errorTitle : t.updater.title}
           </span>
         </div>
@@ -45,38 +41,38 @@ export function UpdateModal() {
         <div className="px-5 py-4 flex flex-col gap-3">
           {status === "available" && (
             <>
-              <p className="text-sm text-zinc-300">
-                {t.updater.newVersion} <span className="font-mono text-indigo-300">v{version}</span>
+              <p className="text-sm text-[var(--ls-text-secondary)]">
+                {t.updater.newVersion} <span className="font-mono text-[var(--ls-accent)]">v{version}</span>
               </p>
               {body && (
-                <div className="max-h-40 overflow-y-auto text-xs text-zinc-400 bg-zinc-800/60 rounded-lg px-3 py-2 whitespace-pre-line">
+                <div className="max-h-40 overflow-y-auto text-xs text-[var(--ls-text-secondary)] bg-[var(--ls-control)]/60 rounded-lg px-3 py-2 whitespace-pre-line">
                   {body}
                 </div>
               )}
               {busy && (
-                <p className="text-xs text-amber-400">{t.updater.busyHint}</p>
+                <p className="text-xs text-[var(--ls-playhead)]">{t.updater.busyHint}</p>
               )}
             </>
           )}
 
           {status === "downloading" && (
             <div className="flex flex-col gap-2">
-              <p className="text-sm text-zinc-300">{t.updater.downloading}</p>
-              <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
+              <p className="text-sm text-[var(--ls-text-secondary)]">{t.updater.downloading}</p>
+              <div className="w-full h-2 bg-[var(--ls-control)] rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-indigo-500 transition-all duration-200"
+                  className="h-full bg-[var(--ls-accent)] transition-all duration-200"
                   style={{ width: `${progress}%` }}
                 />
               </div>
-              <span className="text-xs text-zinc-500 tabular-nums self-end">{progress}%</span>
+              <span className="text-xs text-[var(--ls-text-secondary)] tabular-nums self-end">{progress}%</span>
             </div>
           )}
 
           {status === "ready" && (
             <>
-              <p className="text-sm text-zinc-300">{t.updater.readyMessage}</p>
+              <p className="text-sm text-[var(--ls-text-secondary)]">{t.updater.readyMessage}</p>
               {busy && (
-                <p className="text-xs text-amber-400">{t.updater.busyHint}</p>
+                <p className="text-xs text-[var(--ls-playhead)]">{t.updater.busyHint}</p>
               )}
             </>
           )}
@@ -91,14 +87,14 @@ export function UpdateModal() {
             <>
               <button
                 onClick={dismiss}
-                className="px-4 py-1.5 text-sm rounded-lg text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
+                className="ls-button text-sm hover:text-white transition-colors"
               >
                 {t.updater.later}
               </button>
               <button
                 onClick={downloadAndInstall}
                 disabled={busy}
-                className="px-4 py-1.5 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-indigo-600 text-white font-medium transition-colors"
+                className="ls-button text-sm bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[var(--ls-primary)] text-white font-medium transition-colors ls-button--primary"
               >
                 {t.updater.update}
               </button>
@@ -109,14 +105,14 @@ export function UpdateModal() {
             <>
               <button
                 onClick={dismiss}
-                className="px-4 py-1.5 text-sm rounded-lg text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
+                className="ls-button text-sm hover:text-white transition-colors"
               >
                 {t.updater.later}
               </button>
               <button
                 onClick={restart}
                 disabled={busy}
-                className="px-4 py-1.5 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-indigo-600 text-white font-medium transition-colors"
+                className="ls-button text-sm bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[var(--ls-primary)] text-white font-medium transition-colors ls-button--primary"
               >
                 {t.updater.restart}
               </button>
@@ -126,7 +122,7 @@ export function UpdateModal() {
           {status === "error" && (
             <button
               onClick={dismiss}
-              className="px-4 py-1.5 text-sm rounded-lg text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
+              className="ls-button text-sm hover:text-white transition-colors"
             >
               {t.updater.close}
             </button>

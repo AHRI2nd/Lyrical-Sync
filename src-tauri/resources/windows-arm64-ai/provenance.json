@@ -1,0 +1,35 @@
+{
+  "platform": "aarch64-pc-windows-msvc",
+  "python": "3.13",
+  "compiler": "MSVC 19.51.36260 ARM64 / Windows SDK 10.0.26100.0",
+  "wheels": [
+    {
+      "file": "ctc_forced_aligner-1.0.2-cp313-cp313-win_arm64.whl",
+      "sha256": "b55371b3de322dbb1147a3b25f187b5759a791a8bdfac6341f6156bbf376ddc7",
+      "source": {
+        "version": "1.0.2",
+        "url": "https://files.pythonhosted.org/packages/5f/5a/0cf21de3ddc9f2696039063a290f8a4bb9059c9ac64fa325b08ef2769efd/ctc_forced_aligner-1.0.2.tar.gz",
+        "sha256": "8bb863316ad4ee30a28f00227b38c9b8451df53097a82a70d29f75d34ff6b7ff"
+      }
+    },
+    {
+      "file": "soxr-1.1.0-cp312-abi3-win_arm64.whl",
+      "sha256": "eb3b593d369d9c80cff85a36e60bbaa89fda190a8fbe834ec5b6a42460672cab",
+      "source": {
+        "version": "1.1.0",
+        "url": "https://files.pythonhosted.org/packages/ed/11/27cebce4a108f77afea7c80545115536b45e3f11ebfb914f638fdd9ba847/soxr-1.1.0.tar.gz",
+        "sha256": "9f228ae21c78fa9359ca98d8a5e8e91f30639e438e574133dace62c5b5309e44"
+      }
+    },
+    {
+      "file": "torchaudio-2.11.0-cp313-cp313-win_arm64.whl",
+      "sha256": "3d54ced185653e21a2e3ec3f567a5261ff27e2a43c367d00fa1e8d99f9a37e6a",
+      "source": {
+        "version": "2.11.0",
+        "revision": "34c52a67e8941bbd8e6adaca0eb0b9eabec11d78",
+        "url": "https://api.github.com/repos/pytorch/audio/tarball/34c52a67e8941bbd8e6adaca0eb0b9eabec11d78",
+        "sha256": "8f191798ee81b364544d4bda289e769f562e05718cf4ce22ec836d539445b2b6"
+      }
+    }
+  ]
+}

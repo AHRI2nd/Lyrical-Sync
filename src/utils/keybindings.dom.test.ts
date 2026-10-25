@@ -2,28 +2,18 @@
 import { describe, expect, it } from "vitest";
 import { isInteractiveKeyTarget } from "./keybindings";
 
-describe("isInteractiveKeyTarget", () => {
-  it("recognizes interactive controls and their descendants", () => {
-    document.body.innerHTML = `
-      <button id="button"><span id="button-child">Action</span></button>
-      <select id="select"><option>Choice</option></select>
-      <div id="editable" contenteditable="true"></div>
-      <div id="role-control" role="slider"></div>
-      <div id="role-textbox" role="textbox" contenteditable="false"></div>
-    `;
-
-    expect(isInteractiveKeyTarget(document.getElementById("button-child"))).toBe(true);
-    expect(isInteractiveKeyTarget(document.getElementById("select"))).toBe(true);
-    expect(isInteractiveKeyTarget(document.getElementById("editable"))).toBe(true);
-    expect(isInteractiveKeyTarget(document.getElementById("role-control"))).toBe(true);
-    expect(isInteractiveKeyTarget(document.getElementById("role-textbox"))).toBe(true);
+describe("interactive shortcut targets", () => {
+  it.each(["input", "textarea", "select", "button", "a href='#'", "summary", "div contenteditable", "div role='slider'", "div role='button'", "div role='textbox'"])("recognizes %s and nested targets", (markup) => {
+    const root = document.createElement("div"); root.innerHTML = `<${markup}><span>child</span></${markup.split(" ")[0]}>`;
+    const element = root.firstElementChild!;
+    expect(isInteractiveKeyTarget(element)).toBe(true);
+    if (element.querySelector("span")?.firstChild) expect(isInteractiveKeyTarget(element.querySelector("span")!.firstChild)).toBe(true);
+    if (element.firstChild) expect(isInteractiveKeyTarget(element.firstChild)).toBe(true);
   });
-
-  it("does not treat a focusable editor surface as an interactive widget", () => {
-    document.body.innerHTML = `<div id="editor-surface" tabindex="0"></div>`;
-
-    expect(isInteractiveKeyTarget(document.getElementById("editor-surface"))).toBe(false);
-    expect(isInteractiveKeyTarget(document.body)).toBe(false);
+  it("leaves ordinary editor targets and explicitly noneditable content available", () => {
+    const root = document.createElement("div"); root.innerHTML = '<div tabindex="0"><span contenteditable="false">editor</span></div>';
+    expect(isInteractiveKeyTarget(root.querySelector("span"))).toBe(false);
     expect(isInteractiveKeyTarget(null)).toBe(false);
+    expect(isInteractiveKeyTarget(window)).toBe(false);
   });
 });

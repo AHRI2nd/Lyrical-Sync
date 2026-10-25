@@ -7,7 +7,7 @@ export function CurrentTimeFooter() {
   const currentTime = useLrcStore((s) => s.currentTime);
   const { t } = useI18nStore();
   return (
-    <div className="text-xs text-zinc-500 text-right font-mono">
+    <div className="text-xs text-[var(--ls-text-secondary)] text-right font-mono">
       {t.currentTimeLabel}{formatDisplayTime(currentTime)}
     </div>
   );

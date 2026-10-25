@@ -82,7 +82,9 @@ struct YtdlpAudioProgress {
 fn ytdlp_dir(app: &AppHandle) -> Result<PathBuf, String> {
     app.path()
         .app_data_dir()
-        .map(|d| d.join("ytdlp"))
+        .map(|d| {
+            crate::platform_profile::ytdlp_root(&d, std::env::consts::OS, std::env::consts::ARCH)
+        })
         .map_err(|e| e.to_string())
 }
 
@@ -155,10 +157,8 @@ pub async fn download_ytdlp(app: AppHandle) -> Result<(), String> {
         .await
         .map_err(|e| e.to_string())?;
 
-    #[cfg(target_os = "windows")]
-    let (remote_name, local_name) = ("yt-dlp.exe", "yt-dlp.exe");
-    #[cfg(not(target_os = "windows"))]
-    let (remote_name, local_name) = ("yt-dlp_macos", "yt-dlp");
+    let (remote_name, local_name) =
+        crate::platform_profile::ytdlp_asset(std::env::consts::OS, std::env::consts::ARCH);
 
     let dest = dir.join(local_name);
     let client = reqwest::Client::new();

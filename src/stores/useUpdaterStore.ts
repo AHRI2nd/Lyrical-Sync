@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Update } from "@tauri-apps/plugin-updater";
 import { useLrcStore } from "./useLrcStore";
+import { useI18nStore } from "./useI18nStore";
 import { saveRecoverySnapshot } from "../utils/recovery";
 
 export type UpdaterStatus =
@@ -18,6 +19,21 @@ interface UpdaterState {
   downloadAndInstall: () => Promise<void>;
   restart: () => Promise<void>;
   dismiss: () => void;
+}
+
+// Windows installation exits the process before the separate restart action.
+// Invoke the destructive action in the same turn as the final recovery snapshot.
+let updateOperationActive = false;
+async function preserveBefore(action: () => Promise<void>): Promise<void> {
+  const lrc = useLrcStore.getState();
+  if (lrc.isDirty && lrc.lrcPath) {
+    try { await lrc.saveLrc(); } catch { /* Fall back to a durable recovery copy. */ }
+  }
+  const after = useLrcStore.getState();
+  if (after.isDirty && !saveRecoverySnapshot(after.doc, after.lrcPath, after.audioPath)) {
+    throw new Error(useI18nStore.getState().t.toast.recoveryFailed);
+  }
+  return action();
 }
 
 export const useUpdaterStore = create<UpdaterState>((set, get) => ({
@@ -45,12 +61,13 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
 
   downloadAndInstall: async () => {
     const { _update } = get();
-    if (!_update) return;
+    if (!_update || updateOperationActive) return;
+    updateOperationActive = true;
     set({ status: "downloading", progress: 0, error: null });
     try {
       let total = 0;
       let downloaded = 0;
-      await _update.downloadAndInstall((event) => {
+      await _update.download((event) => {
         switch (event.event) {
           case "Started":
             total = event.data.contentLength ?? 0;
@@ -64,27 +81,30 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
             break;
         }
       });
+      await preserveBefore(() => _update.install());
       set({ status: "ready" });
     } catch (e) {
-      set({ status: "error", error: String(e) });
+      // Separate downloads own a native byte buffer until installation or close.
+      // A failed attempt must be checked again rather than overwrite that buffer.
+      try { await _update.close(); } catch { /* Preserve the original failure. */ }
+      set({ status: "error", error: String(e), _update: null });
+    } finally {
+      updateOperationActive = false;
     }
   },
 
   restart: async () => {
-    // 재시작으로 프로세스가 죽기 전, 디바운스된 자동저장/복구 스냅샷이 미처 못 돈 채로
-    // 최근 편집이 유실되지 않도록 즉시(디바운스 없이) 저장을 강제한다.
-    const lrc = useLrcStore.getState();
-    if (lrc.isDirty) {
-      if (lrc.lrcPath) {
-        try { await lrc.saveLrc(); } catch { /* 실패해도 아래 스냅샷이 안전망 */ }
-      }
-      const after = useLrcStore.getState();
-      if (after.isDirty) {
-        saveRecoverySnapshot(after.doc, after.lrcPath, after.audioPath);
-      }
+    if (updateOperationActive) return;
+    updateOperationActive = true;
+    try {
+      // Resolve the module before capturing the final document to protect.
+      const { relaunch } = await import("@tauri-apps/plugin-process");
+      await preserveBefore(relaunch);
+    } catch (error) {
+      set({ status: "error", error: String(error) });
+    } finally {
+      updateOperationActive = false;
     }
-    const { relaunch } = await import("@tauri-apps/plugin-process");
-    await relaunch();
   },
 
   dismiss: () => set({ status: "idle", version: null, body: null, progress: 0, error: null, _update: null }),

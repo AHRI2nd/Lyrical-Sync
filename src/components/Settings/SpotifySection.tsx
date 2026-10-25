@@ -42,58 +42,58 @@ export function SpotifySection({
     <div className="p-5 flex flex-col gap-5">
       {/* Client ID input */}
       <div className="flex flex-col gap-2">
-        <span className="text-sm font-semibold text-zinc-200">{t.spotifyClientId}</span>
-        <p className="text-xs text-zinc-500 leading-relaxed">{t.spotifyClientIdDesc}</p>
+        <span className="text-sm font-semibold text-[var(--ls-text)]">{t.spotifyClientId}</span>
+        <p className="text-xs text-[var(--ls-text-secondary)] leading-relaxed">{t.spotifyClientIdDesc}</p>
         <div className="flex gap-2 mt-1">
           <input
             type="text"
             value={draft}
             onChange={(e) => { setDraft(e.target.value); setSaved(false); }}
             placeholder={t.spotifyClientIdPlaceholder}
-            className="flex-1 px-3 py-1.5 text-sm bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
+            className="ls-field flex-1 text-sm"
           />
           <button
             onClick={handleSave}
             disabled={draft.trim() === clientId && !saved}
-            className="px-3 py-1.5 text-xs rounded-lg bg-zinc-700 hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed text-zinc-100 transition-colors"
+            className="ls-button text-xs disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {saved ? t.spotifyClientIdSaved : t.spotifyClientIdSave}
           </button>
         </div>
       </div>
 
-      <div className="border-t border-zinc-800" />
+      <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* Mode toggle */}
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-medium text-zinc-200">Spotify 모드</span>
-          <span className="text-xs text-zinc-500">
+          <span className="text-sm font-medium text-[var(--ls-text)]">Spotify 모드</span>
+          <span className="text-xs text-[var(--ls-text-secondary)]">
             {spotifyMode ? "Spotify 플레이어 사용 중" : "일반 오디오 파일 모드"}
           </span>
         </div>
         <button
           onClick={() => onToggleMode(!spotifyMode)}
           disabled={!isLoggedIn}
-          className={[
+          className={`ls-button ls-switch--spotify ${[
             "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
-            spotifyMode && isLoggedIn ? "bg-green-600" : "bg-zinc-600",
+            spotifyMode && isLoggedIn ? "bg-green-600" : "bg-[var(--ls-control)]",
             !isLoggedIn ? "opacity-40 cursor-not-allowed" : "",
-          ].join(" ")}
+          ].join(" ")}`}
           role="switch"
           aria-checked={spotifyMode}
           title={!isLoggedIn ? "먼저 Spotify에 연결하세요" : undefined}
         >
           <span
             className={[
-              "absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
+              "absolute top-[calc(50%-0.5rem)] left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
               spotifyMode && isLoggedIn ? "translate-x-[22px]" : "translate-x-0.5",
             ].join(" ")}
           />
         </button>
       </div>
 
-      <div className="border-t border-zinc-800" />
+      <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* Connect / status */}
       <div className="flex flex-col gap-3">
@@ -101,7 +101,7 @@ export function SpotifySection({
           <>
             <div className="flex items-center gap-2">
               <span className="text-xs font-mono text-emerald-400">●</span>
-              <span className="text-sm text-zinc-200">
+              <span className="text-sm text-[var(--ls-text)]">
                 {isReady && trackName
                   ? `${trackName} — ${artistName}`
                   : t.spotifyConnected}
@@ -109,7 +109,7 @@ export function SpotifySection({
             </div>
             <button
               onClick={logout}
-              className="self-start px-3 py-1.5 text-xs rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
+              className="ls-button self-start text-xs transition-colors"
             >
               {t.spotifyLogout}
             </button>
@@ -117,12 +117,12 @@ export function SpotifySection({
         ) : (
           <>
             {!clientId && (
-              <p className="text-xs text-amber-400">{t.spotifyNoClientIdDesc}</p>
+              <p className="text-xs text-[var(--ls-playhead)]">{t.spotifyNoClientIdDesc}</p>
             )}
             <button
               onClick={handleConnect}
               disabled={connecting || !clientId}
-              className="self-start px-4 py-2 text-sm rounded-lg bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium transition-colors"
+              className="ls-button self-start text-sm bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium transition-colors"
             >
               {connecting ? t.spotifyConnecting : t.spotifyConnect}
             </button>
@@ -133,9 +133,9 @@ export function SpotifySection({
         )}
       </div>
 
-      <div className="border-t border-zinc-800" />
+      <div className="border-t border-[var(--ls-border-subtle)]" />
 
-      <p className="text-xs text-zinc-600 leading-relaxed">{t.spotifyServiceModeInfo}</p>
+      <p className="text-xs text-[var(--ls-text-secondary)] leading-relaxed">{t.spotifyServiceModeInfo}</p>
     </div>
   );
 }

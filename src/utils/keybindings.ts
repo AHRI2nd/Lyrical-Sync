@@ -51,30 +51,16 @@ export function matchAction(code: string, kb: Record<KeyAction, string>): KeyAct
 }
 
 const INTERACTIVE_KEY_TARGET = [
-  "input",
-  "textarea",
-  "select",
-  "button",
-  "a[href]",
-  "summary",
-  "[contenteditable]:not([contenteditable='false'])",
-  "[role='button']",
-  "[role='link']",
-  "[role='textbox']",
-  "[role='combobox']",
-  "[role='searchbox']",
-  "[role='checkbox']",
-  "[role='radio']",
-  "[role='switch']",
-  "[role='slider']",
-  "[role='spinbutton']",
-  "[role='tab']",
-  "[role='menuitem']",
-  "[role='option']",
+  "input", "textarea", "select", "button", "a[href]", "summary",
+  "[contenteditable]:not([contenteditable='false' i])",
+  ...["button", "link", "textbox", "combobox", "searchbox", "checkbox", "radio", "switch",
+    "slider", "spinbutton", "tab", "menuitem", "option"].map((role) => `[role='${role}']`),
 ].join(",");
 
 export function isInteractiveKeyTarget(target: EventTarget | null): boolean {
-  return target instanceof Element && target.closest(INTERACTIVE_KEY_TARGET) !== null;
+  if (typeof Element === "undefined") return false;
+  const element = target instanceof Element ? target : target instanceof Node ? target.parentElement : null;
+  return element !== null && element.closest(INTERACTIVE_KEY_TARGET) !== null;
 }
 
 // 같은 코드를 이미 다른 동작이 쓰고 있으면 그 동작을 반환(충돌). 자기 자신은 제외.
@@ -113,4 +99,9 @@ export function keyLabel(code: string): string {
   };
   if (sym[code]) return sym[code];
   return code;
+}
+
+// Some IMEs report keyCode 229 on the final composition key event.
+export function isComposingKeyEvent(event: Pick<KeyboardEvent, "isComposing" | "keyCode">): boolean {
+  return event.isComposing || event.keyCode === 229;
 }

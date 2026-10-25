@@ -3,7 +3,7 @@ import { type SyncUnit } from "../../utils/lrcParser";
 
 // 줄 ↔ 글자 동기화 모드 토글 + (글자 모드일 때) 글자/단어 단위 토글.
 export function SyncModeToggle({
-  t, charMode, onSetSyncMode, syncUnit, onUnitChange, isRunning,
+  t, charMode, onSetSyncMode, syncUnit, onUnitChange, isRunning, runningTitle,
 }: {
   t: Translations;
   charMode: boolean;
@@ -11,21 +11,24 @@ export function SyncModeToggle({
   syncUnit: SyncUnit;
   onUnitChange: (u: SyncUnit) => void;
   isRunning: boolean;
+  runningTitle?: string;
 }) {
   return (
     <>
-      <div className="inline-flex bg-zinc-800 rounded-lg p-0.5">
+      <div className="inline-flex bg-[var(--ls-control)] rounded-lg p-0.5">
         <button
           onClick={(e) => { onSetSyncMode("line"); e.currentTarget.blur(); }}
-          className={`px-2.5 py-1 text-xs rounded-md transition-colors ${!charMode ? "bg-indigo-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
+          aria-pressed={!charMode}
+          className={`ls-button ls-button--compact ${`  text-xs rounded-md transition-colors ${!charMode ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
         >
           {t.charSync.modeLine}
         </button>
         <button
           onClick={(e) => { onSetSyncMode("char"); e.currentTarget.blur(); }}
+          aria-pressed={charMode}
           disabled={isRunning}
-          title={isRunning ? t.aiSyncRunning : undefined}
-          className={`px-2.5 py-1 text-xs rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${charMode ? "bg-indigo-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
+          title={isRunning ? runningTitle : undefined}
+          className={`ls-button ls-button--compact ${`  text-xs rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${charMode ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
         >
           {t.charSync.modeChar}
         </button>
@@ -33,17 +36,19 @@ export function SyncModeToggle({
 
       {charMode && (
         <div className="flex items-center gap-1.5">
-          <span className="text-xs text-zinc-500">{t.charSync.unitLabel}</span>
-          <div className="inline-flex bg-zinc-800 rounded-lg p-0.5">
+          <span className="text-xs text-[var(--ls-text-secondary)]">{t.charSync.unitLabel}</span>
+          <div className="inline-flex bg-[var(--ls-control)] rounded-lg p-0.5">
             <button
               onClick={(e) => { onUnitChange("char"); e.currentTarget.blur(); }}
-              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${syncUnit === "char" ? "bg-zinc-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
+              aria-pressed={syncUnit === "char"}
+              className={`ls-button ls-button--compact ${`  text-xs rounded-md transition-colors ${syncUnit === "char" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
             >
               {t.charSync.unitChar}
             </button>
             <button
               onClick={(e) => { onUnitChange("word"); e.currentTarget.blur(); }}
-              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${syncUnit === "word" ? "bg-zinc-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
+              aria-pressed={syncUnit === "word"}
+              className={`ls-button ls-button--compact ${`  text-xs rounded-md transition-colors ${syncUnit === "word" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
             >
               {t.charSync.unitWord}
             </button>

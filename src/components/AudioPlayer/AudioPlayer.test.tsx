@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, cleanup, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, cleanup, waitFor } from "@testing-library/react";
 
 if (typeof globalThis.localStorage === "undefined") {
   const m = new Map<string, string>();
@@ -21,11 +21,11 @@ const { wsHandlers, wsMock } = vi.hoisted(() => {
   const handlers: Record<string, (...args: unknown[]) => void> = {};
   const mock = {
     getWrapper: () => ({ classList: { add: () => {} } }),
-    registerPlugin: () => ({ on: () => {} }),
+    registerPlugin: () => ({ on: () => {}, destroy: () => {} }),
     on: (event: string, cb: (...args: unknown[]) => void) => { handlers[event] = cb; },
     getDuration: () => 100,
     getCurrentTime: () => 0,
-    getDecodedData: () => ({ length: 24000 }),
+    getDecodedData: () => ({ length: 4, sampleRate: 4, duration: 1, numberOfChannels: 1, getChannelData: () => new Float32Array([0, 1, -.5, 0]) }),
     seekTo: () => {},
     exportPeaks: () => [[]],
     setPlaybackRate: () => {},
@@ -44,6 +44,8 @@ const { wsHandlers, wsMock } = vi.hoisted(() => {
 vi.mock("wavesurfer.js", () => ({
   default: { create: () => wsMock },
 }));
+const spectrumCreate = vi.hoisted(() => vi.fn(() => ({ type: "spectrum" })));
+vi.mock("wavesurfer.js/dist/plugins/spectrogram.esm.js", () => ({ default: { create: spectrumCreate } }));
 vi.mock("wavesurfer.js/dist/plugins/regions.esm.js", () => ({
   default: { create: () => ({ on: () => {} }) },
 }));
@@ -53,6 +55,9 @@ vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 vi.mock("../../utils/readAudioBytes", () => ({ readAudioBytes: vi.fn() }));
 
+import { useI18nStore } from "../../stores/useI18nStore";
+import { useSettingsStore } from "../../stores/useSettingsStore";
+import { useWaveformStore } from "../../stores/useWaveformStore";
 import { AudioPlayer } from "./AudioPlayer";
 import { readAudioBytes } from "../../utils/readAudioBytes";
 import { useLrcStore } from "../../stores/useLrcStore";
@@ -69,11 +74,10 @@ const resetLrc = (lines: LrcLine[], loopLineId: string | null) => {
   });
 };
 
+const playSpy = vi.spyOn(wsMock, "play");
 const seekToSpy = vi.spyOn(wsMock, "seekTo");
 const loadSpy = vi.spyOn(wsMock, "load");
 const loadBlobSpy = vi.spyOn(wsMock, "loadBlob");
-const exportPeaksSpy = vi.spyOn(wsMock, "exportPeaks");
-let decodedDataSpy: { mockRestore: () => void } | null = null;
 
 describe("AudioPlayer — local audio loading", () => {
   beforeEach(() => {
@@ -84,8 +88,6 @@ describe("AudioPlayer — local audio loading", () => {
 
   afterEach(() => {
     cleanup();
-    decodedDataSpy?.mockRestore();
-    decodedDataSpy = null;
   });
 
   it("passes MP3 bytes to WaveSurfer as a typed Blob, without fetching a Blob URL", async () => {
@@ -119,33 +121,22 @@ describe("AudioPlayer — local audio loading", () => {
     expect(loadBlobSpy.mock.calls[0][0].type).toBe("audio/wav");
   });
 
-  it("exports enough waveform peaks for a readable glyph-sync lane", () => {
-    exportPeaksSpy.mockClear();
-    for (const k of Object.keys(wsHandlers)) delete wsHandlers[k];
-    resetLrc([], null);
-
+  it("publishes decoded detail after loading and clears it when audio is unloaded", async () => {
+    vi.mocked(readAudioBytes).mockResolvedValue({ bytes: new Uint8Array([1]), transcoded: false });
+    resetLrc([], null); useLrcStore.setState({ audioPath: "/music/song.wav" });
     render(<AudioPlayer />);
-    wsHandlers["ready"]?.(100);
-
-    expect(exportPeaksSpy).toHaveBeenCalledWith({ channels: 1, maxLength: 16000 });
+    await waitFor(() => expect(useWaveformStore.getState().source).not.toBeNull());
+    expect([...useWaveformStore.getState().source!.getEnvelope(0, 1, 4)!.min]).toEqual([0, 0, -.5, 0]);
+    act(() => useLrcStore.setState({ audioPath: null }));
+    expect(useWaveformStore.getState().source).toBeNull();
   });
 
-  it("does not request more waveform peaks than the decoded audio has samples", () => {
-    exportPeaksSpy.mockClear();
-    decodedDataSpy = vi.spyOn(wsMock, "getDecodedData").mockReturnValue({ length: 1200 });
-    for (const k of Object.keys(wsHandlers)) delete wsHandlers[k];
-    resetLrc([], null);
-
-    render(<AudioPlayer />);
-    wsHandlers["ready"]?.(100);
-
-    expect(exportPeaksSpy).toHaveBeenCalledWith({ channels: 1, maxLength: 1200 });
-  });
 });
 
 describe("AudioPlayer — loop-line boundary (audioprocess handler)", () => {
   beforeEach(() => {
     seekToSpy.mockClear();
+    playSpy.mockClear();
     for (const k of Object.keys(wsHandlers)) delete wsHandlers[k];
   });
 
@@ -185,6 +176,45 @@ describe("AudioPlayer — loop-line boundary (audioprocess handler)", () => {
     expect(seekToSpy).toHaveBeenCalledWith(0.1);
   });
 
+  it("restarts the final line at track finish", () => {
+    resetLrc([{ id: "a", timestamp: 90, text: "last" }], "a");
+    render(<AudioPlayer />);
+    wsHandlers["finish"]();
+    expect(seekToSpy).toHaveBeenCalledWith(.9);
+    expect(playSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives line repeat priority over whole-track repeat at track finish", () => {
+    resetLrc([{ id: "a", timestamp: 90, text: "last" }], "a");
+    const { getByRole } = render(<AudioPlayer />);
+    const t = useI18nStore.getState().t;
+    fireEvent.click(getByRole("button", { name: t.playerMore }));
+    fireEvent.click(getByRole("button", { name: t.tooltipLoop }));
+    wsHandlers["finish"]();
+    expect(seekToSpy).toHaveBeenCalledWith(.9);
+    expect(seekToSpy).not.toHaveBeenCalledWith(0);
+  });
+
+  it("does not loop stale local audio while an external source is active", () => {
+    resetLrc([{ id: "a", timestamp: 10, text: "first" }, { id: "b", timestamp: 20, text: "next" }], "a");
+    render(<AudioPlayer />);
+    act(() => useSettingsStore.setState({ deviceMode: true }));
+    wsHandlers["audioprocess"](20); wsHandlers["finish"]();
+    expect(seekToSpy).not.toHaveBeenCalled();
+    expect(playSpy).not.toHaveBeenCalled();
+    act(() => useSettingsStore.setState({ deviceMode: false }));
+  });
+
+  it("does not seek repeatedly for adjacent equal timestamps", () => {
+    resetLrc([{ id: "a", timestamp: 10, text: "first" }, { id: "b", timestamp: 10, text: "same" },
+      { id: "c", timestamp: 20, text: "next" }], "a");
+    render(<AudioPlayer />);
+    wsHandlers["audioprocess"](11);
+    expect(seekToSpy).not.toHaveBeenCalled();
+    wsHandlers["audioprocess"](20);
+    expect(seekToSpy).toHaveBeenCalledWith(.1);
+  });
+
   it("does nothing when no line is set to loop", () => {
     resetLrc([{ id: "a", timestamp: 10, text: "loop me" }, { id: "b", timestamp: 20, text: "next" }], null);
     render(<AudioPlayer />);
@@ -193,4 +223,66 @@ describe("AudioPlayer — loop-line boundary (audioprocess handler)", () => {
     audioprocess(20);
     expect(seekToSpy).not.toHaveBeenCalled();
   });
+});
+
+describe('AudioPlayer — source ownership', () => {
+  afterEach(cleanup);
+  it('reloads a reselected path and ignores events from the replaced engine', async () => {
+    vi.mocked(readAudioBytes).mockReset().mockResolvedValue({bytes:new Uint8Array([1]),transcoded:false});
+    useSettingsStore.setState({spotifyMode:false,deviceMode:false});
+    resetLrc([],null); useLrcStore.getState().setAudioPath('/same.mp3');
+    render(<AudioPlayer />); await waitFor(()=>expect(readAudioBytes).toHaveBeenCalledTimes(1));
+    const oldReady=wsHandlers.ready, oldProcess=wsHandlers.audioprocess;
+    act(()=>useLrcStore.getState().setAudioPath('/same.mp3'));
+    await waitFor(()=>expect(readAudioBytes).toHaveBeenCalledTimes(2));
+    act(()=>{ useLrcStore.setState({duration:42,currentTime:5}); oldReady(); oldProcess(90); });
+    expect(useLrcStore.getState().duration).toBe(42); expect(useLrcStore.getState().currentTime).toBe(5);
+  });
+});
+
+it('reattaches an enabled spectrogram after replacing the audio engine', async () => {
+  spectrumCreate.mockClear(); vi.mocked(readAudioBytes).mockResolvedValue({bytes:new Uint8Array([1]),transcoded:false});
+  useSettingsStore.setState({spotifyMode:false,deviceMode:false,showSpectrogram:true});
+  resetLrc([],null); useLrcStore.getState().setAudioPath('/spectrogram.mp3');
+  const view=render(<AudioPlayer />);
+  try {
+    await waitFor(()=>expect(spectrumCreate).toHaveBeenCalledTimes(1));
+    act(()=>useLrcStore.getState().setAudioPath('/spectrogram.mp3'));
+    await waitFor(()=>expect(spectrumCreate).toHaveBeenCalledTimes(2));
+  } finally { view.unmount(); useSettingsStore.setState({showSpectrogram:false}); }
+});
+
+it('retains decoded waveform data when only the lyric document changes', async () => {
+  vi.mocked(readAudioBytes).mockResolvedValue({bytes:new Uint8Array([1]),transcoded:false});
+  useSettingsStore.setState({spotifyMode:false,deviceMode:false}); resetLrc([],null);
+  useLrcStore.getState().setAudioPath('/kept.mp3'); const view=render(<AudioPlayer />);
+  try {
+    await waitFor(()=>expect(useWaveformStore.getState().source).not.toBeNull());
+    const source=useWaveformStore.getState().source;
+    act(()=>useLrcStore.setState(s=>({_documentSession:s._documentSession+1})));
+    expect(useWaveformStore.getState().source).toBe(source);
+  } finally { view.unmount(); }
+});
+it('keeps the selected volume when the audio engine is replaced', async () => {
+  const volumeSpy=vi.spyOn(wsMock,'setVolume');
+  vi.mocked(readAudioBytes).mockResolvedValue({bytes:new Uint8Array([1]),transcoded:false});
+  useSettingsStore.setState({spotifyMode:false,deviceMode:false}); resetLrc([],null);
+  useLrcStore.getState().setAudioPath('/volume.mp3'); const view=render(<AudioPlayer />);
+  try {
+    fireEvent.change(view.container.querySelector('input[max="1"]')!,{target:{value:'0.25'}});
+    expect(volumeSpy).toHaveBeenLastCalledWith(.25); volumeSpy.mockClear();
+    act(()=>useLrcStore.getState().setAudioPath('/volume.mp3'));
+    expect(volumeSpy).toHaveBeenCalledWith(.25);
+  } finally { view.unmount(); volumeSpy.mockRestore(); }
+});
+
+it("exposes waveform and seek bar selection states", async () => {
+  const { useI18nStore } = await import("../../stores/useI18nStore");
+  useSettingsStore.setState({ spotifyMode: false, deviceMode: false, youtubeMode: false });
+  resetLrc([], null);
+  const { getByRole } = render(<AudioPlayer />), t = useI18nStore.getState().t;
+  expect(getByRole("button", { name: t.tooltipViewWaveform }).getAttribute("aria-pressed")).toBe("true");
+  fireEvent.click(getByRole("button", { name: t.tooltipViewSeekBar }));
+  expect(getByRole("button", { name: t.tooltipViewSeekBar }).getAttribute("aria-pressed")).toBe("true");
+  expect(getByRole("button", { name: t.tooltipViewWaveform }).getAttribute("aria-pressed")).toBe("false");
 });

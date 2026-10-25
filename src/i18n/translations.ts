@@ -16,6 +16,7 @@ export interface Translations {
   newFileBtn: string;
   openLrc: string;
   recentFiles: string;
+  languagePicker: string;
   clearRecentFiles: string;
   save: string;
   saveAs: string;
@@ -74,6 +75,32 @@ export interface Translations {
     replaceCancel: string;
   };
   charSync: {
+    glyphMarkerLane: string;
+    selectedGlyph: string;
+    currentLine: string;
+    displaySpan: string;
+    waveformView: string;
+    glyphMarkers: string;
+    playhead: string;
+    help: string;
+    more: string;
+    waveformPreparing: string;
+    waveformNoAudio: string;
+    prevWindow: string;
+    nextWindow: string;
+    viewportFixed: string;
+    repeatLine: string;
+    repeatOn: string;
+    repeatOff: string;
+    repeatUnavailable: string;
+    followPlayback: string;
+    markerGroupHint: string;
+    waveformHeight: string;
+    waveformStyle: string;
+    waveformContinuous: string;
+    waveformBars: string;
+    waveformUnavailable: string;
+    timeRuler: string;
     modeLine: string;
     modeChar: string;
     unitLabel: string;
@@ -81,6 +108,25 @@ export interface Translations {
     unitWord: string;
     hint: string;
     stampHint: string;
+    clearTimingButton: string;
+    clearTimingTitle: string;
+    clearTimingMessage: string;
+    clearTimingConfirm: string;
+    clearTimingDone: string;
+    undoClear: string;
+    shortcuts: string;
+    previousSelection: string;
+    shortcutSyncHint: string;
+    fixedShortcuts: string;
+    glyphSelection: string;
+    nudgeShortcut: string;
+    mouseControls: string;
+    paintGesture: string;
+    paintAction: string;
+    clearGesture: string;
+    clearAction: string;
+    seekGesture: string;
+    seekAction: string;
     replayLine: string;
     clearLine: string;
     current: string;
@@ -130,6 +176,7 @@ export interface Translations {
     confirm: string;
     publish: string;
     publishing: string;
+    cancelNotice: string;
     success: string;
     failed: string;
     close: string;
@@ -169,6 +216,8 @@ export interface Translations {
   addLine: string;
   findReplace: string;
   editorTools: string;
+  findPrevious: string;
+  findNext: string;
   findPlaceholder: string;
   replacePlaceholder: string;
   replaceBtn: string;
@@ -199,6 +248,12 @@ export interface Translations {
   bpmConfidence: string;
   bpmAppliedAll: string;
   bpmAppliedCount: string;
+  batchOutputFolder: string;
+  batchOutputFolderEmpty: string;
+  batchStatusCancelled: string;
+  batchSummaryCancelled: string;
+  batchStopping: string;
+  bpmManualHint: string;
   batchTitle: string;
   batchHint: string;
   batchSelectFiles: string;
@@ -324,6 +379,8 @@ export interface Translations {
   toast: {
     saved: string;
     saveFailed: string;
+    recoveryFailed: string;
+    runtimeFailed: string;
     openFailed: string;
     audioLoadFailed: string;
     aiSyncDone: string;
@@ -503,6 +560,7 @@ const ko: Translations = {
   newFileBtn: "새로 만들기",
   openLrc: "가사 열기",
   recentFiles: "최근 파일",
+  languagePicker: "언어 선택",
   clearRecentFiles: "최근 파일 목록 지우기",
   save: "저장",
   saveAs: "다른 이름으로 저장",
@@ -600,13 +658,58 @@ const ko: Translations = {
     replaceCancel: "취소",
   },
   charSync: {
+    glyphMarkerLane: "시간축 글자 마커",
+    selectedGlyph: "선택 글자",
+    currentLine: "현재 줄",
+    displaySpan: "{seconds}초 구간",
+    waveformView: "파형 보기",
+    glyphMarkers: "글자 마커 표시",
+    playhead: "재생 위치",
+    help: "조작 안내",
+    more: "추가 작업",
+    waveformPreparing: "파형 준비 중…",
+    waveformNoAudio: "오디오를 열면 파형을 표시합니다",
+    prevWindow: "이전 시간 구간",
+    nextWindow: "다음 시간 구간",
+    viewportFixed: "재생 위치 추적 · 중앙 기준",
+    repeatLine: "줄 반복",
+    repeatOn: "켜짐",
+    repeatOff: "꺼짐",
+    repeatUnavailable: "로컬 오디오와 유효한 줄 시작 시각이 필요합니다",
+    followPlayback: "재생 위치 따라가기",
+    markerGroupHint: "겹친 마커는 클릭할 때마다 다음 글자를 선택합니다",
+    waveformHeight: "파형 높이",
+    waveformStyle: "파형 스타일",
+    waveformContinuous: "연속 파형",
+    waveformBars: "막대 파형",
+    waveformUnavailable: "이 재생 모드에서는 파형을 표시할 수 없습니다",
+    timeRuler: "시간 눈금",
     modeLine: "줄 동기화",
     modeChar: "글자 동기화",
     unitLabel: "단위",
     unitChar: "글자",
     unitWord: "단어",
     hint: "글자 드래그=재생 시간으로 칠하기 · Space=찍기 · 우클릭=지우기 · Shift+←/→=미세조정 · 파형=탐색",
-    stampHint: "현재 글자 찍고 다음으로",
+    stampHint: "타이핑",
+    clearTimingButton: "타이밍 지우기…",
+    clearTimingTitle: "현재 줄의 타이밍을 지울까요?",
+    clearTimingMessage: "{count}개의 글자·단어 타이밍을 지웁니다. 가사와 줄 시작 시각은 유지됩니다.",
+    clearTimingConfirm: "타이밍 지우기",
+    clearTimingDone: "타이밍을 지웠습니다.",
+    undoClear: "실행 취소",
+    shortcuts: "단축키",
+    previousSelection: "이전 줄·글자",
+    shortcutSyncHint: "설정한 키는 줄 동기화에서도 사용됩니다.",
+    fixedShortcuts: "고정 조작",
+    glyphSelection: "이전·다음 글자 선택",
+    nudgeShortcut: "타이밍 미세 조정 (0.05초)",
+    mouseControls: "마우스 조작",
+    paintGesture: "드래그",
+    paintAction: "지나는 글자에 현재 재생 시각 기록",
+    clearGesture: "우클릭",
+    clearAction: "해당 글자 타이밍 지우기",
+    seekGesture: "파형 클릭·드래그",
+    seekAction: "재생 위치 이동",
     replayLine: "이 줄 재생",
     clearLine: "이 줄 초기화",
     current: "현재",
@@ -669,6 +772,7 @@ const ko: Translations = {
     confirm: "확인했으며 업로드",
     publish: "업로드",
     publishing: "업로드 중… (작업 증명 계산, 수 초 소요)",
+    cancelNotice: "취소하면 대기를 중단합니다. 이미 전송된 요청은 서버에서 처리될 수 있으므로 재시도 전에 확인하세요.",
     success: "업로드 완료! 기여해 주셔서 감사합니다.",
     failed: "업로드 실패",
     close: "닫기",
@@ -721,6 +825,8 @@ const ko: Translations = {
   addLine: "+ 줄 추가",
   findReplace: "찾기/바꾸기",
   editorTools: "도구",
+  findPrevious: "이전 일치",
+  findNext: "다음 일치",
   findPlaceholder: "찾기...",
   replacePlaceholder: "바꾸기...",
   replaceBtn: "바꾸기",
@@ -732,9 +838,9 @@ const ko: Translations = {
   tsScaleFactor: "배율",
   tsScaleHint: "전체 타임스탬프 ×배율 (예: 1.05 = 5% 느리게)",
   translationToggle: "번역 줄 표시",
-  settingsTranslationDesc: "가사 줄마다 2차(번역) 텍스트 보조 입력창을 표시합니다. 표준 LRC 규격에 없는 확장 표기라, 켜서 저장한 파일은 다른 LRC 플레이어·도구와 호환되지 않을 수 있습니다.",
+  settingsTranslationDesc: "각 가사 아래에 번역 입력창을 표시합니다. LRC 번역은 앱 전용 확장 형식이며, 자막에서는 여러 줄로 출력합니다.",
   translationWarningTitle: "번역 줄은 표준 LRC 형식이 아닙니다",
-  translationWarningMessage: "번역 줄을 켜면 저장되는 LRC 파일에 표준 규격에 없는 확장 표기(같은 타임스탬프에 \"/\"로 시작하는 두 번째 줄)가 포함됩니다.\n이 앱에서는 다시 정상적으로 불러올 수 있지만, 다른 LRC 플레이어나 도구에서는 번역 줄이 별도의 가사 줄로 잘못 표시되거나 호환되지 않을 수 있습니다.\n계속하시겠습니까?",
+  translationWarningMessage: "번역이 있는 LRC 파일은 번역용 확장 형식으로 저장되어 다른 플레이어와 호환되지 않을 수 있습니다. SRT/VTT/ASS에서는 원문과 번역을 여러 줄로 출력하며, 다시 불러온 SRT는 전체 자막 텍스트로 유지됩니다. 일반 LRC의 /로 시작하는 줄은 원문 그대로 불러옵니다. 번역 입력을 켜시겠습니까?",
   translationWarningOk: "이해했습니다, 켜기",
   translationWarningCancel: "취소",
   translationPlaceholder: "번역 (선택)",
@@ -751,8 +857,14 @@ const ko: Translations = {
   bpmConfidence: "신뢰도",
   bpmAppliedAll: "전체 줄에 적용했습니다",
   bpmAppliedCount: "줄에 적용했습니다",
+  batchOutputFolder: "출력 폴더",
+  batchOutputFolderEmpty: "출력 폴더를 선택하세요",
+  batchStatusCancelled: "취소됨",
+  batchSummaryCancelled: "취소 {count}개",
+  batchStopping: "현재 파일 저장 후 중단합니다…",
+  bpmManualHint: "오디오 없이 BPM을 입력하거나 탭 템포를 사용하세요.",
   batchTitle: "일괄 처리",
-  batchHint: "여러 LRC/SRT 파일을 선택해 오프셋 적용·포맷 변환·태그 채우기 중 하나를 한 번에 적용합니다. 현재 열려있는 문서와는 무관하게 파일을 직접 읽고 씁니다.",
+  batchHint: "선택한 파일에 오프셋·형식 변환·태그를 적용하여 출력 폴더에 새 파일로 저장합니다. 원본이나 기존 출력 파일은 덮어쓰지 않습니다.",
   batchSelectFiles: "파일 선택...",
   batchNoFiles: "선택된 파일이 없습니다",
   batchNoAudioMatch: "매칭된 오디오 없음",
@@ -872,6 +984,8 @@ const ko: Translations = {
   toast: {
     saved: "저장되었습니다",
     saveFailed: "저장에 실패했습니다",
+    runtimeFailed: "오류가 발생했습니다. 현재 작업을 저장한 뒤 다시 시도해 주세요.",
+    recoveryFailed: "복구 사본을 저장할 수 없습니다. 작업을 파일로 저장해 주세요.",
     openFailed: "파일을 열지 못했습니다",
     audioLoadFailed: "오디오를 불러오지 못했습니다",
     aiSyncDone: "AI 정렬이 완료되었습니다",
@@ -953,7 +1067,7 @@ const ko: Translations = {
   settingsVenvReady: "준비됨",
   settingsVenvNoPackages: "패키지 미설치",
   settingsVenvNotCreated: "Python 미설치",
-  settingsVenvCreate: "Python 다운로드 (~20 MB)",
+  settingsVenvCreate: "AI 환경 설치 / 업데이트",
   settingsVenvCreating: "다운로드 중...",
   settingsVenvInstallTitle: "패키지 설치 명령 (터미널에서 실행)",
   settingsVenvRefresh: "새로고침",
@@ -1048,6 +1162,7 @@ const en: Translations = {
   newFileBtn: "New",
   openLrc: "Open Lyrics",
   recentFiles: "Recent Files",
+  languagePicker: "Choose language",
   clearRecentFiles: "Clear recent files",
   save: "Save",
   saveAs: "Save As",
@@ -1145,13 +1260,58 @@ const en: Translations = {
     replaceCancel: "Cancel",
   },
   charSync: {
+    glyphMarkerLane: "Timed glyph markers",
+    selectedGlyph: "Selected glyph",
+    currentLine: "Current line",
+    displaySpan: "{seconds}s view",
+    waveformView: "Waveform view",
+    glyphMarkers: "Show glyph markers",
+    playhead: "Playback position",
+    help: "Controls help",
+    more: "More actions",
+    waveformPreparing: "Preparing waveform…",
+    waveformNoAudio: "Open audio to view the waveform",
+    prevWindow: "Previous time window",
+    nextWindow: "Next time window",
+    viewportFixed: "Following playback · centered",
+    repeatLine: "Repeat line",
+    repeatOn: "On",
+    repeatOff: "Off",
+    repeatUnavailable: "Requires local audio and a valid line timestamp",
+    followPlayback: "Follow playback",
+    markerGroupHint: "Click overlapping markers to cycle through their glyphs",
+    waveformHeight: "Waveform height",
+    waveformStyle: "Waveform style",
+    waveformContinuous: "Continuous",
+    waveformBars: "Bars",
+    waveformUnavailable: "Waveform unavailable for this playback source",
+    timeRuler: "Time ruler",
     modeLine: "Line Sync",
     modeChar: "Character Sync",
     unitLabel: "Unit",
     unitChar: "Char",
     unitWord: "Word",
     hint: "Drag glyphs=paint at playback time · Space=stamp · right-click=clear · Shift+←/→=nudge · waveform=seek",
-    stampHint: "Stamp current glyph & advance",
+    stampHint: "Typing",
+    clearTimingButton: "Clear timings…",
+    clearTimingTitle: "Clear this line’s timings?",
+    clearTimingMessage: "Clear {count} glyph/word timings. Lyrics and the line start time are preserved.",
+    clearTimingConfirm: "Clear timings",
+    clearTimingDone: "Timings cleared.",
+    undoClear: "Undo",
+    shortcuts: "Shortcuts",
+    previousSelection: "Previous line / glyph",
+    shortcutSyncHint: "Configured keys are also used in line sync.",
+    fixedShortcuts: "Fixed controls",
+    glyphSelection: "Select previous/next glyph",
+    nudgeShortcut: "Adjust timing (0.05 s)",
+    mouseControls: "Mouse controls",
+    paintGesture: "Drag",
+    paintAction: "Record playback time on crossed glyphs",
+    clearGesture: "Right-click",
+    clearAction: "Clear that glyph’s timing",
+    seekGesture: "Click/drag waveform",
+    seekAction: "Seek playback",
     replayLine: "Play line",
     clearLine: "Reset line",
     current: "Current",
@@ -1214,6 +1374,7 @@ const en: Translations = {
     confirm: "I've checked — upload",
     publish: "Publish",
     publishing: "Publishing… (computing proof-of-work, a few seconds)",
+    cancelNotice: "Cancel stops waiting. A request already sent may still be accepted; check before retrying.",
     success: "Published! Thanks for contributing.",
     failed: "Publish failed",
     close: "Close",
@@ -1267,6 +1428,8 @@ const en: Translations = {
   addLine: "+ Add Line",
   findReplace: "Find/Replace",
   editorTools: "Tools",
+  findPrevious: "Previous match",
+  findNext: "Next match",
   findPlaceholder: "Find...",
   replacePlaceholder: "Replace...",
   replaceBtn: "Replace",
@@ -1278,9 +1441,9 @@ const en: Translations = {
   tsScaleFactor: "Factor",
   tsScaleHint: "All timestamps × factor (e.g. 1.05 = 5% slower)",
   translationToggle: "Show translation lines",
-  settingsTranslationDesc: "Show a secondary (translation) text input under each lyric line. This is an extension not part of the standard LRC spec, so files saved with it on may not be compatible with other LRC players or tools.",
+  settingsTranslationDesc: "Show translation inputs beneath lyrics. LRC translations use an app-specific extension; subtitle exports use multiple lines.",
   translationWarningTitle: "Translation lines aren't standard LRC",
-  translationWarningMessage: "Turning this on adds a non-standard extension to saved LRC files (a second line starting with \"/\" at the same timestamp).\nThis app can read it back correctly, but other LRC players or tools may show it as a separate, garbled lyric line or fail to parse the file.\nContinue?",
+  translationWarningMessage: "LRC translations are saved with an explicit translation extension that other players may not support. SRT/VTT/ASS exports place lyrics and translations on multiple lines; reimported SRT retains the complete subtitle text. Slash-prefixed lines in ordinary LRC files remain literal lyrics. Enable translation inputs?",
   translationWarningOk: "Understood, turn it on",
   translationWarningCancel: "Cancel",
   translationPlaceholder: "Translation (optional)",
@@ -1297,8 +1460,14 @@ const en: Translations = {
   bpmConfidence: "Confidence",
   bpmAppliedAll: "Applied to all lines",
   bpmAppliedCount: "line(s) snapped",
+  batchOutputFolder: "Output folder",
+  batchOutputFolderEmpty: "Select an output folder",
+  batchStatusCancelled: "Cancelled",
+  batchSummaryCancelled: "{count} cancelled",
+  batchStopping: "Stopping after active saves…",
+  bpmManualHint: "Without audio, enter a BPM or use Tap Tempo.",
   batchTitle: "Batch Tool",
-  batchHint: "Select multiple LRC/SRT files and apply one of offset shift, format conversion, or tag filling to all of them at once. Reads and writes files directly, independent of the currently open document.",
+  batchHint: "Apply offsets, convert formats or fill tags in selected files and save new files to the output folder. Source files and existing outputs are never overwritten.",
   batchSelectFiles: "Select Files...",
   batchNoFiles: "No files selected",
   batchNoAudioMatch: "No matching audio",
@@ -1418,6 +1587,8 @@ const en: Translations = {
   toast: {
     saved: "Saved",
     saveFailed: "Failed to save",
+    runtimeFailed: "An error occurred. Save your current work before trying again.",
+    recoveryFailed: "Cannot save a recovery copy. Please save your work to a file.",
     openFailed: "Couldn't open file",
     audioLoadFailed: "Couldn't load audio",
     aiSyncDone: "AI alignment complete",
@@ -1499,7 +1670,7 @@ const en: Translations = {
   settingsVenvReady: "Ready",
   settingsVenvNoPackages: "Packages missing",
   settingsVenvNotCreated: "Python not downloaded",
-  settingsVenvCreate: "Download Python (~20 MB)",
+  settingsVenvCreate: "Install / update AI environment",
   settingsVenvCreating: "Downloading...",
   settingsVenvInstallTitle: "Install packages (run in terminal)",
   settingsVenvRefresh: "Refresh",
@@ -1594,6 +1765,7 @@ const ja: Translations = {
   newFileBtn: "新規作成",
   openLrc: "歌詞を開く",
   recentFiles: "最近使ったファイル",
+  languagePicker: "言語を選択",
   clearRecentFiles: "最近使ったファイルをクリア",
   save: "保存",
   saveAs: "名前を付けて保存",
@@ -1691,13 +1863,58 @@ const ja: Translations = {
     replaceCancel: "キャンセル",
   },
   charSync: {
+    glyphMarkerLane: "時間軸の文字マーカー",
+    selectedGlyph: "選択文字",
+    currentLine: "現在の行",
+    displaySpan: "{seconds}秒の範囲",
+    waveformView: "波形表示",
+    glyphMarkers: "文字マーカーを表示",
+    playhead: "再生位置",
+    help: "操作ガイド",
+    more: "その他の操作",
+    waveformPreparing: "波形を準備中…",
+    waveformNoAudio: "オーディオを開くと波形を表示します",
+    prevWindow: "前の時間範囲",
+    nextWindow: "次の時間範囲",
+    viewportFixed: "再生位置を追従 · 中央基準",
+    repeatLine: "行リピート",
+    repeatOn: "オン",
+    repeatOff: "オフ",
+    repeatUnavailable: "ローカルオーディオと有効な行開始時刻が必要です",
+    followPlayback: "再生位置に追従",
+    markerGroupHint: "重なったマーカーをクリックすると次の文字を選択します",
+    waveformHeight: "波形の高さ",
+    waveformStyle: "波形スタイル",
+    waveformContinuous: "連続波形",
+    waveformBars: "棒波形",
+    waveformUnavailable: "この再生モードでは波形を表示できません",
+    timeRuler: "時間目盛り",
     modeLine: "行同期",
     modeChar: "文字同期",
     unitLabel: "単位",
     unitChar: "文字",
     unitWord: "単語",
     hint: "文字ドラッグ=再生時間で塗り打刻 · Space=打刻 · 右クリック=消去 · Shift+←/→=微調整 · 波形=シーク",
-    stampHint: "現在の文字を打刻して次へ",
+    stampHint: "タイピング",
+    clearTimingButton: "タイミングを消去…",
+    clearTimingTitle: "現在の行のタイミングを消去しますか？",
+    clearTimingMessage: "{count}個の文字・単語タイミングを消去します。歌詞と行の開始時刻は保持されます。",
+    clearTimingConfirm: "タイミングを消去",
+    clearTimingDone: "タイミングを消去しました。",
+    undoClear: "元に戻す",
+    shortcuts: "ショートカット",
+    previousSelection: "前の行・文字",
+    shortcutSyncHint: "設定したキーは行同期でも使用します。",
+    fixedShortcuts: "固定操作",
+    glyphSelection: "前後の文字を選択",
+    nudgeShortcut: "タイミング微調整（0.05秒）",
+    mouseControls: "マウス操作",
+    paintGesture: "ドラッグ",
+    paintAction: "通過した文字に再生時刻を記録",
+    clearGesture: "右クリック",
+    clearAction: "その文字のタイミングを消去",
+    seekGesture: "波形をクリック・ドラッグ",
+    seekAction: "再生位置を移動",
     replayLine: "この行を再生",
     clearLine: "この行をリセット",
     current: "現在",
@@ -1760,6 +1977,7 @@ const ja: Translations = {
     confirm: "確認のうえ公開",
     publish: "公開",
     publishing: "公開中…（証明計算、数秒かかります）",
+    cancelNotice: "キャンセルすると待機を中止します。送信済みのリクエストは処理される場合があるため、再試行前に確認してください。",
     success: "公開しました！ご貢献ありがとうございます。",
     failed: "公開に失敗しました",
     close: "閉じる",
@@ -1812,6 +2030,8 @@ const ja: Translations = {
   addLine: "+ 行を追加",
   findReplace: "検索/置換",
   editorTools: "ツール",
+  findPrevious: "前の一致",
+  findNext: "次の一致",
   findPlaceholder: "検索...",
   replacePlaceholder: "置換...",
   replaceBtn: "置換",
@@ -1823,9 +2043,9 @@ const ja: Translations = {
   tsScaleFactor: "倍率",
   tsScaleHint: "全タイムスタンプ × 倍率（例: 1.05 = 5%遅く）",
   translationToggle: "翻訳行を表示",
-  settingsTranslationDesc: "各歌詞行の下に2次(翻訳)テキスト入力欄を表示します。標準LRC規格にない拡張表記のため、オンにして保存したファイルは他のLRCプレイヤーやツールと互換性がない場合があります。",
+  settingsTranslationDesc: "歌詞の下に翻訳入力欄を表示します。LRC翻訳はアプリ独自の拡張形式、字幕では複数行で出力します。",
   translationWarningTitle: "翻訳行は標準LRC形式ではありません",
-  translationWarningMessage: "この機能をオンにすると、保存されるLRCファイルに標準規格にない拡張表記(同じタイムスタンプで\"/\"から始まる2行目)が含まれます。\n本アプリでは正しく読み込めますが、他のLRCプレイヤーやツールでは別の歌詞行として誤表示されたり、互換性がない場合があります。\n続行しますか？",
+  translationWarningMessage: "翻訳を含むLRCは翻訳用拡張形式で保存されるため、他のプレイヤーで非対応の場合があります。SRT/VTT/ASSでは原文と翻訳を複数行で出力し、再読込したSRTは字幕全体のテキストを保持します。通常のLRCで/から始まる行は原文のまま読み込みます。翻訳入力を有効にしますか？",
   translationWarningOk: "理解しました、オンにする",
   translationWarningCancel: "キャンセル",
   translationPlaceholder: "翻訳（任意）",
@@ -1842,8 +2062,14 @@ const ja: Translations = {
   bpmConfidence: "信頼度",
   bpmAppliedAll: "全ての行に適用しました",
   bpmAppliedCount: "行に適用しました",
+  batchOutputFolder: "出力フォルダー",
+  batchOutputFolderEmpty: "出力フォルダーを選択してください",
+  batchStatusCancelled: "キャンセル済み",
+  batchSummaryCancelled: "{count}件キャンセル",
+  batchStopping: "保存中のファイルの完了後に停止します…",
+  bpmManualHint: "音声なしではBPMを入力するかタップテンポを使用してください。",
   batchTitle: "一括処理",
-  batchHint: "複数のLRC/SRTファイルを選択し、オフセット適用・フォーマット変換・タグ入力のいずれかを一括適用します。現在開いているドキュメントとは無関係にファイルを直接読み書きします。",
+  batchHint: "選択したファイルにオフセット・形式変換・タグを適用し、出力フォルダーに新規保存します。原本や既存の出力ファイルは上書きしません。",
   batchSelectFiles: "ファイルを選択...",
   batchNoFiles: "選択されたファイルはありません",
   batchNoAudioMatch: "一致する音声なし",
@@ -1963,6 +2189,8 @@ const ja: Translations = {
   toast: {
     saved: "保存しました",
     saveFailed: "保存に失敗しました",
+    runtimeFailed: "エラーが発生しました。作業を保存してから再試行してください。",
+    recoveryFailed: "復元用コピーを保存できません。作業をファイルに保存してください。",
     openFailed: "ファイルを開けませんでした",
     audioLoadFailed: "オーディオを読み込めませんでした",
     aiSyncDone: "AI 整列が完了しました",
@@ -2044,7 +2272,7 @@ const ja: Translations = {
   settingsVenvReady: "準備完了",
   settingsVenvNoPackages: "パッケージ未インストール",
   settingsVenvNotCreated: "Python未ダウンロード",
-  settingsVenvCreate: "Pythonをダウンロード (約20MB)",
+  settingsVenvCreate: "AI環境をインストール / 更新",
   settingsVenvCreating: "ダウンロード中...",
   settingsVenvInstallTitle: "パッケージインストールコマンド（ターミナルで実行）",
   settingsVenvRefresh: "更新",

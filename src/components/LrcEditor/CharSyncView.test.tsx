@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { useI18nStore } from "../../stores/useI18nStore";
 import { CharSyncView } from "./CharSyncView";
 import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
@@ -8,7 +9,7 @@ import { useLrcStore } from "../../stores/useLrcStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { defaultDocument } from "../../types/lrc";
-import { parseTimestampInput } from "../../utils/lrcParser";
+import { formatTimestamp, parseTimestampInput } from "../../utils/lrcParser";
 
 let rafCallbacks: FrameRequestCallback[];
 let seekSpy: ReturnType<typeof vi.spyOn>;
@@ -19,6 +20,8 @@ function resetStores() {
     activeLineId: "line-1",
     audioPath: "/music/song.mp3",
     currentTime: 12,
+    isPlaying: false,
+    loopLineId: null,
     duration: 100,
     syncMode: "char",
     syncUnit: "char",
@@ -26,18 +29,18 @@ function resetStores() {
     _history: [],
     _future: [],
   });
-  useSettingsStore.setState({ spotifyMode: false });
+  useSettingsStore.setState({ spotifyMode: false, deviceMode: false, glyphWaveformStyle: "bars", glyphWaveformHeight: 96, showGlyphTimeMarkers: true });
   useServiceStore.setState({ isLoggedIn: false });
 }
 
 function setup() {
   const view = render(<CharSyncView />);
-  const lane = view.container.querySelector(".h-10") as HTMLDivElement;
+  const lane = view.container.querySelector('[data-testid="glyph-seek-lane"]') as HTMLDivElement;
   vi.spyOn(lane, "getBoundingClientRect").mockReturnValue({
     x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 40, width: 100, height: 40,
     toJSON: () => ({}),
   });
-  return { ...view, lane, playhead: lane.querySelector(".bg-amber-400") as HTMLDivElement };
+  return { ...view, lane, playhead: lane.querySelector('[data-testid="glyph-playhead"]') as HTMLDivElement };
 }
 
 beforeEach(() => {
@@ -59,6 +62,38 @@ afterEach(() => {
 });
 
 describe("CharSyncView seek lane", () => {
+  it("stamps the current glyph on click, skips spaces, and lets Space stamp the next glyph", () => {
+    useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+      { id: "line-1", timestamp: 10, text: "a b", syllables: [
+        { text: "a", time: null }, { text: " ", time: null }, { text: "b", time: null },
+      ] },
+      { id: "line-2", timestamp: 20, text: "next" },
+    ] } });
+    const { getByRole } = setup();
+    const stamp = getByRole("button", { name: useI18nStore.getState().t.charSync.stampHint });
+    stamp.focus();
+    fireEvent.click(stamp);
+    expect(useLrcStore.getState().doc.lines[0].syllables?.map(s => s.time)).toEqual([12, null, null]);
+    expect(useLrcStore.getState().activeSyllableIndex).toBe(2);
+    expect(document.activeElement).not.toBe(stamp);
+    act(() => useLrcStore.setState({ currentTime: 13 }));
+    fireEvent.keyDown(window, { code: "Space" });
+    expect(useLrcStore.getState().doc.lines[0].syllables?.map(s => s.time)).toEqual([12, null, 13]);
+    expect(useLrcStore.getState().activeLineId).toBe("line-2");
+    expect(useLrcStore.getState()._history).toHaveLength(2);
+    expect(seekSpy).not.toHaveBeenCalled();
+  });
+
+  it("uses the latest playback time for consecutive stamp button clicks", () => {
+    const { getByRole } = setup();
+    const stamp = getByRole("button", { name: useI18nStore.getState().t.charSync.stampHint });
+    fireEvent.click(stamp);
+    act(() => useLrcStore.setState({ currentTime: 12.5 }));
+    fireEvent.click(stamp);
+    expect(useLrcStore.getState().doc.lines[0].syllables?.slice(0, 2).map(s => s.time)).toEqual([12, 12.5]);
+    expect(useLrcStore.getState().activeSyllableIndex).toBe(2);
+  });
+
   it("shows at least two seconds of context when adjacent lyric timestamps are very close", () => {
     useLrcStore.setState({
       doc: {
@@ -73,7 +108,7 @@ describe("CharSyncView seek lane", () => {
     });
 
     const { lane } = setup();
-    const labels = lane.querySelectorAll("span");
+    const labels = [{ textContent: formatTimestamp(Number(lane.dataset.start)) }, { textContent: formatTimestamp(Number(lane.dataset.end)) }];
     const start = parseTimestampInput(labels[0].textContent ?? "");
     const end = parseTimestampInput(labels[1].textContent ?? "");
 
@@ -102,7 +137,7 @@ describe("CharSyncView seek lane", () => {
         currentTime: (item.start + item.end) / 2,
       });
       const { lane } = setup();
-      const labels = lane.querySelectorAll("span");
+      const labels = [{ textContent: formatTimestamp(Number(lane.dataset.start)) }, { textContent: formatTimestamp(Number(lane.dataset.end)) }];
 
       expect(parseTimestampInput(labels[0].textContent ?? ""), `case ${index} start`).toBeCloseTo(item.expectedStart, 1);
       expect(parseTimestampInput(labels[1].textContent ?? ""), `case ${index} end`).toBeCloseTo(item.expectedEnd, 1);
@@ -128,37 +163,141 @@ describe("CharSyncView seek lane", () => {
     fireEvent.click(zoomIn);
     fireEvent.click(zoomIn);
 
-    const labels = lane.querySelectorAll("span");
+    const labels = [{ textContent: formatTimestamp(Number(lane.dataset.start)) }, { textContent: formatTimestamp(Number(lane.dataset.end)) }];
     const start = parseTimestampInput(labels[0].textContent ?? "");
     const end = parseTimestampInput(labels[1].textContent ?? "");
     expect((end as number) - (start as number)).toBeGreaterThanOrEqual(0.24);
   });
 
-  it("limits peak bars to a softer height within the fixed lane", () => {
-    vi.spyOn(audioControls, "getPeaks").mockReturnValue(Array(4000).fill(1));
-    const { lane } = setup();
-    const bar = lane.querySelector("svg rect");
-
-    expect(bar).not.toBeNull();
-    expect(Number(bar?.getAttribute("height"))).toBeLessThanOrEqual(64);
+  it("continuously centers playback in a zoomed viewport across lyric boundaries", () => {
+    useLrcStore.setState({ isPlaying: true });
+    const { lane, container, playhead } = setup();
+    fireEvent.click(Array.from(container.querySelectorAll("button")).find(b => b.textContent === "+")!);
+    expect(Number(lane.dataset.start)).toBe(10);
+    act(() => useLrcStore.setState({ currentTime: 12.5 }));
+    expect(Number(lane.dataset.start)).toBe(10.5);
+    expect(playhead.style.left).toBe("50%");
+    act(() => useLrcStore.setState({ currentTime: 13.5 }));
+    expect(Number(lane.dataset.start)).toBeCloseTo(11.5);
+    act(() => useLrcStore.setState({ currentTime: 25 }));
+    expect(Number(lane.dataset.start)).toBe(23);
+    expect(playhead.style.left).toBe("50%");
   });
 
-  it("groups dense waveform samples into a bounded number of display bars", () => {
-    vi.spyOn(audioControls, "getPeaks").mockReturnValue(Array(2000).fill(0.5));
-    useLrcStore.setState({
-      doc: {
-        ...defaultDocument(),
-        lines: [
-          { id: "line-1", timestamp: 0, text: "first" },
-          { id: "line-2", timestamp: 100, text: "last" },
-        ],
-      },
-      activeLineId: "line-1",
-      currentTime: 0,
-    });
-    const { lane } = setup();
+  it("moves the playhead from left to center, scrolls the waveform, then moves it to the right", () => {
+    useLrcStore.setState({ isPlaying: true, currentTime: 0 });
+    const { lane, playhead } = setup();
+    const cases = [
+      { time: 0, start: 0, end: 8, position: 0 },
+      { time: 2, start: 0, end: 8, position: 25 },
+      { time: 4, start: 0, end: 8, position: 50 },
+      { time: 12, start: 8, end: 16, position: 50 },
+      { time: 50, start: 46, end: 54, position: 50 },
+      { time: 96, start: 92, end: 100, position: 50 },
+      { time: 98, start: 92, end: 100, position: 75 },
+      { time: 100, start: 92, end: 100, position: 100 },
+      { time: 10, start: 6, end: 14, position: 50 },
+    ];
+    for (const item of cases) {
+      act(() => useLrcStore.setState({ currentTime: item.time }));
+      expect(Number(lane.dataset.start), `time ${item.time}`).toBe(item.start);
+      expect(Number(lane.dataset.end), `time ${item.time}`).toBe(item.end);
+      expect(parseFloat(playhead.style.left), `time ${item.time}`).toBe(item.position);
+      if (item.position === 100) {
+        expect(playhead.style.transform, `visible endpoint at ${item.time}`).toBe(`translateX(-${item.position}%)`);
+      }
+    }
+  });
 
-    expect(lane.querySelectorAll("svg rect").length).toBeLessThanOrEqual(600);
+  it("keeps a track shorter than the minimum window fully visible", () => {
+    useLrcStore.setState({
+      duration: 0.5, currentTime: 0, isPlaying: true,
+      doc: { ...defaultDocument(), lines: [{ id: "line-1", timestamp: 0, text: "short" }] },
+    });
+    const { lane, playhead } = setup();
+    for (const [time, position] of [[0, 0], [0.25, 50], [0.5, 100]]) {
+      act(() => useLrcStore.setState({ currentTime: time }));
+      expect(Number(lane.dataset.start)).toBe(0);
+      expect(Number(lane.dataset.end)).toBe(0.5);
+      expect(parseFloat(playhead.style.left)).toBe(position);
+    }
+  });
+
+  it("keeps tracking without an end boundary before duration is known", () => {
+    useLrcStore.setState({ duration: 0, currentTime: 50, isPlaying: true });
+    const { lane, playhead } = setup();
+    expect(Number(lane.dataset.start)).toBe(46);
+    expect(Number(lane.dataset.end)).toBe(54);
+    expect(playhead.style.left).toBe("50%");
+  });
+
+  it("resumes centered following after a drag seek is acknowledged", () => {
+    useLrcStore.setState({ isPlaying: true });
+    const { lane, playhead } = setup();
+    fireEvent.pointerDown(lane, { pointerId: 9, button: 0, clientX: 20 });
+    act(() => useLrcStore.setState({ currentTime: 13 }));
+    expect(Number(lane.dataset.start)).toBe(8);
+    fireEvent.pointerUp(window, { pointerId: 9, button: 0, clientX: 75 });
+    expect(seekSpy).toHaveBeenCalledWith(14);
+    act(() => useLrcStore.setState({ currentTime: 14 }));
+    expect(Number(lane.dataset.start)).toBe(10);
+    expect(playhead.style.left).toBe("50%");
+    act(() => useLrcStore.setState({ currentTime: 14.5 }));
+    expect(Number(lane.dataset.start)).toBe(10.5);
+  });
+
+  it("pans a zoomed viewport without seeking or changing glyph timing", () => {
+    const { lane, container, getByRole } = setup();
+    fireEvent.click(Array.from(container.querySelectorAll("button")).find(b => b.textContent === "+")!);
+    fireEvent.click(getByRole("button", { name: /다음 시간 구간|Next time window/ }));
+    expect(Number(lane.dataset.start)).toBe(12);
+    expect(seekSpy).not.toHaveBeenCalled();
+    expect(useLrcStore.getState()._history).toHaveLength(0);
+  });
+
+  it("keeps manual pan detached during playback until explicitly following again", () => {
+    useLrcStore.setState({ isPlaying: true, doc: { ...defaultDocument(), lines: [
+      { id: "line-1", text: "first", timestamp: 10 }, { id: "line-2", text: "next", timestamp: 30 },
+    ] } });
+    const { lane, container, getByRole } = setup();
+    const zoomIn = Array.from(container.querySelectorAll("button")).find(b => b.textContent === "+")!;
+    fireEvent.click(zoomIn); fireEvent.click(zoomIn); fireEvent.click(zoomIn);
+    const next = getByRole("button", { name: /다음 시간 구간|Next time window/ });
+    fireEvent.click(next); fireEvent.click(next);
+    const start = Number(lane.dataset.start);
+    act(() => useLrcStore.setState({ currentTime: 12.01 }));
+    expect(Number(lane.dataset.start)).toBe(start);
+    fireEvent.click(getByRole("button", { name: /재생 위치 따라가기|Follow playback/ }));
+    expect(Number(lane.dataset.start)).toBeCloseTo(10.76);
+  });
+
+  it("toggles the current line repeat without starting playback and clears it on line change", () => {
+    useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+      { id: "line-1", text: "first", timestamp: 10 }, { id: "line-2", text: "next", timestamp: 20 },
+    ] }});
+    const { getByRole } = setup();
+    const repeat = getByRole("button", { name: /줄 반복|Repeat line/ });
+    fireEvent.click(repeat);
+    expect(repeat.getAttribute("aria-pressed")).toBe("true");
+    expect(useLrcStore.getState().loopLineId).toBe("line-1");
+    expect(seekSpy).toHaveBeenCalledWith(10);
+    expect(useLrcStore.getState().isPlaying).toBe(false);
+    fireEvent.click(repeat);
+    expect(useLrcStore.getState().loopLineId).toBeNull();
+    fireEvent.click(repeat);
+    act(() => useLrcStore.setState({ activeLineId: "line-2" }));
+    expect(useLrcStore.getState().loopLineId).toBeNull();
+  });
+
+  it("disables line repeat when the line has no timestamp or the source is external", () => {
+    useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "line-1", text: "first", timestamp: null }] } });
+    const { getByRole } = setup();
+    expect((getByRole("button", { name: /줄 반복|Repeat line/ }) as HTMLButtonElement).disabled).toBe(true);
+    act(() => {
+      useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "line-1", text: "first", timestamp: 10 }] } });
+      useSettingsStore.setState({ deviceMode: true });
+    });
+    expect((getByRole("button", { name: /줄 반복|Repeat line/ }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("previews drag movement without changing playback time, then seeks once to the release position", () => {
@@ -175,7 +314,7 @@ describe("CharSyncView seek lane", () => {
 
     fireEvent.pointerUp(window, { pointerId: 1, button: 0, clientX: 80 });
     expect(seekSpy).toHaveBeenCalledTimes(1);
-    expect(seekSpy).toHaveBeenCalledWith(16.4);
+    expect(seekSpy).toHaveBeenCalledWith(14.4);
     expect(useLrcStore.getState().currentTime).toBe(12);
   });
 
@@ -248,4 +387,105 @@ describe("CharSyncView seek lane", () => {
 
     expect(seekSpy).toHaveBeenLastCalledWith(12);
   });
+});
+
+it('applies waveform view settings without seeking or editing lyrics', () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: 'line-1', timestamp: 10, text: 'ab', syllables: [{ text: 'a', time: 10 }, { text: 'b', time: 12 }] }] } });
+  const before = useLrcStore.getState().doc;
+  const { getByRole, lane, container } = setup();
+  fireEvent.click(getByRole('button', { name: /파형 보기|Waveform view/ }));
+  fireEvent.change(getByRole('slider', { name: /파형 높이|Waveform height/ }), { target: { value: '240' } });
+  expect(lane.style.height).toBe('240px');
+  const markers = container.querySelector('[data-testid="glyph-marker-lane"]')!;
+  expect(markers.querySelector('button')).not.toBeNull();
+  fireEvent.click(getByRole('checkbox', { name: /글자 마커 표시|Show glyph markers/ }));
+  expect(markers.querySelector('button')).toBeNull();
+  expect(useLrcStore.getState().doc).toBe(before);
+  expect(seekSpy).not.toHaveBeenCalled();
+});
+
+it('closes waveform view options with Escape and returns focus to its trigger', () => {
+  const { getByRole, queryByRole } = setup();
+  const trigger = getByRole('button', { name: /파형 보기|Waveform view/ });
+  fireEvent.click(trigger);
+  fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' });
+  expect(queryByRole('slider')).toBeNull();
+  expect(document.activeElement).toBe(trigger);
+});
+
+it('keeps the viewport scale when stamping changes the current line start', () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+    { id: 'line-1', timestamp: 10, text: 'ab' }, { id: 'line-2', timestamp: 20, text: 'next' },
+  ] } });
+  const { lane, getByRole } = setup();
+  const span = Number(lane.dataset.end) - Number(lane.dataset.start);
+  fireEvent.click(getByRole('button', { name: useI18nStore.getState().t.charSync.stampHint }));
+  expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(12);
+  expect(Number(lane.dataset.end) - Number(lane.dataset.start)).toBeCloseTo(span);
+});
+
+it.each(['replay', 'nudge'])('reattaches following after manual pan and %s', action => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+    { id: 'line-1', timestamp: 10, text: 'ab', syllables: [{ text: 'a', time: 10 }, { text: 'b', time: 12 }] },
+    { id: 'line-2', timestamp: 20, text: 'next' },
+  ] } });
+  const { lane, getByRole } = setup();
+  fireEvent.click(getByRole('button', { name: /다음 시간 구간|Next time window/ }));
+  if (action === 'replay') fireEvent.click(getByRole('button', { name: /이 줄 재생|Replay line|Play line/ }));
+  else fireEvent.keyDown(window, { code: 'ArrowRight', shiftKey: true });
+  expect(getByRole('button', { name: /재생 위치 따라가기|Follow playback/ }).getAttribute('aria-pressed')).toBe('true');
+  act(() => useLrcStore.setState({ currentTime: 40 }));
+  expect(Number(lane.dataset.start)).toBeCloseTo(35);
+});
+
+it('paints vertically across wrapped glyphs in a single undo entry', () => {
+  const { container } = setup();
+  const first = container.querySelector('[data-glyph="0"]')!;
+  const second = container.querySelector('[data-glyph="1"]')!;
+  const point = vi.fn(() => second);
+  Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: point });
+  fireEvent.mouseDown(first, { button: 0, clientX: 10, clientY: 10 });
+  fireEvent.mouseMove(window, { clientX: 10, clientY: 30 });
+  fireEvent.mouseMove(window, { clientX: 10, clientY: 40 });
+  fireEvent.mouseUp(window);
+  expect(useLrcStore.getState().doc.lines[0].syllables?.slice(0, 2).map(s => s.time)).toEqual([12, 12]);
+  expect(useLrcStore.getState()._history).toHaveLength(1);
+});
+
+it('ignores stamp and nudge shortcuts during IME composition', () => {
+  setup();
+  fireEvent.keyDown(window, { code: 'Space', isComposing: true });
+  expect(useLrcStore.getState().doc.lines[0].syllables).toBeUndefined();
+  fireEvent.keyDown(window, { code: 'Space', keyCode: 229 });
+  expect(useLrcStore.getState()._history).toHaveLength(0);
+});
+
+it('clears line repeat when the local audio path changes', () => {
+  const { getByRole } = setup();
+  fireEvent.click(getByRole('button', { name: /줄 반복|Repeat line/ }));
+  expect(useLrcStore.getState().loopLineId).toBe('line-1');
+  act(() => useLrcStore.setState({ audioPath: '/music/replacement.mp3' }));
+  expect(useLrcStore.getState().loopLineId).toBeNull();
+});
+
+it("opens shortcut settings from the header without a bottom help or overflow menu", () => {
+  const onOpenShortcuts = vi.fn();
+  const view = render(<CharSyncView onOpenShortcuts={onOpenShortcuts} />);
+  fireEvent.click(view.getByRole("button", {name:useI18nStore.getState().t.charSync.shortcuts}));
+  expect(onOpenShortcuts).toHaveBeenCalledOnce();
+  expect(view.container.querySelector("details")).toBeNull();
+  expect(view.getByRole("button",{name:useI18nStore.getState().t.charSync.clearTimingButton})).toBeTruthy();
+});
+
+
+it("blocks glyph shortcuts behind the actual clear confirmation dialog", () => {
+  useLrcStore.setState({doc:{...defaultDocument(),lines:[{id:"line-1",timestamp:10,text:"ab",syllables:[{text:"a",time:10},{text:"b",time:11}]}]}});
+  const {getByRole} = setup();
+  const before = useLrcStore.getState();
+  fireEvent.click(getByRole("button",{name:useI18nStore.getState().t.charSync.clearTimingButton}));
+  expect(getByRole("dialog")).toBeTruthy();
+  for (const code of ["Space","Backspace","ArrowLeft","ArrowRight"]) fireEvent.keyDown(window,{code});
+  expect(useLrcStore.getState().doc).toBe(before.doc);
+  expect(useLrcStore.getState().activeSyllableIndex).toBe(before.activeSyllableIndex);
+  expect(useLrcStore.getState()._history).toEqual(before._history);
 });

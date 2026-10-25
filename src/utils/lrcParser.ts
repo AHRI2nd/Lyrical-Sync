@@ -32,7 +32,7 @@ const META_TAGS: Record<string, keyof LrcMetadata> = {
   offset: "offset",
 };
 
-const META_RE = /^\[(\w+):([^\]]*)\]$/;
+const META_RE = /^\[([\w-]+):([^\]]*)\]$/;
 // 줄 맨 앞의 타임스탬프 토큰: [mm:ss.xx] / [mm:ss.xxx] / [mm:ss] (센티초 선택)
 // 한 줄에 여러 토큰이 올 수 있음 (후렴 반복: [t1][t2]가사)
 const TS_TOKEN_RE = /^\[(\d+):(\d{2})(?:\.(\d{1,3}))?\]/;
@@ -80,14 +80,15 @@ export function parseTimestamp(ts: string): number | null {
   return parseInt(m[1], 10) * 60 + parseInt(m[2], 10) + fracToSeconds(m[3]);
 }
 
-// MM:SS.xx 형식의 사용자 입력을 초(number)로 파싱
+// Accept both legacy minute timestamps and the hour-aware millisecond UI format.
 export function parseTimestampInput(input: string): number | null {
-  const m = /^(\d+):(\d{2})\.(\d{2,3})$/.exec(input.trim());
+  const m = /^(?:(\d+):)?(\d+):(\d{2})\.(\d{2,3})$/.exec(input.trim());
   if (!m) return null;
-  const mins = parseInt(m[1], 10);
-  const secs = parseInt(m[2], 10);
-  const frac = m[3].length === 2 ? parseInt(m[3], 10) / 100 : parseInt(m[3], 10) / 1000;
-  return mins * 60 + secs + frac;
+  const hours = m[1] ? parseInt(m[1], 10) : 0;
+  const mins = parseInt(m[2], 10);
+  const secs = parseInt(m[3], 10);
+  const fractionMs = parseInt(m[4], 10) * (m[4].length === 2 ? 10 : 1);
+  return ((hours * 3600 + mins * 60 + secs) * 1000 + fractionMs) / 1000;
 }
 
 // LRC 파일 직렬화용 [MM:SS.xx]
@@ -145,109 +146,69 @@ export function validateTimestamps(lines: LrcLine[]): Map<string, LineWarning> {
   return warnings;
 }
 
-// 두 타임스탬프 집합이 (센티초 정밀도로) 동일한지 비교. null=무타임스탬프.
-function sameTimestamps(a: (number | null)[], b: (number | null)[]): boolean {
-  if (a.length !== b.length) return false;
-  return a.every((t, i) => {
-    const u = b[i];
-    if (t === null || u === null) return t === null && u === null;
-    return Math.round(t * 100) === Math.round(u * 100);
-  });
+const TRANSLATION_TAG = "x-lyrical-translations";
+
+// Escaping applies only to marked documents, leaving ordinary LRC slash text literal.
+function escapeTranslationText(text: string): string {
+  return text.replace(/\\/g, "\\\\").replace(/\r/g, "\\r").replace(/\n/g, "\\n").replace(/^\//, "\\/").replace(/^(\s*)\[/, "$1\\[");
+}
+function unescapeTranslationText(text: string): string {
+  if (text === "\\0") return "";
+  return text.replace(/\\([\\/nr\[])/g, (_, char: string) => char === "n" ? "\n" : char === "r" ? "\r" : char);
 }
 
 export function parseLrc(raw: string): LrcDocument {
   const doc = defaultDocument();
   let lineId = 0;
-  // 직전 원본 줄이 만든 doc.lines 인덱스와 그 타임스탬프(들). 번역 줄("/"로 시작)이
-  // 직전 줄과 동일한 타임스탬프 집합을 공유하면 별도 엔트리 대신 translation으로 병합
-  // (표준 LRC엔 번역 개념이 없어 "동일 타임스탬프 + / 접두사"를 앱 자체 규약으로 사용).
-  let lastIndices: number[] | null = null;
-  let lastTimestamps: (number | null)[] | null = null;
+  let translationMode = false;
+  let previous: LrcLine[] = [];
 
   for (const rawLine of raw.split("\n")) {
-    const line = rawLine.trim();
-    if (!line) continue;
-
-    // 타임스탬프 줄을 META_RE보다 먼저 검사
-    // ([MM:SS.xx] 형식이 META_RE에도 매칭되므로 순서가 중요)
-    // 줄 앞의 타임스탬프 토큰을 모두 추출 → 토큰 개수만큼 같은 텍스트로 줄 분리
+    const line = translationMode ? rawLine.replace(/\r$/, "") : rawLine.trim();
+    if (!line.trim()) { previous = []; continue; }
     const timestamps: number[] = [];
     let rest = line;
     let tok: RegExpExecArray | null;
     while ((tok = TS_TOKEN_RE.exec(rest)) !== null) {
-      timestamps.push(
-        parseInt(tok[1], 10) * 60 + parseInt(tok[2], 10) + fracToSeconds(tok[3])
-      );
+      timestamps.push(parseInt(tok[1], 10) * 60 + parseInt(tok[2], 10) + fracToSeconds(tok[3]));
       rest = rest.slice(tok[0].length);
     }
-    if (timestamps.length > 0) {
-      if (rest.startsWith("/") && lastIndices && lastTimestamps && sameTimestamps(timestamps, lastTimestamps)) {
-        const translation = rest.slice(1);
-        for (const idx of lastIndices) doc.lines[idx] = { ...doc.lines[idx], translation };
-        lastIndices = null;
-        lastTimestamps = null;
+    if (timestamps.length === 0) {
+      const metaMatch = META_RE.exec(line.trim());
+      if (metaMatch) {
+        const key = metaMatch[1].toLowerCase();
+        const value = metaMatch[2].trim();
+        const field = META_TAGS[key];
+        if (key === TRANSLATION_TAG) translationMode = value === "1";
+        else if (field === "offset") doc.metadata.offset = parseInt(value, 10) || 0;
+        else if (field) (doc.metadata as unknown as Record<string, string>)[field] = value;
+        else doc.extraTags[key] = value;
+        previous = [];
         continue;
       }
-      const syllables = parseInlineSyllables(rest);
-      const text = syllables ? syllables.map((s) => s.text).join("") : rest.trim();
-      const indices: number[] = [];
-      for (const ts of timestamps) {
-        indices.push(doc.lines.length);
-        doc.lines.push({
-          id: String(lineId++),
-          timestamp: ts,
-          text,
-          // 반복 줄([t1][t2]…)마다 토큰을 복제해 공유 참조 방지
-          ...(syllables ? { syllables: syllables.map((s) => ({ ...s })) } : {}),
-        });
-      }
-      lastIndices = indices;
-      lastTimestamps = timestamps;
+    }
+    const rowTimes = timestamps.length ? timestamps : [null];
+    if (translationMode && rest.startsWith("/") && previous.length === rowTimes.length &&
+        previous.every((row, i) => row.timestamp === rowTimes[i] && row.translation === undefined)) {
+      for (const row of previous) row.translation = unescapeTranslationText(rest.slice(1));
+      previous = [];
       continue;
     }
-
-    const metaMatch = META_RE.exec(line);
-    if (metaMatch) {
-      const key = metaMatch[1].toLowerCase();
-      const value = metaMatch[2].trim();
-      const field = META_TAGS[key];
-      if (field) {
-        if (field === "offset") {
-          doc.metadata.offset = parseInt(value, 10) || 0;
-        } else {
-          (doc.metadata as unknown as Record<string, string>)[field] = value;
-        }
-      } else {
-        doc.extraTags[key] = value;
-      }
-      lastIndices = null;
-      lastTimestamps = null;
-      continue;
-    }
-
-    // 무타임스탬프 줄도 대칭적으로 번역 병합 지원(스탬프 전에 번역부터 입력한 경우 등) —
-    // 타임스탬프 게이트가 없어 "/"로 시작하는 원본 가사와 충돌할 여지는 있으나
-    // (동일 타임스탬프 줄에서와 마찬가지로) 드문 경우로 간주.
-    if (line.startsWith("/") && lastIndices && lastTimestamps && sameTimestamps([null], lastTimestamps)) {
-      const translation = line.slice(1);
-      doc.lines[lastIndices[0]] = { ...doc.lines[lastIndices[0]], translation };
-      lastIndices = null;
-      lastTimestamps = null;
-      continue;
-    }
-
-    lastIndices = [doc.lines.length];
-    lastTimestamps = [null];
-    doc.lines.push({ id: String(lineId++), timestamp: null, text: line });
+    const content = translationMode ? unescapeTranslationText(rest) : rest.trim();
+    const syllables = timestamps.length ? parseInlineSyllables(content) : null;
+    const text = syllables ? syllables.map(s => s.text).join("") : content;
+    previous = rowTimes.map(timestamp => ({
+      id: String(lineId++), timestamp, text,
+      ...(syllables ? { syllables: syllables.map(s => ({ ...s })) } : {}),
+    }));
+    doc.lines.push(...previous);
   }
-
   doc.lines.sort((a, b) => {
     if (a.timestamp === null && b.timestamp === null) return 0;
     if (a.timestamp === null) return 1;
     if (b.timestamp === null) return -1;
     return a.timestamp - b.timestamp;
   });
-
   return doc;
 }
 
@@ -255,6 +216,8 @@ export function parseLrc(raw: string): LrcDocument {
 export function serializeLrc(doc: LrcDocument, enhanced = true): string {
   const { metadata, lines, extraTags } = doc;
   const parts: string[] = [];
+  const translationMode = lines.some(line => typeof line.translation === "string" || /[\r\n]/.test(line.text) || /^\s*\[/.test(line.text));
+  const encode = (text: string) => translationMode ? escapeTranslationText(text) : text;
 
   if (metadata.title) parts.push(`[ti:${metadata.title}]`);
   if (metadata.artist) parts.push(`[ar:${metadata.artist}]`);
@@ -262,29 +225,33 @@ export function serializeLrc(doc: LrcDocument, enhanced = true): string {
   if (metadata.by) parts.push(`[by:${metadata.by}]`);
   if (metadata.offset !== 0) parts.push(`[offset:${metadata.offset}]`);
   for (const [key, val] of Object.entries(extraTags)) {
-    parts.push(`[${key}:${val}]`);
+    if (key.toLowerCase() !== TRANSLATION_TAG) parts.push(`[${key}:${val}]`);
   }
+  if (translationMode) parts.push(`[${TRANSLATION_TAG}:1]`);
   parts.push("");
 
   for (const line of lines) {
     // Enhanced LRC(A2): 토큰에 시각이 하나라도 있으면 <mm:ss.xx> 인라인으로 출력
+    let outputTs = line.timestamp;
     const timedSyl = enhanced && line.syllables?.some((s) => s.time !== null);
     if (timedSyl && line.syllables) {
       const times = line.syllables.filter((s) => s.time !== null).map((s) => s.time as number);
       const lineTs = line.timestamp ?? Math.min(...times);
+      outputTs = lineTs;
       let out = `[${formatTimestamp(lineTs)}]`;
       for (const s of line.syllables) {
         if (s.time !== null) out += `<${formatTimestamp(s.time)}>`;
-        out += s.text;
+        out += encode(s.text);
       }
       parts.push(out);
-      if (line.translation) parts.push(`[${formatTimestamp(lineTs)}]/${line.translation}`);
     } else if (line.timestamp !== null) {
-      parts.push(`[${formatTimestamp(line.timestamp)}]${line.text}`);
-      if (line.translation) parts.push(`[${formatTimestamp(line.timestamp)}]/${line.translation}`);
-    } else if (line.text) {
-      parts.push(line.text);
-      if (line.translation) parts.push(`/${line.translation}`);
+      parts.push(`[${formatTimestamp(line.timestamp)}]${encode(line.text)}`);
+    } else if (line.text || typeof line.translation === "string") {
+      parts.push(translationMode && line.text === "" ? "\\0" : encode(line.text));
+    }
+    if (typeof line.translation === "string") {
+      const prefix = outputTs === null ? "" : `[${formatTimestamp(outputTs)}]`;
+      parts.push(`${prefix}/${encode(line.translation)}`);
     }
   }
 

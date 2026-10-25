@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { SettingsTabBar, TabBtn } from "./SettingsTabs";
+import { useModalFocus } from "../../hooks/useModalFocus";
+import { useId, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -31,14 +33,9 @@ export function SettingsModal({
   const youtubeGuideUrl = `https://ahri2nd.xyz/posts/lyrical-sync-youtube-guide-${guideSuffix}/`;
   const [checkState, setCheckState] = useState<CheckState>("idle");
   const [tab, setTab] = useState<Tab>(initialTab);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
+  const dialog = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useModalFocus(dialog, onClose);
 
   const handleCheckNow = async () => {
     setCheckState("checking");
@@ -48,7 +45,7 @@ export function SettingsModal({
       onClose();
       onUpdateFound();
     } else {
-      setCheckState("upToDate");
+      setCheckState(status === "up-to-date" ? "upToDate" : status === "error" ? "error" : "idle");
     }
   };
 
@@ -57,24 +54,24 @@ export function SettingsModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={onClose}
     >
-      <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden flex flex-col max-h-[85vh]"
+      <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
+        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden flex flex-col max-h-[calc(100%-2rem)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800 shrink-0">
-          <span className="font-semibold text-zinc-100">{t.settingsTitle}</span>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)] shrink-0">
+          <span id={titleId} className="font-semibold text-[var(--ls-text)]">{t.settingsTitle}</span>
           <button
             onClick={onClose}
             aria-label={t.close}
-            className="text-zinc-500 hover:text-white transition-colors text-lg leading-none"
+            className="ls-button hover:text-white transition-colors text-lg leading-none"
           >
             ✕
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-zinc-800 shrink-0">
+        <SettingsTabBar>
           <TabBtn active={tab === "general"} onClick={() => setTab("general")}>
             {t.settingsTabGeneral}
           </TabBtn>
@@ -93,7 +90,7 @@ export function SettingsModal({
           <TabBtn active={tab === "youtube"} onClick={() => setTab("youtube")}>
             {t.settingsTabYouTube}
           </TabBtn>
-        </div>
+        </SettingsTabBar>
 
         {/* Scrollable content */}
         <div className="overflow-y-auto flex-1">
@@ -103,7 +100,7 @@ export function SettingsModal({
 
           {tab === "shortcuts" && (
             <div className="p-5">
-              <KeybindingsSection />
+              <KeybindingsSection focusCharacterSync={initialTab === "shortcuts"} />
             </div>
           )}
 
@@ -113,7 +110,7 @@ export function SettingsModal({
             <div className="p-5 flex flex-col gap-5">
               <GuideBanner color="indigo" url={aiGuideUrl} label={t.settingsViewGuide} />
               <PythonEnvSection />
-              <div className="border-t border-zinc-800" />
+              <div className="border-t border-[var(--ls-border-subtle)]" />
               <ModelDownloadSection />
             </div>
           )}
@@ -148,41 +145,17 @@ export function SettingsModal({
 
 function GuideBanner({ color, url, label }: { color: "indigo" | "green" | "red"; url: string; label: string }) {
   const colorMap = {
-    indigo: "bg-indigo-950/60 border-indigo-800/50 text-indigo-400 hover:text-indigo-300",
+    indigo: "bg-[var(--ls-primary)]/60 border-[var(--ls-accent)]/50 text-[var(--ls-accent)] hover:text-[var(--ls-accent)]",
     green:  "bg-green-950/60 border-green-800/50 text-green-400 hover:text-green-300",
     red:    "bg-red-950/60 border-red-800/50 text-red-400 hover:text-red-300",
   };
   return (
     <button
       onClick={() => openUrl(url)}
-      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-xs transition-colors ${colorMap[color]}`}
+      className={`ls-button ${`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-xs transition-colors ${colorMap[color]}`}`}
     >
       <span>{label}</span>
       <span className="opacity-70">↗</span>
-    </button>
-  );
-}
-
-function TabBtn({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={[
-        "px-5 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px",
-        active
-          ? "text-indigo-400 border-indigo-500"
-          : "text-zinc-400 border-transparent hover:text-zinc-200",
-      ].join(" ")}
-    >
-      {children}
     </button>
   );
 }

@@ -3,7 +3,7 @@ import { useToastStore, type ToastType } from "../../stores/useToastStore";
 const STYLE: Record<ToastType, string> = {
   success: "bg-emerald-950/95 border-emerald-700 text-emerald-100",
   error: "bg-rose-950/95 border-rose-700 text-rose-100",
-  info: "bg-zinc-800/95 border-zinc-600 text-zinc-100",
+  info: "bg-[var(--ls-control)]/95 border-[var(--ls-border-control)] text-[var(--ls-text)]",
 };
 
 function Icon({ type }: { type: ToastType }) {

@@ -1,6 +1,6 @@
 [package]
 name = "lyrical-sync"
-version = "0.6.3"
+version = "0.7.0"
 description = "LRC file creator and editor"
 authors = []
 edition = "2021"
@@ -23,13 +23,19 @@ serde_json = "1"
 symphonia = { version = "0.5", features = ["aiff", "pcm"] }
 hound = "3"
 reqwest = { version = "0.12", default-features = false, features = ["native-tls", "json"] }
-tokio = { version = "1", features = ["fs", "process", "io-util", "time", "rt"] }
+tokio = { version = "1.53.3", features = ["fs", "process", "io-util", "time", "rt", "net", "sync", "macros"] }
 sha2 = "0.10"
 tempfile = "3"
+cap-std = "4.0.3"
+cap-tempfile = "4.0.3"
 keyring = { version = "3", features = ["apple-native", "windows-native"] }
 lofty = "0.22"
-tauri-plugin-updater = "2.10.1"
+# Releases use raw Windows installers and macOS tar.gz; disable legacy ZIP extraction.
+tauri-plugin-updater = { version = "2.10.1", default-features = false, features = ["rustls-tls"] }
 tauri-plugin-process = "2.3.1"
 
 [target."cfg(windows)".dependencies]
 windows = { version = "0.62.2", features = ["Media_Control", "Foundation", "Foundation_Collections", "Win32_System_Com"] }
+
+[target."cfg(unix)".dependencies]
+libc = "0.2"

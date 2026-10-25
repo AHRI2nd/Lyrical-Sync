@@ -7,7 +7,7 @@
 ![main](img/main_ko.png)
 
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
-![버전](https://img.shields.io/badge/version-0.6.3-green)
+![버전](https://img.shields.io/badge/version-0.7.0-green)
 ![Tauri](https://img.shields.io/badge/Tauri-v2-24C8D8)
 ![React](https://img.shields.io/badge/React-19-61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6)
@@ -65,7 +65,9 @@
 
 ### Windows
 
-[Releases](../../releases) 페이지에서 최신 `.msi` 또는 `_x64-setup.exe` 설치 파일을 받아 실행합니다.
+[Releases](../../releases)에서 아키텍처에 맞는 설치 파일을 선택합니다. **x64**는 `.msi` 또는 `_x64-setup.exe`, **ARM64**는 `_arm64-setup.exe`(NSIS)를 사용합니다. ARM64 AI 도구는 CPU에서 네이티브로 실행됩니다.
+
+업데이트는 설치된 앱의 아키텍처를 유지합니다. Windows ARM에서 실행하는 x64 앱도 x64 업데이트를 받습니다. 아키텍처를 전환하려면 해당 설치 파일로 명시적으로 재설치합니다. ARM64 Python과 yt-dlp 캐시는 기존 x64 캐시와 분리됩니다.
 
 > **SmartScreen 경고**
 >
@@ -106,14 +108,14 @@
 | 상태 관리 | Zustand | 5.0.14 |
 | 파형 | Wavesurfer.js | 7.12.10 |
 | AI 런타임 | 내장 Python | 3.11.10 (빌드 20241016) |
-| AI 정렬 | ctc-forced-aligner + MMS-300M | `<2` (pip 범위); Hugging Face `main` (버전 고정 없음) |
-| 보컬 분리 | Demucs + htdemucs 체크포인트 | Demucs 버전 미고정; 체크포인트 SHA-256 `8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4` |
+| AI 정렬 | ctc-forced-aligner + MMS-300M | `1.0.2`; ONNX revision `77d85f9` + SHA-256 |
+| 보컬 분리 | Demucs + htdemucs 체크포인트 | Demucs `4.0.1`; 체크포인트 SHA-256 `8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4` |
 | 오디오 태그 / 트랜스코딩 | lofty + Symphonia (Rust) | 0.22.4, 0.5.5 |
 | 파일 I/O / 다이얼로그 | Tauri fs / dialog 플러그인 | 2.5.1, 2.7.1 |
 | YouTube 다운로더 | yt-dlp | 실행 시점 GitHub 최신 릴리즈 |
 | macOS 미디어 어댑터 | mediaremote-adapter | 벤더링 커밋 `3ac3d4bdf862c7b5399b4fba4df5689f5c38609a` |
 
-배지는 현재 앱 버전을 표시합니다. 정확한 JavaScript 및 Rust 의존성 버전은 `package-lock.json`과 `src-tauri/Cargo.lock` 기준입니다. AI 패키지와 리소스 정책도 코드에 지정된 그대로 표시했습니다. 정렬기와 Demucs Python 패키지는 정확한 릴리즈 버전으로 잠겨 있지 않고, MMS 모델은 변경 가능한 Hugging Face `main` 브랜치를 사용하며, yt-dlp는 실행 시점의 최신 릴리즈를 받습니다. Demucs 체크포인트는 SHA-256으로 검증합니다.
+배지는 현재 앱 버전을 표시합니다. JavaScript/Rust 버전은 각 lockfile 기준입니다. AI 직접 의존성은 `src-tauri/requirements-ai.txt`, Python·정렬기 소스·실제 ONNX 모델의 고정 URL과 SHA-256은 `src-tauri/ai-manifest.json`에 기록합니다. 설치는 임시 환경에서 import 및 `pip check`를 통과한 뒤 교체하며, 전이 의존성의 실제 설치 버전도 기록합니다. 전이 의존성 전체를 고정한 플랫폼별 lockfile은 아직 없습니다. yt-dlp는 실행 시점의 최신 릴리즈를 받으며 공식 체크섬을 검증합니다.
 
 ---
 
@@ -134,3 +136,19 @@ npm test            # 프론트엔드 단위 테스트
 ```
 
 빌드 결과물은 `src-tauri/target/release/bundle/`에 생성됩니다.
+
+
+### Windows architecture builds
+
+```sh
+npm ci
+npm run build:windows-arm64
+npm run build:windows-x64
+```
+
+Install the matching Rust target and MSVC C++ build tools first. ARM64 builds also
+require LLVM/clang on PATH for the cryptography dependency. ARM64 uses NSIS;
+x64 retains NSIS and MSI. Output paths include the Rust target triple under
+`src-tauri/target/`. Native ARM64 AI wheel provenance and rebuild instructions
+are in `src-tauri/resources/windows-arm64-ai/README.md`. The ARM-specific package
+pins are in `src-tauri/requirements-ai-windows-arm64.txt`.

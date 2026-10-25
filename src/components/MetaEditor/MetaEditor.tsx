@@ -32,14 +32,14 @@ export function MetaEditor() {
   const offsetChanged = metadata.offset !== 0;
 
   return (
-    <div className="flex flex-col gap-3 p-4 bg-zinc-900 rounded-xl border border-zinc-700">
+    <div className="ls-panel flex flex-col gap-3 p-4 border border-transparent">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-zinc-300">{t.songInfo}</h2>
+        <h2 className="text-sm font-semibold text-[var(--ls-text-secondary)]">{t.songInfo}</h2>
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => setShowLrcLib(true)}
             title={t.lrclib.button}
-            className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 transition-colors"
+            className="ls-button flex items-center gap-1.5 text-xs bg-[var(--ls-selection)]/15 hover:bg-[var(--ls-selection)]/25 text-[var(--ls-accent)] transition-colors"
           >
             <DownloadIcon /> LRCLIB
           </button>
@@ -47,7 +47,7 @@ export function MetaEditor() {
             onClick={() => setShowPublish(true)}
             title={t.lrclibPublish.button}
             aria-label={t.lrclibPublish.button}
-            className="p-1.5 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-indigo-300 transition-colors"
+            className="ls-button hover:text-[var(--ls-accent)] transition-colors"
           >
             <UploadIcon />
           </button>
@@ -55,7 +55,7 @@ export function MetaEditor() {
             onClick={() => setShowRawEditor(true)}
             title={t.viewAll}
             aria-label={t.viewAll}
-            className="p-1.5 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors"
+            className="ls-button hover:text-white transition-colors"
           >
             <CodeIcon />
           </button>
@@ -69,8 +69,8 @@ export function MetaEditor() {
         <Field label={t.metaBy.label} placeholder={t.metaBy.placeholder} value={metadata.by} onChange={(v) => setMetadata({ by: v })} />
       </div>
 
-      <div className="flex items-center gap-1.5 pt-3 border-t border-zinc-800">
-        <span className="text-xs text-zinc-400 shrink-0">{t.metaOffsetShort}</span>
+      <div className="flex items-center gap-1.5 pt-3 border-t border-[var(--ls-border-subtle)]">
+        <span className="text-xs text-[var(--ls-text-secondary)] shrink-0">{t.metaOffsetShort}</span>
         <input
           type="text"
           inputMode="numeric"
@@ -83,18 +83,18 @@ export function MetaEditor() {
               setMetadata({ offset: Number.isNaN(n) ? 0 : n });
             }
           }}
-          className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-zinc-800 border border-transparent text-white text-sm font-mono focus:outline-none focus:border-indigo-500 transition-colors"
+          className="ls-field flex-1 min-w-0 text-white text-sm font-mono transition-colors"
         />
-        <span className="text-[11px] text-zinc-500 shrink-0">ms</span>
+        <span className="text-[11px] text-[var(--ls-text-secondary)] shrink-0">ms</span>
         <button
           onClick={applyOffset}
           disabled={!offsetChanged}
           title={t.applyOffsetTooltip}
-          className={`shrink-0 px-2 py-1.5 text-xs rounded-lg border transition-colors ${
+          className={`ls-button ${`shrink-0 px-2 py-1.5 text-xs rounded-lg border transition-colors ${
             offsetChanged
-              ? "border-indigo-500 text-indigo-300 hover:bg-indigo-500/15"
-              : "border-zinc-700 text-zinc-600 cursor-not-allowed"
-          }`}
+              ? "border-[var(--ls-accent)] text-[var(--ls-accent)] hover:bg-[var(--ls-selection)]/15"
+              : "border-[var(--ls-border-subtle)] text-[var(--ls-text-secondary)] cursor-not-allowed"
+          }`}`}
         >
           {t.applyOffset}
         </button>
@@ -134,13 +134,13 @@ function Field({
 }) {
   return (
     <div className="min-w-0">
-      <label className="block text-[11px] text-zinc-500 mb-1">{label}</label>
+      <label className="ls-label block text-[var(--ls-text-secondary)] mb-1">{label}</label>
       <input
         type="text"
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-2.5 py-1.5 rounded-lg bg-zinc-800 border border-transparent text-white text-sm placeholder-zinc-600 focus:outline-none focus:border-indigo-500 transition-colors"
+        className="ls-field w-full text-white text-sm transition-colors"
       />
     </div>
   );
@@ -201,16 +201,16 @@ function RawEditorModal({
       onClick={onClose}
     >
       <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl flex flex-col w-full max-w-2xl mx-4"
-        style={{ height: "70vh" }}
+        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl flex flex-col w-full max-w-2xl mx-4"
+        style={{ height: "70%", maxHeight: "calc(100% - 2rem)" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800 shrink-0">
-          <span className="font-semibold text-zinc-100">{t.rawEditorTitle}</span>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)] shrink-0">
+          <span className="font-semibold text-[var(--ls-text)]">{t.rawEditorTitle}</span>
           <button
             onClick={onClose}
             aria-label={t.close}
-            className="text-zinc-500 hover:text-white transition-colors text-lg leading-none"
+            className="ls-button hover:text-white transition-colors text-lg leading-none"
           >
             ✕
           </button>
@@ -221,19 +221,19 @@ function RawEditorModal({
           value={value}
           onChange={(e) => setValue(e.target.value)}
           spellCheck={false}
-          className="flex-1 min-h-0 px-5 py-4 bg-zinc-950 text-zinc-100 text-sm font-mono resize-none focus:outline-none"
+          className="ls-field flex-1 min-h-0 text-sm font-mono resize-none"
         />
 
-        <div className="flex justify-end gap-2 px-5 py-3 border-t border-zinc-800 shrink-0">
+        <div className="flex justify-end gap-2 px-5 py-3 border-t border-[var(--ls-border-subtle)] shrink-0">
           <button
             onClick={onClose}
-            className="px-4 py-1.5 rounded-lg text-sm bg-zinc-700 hover:bg-zinc-600 text-zinc-100 transition-colors"
+            className="ls-button text-sm transition-colors"
           >
             {t.rawEditorCancel}
           </button>
           <button
             onClick={() => onApply(value)}
-            className="px-4 py-1.5 rounded-lg text-sm bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+            className="ls-button text-sm bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] text-white transition-colors ls-button--primary"
           >
             {t.rawEditorApply}
           </button>

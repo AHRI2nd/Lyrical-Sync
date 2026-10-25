@@ -7,7 +7,7 @@ A desktop app for creating, syncing, and editing `.lrc` (LRC) lyric files
 ![main](img/main_en.png)
 
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
-![Version](https://img.shields.io/badge/version-0.6.3-green)
+![Version](https://img.shields.io/badge/version-0.7.0-green)
 ![Tauri](https://img.shields.io/badge/Tauri-v2-24C8D8)
 ![React](https://img.shields.io/badge/React-19-61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6)
@@ -61,21 +61,16 @@ A desktop app for creating, syncing, and editing `.lrc` (LRC) lyric files
 
 ### macOS
 
-Download the latest `.dmg` installer from the [Releases](../../releases) page and drag Lyrical Sync into your Applications folder.
+Lyrical Sync supports **Apple Silicon Macs only**. Intel Macs are not supported.
+AI alignment and vocal separation require **macOS 14 or later**; the editor and AI tools have separate system requirements.
 
-> **Unsigned app warning**
->
-> Run the following command in Terminal after installation:
->
-> ```bash
-> xattr -cr /Applications/Lyrical\ Sync.app
-> ```
->
-> Then open the app normally.
+Download the `.dmg` installer from the [Releases](../../releases) page and drag Lyrical Sync into your Applications folder. Official releases are intended to be signed and notarized. If macOS rejects an official download, check the release notes and report the exact warning before changing system security settings.
 
 ### Windows
 
-Download the latest `.msi` or `_x64-setup.exe` installer from the [Releases](../../releases) page and run it.
+Choose the installer for your architecture from [Releases](../../releases): **x64** uses `.msi` or `_x64-setup.exe`; **ARM64** uses `_arm64-setup.exe` (NSIS). ARM64 AI tools run natively on the CPU.
+
+Updates retain the installed app architecture, including an x64 app running on Windows ARM. Switch architectures through a deliberate reinstall. ARM64 Python and yt-dlp caches are separate from existing x64 caches.
 
 > **SmartScreen warning**
 >
@@ -106,6 +101,14 @@ Default bindings — all of these can be remapped in **Settings → Shortcuts**.
 
 ---
 
+## Updating to 0.7.0
+
+Save all open work before updating, especially when upgrading from 0.6.3: the old application's updater cannot gain the new unsaved-work protections retroactively. Keep your normal document backups.
+
+The embedded AI runtime is now Python 3.13.17 on all supported systems. Existing AI environments may require an update from Settings > AI Models. The replacement environment is installed and validated before the previous environment is replaced; a failed installation retains the previous files. AI model downloads are separate from the runtime update.
+
+Keep the installed Windows architecture when updating. Switching between x64 and ARM64 requires a deliberate reinstall; their Python and yt-dlp caches remain separate.
+
 ## Tech Stack
 
 | Role | Technology | Version |
@@ -115,15 +118,15 @@ Default bindings — all of these can be remapped in **Settings → Shortcuts**.
 | Styling | Tailwind CSS + @tailwindcss/vite | 4.3.2 |
 | State management | Zustand | 5.0.14 |
 | Waveform | Wavesurfer.js | 7.12.10 |
-| AI runtime | Embedded Python | 3.11.10 (build 20241016) |
-| AI alignment | ctc-forced-aligner + MMS-300M | `<2` (pip range); Hugging Face `main` (unpinned) |
-| Vocal separation | Demucs + htdemucs checkpoint | Demucs unpinned; checkpoint SHA-256 `8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4` |
+| AI runtime | Embedded Python | 3.13.17 (build 20261021), standard GIL on all supported systems |
+| AI alignment | ctc-forced-aligner + MMS-300M | `1.0.2`; ONNX revision `77d85f9` + SHA-256 |
+| Vocal separation | Demucs + htdemucs checkpoint | Demucs `4.0.1`; checkpoint SHA-256 `8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4` |
 | Audio tags / transcode | lofty + Symphonia (Rust) | 0.22.4, 0.5.5 |
 | File I/O / dialogs | Tauri fs / dialog plugins | 2.5.1, 2.7.1 |
 | YouTube downloader | yt-dlp | Latest GitHub release at runtime |
 | macOS media adapter | mediaremote-adapter | Vendored commit `3ac3d4bdf862c7b5399b4fba4df5689f5c38609a` |
 
-The badge shows the current application version. Exact JavaScript and Rust dependency versions are taken from `package-lock.json` and `src-tauri/Cargo.lock`. AI package and resource policies match the code: the aligner and Demucs Python packages are not locked to exact releases, the MMS model uses the mutable Hugging Face `main` branch, and yt-dlp follows the latest release. The Demucs checkpoint is SHA-256 verified.
+The badge shows the app version. JavaScript/Rust versions are defined by their lockfiles. Direct AI dependencies are pinned in `src-tauri/requirements-ai.txt`; immutable Python/aligner/ONNX URLs and SHA-256 values are in `src-tauri/ai-manifest.json`. Installation is staged and committed only after imports and `pip check` succeed; installed transitive versions are recorded. A fully locked per-platform transitive dependency graph is not yet provided. yt-dlp uses the latest release and verifies its published checksum.
 
 ---
 
@@ -144,3 +147,19 @@ npm test            # frontend unit tests
 ```
 
 Build output is placed in `src-tauri/target/release/bundle/`.
+
+
+### Windows architecture builds
+
+```sh
+npm ci
+npm run build:windows-arm64
+npm run build:windows-x64
+```
+
+Install the matching Rust target and MSVC C++ build tools first. ARM64 builds also
+require LLVM/clang on PATH for the cryptography dependency. ARM64 uses NSIS;
+x64 retains NSIS and MSI. Output paths include the Rust target triple under
+`src-tauri/target/`. Native ARM64 AI wheel provenance and rebuild instructions
+are in `src-tauri/resources/windows-arm64-ai/README.md`. The ARM-specific package
+pins are in `src-tauri/requirements-ai-windows-arm64.txt`.

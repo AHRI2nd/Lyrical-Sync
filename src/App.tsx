@@ -18,7 +18,7 @@ import { deviceControls } from "./utils/deviceControls";
 import { useDeviceStore } from "./stores/useDeviceStore";
 import { anyModalOpen } from "./utils/modalGuard";
 import { safeUnlisten } from "./utils/safeUnlisten";
-import { isInteractiveKeyTarget, matchAction, normalizeKeybindings, PLAYBACK_ACTIONS } from "./utils/keybindings";
+import { isComposingKeyEvent, isInteractiveKeyTarget, matchAction, normalizeKeybindings, PLAYBACK_ACTIONS } from "./utils/keybindings";
 import { toast } from "./stores/useToastStore";
 import { ToastContainer } from "./components/Toast/ToastContainer";
 import { type RecoverySnapshot, loadRecoverySnapshot, saveRecoverySnapshot, clearRecoverySnapshot } from "./utils/recovery";
@@ -67,6 +67,7 @@ function useGlobalKeys() {
     const controls = deviceModeForKeys ? deviceControls : isServiceMode ? serviceControls : audioControls;
     const kb = normalizeKeybindings(keybindings);
     const handler = (e: KeyboardEvent) => {
+      if (isComposingKeyEvent(e)) return;
       const inInteractiveControl =
         isInteractiveKeyTarget(e.target) || isInteractiveKeyTarget(document.activeElement);
 
@@ -113,14 +114,22 @@ function useGlobalKeys() {
 
 // 저장 경로(lrcPath)가 지정된 파일에 한해, 변경 후 일정 시간 멈추면 자동 저장.
 // 새 문서(lrcPath 없음)는 저장 위치가 없으므로 자동 저장하지 않음.
-function useAutoSave() {
+function useAutoSave(recoveryPending: boolean) {
+  const recoveryFailed = useRef(false);
+  const persistRecovery = () => {
+    const st = useLrcStore.getState();
+    if (!st.isDirty || recoveryPending) return;
+    const saved = saveRecoverySnapshot(st.doc, st.lrcPath, st.audioPath);
+    if (!saved && !recoveryFailed.current) toast.error(useI18nStore.getState().t.toast.recoveryFailed);
+    recoveryFailed.current = !saved;
+  };
   const isDirty = useLrcStore((s) => s.isDirty);
   const lrcPath = useLrcStore((s) => s.lrcPath);
   const doc = useLrcStore((s) => s.doc);
   const autoSave = useSettingsStore((s) => s.autoSave);
 
   useEffect(() => {
-    if (!autoSave || !lrcPath || !isDirty) return;
+    if (recoveryPending || !autoSave || !lrcPath || !isDirty) return;
     const id = setTimeout(() => {
       // 자동저장: 성공은 조용히, 실패만 토스트로 알림
       useLrcStore.getState().saveLrc().catch(() => {
@@ -129,30 +138,31 @@ function useAutoSave() {
     }, 1500);
     return () => clearTimeout(id);
     // doc 변경마다 타이머 리셋 → 입력이 멈춘 뒤에만 저장(디바운스)
-  }, [autoSave, lrcPath, isDirty, doc]);
+  }, [autoSave, lrcPath, isDirty, doc, recoveryPending]);
 
   // 미저장 작업 자동 복구 스냅샷: dirty면 디바운스로 저장, 저장되면(dirty 해제) 제거.
   // 저장 경로가 없어도 보호되므로 autoSave와 독립적으로 동작.
   useEffect(() => {
+    if (recoveryPending) return;
     if (!isDirty) { clearRecoverySnapshot(); return; }
-    const id = setTimeout(() => {
-      const st = useLrcStore.getState();
-      saveRecoverySnapshot(st.doc, st.lrcPath, st.audioPath);
-    }, 2000);
+    const id = setTimeout(persistRecovery, 2000);
     return () => clearTimeout(id);
-  }, [isDirty, doc]);
+  }, [isDirty, doc, recoveryPending]);
 
   // 위 디바운스는 doc이 바뀔 때마다 리셋되므로 끊임없이 타이핑하는 구간에서는
   // 한 번도 실행되지 못할 수 있다. dirty가 유지되는 동안 일정 간격으로 강제
   // 플러시해 그런 연속 편집 구간에도 최소한의 복구 지점을 남긴다.
   useEffect(() => {
-    if (!isDirty) return;
-    const id = setInterval(() => {
-      const st = useLrcStore.getState();
-      saveRecoverySnapshot(st.doc, st.lrcPath, st.audioPath);
-    }, 5000);
+    if (recoveryPending || !isDirty) return;
+    const id = setInterval(persistRecovery, 5000);
     return () => clearInterval(id);
-  }, [isDirty]);
+  }, [isDirty, recoveryPending]);
+
+  useEffect(() => {
+    const flush = () => persistRecovery();
+    window.addEventListener("pagehide", flush);
+    return () => window.removeEventListener("pagehide", flush);
+  }, [recoveryPending]);
 }
 
 // 시작 시 조용히(silent) 확인 — 새 버전이 있을 때만 스토어 상태가 "available"로 바뀌어
@@ -166,18 +176,23 @@ function useAutoUpdateCheck(enabled: boolean) {
 
 function App() {
   useGlobalKeys();
-  useAutoSave();
+  useEffect(() => {
+    const report = () => toast.error(useI18nStore.getState().t.toast.runtimeFailed);
+    window.addEventListener("lyrical-runtime-error", report);
+    return () => window.removeEventListener("lyrical-runtime-error", report);
+  }, []);
 
   // 시작 시(이펙트 실행 전) 스냅샷을 캡처 — dirty 해제 이펙트가 지우기 전에 확보
   const [recovery, setRecovery] = useState<RecoverySnapshot | null>(() => {
     const snap = loadRecoverySnapshot();
-    return snap && snap.doc.lines.length > 0 ? snap : null;
+    return snap;
   });
+  useAutoSave(recovery !== null);
   const [showHelp, setShowHelp] = useState(false);
   const [showBatchTool, setShowBatchTool] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [settingsInitialTab, setSettingsInitialTab] = useState<"general" | "preview" | "models" | "spotify" | "youtube">("general");
+  const [settingsInitialTab, setSettingsInitialTab] = useState<"general" | "preview" | "models" | "spotify" | "youtube" | "shortcuts">("general");
   const [showNewConfirm, setShowNewConfirm] = useState(false);
   const [showFormatChooser, setShowFormatChooser] = useState(false);
   const [showElrcNotice, setShowElrcNotice] = useState(false);
@@ -290,8 +305,7 @@ function App() {
 
   const applyDocumentOpen = ({ lyricsPath, audioPath }: { lyricsPath: string; audioPath?: string | null }) => {
     const st = useLrcStore.getState();
-    if (audioPath) st.setAudioPath(audioPath);
-    st.loadLyricsPath(lyricsPath).catch(() => toast.error(t.toast.openFailed));
+    st.loadLyricsPath(lyricsPath, audioPath ? { audioPath } : undefined).catch(() => toast.error(t.toast.openFailed));
   };
 
   const requestDocumentOpen = (entry: { lyricsPath: string; audioPath?: string | null }) => {
@@ -319,8 +333,8 @@ function App() {
   // 드롭된 파일을 실제로 연다 (오디오 → 오디오 경로, lrc/srt → 가사)
   const applyDrop = (d: { audio?: string; lyrics?: string }) => {
     const st = useLrcStore.getState();
-    if (d.audio) st.setAudioPath(d.audio);
-    if (d.lyrics) st.loadLyricsPath(d.lyrics).catch(() => toast.error(t.toast.openFailed));
+    if (d.lyrics) st.loadLyricsPath(d.lyrics, d.audio ? { audioPath: d.audio } : undefined).catch(() => toast.error(t.toast.openFailed));
+    else if (d.audio) st.setAudioPath(d.audio);
   };
 
   // 파일 드래그앤드롭 열기 (Tauri 네이티브 드롭 이벤트 → 파일 경로 제공)
@@ -426,7 +440,7 @@ function App() {
 
   return (
     <div
-      className="flex flex-col bg-zinc-950 text-white overflow-hidden"
+      className="ls-readable flex flex-col bg-[var(--ls-canvas)] text-white overflow-hidden"
       style={{
         transform: `scale(${uiScale})`,
         transformOrigin: "top left",
@@ -434,10 +448,10 @@ function App() {
         height: `${(100 / uiScale).toFixed(4)}vh`,
       }}
     >
-      <header className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border-b border-zinc-800 shrink-0">
-        <span className="font-semibold text-indigo-400 mr-2 shrink-0">Lyrical Sync</span>
+      <header className="flex items-center gap-2 px-4 py-2 bg-[var(--ls-surface)] border-b border-[var(--ls-border-subtle)] shrink-0">
+        <span className="font-semibold text-[var(--ls-accent)] mr-2 shrink-0">Lyrical Sync</span>
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className="text-zinc-400 text-sm truncate">
+          <span className="text-[var(--ls-text-secondary)] text-sm truncate">
             {title}
             {isDirty && (
               <span className="text-rose-400 ml-1 text-xs align-middle" title={t.unsavedChanges}>●</span>
@@ -451,14 +465,14 @@ function App() {
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <ModeSelectButton />
-          <div className="w-px h-5 bg-zinc-700 mx-0.5" />
+          <div className="w-px h-5 bg-[var(--ls-control)] mx-0.5" />
           {/* 파일 액션 그룹 */}
           <IconBtn onClick={handleNewLrc} title={t.newFileBtn}><NewFileIcon /></IconBtn>
           <IconBtn onClick={handleOpenLrc} title={t.openLrc}><OpenFolderIcon /></IconBtn>
           <RecentFilesMenu onOpen={handleRecentOpen} />
           <IconBtn onClick={handleSave} accent title={t.save} tooltipAlign="right"><SaveIcon /></IconBtn>
           <IconBtn onClick={() => setShowFormatChooser(true)} title={t.saveAs} tooltipAlign="right"><SaveAsIcon /></IconBtn>
-          <div className="w-px h-5 bg-zinc-700 mx-0.5" />
+          <div className="w-px h-5 bg-[var(--ls-control)] mx-0.5" />
           <LangDropdown />
         </div>
       </header>
@@ -470,7 +484,7 @@ function App() {
       )}
       {showBatchTool && (
         <Suspense fallback={null}>
-          <BatchToolModal onClose={() => setShowBatchTool(false)} />
+          <BatchToolModal t={t} onClose={() => setShowBatchTool(false)} />
         </Suspense>
       )}
       {showPreview && (
@@ -501,10 +515,10 @@ function App() {
           cancelLabel={t.recovery.discard}
           onOk={() => {
             useLrcStore.getState().restoreDoc(recovery.doc, recovery.lrcPath, recovery.audioPath);
-            clearRecoverySnapshot();
+            // Keep the durable snapshot until the restored document is saved.
             setRecovery(null);
           }}
-          onCancel={() => { clearRecoverySnapshot(); setRecovery(null); }}
+          onCancel={() => { clearRecoverySnapshot(recovery); setRecovery(null); }}
         />
       )}
       {showNewConfirm && (
@@ -571,24 +585,24 @@ function App() {
         />
       )}
       {isDragOver && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-indigo-950/60 backdrop-blur-sm pointer-events-none border-4 border-dashed border-indigo-400/70 m-2 rounded-2xl">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[var(--ls-primary)]/60 backdrop-blur-sm pointer-events-none border-4 border-dashed border-[var(--ls-accent)]/70 m-2 rounded-2xl">
           <div className="text-center">
-            <p className="text-xl font-semibold text-indigo-100">{t.drop.overlayHint}</p>
-            <p className="text-sm text-indigo-300 mt-1 font-mono">Audio · LRC · SRT</p>
+            <p className="text-xl font-semibold text-[var(--ls-accent)]">{t.drop.overlayHint}</p>
+            <p className="text-sm text-[var(--ls-accent)] mt-1 font-mono">Audio · LRC · SRT</p>
           </div>
         </div>
       )}
 
       <div className="flex flex-1 min-h-0 gap-0">
-        <div className="flex flex-col gap-3 p-3 w-80 shrink-0 overflow-y-auto border-r border-zinc-800">
+        <div className="ls-sidebar flex flex-col gap-3 p-3 w-80 shrink-0 overflow-y-auto border-r border-[var(--ls-border-subtle)]">
           <AudioPlayer
             onSpotifySearch={() => setShowSpotifySearch(true)}
             onSpotifyNoClientId={() => { setSettingsInitialTab("spotify"); setShowSettings(true); }}
           />
           <MetaEditor />
         </div>
-        <div className="flex flex-col flex-1 p-3 min-h-0">
-          <LrcEditor onPreview={() => setShowPreview(true)} />
+        <div className="flex flex-col flex-1 p-3 min-h-0 min-w-0">
+          <LrcEditor onPreview={() => setShowPreview(true)} onOpenShortcuts={() => { setSettingsInitialTab("shortcuts"); setShowSettings(true); }} />
         </div>
       </div>
 
@@ -597,7 +611,7 @@ function App() {
           onClick={() => { setSettingsInitialTab("general"); setShowSettings(true); }}
           title={t.settingsTitle}
           aria-label={t.settingsTitle}
-          className="w-8 h-8 rounded-full bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white transition-colors flex items-center justify-center shadow-lg"
+          className="ls-button ls-button--icon w-8 h-8 rounded-full bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:text-white transition-colors flex items-center justify-center shadow-lg"
         >
           <GearIcon />
         </button>
@@ -605,7 +619,7 @@ function App() {
           onClick={() => setShowBatchTool(true)}
           title={t.batchTitle}
           aria-label={t.batchTitle}
-          className="w-8 h-8 rounded-full bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white transition-colors flex items-center justify-center shadow-lg"
+          className="ls-button ls-button--icon w-8 h-8 rounded-full bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:text-white transition-colors flex items-center justify-center shadow-lg"
         >
           <BatchIcon />
         </button>
@@ -613,7 +627,7 @@ function App() {
           onClick={() => setShowHelp(true)}
           title={t.shortcutsTitle}
           aria-label={t.shortcutsTitle}
-          className="w-8 h-8 rounded-full bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white text-sm font-bold transition-colors flex items-center justify-center shadow-lg"
+          className="ls-button ls-button--icon w-8 h-8 rounded-full bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:text-white text-sm font-bold transition-colors flex items-center justify-center shadow-lg"
         >
           ?
         </button>

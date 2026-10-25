@@ -1,0 +1,110 @@
+"""Publish one complete, architecture-specific updater manifest after all builds."""
+import argparse
+import base64
+from datetime import datetime, timezone
+import json
+from pathlib import Path
+import re
+import subprocess
+from urllib.parse import quote
+
+
+def assemble_manifest(version, repo, assets, signatures, published_at):
+    if not re.fullmatch(r'\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?', version):
+        raise ValueError('Invalid application version')
+    if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repo):
+        raise ValueError('Invalid repository')
+    windows = re.compile(r'Lyrical[ .]Sync_' + re.escape(version)
+        + r'_(x64|arm64|aarch64)(-setup\.exe|_setup\.msi|_[a-z]{2}-[A-Z]{2}\.msi)')
+    macos = re.compile(r'Lyrical[ .]Sync(?:_' + re.escape(version)
+        + r')?_(?:aarch64|arm64)\.app\.tar\.gz')
+    platforms = {}
+    names = [asset['name'] for asset in assets]
+    if len(names) != len(set(names)):
+        raise ValueError('Duplicate release asset')
+    for name in names:
+        match = windows.fullmatch(name)
+        if match:
+            arch = 'x86_64' if match[1] == 'x64' else 'aarch64'
+            installer = 'nsis' if match[2] == '-setup.exe' else 'msi'
+            if arch == 'aarch64' and installer == 'msi':
+                raise ValueError('ARM64 MSI is not a supported release artifact')
+            key = f'windows-{arch}-{installer}'
+        elif macos.fullmatch(name):
+            key = 'darwin-aarch64'
+        else:
+            continue
+        if key in platforms:
+            raise ValueError(f'Duplicate updater target: {key}')
+        signature = signatures.get(name + '.sig', '').strip()
+        if name + '.sig' not in names:
+            raise ValueError(f'Missing signature asset: {name}')
+        try:
+            decoded = base64.b64decode(signature, validate=True)
+        except (ValueError, TypeError) as error:
+            raise ValueError(f'Invalid signature: {name}') from error
+        if not decoded.startswith(b'untrusted comment:'):
+            raise ValueError(f'Invalid signature: {name}')
+        platforms[key] = {
+            'url': f'https://github.com/{repo}/releases/download/v{version}/{quote(name, safe="")}',
+            'signature': signature,
+        }
+    required = {'darwin-aarch64', 'windows-x86_64-nsis',
+                'windows-x86_64-msi', 'windows-aarch64-nsis'}
+    missing = required - platforms.keys()
+    if missing:
+        raise ValueError('Missing updater targets: ' + ', '.join(sorted(missing)))
+    # Preserve the legacy x64 generic MSI route and each installer's explicit route.
+    platforms['darwin-aarch64-app'] = platforms['darwin-aarch64'].copy()
+    platforms['windows-x86_64'] = platforms['windows-x86_64-msi'].copy()
+    platforms['windows-aarch64'] = platforms['windows-aarch64-nsis'].copy()
+    return {'version': version, 'notes': f'Lyrical Sync v{version}',
+            'pub_date': published_at, 'platforms': platforms}
+
+
+def gh(*args, binary=False):
+    return subprocess.check_output(['gh', *args], text=not binary)
+
+
+def publish(repo, version, output):
+    tag = 'v' + version
+    release = json.loads(gh('api', f'repos/{repo}/releases/tags/{tag}'))
+    if not release.get('draft'):
+        raise ValueError('Updater assembly only modifies a draft release')
+    # Rename only this version's x64 MSI assets, after all platform jobs finish.
+    old_pattern = re.compile(r'(Lyrical[ .]Sync_' + re.escape(version)
+                             + r'_x64)_[a-z]{2}-[A-Z]{2}\.msi(\.sig)?')
+    names = {a['name'] for a in release['assets']}
+    for asset in release['assets']:
+        match = old_pattern.fullmatch(asset['name'])
+        if not match:
+            continue
+        new_name = match[1] + '_setup.msi' + (match[2] or '')
+        if new_name in names:
+            raise ValueError(f'Duplicate MSI asset: {new_name}')
+        gh('api', '--method', 'PATCH', f'repos/{repo}/releases/assets/{asset["id"]}',
+           '-f', f'name={new_name}')
+    release = json.loads(gh('api', f'repos/{repo}/releases/tags/{tag}'))
+    signatures = {}
+    for asset in release['assets']:
+        if asset['name'].endswith('.sig'):
+            signatures[asset['name']] = gh('api',
+                f'repos/{repo}/releases/assets/{asset["id"]}',
+                '-H', 'Accept: application/octet-stream', binary=True).decode('utf-8')
+    manifest = assemble_manifest(version, repo, release['assets'], signatures,
+        datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'))
+    output.write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
+    gh('release', 'upload', tag, str(output), '--repo', repo, '--clobber')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--repo', required=True)
+    parser.add_argument('--version', required=True)
+    parser.add_argument('--output', type=Path, default=Path('latest.json'))
+    args = parser.parse_args()
+    publish(args.repo, args.version, args.output)
+
+
+if __name__ == '__main__':
+    main()

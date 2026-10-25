@@ -64,13 +64,13 @@ function ActionButton({
   t: Translations;
 }) {
   if (status === "checking") {
-    return <span className="text-xs text-zinc-600 w-14 text-right">…</span>;
+    return <span className="text-xs text-[var(--ls-text-secondary)] w-14 text-right">…</span>;
   }
   if (status === "downloading") {
     return (
       <button
         onClick={onCancel}
-        className="px-2.5 py-1 text-xs rounded-md bg-zinc-600 hover:bg-zinc-500 text-zinc-200 transition-colors shrink-0"
+        className="ls-button text-xs transition-colors shrink-0"
       >
         {t.modelCancel}
       </button>
@@ -80,7 +80,7 @@ function ActionButton({
     return (
       <button
         onClick={onDelete}
-        className="px-2.5 py-1 text-xs rounded-md bg-zinc-700 hover:bg-red-700 text-zinc-300 hover:text-white transition-colors shrink-0"
+        className="ls-button text-xs hover:bg-red-700 hover:text-white transition-colors shrink-0"
       >
         {t.modelDelete}
       </button>
@@ -89,10 +89,10 @@ function ActionButton({
   return (
     <button
       onClick={onInstall}
-      className={[
+      className={`ls-button ${[
         "px-2.5 py-1 text-xs rounded-md text-white transition-colors shrink-0",
-        status === "error" ? "bg-red-700 hover:bg-red-600" : "bg-indigo-600 hover:bg-indigo-500",
-      ].join(" ")}
+        status === "error" ? "bg-red-700 hover:bg-red-600" : "bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)]",
+      ].join(" ")}`}
     >
       {t.modelInstall}
     </button>
@@ -280,28 +280,28 @@ export function ModelDownloadSection() {
     <div className="flex flex-col gap-4">
       {/* Storage path */}
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium text-zinc-400">{t.modelStoragePath}</span>
+        <span className="text-xs font-medium text-[var(--ls-text-secondary)]">{t.modelStoragePath}</span>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-zinc-500 flex-1 min-w-0 truncate bg-zinc-800 rounded px-2 py-1.5">
+          <span className="text-xs text-[var(--ls-text-secondary)] flex-1 min-w-0 truncate bg-[var(--ls-control)] rounded px-2 py-1.5">
             {modelsPath || "…"}
           </span>
           <button
             onClick={handleCopyPath}
             disabled={!modelsPath}
-            className="px-2.5 py-1.5 text-xs rounded-md bg-zinc-700 hover:bg-zinc-600 text-zinc-400 transition-colors shrink-0 disabled:opacity-40"
+            className="ls-button text-xs transition-colors shrink-0 disabled:opacity-40"
           >
             {copied ? "✓" : t.modelCopyPath}
           </button>
           <button
             onClick={handlePickDir}
-            className="px-2.5 py-1.5 text-xs rounded-md bg-zinc-700 hover:bg-zinc-600 text-zinc-200 transition-colors shrink-0"
+            className="ls-button text-xs transition-colors shrink-0"
           >
             {t.modelChangeDir}
           </button>
           {modelsDir && (
             <button
               onClick={handleResetDir}
-              className="px-2.5 py-1.5 text-xs rounded-md bg-zinc-700 hover:bg-zinc-600 text-zinc-400 transition-colors shrink-0"
+              className="ls-button text-xs transition-colors shrink-0"
             >
               {t.modelResetDir}
             </button>
@@ -309,58 +309,58 @@ export function ModelDownloadSection() {
         </div>
       </div>
 
-      <div className="border-t border-zinc-800" />
+      <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* Legend */}
       <div className="flex items-center gap-3 text-xs">
         <span className="flex items-center gap-1.5">
-          <span className="px-1.5 py-0.5 rounded text-amber-300 bg-amber-900/40 font-semibold text-[10px]">
+          <span className="px-1.5 py-0.5 rounded text-[var(--ls-playhead)] bg-[var(--ls-playhead)]/40 font-semibold text-[10px]">
             {t.modelRequired}
           </span>
-          <span className="text-zinc-500">AI 기능 동작에 필수</span>
+          <span className="text-[var(--ls-text-secondary)]">AI 기능 동작에 필수</span>
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="px-1.5 py-0.5 rounded text-zinc-400 bg-zinc-700/60 font-semibold text-[10px]">
+          <span className="px-1.5 py-0.5 rounded text-[var(--ls-text-secondary)] bg-[var(--ls-control)]/60 font-semibold text-[10px]">
             {t.modelOptional}
           </span>
-          <span className="text-zinc-500">설치 시 품질 향상</span>
+          <span className="text-[var(--ls-text-secondary)]">설치 시 품질 향상</span>
         </span>
       </div>
 
-      <div className="border-t border-zinc-800" />
+      <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* 정렬에 사용 (선택) */}
       <div className="flex flex-col gap-2">
-        <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">{t.aiUsageTitle}</span>
+        <span className="text-xs font-semibold text-[var(--ls-text-secondary)] uppercase tracking-wide">{t.aiUsageTitle}</span>
         {(() => {
           const demucsInstalled = states["demucs-htdemucs"]?.status === "installed";
           const sepActive = useVocalSeparation && demucsInstalled;
           return (
             <div className="flex flex-col gap-2">
-              <label className={`flex items-start gap-2 text-sm ${demucsInstalled ? "text-zinc-200 cursor-pointer" : "text-zinc-600 cursor-not-allowed"}`}>
+              <label className={`flex items-start gap-2 text-sm ${demucsInstalled ? "text-[var(--ls-text)] cursor-pointer" : "text-[var(--ls-text-secondary)] cursor-not-allowed"}`}>
                 <input
                   type="checkbox"
-                  className="mt-0.5 accent-indigo-600 w-3.5 h-3.5 shrink-0"
+                  className="mt-0.5 accent-[var(--ls-accent)] w-3.5 h-3.5 shrink-0"
                   checked={sepActive}
                   disabled={!demucsInstalled}
                   onChange={(e) => setUseVocalSeparation(e.target.checked)}
                 />
                 <span className="flex flex-col">
                   <span>{t.aiUsageSeparation}</span>
-                  <span className="text-xs text-zinc-500">{demucsInstalled ? t.aiUsageSeparationDesc : t.aiUsageNeedModel}</span>
+                  <span className="text-xs text-[var(--ls-text-secondary)]">{demucsInstalled ? t.aiUsageSeparationDesc : t.aiUsageNeedModel}</span>
                 </span>
               </label>
-              <label className={`flex items-start gap-2 text-sm ${sepActive ? "text-zinc-200 cursor-pointer" : "text-zinc-600 cursor-not-allowed"}`}>
+              <label className={`flex items-start gap-2 text-sm ${sepActive ? "text-[var(--ls-text)] cursor-pointer" : "text-[var(--ls-text-secondary)] cursor-not-allowed"}`}>
                 <input
                   type="checkbox"
-                  className="mt-0.5 accent-indigo-600 w-3.5 h-3.5 shrink-0"
+                  className="mt-0.5 accent-[var(--ls-accent)] w-3.5 h-3.5 shrink-0"
                   checked={useVad && sepActive}
                   disabled={!sepActive}
                   onChange={(e) => setUseVad(e.target.checked)}
                 />
                 <span className="flex flex-col">
                   <span>{t.aiUsageVad}</span>
-                  <span className="text-xs text-zinc-500">{sepActive ? t.aiUsageVadDesc : t.aiUsageNeedSeparation}</span>
+                  <span className="text-xs text-[var(--ls-text-secondary)]">{sepActive ? t.aiUsageVadDesc : t.aiUsageNeedSeparation}</span>
                 </span>
               </label>
             </div>
@@ -371,7 +371,7 @@ export function ModelDownloadSection() {
       {/* Model list */}
       {grouped.map(({ cat, models }) => (
         <div key={cat} className="flex flex-col gap-2">
-          <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">
+          <div className="text-xs font-semibold text-[var(--ls-text-secondary)] uppercase tracking-wide">
             {String(t[CATEGORY_LABEL_KEY[cat]])}
           </div>
           <div className="flex flex-col gap-1.5">
@@ -428,27 +428,27 @@ function ModelRow({
     : "·";
   const iconColor =
     status === "installed" ? "text-emerald-400"
-    : status === "downloading" ? "text-indigo-400"
+    : status === "downloading" ? "text-[var(--ls-accent)]"
     : status === "error" ? "text-red-400"
-    : "text-zinc-600";
+    : "text-[var(--ls-text-secondary)]";
 
   return (
-    <div className="bg-zinc-800/50 rounded-lg px-3 py-2.5 flex flex-col gap-1.5">
+    <div className="bg-[var(--ls-control)]/50 rounded-lg px-3 py-2.5 flex flex-col gap-1.5">
       {/* Top row: icon / name / badge / size / ACTION BUTTON */}
       <div className="flex items-center gap-2">
         <span className={`text-xs font-mono w-3 shrink-0 ${iconColor}`}>{statusIcon}</span>
-        <span className="text-sm font-medium text-zinc-100 flex-1 min-w-0 truncate">{model.name}</span>
+        <span className="text-sm font-medium text-[var(--ls-text)] flex-1 min-w-0 truncate">{model.name}</span>
         {model.required ? (
-          <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded text-amber-300 bg-amber-900/40 shrink-0">
+          <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded text-[var(--ls-playhead)] bg-[var(--ls-playhead)]/40 shrink-0">
             {t.modelRequired}
           </span>
         ) : (
-          <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded text-zinc-400 bg-zinc-700/60 shrink-0">
+          <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded text-[var(--ls-text-secondary)] bg-[var(--ls-control)]/60 shrink-0">
             {t.modelOptional}
           </span>
         )}
         <span
-          className={`text-xs tabular-nums shrink-0 ${state._actualTotalBytes ? "text-zinc-400" : "text-zinc-500"}`}
+          className={`text-xs tabular-nums shrink-0 ${state._actualTotalBytes ? "text-[var(--ls-text-secondary)]" : "text-[var(--ls-text-secondary)]"}`}
           title={state._actualTotalBytes ? undefined : "Estimated size"}
         >
           {state._actualTotalBytes ? formatSize(displaySizeMb) : `~${formatSize(displaySizeMb)}`}
@@ -462,17 +462,17 @@ function ModelRow({
         />
       </div>
 
-      <p className="text-xs text-zinc-500 pl-4">{desc}</p>
+      <p className="text-xs text-[var(--ls-text-secondary)] pl-4">{desc}</p>
 
       {status === "downloading" && (
         <div className="pl-4 flex items-center gap-2">
-          <div className="flex-1 h-1.5 bg-zinc-700 rounded-full overflow-hidden">
+          <div className="flex-1 h-1.5 bg-[var(--ls-control)] rounded-full overflow-hidden">
             <div
-              className="h-full bg-indigo-500 rounded-full"
+              className="h-full bg-[var(--ls-accent)] rounded-full"
               style={{ width: `${progress.toFixed(1)}%` }}
             />
           </div>
-          <span className="text-xs text-zinc-400 tabular-nums w-9 text-right">
+          <span className="text-xs text-[var(--ls-text-secondary)] tabular-nums w-9 text-right">
             {progress.toFixed(0)}%
           </span>
         </div>

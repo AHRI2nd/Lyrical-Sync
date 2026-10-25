@@ -1,3 +1,5 @@
+import { retimeLine } from "../utils/lineTiming";
+import { enqueuePathWrite } from "../utils/pathWriteQueue";
 import { create } from "zustand";
 import { LrcDocument, LrcLine, LrcMetadata, LrcSyllable, defaultDocument } from "../types/lrc";
 import { type HistoryEntry, type HistoryLabel } from "../types/history";
@@ -22,6 +24,7 @@ interface AlignmentResult {
 }
 
 interface AlignmentProgressEvent {
+  runId: number;
   status: string;
   message: string;
   percent: number;
@@ -29,6 +32,8 @@ interface AlignmentProgressEvent {
 
 interface LrcStore {
   doc: LrcDocument;
+  _documentSession: number;
+  _audioSelection: number;
   _history: HistoryEntry[];
   _future: HistoryEntry[];
   /** 연속된 텍스트/메타데이터 편집을 하나의 undo 단위로 묶기 위한 내부 키.
@@ -106,7 +111,7 @@ interface LrcStore {
   setAudioPath: (path: string | null) => void;
   openAudio: () => Promise<void>;
   openLrc: () => Promise<void>;
-  loadLyricsPath: (path: string) => Promise<void>;
+  loadLyricsPath: (path: string, options?: { audioPath?: string | null }) => Promise<void>;
   applyFetchedLyrics: (lrcText: string, meta?: { title: string; artist: string; album: string }) => void;
   // 반환값: 실제로 파일을 썼으면 true, 사용자가 저장 다이얼로그를 취소하면 false
   saveLrc: () => Promise<boolean>;
@@ -150,30 +155,13 @@ export const useLrcStore = create<LrcStore>((set, get) => {
   let documentSessionId = 0;
   let lyricLoadGeneration = 0;
   let saveAsGeneration = 0;
-  let lrcWriteActive = false;
-  const lrcWriteQueue: (() => void)[] = [];
-
-  const writeLrcFile = (path: string, content: string) => new Promise<void>((resolve, reject) => {
-    const start = () => {
-      lrcWriteActive = true;
-      let write: Promise<void>;
-      try {
-        write = invoke<void>("write_lrc_file", { path, content });
-      } catch (error) {
-        write = Promise.reject(error);
-      }
-      const finish = () => {
-        lrcWriteActive = false;
-        lrcWriteQueue.shift()?.();
-      };
-      write.then(resolve, reject).then(finish, finish);
-    };
-    if (lrcWriteActive) lrcWriteQueue.push(start);
-    else start();
-  });
+  const writeLrcFile = (path: string, content: string) => enqueuePathWrite(path,
+    () => invoke<void>("write_lrc_file", { path, content }));
 
   const beginDocumentSession = () => {
     documentSessionId += 1;
+    lyricLoadGeneration += 1;
+    set({ _documentSession: documentSessionId });
   };
 
   const resetAiState = () => ({
@@ -184,9 +172,10 @@ export const useLrcStore = create<LrcStore>((set, get) => {
   });
 
   const invalidateAiRun = () => {
+    const cancelledRunId = aiRunId;
     aiRunId += 1;
     if (get().aiSyncStatus === "running") {
-      void invoke("cancel_alignment").catch(() => {});
+      void invoke("cancel_alignment", { runId: cancelledRunId }).catch(() => {});
     }
     return resetAiState();
   };
@@ -206,6 +195,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
 
   return {
   doc: defaultDocument(),
+  _documentSession: 0, _audioSelection: 0,
   _history: [],
   _future: [],
   _lastEditKey: null,
@@ -267,6 +257,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     const futureEntry: HistoryEntry = { doc, timestamp: Date.now(), label: prevEntry.label, count: prevEntry.count };
     set({
       doc: prevEntry.doc,
+      ...invalidateAiRun(),
       _history: _history.slice(0, -1),
       _future: [futureEntry, ..._future].slice(0, MAX_HISTORY),
       isDirty: true,
@@ -281,6 +272,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     const historyEntry: HistoryEntry = { doc, timestamp: Date.now(), label: nextEntry.label, count: nextEntry.count };
     set({
       doc: nextEntry.doc,
+      ...invalidateAiRun(),
       _history: [..._history, historyEntry].slice(-MAX_HISTORY),
       _future: _future.slice(1),
       isDirty: true,
@@ -318,7 +310,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
 
     const idx = lines.findIndex((l) => l.id === activeLineId);
     const stamped = lines.map((l) =>
-      l.id === activeLineId ? { ...l, timestamp: currentTime } : l
+      l.id === activeLineId ? retimeLine(l, currentTime) : l
     );
     const next = stamped[idx + 1];
 
@@ -398,12 +390,16 @@ export const useLrcStore = create<LrcStore>((set, get) => {
   updateLine: (id, patch) => {
     // 매 키 입력마다 호출되므로, 같은 줄의 같은 필드를 연속으로 고치는 동안은(다른 액션이
     // 끼어들기 전까지) 한 번의 undo 단위로 묶는다 — 글자 하나마다 undo가 쌓이는 걸 방지.
-    const key = `${id}:${Object.keys(patch).sort().join(",")}`;
+    const line = get().doc.lines.find(item => item.id === id);
+    if (!line) return;
+    const fields = Object.keys(patch) as (keyof typeof patch)[];
+    if (fields.every(field => line[field] === patch[field])) return;
+    const key = `${id}:${fields.sort().join(",")}`;
     if (get()._lastEditKey !== key) pushHistory("editText");
     set((s) => ({
       doc: {
         ...s.doc,
-        lines: s.doc.lines.map((l) => (l.id === id ? { ...l, ...patch } : l)),
+        lines: s.doc.lines.map((l) => (l.id === id ? { ...(patch.timestamp !== undefined ? retimeLine(l, patch.timestamp) : l), ...patch } : l)),
       },
       isDirty: true,
       _lastEditKey: key,
@@ -444,10 +440,8 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     const cur = doc.lines[idx];
     const sep = prev.text && cur.text ? " " : "";
     // 이전 줄 타임스탬프 유지, 텍스트 결합, 글자 동기화는 무효화(텍스트 변경)
-    const translationSep = prev.translation && cur.translation ? " " : "";
-    const translation = prev.translation || cur.translation
-      ? `${prev.translation ?? ""}${translationSep}${cur.translation ?? ""}`
-      : undefined;
+    const translations = [prev.translation, cur.translation].filter((value): value is string => value !== undefined);
+    const translation = translations.length ? translations.join("\n") : undefined;
     const merged: LrcLine = { ...prev, text: prev.text + sep + cur.text, translation, syllables: undefined };
     const lines = [...doc.lines];
     lines.splice(idx - 1, 2, merged);
@@ -466,19 +460,19 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     const firstText = cur.text.slice(0, caretPos);
     const secondText = cur.text.slice(caretPos);
     const splitTranslation = cur.translation !== undefined && translationParts
-      ? [translationParts.first.trim(), translationParts.second.trim()]
+      ? [translationParts.first, translationParts.second]
       : [cur.translation, undefined];
     const first: LrcLine = {
       ...cur,
       text: firstText,
-      translation: splitTranslation[0] || undefined,
+      translation: splitTranslation[0],
       syllables: undefined,
     };
     const second: LrcLine = {
       id: newId,
       timestamp: null,
       text: secondText,
-      ...(splitTranslation[1] ? { translation: splitTranslation[1] } : {}),
+      ...(splitTranslation[1] !== undefined ? { translation: splitTranslation[1] } : {}),
     };
     const lines = [...doc.lines];
     lines.splice(idx, 1, first, second);
@@ -547,22 +541,21 @@ export const useLrcStore = create<LrcStore>((set, get) => {
   },
 
   snapLinesToBeatGrid: (ids, bpm, offsetSec) => {
-    if (!(bpm > 0)) return;
+    if (!Number.isFinite(bpm) || !(bpm > 0) || !Number.isFinite(60 / bpm) || !Number.isFinite(offsetSec)) return;
     const { doc } = get();
-    const idSet = ids.length > 0 ? new Set(ids) : null;
+    const selected = ids.length ? new Set(ids) : null;
     let changed = false;
-    const lines = doc.lines.map((l) => {
-      if (l.timestamp === null) return l;
-      if (idSet && !idSet.has(l.id)) return l;
-      const snapped = nearestBeat(l.timestamp, bpm, offsetSec);
-      if (snapped === l.timestamp) return l;
+    const lines = doc.lines.map(line => {
+      if (line.timestamp === null || !Number.isFinite(line.timestamp) || (selected && !selected.has(line.id))) return line;
+      const timestamp = nearestBeat(line.timestamp, bpm, offsetSec);
+      if (timestamp === line.timestamp) return line;
       changed = true;
-      // 스냅은 줄마다 비균일하게 이동하므로 기존 글자 동기화 토큰 시각은 더 이상 유효하지 않음
-      return { ...l, timestamp: snapped, syllables: undefined };
+      const delta = timestamp - line.timestamp;
+      // Keep glyph offsets relative to their line instead of discarding timed text.
+      return { ...line, timestamp, syllables: line.syllables?.map(s => ({ ...s,
+        time: s.time === null ? null : Math.round(Math.max(0, s.time + delta) * 1000) / 1000 })) };
     });
-    if (!changed) return;
-    pushHistory("snapBeatGrid");
-    set({ doc: { ...doc, lines }, isDirty: true });
+    if (changed) { pushHistory("snapBeatGrid"); set({ doc: { ...doc, lines }, isDirty: true }); }
   },
 
   stampCurrentLine: (id) => {
@@ -606,6 +599,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
       doc: { ...doc, lines },
       lrcPath,
       audioPath,
+      _audioSelection: get()._audioSelection + 1,
       activeLineId: lines[0]?.id ?? null,
       loopLineId: null,
       isDirty: true, // 복구된 작업은 아직 미저장
@@ -642,8 +636,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
   },
 
   setAudioPath: (path) => {
-    if (get().audioPath === path) set({ audioPath: path });
-    else set({ audioPath: path, ...invalidateAiRun() });
+    set({ audioPath: path, _audioSelection: get()._audioSelection + 1, ...invalidateAiRun() });
     if (path) useSettingsStore.getState().addRecentFile({ audioPath: path, lrcPath: get().lrcPath });
   },
 
@@ -656,10 +649,16 @@ export const useLrcStore = create<LrcStore>((set, get) => {
   },
 
   // 경로로 가사 로드 (확장자로 LRC/SRT 분기). 다이얼로그/드래그앤드롭 공용.
-  loadLyricsPath: async (path) => {
+  loadLyricsPath: async (path, options) => {
+    const initial = get();
     const requestId = ++lyricLoadGeneration;
     const content: string = await invoke("read_lrc_file", { path });
     if (requestId !== lyricLoadGeneration) return;
+    const current = get();
+    if (current.doc !== initial.doc || current._history !== initial._history ||
+        current._future !== initial._future || current._audioSelection !== initial._audioSelection) {
+      throw new Error("document_changed_during_load");
+    }
     const isSrt = path.split(".").pop()?.toLowerCase() === "srt";
     const doc = isSrt ? parseSrt(content) : parseLrc(content);
     let id = 1;
@@ -667,7 +666,9 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     nextId = id;
     const firstId = doc.lines[0]?.id ?? null;
     beginDocumentSession();
-    set({ doc, lrcPath: path, isDirty: false, activeLineId: firstId, loopLineId: null, _history: [], _future: [], _lastEditKey: null, ...invalidateAiRun() });
+    const audioChange = options?.audioPath !== undefined
+      ? { audioPath: options.audioPath, _audioSelection: current._audioSelection + 1 } : {};
+    set({ doc, lrcPath: path, ...audioChange, isDirty: false, activeLineId: firstId, loopLineId: null, _history: [], _future: [], _lastEditKey: null, ...invalidateAiRun() });
     useSettingsStore.getState().addRecentFile({ lrcPath: path, audioPath: get().audioPath });
   },
 
@@ -795,7 +796,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
       if (!matches) return l;
       count += matches.length;
       // 텍스트가 바뀌면 옛 토큰 경계가 무효 → 글자 동기화 해제
-      return { ...l, text: l.text.replace(re, replace), syllables: undefined };
+      return { ...l, text: l.text.replace(re, () => replace), syllables: undefined };
     });
     if (count === 0) return 0;
     pushHistory("replaceAll", count);
@@ -813,10 +814,12 @@ export const useLrcStore = create<LrcStore>((set, get) => {
 
     try {
       unlisten = await listen<AlignmentProgressEvent>("alignment-progress", (e) => {
-        if (runId === aiRunId) {
+        if (runId === aiRunId && e.payload.runId === runId) {
           set({ aiSyncProgressStatus: e.payload.status, aiSyncMessage: e.payload.message });
         }
       });
+
+      if (runId !== aiRunId) return;
 
       // Only pass non-empty lines to Python; track their original indices
       const nonBlank = doc.lines
@@ -829,6 +832,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
       }));
 
       const resultJson = await invoke<string>("run_alignment", {
+        runId,
         audioPath,
         linesJson: JSON.stringify(linesInput),
         language,

@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { isComposingKeyEvent } from "../../utils/keybindings";
 import { type LrcLine } from "../../types/lrc";
 import { type Translations } from "../../i18n/translations";
 import { formatDisplayTime } from "../../utils/lrcParser";
@@ -39,14 +40,14 @@ interface LrcLineRowProps {
   onToggleLoop: (e: React.MouseEvent) => void;
   onTextChange: (value: string) => void;
   onTranslationChange: (value: string) => void;
-  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   onPaste: (e: React.ClipboardEvent<HTMLInputElement>) => void;
   onFocus: () => void;
   onMergeUp: (e: React.MouseEvent) => void;
   onDuplicate: (e: React.MouseEvent) => void;
   onDelete: (e: React.MouseEvent) => void;
 
-  inputRef: (el: HTMLInputElement | null) => void;
+  inputRef: (el: HTMLInputElement | HTMLTextAreaElement | null) => void;
   rowRef: (el: HTMLDivElement | null) => void;
 }
 
@@ -54,7 +55,7 @@ interface LrcLineRowProps {
 // 토글·글자 동기화 배지·경고 아이콘·텍스트 입력·병합/복제/삭제 버튼.
 // 상호작용 상태(드래그·타임스탬프 편집 등)는 LrcEditor가 소유하고 이벤트 핸들러로 전달 —
 // 이 컴포넌트는 순수 렌더링(+ line 자체에서 파생되는 hasGlyphSync/tsClass만 내부 계산).
-function LrcLineRowImpl({
+export function LrcLineRowImpl({
   t, line, idx, isActive, isSelected, confidence, isMatch, isCurrentMatch, warning,
   loopLineId, lyricsFontScale, showSpellCheck, showTranslationLines,
   dragIdx, showInsertionBefore, showInsertionAfter, onReorderPointerDown,
@@ -73,40 +74,40 @@ function LrcLineRowImpl({
       ? "bg-yellow-900/50 text-yellow-300 hover:bg-yellow-800/60"
       : "bg-red-900/50 text-red-300 hover:bg-red-800/60"
     : line.timestamp !== null
-    ? "bg-zinc-700 text-indigo-300 hover:bg-zinc-600"
-    : "bg-zinc-800 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300";
+    ? "bg-[var(--ls-control)] text-[var(--ls-accent)] hover:bg-[var(--ls-control)]"
+    : "bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-[var(--ls-text-secondary)]";
 
   return (
-    <>
     <div
       ref={rowRef}
       data-line-id={line.id}
       onClick={(e) => onRowClick(e, line.id, idx)}
-      className={`group/row relative flex items-center gap-2 rounded-lg px-2 py-1 transition-colors cursor-pointer ${
+      className={`ls-line-row group/row relative rounded-lg transition-colors cursor-pointer ${
         isSelected
           ? "bg-sky-900/30 ring-1 ring-sky-600/60"
           : isCurrentMatch
-          ? "bg-amber-900/30 ring-1 ring-amber-500"
+          ? "bg-[var(--ls-selection)]/30 ring-1 ring-[var(--ls-playhead)]"
           : isActive
-          ? "bg-indigo-900/40 ring-1 ring-indigo-500"
+          ? "bg-[var(--ls-primary)]/40 ring-1 ring-[var(--ls-accent)]"
           : isMatch
-          ? "bg-amber-900/10 ring-1 ring-amber-800"
-          : dragIdx === null ? "hover:bg-zinc-800" : ""
+          ? "bg-[var(--ls-selection)]/10 ring-1 ring-[var(--ls-playhead)]"
+          : dragIdx === null ? "hover:bg-[var(--ls-control)]" : ""
       } ${dragIdx === idx ? "opacity-40" : ""}`}
     >
       {(showInsertionBefore || showInsertionAfter) && (
         <div
           data-testid="line-insertion-marker"
           data-placement={showInsertionBefore ? "before" : "after"}
-          className={`pointer-events-none absolute z-10 left-2 right-2 h-0.5 rounded-full bg-indigo-400 shadow-[0_0_6px_rgba(129,140,248,0.8)] ${showInsertionBefore ? "-top-1" : "-bottom-1"}`}
+          className={`pointer-events-none absolute z-10 left-2 right-2 h-0.5 rounded-full bg-[var(--ls-accent)] shadow-[0_0_6px_rgba(129,140,248,0.8)] ${showInsertionBefore ? "-top-1" : "-bottom-1"}`}
         />
       )}
       <span
+        data-reorder-handle
         draggable={false}
         onPointerDown={onReorderPointerDown}
         onClick={(e) => e.stopPropagation()}
         title={t.reorderLine}
-        className="w-6 h-7 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing select-none touch-none text-zinc-600 hover:text-zinc-300 opacity-0 group-hover/row:opacity-100 transition-opacity"
+        className="ls-line-drag w-4 h-7 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing select-none touch-none text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)] opacity-0 group-hover/row:opacity-100 transition-opacity"
       >
         <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true">
           <circle cx="2.5" cy="2" r="1.2" /><circle cx="7.5" cy="2" r="1.2" />
@@ -114,11 +115,11 @@ function LrcLineRowImpl({
           <circle cx="2.5" cy="12" r="1.2" /><circle cx="7.5" cy="12" r="1.2" />
         </svg>
       </span>
-      <span className="text-zinc-600 text-xs w-5 shrink-0 text-right select-none">
+      <span className="ls-line-number text-[var(--ls-text-secondary)] text-xs w-5 shrink-0 text-right select-none">
         {idx + 1}
       </span>
 
-      <div className="shrink-0">
+      <div className="ls-line-time min-w-0">
         {editingTsId === line.id ? (
           // 좌클릭 시 인라인 편집: 숫자키로 MM:SS.xx 직접 입력
           <input
@@ -129,80 +130,119 @@ function LrcLineRowImpl({
             onFocus={(e) => e.target.select()}
             onChange={(e) => onEditTsChange(e.target.value)}
             onKeyDown={(e) => {
+              if (isComposingKeyEvent(e.nativeEvent)) return;
               if (e.key === "Enter") { e.preventDefault(); onCommitTsEdit(); }
               else if (e.key === "Escape") { e.preventDefault(); onCancelTsEdit(); }
             }}
             onBlur={onCommitTsEdit}
-            placeholder="MM:SS.xx"
-            className="font-mono text-xs px-2 py-0.5 rounded w-24 bg-zinc-700 text-indigo-200 border border-indigo-500 focus:outline-none placeholder-zinc-500"
+            placeholder="H:MM:SS.mmm"
+            className="ls-field ls-row-input ls-time-input font-mono text-xs w-full"
           />
         ) : (
           // 좌클릭 → 시간 직접 편집 / 우클릭 → 현재 재생 시간으로 설정
           <button
             onClick={(e) => { e.stopPropagation(); onStartTsEdit(); }}
             onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onStampCurrentLine(); }}
-            className={`font-mono text-xs px-2 py-0.5 rounded transition-colors ${tsClass}`}
+            className={`ls-button ls-button--compact ls-time-button w-full truncate ${`font-mono text-xs transition-colors ${tsClass}`}`}
           >
             {line.timestamp !== null ? formatDisplayTime(line.timestamp) : "-:--:--.---"}
           </button>
         )}
       </div>
 
+      <div className="ls-line-status">
       <button
         onClick={onToggleLoop}
         disabled={line.timestamp === null}
         title={t.loopLine}
         aria-label={t.loopLine}
         aria-pressed={loopLineId === line.id}
-        className={`shrink-0 px-1 transition-opacity disabled:opacity-0 ${
+        className={`ls-button ls-button--compact ls-button--icon-compact ${`shrink-0 transition-opacity disabled:opacity-30 ${
           loopLineId === line.id
-            ? "text-indigo-400 opacity-100"
-            : "text-zinc-600 hover:text-indigo-300 opacity-0 group-hover/row:opacity-100 focus:opacity-100"
-        }`}
+            ? "text-[var(--ls-accent)] opacity-100"
+            : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-accent)] opacity-70 group-hover/row:opacity-100 focus:opacity-100"
+        }`}`}
       >
         <LoopIcon size={12} />
       </button>
 
+      <div className="ls-line-status-slot">
       {hasGlyphSync && (
         <span
           title={t.charSync.badge}
-          className="shrink-0 flex items-center justify-center w-5 h-5 rounded bg-indigo-500/15 text-indigo-300"
+          className="shrink-0 flex items-center justify-center w-5 h-5 rounded bg-[var(--ls-selection)]/15 text-[var(--ls-accent)]"
         >
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
             <path d="M5 8v8M12 5v14M19 8v8" />
           </svg>
         </span>
       )}
-
+      </div>
+      <div className="ls-line-status-slot">
       {warning && (
         <div className="relative group/warn shrink-0">
-          <span className="text-amber-400 text-sm leading-none cursor-help">⚠</span>
-          <div className={`pointer-events-none absolute left-0 hidden group-hover/warn:block z-30 ${idx < 2 ? "top-full mt-1.5" : "bottom-full mb-1.5"}`}>
-            <div className="bg-zinc-800 border border-amber-700/60 text-amber-200 text-xs rounded-lg px-2.5 py-1.5 shadow-xl whitespace-nowrap">
+          <span className="text-[var(--ls-playhead)] text-sm leading-none cursor-help">⚠</span>
+          <div className={`ls-line-warning-tooltip pointer-events-none absolute hidden group-hover/warn:block z-30 ${idx < 2 ? "top-full mt-1.5" : "bottom-full mb-1.5"}`}>
+            <div className="bg-[var(--ls-control)] border border-[var(--ls-playhead)]/60 text-[var(--ls-playhead)] text-xs rounded-lg px-2.5 py-1.5 shadow-xl break-words">
               {warning === "duplicate" ? t.warnDuplicate : t.warnOutOfOrder}
             </div>
           </div>
         </div>
       )}
+      </div>
+      </div>
+      <div className="ls-line-content">
+      {line.text.includes("\n") ? (
+        <textarea
+          ref={inputRef}
+          value={line.text}
+          rows={Math.max(2, line.text.split("\n").length)}
+          onChange={(e) => onTextChange(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && e.shiftKey) onKeyDown(e); }}
+          onFocus={onFocus}
+          spellCheck={showSpellCheck}
+          className="ls-field ls-row-input ls-lyric-input w-full min-w-0 resize-y text-white text-sm"
+          style={{ fontSize: `${lyricsFontScale}rem` }}
+          placeholder={t.linePlaceholder}
+        />
+      ) : (
+        <input
+          ref={inputRef}
+          type="text"
+          value={line.text}
+          onChange={(e) => onTextChange(e.target.value)}
+          onKeyDown={onKeyDown}
+          onFocus={onFocus}
+          onPaste={onPaste}
+          spellCheck={showSpellCheck}
+          className="ls-field ls-row-input ls-lyric-input w-full min-w-0 text-white text-sm"
+          style={{ fontSize: `${lyricsFontScale}rem` }}
+          placeholder={t.linePlaceholder}
+        />
+      )}
 
-      <input
-        ref={inputRef}
-        type="text"
-        value={line.text}
-        onChange={(e) => onTextChange(e.target.value)}
-        onKeyDown={onKeyDown}
-        onFocus={onFocus}
-        onPaste={onPaste}
-        spellCheck={showSpellCheck}
-        className="flex-1 bg-transparent text-white text-sm placeholder-zinc-600 focus:outline-none"
-        style={{ fontSize: `${0.875 * lyricsFontScale}rem` }}
-        placeholder={t.linePlaceholder}
-      />
-
+    {showTranslationLines && (
+      <div className="ls-line-translation">
+        <textarea
+          value={line.translation ?? ""}
+          rows={Math.max(1, (line.translation ?? "").split("\n").length)}
+          aria-label={`${t.translationPlaceholder} ${idx + 1}`}
+          onClick={(e) => e.stopPropagation()}
+          onFocus={onFocus}
+          onChange={(e) => onTranslationChange(e.target.value)}
+          placeholder={t.translationPlaceholder}
+          spellCheck={showSpellCheck}
+          className="ls-field ls-row-input ls-translation-input w-full min-w-0 resize-y"
+          style={{ fontSize: `${0.875 * lyricsFontScale}rem` }}
+        />
+      </div>
+    )}
+      </div>
+      <div className="ls-line-actions">
       <button
         onClick={onMergeUp}
         disabled={idx === 0}
-        className="shrink-0 text-zinc-600 hover:text-indigo-300 px-1 opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity disabled:opacity-0"
+        className="ls-button ls-button--compact ls-button--icon-compact shrink-0 hover:text-[var(--ls-accent)] opacity-70 group-hover/row:opacity-100 focus:opacity-100 transition-opacity disabled:opacity-30"
         title={t.mergeLineUp}
         aria-label={t.mergeLineUp}
       >
@@ -212,7 +252,7 @@ function LrcLineRowImpl({
       </button>
       <button
         onClick={onDuplicate}
-        className="shrink-0 text-zinc-600 hover:text-indigo-300 px-1 opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
+        className="ls-button ls-button--compact ls-button--icon-compact shrink-0 hover:text-[var(--ls-accent)] opacity-70 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
         title={t.duplicateLine}
         aria-label={t.duplicateLine}
       >
@@ -222,26 +262,15 @@ function LrcLineRowImpl({
       </button>
       <button
         onClick={onDelete}
-        className="shrink-0 text-zinc-600 hover:text-rose-400 text-sm px-1 opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
+        className="ls-button ls-button--compact ls-button--icon-compact shrink-0 hover:text-rose-400 text-sm opacity-70 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
         title={t.deleteLine}
         aria-label={t.deleteLine}
       >
         ✕
       </button>
-    </div>
-    {showTranslationLines && (
-      <div className="flex items-center pl-11 pr-2 -mt-0.5 pb-0.5">
-        <input
-          type="text"
-          value={line.translation ?? ""}
-          onChange={(e) => onTranslationChange(e.target.value)}
-          placeholder={t.translationPlaceholder}
-          spellCheck={showSpellCheck}
-          className="flex-1 bg-transparent text-indigo-300/70 text-xs italic placeholder-zinc-700 focus:outline-none"
-        />
       </div>
-    )}
-    </>
+    </div>
+
   );
 }
 

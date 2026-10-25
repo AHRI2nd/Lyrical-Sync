@@ -9,6 +9,8 @@ import { useI18nStore } from "../../stores/useI18nStore";
 import { toast } from "../../stores/useToastStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
+import { clearWaveform, prepareWaveform } from "../../stores/useWaveformStore";
+import { getLinePlaybackRange } from "../../utils/linePlaybackRange";
 import { audioControls } from "../../utils/audioControls";
 import { readAudioBytes } from "../../utils/readAudioBytes";
 import { activateSpotifyPlayer } from "../../utils/spotifyPlayer";
@@ -52,7 +54,6 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   const containerRef = useRef<HTMLDivElement>(null);
   const spectrogramContainerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
-  const peaksRef = useRef<number[] | null>(null);
   const regionsRef = useRef<ReturnType<typeof RegionsPlugin.create> | null>(null);
   const isLoopingRef = useRef(false);
   const playbackRateRef = useRef(1.0);
@@ -75,6 +76,8 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       setDuration: s.setDuration, openAudio: s.openAudio, setAudioPath: s.setAudioPath,
     }))
   );
+  const audioSelection = useLrcStore(s => s._audioSelection);
+  const documentSession = useLrcStore(s => s._documentSession);
   const lines = useLrcStore((s) => s.doc.lines);
   const metadata = useLrcStore((s) => s.doc.metadata);
   const activeLineId = useLrcStore((s) => s.activeLineId);
@@ -96,6 +99,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   useEffect(() => {
     if (!containerRef.current) return;
 
+    let disposed = false;
     const ws = WaveSurfer.create({
       container: containerRef.current,
       waveColor: "#6366f1",
@@ -128,52 +132,41 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     };
 
     ws.on("ready", () => {
+      if (disposed || wsRef.current !== ws) return;
       const d = ws.getDuration();
       setDurationLocal(d);
       if (!inService()) setDuration(d);
       setIsAudioReady(true);
-      // 글자 동기화 레인 파형용 정규화 peaks 캐시
-      try {
-        const decodedLength = ws.getDecodedData()?.length;
-        const maxLength = decodedLength && decodedLength > 0 ? Math.min(16000, decodedLength) : 16000;
-        peaksRef.current = ws.exportPeaks({ channels: 1, maxLength })[0] ?? null;
-      } catch {
-        peaksRef.current = null;
-      }
       // 새 오디오 로드 시 미디어 엘리먼트가 배속을 1.0으로 초기화하므로 재적용
       if (playbackRateRef.current !== 1.0) {
         ws.setPlaybackRate(playbackRateRef.current);
       }
     });
     ws.on("audioprocess", (t) => {
+      if (disposed || wsRef.current !== ws) return;
       setCurrentTimeLocal(t);
       if (!inService()) setCurrentTime(t);
-      // 줄 반복: 반복 대상 줄의 구간(다음 스탬프 줄 시작, 없으면 끝까지) 끝에 닿으면
-      // 줄 시작으로 되돌아감. 매 프레임 스토어에서 직접 읽어 클로저 staleness 회피.
       const { loopLineId, doc } = useLrcStore.getState();
-      if (loopLineId) {
-        const idx = doc.lines.findIndex((l) => l.id === loopLineId);
-        const line = idx >= 0 ? doc.lines[idx] : null;
-        if (line && line.timestamp !== null) {
-          let end = ws.getDuration();
-          for (let i = idx + 1; i < doc.lines.length; i++) {
-            if (doc.lines[i].timestamp !== null) { end = doc.lines[i].timestamp as number; break; }
-          }
-          if (t >= end) {
-            const d = ws.getDuration();
-            if (d > 0) ws.seekTo(Math.max(0, Math.min(1, line.timestamp / d)));
-          }
-        }
-      }
+      const range = !inService() ? getLinePlaybackRange(doc.lines, loopLineId, ws.getDuration()) : null;
+      if (range && t >= range.end) ws.seekTo(range.start / ws.getDuration());
     });
     ws.on("seeking", (t) => {
+      if (disposed || wsRef.current !== ws) return;
       setCurrentTimeLocal(t);
       if (!inService()) setCurrentTime(t);
     });
-    ws.on("play", () => { setIsPlayingLocal(true); if (!inService()) setIsPlaying(true); });
-    ws.on("pause", () => { setIsPlayingLocal(false); if (!inService()) setIsPlaying(false); });
+    ws.on("play", () => {
+      if (disposed || wsRef.current !== ws) return; setIsPlayingLocal(true); if (!inService()) setIsPlaying(true); });
+    ws.on("pause", () => {
+      if (disposed || wsRef.current !== ws) return; setIsPlayingLocal(false); if (!inService()) setIsPlaying(false); });
     ws.on("finish", () => {
-      if (isLoopingRef.current) {
+      if (disposed || wsRef.current !== ws) return;
+      const { loopLineId, doc } = useLrcStore.getState();
+      const range = !inService() ? getLinePlaybackRange(doc.lines, loopLineId, ws.getDuration()) : null;
+      if (range) {
+        ws.seekTo(range.start / ws.getDuration());
+        ws.play();
+      } else if (isLoopingRef.current && !inService()) {
         ws.seekTo(0);
         ws.play();
       } else {
@@ -183,8 +176,8 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     });
 
     wsRef.current = ws;
-    return () => ws.destroy();
-  }, [setCurrentTime]);
+    return () => { disposed = true; ws.destroy(); clearWaveform(); };
+  }, [setCurrentTime, audioPath, audioSelection, spotifyMode, deviceMode]);
 
   useEffect(() => {
     audioControls.togglePlay = () => wsRef.current?.playPause();
@@ -207,7 +200,6 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       setCurrentTimeLocal(0);
       setCurrentTime(0);
     };
-    audioControls.getPeaks = () => peaksRef.current;
     audioControls.seekTo = (seconds: number) => {
       const ws = wsRef.current;
       if (!ws) return;
@@ -227,6 +219,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     // 때의 값이 모드 전환 후에도 스토어에 남아있을 수 있어(전환 시 일부러 안 지움 —
     // 파일 모드로 돌아오면 다시 쓰도록), 여기서 걸러야 크래시 복구 후 엉뚱한 파일을
     // 다시 로드 시도하는 걸 막을 수 있다.
+    clearWaveform();
     if (!wsRef.current || !audioPath || spotifyMode || deviceMode) return;
     let cancelled = false;
 
@@ -239,24 +232,28 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     setIsPlaying(false);
     setCurrentTime(0);
     setDuration(0);
-    peaksRef.current = null;
 
     const ext = audioPath.split(".").pop()?.toLowerCase() ?? "";
 
-    readAudioBytes(audioPath).then(({ bytes, transcoded }) => {
+    readAudioBytes(audioPath).then(async ({ bytes, transcoded }) => {
       if (cancelled || !wsRef.current) return;
 
       const mimeType = transcoded ? "audio/wav" : (AUDIO_MIME[ext] ?? "audio/*");
       const blob = new Blob([bytes], { type: mimeType });
-      return wsRef.current.loadBlob(blob);
+      const ws = wsRef.current;
+      await ws.loadBlob(blob);
+      if (cancelled) return;
+      const decoded = ws.getDecodedData();
+      if (decoded) await prepareWaveform(audioPath, decoded);
     }).catch((e) => {
       // 새 로드로 인한 중단(AbortError)은 무시, 실제 디코드/읽기 실패만 알림
       if (cancelled || (e && (e as Error).name === "AbortError")) return;
+      clearWaveform();
       toast.error(useI18nStore.getState().t.toast.audioLoadFailed);
     });
 
-    return () => { cancelled = true; };
-  }, [audioPath, spotifyMode, deviceMode]);
+    return () => { cancelled = true; clearWaveform(); };
+  }, [audioPath, audioSelection, spotifyMode, deviceMode]);
 
   // 오디오 열면 파일 태그(ID3 등)에서 메타데이터를 읽어 비어 있는 필드만 자동 채움
   useEffect(() => {
@@ -276,7 +273,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [audioPath, spotifyMode, deviceMode]);
+  }, [audioPath, audioSelection, documentSession, spotifyMode, deviceMode]);
 
   // 오디오 로드 완료 시 현재 zoom 값 적용 (슬라이더 조작 중 zoom은 debounce로 직접 처리)
   useEffect(() => {
@@ -286,7 +283,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
 
   useEffect(() => {
     wsRef.current?.setVolume(volume);
-  }, [volume]);
+  }, [volume, audioPath, audioSelection, spotifyMode, deviceMode]);
 
   // 마커는 줄 id·타임스탬프·줄번호(인덱스)에만 의존 → 텍스트 편집(타임스탬프 불변)으로는
   // region을 재생성하지 않도록 시그니처로 의존성을 좁힘(키 입력마다 전체 region 재생성 방지).
@@ -362,8 +359,8 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     let cancelled = false;
     let plugin: InstanceType<typeof import("wavesurfer.js/dist/plugins/spectrogram.esm.js").default> | null = null;
     import("wavesurfer.js/dist/plugins/spectrogram.esm.js").then(({ default: SpectrogramPlugin }) => {
-      if (cancelled || !wsRef.current || !spectrogramContainerRef.current) return;
-      plugin = wsRef.current.registerPlugin(
+      if (cancelled || wsRef.current !== ws || !spectrogramContainerRef.current) return;
+      plugin = ws.registerPlugin(
         SpectrogramPlugin.create({ container: spectrogramContainerRef.current, height: 80, labels: false, scale: "mel" })
       );
     });
@@ -371,7 +368,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       cancelled = true;
       plugin?.destroy();
     };
-  }, [showSpectrogram]);
+  }, [showSpectrogram, audioPath, audioSelection, spotifyMode, deviceMode]);
 
   const togglePlay = useCallback(() => wsRef.current?.playPause(), []);
 
@@ -453,18 +450,18 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           />
         </Suspense>
       )}
-    <div className="flex flex-col gap-3 p-4 bg-zinc-900 rounded-xl border border-zinc-700">
+    <div className="ls-panel flex flex-col gap-3 p-4 border border-transparent">
       {/* WaveSurfer container must always remain in the DOM while the component
           is mounted — removing it detaches the canvas and breaks the instance
           when switching back from Spotify mode. Hide with display:none instead. */}
       <div
         ref={containerRef}
-        className="w-full rounded-lg overflow-hidden bg-zinc-800 cursor-pointer"
+        className="w-full rounded-lg overflow-hidden bg-[var(--ls-control)] cursor-pointer"
         style={{ minHeight: 80, display: (isServiceMode || deviceMode || viewMode === "bar") ? "none" : "" }}
       />
       <div
         ref={spectrogramContainerRef}
-        className="w-full rounded-lg overflow-hidden bg-zinc-800"
+        className="w-full rounded-lg overflow-hidden bg-[var(--ls-control)]"
         style={{ minHeight: 80, display: (isServiceMode || deviceMode || viewMode === "bar" || !showSpectrogram) ? "none" : "" }}
       />
 
@@ -480,7 +477,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       {viewMode === "bar" && (
         <TrackInfoHeader
           icon={youtubeMode ? <YouTubeGlyph /> : <FileGlyph />}
-          iconBgClass={youtubeMode ? "bg-red-500/15 text-red-400" : "bg-indigo-500/15 text-indigo-300"}
+          iconBgClass={youtubeMode ? "bg-red-500/15 text-red-400" : "bg-[var(--ls-selection)]/15 text-[var(--ls-accent)]"}
           title={metadata.title || (audioPath ? (audioPath.split(/[\\/]/).pop() ?? "") : "")}
           subtitle={[metadata.artist, metadata.album].filter(Boolean).join(" · ")}
           emptyMessage={t.noAudioShort}
@@ -493,13 +490,13 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           duration={duration}
           seekContextKey={`${youtubeMode ? "youtube" : "local"}:${audioPath ?? ytUrl}`}
           onSeek={audioControls.seekTo}
-          accentClass={youtubeMode ? "bg-red-500" : "bg-indigo-500"}
+          accentClass={youtubeMode ? "bg-red-500" : "bg-[var(--ls-accent)]"}
         />
       )}
 
       {/* 시간 표시 (파형 모드에서만) */}
       {viewMode === "waveform" && (
-        <div className="flex justify-between text-xs text-zinc-400 font-mono px-1">
+        <div className="flex justify-between text-xs text-[var(--ls-text-secondary)] font-mono px-1">
           <span>{formatDisplayTime(currentTime)}</span>
           <span>{formatDisplayTime(duration)}</span>
         </div>
@@ -530,7 +527,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         !isLoggedIn ? (
           <button
             onClick={handleSpotifyLogin}
-            className="w-full py-1.5 rounded-lg bg-green-700 hover:bg-green-600 text-white text-sm transition-colors text-center truncate"
+            className="ls-button w-full bg-green-700 hover:bg-green-600 text-white text-sm transition-colors text-center truncate"
           >
             {t.spotifyConnect}
           </button>
@@ -538,13 +535,13 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           <div className="flex gap-2">
             <button
               onClick={handleLoadCurrent}
-              className="flex-1 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm transition-colors text-center truncate"
+              className="ls-button flex-1 text-white text-sm transition-colors text-center truncate"
             >
               {t.spotifyLoadCurrent}
             </button>
             <button
               onClick={onSpotifySearch}
-              className="flex-1 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm transition-colors text-center truncate"
+              className="ls-button flex-1 text-white text-sm transition-colors text-center truncate"
             >
               {t.spotifySearchTrack}
             </button>
@@ -553,7 +550,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       ) : youtubeMode ? (
         <button
           onClick={() => setYtModalOpen(true)}
-          className="w-full py-1.5 rounded-lg bg-red-700 hover:bg-red-600 text-white text-sm transition-colors text-center truncate flex items-center justify-center gap-2"
+          className="ls-button w-full bg-red-700 hover:bg-red-600 text-white text-sm transition-colors text-center truncate flex items-center justify-center gap-2"
         >
           <YouTubeLinkIcon />
           {ytLoading ? t.youtubeLoading : t.youtubeOpenLink}
@@ -561,26 +558,26 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       ) : (
         <button
           onClick={openAudio}
-          className="w-full py-2 rounded-lg border border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800 text-zinc-300 text-sm transition-colors text-center truncate"
+          className="ls-button w-full text-sm transition-colors text-center truncate"
         >
           {t.openAudio}
         </button>
       )}
 
       {/* 볼륨 (스피커 아이콘 + 슬림 슬라이더) */}
-      <div className="flex items-center gap-2.5 text-zinc-400" title={`${t.volume} ${Math.round(volume * 100)}%`}>
+      <div className="flex items-center gap-2.5 text-[var(--ls-text-secondary)]" title={`${t.volume} ${Math.round(volume * 100)}%`}>
         <span className="shrink-0"><VolumeIcon /></span>
         <input
           type="range" min={0} max={1} step={0.01} value={volume}
           onChange={(e) => setVolume(parseFloat(Number(e.target.value).toFixed(2)))}
-          className="range-slim min-w-0 flex-1"
-          style={{ background: `linear-gradient(to right, #6366f1 ${Math.round(volume * 100)}%, #3f3f46 ${Math.round(volume * 100)}%)` }}
+          className="ls-range range-slim min-w-0 flex-1"
+          style={{ backgroundImage: `linear-gradient(to right, #6366f1 ${Math.round(volume * 100)}%, #3f3f46 ${Math.round(volume * 100)}%)` }}
         />
-        <span className="shrink-0 w-9 text-right text-xs text-zinc-400 tabular-nums">{Math.round(volume * 100)}%</span>
+        <span className="shrink-0 w-9 text-right text-xs text-[var(--ls-text-secondary)] tabular-nums">{Math.round(volume * 100)}%</span>
       </div>
 
       {/* 줌 + 뷰 토글 */}
-      <div className="flex items-center gap-2.5 text-zinc-400">
+      <div className="flex items-center gap-2.5 text-[var(--ls-text-secondary)]">
         {viewMode === "waveform" ? (
           <>
             <span className="shrink-0"><ZoomIcon /></span>
@@ -594,27 +591,29 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
                   if (wsRef.current && isAudioReady) wsRef.current.zoom(zoomLevelToPixels(v));
                 }, 80);
               }}
-              className="range-slim min-w-0 flex-1"
-              style={{ background: `linear-gradient(to right, #6366f1 ${zoomLevel}%, #3f3f46 ${zoomLevel}%)` }}
+              className="ls-range range-slim min-w-0 flex-1"
+              style={{ backgroundImage: `linear-gradient(to right, #6366f1 ${zoomLevel}%, #3f3f46 ${zoomLevel}%)` }}
             />
           </>
         ) : (
           <div className="flex-1" />
         )}
-        <div className="flex shrink-0 bg-zinc-800 rounded-lg p-0.5">
+        <div className="flex shrink-0 bg-[var(--ls-control)] rounded-lg p-0.5">
           <button
             onClick={() => setViewMode("waveform")}
-            className={`px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors ${
-              viewMode === "waveform" ? "bg-zinc-600 text-white" : "text-zinc-500 hover:text-zinc-300"
-            }`}
+            aria-pressed={viewMode === "waveform"}
+            className={`ls-button ls-button--compact ${`  rounded-md text-xs font-medium transition-colors ${
+              viewMode === "waveform" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)]"
+            }`}`}
           >
             {t.tooltipViewWaveform}
           </button>
           <button
             onClick={() => setViewMode("bar")}
-            className={`px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors ${
-              viewMode === "bar" ? "bg-zinc-600 text-white" : "text-zinc-500 hover:text-zinc-300"
-            }`}
+            aria-pressed={viewMode === "bar"}
+            className={`ls-button ls-button--compact ${`  rounded-md text-xs font-medium transition-colors ${
+              viewMode === "bar" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)]"
+            }`}`}
           >
             {t.tooltipViewSeekBar}
           </button>
@@ -622,7 +621,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       </div>
 
       {!audioPath && (
-        <p className="text-center text-zinc-500 text-sm">{t.noAudio}</p>
+        <p className="text-center text-[var(--ls-text-secondary)] text-sm">{t.noAudio}</p>
       )}
       </>
       )}

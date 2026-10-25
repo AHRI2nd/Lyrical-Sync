@@ -1,3 +1,5 @@
+import aiManifest from "../../src-tauri/ai-manifest.json";
+
 export type ModelCategory = "demucs" | "wav2vec2" | "ctc";
 
 export interface ModelFile {
@@ -28,13 +30,7 @@ export const MODEL_DEFS: ModelDef[] = [
       en: "Isolates vocals before transcription for better accuracy",
       ja: "文字起こし前にボーカルを分離して精度を向上させます",
     },
-    files: [
-      {
-        filename: "demucs/htdemucs.th",
-        url: "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th",
-        sha256: "8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4",
-      },
-    ],
+    files: [{ ...aiManifest.demucs }],
     totalSizeMb: 83,
     required: false,
   },
@@ -49,14 +45,7 @@ export const MODEL_DEFS: ModelDef[] = [
       en: "Multilingual forced alignment model supporting 1130 languages — incl. Korean, English, Japanese",
       ja: "1130言語対応の多言語強制アライメントモデル — 日本語・英語・韓国語含む",
     },
-    files: [
-      { filename: "ctc-forced-aligner/config.json", url: "https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner/resolve/main/config.json" },
-      { filename: "ctc-forced-aligner/preprocessor_config.json", url: "https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner/resolve/main/preprocessor_config.json" },
-      { filename: "ctc-forced-aligner/tokenizer_config.json", url: "https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner/resolve/main/tokenizer_config.json" },
-      { filename: "ctc-forced-aligner/vocab.json", url: "https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner/resolve/main/vocab.json" },
-      { filename: "ctc-forced-aligner/special_tokens_map.json", url: "https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner/resolve/main/special_tokens_map.json" },
-      { filename: "ctc-forced-aligner/model.safetensors", url: "https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner/resolve/main/model.safetensors" },
-    ],
+    files: [{ ...aiManifest.model }],
     totalSizeMb: 1204,
     required: true,
   },

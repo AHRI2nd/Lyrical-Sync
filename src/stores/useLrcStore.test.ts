@@ -23,6 +23,7 @@ import type { LrcLine, LrcDocument } from "../types/lrc";
 import { saveRecoverySnapshot, loadRecoverySnapshot, clearRecoverySnapshot } from "../utils/recovery";
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
+import { listen } from "@tauri-apps/api/event";
 
 const reset = (lines: LrcLine[], offset = 0) =>
   useLrcStore.setState({
@@ -286,7 +287,7 @@ describe("useLrcStore — line manipulation", () => {
       { ...mk("2", "world", 2), translation: "세계" },
     ]);
     useLrcStore.getState().mergeLineUp("2");
-    expect(lines()[0].translation).toBe("안녕 세계");
+    expect(lines()[0].translation).toBe("안녕\n세계");
   });
 
   it("mergeLineUp on the first line is a no-op", () => {
@@ -370,7 +371,7 @@ describe("useLrcStore — bulk line actions", () => {
     expect(lines().map((l) => l.timestamp)).toEqual([0, null]);
   });
 
-  it("snapLinesToBeatGrid drops syllables on lines that actually move, records no history if nothing moves", () => {
+  it("snapLinesToBeatGrid shifts syllables on lines that actually move, records no history if nothing moves", () => {
     reset([{ id: "1", timestamp: 0, text: "ab", syllables: [{ text: "a", time: 0 }] }]);
     const h0 = useLrcStore.getState()._history.length;
     useLrcStore.getState().snapLinesToBeatGrid(["1"], 120, 0); // already on-grid → no-op
@@ -379,7 +380,7 @@ describe("useLrcStore — bulk line actions", () => {
 
     useLrcStore.getState().snapLinesToBeatGrid(["1"], 100, 0.1); // now actually moves
     expect(useLrcStore.getState()._history.length).toBe(h0 + 1);
-    expect(lines()[0].syllables).toBeUndefined();
+    expect(lines()[0].syllables).toEqual([{ text: "a", time: 0.1 }]);
   });
 });
 
@@ -525,6 +526,7 @@ describe("useLrcStore — save completion races", () => {
     const saving = useLrcStore.getState().saveLrc();
     await Promise.resolve();
     useLrcStore.getState().updateLine("1", { text: "edited while saving" });
+    await vi.waitFor(() => expect(resolveWrite).toBeTypeOf("function"));
     resolveWrite(undefined);
     await saving;
 
@@ -556,11 +558,11 @@ describe("useLrcStore — save completion races", () => {
     const secondSave = useLrcStore.getState().saveLrc();
     await Promise.resolve();
 
-    expect(writes).toHaveLength(1);
+    await vi.waitFor(() => expect(writes).toHaveLength(1));
     writes[0].resolve();
     await Promise.resolve();
     await Promise.resolve();
-    expect(writes).toHaveLength(2);
+    await vi.waitFor(() => expect(writes).toHaveLength(2));
     writes[1].resolve();
     await Promise.all([firstSave, secondSave]);
 
@@ -582,6 +584,7 @@ describe("useLrcStore — save completion races", () => {
     await Promise.resolve();
     await useLrcStore.getState().loadLyricsPath("/tmp/new-song.lrc");
     useLrcStore.getState().updateLine("1", { text: "new text edited" });
+    await vi.waitFor(() => expect(resolveWrite).toBeTypeOf("function"));
     resolveWrite(undefined);
     await saving;
 
@@ -615,6 +618,7 @@ describe("useLrcStore — save completion races", () => {
     const saving = useLrcStore.getState().saveLrcAs("lrc");
     await Promise.resolve();
     useLrcStore.getState().updateLine("1", { text: "edited during Save As" });
+    await vi.waitFor(() => expect(resolveWrite).toBeTypeOf("function"));
     resolveWrite(undefined);
     await saving;
 
@@ -703,4 +707,79 @@ describe("useLrcStore — audio changes during alignment", () => {
     expect(useLrcStore.getState()._history).toHaveLength(0);
     expect(useLrcStore.getState().isDirty).toBe(false);
   });
+});
+
+
+describe("useLrcStore — document load transactions", () => {
+  beforeEach(() => {
+    reset([{ id: "1", text: "original", timestamp: 1 }]);
+    useLrcStore.setState({ lrcPath: "/old.lrc", audioPath: "/old.mp3" });
+    vi.mocked(invoke).mockReset();
+  });
+  it("preserves edits and undo history made while the read is pending", async () => {
+    let finish!: (value: string) => void;
+    vi.mocked(invoke).mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    const loading = useLrcStore.getState().loadLyricsPath("/new.lrc");
+    useLrcStore.getState().updateLine("1", { text: "new edit" });
+    const history = useLrcStore.getState()._history;
+    finish("[00:02.00]incoming");
+    await expect(loading).rejects.toThrow("document_changed_during_load");
+    expect(lines()[0].text).toBe("new edit");
+    expect(useLrcStore.getState()._history).toBe(history);
+    expect(useLrcStore.getState().isDirty).toBe(true);
+    useLrcStore.getState().undo();
+    expect(lines()[0].text).toBe("original");
+  });
+  it("does not replace either member of a pair when lyrics cannot be read", async () => {
+    vi.mocked(invoke).mockRejectedValue(new Error("unreadable"));
+    await expect(useLrcStore.getState().loadLyricsPath("/new.lrc", { audioPath: "/new.mp3" })).rejects.toThrow("unreadable");
+    expect(useLrcStore.getState().audioPath).toBe("/old.mp3");
+    expect(useLrcStore.getState().lrcPath).toBe("/old.lrc");
+  });
+  it("publishes the new lyrics and audio in one store transition", async () => {
+    vi.mocked(invoke).mockResolvedValue("[00:02.00]incoming");
+    const observed: string[] = [];
+    const unsubscribe = useLrcStore.subscribe(s => {
+      if (s.audioPath === "/new.mp3") observed.push(s.doc.lines[0]?.text);
+    });
+    await useLrcStore.getState().loadLyricsPath("/new.lrc", { audioPath: "/new.mp3" });
+    unsubscribe();
+    expect(useLrcStore.getState().audioPath).toBe("/new.mp3");
+    expect(observed.length).toBeGreaterThan(0);
+    expect(observed.every(text => text === "incoming")).toBe(true);
+  });
+  it("does not overwrite an audio selection made after a paired load starts", async () => {
+    let finish!: (value: string) => void;
+    vi.mocked(invoke).mockImplementation(command => command === "read_lrc_file"
+      ? new Promise(resolve => { finish = resolve; }) : Promise.resolve(undefined));
+    const loading = useLrcStore.getState().loadLyricsPath("/new.lrc", { audioPath: "/new.mp3" });
+    useLrcStore.getState().setAudioPath("/chosen.mp3");
+    finish("[00:02.00]incoming");
+    await expect(loading).rejects.toThrow("document_changed_during_load");
+    expect(useLrcStore.getState().audioPath).toBe("/chosen.mp3");
+    expect(lines()[0].text).toBe("original");
+  });
+});
+
+
+it("does not launch a cancelled AI request after delayed listener registration", async () => {
+  reset([{ id: "1", text: "lyrics", timestamp: null }]);
+  useLrcStore.setState({ audioPath: "/song.mp3" });
+  vi.mocked(invoke).mockReset(); vi.mocked(invoke).mockResolvedValue(undefined);
+  let register!: (fn: () => void) => void;
+  vi.mocked(listen).mockImplementationOnce(() => new Promise(resolve => { register = resolve; }));
+  const running = useLrcStore.getState().runAiSync("ko", 0.5, false, false);
+  useLrcStore.getState().cancelAiSync();
+  register(() => {});
+  await running;
+  expect(vi.mocked(invoke).mock.calls.some(([command]) => command === "run_alignment")).toBe(false);
+  expect(useLrcStore.getState().aiSyncStatus).toBe("idle");
+});
+
+it.each(['$&', '$$', '$`', "$'", '$1'])('replaces all occurrences with literal dollar text: %s', replacement => {
+ reset([{id:'a',timestamp:1,text:'original original'}]);
+ useLrcStore.getState().replaceInLines('original',replacement,true);
+ expect(lines()[0].text).toBe(`${replacement} ${replacement}`);
+ useLrcStore.getState().undo();
+ expect(lines()[0].text).toBe('original original');
 });

@@ -1,0 +1,170 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
+vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn().mockRejectedValue(new Error("unavailable")) }));
+vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn().mockResolvedValue(() => {}) }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
+import { LrcEditor } from "./LrcEditor";
+import { useLrcStore } from "../../stores/useLrcStore";
+import { useI18nStore } from "../../stores/useI18nStore";
+import { useSettingsStore } from "../../stores/useSettingsStore";
+import { defaultDocument } from "../../types/lrc";
+beforeEach(() => {
+  useSettingsStore.setState({ showTranslationLines: false, showSpellCheck: false });
+  vi.stubGlobal("DragEvent", class extends MouseEvent {});
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: ["a", "b", "c", "d"].map((id) => ({ id, text: id, timestamp: null })) },
+    syncMode: "line", activeLineId: "a", isDirty: false, _history: [], _future: [] });
+});
+afterEach(() => { cleanup(); delete (HTMLElement.prototype as unknown as { scrollIntoView?: unknown }).scrollIntoView; vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+it("edits translation text without altering enhanced original timing and obeys spellcheck", () => {
+  useSettingsStore.setState({ showTranslationLines: true, showSpellCheck: true });
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "original", timestamp: 1,
+    translation: "translated", syllables: [{ text: "original", time: 1 }] }] } });
+  const { getByDisplayValue } = render(<LrcEditor onPreview={() => {}} />);
+  const translation = getByDisplayValue("translated");
+  expect(translation.getAttribute("spellcheck")).toBe("true");
+  expect(getByDisplayValue("original").getAttribute("spellcheck")).toBe("true");
+  fireEvent.change(translation, { target: { value: "new\ntranslation" } });
+  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({ text: "original", translation: "new\ntranslation", syllables: [{ text: "original", time: 1 }] });
+  act(() => useSettingsStore.setState({ showTranslationLines: false }));
+  expect(useLrcStore.getState().doc.lines[0].translation).toBe("new\ntranslation");
+});
+it("keeps imported multiline subtitle bodies intact while editing", () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "first\nsecond", timestamp: 1 }] } });
+  const { getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  const lyric = getByRole("textbox");
+  expect(lyric.tagName).toBe("TEXTAREA");
+  expect((lyric as HTMLTextAreaElement).value).toBe("first\nsecond");
+  fireEvent.change(lyric, { target: { value: "first\nchanged" } });
+  expect(useLrcStore.getState().doc.lines[0].text).toBe("first\nchanged");
+});
+
+
+it("asks for explicit translation parts when splitting and cancellation leaves the cue untouched", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "original", translation: "complete translation", timestamp: 1 }] } });
+  const { getByDisplayValue, getByRole, getByText } = render(<LrcEditor onPreview={() => {}} />);
+  const input = getByDisplayValue("original") as HTMLInputElement;
+  input.setSelectionRange(3, 3);
+  fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+  expect(getByText(t.translationSplitTitle)).toBeTruthy();
+  expect(useLrcStore.getState().doc.lines).toHaveLength(1);
+  expect((getByRole("textbox", { name: t.translationFirstPart }) as HTMLTextAreaElement).value).toBe("complete translation");
+  fireEvent.click(getByRole("button", { name: t.cancelLabel }));
+  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({ text: "original", translation: "complete translation" });
+  fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+  fireEvent.change(getByRole("textbox", { name: t.translationFirstPart }), { target: { value: "first part" } });
+  fireEvent.change(getByRole("textbox", { name: t.translationSecondPart }), { target: { value: "second part" } });
+  fireEvent.click(getByRole("button", { name: t.translationSplitAction }));
+  expect(useLrcStore.getState().doc.lines.map(l => [l.text, l.translation])).toEqual([["ori", "first part"], ["ginal", "second part"]]);
+});
+
+
+it("cancels a pending translation split when its document is replaced", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "original", translation: "translated", timestamp: 1 }] } });
+  const { getByDisplayValue, queryByRole } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.keyDown(getByDisplayValue("original"), { key: "Enter", shiftKey: true });
+  act(() => useLrcStore.setState({ doc: defaultDocument(), _documentSession: useLrcStore.getState()._documentSession + 1 }));
+  expect(queryByRole("dialog", { name: t.translationSplitTitle })).toBeNull();
+  expect(useLrcStore.getState().doc.lines).toEqual([]);
+});
+it("keeps ordinary Enter available for multiline cue editing instead of inserting a lyric row", () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "first\nsecond", timestamp: 1 }] } });
+  const { getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  expect(fireEvent.keyDown(getByRole("textbox"), { key: "Enter" })).toBe(true);
+  expect(useLrcStore.getState().doc.lines).toHaveLength(1);
+});
+
+it.each([{ isComposing: true }, { keyCode: 229 }])("keeps IME Enter available without editing rows (%j)", (composition) => {
+  const { getByDisplayValue } = render(<LrcEditor onPreview={() => {}} />);
+  const original = structuredClone(useLrcStore.getState().doc.lines);
+  fireEvent.keyDown(getByDisplayValue("a"), { key: "Enter", ...composition });
+  fireEvent.keyDown(getByDisplayValue("a"), { key: "Enter", shiftKey: true, ...composition });
+  expect(useLrcStore.getState().doc.lines).toEqual(original);
+});
+it("ignores an unchanged enhanced lyric value", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "original", timestamp: 1, syllables: [{ text: "original", time: 1 }] }] } });
+  const { getByDisplayValue, queryByText } = render(<LrcEditor onPreview={() => {}} />);
+  const input = getByDisplayValue("original") as HTMLInputElement;
+  input.value = "uncommitted composition";
+  fireEvent.change(input, { target: { value: "original" } });
+  expect(queryByText(t.charSync.retokenizeTitle)).toBeNull();
+  expect(useLrcStore.getState().doc.lines[0].syllables).toEqual([{ text: "original", time: 1 }]);
+});
+it("rejects pending translation parts when the source has changed", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "original", translation: "translated", timestamp: 1 }] } });
+  const { getByDisplayValue, getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.keyDown(getByDisplayValue("original"), { key: "Enter", shiftKey: true });
+  act(() => useLrcStore.getState().updateLine("a", { text: "changed" }));
+  fireEvent.click(getByRole("button", { name: t.translationSplitAction }));
+  expect(useLrcStore.getState().doc.lines.map(l => l.text)).toEqual(["changed"]);
+});
+it("cancels a translation split with Escape while preserving composition", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "original", translation: "translated", timestamp: 1 }] } });
+  const { getByDisplayValue, queryByRole } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.keyDown(getByDisplayValue("original"), { key: "Enter", shiftKey: true });
+  fireEvent.keyDown(window, { key: "Escape", isComposing: true });
+  expect(queryByRole("dialog", { name: t.translationSplitTitle })).not.toBeNull();
+  fireEvent.keyDown(window, { key: "Escape" });
+  expect(queryByRole("dialog", { name: t.translationSplitTitle })).toBeNull();
+});
+it("requires explicit parts for an empty translation and retains both empty strings", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "original", translation: "", timestamp: 1 }] } });
+  const { getByDisplayValue, getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  const input = getByDisplayValue("original") as HTMLInputElement;
+  input.setSelectionRange(3, 3);
+  fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+  expect((getByRole("textbox", { name: t.translationFirstPart }) as HTMLTextAreaElement).value).toBe("");
+  expect((getByRole("textbox", { name: t.translationSecondPart }) as HTMLTextAreaElement).value).toBe("");
+  fireEvent.click(getByRole("button", { name: t.translationSplitAction }));
+  expect(useLrcStore.getState().doc.lines.map(line => [line.text, line.translation])).toEqual([["ori", ""], ["ginal", ""]]);
+});
+
+it.each([2.369, 3602.369, 2.36912345])("preserves timestamp %s and history when inline editing is left unchanged", (timestamp) => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "precise", timestamp }] }, _history: [], _future: [] });
+  const original = useLrcStore.getState().doc;
+  const { container, getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  const timestampButton = container.querySelector('[data-line-id="a"] .ls-line-time button')!;
+  fireEvent.click(timestampButton);
+  const input = container.querySelector('[data-line-id="a"] .ls-line-time input')!;
+  fireEvent.blur(input);
+  expect(useLrcStore.getState().doc).toBe(original);
+  expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(timestamp);
+  expect(useLrcStore.getState()._history).toHaveLength(0);
+  expect(getByRole("textbox").getAttribute("value")).toBe("precise");
+});
+
+it("commits an hour-aware timestamp while composition and Escape preserve the original", () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "precise", timestamp: 2.369 }] }, _history: [] });
+  const { container, getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getByRole("button", { name: "0:00:02.369" }));
+  let input = container.querySelector('.ls-line-time input')!;
+  fireEvent.change(input, { target: { value: "1:00:02.369" } });
+  fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+  expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(2.369);
+  fireEvent.keyDown(input, { key: "Escape" });
+  expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(2.369);
+  fireEvent.click(getByRole("button", { name: "0:00:02.369" }));
+  input = container.querySelector('.ls-line-time input')!;
+  fireEvent.change(input, { target: { value: "1:00:02.369" } });
+  fireEvent.keyDown(input, { key: "Enter" });
+  expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(3602.369);
+  expect(useLrcStore.getState()._history).toHaveLength(1);
+});
+
+it.each([false,true])('keeps replacement dollar text literal in the editor (all=%s)', all => {
+ const t=useI18nStore.getState().t;
+ useLrcStore.setState({doc:{...defaultDocument(),lines:[{id:'a',text:'original original',timestamp:1}]}});
+ const {getByPlaceholderText,getByRole}=render(<LrcEditor onPreview={()=>{}} />);
+ fireEvent.keyDown(window,{code:'KeyF',ctrlKey:true});
+ fireEvent.change(getByPlaceholderText(t.findPlaceholder),{target:{value:'original'}});
+ fireEvent.change(getByPlaceholderText(t.replacePlaceholder),{target:{value:'$&'}});
+ fireEvent.click(getByRole('button',{name:all?t.replaceAll:t.replaceBtn}));
+ expect(useLrcStore.getState().doc.lines[0].text).toBe(all?'$& $&':'$& original');
+});

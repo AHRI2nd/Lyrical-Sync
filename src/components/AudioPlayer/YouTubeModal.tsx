@@ -33,19 +33,19 @@ export function YouTubeModal({
       onClick={onClose}
     >
       <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)]">
           <div className="flex items-center gap-2">
             <span className="text-red-500"><YouTubeLinkIcon /></span>
-            <span className="font-semibold text-zinc-100 text-sm">{t.youtubeModalTitle}</span>
+            <span className="font-semibold text-[var(--ls-text)] text-sm">{t.youtubeModalTitle}</span>
           </div>
           {!ytLoading && (
             <button
               onClick={onClose}
               aria-label={t.close}
-              className="text-zinc-500 hover:text-white transition-colors text-lg leading-none"
+              className="ls-button hover:text-white transition-colors text-lg leading-none"
             >
               ✕
             </button>
@@ -55,17 +55,17 @@ export function YouTubeModal({
         {!youtubeDisclaimerAccepted ? (
           /* 최초 1회 면책 동의 게이트 */
           <div className="p-5 flex flex-col gap-4">
-            <p className="text-sm leading-relaxed text-zinc-300">{t.youtubeDisclaimer}</p>
+            <p className="text-sm leading-relaxed text-[var(--ls-text-secondary)]">{t.youtubeDisclaimer}</p>
             <div className="flex justify-end gap-2">
               <button
                 onClick={onClose}
-                className="px-4 py-2 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
+                className="ls-button text-sm transition-colors"
               >
                 {t.youtubeCancel}
               </button>
               <button
                 onClick={() => setYoutubeDisclaimerAccepted(true)}
-                className="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-500 text-white transition-colors"
+                className="ls-button text-sm bg-red-600 hover:bg-red-500 text-white transition-colors"
               >
                 {t.youtubeAgree}
               </button>
@@ -82,19 +82,19 @@ export function YouTubeModal({
               placeholder={t.youtubeUrlPlaceholder}
               disabled={ytLoading}
               autoFocus
-              className="flex-1 min-w-0 px-3 py-2 text-sm bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-red-500 font-mono disabled:opacity-50"
+              className="ls-field flex-1 min-w-0 text-sm font-mono disabled:opacity-50"
             />
           </div>
 
           {ytLoading && (
-            <span className="text-xs text-zinc-400">{t.youtubeLoading}</span>
+            <span className="text-xs text-[var(--ls-text-secondary)]">{t.youtubeLoading}</span>
           )}
 
           {ytError && (
             <span className="text-xs text-red-400 break-all">{ytError}</span>
           )}
 
-          <p className="text-[11px] leading-relaxed text-zinc-500 border-t border-zinc-800 pt-3">
+          <p className="text-[11px] leading-relaxed text-[var(--ls-text-secondary)] border-t border-[var(--ls-border-subtle)] pt-3">
             {t.youtubeDisclaimer}
           </p>
 
@@ -102,7 +102,7 @@ export function YouTubeModal({
             {ytLoading ? (
               <button
                 onClick={onCancel}
-                className="px-4 py-2 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
+                className="ls-button text-sm transition-colors"
               >
                 {t.youtubeCancel}
               </button>
@@ -110,14 +110,14 @@ export function YouTubeModal({
               <>
                 <button
                   onClick={onClose}
-                  className="px-4 py-2 text-sm rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
+                  className="ls-button text-sm transition-colors"
                 >
                   {t.youtubeCancel}
                 </button>
                 <button
                   onClick={onLoad}
                   disabled={!ytUrl.trim()}
-                  className="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
+                  className="ls-button text-sm bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
                 >
                   {t.youtubeLoad}
                 </button>

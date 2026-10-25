@@ -7,7 +7,7 @@
 ![main](img/main_ja.png)
 
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
-![バージョン](https://img.shields.io/badge/version-0.6.3-green)
+![バージョン](https://img.shields.io/badge/version-0.7.0-green)
 ![Tauri](https://img.shields.io/badge/Tauri-v2-24C8D8)
 ![React](https://img.shields.io/badge/React-19-61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6)
@@ -63,19 +63,11 @@
 
 [Releases](../../releases) ページから最新の `.dmg` インストーラーをダウンロードし、Lyrical Sync をアプリケーションフォルダにドラッグします。
 
-> **未署名アプリの警告**
->
-> インストール後、ターミナルで次のコマンドを実行してください：
->
-> ```bash
-> xattr -cr /Applications/Lyrical\ Sync.app
-> ```
->
-> その後、通常どおりアプリを開きます。
-
 ### Windows
 
-[Releases](../../releases) ページから最新の `.msi` または `_x64-setup.exe` インストーラーをダウンロードして実行します。
+[Releases](../../releases) でアーキテクチャに合うインストーラーを選びます。**x64** は `.msi` または `_x64-setup.exe`、**ARM64** は `_arm64-setup.exe`（NSIS）を使用します。ARM64 の AI ツールは CPU でネイティブ実行されます。
+
+更新はインストール済みアプリのアーキテクチャを維持します。Windows ARM 上の x64 アプリも x64 更新を受け取ります。変更する場合は対応するインストーラーで明示的に再インストールしてください。ARM64 の Python と yt-dlp のキャッシュは既存の x64 キャッシュから分離されます。
 
 > **SmartScreen の警告**
 >
@@ -116,14 +108,14 @@
 | 状態管理 | Zustand | 5.0.14 |
 | 波形 | Wavesurfer.js | 7.12.10 |
 | AI ランタイム | 内蔵 Python | 3.11.10（ビルド 20241016） |
-| AI 整列 | ctc-forced-aligner + MMS-300M | `<2`（pip 範囲）；Hugging Face `main`（バージョン固定なし） |
-| ボーカル分離 | Demucs + htdemucs チェックポイント | Demucs は未固定；チェックポイント SHA-256 `8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4` |
+| AI 整列 | ctc-forced-aligner + MMS-300M | `1.0.2`; ONNX revision `77d85f9` + SHA-256 |
+| ボーカル分離 | Demucs + htdemucs チェックポイント | Demucs `4.0.1`;チェックポイント SHA-256 `8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4` |
 | 音声タグ / トランスコード | lofty + Symphonia (Rust) | 0.22.4、0.5.5 |
 | ファイル I/O / ダイアログ | Tauri fs / dialog プラグイン | 2.5.1、2.7.1 |
 | YouTube ダウンローダー | yt-dlp | 実行時に GitHub 最新リリースを取得 |
 | macOS メディアアダプター | mediaremote-adapter | ベンダーコミット `3ac3d4bdf862c7b5399b4fba4df5689f5c38609a` |
 
-バッジは現在のアプリバージョンを示します。JavaScript と Rust の正確な依存バージョンは `package-lock.json` と `src-tauri/Cargo.lock` に基づいています。AI パッケージとリソースの方針もコード上の指定どおりに記載しています。アライナーと Demucs の Python パッケージは正確なリリースに固定されず、MMS モデルは変更可能な Hugging Face `main` ブランチを使用し、yt-dlp は実行時点の最新リリースを取得します。Demucs のチェックポイントは SHA-256 で検証されます。
+バッジはアプリのバージョンを示します。JavaScript/Rust は各 lockfile が基準です。AI の直接依存は `src-tauri/requirements-ai.txt`、Python・aligner・ONNX の固定 URL と SHA-256 は `src-tauri/ai-manifest.json` に記録しています。一時環境で import と `pip check` に成功した後に切り替え、推移的依存の実際のバージョンも記録します。プラットフォーム別の完全な推移的依存 lockfile は未提供です。yt-dlp は最新リリースと公開チェックサムを使用します。
 
 ---
 
@@ -144,3 +136,19 @@ npm test            # フロントエンド単体テスト
 ```
 
 ビルド成果物は `src-tauri/target/release/bundle/` に出力されます。
+
+
+### Windows architecture builds
+
+```sh
+npm ci
+npm run build:windows-arm64
+npm run build:windows-x64
+```
+
+Install the matching Rust target and MSVC C++ build tools first. ARM64 builds also
+require LLVM/clang on PATH for the cryptography dependency. ARM64 uses NSIS;
+x64 retains NSIS and MSI. Output paths include the Rust target triple under
+`src-tauri/target/`. Native ARM64 AI wheel provenance and rebuild instructions
+are in `src-tauri/resources/windows-arm64-ai/README.md`. The ARM-specific package
+pins are in `src-tauri/requirements-ai-windows-arm64.txt`.

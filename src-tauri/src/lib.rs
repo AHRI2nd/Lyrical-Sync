@@ -1,7 +1,19 @@
+#[cfg(all(target_os = "macos", not(target_arch = "aarch64")))]
+compile_error!("Lyrical Sync supports Apple Silicon Macs only; Intel macOS is unsupported.");
+
+mod python_runtime;
+mod platform_profile;
+#[cfg(any(all(target_os = "windows", target_arch = "aarch64"), test))]
+mod arm_ai;
+mod alignment_process;
+mod atomic_write;
+mod batch_output;
+mod oauth_listener;
 mod service_auth;
 use service_auth::*;
 mod now_playing;
 use now_playing::*;
+mod model_store;
 mod models;
 use models::*;
 mod python_env;
@@ -22,7 +34,7 @@ async fn read_lrc_file(path: String) -> Result<String, String> {
 
 #[tauri::command]
 async fn write_lrc_file(path: String, content: String) -> Result<(), String> {
-    std::fs::write(&path, content).map_err(|e| e.to_string())
+    atomic_write::write_atomic(std::path::Path::new(&path), &content).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -157,6 +169,7 @@ pub fn run() {
         .manage(ModelsDirState::default())
         .manage(AlignmentState::default())
         .manage(YtdlpState::default())
+        .manage(lrclib::PublishState::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
@@ -172,6 +185,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             read_lrc_file,
             write_lrc_file,
+            batch_output::write_batch_output,
             read_audio_file,
             decode_audio_to_wav,
             read_audio_metadata,
@@ -187,6 +201,7 @@ pub fn run() {
             run_alignment,
             cancel_alignment,
             start_oauth_listener,
+            cancel_oauth_listener,
             exchange_spotify_token,
             refresh_spotify_token,
             save_refresh_token,
@@ -197,6 +212,7 @@ pub fn run() {
             ytdlp_load_audio,
             cancel_ytdlp_load,
             lrclib_publish,
+            cancel_lrclib_publish,
             get_now_playing,
             now_playing_toggle_play_pause,
             now_playing_seek,

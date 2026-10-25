@@ -1,4 +1,9 @@
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { LineNavigator as LineDots } from "./LineNavigator";
+import { ClearGlyphTimings } from "./ClearGlyphTimings";
+import { WaveformViewMenu } from "./WaveformViewMenu";
+import { getLinePlaybackRange } from "../../utils/linePlaybackRange";
+import { CharWaveformPanel } from "./CharWaveformPanel";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -6,7 +11,7 @@ import { useServiceStore } from "../../stores/useServiceStore";
 import { useDeviceStore } from "../../stores/useDeviceStore";
 import { tokenizeText, isStampable, formatTimestamp, clampToNeighbors } from "../../utils/lrcParser";
 import { anyModalOpen } from "../../utils/modalGuard";
-import { isInteractiveKeyTarget, matchAction, normalizeKeybindings } from "../../utils/keybindings";
+import { isInteractiveKeyTarget, keyLabel, matchAction, normalizeKeybindings } from "../../utils/keybindings";
 import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
 import type { LrcLine, LrcSyllable } from "../../types/lrc";
@@ -14,19 +19,8 @@ import type { LrcLine, LrcSyllable } from "../../types/lrc";
 // 줄 타임스탬프가 없을 때 글자를 펼칠 기본 시간 창(초)
 const DEFAULT_SPAN = 8;
 
-// 찍힌 글자 아래 시간 마커(점선+시각) 레이아웃
-const MARK_STEP = 13;        // 단계당 점선 길이 증가(px)
-const MARK_LEVELS = 5;       // 라벨을 배치할 최대 단계 수
-const MARK_GAP = 8;          // 라벨 간 최소 간격(px)
-const MARK_LABEL_H = 14;     // 라벨 높이(px)
-const MARK_TICK = 5;         // 라벨 없는(겹쳐서 생략된) 글자의 짧은 틱 길이(px)
-const MIN_LANE_SPAN = 2;     // 1×에서 최소 표시 시간(초)
-const MAX_LANE_BARS = 600;   // 좁은 패널에서 SVG 요소 수와 막대 밀도 제한
+const MIN_LANE_SPAN = 2;
 
-// label=false: 라벨 들어갈 자리가 없어 틱만 표시
-type TimeMark = { index: number; x: number; level: number; time: string; label: boolean };
-
-type LineState = "none" | "partial" | "done";
 type LaneContext = {
   audioPath: string | null;
   activeLineId: string | null;
@@ -44,15 +38,6 @@ type LaneDrag = LanePreview & {
   raf: number | null;
 };
 
-function lineSyncState(line: LrcLine): LineState {
-  const syl = line.syllables;
-  if (!syl) return "none";
-  const stampable = syl.filter(isStampable);
-  if (stampable.length === 0) return "none";
-  const timed = stampable.filter((s) => s.time !== null).length;
-  if (timed === 0) return "none";
-  return timed < stampable.length ? "partial" : "done";
-}
 
 function getLaneViewRange(
   start: number,
@@ -66,42 +51,27 @@ function getLaneViewRange(
   const rangeEnd = Math.min(trackEnd, Math.max(rangeStart, end));
   const rangeSpan = rangeEnd - rangeStart;
   const displaySpan = Math.min(trackEnd, Math.max(MIN_LANE_SPAN, rangeSpan));
-  const rangeCenter = (rangeStart + rangeEnd) / 2;
-  const maxDisplayStart = Number.isFinite(trackEnd) ? Math.max(0, trackEnd - displaySpan) : Infinity;
-  const displayStart = Math.min(maxDisplayStart, Math.max(0, rangeCenter - displaySpan / 2));
-  const displayEnd = displayStart + displaySpan;
-
   const zoomSpan = displaySpan / Math.max(1, zoom);
-  const center = Math.min(displayEnd, Math.max(displayStart, currentTime));
-  const maxZoomStart = displayEnd - zoomSpan;
-  const viewStart = Math.min(maxZoomStart, Math.max(displayStart, center - zoomSpan / 2));
+  // Only track boundaries stop scrolling; lyric boundaries define width, not position.
+  const maxZoomStart = Number.isFinite(trackEnd) ? Math.max(0, trackEnd - zoomSpan) : Infinity;
+  const viewStart = Math.min(maxZoomStart, Math.max(0, currentTime - zoomSpan / 2));
   return { start: viewStart, end: viewStart + zoomSpan };
 }
 
-function limitLaneBars(peaks: number[], maxBars: number): number[] {
-  if (peaks.length <= maxBars) return peaks;
-  return Array.from({ length: maxBars }, (_, bin) => {
-    const start = Math.floor((bin * peaks.length) / maxBars);
-    const end = Math.max(start + 1, Math.floor(((bin + 1) * peaks.length) / maxBars));
-    let peak = 0;
-    for (let i = start; i < end; i++) peak = Math.max(peak, Math.abs(peaks[i]));
-    return peak;
-  });
-}
-
-export function CharSyncView() {
+export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void } = {}) {
   const doc = useLrcStore((s) => s.doc);
   const activeLineId = useLrcStore((s) => s.activeLineId);
   const setActiveLineId = useLrcStore((s) => s.setActiveLineId);
   const currentTime = useLrcStore((s) => s.currentTime);
   const isPlaying = useLrcStore((s) => s.isPlaying);
   const duration = useLrcStore((s) => s.duration);
+  const loopLineId = useLrcStore((s) => s.loopLineId);
+  const setLoopLine = useLrcStore((s) => s.setLoopLine);
   const audioPath = useLrcStore((s) => s.audioPath);
   const syncUnit = useLrcStore((s) => s.syncUnit);
   const activeSyllableIndex = useLrcStore((s) => s.activeSyllableIndex);
   const setActiveSyllable = useLrcStore((s) => s.setActiveSyllable);
   const commitSyllables = useLrcStore((s) => s.commitSyllables);
-  const clearLineSyllables = useLrcStore((s) => s.clearLineSyllables);
   const { t } = useI18nStore();
   const spotifyMode = useSettingsStore((s) => s.spotifyMode);
   const lyricsFontScale = useSettingsStore((s) => s.lyricsFontScale);
@@ -113,11 +83,15 @@ export function CharSyncView() {
   const deviceIdentity = useDeviceStore((s) => JSON.stringify([
     s.hasSession, s.sourceApp, s.trackName, s.artistName, s.albumName,
   ]));
+  const waveformHeight = useSettingsStore(s => s.glyphWaveformHeight);
+  const waveformStyle = useSettingsStore(s => s.glyphWaveformStyle);
+  const stampKey = keyLabel(normalizeKeybindings(useSettingsStore(s => s.keybindings)).stamp);
   const controls = serviceLoggedIn && spotifyMode ? serviceControls : audioControls;
   const controlSource = serviceLoggedIn && spotifyMode ? "spotify" : deviceMode ? "device" : "local";
+  const audioSelection = useLrcStore(s => s._audioSelection);
   const controlIdentity = controlSource === "spotify"
     ? `${serviceTrackUri ?? ""}:${serviceDeviceId ?? ""}`
-    : controlSource === "device" ? deviceIdentity : audioPath ?? "";
+    : controlSource === "device" ? deviceIdentity : `${audioPath ?? ""}:${audioSelection}`;
 
   const lines = doc.lines;
   const lineIdx = activeLineId ? lines.findIndex((l) => l.id === activeLineId) : 0;
@@ -138,7 +112,7 @@ export function CharSyncView() {
   const prevLineTs = lineIdx > 0 ? lines[lineIdx - 1].timestamp : null;
   const nextLineTs = (() => {
     for (let i = lineIdx + 1; i < lines.length; i++) {
-      if (lines[i].timestamp !== null) return lines[i].timestamp;
+      if (lines[i].timestamp !== null && (line?.timestamp == null || lines[i].timestamp! > line.timestamp)) return lines[i].timestamp;
     }
     return null;
   })();
@@ -148,30 +122,53 @@ export function CharSyncView() {
     Math.min(winStart + DEFAULT_SPAN, duration > 0 ? duration : winStart + DEFAULT_SPAN);
   if (winEnd <= winStart) winEnd = winStart + DEFAULT_SPAN;
 
+  const repeatRange = getLinePlaybackRange(lines, activeLineId, duration);
+  const canRepeat = !!audioPath && controlSource === "local" && repeatRange !== null;
+  const repeatContext = useRef({ audioPath, document: doc.extraTags });
+  useEffect(() => {
+    const changed = repeatContext.current.audioPath !== audioPath || repeatContext.current.document !== doc.extraTags;
+    repeatContext.current = { audioPath, document: doc.extraTags };
+    if (loopLineId && (changed || loopLineId !== activeLineId || !canRepeat)) setLoopLine(null);
+  }, [audioPath, doc.extraTags, loopLineId, activeLineId, canRepeat, setLoopLine]);
+
+  // Extra tags retain their object identity while glyph stamps update the document.
+  // New/imported documents provide a fresh object, so their viewing scale resets.
+  const viewSpan = useMemo(() => Math.max(MIN_LANE_SPAN, winEnd - winStart),
+    [doc.extraTags, activeLineId, audioPath, duration, controlIdentity, controlSource]);
+
   // 레인 줌: 창을 1/zoom 너비로 좁혀 재생헤드 중심으로 표시 → 밀집 구간 정밀도↑
   const [zoom, setZoom] = useState(1);
+  const [viewAnchor, setViewAnchor] = useState(currentTime);
+  const [followPlayback, setFollowPlayback] = useState(true);
   const [lanePreview, setLanePreview] = useState<LanePreview | null>(null);
   const laneDragRef = useRef<LaneDrag | null>(null);
   const laneSeekPendingRef = useRef(false);
   const lanePreviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousCurrentTimeRef = useRef(currentTime);
-  useEffect(() => { setZoom(1); }, [activeLineId]);
-  const { start: viewStart, end: viewEnd } = getLaneViewRange(winStart, winEnd, duration, currentTime, zoom);
+  useEffect(() => { setZoom(1); setFollowPlayback(true); setViewAnchor(useLrcStore.getState().currentTime); }, [doc.extraTags, activeLineId, audioPath, controlIdentity, controlSource]);
+  // Derive the following window in the same render as the playhead to avoid a frame of drift.
+  const { start: viewStart, end: viewEnd } = getLaneViewRange(
+    0, viewSpan, duration, followPlayback ? currentTime : viewAnchor, zoom,
+  );
   const visibleViewStart = lanePreview?.start ?? viewStart;
   const visibleViewEnd = lanePreview?.end ?? viewEnd;
-  const pct = (time: number) =>
-    `${Math.max(0, Math.min(1, (time - visibleViewStart) / (visibleViewEnd - visibleViewStart))) * 100}%`;
 
-  // 레인 파형: 전체 트랙 peaks에서 표시 창(view) 구간만 잘라 막대로
-  const peaks = useMemo(() => audioControls.getPeaks(), [audioPath, duration]);
-  const waveBars = useMemo(() => {
-    if (!peaks || duration <= 0 || visibleViewEnd <= visibleViewStart) return null;
-    const i0 = Math.max(0, Math.floor((visibleViewStart / duration) * peaks.length));
-    const i1 = Math.min(peaks.length, Math.ceil((visibleViewEnd / duration) * peaks.length));
-    if (i1 <= i0) return null;
-    const visiblePeaks = peaks.slice(i0, i1).map((v) => Math.min(1, Math.abs(v)));
-    return limitLaneBars(visiblePeaks, MAX_LANE_BARS);
-  }, [peaks, duration, visibleViewStart, visibleViewEnd]);
+
+  const discardLanePreview = () => {
+    const drag = laneDragRef.current;
+    if (drag?.raf != null) cancelAnimationFrame(drag.raf);
+    laneDragRef.current = null;
+    laneSeekPendingRef.current = false;
+    if (lanePreviewTimerRef.current) clearTimeout(lanePreviewTimerRef.current);
+    lanePreviewTimerRef.current = null;
+    setLanePreview(null);
+  };
+  const seekWithFollow = (seconds: number, controller = controls) => {
+    discardLanePreview();
+    setFollowPlayback(true);
+    setViewAnchor(seconds);
+    controller.seekTo(seconds);
+  };
 
   // 재생 위치에서 지금 불리는 글자(편집 커서와 별개). 창 밖이면 -1.
   const playingIdx = useMemo(() => {
@@ -184,51 +181,7 @@ export function CharSyncView() {
     return idx;
   }, [syllables, currentTime, winStart, winEnd]);
 
-  // 찍힌 글자 아래 시간 마커(점선+시각). 글자 위치·라벨 폭을 측정해 겹치지 않게 배치.
   const textRef = useRef<HTMLDivElement>(null);
-  const measureRef = useRef<HTMLSpanElement>(null);
-  const [marks, setMarks] = useState<TimeMark[]>([]);
-  const [marksHeight, setMarksHeight] = useState(0);
-  const [measureKey, setMeasureKey] = useState(0);
-
-  useEffect(() => {
-    const onResize = () => setMeasureKey((k) => k + 1);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-
-  useLayoutEffect(() => {
-    const root = textRef.current;
-    if (!root || !showGlyphTimeMarkers) { setMarks([]); setMarksHeight(0); return; }
-    // 실제 라벨 폭 측정(폰트 의존). 실패 시 보수적 기본값.
-    const labelW = (measureRef.current?.offsetWidth ?? 56) + MARK_GAP;
-    const levelRight: number[] = []; // 단계별 마지막 라벨 우측 끝
-    const out: TimeMark[] = [];
-    let maxLabelLevel = 0;
-    for (let i = 0; i < syllables.length; i++) {
-      const s = syllables[i];
-      if (s.time === null || !isStampable(s)) continue;
-      const el = root.querySelector<HTMLElement>(`[data-glyph="${i}"]`);
-      if (!el) continue;
-      const cx = el.offsetLeft + el.offsetWidth / 2;
-      const left = cx - labelW / 2;
-      const right = cx + labelW / 2;
-      // 겹치지 않는 가장 낮은 단계 찾기. 없으면 라벨 생략(틱만) → 겹침 0 보장.
-      let level = -1;
-      for (let L = 0; L < MARK_LEVELS; L++) {
-        if (levelRight[L] === undefined || levelRight[L] <= left) { level = L; break; }
-      }
-      const hasLabel = level !== -1;
-      if (hasLabel) {
-        levelRight[level] = right;
-        maxLabelLevel = Math.max(maxLabelLevel, level);
-      }
-      out.push({ index: i, x: cx, level: hasLabel ? level : 0, time: formatTimestamp(s.time), label: hasLabel });
-    }
-    const anyLabel = out.some((m) => m.label);
-    setMarks(out);
-    setMarksHeight(out.length ? (anyLabel ? maxLabelLevel * MARK_STEP + MARK_LABEL_H + 6 : MARK_TICK + 4) : 0);
-  }, [syllables, activeLineId, syncUnit, measureKey, showGlyphTimeMarkers, lyricsFontScale]);
 
   // 활성 줄이 바뀌면 활성 글자를 첫 미입력(없으면 첫 글자)으로
   useEffect(() => {
@@ -303,12 +256,13 @@ export function CharSyncView() {
     commitSyllables(ln.id, syl.map((x, i) => (i === idx ? { ...x, time: nt } : x)));
     const ctrl = useServiceStore.getState().isLoggedIn && useSettingsStore.getState().spotifyMode
       ? serviceControls : audioControls;
-    ctrl.seekTo(nt);
+    seekWithFollow(nt, ctrl);
   };
 
   // ←→=글자 이동(Shift=미세조정, 고정) · stamp/prevLine=사용자 단축키
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.isComposing || e.keyCode === 229) return;
       if (isInteractiveKeyTarget(e.target) || isInteractiveKeyTarget(document.activeElement)) return;
       // 모달이 열려 있으면 글자 모드 키가 모달 뒤에서 동작하지 않게 차단
       if (anyModalOpen()) return;
@@ -420,6 +374,8 @@ export function CharSyncView() {
     const changed = previousCurrentTimeRef.current !== currentTime;
     previousCurrentTimeRef.current = currentTime;
     if (!laneSeekPendingRef.current || !changed) return;
+    setViewAnchor(currentTime);
+    setFollowPlayback(true);
     laneSeekPendingRef.current = false;
     if (lanePreviewTimerRef.current) clearTimeout(lanePreviewTimerRef.current);
     lanePreviewTimerRef.current = null;
@@ -470,14 +426,16 @@ export function CharSyncView() {
   const beginDrag = (index: number, e: React.MouseEvent) => {
     if (!line || e.button !== 0) return; // 좌클릭만 (우클릭은 글자 지우기)
     e.preventDefault();
+    textRef.current?.focus({ preventScroll: true });
     const startX = e.clientX;
+    const startY = e.clientY;
     let painting = false;
     let lastIdx = -1;
     let advancedViaEnd = false;
 
     const move = (ev: MouseEvent) => {
       if (!painting) {
-        if (Math.abs(ev.clientX - startX) <= 5) return;
+        if (Math.hypot(ev.clientX - startX, ev.clientY - startY) <= 5) return;
         painting = true;
         stampGlyphAt(index, true); // 칠하기 시작 = 히스토리 1회 기록
         lastIdx = index;
@@ -561,12 +519,8 @@ export function CharSyncView() {
   };
 
   const replayLine = () => {
-    controls.seekTo(winStart);
+    seekWithFollow(winStart);
     if (!isPlaying) controls.togglePlay();
-  };
-
-  const clearLine = () => {
-    if (line) clearLineSyllables(line.id);
   };
 
   // 우클릭: 그 글자의 시각만 제거
@@ -578,7 +532,7 @@ export function CharSyncView() {
   if (!line) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <p className="text-zinc-500 text-sm text-center">{t.charSync.empty}</p>
+        <p className="text-[var(--ls-text-secondary)] text-sm text-center">{t.charSync.empty}</p>
       </div>
     );
   }
@@ -593,249 +547,99 @@ export function CharSyncView() {
   const glyphDone = stampableIdx.filter((i) => syllables[i].time !== null).length;
 
   const ZOOM_LEVELS = [1, 2, 4, 8];
-  const setZoomStep = (dir: number) =>
+  const setZoomStep = (dir: number) => {
+    discardLanePreview();
+    if (!followPlayback) setViewAnchor(readoutSyl?.time ?? viewAnchor);
     setZoom((z) => {
       const i = Math.max(0, Math.min(ZOOM_LEVELS.length - 1, ZOOM_LEVELS.indexOf(z) + dir));
       return ZOOM_LEVELS[i];
     });
+  };
 
-  return (
-    <div className="flex flex-col flex-1 min-h-0">
-      {/* 줄 네비게이터 */}
-      <div className="flex items-center gap-2 px-2 py-1.5 bg-zinc-800/60 rounded-lg mb-4">
-        <button
-          onClick={(e) => { gotoLine(lineIdx - 1); e.currentTarget.blur(); }}
-          disabled={lineIdx <= 0}
-          aria-label={t.charSync.prevLine}
-          className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 transition-colors"
-        >
-          ‹
-        </button>
-        <span className="text-xs text-zinc-500 font-mono shrink-0">
-          {lineIdx + 1} / {lines.length}
-          {glyphTotal > 0 && (
-            <span
-              className={`ml-1.5 ${glyphDone === glyphTotal ? "text-emerald-400" : "text-amber-400"}`}
-              title={t.charSync.glyphProgress}
-            >
-              {glyphDone}/{glyphTotal}
-            </span>
-          )}
-        </span>
-        <LineDots lines={lines} activeIdx={lineIdx} onSelect={setActiveLineId} />
-        <button
-          onClick={(e) => { gotoLine(lineIdx + 1); e.currentTarget.blur(); }}
-          disabled={lineIdx >= lines.length - 1}
-          aria-label={t.charSync.nextLine}
-          className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 transition-colors"
-        >
-          ›
-        </button>
+  const pan = (dir: number) => {
+    discardLanePreview();
+    setFollowPlayback(false);
+    setViewAnchor((visibleViewStart + visibleViewEnd) / 2 + dir * (visibleViewEnd - visibleViewStart) / 2);
+  };
+
+  return <div className="flex flex-col flex-1 min-h-0 overflow-y-auto gap-4 pr-1">
+    <div className="flex flex-wrap items-center gap-2 px-2 py-1.5 border-b border-[var(--ls-border-subtle)] shrink-0">
+      <span className="text-sm text-[var(--ls-text)] shrink-0">{t.charSync.modeChar}</span>
+      {onOpenShortcuts && <button type="button" onClick={onOpenShortcuts} className="ls-button ls-button--compact text-xs">{t.charSync.shortcuts}</button>}
+      <LineDots lines={lines} activeIdx={lineIdx} onSelect={setActiveLineId} />
+      <button type="button" onClick={e => { gotoLine(lineIdx - 1); e.currentTarget.blur(); }} aria-label={t.charSync.prevLine} disabled={lineIdx <= 0}
+        className="ls-button ls-button--compact hover:text-white disabled:opacity-30">‹</button>
+      <span className="text-xs text-[var(--ls-text-secondary)] font-mono shrink-0">{lineIdx + 1}/{lines.length}</span>
+      <button type="button" onClick={e => { gotoLine(lineIdx + 1); e.currentTarget.blur(); }} aria-label={t.charSync.nextLine} disabled={lineIdx >= lines.length - 1}
+        className="ls-button ls-button--compact hover:text-white disabled:opacity-30">›</button>
+    </div>
+    <div className="shrink-0 min-w-0">
+      <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--ls-text-secondary)] mb-3">
+        <span>{t.charSync.currentLine}</span><span title={t.charSync.glyphProgress} className="font-mono tabular-nums">{glyphDone}/{glyphTotal}</span>
+        <div className="ml-auto"><ClearGlyphTimings lineId={line.id} /></div>
       </div>
-
-      <div className="flex-1 min-h-0 overflow-y-auto">
-      <p className="text-xs text-zinc-500 mb-2 px-1">{t.charSync.hint}</p>
-
-      {/* 활성 줄 — 한 줄 흐름 텍스트 + 글자별 시간 마커 (가로 스크롤) */}
-      <div className="overflow-x-auto mb-3">
-      <div ref={textRef} className="relative inline-block" style={{ minWidth: "100%" }}>
-      <div
-        className="leading-relaxed select-none"
-        style={{ whiteSpace: "pre", fontSize: `${1.875 * lyricsFontScale}rem` }}
-      >
-        {syllables.map((s, i) => {
-          if (!isStampable(s)) return <span key={i}>{s.text}</span>;
-          const isCurrent = i === activeSyllableIndex;
-          const isSinging = i === playingIdx && !isCurrent;
-          const stamped = s.time !== null;
-          const cls = isCurrent
-            ? "bg-indigo-500 text-white rounded px-0.5"
-            : isSinging
-            ? "bg-amber-500/20 text-amber-200 rounded px-0.5"
-            : stamped
-            ? "text-zinc-100 border-b-2 border-indigo-500/60"
-            : "text-zinc-600 hover:text-zinc-400";
-          return (
-            <span
-              key={i}
-              data-glyph={i}
-              onMouseDown={(e) => beginDrag(i, e)}
-              onContextMenu={(e) => { e.preventDefault(); clearGlyph(i); }}
-              className={`cursor-pointer transition-colors ${cls}`}
-            >
-              {s.text}
-            </span>
-          );
-        })}
-        {/* 마지막 공백 셀: 여기까지 칠하면(또는 클릭하면) 다음 줄로 */}
-        <span
-          data-glyph-end="1"
-          onClick={() => gotoLine(lineIdx + 1)}
-          title={t.charSync.endCell}
-          className="inline-block align-middle ml-1 w-8 text-center rounded border border-dashed border-zinc-700 text-zinc-600 text-base cursor-pointer hover:border-indigo-500 hover:text-indigo-300 select-none"
-        >
-          ↵
-        </span>
-      </div>
-
-      {/* 글자별 시간 마커: 점선 + 싱크 시각. 겹치면 단계적으로 내리고, 자리가 없으면 라벨 생략(틱만) */}
-      {marksHeight > 0 && (
-        <div className="relative pointer-events-none" style={{ height: marksHeight }}>
-          {marks.map((m) => (
-            <div key={m.index} className="absolute top-0" style={{ left: m.x }}>
-              <div
-                className={`absolute top-0 border-l border-dashed ${m.label ? "border-indigo-400/70" : "border-indigo-400/35"}`}
-                style={{ height: m.label ? m.level * MARK_STEP + 4 : MARK_TICK }}
-              />
-              {m.label && (
-                <div
-                  className="absolute font-mono text-[10px] text-indigo-300 whitespace-nowrap"
-                  style={{ top: m.level * MARK_STEP + 4, transform: "translateX(-50%)" }}
-                >
-                  {m.time}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* 라벨 폭 측정용(숨김) */}
-      <span
-        ref={measureRef}
-        aria-hidden
-        className="font-mono text-[10px] whitespace-nowrap"
-        style={{ position: "absolute", visibility: "hidden", left: -9999, top: 0 }}
-      >
-        00:00.00
-      </span>
-
-      </div>
-      </div>
-
-      {/* 현재 글자 readout + 레인 줌 */}
-      <div className="flex items-center justify-between gap-2 text-xs mb-2 px-1">
-        <span className="font-mono text-indigo-300">
-          {t.charSync.current}: 「{readoutText}」 → {readoutTime}
-        </span>
-        <div className="flex items-center gap-1 shrink-0 text-zinc-500">
-          <span>{t.zoom}</span>
-          <button
-            onClick={(e) => { setZoomStep(-1); e.currentTarget.blur(); }}
-            disabled={zoom <= 1}
-            aria-label={t.zoomOut}
-            className="w-5 h-5 flex items-center justify-center rounded hover:bg-zinc-800 hover:text-white disabled:opacity-30 transition-colors"
-          >
-            −
-          </button>
-          <span className="font-mono text-zinc-400 w-6 text-center">{zoom}×</span>
-          <button
-            onClick={(e) => { setZoomStep(1); e.currentTarget.blur(); }}
-            disabled={zoom >= 8}
-            aria-label={t.zoomIn}
-            className="w-5 h-5 flex items-center justify-center rounded hover:bg-zinc-800 hover:text-white disabled:opacity-30 transition-colors"
-          >
-            +
-          </button>
-        </div>
-      </div>
-      </div>
-
-      {/* 스크럽 레인 */}
-      <div
-        ref={laneRef}
-        onPointerDown={beginLaneDrag}
-        className="relative h-10 rounded-lg bg-zinc-950/60 border border-zinc-800 overflow-hidden cursor-pointer mb-1"
-      >
-        <LaneWaveform bars={waveBars} />
-        {syllables.map((s, i) =>
-          s.time !== null && isStampable(s) && s.time >= visibleViewStart && s.time <= visibleViewEnd ? (
-            <div
-              key={i}
-              style={{ left: pct(s.time) }}
-              className="absolute top-0 bottom-0 w-px bg-indigo-500/50"
-            />
-          ) : null
-        )}
-        <div
-          style={{ left: pct(lanePreview?.time ?? currentTime) }}
-          className="absolute top-0 bottom-0 w-0.5 bg-amber-400 pointer-events-none"
-        />
-        <span className="absolute left-1.5 bottom-0.5 text-[10px] text-zinc-600 font-mono pointer-events-none">
-          {formatTimestamp(visibleViewStart)}
-        </span>
-        <span className="absolute right-1.5 bottom-0.5 text-[10px] text-zinc-600 font-mono pointer-events-none">
-          {formatTimestamp(visibleViewEnd)}
-        </span>
-      </div>
-
-      {/* 하단 컨트롤 */}
-      <div className="flex items-center gap-2 mt-3">
-        <div className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium">
-          <kbd className="px-1.5 py-0.5 rounded bg-indigo-700/70 text-xs font-mono">Space</kbd>
-          {t.charSync.stampHint}
-        </div>
-        <button
-          onClick={(e) => { replayLine(); e.currentTarget.blur(); }}
-          className="px-3 py-2 text-xs rounded-lg text-zinc-300 border border-zinc-700 hover:bg-zinc-800 hover:text-white transition-colors whitespace-nowrap"
-        >
-          ↺ {t.charSync.replayLine}
-        </button>
-        <button
-          onClick={(e) => { clearLine(); e.currentTarget.blur(); }}
-          className="px-3 py-2 text-xs rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-rose-300 transition-colors whitespace-nowrap"
-        >
-          {t.charSync.clearLine}
-        </button>
+      <div ref={textRef} tabIndex={-1} className="min-h-16 leading-relaxed select-none break-words"
+        style={{ whiteSpace: "pre-wrap", fontSize: `${1.875 * lyricsFontScale}rem` }}>
+        {syllables.map((s, i) => !isStampable(s) ? <span key={i}>{s.text}</span> : <span key={i} data-glyph={i}
+          onMouseDown={e => beginDrag(i, e)} onContextMenu={e => { e.preventDefault(); clearGlyph(i); }}
+          className={`ls-glyph cursor-pointer px-0.5 transition-colors ${i === activeSyllableIndex ? "ls-glyph--selected" : i === playingIdx ? "ls-glyph--playing" : s.time !== null ? "ls-glyph--timed text-[var(--ls-text)]" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)]"}`}>
+          {s.text}
+        </span>)}
+        <button type="button" data-glyph-end="1" onClick={e => { gotoLine(lineIdx + 1); e.currentTarget.blur(); }}
+          title={t.charSync.endCell} className="align-middle ml-2 px-1.5 rounded border border-dashed border-[var(--ls-border-subtle)] text-[var(--ls-text-secondary)] text-sm hover:text-[var(--ls-accent)]">↵</button>
       </div>
     </div>
-  );
+    <div className="shrink-0 min-w-0">
+      <div className="flex items-baseline flex-wrap gap-x-2 gap-y-1 border-t border-[var(--ls-border-subtle)] pt-3 pb-3 text-xs">
+        <span className="text-[var(--ls-text-secondary)]">{t.charSync.selectedGlyph}</span>
+        <span className="text-[var(--ls-accent)] font-medium break-all">{readoutText}</span>
+        <span className="font-mono tabular-nums text-[var(--ls-text)]">{readoutTime}</span>
+      </div>
+      <div className="flex items-center justify-between gap-2 flex-wrap mb-3 text-xs">
+        <span className="text-[var(--ls-text-secondary)] font-mono tabular-nums">{t.charSync.displaySpan.replace("{seconds}", String(Number((visibleViewEnd - visibleViewStart).toFixed(2))))}</span>
+        <div className="flex items-center flex-wrap gap-1.5">
+          <button type="button" aria-label={t.charSync.prevWindow} onClick={e => { pan(-1); e.currentTarget.blur(); }} disabled={visibleViewStart <= 0}
+            className="ls-button ls-button--compact disabled:opacity-30">‹</button>
+          <button type="button" aria-label={t.zoomOut} onClick={e => { setZoomStep(-1); e.currentTarget.blur(); }} disabled={zoom <= 1}
+            className="ls-button ls-button--compact disabled:opacity-30">−</button>
+          <span className="text-[var(--ls-text-secondary)] font-mono">{zoom}×</span>
+          <button type="button" aria-label={t.zoomIn} onClick={e => { setZoomStep(1); e.currentTarget.blur(); }} disabled={zoom >= 8}
+            className="ls-button ls-button--compact disabled:opacity-30">+</button>
+          <button type="button" aria-label={t.charSync.nextWindow} onClick={e => { pan(1); e.currentTarget.blur(); }} disabled={duration > 0 && visibleViewEnd >= duration}
+            className="ls-button ls-button--compact disabled:opacity-30">›</button>
+          <button type="button" aria-pressed={followPlayback} onClick={e => { discardLanePreview(); setFollowPlayback(v => !v); setViewAnchor((visibleViewStart + visibleViewEnd) / 2); e.currentTarget.blur(); }}
+            className={`ls-button ls-button--compact ${`  rounded border border-[var(--ls-border-subtle)] ${followPlayback ? "bg-[var(--ls-selection)]/15 text-[var(--ls-accent)]" : "text-[var(--ls-text-secondary)]"}`}`}>{t.charSync.followPlayback}</button>
+          <WaveformViewMenu />
+        </div>
+      </div>
+      <CharWaveformPanel laneRef={laneRef} onPointerDown={beginLaneDrag} audioPath={audioPath}
+        start={visibleViewStart} end={visibleViewEnd} lineStart={winStart} lineEnd={repeatRange?.end ?? winEnd} playhead={lanePreview?.time ?? currentTime}
+        syllables={syllables} activeIndex={activeSyllableIndex} onSelect={index => { setActiveSyllable(index); textRef.current?.focus({ preventScroll: true }); }}
+        available={controlSource === "local"} height={waveformHeight} style={waveformStyle} showMarkers={showGlyphTimeMarkers} repeating={loopLineId === line.id && canRepeat} />
+      <div className="flex gap-x-3 gap-y-1 flex-wrap justify-between text-xs text-[var(--ls-text-secondary)] mt-2">
+        <div className="flex gap-3"><span className="inline-flex gap-1 items-center"><span className="w-0.5 h-2.5 bg-[var(--ls-accent)]" aria-hidden />{t.charSync.selectedGlyph}</span>
+          <span className="inline-flex gap-1 items-center"><span className="w-0.5 h-2.5 bg-[var(--ls-playhead)]" aria-hidden />{t.charSync.playhead}</span></div>
+        <span className="font-mono tabular-nums">{loopLineId === line.id ? t.charSync.repeatLine : t.charSync.currentLine} {formatTimestamp(winStart)} — {formatTimestamp(repeatRange?.end ?? winEnd)}</span>
+      </div>
+    </div>
+    <div className="flex items-center justify-between gap-2 flex-wrap shrink-0">
+      <div className="flex items-center gap-2 flex-wrap">
+        <button type="button" onClick={e => { replayLine(); e.currentTarget.blur(); }} className="ls-button ls-button--compact text-xs">↺ {t.charSync.replayLine}</button>
+        <button type="button" aria-label={t.charSync.repeatLine} aria-pressed={loopLineId === line.id} disabled={!canRepeat}
+          title={canRepeat ? t.charSync.repeatLine : t.charSync.repeatUnavailable}
+          onClick={e => {
+            if (loopLineId === line.id) setLoopLine(null);
+            else if (canRepeat && repeatRange) { setLoopLine(line.id); seekWithFollow(repeatRange.start); }
+            e.currentTarget.blur();
+          }} className={`ls-button ls-button--compact ${`  text-xs rounded-md border border-[var(--ls-border-subtle)] disabled:opacity-30 ${loopLineId === line.id ? "bg-[var(--ls-selection)]/15 text-[var(--ls-accent)]" : "text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)]"}`}`}>
+          {t.charSync.repeatLine} · {loopLineId === line.id ? t.charSync.repeatOn : t.charSync.repeatOff}
+        </button>
+      </div>
+      <button type="button" aria-label={t.charSync.stampHint} onClick={e => { stampActive(); e.currentTarget.blur(); textRef.current?.focus({ preventScroll: true }); }}
+        className="ls-button ls-button--primary flex items-center justify-center gap-2 font-medium">
+        {t.charSync.stampHint}<kbd className="px-1 py-0.5 border border-white/50 rounded font-mono text-xs">{stampKey}</kbd>
+      </button>
+    </div>
+
+  </div>;
 }
-
-// 줄 점 네비게이터: lines/활성 줄이 바뀔 때만 갱신 → 재생 중 매 프레임 재렌더 방지
-const LineDots = memo(function LineDots({
-  lines, activeIdx, onSelect,
-}: {
-  lines: LrcLine[];
-  activeIdx: number;
-  onSelect: (id: string) => void;
-}) {
-  return (
-    <div className="flex-1 flex items-center gap-1.5 overflow-x-auto py-1">
-      {lines.map((l, i) => {
-        const st = lineSyncState(l);
-        const active = i === activeIdx;
-        const color =
-          st === "done" ? "bg-emerald-500" : st === "partial" ? "bg-amber-500" : "bg-zinc-600";
-        return (
-          <button
-            key={l.id}
-            onClick={() => onSelect(l.id)}
-            title={`${i + 1}. ${l.text}`}
-            aria-label={`${i + 1}. ${l.text}`}
-            className={`shrink-0 rounded-full transition-all ${color} ${
-              active ? "w-2.5 h-2.5 ring-2 ring-indigo-400/60" : "w-2 h-2 opacity-70 hover:opacity-100"
-            }`}
-          />
-        );
-      })}
-    </div>
-  );
-});
-
-// 파형 막대는 시간 창(window)이 바뀔 때만 갱신 → 재생 중 매 프레임 재렌더 방지
-const LaneWaveform = memo(function LaneWaveform({ bars }: { bars: number[] | null }) {
-  if (!bars) return null;
-  return (
-    <svg
-      className="absolute inset-0 w-full h-full pointer-events-none"
-      viewBox={`0 0 ${bars.length} 100`}
-      preserveAspectRatio="none"
-    >
-      {bars.map((v, k) => {
-        const h = Math.max(1, v * 64);
-        return <rect key={k} x={k + 0.1} width={0.8} y={(100 - h) / 2} height={h} fill="#3f3f46" />;
-      })}
-    </svg>
-  );
-});

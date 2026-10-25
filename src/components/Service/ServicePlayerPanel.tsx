@@ -101,7 +101,7 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
       </div>
 
       {/* Volume */}
-      <div className="flex items-center gap-2.5 text-zinc-400" title={`${t.volume} ${Math.round(volume * 100)}%`}>
+      <div className="flex items-center gap-2.5 text-[var(--ls-text-secondary)]" title={`${t.volume} ${Math.round(volume * 100)}%`}>
         <span className="shrink-0"><VolumeIcon /></span>
         <input
           type="range" min={0} max={1} step={0.01} value={volume}
@@ -110,23 +110,23 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
             setVolume(v);
             setSpotifyVolume(v).catch(() => {});
           }}
-          className="range-slim min-w-0 flex-1"
-          style={{ background: `linear-gradient(to right, #22c55e ${Math.round(volume * 100)}%, #3f3f46 ${Math.round(volume * 100)}%)`, ["--slim-accent" as string]: "#22c55e" }}
+          className="ls-range range-slim min-w-0 flex-1"
+          style={{ backgroundImage: `linear-gradient(to right, #22c55e ${Math.round(volume * 100)}%, #3f3f46 ${Math.round(volume * 100)}%)`, ["--slim-accent" as string]: "#22c55e" }}
         />
-        <span className="shrink-0 w-9 text-right text-xs text-zinc-400 tabular-nums">{Math.round(volume * 100)}%</span>
+        <span className="shrink-0 w-9 text-right text-xs text-[var(--ls-text-secondary)] tabular-nums">{Math.round(volume * 100)}%</span>
       </div>
 
       {/* 곡 검색/열기 버튼 + 기기 선택 */}
       <div className="flex gap-2">
         <button
           onClick={onLoadCurrent}
-          className="flex-1 py-2 rounded-lg border border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800 text-zinc-300 text-sm transition-colors text-center truncate"
+          className="ls-button flex-1 text-sm transition-colors text-center truncate"
         >
           {t.spotifyLoadCurrent}
         </button>
         <button
           onClick={onSpotifySearch}
-          className="flex-1 py-2 rounded-lg border border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800 text-zinc-300 text-sm transition-colors text-center truncate"
+          className="ls-button flex-1 text-sm transition-colors text-center truncate"
         >
           {t.spotifySearchTrack}
         </button>
@@ -134,7 +134,7 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
           onClick={() => setShowDevices(true)}
           title={t.devicePicker.button}
           aria-label={t.devicePicker.button}
-          className="shrink-0 px-3 py-2 rounded-lg border border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800 text-zinc-300 transition-colors flex items-center justify-center"
+          className="ls-button shrink-0 transition-colors flex items-center justify-center"
         >
           <DevicesIcon />
         </button>
