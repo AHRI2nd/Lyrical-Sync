@@ -44,6 +44,15 @@ function setup() {
 }
 
 beforeEach(() => {
+  vi.stubGlobal("PointerEvent", class extends MouseEvent {
+    pointerId: number;
+    isPrimary: boolean;
+    constructor(type: string, init: PointerEventInit = {}) {
+      super(type, init);
+      this.pointerId = init.pointerId ?? 1;
+      this.isPrimary = init.isPrimary ?? true;
+    }
+  });
   rafCallbacks = [];
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
     rafCallbacks.push(callback);
@@ -62,6 +71,18 @@ afterEach(() => {
 });
 
 describe("CharSyncView seek lane", () => {
+  it("keeps unrelated line buttons memoized during playback updates", () => {
+    const otherLine = { id: "line-2", timestamp: 20, get text() { return "next"; } };
+    const readOtherText = vi.spyOn(otherLine, "text", "get");
+    useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+      { id: "line-1", timestamp: 10, text: "hello" }, otherLine,
+    ] } });
+    setup();
+    readOtherText.mockClear();
+    act(() => useLrcStore.setState({ currentTime: 13 }));
+    expect(readOtherText).not.toHaveBeenCalled();
+  });
+
   it("stamps the current glyph on click, skips spaces, and lets Space stamp the next glyph", () => {
     useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
       { id: "line-1", timestamp: 10, text: "a b", syllables: [
