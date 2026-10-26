@@ -44,6 +44,15 @@ function setup() {
 }
 
 beforeEach(() => {
+  vi.stubGlobal("PointerEvent", class extends MouseEvent {
+    pointerId: number;
+    isPrimary: boolean;
+    constructor(type: string, init: PointerEventInit = {}) {
+      super(type, init);
+      this.pointerId = init.pointerId ?? 1;
+      this.isPrimary = init.isPrimary ?? true;
+    }
+  });
   rafCallbacks = [];
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
     rafCallbacks.push(callback);

@@ -477,11 +477,12 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
 
   // 레인 = 탐색 전용. 드래그 중 미리보기만 움직이고 포인터를 놓을 때 한 번 탐색한다.
   const beginLaneDrag = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0 || laneDragRef.current) return;
+    if (e.button !== 0 || e.isPrimary === false || e.defaultPrevented || laneDragRef.current) return;
+    if (controlSource === "local" && !audioPath) return;
     const lane = laneRef.current;
     if (!lane) return;
     const rect = lane.getBoundingClientRect();
-    if (rect.width <= 0) return;
+    if (!Number.isFinite(rect.left) || !Number.isFinite(rect.width) || rect.width <= 0 || !Number.isFinite(e.clientX)) return;
     e.preventDefault();
     focusGlyphEditor();
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
