@@ -3,7 +3,7 @@ import { ClearGlyphTimings } from "./ClearGlyphTimings";
 import { WaveformViewMenu } from "./WaveformViewMenu";
 import { getLinePlaybackRange } from "../../utils/linePlaybackRange";
 import { CharWaveformPanel } from "./CharWaveformPanel";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -182,7 +182,7 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
   }, [syllables, currentTime, winStart, winEnd]);
 
   const textRef = useRef<HTMLDivElement>(null);
-  const focusGlyphEditor = () => textRef.current?.focus({ preventScroll: true });
+  const focusGlyphEditor = useCallback(() => textRef.current?.focus({ preventScroll: true }), []);
 
   // 활성 줄이 바뀌면 활성 글자를 첫 미입력(없으면 첫 글자)으로
   useEffect(() => {

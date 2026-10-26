@@ -224,6 +224,40 @@ describe.each(["char", "word"] as const)("Character sync shortcut focus (%s)", u
     expect(document.activeElement).toBe(input);
   });
 
+  it.each(["audio", "document", "line", "zoom"])("cancels scrubbing without delayed focus after %s changes", async kind => {
+    const seek = vi.spyOn(audioControls, "seekTo");
+    await mountEditor(unit);
+    const lane = screen.getByTestId("glyph-seek-lane");
+    vi.spyOn(lane, "getBoundingClientRect").mockReturnValue({ left: 0, width: 100 } as DOMRect);
+    fireEvent.pointerDown(lane, { pointerId: 7, button: 0, clientX: 20 });
+    act(() => {
+      if (kind === "audio") useLrcStore.setState({ audioPath: "/other.mp3" });
+      else if (kind === "document") useLrcStore.setState({
+        doc: { ...defaultDocument(), lines: [{ id: "new", text: "Replacement", timestamp: 0 }] }, activeLineId: "new",
+      });
+      else if (kind === "line") useLrcStore.setState({ activeLineId: "b" });
+      else fireEvent.click(screen.getByRole("button", { name: translations.en.zoomIn }));
+    });
+    const input = screen.getAllByRole("textbox")[0];
+    input.focus();
+    fireEvent.pointerUp(window, { pointerId: 7, clientX: 80 });
+    expect(seek).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(input);
+  });
+
+  it("keeps confirmation focus during editor updates", async () => {
+    const user = userEvent.setup();
+    await mountEditor(unit);
+    act(() => useLrcStore.setState({ isDirty: true }));
+    await user.click(screen.getByRole("button", { name: translations.en.newFileBtn }));
+    const dialog = await screen.findByRole("dialog");
+    const focused = document.activeElement;
+    expect(dialog.contains(focused)).toBe(true);
+    act(() => useLrcStore.setState({ currentTime: 5, activeLineId: "b" }));
+    expect(document.activeElement).toBe(focused);
+    expect(dialog.contains(document.activeElement)).toBe(true);
+  });
+
   it.each(["right button", "secondary pointer", "prevented event", "zero width", "invalid geometry", "no audio"])(
     "leaves focus and playback untouched for %s scrubbing", async kind => {
       const seek = vi.spyOn(audioControls, "seekTo");
