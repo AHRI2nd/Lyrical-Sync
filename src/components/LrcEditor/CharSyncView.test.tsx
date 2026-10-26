@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook } from "@testing-library/react";
+import type { PointerEvent as ReactPointerEvent } from "react";
+import { usePointerScrub } from "../../hooks/usePointerScrub";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn().mockResolvedValue(null) }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 import { CharSyncView } from "./CharSyncView";
@@ -26,6 +28,47 @@ beforeEach(() => {
   useLrcStore.setState({ loopLineId: null });
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); document.querySelectorAll("[data-test-control]").forEach((node) => node.remove()); localStorage.clear(); useI18nStore.setState(originalLanguage); });
+
+it("keeps unrelated line buttons memoized during playback updates", () => {
+  const otherLine = { id: "b", timestamp: 20, get text() { return "next"; } };
+  const readOtherText = vi.spyOn(otherLine, "text", "get");
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+    { id: "a", timestamp: 0, text: "hello" }, otherLine,
+  ] } });
+  render(<CharSyncView />);
+  readOtherText.mockClear();
+  act(() => useLrcStore.setState({ currentTime: 13 }));
+  expect(readOtherText).not.toHaveBeenCalled();
+});
+
+it("notifies scrub start only once per accepted pointer and never on cancellation", () => {
+  const onStart = vi.fn();
+  const onCommit = vi.fn();
+  const lane = document.createElement("div");
+  vi.spyOn(lane, "getBoundingClientRect").mockReturnValue({ left: 0, width: 100 } as DOMRect);
+  const { result, rerender, unmount } = renderHook(({ contextKey, enabled }) => usePointerScrub({
+    contextKey, enabled, start: 0, end: 10, onStart, onCommit,
+  }), { initialProps: { contextKey: "a", enabled: true } });
+  const start = () => act(() => result.current.begin({
+    button: 0, pointerId: 1, isPrimary: true, defaultPrevented: false, clientX: 20,
+    target: lane, currentTarget: lane, preventDefault: vi.fn(),
+  } as unknown as ReactPointerEvent<HTMLElement>));
+  start(); start();
+  expect(onStart).toHaveBeenCalledTimes(1);
+  fireEvent.pointerCancel(window, { pointerId: 1 });
+  fireEvent.pointerUp(window, { pointerId: 1, clientX: 80 });
+  expect(onStart).toHaveBeenCalledTimes(1);
+  expect(onCommit).not.toHaveBeenCalled();
+  start();
+  rerender({ contextKey: "b", enabled: false });
+  start();
+  fireEvent.pointerUp(window, { pointerId: 1, clientX: 80 });
+  expect(onStart).toHaveBeenCalledTimes(2);
+  expect(onCommit).not.toHaveBeenCalled();
+  unmount();
+  fireEvent.pointerUp(window, { pointerId: 1, clientX: 80 });
+  expect(onStart).toHaveBeenCalledTimes(2);
+});
 
 it.each(["button", "slider", "link", "select", "editable"])("leaves glyph shortcuts with a focused %s", (kind) => {
   render(<CharSyncView />);

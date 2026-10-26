@@ -14,6 +14,7 @@
     "src-tauri/src/privacy_policy.rs",
     "src-tauri/src/store_runtime.rs",
     "src-tauri/src/third_party_notices.rs",
+    "src/App.charSyncFocus.test.tsx",
     "src/App.css",
     "src/App.test.tsx",
     "src/App.tsx",

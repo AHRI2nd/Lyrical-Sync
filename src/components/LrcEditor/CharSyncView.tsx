@@ -4,7 +4,7 @@ import { WaveformViewMenu } from "./WaveformViewMenu";
 import { getCenteredView } from "../../utils/waveformTimeline";
 import { getLinePlaybackRange } from "../../utils/linePlaybackRange";
 import { CharWaveformPanel } from "./CharWaveformPanel";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -84,9 +84,12 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
   const contextKey = JSON.stringify([documentSession, audioSelection, audioPath, activeLineId, zoom, winStart, winEnd, duration]);
   const displayRange = useRef({ start: viewStart, end: viewEnd });
   const [pendingSeek, setPendingSeek] = useState<{ start: number; end: number; time: number; fromTime: number; context: string } | null>(null);
+  const textRef = useRef<HTMLDivElement>(null);
+  const focusGlyphEditor = useCallback(() => textRef.current?.focus({ preventScroll: true }), []);
   const laneScrub = usePointerScrub({
     contextKey, start: pendingSeek?.context === contextKey ? pendingSeek.start : viewStart,
     end: pendingSeek?.context === contextKey ? pendingSeek.end : viewEnd, enabled: !!audioPath && duration > 0,
+    onStart: focusGlyphEditor,
     onCommit: seconds => {
       setPendingSeek({ ...displayRange.current, time: seconds, fromTime: useLrcStore.getState().currentTime, context: contextKey });
       setFollow(true); setAnchor(seconds); controls.seekTo(seconds);
@@ -115,7 +118,6 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
     return idx;
   }, [syllables, currentTime, winStart, winEnd]);
 
-  const textRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (stampableIdx.length === 0) {
       setActiveSyllable(0);
@@ -296,7 +298,7 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
     <div className="flex flex-wrap items-center gap-2 px-2 py-1.5 border-b border-[var(--ls-border-subtle)] shrink-0">
       <span className="text-sm text-[var(--ls-text)] shrink-0">{t.charSync.modeChar}</span>
       {onOpenShortcuts && <button type="button" onClick={onOpenShortcuts} className="ls-button ls-button--compact text-xs">{t.charSync.shortcuts}</button>}
-      <LineDots partialClass="bg-[var(--ls-playhead)]" lines={lines} activeIdx={lineIdx} onSelect={setActiveLineId} />
+      <LineDots partialClass="bg-[var(--ls-playhead)]" lines={lines} activeIdx={lineIdx} onSelect={setActiveLineId} onPointerSelect={focusGlyphEditor} />
       <button type="button" onClick={e => { gotoLine(lineIdx - 1); e.currentTarget.blur(); }} disabled={lineIdx <= 0}
         className="ls-button ls-button--compact hover:text-white disabled:opacity-30">‹</button>
       <span className="text-xs text-[var(--ls-text-secondary)] font-mono shrink-0">{lineIdx + 1}/{lines.length}</span>

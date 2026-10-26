@@ -16,12 +16,13 @@ function lineSyncState(line: LrcLine): LineState {
 
 
 export const LineNavigator = memo(function LineNavigator({
-  lines, activeIdx, onSelect, partialClass = "bg-[var(--ls-accent)]",
+  lines, activeIdx, onSelect, onPointerSelect, partialClass = "bg-[var(--ls-accent)]",
 }: {
   lines: LrcLine[];
   activeIdx: number;
   partialClass?: string;
   onSelect: (id: string) => void;
+  onPointerSelect?: () => void;
 }) {
   return (
     <div className="flex-1 flex items-center gap-1.5 overflow-x-auto px-1 py-1">
@@ -34,7 +35,11 @@ export const LineNavigator = memo(function LineNavigator({
           <button
             key={l.id}
             aria-pressed={active}
-            onClick={() => onSelect(l.id)}
+            onClick={event => {
+              onSelect(l.id);
+              // Keyboard and assistive clicks retain focus for continued button navigation.
+              if (event.detail > 0) onPointerSelect?.();
+            }}
             title={`${i + 1}. ${l.text}`}
             aria-label={`${i + 1}. ${l.text}`}
             className={`shrink-0 rounded-full transition-all ${color} ${

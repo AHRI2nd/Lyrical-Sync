@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 type Scrub = { id: number; context: string; start: number; end: number; left: number; width: number; element: HTMLElement };
-export function usePointerScrub({ contextKey, start, end, onCommit, enabled = true }: {
-  contextKey: string; start: number; end: number; onCommit: (seconds: number) => void; enabled?: boolean;
+export function usePointerScrub({ contextKey, start, end, onCommit, onStart, enabled = true }: {
+  contextKey: string; start: number; end: number; onCommit: (seconds: number) => void; onStart?: () => void; enabled?: boolean;
 }) {
   const pointer = useRef<Scrub | null>(null);
   const latest = useRef({ contextKey, onCommit, enabled });
@@ -57,6 +57,7 @@ export function usePointerScrub({ contextKey, start, end, onCommit, enabled = tr
     e.preventDefault();
     const active = { id: e.pointerId, context: contextKey, start, end, left: rect.left, width: rect.width, element: e.currentTarget };
     pointer.current = active;
+    onStart?.();
     try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch { /* Window listeners still track this pointer. */ }
     const position = start + Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * (end - start);
     setPreview({ position, start, end, context: contextKey });
