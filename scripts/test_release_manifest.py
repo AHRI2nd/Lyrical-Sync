@@ -14,7 +14,7 @@ class ReleaseManifestTests(unittest.TestCase):
     def setUp(self):
         self.names = [
             'Lyrical.Sync_0.7.0_x64-setup.exe',
-            'Lyrical.Sync_0.7.0_x64_setup.msi',
+            'Lyrical.Sync_0.7.0_x64.msi',
             'Lyrical.Sync_0.7.0_arm64-setup.exe',
             'Lyrical.Sync_aarch64.app.tar.gz',
         ]
@@ -46,9 +46,9 @@ class ReleaseManifestTests(unittest.TestCase):
         self.assertTrue(platforms['darwin-aarch64']['url'].endswith('_aarch64.app.tar.gz'))
         self.assertEqual(platforms['darwin-aarch64'], platforms['darwin-aarch64-app'])
 
-    def test_final_publication_renames_only_x64_msi_and_preserves_both_architectures(self):
+    def test_final_publication_renames_unlocalized_x64_msi_and_preserves_both_architectures(self):
         self.assemble()
-        assets = [{'id':i+1,'name':a['name'].replace('_setup.msi','_en-US.msi')} for i,a in enumerate(self.assets)]
+        assets = [{'id':i+1,'name':a['name']} for i,a in enumerate(self.assets)]
         draft = {'id':99,'tag_name':'v0.7.0','draft':True,'assets':assets}
         uploaded = []
         def fake_gh(*args, binary=False):
@@ -62,19 +62,88 @@ class ReleaseManifestTests(unittest.TestCase):
             if args[0]=='api' and '/releases/tags/' in args[1]:
                 self.fail('Draft releases must not be looked up with the published-release endpoint')
             if '--method' in args:
-                asset_id=int(args[3].split('/')[-1])
-                name=args[5].removeprefix('name=')
+                asset_id=int(next(arg for arg in args if '/releases/assets/' in arg).split('/')[-1])
+                method=args[args.index('--method')+1]
+                if method == 'DELETE':
+                    assets.remove(next(a for a in assets if a['id']==asset_id))
+                    return '{}'
+                name=args[-1].removeprefix('name=')
                 next(a for a in assets if a['id']==asset_id)['name']=name
                 return '{}'
             asset_id=int(args[1].split('/')[-1])
             name=next(a for a in assets if a['id']==asset_id)['name']
-            return self.signatures[name].encode()
+            return base64.b64encode(b'untrusted comment: fixture\n' + name.encode())
         with tempfile.TemporaryDirectory() as directory, patch.object(self.module,'gh',fake_gh):
             self.module.publish('AHRI2nd/Lyrical-Sync','0.7.0',Path(directory)/'latest.json')
         self.assertEqual(len(uploaded),1)
         self.assertTrue(uploaded[0]['platforms']['windows-x86_64-msi']['url'].endswith('_x64_setup.msi'))
         self.assertTrue(uploaded[0]['platforms']['windows-aarch64']['url'].endswith('_arm64-setup.exe'))
-        self.assertIn('Lyrical.Sync_0.7.0_x64_setup.msi.sig',{a['name'] for a in assets})
+        final_names = {a['name'] for a in assets}
+        self.assertIn('Lyrical.Sync_0.7.0_x64_setup.msi.sig',final_names)
+        self.assertNotIn('Lyrical.Sync_0.7.0_x64.msi',final_names)
+        self.assertNotIn('Lyrical.Sync_0.7.0_x64.msi.sig',final_names)
+
+    def test_legacy_locale_msi_is_still_renamed_for_existing_release_workflows(self):
+        self.assemble()
+        assets = [{'id':i+1,'name':a['name'].replace('_x64.msi','_x64_en-US.msi')} for i,a in enumerate(self.assets)]
+        draft = {'id':99,'tag_name':'v0.7.0','draft':True,'assets':assets}
+        uploaded = []
+        def fake_gh(*args, binary=False):
+            if args[0]=='release':
+                uploaded.append(json.loads(Path(args[3]).read_text()))
+                return ''
+            if args[0]=='api' and '--paginate' in args:
+                return json.dumps(draft)
+            if args[0]=='api' and '/releases/tags/' in args[1]:
+                self.fail('Draft releases must not be looked up with the published-release endpoint')
+            if '--method' in args:
+                asset_id=int(next(arg for arg in args if '/releases/assets/' in arg).split('/')[-1])
+                method=args[args.index('--method')+1]
+                if method == 'DELETE':
+                    assets.remove(next(a for a in assets if a['id']==asset_id))
+                    return '{}'
+                name=args[-1].removeprefix('name=')
+                next(a for a in assets if a['id']==asset_id)['name']=name
+                return '{}'
+            asset_id=int(args[1].split('/')[-1])
+            name=next(a for a in assets if a['id']==asset_id)['name']
+            return base64.b64encode(b'untrusted comment: fixture\n' + name.encode())
+        with tempfile.TemporaryDirectory() as directory, patch.object(self.module,'gh',fake_gh):
+            self.module.publish('AHRI2nd/Lyrical-Sync','0.7.0',Path(directory)/'latest.json')
+        self.assertEqual(len(uploaded),1)
+        self.assertTrue(uploaded[0]['platforms']['windows-x86_64-msi']['url'].endswith('_x64_setup.msi'))
+        self.assertNotIn('Lyrical.Sync_0.7.0_x64_en-US.msi',{a['name'] for a in assets})
+
+    def test_rebuild_drops_duplicate_msi_when_canonical_pair_already_exists(self):
+        self.assemble()
+        names = [
+            'Lyrical.Sync_0.7.0_x64_setup.msi',
+            'Lyrical.Sync_0.7.0_x64_setup.msi.sig',
+            *[a['name'] for a in self.assets],
+        ]
+        assets = [{'id':i+1,'name':name} for i,name in enumerate(names)]
+        draft = {'id':99,'tag_name':'v0.7.0','draft':True,'assets':assets}
+        uploaded = []
+        def fake_gh(*args, binary=False):
+            if args[0]=='release':
+                uploaded.append(json.loads(Path(args[3]).read_text()))
+                return ''
+            if args[0]=='api' and '--paginate' in args:
+                return json.dumps(draft)
+            if '--method' in args:
+                asset_id=int(next(arg for arg in args if '/releases/assets/' in arg).split('/')[-1])
+                assets.remove(next(a for a in assets if a['id']==asset_id))
+                return '{}'
+            asset_id=int(args[1].split('/')[-1])
+            name=next(a for a in assets if a['id']==asset_id)['name']
+            return base64.b64encode(b'untrusted comment: fixture\n' + name.encode())
+        with tempfile.TemporaryDirectory() as directory, patch.object(self.module,'gh',fake_gh):
+            self.module.publish('AHRI2nd/Lyrical-Sync','0.7.0',Path(directory)/'latest.json')
+        remaining = {a['name'] for a in assets}
+        self.assertNotIn('Lyrical.Sync_0.7.0_x64.msi',remaining)
+        self.assertNotIn('Lyrical.Sync_0.7.0_x64.msi.sig',remaining)
+        self.assertIn('Lyrical.Sync_0.7.0_x64_setup.msi',remaining)
+        self.assertTrue(uploaded[0]['platforms']['windows-x86_64-msi']['url'].endswith('_x64_setup.msi'))
 
     def test_missing_arm_artifact_never_falls_back_to_x64(self):
         assets = [a for a in self.assets if '_arm64-' not in a['name']]

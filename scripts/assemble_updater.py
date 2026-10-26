@@ -15,7 +15,7 @@ def assemble_manifest(version, repo, assets, signatures, published_at):
     if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repo):
         raise ValueError('Invalid repository')
     windows = re.compile(r'Lyrical[ .]Sync_' + re.escape(version)
-        + r'_(x64|arm64|aarch64)(-setup\.exe|_setup\.msi|_[a-z]{2}-[A-Z]{2}\.msi)')
+        + r'_(x64|arm64|aarch64)(-setup\.exe|_setup\.msi|\.msi|_[a-z]{2}-[A-Z]{2}\.msi)')
     macos = re.compile(r'Lyrical[ .]Sync(?:_' + re.escape(version)
         + r')?_(?:aarch64|arm64)\.app\.tar\.gz')
     platforms = {}
@@ -82,19 +82,37 @@ def publish(repo, version, output):
     release = get_draft_release(repo, tag)
     if not release.get('draft'):
         raise ValueError('Updater assembly only modifies a draft release')
-    # Rename only this version's x64 MSI assets, after all platform jobs finish.
+    # Normalize this version's x64 MSI name, retaining compatibility with older locale-suffixed builds.
     old_pattern = re.compile(r'(Lyrical[ .]Sync_' + re.escape(version)
-                             + r'_x64)_[a-z]{2}-[A-Z]{2}\.msi(\.sig)?')
+                             + r'_x64(?:_[a-z]{2}-[A-Z]{2})?\.msi')
     names = {a['name'] for a in release['assets']}
     for asset in release['assets']:
         match = old_pattern.fullmatch(asset['name'])
         if not match:
             continue
-        new_name = match[1] + '_setup.msi' + (match[2] or '')
-        if new_name in names:
-            raise ValueError(f'Duplicate MSI asset: {new_name}')
-        gh('api', '--method', 'PATCH', f'repos/{repo}/releases/assets/{asset["id"]}',
-           '-f', f'name={new_name}')
+        source_name = asset['name']
+        signature_name = source_name + '.sig'
+        new_name = match[1] + '_setup.msi'
+        new_signature_name = new_name + '.sig'
+        if new_name in names or new_signature_name in names:
+            if new_name not in names or new_signature_name not in names:
+                raise ValueError(f'Incomplete existing MSI asset pair: {new_name}')
+            for duplicate in release['assets']:
+                if duplicate['name'] in {source_name, signature_name}:
+                    gh('api', '--method', 'DELETE',
+                       f'repos/{repo}/releases/assets/{duplicate["id"]}')
+                    names.discard(duplicate['name'])
+            continue
+        if signature_name not in names:
+            raise ValueError(f'Missing signature asset: {source_name}')
+        for source, destination in ((source_name, new_name),
+                                    (signature_name, new_signature_name)):
+            matching_asset = next(a for a in release['assets'] if a['name'] == source)
+            gh('api', '--method', 'PATCH',
+               f'repos/{repo}/releases/assets/{matching_asset["id"]}',
+               '-f', f'name={destination}')
+            names.discard(source)
+            names.add(destination)
     release = get_draft_release(repo, tag)
     signatures = {}
     for asset in release['assets']:
