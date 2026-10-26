@@ -182,6 +182,7 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
   }, [syllables, currentTime, winStart, winEnd]);
 
   const textRef = useRef<HTMLDivElement>(null);
+  const focusGlyphEditor = () => textRef.current?.focus({ preventScroll: true });
 
   // 활성 줄이 바뀌면 활성 글자를 첫 미입력(없으면 첫 글자)으로
   useEffect(() => {
@@ -482,6 +483,7 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
     const rect = lane.getBoundingClientRect();
     if (rect.width <= 0) return;
     e.preventDefault();
+    focusGlyphEditor();
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     const time = visibleViewStart + ratio * (visibleViewEnd - visibleViewStart);
     if (lanePreviewTimerRef.current) clearTimeout(lanePreviewTimerRef.current);
@@ -566,7 +568,7 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
     <div className="flex flex-wrap items-center gap-2 px-2 py-1.5 border-b border-[var(--ls-border-subtle)] shrink-0">
       <span className="text-sm text-[var(--ls-text)] shrink-0">{t.charSync.modeChar}</span>
       {onOpenShortcuts && <button type="button" onClick={onOpenShortcuts} className="ls-button ls-button--compact text-xs">{t.charSync.shortcuts}</button>}
-      <LineDots lines={lines} activeIdx={lineIdx} onSelect={setActiveLineId} />
+      <LineDots lines={lines} activeIdx={lineIdx} onSelect={setActiveLineId} onPointerSelect={focusGlyphEditor} />
       <button type="button" onClick={e => { gotoLine(lineIdx - 1); e.currentTarget.blur(); }} aria-label={t.charSync.prevLine} disabled={lineIdx <= 0}
         className="ls-button ls-button--compact hover:text-white disabled:opacity-30">‹</button>
       <span className="text-xs text-[var(--ls-text-secondary)] font-mono shrink-0">{lineIdx + 1}/{lines.length}</span>
