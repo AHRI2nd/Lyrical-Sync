@@ -128,7 +128,7 @@ jobs:
 
       - name: Build & release (Windows)
         if: runner.os == 'Windows'
-        uses: tauri-apps/tauri-action@v0.5
+        uses: tauri-apps/tauri-action@v0.5.24
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -139,6 +139,10 @@ jobs:
           includeUpdaterJson: false
           releaseDraft: true
           prerelease: false
+          # Avoid WiX's default _en-US.msi upload name. NSIS keeps its
+          # existing -setup.exe suffix; assemble_updater.py renames x64.msi
+          # to the updater-compatible _setup.msi after all builds finish.
+          releaseAssetNamePattern: '[name]_[version]_[arch][setup].[ext]'
           args: --target ${{ matrix.target }} ${{ matrix.bundleArgs }} --config src-tauri/tauri.updater.conf.json -- --locked
       - name: Verify Windows artifact architecture
         if: runner.os == 'Windows'
