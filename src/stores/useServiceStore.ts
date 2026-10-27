@@ -30,15 +30,65 @@ interface TokenResponse {
 
 // Module-level RAF handle — not stored in Zustand since it doesn't drive UI
 let interpolationRaf: number | null = null;
-// 진행 중인 토큰 갱신 promise — 동시 ensureToken 호출이 같은 refresh 토큰으로
-// 중복 갱신해 로테이팅 토큰이 무효화(invalid_grant)되는 레이스를 방지.
-let refreshPromise: Promise<void> | null = null;
+type AuthLease = { generation: number; clientId: string };
+let refreshPromises = new Map<number, Promise<void>>();
+let tokenQueue: Promise<void> = Promise.resolve();
+let oauthListenerQueue: Promise<void> = Promise.resolve();
+let pendingLoginLease: AuthLease | null = null;
+
+function enqueueTokenTask<T>(task: () => Promise<T>): Promise<T> {
+  const result = tokenQueue.then(task, task);
+  tokenQueue = result.then(() => undefined, () => undefined);
+  return result;
+}
+
+function enqueueOAuthListenerTask<T>(task: () => Promise<T>): Promise<T> {
+  const result = oauthListenerQueue.then(task, task);
+  oauthListenerQueue = result.then(() => undefined, () => undefined);
+  return result;
+}
+
+function authLease(): AuthLease {
+  return {
+    generation: useServiceStore.getState()._authGeneration,
+    clientId: useSettingsStore.getState().spotifyClientId.trim(),
+  };
+}
+
+function isCurrentLease(lease: AuthLease): boolean {
+  return useServiceStore.getState()._authGeneration === lease.generation &&
+    useSettingsStore.getState().spotifyClientId.trim() === lease.clientId;
+}
+
+function loadRefreshToken(lease: AuthLease): Promise<string | null> {
+  return enqueueTokenTask(async () => {
+    if (!isCurrentLease(lease)) return null;
+    return await invoke<string | null>("load_refresh_token");
+  });
+}
+
+function saveRefreshToken(lease: AuthLease, token: string): Promise<boolean> {
+  return enqueueTokenTask(async () => {
+    if (!isCurrentLease(lease)) return false;
+    await invoke("save_refresh_token", { token });
+    return true;
+  });
+}
+
+function clearRefreshToken(): void {
+  void enqueueTokenTask(() => invoke("clear_refresh_token")).catch(() => {});
+}
+
+function cancelOAuthListener(): void {
+  void enqueueOAuthListenerTask(() => invoke("cancel_oauth_listener")).catch(() => {});
+}
 
 interface ServiceState {
   // Auth
   isLoggedIn: boolean;
   accessToken: string | null;
   tokenExpiresAt: number | null;
+  _authGeneration: number;
   _pendingCodeVerifier: string | null;
   _pendingOAuthState: string | null;
 
@@ -91,6 +141,7 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
   isLoggedIn: false,
   accessToken: null,
   tokenExpiresAt: null,
+  _authGeneration: 0,
   _pendingCodeVerifier: null,
   _pendingOAuthState: null,
   deviceId: null,
@@ -112,12 +163,44 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
     const clientId = useSettingsStore.getState().spotifyClientId.trim();
     if (!clientId) throw new Error("no_client_id");
 
+    const generation = get()._authGeneration + 1;
+    const lease = { generation, clientId };
+    pendingLoginLease = null;
+    set({
+      _authGeneration: generation,
+      _pendingCodeVerifier: null,
+      _pendingOAuthState: null,
+      isLoggedIn: false,
+      accessToken: null,
+      tokenExpiresAt: null,
+      deviceId: null,
+      isReady: false,
+      isPlaying: false,
+      isLooping: false,
+      positionMs: 0,
+      durationMs: 0,
+      trackUri: null,
+      trackName: "",
+      artistName: "",
+      albumName: "",
+      albumArtUrl: null,
+    });
+    get()._stopInterpolation();
+    cancelOAuthListener();
+    clearRefreshToken();
+
     const { codeVerifier, codeChallenge } = await generatePkce();
+    if (!isCurrentLease(lease)) return;
     const state = crypto.randomUUID();
+    pendingLoginLease = lease;
     set({ _pendingCodeVerifier: codeVerifier, _pendingOAuthState: state });
 
     // Start local HTTP listener before opening the browser so the callback is captured
-    await invoke("start_oauth_listener", { state });
+    await enqueueOAuthListenerTask(async () => {
+      if (!isCurrentLease(lease)) return;
+      await invoke("start_oauth_listener", { state });
+    });
+    if (!isCurrentLease(lease)) return;
     const authUrl = buildAuthUrl(clientId, codeChallenge, state);
     await openUrl(authUrl);
   },
@@ -135,17 +218,22 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
       throw new Error("invalid_callback");
     }
 
-    const clientId = useSettingsStore.getState().spotifyClientId.trim();
+    const lease = pendingLoginLease ?? authLease();
+    if (!isCurrentLease(lease)) throw new Error("auth_changed");
+    pendingLoginLease = null;
+    set({ _pendingCodeVerifier: null, _pendingOAuthState: null });
     const resp: TokenResponse = await invoke("exchange_spotify_token", {
       code,
       codeVerifier: _pendingCodeVerifier,
-      clientId,
+      clientId: lease.clientId,
       redirectUri: SPOTIFY_REDIRECT_URI,
     });
+    if (!isCurrentLease(lease)) throw new Error("auth_changed");
 
     if (resp.refreshToken) {
-      await invoke("save_refresh_token", { token: resp.refreshToken });
+      await saveRefreshToken(lease, resp.refreshToken);
     }
+    if (!isCurrentLease(lease)) throw new Error("auth_changed");
 
     set({
       isLoggedIn: true,
@@ -157,9 +245,11 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
   },
 
   tryRestoreSession: async () => {
+    if (get().isLoggedIn) return;
+    const lease = authLease();
     try {
-      const storedToken: string | null = await invoke("load_refresh_token");
-      if (!storedToken) return;
+      const storedToken = await loadRefreshToken(lease);
+      if (!isCurrentLease(lease) || !storedToken) return;
       // Mark as logged in with a near-expired token to trigger refresh on first use
       set({ isLoggedIn: true, accessToken: null, tokenExpiresAt: 0 });
     } catch {
@@ -168,43 +258,47 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
   },
 
   refreshAccessToken: async () => {
-    // 이미 갱신 중이면 그 promise를 공유(중복 갱신 방지)
-    if (refreshPromise) return refreshPromise;
-    refreshPromise = (async () => {
+    if (!get().isLoggedIn) throw new Error("not_logged_in");
+    const lease = authLease();
+    const existing = refreshPromises.get(lease.generation);
+    if (existing) return existing;
+    const promise = (async () => {
+      const storedToken = await loadRefreshToken(lease);
+      if (!isCurrentLease(lease)) throw new Error("auth_changed");
+      if (!storedToken) throw new Error("no_refresh_token");
+
+      let resp: TokenResponse;
       try {
-        const clientId = useSettingsStore.getState().spotifyClientId.trim();
-        const storedToken: string | null = await invoke("load_refresh_token");
-        if (!storedToken) throw new Error("no_refresh_token");
-
-        let resp: TokenResponse;
-        try {
-          resp = await invoke("refresh_spotify_token", {
-            refreshToken: storedToken,
-            clientId,
-          });
-        } catch (e) {
-          // 리프레시 토큰 만료/취소(invalid_grant) → 저장 토큰 폐기 + 로그아웃해 재로그인 유도.
-          // 재시도하지 않음(Spotify 권장 처리). 2026-07-20부터 리프레시 토큰은 6개월 후 만료.
-          if (String(e).includes("invalid_grant")) {
-            get().logout();
-          }
-          throw e;
-        }
-
-        if (resp.refreshToken) {
-          await invoke("save_refresh_token", { token: resp.refreshToken });
-        }
-
-        set({
-          isLoggedIn: true,
-          accessToken: resp.accessToken,
-          tokenExpiresAt: Date.now() + resp.expiresIn * 1000,
+        resp = await invoke("refresh_spotify_token", {
+          refreshToken: storedToken,
+          clientId: lease.clientId,
         });
-      } finally {
-        refreshPromise = null;
+      } catch (e) {
+        // Refresh-token invalid_grant is terminal only for the lease that received it.
+        if (String(e).includes("invalid_grant") && isCurrentLease(lease)) {
+          get().logout();
+        }
+        throw e;
       }
+      if (!isCurrentLease(lease)) throw new Error("auth_changed");
+
+      if (resp.refreshToken) {
+        await saveRefreshToken(lease, resp.refreshToken);
+      }
+      if (!isCurrentLease(lease)) throw new Error("auth_changed");
+
+      set({
+        isLoggedIn: true,
+        accessToken: resp.accessToken,
+        tokenExpiresAt: Date.now() + resp.expiresIn * 1000,
+      });
     })();
-    return refreshPromise;
+    refreshPromises.set(lease.generation, promise);
+    try {
+      return await promise;
+    } finally {
+      if (refreshPromises.get(lease.generation) === promise) refreshPromises.delete(lease.generation);
+    }
   },
 
   toggleLoop: async () => {
@@ -219,10 +313,10 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
   },
 
   logout: () => {
-    get()._stopInterpolation();
-    invoke("cancel_oauth_listener").catch(() => {});
-    invoke("clear_refresh_token").catch(() => {});
+    const generation = get()._authGeneration + 1;
+    pendingLoginLease = null;
     set({
+      _authGeneration: generation,
       _pendingOAuthState: null,
       _pendingCodeVerifier: null,
       isLoggedIn: false,
@@ -240,14 +334,20 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
       albumName: "",
       albumArtUrl: null,
     });
+    get()._stopInterpolation();
+    cancelOAuthListener();
+    clearRefreshToken();
   },
 
   ensureToken: async () => {
-    const { accessToken, tokenExpiresAt } = get();
+    const { accessToken, tokenExpiresAt, isLoggedIn } = get();
+    if (!isLoggedIn) throw new Error("no_token");
+    const lease = authLease();
     if (accessToken && tokenExpiresAt && Date.now() < tokenExpiresAt - 60_000) {
       return accessToken;
     }
     await get().refreshAccessToken();
+    if (!isCurrentLease(lease)) throw new Error("auth_changed");
     const token = get().accessToken;
     if (!token) throw new Error("no_token");
     return token;
@@ -432,3 +532,8 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
     }
   },
 }));
+
+useSettingsStore.subscribe((state, previous) => {
+  if (state.spotifyClientId.trim() === previous.spotifyClientId.trim()) return;
+  useServiceStore.getState().logout();
+});

@@ -3,20 +3,37 @@ import { useLrcStore } from "../stores/useLrcStore";
 import { useSettingsStore } from "../stores/useSettingsStore";
 
 let player: Spotify.Player | null = null;
-let pendingToken: string | null = null;
+type AuthLease = { generation: number; clientId: string };
+let pendingToken: { lease: AuthLease } | null = null;
 let sdkReady = false;
 let pollingInterval: ReturnType<typeof setInterval> | null = null;
+let playerGeneration = 0;
+
+function currentLease(): AuthLease {
+  return {
+    generation: useServiceStore.getState()._authGeneration,
+    clientId: useSettingsStore.getState().spotifyClientId.trim(),
+  };
+}
+
+function isCurrentLease(lease: AuthLease): boolean {
+  const state = useServiceStore.getState();
+  return state._authGeneration === lease.generation &&
+    useSettingsStore.getState().spotifyClientId.trim() === lease.clientId;
+}
 
 // Must be defined before the SDK script executes
-window.onSpotifyWebPlaybackSDKReady = () => {
-  sdkReady = true;
-  if (pendingToken) {
-    createPlayer(pendingToken);
+if (typeof window !== "undefined") {
+  window.onSpotifyWebPlaybackSDKReady = () => {
+    sdkReady = true;
+    const pending = pendingToken;
     pendingToken = null;
-  }
-};
+    if (pending && isCurrentLease(pending.lease)) createPlayer(pending.lease);
+  };
+}
 
 export function initSpotifyPlayer(): void {
+  const lease = currentLease();
   const token = useServiceStore.getState().accessToken;
   if (!token) {
     // Token not yet available — start polling only
@@ -24,16 +41,19 @@ export function initSpotifyPlayer(): void {
     return;
   }
   if (sdkReady) {
-    createPlayer(token);
+    createPlayer(lease);
   } else {
-    pendingToken = token;
+    pendingToken = { lease };
   }
   startPolling();
 }
 
 export function disconnectSpotifyPlayer(): void {
-  player?.disconnect();
+  playerGeneration += 1;
+  pendingToken = null;
+  const previous = player;
   player = null;
+  previous?.disconnect();
   stopPolling();
 }
 
@@ -51,34 +71,60 @@ export async function setSpotifyVolume(volume: number): Promise<void> {
   }
 }
 
-function createPlayer(accessToken: string): void {
-  if (player) {
-    player.disconnect();
-    player = null;
-  }
+function disconnectOwnedPlayer(instance: Spotify.Player, generation: number): void {
+  if (player !== instance || playerGeneration !== generation) return;
+  player = null;
+  playerGeneration += 1;
+  instance.disconnect();
+  stopPolling();
+}
 
-  player = new Spotify.Player({
+function createPlayer(lease: AuthLease): void {
+  if (!isCurrentLease(lease)) return;
+  const previous = player;
+  player = null;
+  previous?.disconnect();
+  const generation = ++playerGeneration;
+  let instance: Spotify.Player;
+  const isCurrentInstance = () => player === instance && playerGeneration === generation && isCurrentLease(lease);
+
+  instance = new Spotify.Player({
     name: "Lyrical Sync",
     getOAuthToken: async (cb) => {
+      if (!isCurrentLease(lease)) {
+        cb("");
+        disconnectOwnedPlayer(instance, generation);
+        return;
+      }
       try {
         const token = await useServiceStore.getState().ensureToken();
+        if (!isCurrentInstance()) {
+          cb("");
+          disconnectOwnedPlayer(instance, generation);
+          return;
+        }
         cb(token);
       } catch {
-        cb(accessToken);
+        cb("");
+        if (!isCurrentLease(lease)) disconnectOwnedPlayer(instance, generation);
       }
     },
     volume: 1.0,
   });
+  player = instance;
 
-  player.addListener("ready", ({ device_id }) => {
+  instance.addListener("ready", ({ device_id }) => {
+    if (!isCurrentInstance()) { disconnectOwnedPlayer(instance, generation); return; }
     useServiceStore.getState().onPlayerReady(device_id);
   });
 
-  player.addListener("player_state_changed", (state) => {
+  instance.addListener("player_state_changed", (state) => {
+    if (!isCurrentInstance()) { disconnectOwnedPlayer(instance, generation); return; }
     if (state) useServiceStore.getState().onPlayerStateChanged(state);
   });
 
-  player.addListener("not_ready", () => {
+  instance.addListener("not_ready", () => {
+    if (!isCurrentInstance()) { disconnectOwnedPlayer(instance, generation); return; }
     // SDK 기기가 오프라인이 됨 → deviceId 무효화(전환 대상에서 제외)
     useServiceStore.setState({ deviceId: null });
   });
@@ -92,13 +138,27 @@ function createPlayer(accessToken: string): void {
     useServiceStore.getState().setPlayerError(`${kind}: ${message}`);
     console.warn(`[Spotify SDK] ${kind}: ${message}`);
   };
-  player.addListener("initialization_error", reportError("initialization_error"));
-  player.addListener("authentication_error", reportError("authentication_error"));
-  player.addListener("account_error", reportError("account_error"));
-  player.addListener("playback_error", reportError("playback_error"));
+  for (const [event, kind] of [
+    ["initialization_error", "initialization_error"],
+    ["authentication_error", "authentication_error"],
+    ["account_error", "account_error"],
+    ["playback_error", "playback_error"],
+  ] as const) {
+    instance.addListener(event, (error) => {
+      if (!isCurrentInstance()) { disconnectOwnedPlayer(instance, generation); return; }
+      reportError(kind)(error);
+    });
+  }
 
-  player.connect();
+  instance.connect();
 }
+
+let observedAuthGeneration = useServiceStore.getState()._authGeneration;
+useServiceStore.subscribe((state) => {
+  if (state._authGeneration === observedAuthGeneration) return;
+  observedAuthGeneration = state._authGeneration;
+  disconnectSpotifyPlayer();
+});
 
 function startPolling(): void {
   if (pollingInterval !== null) return;
