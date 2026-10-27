@@ -376,7 +376,6 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
     previousCurrentTimeRef.current = currentTime;
     if (!laneSeekPendingRef.current || !changed) return;
     setViewAnchor(currentTime);
-    setFollowPlayback(true);
     laneSeekPendingRef.current = false;
     if (lanePreviewTimerRef.current) clearTimeout(lanePreviewTimerRef.current);
     lanePreviewTimerRef.current = null;

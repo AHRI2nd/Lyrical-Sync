@@ -252,19 +252,30 @@ describe("CharSyncView seek lane", () => {
     expect(playhead.style.left).toBe("50%");
   });
 
-  it("resumes centered following after a drag seek is acknowledged", () => {
+  it.each([
+    { input: "click", startX: 75, endX: 75 },
+    { input: "drag", startX: 20, endX: 75 },
+  ])("keeps playback following disabled after a waveform $input seek", ({ startX, endX }) => {
     useLrcStore.setState({ isPlaying: true });
-    const { lane, playhead } = setup();
-    fireEvent.pointerDown(lane, { pointerId: 9, button: 0, clientX: 20 });
-    act(() => useLrcStore.setState({ currentTime: 13 }));
-    expect(Number(lane.dataset.start)).toBe(8);
-    fireEvent.pointerUp(window, { pointerId: 9, button: 0, clientX: 75 });
+    const { lane, playhead, getByRole } = setup();
+    const followButton = getByRole("button", { name: /재생 위치 따라가기|Follow playback/ });
+
+    fireEvent.click(followButton);
+    expect(followButton.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.pointerDown(lane, { pointerId: 9, button: 0, clientX: startX });
+    fireEvent.pointerUp(window, { pointerId: 9, button: 0, clientX: endX });
     expect(seekSpy).toHaveBeenCalledWith(14);
+
     act(() => useLrcStore.setState({ currentTime: 14 }));
+    expect(followButton.getAttribute("aria-pressed")).toBe("false");
     expect(Number(lane.dataset.start)).toBe(10);
-    expect(playhead.style.left).toBe("50%");
     act(() => useLrcStore.setState({ currentTime: 14.5 }));
+    expect(Number(lane.dataset.start)).toBe(10);
+
+    fireEvent.click(followButton);
+    expect(followButton.getAttribute("aria-pressed")).toBe("true");
     expect(Number(lane.dataset.start)).toBe(10.5);
+    expect(playhead.style.left).toBe("50%");
   });
 
   it("pans a zoomed viewport without seeking or changing glyph timing", () => {
