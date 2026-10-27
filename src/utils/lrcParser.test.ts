@@ -98,6 +98,62 @@ it("round-trips empty bracket metadata and timestamp-like literal lyric text", (
 });
 
 describe("parseLrc — line level", () => {
+  it("round-trips literal inline timestamp text without treating it as Enhanced LRC timing", () => {
+    const original = docOf([{ id: "literal", timestamp: 1, text: "Look <00:02.00> here" }]);
+    const serialized = serializeLrc(original);
+    const restored = parseLrc(serialized);
+
+    expect(serialized).toContain("[x-lyrical-inline-escape:1]");
+    expect(restored.lines[0].text).toBe("Look <00:02.00> here");
+    expect(restored.lines[0].syllables).toBeUndefined();
+  });
+
+  it("keeps generated Enhanced LRC timestamps while escaping literal timestamp text in syllables", () => {
+    const original = docOf([{
+      id: "timed", timestamp: 12, text: "word <00:02.00>",
+      syllables: [{ text: "word ", time: 12 }, { text: "<00:02.00>", time: 12.4 }],
+    }]);
+    const serialized = serializeLrc(original);
+    const restored = parseLrc(serialized);
+
+    expect(serialized).toContain("<00:12.00>word <00:12.40>\\u003C00:02.00>");
+    expect(restored.lines[0].text).toBe(original.lines[0].text);
+    expect(restored.lines[0].syllables).toEqual(original.lines[0].syllables);
+  });
+
+  it("decodes the inline extension and translation escapes exactly once", () => {
+    const original = docOf([{
+      id: "translated", timestamp: 1,
+      text: "original \\\\u003C00:03.00> \\\\ path",
+      translation: "translated <00:02.00> \\\\u003C00:04.00> \\\\ path\nnext",
+    }]);
+    const restored = parseLrc(serializeLrc(original));
+
+    expect(restored.lines.map(({ text, translation }) => [text, translation])).toEqual([
+      [original.lines[0].text, original.lines[0].translation],
+    ]);
+  });
+
+  it("fails clearly if an existing extra tag collides with the required extension marker", () => {
+    const original = docOf([{ id: "literal", timestamp: 1, text: "<00:02.00>" }]);
+    original.extraTags["x-lyrical-inline-escape"] = "custom value";
+
+    expect(() => serializeLrc(original)).toThrow("x-lyrical-inline-escape tag is reserved");
+  });
+
+  it("uses the extension in non-enhanced export without emitting inline timing tags", () => {
+    const original = docOf([{
+      id: "literal", timestamp: 1, text: "Look <00:02.00>",
+      syllables: [{ text: "Look ", time: null }, { text: "<00:02.00>", time: 1.5 }],
+    }]);
+    const serialized = serializeLrc(original, false);
+    const restored = parseLrc(serialized);
+
+    expect(serialized).toContain("[x-lyrical-inline-escape:1]");
+    expect(serialized).not.toContain("<00:01.50>");
+    expect(restored.lines[0].text).toBe(original.lines[0].text);
+  });
+
   it("parses a plain timestamped line", () => {
     const d = parseLrc("[00:03.50]hello");
     expect(d.lines[0].timestamp).toBe(3.5);

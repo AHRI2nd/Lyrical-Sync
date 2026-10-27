@@ -824,6 +824,25 @@ describe("useLrcStore — save completion races", () => {
     expect(useLrcStore.getState().lrcPath).toBe("/tmp/original.lrc");
     expect(useLrcStore.getState().isDirty).toBe(true);
   });
+
+  it("rejects a reserved LRC extension tag collision without dispatching a write", async () => {
+    const state = useLrcStore.getState();
+    useLrcStore.setState({
+      doc: {
+        ...state.doc,
+        lines: [{ id: "1", timestamp: 1, text: "literal <00:02.00>" }],
+        extraTags: { "x-lyrical-inline-escape": "existing value" },
+      },
+      lrcPath: "/tmp/song.lrc",
+      isDirty: true,
+    });
+
+    await expect(useLrcStore.getState().saveLrc()).rejects.toThrow("x-lyrical-inline-escape tag is reserved");
+
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState().lrcPath).toBe("/tmp/song.lrc");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
 });
 
 describe("useLrcStore — concurrent lyric loads", () => {

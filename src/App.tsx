@@ -27,6 +27,7 @@ import { useUpdaterStore } from "./stores/useUpdaterStore";
 const UpdateModal = lazy(() => import("./components/Update/UpdateModal").then((m) => ({ default: m.UpdateModal })));
 import { useMacMenu } from "./hooks/useMacMenu";
 import { SrtUnrepresentableContentError } from "./utils/srtConverter";
+import { LrcInlineEscapeTagConflictError, needsInlineTimestampEscape } from "./utils/lrcParser";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -118,7 +119,15 @@ function useGlobalKeys() {
 // 새 문서(lrcPath 없음)는 저장 위치가 없으므로 자동 저장하지 않음.
 function useAutoSave(recoveryPending: boolean) {
   const recoveryFailed = useRef(false);
-  const srtExportErrorShown = useRef(false);
+  const serializationErrorShown = useRef<string | null>(null);
+  const lrcExtensionNoticeShown = useRef(false);
+  const documentSession = useLrcStore((s) => s._documentSession);
+  const lastDocumentSession = useRef(documentSession);
+  if (lastDocumentSession.current !== documentSession) {
+    lastDocumentSession.current = documentSession;
+    serializationErrorShown.current = null;
+    lrcExtensionNoticeShown.current = false;
+  }
   const persistRecovery = () => {
     const st = useLrcStore.getState();
     if (!st.isDirty || recoveryPending) return;
@@ -132,26 +141,35 @@ function useAutoSave(recoveryPending: boolean) {
   const autoSave = useSettingsStore((s) => s.autoSave);
 
   useEffect(() => {
-    if (!isDirty) srtExportErrorShown.current = false;
+    if (!isDirty) serializationErrorShown.current = null;
     if (recoveryPending || !autoSave || !lrcPath || !isDirty) return;
+    const needsLrcNotice = lrcPath.toLowerCase().endsWith(".lrc") && needsInlineTimestampEscape(doc);
     const id = setTimeout(() => {
       // 자동저장: 성공은 조용히, 실패만 토스트로 알림
       useLrcStore.getState().saveLrc()
-        .then((written) => { if (written) srtExportErrorShown.current = false; })
+        .then((written) => {
+          if (!written) return;
+          serializationErrorShown.current = null;
+          if (needsLrcNotice && !lrcExtensionNoticeShown.current) {
+            toast.info(useI18nStore.getState().t.toast.lrcInlineEscapeNotice);
+            lrcExtensionNoticeShown.current = true;
+          }
+        })
         .catch((error: unknown) => {
           const t = useI18nStore.getState().t;
-          if (error instanceof SrtUnrepresentableContentError) {
-            if (!srtExportErrorShown.current) toast.error(t.toast.srtBlankRowsUnsupported);
-            srtExportErrorShown.current = true;
+          const code = serializationErrorCode(error);
+          if (code) {
+            if (serializationErrorShown.current !== code) toast.error(saveErrorMessage(error, t));
+            serializationErrorShown.current = code;
           } else {
-            srtExportErrorShown.current = false;
+            serializationErrorShown.current = null;
             toast.error(t.toast.saveFailed);
           }
         });
     }, 1500);
     return () => clearTimeout(id);
     // doc 변경마다 타이머 리셋 → 입력이 멈춘 뒤에만 저장(디바운스)
-  }, [autoSave, lrcPath, isDirty, doc, recoveryPending]);
+  }, [autoSave, lrcPath, isDirty, doc, recoveryPending, documentSession]);
 
   // 미저장 작업 자동 복구 스냅샷: dirty면 디바운스로 저장, 저장되면(dirty 해제) 제거.
   // 저장 경로가 없어도 보호되므로 autoSave와 독립적으로 동작.
@@ -176,6 +194,17 @@ function useAutoSave(recoveryPending: boolean) {
     window.addEventListener("pagehide", flush);
     return () => window.removeEventListener("pagehide", flush);
   }, [recoveryPending]);
+}
+
+function serializationErrorCode(error: unknown): string | null {
+  if (error instanceof SrtUnrepresentableContentError || error instanceof LrcInlineEscapeTagConflictError) return error.code;
+  return null;
+}
+
+function saveErrorMessage(error: unknown, t: ReturnType<typeof useI18nStore.getState>["t"]): string {
+  if (error instanceof SrtUnrepresentableContentError) return t.toast.srtBlankRowsUnsupported;
+  if (error instanceof LrcInlineEscapeTagConflictError) return t.toast.lrcInlineEscapeConflict;
+  return t.toast.saveFailed;
 }
 
 // 시작 시 조용히(silent) 확인 — 새 버전이 있을 때만 스토어 상태가 "available"로 바뀌어
@@ -228,6 +257,11 @@ function App() {
   );
   const hasGlyphSync = useLrcStore((s) => s.doc.lines.some((l) => l.syllables?.some((sy) => sy.time !== null)));
   const { t } = useI18nStore();
+  const appDocumentSession = useLrcStore((s) => s._documentSession);
+  const lrcExtensionNoticeShown = useRef({ session: appDocumentSession, shown: false });
+  if (lrcExtensionNoticeShown.current.session !== appDocumentSession) {
+    lrcExtensionNoticeShown.current = { session: appDocumentSession, shown: false };
+  }
   const { autoCheckUpdate, uiScale, spotifyMode, youtubeMode, deviceMode, setSpotifyMode, setYoutubeMode, setDeviceMode, showElrcSaveNotice, setShowElrcSaveNotice } = useSettingsStore();
   const { isLoggedIn, handleCallback, tryRestoreSession, pausePlayback } = useServiceStore();
   const [ytdlpInstalled, setYtdlpInstalled] = useState(false);
@@ -319,9 +353,16 @@ function App() {
   };
 
   // 저장 결과를 토스트로 알림(취소 시 무알림, 실패 시 에러)
-  const runSave = (p: Promise<boolean>) => {
-    p.then((written) => { if (written) toast.success(t.toast.saved); })
-     .catch((error: unknown) => toast.error(error instanceof SrtUnrepresentableContentError ? t.toast.srtBlankRowsUnsupported : t.toast.saveFailed));
+  const runSave = (p: Promise<boolean>, isLrcExport = false) => {
+    const needsExtensionNotice = isLrcExport && needsInlineTimestampEscape(useLrcStore.getState().doc);
+    p.then((written) => {
+      if (!written) return;
+      toast.success(t.toast.saved);
+      if (needsExtensionNotice && !lrcExtensionNoticeShown.current.shown) {
+        toast.info(t.toast.lrcInlineEscapeNotice);
+        lrcExtensionNoticeShown.current.shown = true;
+      }
+    }).catch((error: unknown) => toast.error(saveErrorMessage(error, t)));
   };
 
   // 글자/단어 동기화가 있어 E-LRC로 저장될 LRC 저장은 알림 팝업을 거쳐 실행
@@ -330,7 +371,7 @@ function App() {
       pendingSaveRef.current = fn;
       setShowElrcNotice(true);
     } else {
-      runSave(fn());
+      runSave(fn(), true);
     }
   };
 
@@ -611,7 +652,7 @@ function App() {
             setShowElrcNotice(false);
             const fn = pendingSaveRef.current;
             pendingSaveRef.current = null;
-            if (fn) runSave(fn());
+            if (fn) runSave(fn(), true);
           }}
           onCancel={() => { setShowElrcNotice(false); pendingSaveRef.current = null; }}
         />
