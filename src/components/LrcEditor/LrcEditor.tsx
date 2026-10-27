@@ -5,6 +5,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { formatDisplayTime, parseTimestampInput, validateTimestamps, type SyncUnit } from "../../utils/lrcParser";
+import type { LrcSyllable } from "../../types/lrc";
 import { audioControls } from "../../utils/audioControls";
 import { CurrentTimeFooter } from "./CurrentTimeFooter";
 import { MiniConfirm } from "./MiniConfirm";
@@ -84,12 +85,20 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   const tsEditCancel = useRef(false);
 
   // 글자 동기화된 줄의 텍스트 수정 경고 / 단위 변경 경고
-  const [pendingTextEdit, setPendingTextEdit] = useState<{ id: string; text: string } | null>(null);
-  const [pendingUnit, setPendingUnit] = useState<SyncUnit | null>(null);
+  const [pendingTextEdit, setPendingTextEdit] = useState<{
+    id: string; text: string; session: number; baseText: string; baseSyllables: LrcSyllable[] | undefined;
+  } | null>(null);
+  const [pendingUnit, setPendingUnit] = useState<{
+    unit: SyncUnit; session: number; lineId: string; baseSyllables: LrcSyllable[];
+  } | null>(null);
   const [pendingSplit, setPendingSplit] = useState<{
     id: string; caret: number; session: number; text: string; translation: string; first: string; second: string;
   } | null>(null);
-  useEffect(() => { setPendingSplit(null); }, [documentSession]);
+  useEffect(() => {
+    setPendingTextEdit(null);
+    setPendingUnit(null);
+    setPendingSplit(null);
+  }, [documentSession]);
   useEffect(() => {
     if (!pendingSplit) return;
     const cancel = (event: KeyboardEvent) => {
@@ -195,13 +204,22 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   const handleTextChange = (id: string, value: string) => {
     const ln = lines.find((l) => l.id === id);
     if (ln?.syllables?.some((s) => s.time !== null)) {
-      setPendingTextEdit({ id, text: value });
+      const current = useLrcStore.getState();
+      setPendingTextEdit({ id, text: value, session: current._documentSession, baseText: ln.text,
+        baseSyllables: ln.syllables?.map((syllable) => ({ ...syllable })) });
       return;
     }
     updateLine(id, { text: value });
   };
   const confirmTextEdit = () => {
-    if (pendingTextEdit) updateLine(pendingTextEdit.id, { text: pendingTextEdit.text, syllables: undefined });
+    if (pendingTextEdit) {
+      const current = useLrcStore.getState();
+      const line = current.doc.lines.find((item) => item.id === pendingTextEdit.id);
+      const syllablesMatch = JSON.stringify(line?.syllables) === JSON.stringify(pendingTextEdit.baseSyllables);
+      if (current._documentSession === pendingTextEdit.session && line?.text === pendingTextEdit.baseText && syllablesMatch) {
+        updateLine(pendingTextEdit.id, { text: pendingTextEdit.text, syllables: undefined });
+      }
+    }
     setPendingTextEdit(null);
   };
 
@@ -210,16 +228,23 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     if (u === syncUnit) return;
     const active = lines.find((l) => l.id === activeLineId);
     if (active?.syllables?.some((s) => s.time !== null)) {
-      setPendingUnit(u);
+      const current = useLrcStore.getState();
+      setPendingUnit({ unit: u, session: current._documentSession, lineId: active.id,
+        baseSyllables: active.syllables?.map((syllable) => ({ ...syllable })) ?? [] });
       return;
     }
     setSyncUnit(u);
   };
   const confirmUnitChange = () => {
     if (pendingUnit) {
-      const active = lines.find((l) => l.id === activeLineId);
-      if (active) clearLineSyllables(active.id);
-      setSyncUnit(pendingUnit);
+      const current = useLrcStore.getState();
+      const active = current.doc.lines.find((line) => line.id === pendingUnit.lineId);
+      const syllablesMatch = JSON.stringify(active?.syllables) === JSON.stringify(pendingUnit.baseSyllables);
+      if (current._documentSession === pendingUnit.session && current.syncUnit !== pendingUnit.unit &&
+        current.activeLineId === pendingUnit.lineId && syllablesMatch) {
+        if (active) clearLineSyllables(active.id);
+        setSyncUnit(pendingUnit.unit);
+      }
     }
     setPendingUnit(null);
   };
@@ -452,10 +477,10 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     const escaped = findText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const re = new RegExp(escaped, caseSensitive ? "" : "i");
     const newText = line.text.replace(re, () => replaceText);
-    if (newText !== line.text) updateLine(id, { text: newText });
+    if (newText !== line.text) handleTextChange(id, newText);
     // 다음 매치로 이동 (matchIds는 갱신되므로 다음 렌더 후 자동 이동)
     setMatchPos((p) => (p < matchIds.length - 1 ? p + 1 : 0));
-  }, [matchIds, matchPos, findText, replaceText, caseSensitive, lines, updateLine]);
+  }, [matchIds, matchPos, findText, replaceText, caseSensitive, lines, handleTextChange]);
 
   const handleReplaceAll = useCallback(() => {
     if (!findText) return;

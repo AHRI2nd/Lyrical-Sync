@@ -67,6 +67,7 @@
     "src/components/LrcEditor/ScaleBar.tsx",
     "src/components/LrcEditor/SyncModeToggle.tsx",
     "src/components/LrcEditor/TimeShiftBar.tsx",
+    "src/components/LrcEditor/TimingTools.test.tsx",
     "src/components/LrcEditor/ValidationPanel.tsx",
     "src/components/LrcEditor/WaveformViewMenu.tsx",
     "src/components/MetaEditor/MetaEditor.test.tsx",

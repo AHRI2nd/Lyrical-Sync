@@ -193,6 +193,41 @@ it("keeps ordinary Enter available for multiline cue editing instead of insertin
   expect(fireEvent.keyDown(getByRole("textbox"), { key: "Enter" })).toBe(true);
   expect(useLrcStore.getState().doc.lines).toHaveLength(1);
 });
+
+it("does not apply a pending retokenize confirmation to a replacement document with the same row ID", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "old lyric", timestamp: 1,
+    syllables: [{ text: "old lyric", time: 1 }] }] }, activeLineId: "a" });
+  const { getByDisplayValue, getByRole, queryByText } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.change(getByDisplayValue("old lyric"), { target: { value: "pending old edit" } });
+  const staleConfirmation = getByRole("button", { name: t.charSync.retokenizeOk });
+  act(() => useLrcStore.setState({
+    doc: { ...defaultDocument(), lines: [{ id: "a", text: "new document", timestamp: 2,
+      syllables: [{ text: "new document", time: 2 }] }] },
+    _documentSession: useLrcStore.getState()._documentSession + 1,
+    activeLineId: "a",
+  }));
+  fireEvent.click(staleConfirmation);
+  expect(queryByText(t.charSync.retokenizeTitle)).toBeNull();
+  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({
+    text: "new document", syllables: [{ text: "new document", time: 2 }],
+  });
+});
+
+it("does not apply a pending sync-unit confirmation to a different active row", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+    { id: "a", text: "timed", timestamp: 1, syllables: [{ text: "timed", time: 1 }] },
+    { id: "b", text: "other", timestamp: 2, syllables: [{ text: "other", time: 2 }] },
+  ] }, activeLineId: "a", syncMode: "char", syncUnit: "char" });
+  const { getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getByRole("button", { name: t.charSync.unitWord }));
+  const staleConfirmation = getByRole("button", { name: t.charSync.retokenizeOk });
+  act(() => useLrcStore.setState({ activeLineId: "b" }));
+  fireEvent.click(staleConfirmation);
+  expect(useLrcStore.getState().syncUnit).toBe("char");
+  expect(useLrcStore.getState().doc.lines[0].syllables).toEqual([{ text: "timed", time: 1 }]);
+});
 it("opens the real lazy batch tool from the editor menu", async () => {
   const t = useI18nStore.getState().t;
   const { getByRole, findByRole } = render(<LrcEditor onPreview={() => {}} />);

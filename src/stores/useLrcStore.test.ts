@@ -27,6 +27,8 @@ import { saveRecoverySnapshot, loadRecoverySnapshot, clearRecoverySnapshot } fro
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useSettingsStore } from "./useSettingsStore";
+import { serializeLrc } from "../utils/lrcParser";
+import { enqueuePathWrite } from "../utils/pathWriteQueue";
 
 const reset = (lines: LrcLine[], offset = 0) =>
   useLrcStore.setState({
@@ -52,6 +54,19 @@ describe("useLrcStore — line actions", () => {
     reset([{ id: "1", timestamp: null, text: "a" }]);
     useLrcStore.getState().updateLine("1", { text: "b" });
     expect(lines()[0].text).toBe("b");
+  });
+
+  it("drops stale syllables when edited text no longer matches what save serializes", () => {
+    reset([{ id: "1", timestamp: 10, text: "old", syllables: [{ text: "old", time: 10 }] }]);
+    useLrcStore.getState().updateLine("1", { text: "new" });
+    expect(lines()[0]).toMatchObject({ text: "new", syllables: undefined });
+    expect(serializeLrc(useLrcStore.getState().doc).trim()).toBe("[00:10.00]new");
+  });
+
+  it("drops untimed syllables that no longer match ordinary text edits", () => {
+    reset([{ id: "1", timestamp: 10, text: "old", syllables: [{ text: "old", time: null }] }]);
+    useLrcStore.getState().updateLine("1", { text: "new" });
+    expect(lines()[0]).toMatchObject({ text: "new", syllables: undefined });
   });
 
   it("deleteLine removes and updates activeLineId", () => {
@@ -127,6 +142,22 @@ describe("useLrcStore — syllable actions", () => {
 });
 
 describe("useLrcStore — history & raw load", () => {
+  it("restores valid active and loop selections across undo, redo, and history jumps", () => {
+    reset([
+      { id: "a", timestamp: null, text: "first", syllables: [{ text: "first", time: null }] },
+      { id: "b", timestamp: null, text: "second", syllables: [{ text: "second", time: null }] },
+    ]);
+    useLrcStore.setState({ activeLineId: "b", loopLineId: "b", activeSyllableIndex: 9 });
+    useLrcStore.getState().deleteLine("b");
+    useLrcStore.setState({ activeLineId: "ghost", loopLineId: "ghost", activeSyllableIndex: 9 });
+    useLrcStore.getState().undo();
+    expect(useLrcStore.getState()).toMatchObject({ activeLineId: "a", loopLineId: null, activeSyllableIndex: 0 });
+    useLrcStore.getState().redo();
+    expect(useLrcStore.getState()).toMatchObject({ activeLineId: "a", loopLineId: null, activeSyllableIndex: 0 });
+    useLrcStore.getState().jumpToHistory(0);
+    expect(useLrcStore.getState()).toMatchObject({ activeLineId: "a", loopLineId: null, activeSyllableIndex: 0 });
+  });
+
   it("undo/redo round-trips an addLine", () => {
     reset([]);
     useLrcStore.getState().addLine("x");
@@ -397,6 +428,32 @@ describe("useLrcStore — security-scoped bookmarks (App Sandbox)", () => {
 
     await flush();
     expect(useLrcStore.getState().lrcBookmark).toBe("bm-new");
+  });
+
+  it("does not dispatch a queued Save As write after the document changes", async () => {
+    let release!: () => void;
+    const blocker = enqueuePathWrite("/queued-save-as.lrc", () => new Promise<void>((resolve) => { release = resolve; }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    vi.mocked(save).mockResolvedValue("/queued-save-as.lrc");
+    vi.mocked(invoke).mockImplementation((cmd: unknown, args?: unknown) => {
+      if (cmd === "prepare_file_ref") return Promise.resolve(args);
+      return Promise.resolve(undefined);
+    });
+    const pendingSave = useLrcStore.getState().saveLrcAs("lrc");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const current = useLrcStore.getState();
+    useLrcStore.setState({
+      doc: { ...current.doc, lines: [{ id: "replacement", timestamp: null, text: "replacement" }] },
+      _documentSession: current._documentSession + 1,
+      lrcPath: "/queued-save-as.lrc",
+      isDirty: true,
+    });
+    release();
+    await blocker;
+
+    expect(await pendingSave).toBe(false);
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState()).toMatchObject({ lrcPath: "/queued-save-as.lrc", isDirty: true });
   });
 
   it("restoreDoc sets bookmarks directly from parameters", async () => {

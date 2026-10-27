@@ -214,17 +214,43 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
     if (nextIdx != null) setActiveSyllable(nextIdx);
   };
   const beginDrag = (index: number, e: React.MouseEvent) => {
-    if (!line || e.button !== 0) return; // 좌클릭만 (우클릭은 글자 지우기)
+    if (!line || e.button !== 0 || anyModalOpen()) return; // 좌클릭만 (우클릭은 글자 지우기)
     e.preventDefault();
     // Return shortcut focus to the glyph editor after using a toolbar control.
     textRef.current?.focus({ preventScroll: true });
+    const store = useLrcStore.getState();
+    const context = {
+      documentSession: store._documentSession,
+      audioSelection: store._audioSelection,
+      syncUnit: store.syncUnit,
+      syncMode: store.syncMode,
+      startButton: e.button,
+    };
     const startX = e.clientX;
     const startY = e.clientY;
     let painting = false;
     let lastIdx = -1;
     let advancedViaEnd = false;
 
+    let cleanedUp = false;
+    const cleanup = () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      window.removeEventListener("blur", onBlur);
+      if (dragCleanupRef.current === cleanup) dragCleanupRef.current = null;
+    };
+    const contextIsCurrent = () => {
+      const current = useLrcStore.getState();
+      return !anyModalOpen() && context.startButton === 0 &&
+        current._documentSession === context.documentSession &&
+        current._audioSelection === context.audioSelection &&
+        current.syncUnit === context.syncUnit && current.syncMode === context.syncMode;
+    };
+
     const move = (ev: MouseEvent) => {
+      if (ev.buttons === 0 || !contextIsCurrent()) { cleanup(); return; }
       if (!painting) {
         if (Math.hypot(ev.clientX - startX, ev.clientY - startY) <= 5) return;
         painting = true;
@@ -249,18 +275,16 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
       lastIdx = gi;
       stampGlyphAt(gi, false);
     };
-    const cleanup = () => {
-      window.removeEventListener("mousemove", move);
-      window.removeEventListener("mouseup", up);
-      dragCleanupRef.current = null;
-    };
     const up = () => {
+      if (!contextIsCurrent()) { cleanup(); return; }
       cleanup();
       if (!painting) setActiveSyllable(index); // 단순 클릭 = 선택만(찍지 않음)
     };
+    const onBlur = () => cleanup();
     dragCleanupRef.current = cleanup;
     window.addEventListener("mousemove", move);
     window.addEventListener("mouseup", up);
+    window.addEventListener("blur", onBlur);
   };
 
   const replayLine = () => {

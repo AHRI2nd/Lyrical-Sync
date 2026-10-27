@@ -15,6 +15,17 @@ import { audioControls } from "../../utils/audioControls";
 import { defaultDocument } from "../../types/lrc";
 
 const originalLanguage = useI18nStore.getState();
+if (typeof globalThis.localStorage === "undefined") {
+  const storage = new Map<string, string>();
+  globalThis.localStorage = {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => { storage.set(key, String(value)); },
+    removeItem: (key: string) => { storage.delete(key); },
+    clear: () => storage.clear(),
+    key: () => null,
+    length: 0,
+  } as Storage;
+}
 beforeEach(() => {
   vi.stubGlobal("PointerEvent", class extends MouseEvent {
     pointerId: number; isPrimary = true;
@@ -257,11 +268,23 @@ it("starts painting vertically in wrapped lyrics without seeking", () => {
   const seek = vi.spyOn(audioControls, "seekTo");
   const { container } = render(<CharSyncView />);
   fireEvent.mouseDown(container.querySelector('[data-glyph="0"]')!, { button: 0, clientX: 100, clientY: 10 });
-  fireEvent.mouseMove(window, { clientX: 100, clientY: 40 });
+  fireEvent.mouseMove(window, { buttons: 1, clientX: 100, clientY: 40 });
   fireEvent.mouseUp(window);
   expect(useLrcStore.getState().doc.lines[0].syllables?.[0].time).toBe(12);
   expect(useLrcStore.getState().activeSyllableIndex).toBe(1);
   expect(seek).not.toHaveBeenCalled();
+});
+it.each(["window blur", "buttons=0 movement", "document replacement"])("cancels a glyph gesture after %s", (reason) => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "abc", timestamp: 0 }] } });
+  const { container } = render(<CharSyncView />);
+  const first = container.querySelector('[data-glyph="0"]')!;
+  fireEvent.mouseDown(first, { button: 0, buttons: 1, clientX: 10, clientY: 10 });
+  if (reason === "window blur") fireEvent.blur(window);
+  else if (reason === "buttons=0 movement") fireEvent.mouseMove(window, { buttons: 0, clientX: 30, clientY: 30 });
+  else act(() => useLrcStore.setState({ _documentSession: useLrcStore.getState()._documentSession + 1 }));
+  fireEvent.mouseMove(window, { buttons: 1, clientX: 40, clientY: 40 });
+  expect(useLrcStore.getState().doc.lines[0].syllables).toBeUndefined();
+  expect(useLrcStore.getState()._history).toHaveLength(0);
 });
 it("starts a second seek in the still-visible pending viewport", () => {
   useLrcStore.setState({ duration:100, audioPath:'/song.mp3', currentTime:12 });

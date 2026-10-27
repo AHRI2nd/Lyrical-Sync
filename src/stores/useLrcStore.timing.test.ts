@@ -17,6 +17,17 @@ it('restamps calibrated glyphs together with the line onset', () => {
  expect(useLrcStore.getState().doc.lines[0].syllables?.map(s=>s.time)).toEqual([30,null,31]);
  expect(serializeLrc(useLrcStore.getState().doc)).toContain('[00:30.00]<00:30.00>a <00:31.00>b');
 });
+it('moves glyph timestamps with a direct row stamp and keeps export and undo consistent', () => {
+ useLrcStore.getState().stampCurrentLine('a');
+ const doc = useLrcStore.getState().doc;
+ expect(doc.lines[0].timestamp).toBe(30);
+ expect(doc.lines[0].syllables?.map(s => s.time)).toEqual([30, null, 31]);
+ expect(serializeLrc(doc)).toContain('[00:30.00]<00:30.00>a <00:31.00>b');
+ expect(useLrcStore.getState()._history).toHaveLength(1);
+ useLrcStore.getState().undo();
+ expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(1);
+ expect(useLrcStore.getState().doc.lines[0].syllables?.map(s => s.time)).toEqual([1, null, 2]);
+});
 it('moves glyphs to zero on manual onset editing while preserving null tokens', () => {
  useLrcStore.getState().updateLine('a',{timestamp:0});
  expect(useLrcStore.getState().doc.lines[0].syllables?.map(s=>s.time)).toEqual([0,null,1]);

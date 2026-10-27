@@ -2,7 +2,7 @@ import { retimeLine } from "../utils/lineTiming";
 import { nearestBeat } from "../utils/bpmDetect";
 import { create } from "zustand";
 import { LrcDocument, LrcLine, LrcMetadata, LrcSyllable, defaultDocument } from "../types/lrc";
-import { parseLrc, serializeLrc, type SyncUnit } from "../utils/lrcParser";
+import { isStampable, parseLrc, serializeLrc, tokenizeText, type SyncUnit } from "../utils/lrcParser";
 import { serializeSrt, parseSrt } from "../utils/srtConverter";
 import { serializeVtt, serializeAss } from "../utils/exportFormats";
 import { prepareFileRef, readLyrics, writeLyrics, type FileRef } from "../utils/fileAccess";
@@ -145,6 +145,25 @@ function serializeForPath(path: string, doc: LrcDocument, duration: number): str
 }
 
 const MAX_HISTORY = 50;
+function selectionForDocument(
+  doc: LrcDocument,
+  selection: { activeLineId: string | null; loopLineId: string | null; activeSyllableIndex: number },
+  syncUnit: SyncUnit,
+) {
+  const activeLineId = doc.lines.some((line) => line.id === selection.activeLineId)
+    ? selection.activeLineId
+    : (doc.lines[0]?.id ?? null);
+  const loopLineId = doc.lines.some((line) => line.id === selection.loopLineId)
+    ? selection.loopLineId
+    : null;
+  const activeLine = doc.lines.find((line) => line.id === activeLineId);
+  const tokens = activeLine?.syllables ?? tokenizeText(activeLine?.text ?? "", syncUnit);
+  const stampable = tokens.map((token, index) => isStampable(token) ? index : -1).filter((index) => index >= 0);
+  const activeSyllableIndex = stampable.includes(selection.activeSyllableIndex)
+    ? selection.activeSyllableIndex
+    : (stampable.find((index) => index >= selection.activeSyllableIndex) ?? stampable[0] ?? 0);
+  return { activeLineId, loopLineId, activeSyllableIndex };
+}
 const historyInfo = (docs: LrcDocument[], info: HistoryInfo[]): HistoryInfo[] => docs.map((_, i) => info[i] ?? { label: "editText", timestamp: 0 });
 function changeLabel(before: LrcDocument, after: LrcDocument): string {
   if (JSON.stringify(before.metadata) !== JSON.stringify(after.metadata)) return "editMetadata";
@@ -243,11 +262,13 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
   },
 
   undo: () => {
-    const { doc, _history, _future } = get();
+    const { doc, _history, _future, activeLineId, loopLineId, activeSyllableIndex, syncUnit } = get();
     if (_history.length === 0) return;
     const prev = _history[_history.length - 1];
+    const selection = selectionForDocument(prev, { activeLineId, loopLineId, activeSyllableIndex }, syncUnit);
     set({
       doc: prev,
+      ...selection,
       _history: _history.slice(0, -1),
       _future: [doc, ..._future].slice(0, MAX_HISTORY),
       _historyInfo: historyInfo(_history, get()._historyInfo).slice(0, -1),
@@ -257,11 +278,13 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
   },
 
   redo: () => {
-    const { doc, _history, _future } = get();
+    const { doc, _history, _future, activeLineId, loopLineId, activeSyllableIndex, syncUnit } = get();
     if (_future.length === 0) return;
     const next = _future[0];
+    const selection = selectionForDocument(next, { activeLineId, loopLineId, activeSyllableIndex }, syncUnit);
     set({
       doc: next,
+      ...selection,
       _history: [..._history, doc].slice(-MAX_HISTORY),
       _future: _future.slice(1),
       _historyInfo: [...historyInfo(_history, get()._historyInfo), historyInfo(_future, get()._futureInfo)[0]].slice(-MAX_HISTORY),
@@ -277,11 +300,14 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     if (!Number.isInteger(index) || index < 0 || index >= timeline.length || index === past.length) return;
     const info = [...historyInfo(past, state._historyInfo), ...historyInfo(future, state._futureInfo)];
     const target = timeline[index];
+    const selection = selectionForDocument(target, {
+      activeLineId: state.activeLineId,
+      loopLineId: state.loopLineId,
+      activeSyllableIndex: state.activeSyllableIndex,
+    }, state.syncUnit);
     set({ doc: target, _history: timeline.slice(0, index).slice(-MAX_HISTORY), _future: timeline.slice(index + 1).slice(0, MAX_HISTORY),
       _historyInfo: info.slice(0, index).slice(-MAX_HISTORY), _futureInfo: info.slice(index).slice(0, MAX_HISTORY),
-      isDirty: true, _lastEditKey: null,
-      activeLineId: target.lines.some(l => l.id === state.activeLineId) ? state.activeLineId : target.lines[0]?.id ?? null,
-      loopLineId: target.lines.some(l => l.id === state.loopLineId) ? state.loopLineId : null });
+      isDirty: true, _lastEditKey: null, ...selection });
   },
 
   setIsPlaying: (v) => set({ isPlaying: v }),
@@ -382,10 +408,18 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     const { doc } = get();
     const line = doc.lines.find((item) => item.id === id);
     if (!line) return;
-    const fields = (Object.keys(patch) as (keyof typeof patch)[]).filter((field) => !Object.is(line[field], patch[field]));
+    const normalizedPatch = { ...patch };
+    if (patch.text !== undefined && patch.text !== line.text) {
+      if (!Object.prototype.hasOwnProperty.call(patch, "syllables")) {
+        normalizedPatch.syllables = undefined;
+      } else if (normalizedPatch.syllables && normalizedPatch.syllables.map((s) => s.text).join("") !== patch.text) {
+        normalizedPatch.syllables = undefined;
+      }
+    }
+    const fields = (Object.keys(normalizedPatch) as (keyof typeof normalizedPatch)[]).filter((field) => !Object.is(line[field], normalizedPatch[field]));
     if (fields.length === 0) return;
     const key = fields.length === 1 && (fields[0] === "text" || fields[0] === "translation") ? `line:${id}:${fields[0]}` : null;
-    set({ ...pushHistory(doc, key), doc: { ...doc, lines: doc.lines.map((item) => item.id === id ? { ...(patch.timestamp !== undefined ? retimeLine(item, patch.timestamp) : item), ...patch } : item) }, isDirty: true });
+    set({ ...pushHistory(doc, key), doc: { ...doc, lines: doc.lines.map((item) => item.id === id ? { ...(normalizedPatch.timestamp !== undefined ? retimeLine(item, normalizedPatch.timestamp) : item), ...normalizedPatch } : item) }, isDirty: true });
   },
 
   deleteLine: (id) => {
@@ -521,7 +555,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
       doc: {
         ...doc,
         lines: doc.lines.map((l) =>
-          l.id === id ? { ...l, timestamp: currentTime } : l
+          l.id === id ? retimeLine(l, currentTime) : l
         ),
       },
       isDirty: true,
@@ -719,16 +753,22 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
       defaultPath: doc.metadata.title || "untitled",
     });
     if (path) {
-      if (get()._documentSession !== session || get()._saveRequest !== request) return false;
+      const isCurrentRequest = () => get()._documentSession === session && get()._saveRequest === request;
+      if (!isCurrentRequest()) return false;
       const end = duration > 0 ? duration : undefined;
       const content =
         format === "srt" ? serializeSrt(doc, end)
         : format === "vtt" ? serializeVtt(doc, end)
         : format === "ass" ? serializeAss(doc, end)
         : serializeLrc(doc, enhanced ?? true);
-      await enqueuePathWrite(path, () => writeLyrics({ path, bookmark: null }, content));
+      const written = await enqueuePathWrite(path, async () => {
+        if (!isCurrentRequest()) return false;
+        await writeLyrics({ path, bookmark: null }, content);
+        return true;
+      });
+      if (!written) return false;
       // 보조 포맷 저장 시엔 작업 파일 경로(lrcPath)·dirty 상태를 바꾸지 않음
-      if ((format === "lrc" || format === "srt") && get()._documentSession === session && get()._saveRequest === request) {
+      if ((format === "lrc" || format === "srt") && isCurrentRequest()) {
         const target = get()._saveTarget + 1;
         set({ lrcPath: path, lrcBookmark: null, _saveTarget: target, isDirty: get()._editRevision !== revision });
         recordRecent();
