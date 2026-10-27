@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { anyModalOpen } from "../../utils/modalGuard";
 
 export function TimeShiftBar({
   lineCount, defaultFrom, onApply, onClose,
@@ -14,16 +15,6 @@ export function TimeShiftBar({
   const [to, setTo] = useState(lineCount);
   const [delta, setDelta] = useState(0);
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleApply();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onClose, from, to, delta]);
-
   const clampFrom = (v: number) => Math.max(1, Math.min(v, to));
   const clampTo = (v: number) => Math.max(from, Math.min(v, lineCount));
 
@@ -34,8 +25,24 @@ export function TimeShiftBar({
 
   const step = (d: number) => setDelta((v) => Math.round((v + d) * 1000) / 1000);
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.defaultPrevented || e.nativeEvent.isComposing || e.keyCode === 229 || anyModalOpen()) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onClose();
+      return;
+    }
+    if (
+      e.key === "Enter" && e.target instanceof HTMLInputElement &&
+      (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey
+    ) {
+      e.preventDefault();
+      handleApply();
+    }
+  };
+
   return (
-    <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] rounded-lg text-xs">
+    <div onKeyDown={handleKeyDown} className="flex flex-wrap items-center gap-2 px-3 py-2 bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] rounded-lg text-xs">
       {/* 범위 */}
       <span className="text-[var(--ls-text-secondary)] shrink-0">{t.timeShiftFrom}</span>
       <input
