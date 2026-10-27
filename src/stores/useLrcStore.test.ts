@@ -843,6 +843,26 @@ describe("useLrcStore — save completion races", () => {
     expect(useLrcStore.getState().lrcPath).toBe("/tmp/song.lrc");
     expect(useLrcStore.getState().isDirty).toBe(true);
   });
+
+  it("escapes VTT text on Save As without changing the active LRC document", async () => {
+    const state = useLrcStore.getState();
+    useLrcStore.setState({
+      doc: { ...state.doc, lines: [{ id: "1", timestamp: 1, text: "A <b>bold</b> &amp; B" }] },
+      lrcPath: "/tmp/song.lrc",
+      isDirty: true,
+    });
+    vi.mocked(save).mockResolvedValue("/tmp/song.vtt");
+    vi.mocked(invoke).mockResolvedValue(undefined);
+
+    await expect(useLrcStore.getState().saveLrcAs("vtt")).resolves.toBe(true);
+
+    expect(invoke).toHaveBeenCalledWith("write_lrc_file", expect.objectContaining({
+      path: "/tmp/song.vtt",
+      content: expect.stringContaining("A &lt;b&gt;bold&lt;/b&gt; &amp;amp; B"),
+    }));
+    expect(useLrcStore.getState().lrcPath).toBe("/tmp/song.lrc");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
 });
 
 describe("useLrcStore — concurrent lyric loads", () => {

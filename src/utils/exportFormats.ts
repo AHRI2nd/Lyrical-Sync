@@ -42,21 +42,25 @@ function vttTime(seconds: number): string {
   return `${p2(Math.floor(ms / 3600000))}:${p2(Math.floor(ms / 60000) % 60)}:${p2(Math.floor(ms / 1000) % 60)}.${p3(ms % 1000)}`;
 }
 
+export function escapeVttText(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 // Timed glyphs use VTT inline timestamps for karaoke.
 function vttText(line: LrcLine): string {
-  if (line.text.trim() === "") return line.translation ?? "";
+  if (line.text.trim() === "") return escapeVttText(line.translation ?? "");
   if (line.syllables?.some((s) => s.time !== null)) {
     return line.syllables
-      .map((s) => (s.time !== null ? `<${vttTime(s.time)}>` : "") + s.text)
+      .map((s) => (s.time !== null ? `<${vttTime(s.time)}>` : "") + escapeVttText(s.text))
       .join("");
   }
-  return line.text;
+  return escapeVttText(line.text);
 }
 
 export function serializeVtt(doc: LrcDocument, lastCueEnd?: number): string {
   const cues = buildCues(doc, lastCueEnd);
   const body = cues
-    .map((c) => `${vttTime(c.start)} --> ${vttTime(c.end)}\n${vttText(c.line)}${c.line.text.trim() && c.line.translation ? `\n${c.line.translation}` : ""}`)
+    .map((c) => `${vttTime(c.start)} --> ${vttTime(c.end)}\n${vttText(c.line)}${c.line.text.trim() && c.line.translation ? `\n${escapeVttText(c.line.translation)}` : ""}`)
     .join("\n\n");
   return `WEBVTT\n\n${body}\n`;
 }

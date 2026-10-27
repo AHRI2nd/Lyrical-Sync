@@ -77,6 +77,19 @@ describe("batch output", () => {
     await runBatchOperation([entry("/inputs/song.lrc")], { kind: "convert", format }, output, vi.fn());
     expect(invoke).toHaveBeenCalledWith("write_batch_output", expect.objectContaining({ name: `song.${format}`, content: expect.stringContaining("Hello") }));
   });
+  it("escapes markup-like text during batch conversion to VTT", async () => {
+    vi.mocked(readLyrics).mockResolvedValueOnce({
+      value: "[00:02.00]A <b>bold</b> &amp; B",
+      file: { path: "/inputs/song.lrc", bookmark: "fresh" },
+    });
+
+    await runBatchOperation([entry("/inputs/song.lrc")], { kind: "convert", format: "vtt" }, output, vi.fn());
+
+    expect(invoke).toHaveBeenCalledWith("write_batch_output", expect.objectContaining({
+      name: "song.vtt",
+      content: expect.stringContaining("A &lt;b&gt;bold&lt;/b&gt; &amp;amp; B"),
+    }));
+  });
   it("shifts both line and syllable times and writes a new output with the selected folder grant", async () => {
     const status = vi.fn();
     const summary = await runBatchOperation([entry("/inputs/song.lrc", "stable")], { kind: "offset", deltaSeconds: -1 }, output, status);

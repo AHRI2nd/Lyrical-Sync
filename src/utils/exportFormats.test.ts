@@ -1,11 +1,22 @@
 import { describe, it, expect } from "vitest";
-import { serializeVtt, serializeAss } from "./exportFormats";
+import { escapeVttText, serializeVtt, serializeAss } from "./exportFormats";
 import type { LrcDocument } from "../types/lrc";
 
 const emptyMeta = { title: "Song", artist: "", album: "", by: "", offset: 0 };
 const docOf = (lines: LrcDocument["lines"]): LrcDocument => ({ metadata: emptyMeta, lines, extraTags: {} });
 
 describe("serializeVtt", () => {
+  it("escapes text characters in order without changing original text", () => {
+    expect(escapeVttText("& < > &amp;")).toBe("&amp; &lt; &gt; &amp;amp;");
+  });
+
+  it("escapes WebVTT markup, entities, and literal timestamp-shaped body text", () => {
+    const out = serializeVtt(docOf([
+      { id: "1", timestamp: 1, text: "A <b>bold</b> &amp; B > <00:02.00>" },
+    ]));
+    expect(out).toContain("A &lt;b&gt;bold&lt;/b&gt; &amp;amp; B &gt; &lt;00:02.00&gt;");
+  });
+
   it("emits a WEBVTT header and cues with .mmm times", () => {
     const out = serializeVtt(docOf([
       { id: "1", timestamp: 1, text: "first" },
@@ -21,6 +32,19 @@ describe("serializeVtt", () => {
       { id: "1", timestamp: 1, text: "ab", syllables: [{ text: "a", time: 1 }, { text: "b", time: 1.5 }] },
     ]), 3);
     expect(out).toContain("<00:00:01.000>a<00:00:01.500>b");
+  });
+
+  it("escapes syllable text but leaves generated VTT timing tags intact", () => {
+    const out = serializeVtt(docOf([{
+      id: "1", timestamp: 1, text: "<b> & >", translation: "&amp; <i>",
+      syllables: [{ text: "<b> ", time: null }, { text: "& >", time: 1.5 }],
+    }]));
+    expect(out).toContain("&lt;b&gt; <00:00:01.500>&amp; &gt;\n&amp;amp; &lt;i&gt;");
+  });
+
+  it("escapes translation-only lines", () => {
+    const out = serializeVtt(docOf([{ id: "1", timestamp: 1, text: "", translation: "<b>&amp;</b>" }]));
+    expect(out).toContain("&lt;b&gt;&amp;amp;&lt;/b&gt;");
   });
 
   it("skips blank boundary lines as cues", () => {
