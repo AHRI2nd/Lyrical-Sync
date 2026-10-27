@@ -114,6 +114,7 @@
     "src/stores/useWaveformStore.test.ts",
     "src/stores/useWaveformStore.ts",
     "src/styles/ui.css",
+    "src/test/memoryLocalStorage.ts",
     "src/types/lrc.ts",
     "src/utils/audioControls.ts",
     "src/utils/autoSpot.test.ts",

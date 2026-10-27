@@ -1292,6 +1292,7 @@
     "Exclude Dev-only LRCLIB, AI/device/model, service/Spotify, and updater product files while retaining Store 0.7.1 identity, dependencies, packaging, issue policy, and protected platform configuration.",
     "The merge ancestry includes six direct-edition commits (D04, D02, D03, D07, D06, D05) whose Store product changes are explicitly excluded above.",
     "Resolved Store source hashes record the adapted final tree; shared upstream files are listed separately.",
-    "Adopt A01 ASS literal-preservation guards and localized pre-write errors on Store while retaining Store-specific save, bookmark, recovery, and transition paths."
+    "Adopt A01 ASS literal-preservation guards and localized pre-write errors on Store while retaining Store-specific save, bookmark, recovery, and transition paths.",
+    "Use isolated in-memory Storage in jsdom recovery and privacy test files so Node 26 file-backed global storage cannot bypass failure-injection spies or share state across workers."
   ]
 }
