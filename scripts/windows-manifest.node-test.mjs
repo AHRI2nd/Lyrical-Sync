@@ -25,7 +25,7 @@ test('x64 assembly manifest remains byte-for-byte compatible', () => {
 });
 test('ARM assembly identity matches native executable and preserves security/DPI declarations', () => {
   const r = run('aarch64', source); assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /name="LyricalSync" version="0\.7\.0\.0" processorArchitecture="arm64"/);
+  assert.match(r.stdout, /name="LyricalSync" version="0\.7\.1\.0" processorArchitecture="arm64"/);
   assert.match(r.stdout, /Common-Controls[^\n]+processorArchitecture="\*"/);
   assert.match(r.stdout, /PerMonitorV2/); assert.doesNotMatch(r.stdout, /requireAdministrator/);
 });
