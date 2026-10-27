@@ -32,7 +32,7 @@ const META_TAGS: Record<string, keyof LrcMetadata> = {
   offset: "offset",
 };
 
-const META_RE = /^\[([\w-]+):([^\]]*)\]$/;
+const META_RE = /^\[([\w-]+):(.*)\]$/;
 // 줄 맨 앞의 타임스탬프 토큰: [mm:ss.xx] / [mm:ss.xxx] / [mm:ss] (센티초 선택)
 // 한 줄에 여러 토큰이 올 수 있음 (후렴 반복: [t1][t2]가사)
 const TS_TOKEN_RE = /^\[(\d+):(\d{2})(?:\.(\d{1,3}))?\]/;

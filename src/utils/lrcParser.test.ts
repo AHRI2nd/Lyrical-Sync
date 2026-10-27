@@ -61,6 +61,42 @@ describe("timestamp parsing/formatting", () => {
   });
 });
 
+it("round-trips bracketed metadata values without turning their suffixes into lyric rows", () => {
+  const doc = parseLrc([
+    "[ti:Song [Live]: Reprise]",
+    "[ar:Björk: 京子]",
+    "[al:Album [Deluxe [夜]]]",
+    "[by:Editor [v2]]",
+    "[x-source:Provider: [🎧]]",
+    "[00:01.00]Actual lyric",
+  ].join("\n"));
+
+  expect(doc.metadata).toMatchObject({
+    title: "Song [Live]: Reprise",
+    artist: "Björk: 京子",
+    album: "Album [Deluxe [夜]]",
+    by: "Editor [v2]",
+  });
+  expect(doc.extraTags["x-source"]).toBe("Provider: [🎧]");
+  expect(doc.lines.map(({ timestamp, text }) => [timestamp, text])).toEqual([[1, "Actual lyric"]]);
+  const restored = parseLrc(serializeLrc(doc));
+  expect(restored.metadata).toEqual(doc.metadata);
+  expect(restored.extraTags).toEqual(doc.extraTags);
+  expect(restored.lines.map(({ timestamp, text }) => [timestamp, text])).toEqual([[1, "Actual lyric"]]);
+});
+
+it("round-trips empty bracket metadata and timestamp-like literal lyric text", () => {
+  const doc = parseLrc("[ti:]\n[ar:]\n[x-empty:]\n[00:01.00]hello");
+  doc.lines.push({ id: "literal", timestamp: null, text: "[00:02.00]literal", translation: "[Intro: 夜]" });
+  const restored = parseLrc(serializeLrc(doc));
+  expect(restored.metadata).toMatchObject({ title: "", artist: "" });
+  expect(restored.extraTags["x-empty"]).toBe("");
+  expect(restored.lines.map(({ timestamp, text, translation }) => [timestamp, text, translation])).toEqual([
+    [1, "hello", undefined],
+    [null, "[00:02.00]literal", "[Intro: 夜]"],
+  ]);
+});
+
 describe("parseLrc — line level", () => {
   it("parses a plain timestamped line", () => {
     const d = parseLrc("[00:03.50]hello");
