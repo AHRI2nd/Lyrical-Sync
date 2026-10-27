@@ -456,6 +456,68 @@ describe("useLrcStore — security-scoped bookmarks (App Sandbox)", () => {
     expect(useLrcStore.getState()).toMatchObject({ lrcPath: "/queued-save-as.lrc", isDirty: true });
   });
 
+  it("does not dispatch a queued working-file write after the document changes at the same path", async () => {
+    let release!: () => void;
+    const blocker = enqueuePathWrite("/queued-save.lrc", () => new Promise<void>((resolve) => { release = resolve; }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    useLrcStore.setState({ lrcPath: "/queued-save.lrc", lrcBookmark: null, isDirty: true });
+    const pendingSave = useLrcStore.getState().saveLrc();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const current = useLrcStore.getState();
+    useLrcStore.setState({ _documentSession: current._documentSession + 1, isDirty: true });
+    release();
+    await blocker;
+
+    expect(await pendingSave).toBe(false);
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
+  it("rejects an unrepresentable SRT Save As before writing or changing the working path", async () => {
+    vi.mocked(save).mockResolvedValue("/export.srt");
+    useLrcStore.setState({
+      doc: { metadata: { title: "", artist: "", album: "", by: "", offset: 0 }, extraTags: {},
+        lines: [{ id: "1", timestamp: 1, text: "first\n\nthird" }] },
+      lrcPath: "/working.lrc", isDirty: true,
+    });
+
+    await expect(useLrcStore.getState().saveLrcAs("srt")).rejects.toThrow("cannot preserve blank paragraph rows");
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState()).toMatchObject({ lrcPath: "/working.lrc", isDirty: true });
+  });
+
+  it("rejects a conflicting LRC escape marker before writing", async () => {
+    vi.mocked(save).mockResolvedValue("/export.lrc");
+    useLrcStore.setState({
+      doc: { metadata: { title: "", artist: "", album: "", by: "", offset: 0 },
+        extraTags: { "x-lyrical-inline-escape": "custom" },
+        lines: [{ id: "1", timestamp: 1, text: "literal <00:02.00>" }] },
+      lrcPath: "/working.lrc", isDirty: true,
+    });
+
+    await expect(useLrcStore.getState().saveLrcAs("lrc")).rejects.toThrow("tag is reserved");
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState()).toMatchObject({ lrcPath: "/working.lrc", isDirty: true });
+  });
+
+  it("escapes literal VTT markup in Save As output", async () => {
+    vi.mocked(save).mockResolvedValue("/export.vtt");
+    let content = "";
+    vi.mocked(invoke).mockImplementation((cmd: unknown, args?: unknown) => {
+      if (cmd === "write_lrc_file") content = (args as { content: string }).content;
+      return Promise.resolve(undefined);
+    });
+    useLrcStore.setState({
+      doc: { metadata: { title: "", artist: "", album: "", by: "", offset: 0 }, extraTags: {},
+        lines: [{ id: "1", timestamp: 1, text: "<b>A & B > C</b>" }] },
+      lrcPath: "/working.lrc", isDirty: true,
+    });
+
+    expect(await useLrcStore.getState().saveLrcAs("vtt")).toBe(true);
+    expect(content).toContain("&lt;b&gt;A &amp; B &gt; C&lt;/b&gt;");
+    expect(useLrcStore.getState()).toMatchObject({ lrcPath: "/working.lrc", isDirty: true });
+  });
+
   it("restoreDoc sets bookmarks directly from parameters", async () => {
     vi.mocked(invoke).mockImplementation((cmd, args) => cmd === "prepare_file_ref" ? Promise.resolve(args) : Promise.resolve(null));
     const doc: LrcDocument = {

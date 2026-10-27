@@ -646,6 +646,8 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     return runDocumentTransition({
       snapshot: () => ({ session: get()._documentSession, revision: get()._editRevision, dirty: !(intent.kind === "recent" && !intent.entry.lrcPath) && get().isDirty }),
       isCurrent: () => get()._openRequest === request &&
+        (intent.kind !== "raw" || !intent.owner ||
+          (get()._documentSession === intent.owner.session && get()._editRevision === intent.owner.revision)) &&
         (!(intent.kind === "recent" || (intent.kind === "file" && intent.audio !== undefined)) || get()._audioSelection === audioSelection),
       confirm: confirmDocumentReplacement,
       save: () => get().saveLrc(),
@@ -729,7 +731,16 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     const { lrcPath, lrcBookmark, doc, duration, _documentSession: session, _editRevision: revision, _saveTarget: target } = get();
     if (!lrcPath) return get().saveLrcAs("lrc");
     const content = serializeForPath(lrcPath, doc, duration);
-    const result = await enqueuePathWrite(lrcPath, () => writeLyrics({ path: lrcPath, bookmark: lrcBookmark }, content));
+    const result = await enqueuePathWrite(lrcPath, () => writeLyrics(
+      { path: lrcPath, bookmark: lrcBookmark },
+      content,
+      () => {
+        const current = get();
+        return current._documentSession === session && current._saveTarget === target &&
+          current.lrcPath === lrcPath;
+      },
+    ));
+    if (!result.written) return false;
     if (get()._documentSession === session) {
       get().refreshFileReference("lyrics", { path: lrcPath, bookmark: lrcBookmark }, result.file, { session, selection: get()._audioSelection, target });
       if (get()._editRevision === revision && get()._saveTarget === target) set({ isDirty: false });
@@ -763,8 +774,8 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
         : serializeLrc(doc, enhanced ?? true);
       const written = await enqueuePathWrite(path, async () => {
         if (!isCurrentRequest()) return false;
-        await writeLyrics({ path, bookmark: null }, content);
-        return true;
+        const result = await writeLyrics({ path, bookmark: null }, content, isCurrentRequest);
+        return result.written;
       });
       if (!written) return false;
       // 보조 포맷 저장 시엔 작업 파일 경로(lrcPath)·dirty 상태를 바꾸지 않음

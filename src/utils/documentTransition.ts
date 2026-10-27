@@ -6,7 +6,7 @@ export type DocumentIntent =
   | { kind: "new" }
   | { kind: "file"; file: FileRef; audio?: FileRef | null }
   | { kind: "recent"; entry: RecentFileEntry }
-  | { kind: "raw"; text: string }
+  | { kind: "raw"; text: string; owner?: { session: number; revision: number } }
   | { kind: "recovery"; doc: LrcDocument; lyrics: FileRef | null; audio: FileRef | null };
 export type TransitionChoice = "save" | "discard" | "cancel";
 export interface DocumentSnapshot { session: number; revision: number; dirty: boolean }

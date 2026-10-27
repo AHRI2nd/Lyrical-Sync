@@ -15,7 +15,8 @@ export function MetaEditor() {
   const { t } = useI18nStore();
   const { metadata } = doc;
 
-  const [showRawEditor, setShowRawEditor] = useState(false);
+  const [rawEditorSnapshot, setRawEditorSnapshot] = useState<{ text: string; session: number; revision: number } | null>(null);
+  const showRawEditor = rawEditorSnapshot !== null;
 
   // 오프셋 입력은 로컬 문자열로 관리해 ""·"-"·음수 입력을 허용 (숫자 0 고정 방지)
   const [offsetStr, setOffsetStr] = useState(String(metadata.offset));
@@ -33,7 +34,10 @@ export function MetaEditor() {
         <h2 className="text-sm font-semibold text-[var(--ls-text-secondary)]">{t.songInfo}</h2>
         <div className="flex items-center gap-1.5">
           <button
-            onClick={() => setShowRawEditor(true)}
+            onClick={() => {
+              const current = useLrcStore.getState();
+              setRawEditorSnapshot({ text: serializeLrc(current.doc), session: current._documentSession, revision: current._editRevision });
+            }}
             title={t.viewAll}
             aria-label={t.viewAll}
             className="ls-button hover:text-white transition-colors"
@@ -83,14 +87,19 @@ export function MetaEditor() {
 
       {showRawEditor && (
         <RawEditorModal
-          initialValue={serializeLrc(doc)}
+          initialValue={rawEditorSnapshot.text}
           onApply={async (raw) => {
+            const owner = { session: rawEditorSnapshot.session, revision: rawEditorSnapshot.revision };
+            const current = useLrcStore.getState();
+            if (current._documentSession !== owner.session || current._editRevision !== owner.revision) return false;
             try {
-              const result = await useLrcStore.getState().requestDocumentTransition({ kind: "raw", text: raw });
-              if (result === "applied") setShowRawEditor(false);
-            } catch { toast.error(t.toast.openFailed); }
+              const result = await useLrcStore.getState().requestDocumentTransition({ kind: "raw", text: raw, owner });
+              if (result === "applied") setRawEditorSnapshot(null);
+              const after = useLrcStore.getState();
+              return result === "applied" || (after._documentSession === owner.session && after._editRevision === owner.revision);
+            } catch { toast.error(t.toast.openFailed); return true; }
           }}
-          onClose={() => setShowRawEditor(false)}
+          onClose={() => setRawEditorSnapshot(null)}
         />
       )}
     </div>
@@ -133,11 +142,12 @@ function RawEditorModal({
   onClose,
 }: {
   initialValue: string;
-  onApply: (raw: string) => void;
+  onApply: (raw: string) => boolean | void | Promise<boolean | void>;
   onClose: () => void;
 }) {
   const { t } = useI18nStore();
   const [value, setValue] = useState(initialValue);
+  const [stale, setStale] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -181,6 +191,8 @@ function RawEditorModal({
           className="ls-field flex-1 min-h-0 text-sm font-mono resize-none"
         />
 
+        {stale && <p role="alert" className="px-5 py-2 text-sm text-amber-300">{t.rawEditorStale}</p>}
+
         <div className="flex justify-end gap-2 px-5 py-3 border-t border-[var(--ls-border-subtle)] shrink-0">
           <button
             onClick={onClose}
@@ -189,7 +201,7 @@ function RawEditorModal({
             {t.rawEditorCancel}
           </button>
           <button
-            onClick={() => onApply(value)}
+            onClick={async () => { if (await onApply(value) === false) setStale(true); }}
             className="ls-button text-sm bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] text-white transition-colors ls-button--primary"
           >
             {t.rawEditorApply}

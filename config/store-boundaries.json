@@ -44,6 +44,7 @@
     "src/components/AudioPlayer/TransportControls.tsx",
     "src/components/AudioPlayer/icons.tsx",
     "src/components/BatchTools/BatchFileList.tsx",
+    "src/components/BatchTools/BatchFileList.test.tsx",
     "src/components/BatchTools/BatchOperationPicker.tsx",
     "src/components/BatchTools/BatchToolModal.test.tsx",
     "src/components/BatchTools/BatchToolModal.tsx",

@@ -35,6 +35,21 @@ describe("file access IPC boundary", () => {
     });
   });
 
+  it("does not dispatch a queued write if its owner changes during bookmark preparation", async () => {
+    let finishPreparation!: (value: { path: string; bookmark: string }) => void;
+    let current = true;
+    vi.mocked(invoke).mockImplementationOnce(() => new Promise((resolve) => { finishPreparation = resolve; }));
+
+    const writing = writeLyrics({ path: "/song.lrc", bookmark: "old" }, "draft", () => current);
+    await vi.waitFor(() => expect(finishPreparation).toBeTypeOf("function"));
+    current = false;
+    finishPreparation({ path: "/song.lrc", bookmark: "fresh" });
+
+    await expect(writing).resolves.toMatchObject({ written: false });
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+  });
+
   it("uses a Windows ordinary file reference without resolving an Apple bookmark", async () => {
     vi.mocked(invoke).mockResolvedValueOnce("draft");
     expect(await readLyrics({ path: "C:\\Music\\song.lrc", bookmark: null })).toEqual({

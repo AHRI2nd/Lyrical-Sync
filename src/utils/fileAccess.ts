@@ -8,6 +8,9 @@ export interface FileResult<T> {
   value: T;
   file: FileRef;
 }
+export interface FileWriteResult extends FileResult<void> {
+  written: boolean;
+}
 export interface AudioMetadata {
   title: string;
   artist: string;
@@ -26,10 +29,11 @@ export async function readLyrics(file: FileRef): Promise<FileResult<string>> {
   return { value, file: prepared };
 }
 
-export async function writeLyrics(file: FileRef, content: string): Promise<FileResult<void>> {
+export async function writeLyrics(file: FileRef, content: string, isCurrent: () => boolean = () => true): Promise<FileWriteResult> {
   const prepared = await prepareFileRef(file);
+  if (!isCurrent()) return { value: undefined, file: prepared, written: false };
   await invoke("write_lrc_file", { ...prepared, content });
-  return { value: undefined, file: prepared };
+  return { value: undefined, file: prepared, written: true };
 }
 
 export async function readAudio(file: FileRef): Promise<FileResult<Uint8Array>> {

@@ -147,6 +147,94 @@ export function validateTimestamps(lines: LrcLine[]): Map<string, LineWarning> {
 }
 
 const TRANSLATION_TAG = "x-lyrical-translations";
+const INLINE_ESCAPE_TAG = "x-lyrical-inline-escape";
+const INLINE_ESCAPE_CODE = "\\u003C";
+const INLINE_TIMESTAMP_TEXT_RE = /<\d+:\d{2}(?:\.\d{1,3})?>/;
+
+export const LRC_INLINE_ESCAPE_CONFLICT_CODE = "LRC_INLINE_ESCAPE_TAG_CONFLICT";
+
+export class LrcInlineEscapeTagConflictError extends Error {
+  readonly code = LRC_INLINE_ESCAPE_CONFLICT_CODE;
+
+  constructor() {
+    super("The x-lyrical-inline-escape tag is reserved to preserve literal inline timestamps.");
+    this.name = "LrcInlineEscapeTagConflictError";
+  }
+}
+
+export function needsInlineTimestampEscape(doc: LrcDocument): boolean {
+  return doc.lines.some((line) =>
+    INLINE_TIMESTAMP_TEXT_RE.test(line.text) ||
+    (line.translation !== undefined && INLINE_TIMESTAMP_TEXT_RE.test(line.translation)) ||
+    line.syllables?.some((syllable) => INLINE_TIMESTAMP_TEXT_RE.test(syllable.text)) === true
+  );
+}
+
+function escapeInlineTimestampText(text: string): string {
+  return text.replace(/\\/g, "\\\\").replace(/<(?=\d+:\d{2}(?:\.\d{1,3})?>)/g, INLINE_ESCAPE_CODE);
+}
+
+function decodeInlineEscapes(text: string): string {
+  let decoded = "";
+  for (let i = 0; i < text.length;) {
+    if (text.startsWith(INLINE_ESCAPE_CODE, i)) {
+      decoded += "<";
+      i += INLINE_ESCAPE_CODE.length;
+    } else if (text.startsWith("\\\\", i)) {
+      decoded += "\\";
+      i += 2;
+    } else {
+      decoded += text[i++];
+    }
+  }
+  return decoded;
+}
+
+function parseMarkedInlineSyllables(raw: string): { text: string; syllables: LrcSyllable[] | null } {
+  const parts: ({ kind: "text"; text: string } | { kind: "time"; time: number })[] = [];
+  let buffer = "";
+  let hasTimestamp = false;
+  for (let i = 0; i < raw.length;) {
+    if (raw.startsWith(INLINE_ESCAPE_CODE, i)) {
+      buffer += "<";
+      i += INLINE_ESCAPE_CODE.length;
+      continue;
+    }
+    if (raw.startsWith("\\\\", i)) {
+      buffer += "\\";
+      i += 2;
+      continue;
+    }
+    if (raw[i] === "<") {
+      const match = /^<(\d+):(\d{2})(?:\.(\d{1,3}))?>/.exec(raw.slice(i));
+      if (match) {
+        if (parts.length === 0 ? buffer.length > 0 : parts[parts.length - 1].kind === "time" || buffer.length > 0) {
+          parts.push({ kind: "text", text: buffer });
+        }
+        parts.push({ kind: "time", time: parseInt(match[1], 10) * 60 + parseInt(match[2], 10) + fracToSeconds(match[3]) });
+        buffer = "";
+        hasTimestamp = true;
+        i += match[0].length;
+        continue;
+      }
+    }
+    buffer += raw[i++];
+  }
+  if (!hasTimestamp) return { text: buffer, syllables: null };
+  parts.push({ kind: "text", text: buffer });
+
+  const syllables: LrcSyllable[] = [];
+  let pendingTime: number | null = null;
+  for (const part of parts) {
+    if (part.kind === "time") {
+      pendingTime = part.time;
+    } else {
+      syllables.push({ text: part.text, time: pendingTime });
+      pendingTime = null;
+    }
+  }
+  return { text: syllables.map((syllable) => syllable.text).join(""), syllables };
+}
 
 // Escaping applies only to marked documents, leaving ordinary LRC slash text literal.
 function escapeTranslationText(text: string): string {
@@ -161,6 +249,7 @@ export function parseLrc(raw: string): LrcDocument {
   const doc = defaultDocument();
   let lineId = 0;
   let translationMode = false;
+  let inlineEscapeMode = false;
   let previous: LrcLine[] = [];
 
   for (const rawLine of raw.split("\n")) {
@@ -180,6 +269,10 @@ export function parseLrc(raw: string): LrcDocument {
         const value = metaMatch[2].trim();
         const field = META_TAGS[key];
         if (key === TRANSLATION_TAG) translationMode = value === "1";
+        else if (key === INLINE_ESCAPE_TAG) {
+          if (value === "1") inlineEscapeMode = true;
+          else doc.extraTags[key] = value;
+        }
         else if (field === "offset") doc.metadata.offset = parseInt(value, 10) || 0;
         else if (field) (doc.metadata as unknown as Record<string, string>)[field] = value;
         else doc.extraTags[key] = value;
@@ -190,12 +283,22 @@ export function parseLrc(raw: string): LrcDocument {
     const rowTimes = timestamps.length ? timestamps : [null];
     if (translationMode && rest.startsWith("/") && previous.length === rowTimes.length &&
         previous.every((row, i) => row.timestamp === rowTimes[i] && row.translation === undefined)) {
-      for (const row of previous) row.translation = unescapeTranslationText(rest.slice(1));
+      const rawTranslation = inlineEscapeMode ? decodeInlineEscapes(rest.slice(1)) : rest.slice(1);
+      for (const row of previous) row.translation = unescapeTranslationText(rawTranslation);
       previous = [];
       continue;
     }
-    const content = translationMode ? unescapeTranslationText(rest) : rest.trim();
-    const syllables = timestamps.length ? parseInlineSyllables(content) : null;
+    const rawContent = translationMode ? rest : rest.trim();
+    const parsedInline = inlineEscapeMode
+      ? parseMarkedInlineSyllables(rawContent)
+      : { text: rawContent, syllables: parseInlineSyllables(rawContent) };
+    const decodeText = (text: string) => translationMode ? unescapeTranslationText(text) : text;
+    const syllables = timestamps.length
+      ? parsedInline.syllables?.map((syllable) => ({ ...syllable, text: decodeText(syllable.text) })) ?? null
+      : null;
+    const content = syllables
+      ? syllables.map((syllable) => syllable.text).join("")
+      : decodeText(parsedInline.text);
     const text = syllables ? syllables.map(s => s.text).join("") : content;
     previous = rowTimes.map(timestamp => ({
       id: String(lineId++), timestamp, text,
@@ -217,7 +320,14 @@ export function serializeLrc(doc: LrcDocument, enhanced = true): string {
   const { metadata, lines, extraTags } = doc;
   const parts: string[] = [];
   const translationMode = lines.some(line => typeof line.translation === "string" || /[\r\n]/.test(line.text) || /^\s*\[/.test(line.text));
-  const encode = (text: string) => translationMode ? escapeTranslationText(text) : text;
+  const inlineEscapeMode = needsInlineTimestampEscape(doc);
+  if (Object.keys(extraTags).some((key) => key.toLowerCase() === INLINE_ESCAPE_TAG)) {
+    throw new LrcInlineEscapeTagConflictError();
+  }
+  const encode = (text: string) => {
+    const translated = translationMode ? escapeTranslationText(text) : text;
+    return inlineEscapeMode ? escapeInlineTimestampText(translated) : translated;
+  };
 
   if (metadata.title) parts.push(`[ti:${metadata.title}]`);
   if (metadata.artist) parts.push(`[ar:${metadata.artist}]`);
@@ -227,6 +337,7 @@ export function serializeLrc(doc: LrcDocument, enhanced = true): string {
   for (const [key, val] of Object.entries(extraTags)) {
     if (key.toLowerCase() !== TRANSLATION_TAG) parts.push(`[${key}:${val}]`);
   }
+  if (inlineEscapeMode) parts.push(`[${INLINE_ESCAPE_TAG}:1]`);
   if (translationMode) parts.push(`[${TRANSLATION_TAG}:1]`);
   parts.push("");
 

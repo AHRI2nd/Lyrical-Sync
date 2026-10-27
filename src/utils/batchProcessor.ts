@@ -3,7 +3,7 @@ import type { LrcDocument } from "../types/lrc";
 import { readLyrics, type FileRef } from "./fileAccess";
 import { enqueuePathWrite } from "./pathWriteQueue";
 import { parseLrc, serializeLrc } from "./lrcParser";
-import { parseSrt, serializeSrt } from "./srtConverter";
+import { parseSrt, serializeSrt, SrtUnrepresentableContentError } from "./srtConverter";
 import { serializeVtt, serializeAss } from "./exportFormats";
 
 export interface BatchFileEntry {
@@ -107,7 +107,10 @@ export async function runBatchOperation(
         onStatus(task.entry.id, "done", undefined, refreshed);
       } catch (error) {
         summary.error++;
-        onStatus(task.entry.id, "error", error instanceof Error ? error.message : String(error), refreshed);
+        const message = error instanceof SrtUnrepresentableContentError
+          ? error.code
+          : error instanceof Error ? error.message : String(error);
+        onStatus(task.entry.id, "error", message, refreshed);
       }
     }
   };

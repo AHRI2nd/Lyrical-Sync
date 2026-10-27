@@ -28,10 +28,23 @@ import { IconBtn } from "./components/AppShell/IconBtn";
 import { NewFileIcon, OpenFolderIcon, SaveIcon, SaveAsIcon, UndoIcon, RedoIcon, GearIcon } from "./components/AppShell/icons";
 import { HistoryPanel } from "./components/AppShell/HistoryPanel";
 import { RecentFilesMenu } from "./components/AppShell/RecentFilesMenu";
+import { SrtUnrepresentableContentError } from "./utils/srtConverter";
+import { LrcInlineEscapeTagConflictError, needsInlineTimestampEscape } from "./utils/lrcParser";
 
 const AUDIO_EXTS = ["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff", "aif"];
 const LYRICS_EXTS = ["lrc", "srt"];
 const fileExt = (p: string) => p.split(".").pop()?.toLowerCase() ?? "";
+
+function serializationErrorCode(error: unknown): string | null {
+  if (error instanceof SrtUnrepresentableContentError || error instanceof LrcInlineEscapeTagConflictError) return error.code;
+  return null;
+}
+
+function saveErrorMessage(error: unknown, t: ReturnType<typeof useI18nStore.getState>["t"]): string {
+  if (error instanceof SrtUnrepresentableContentError) return t.toast.srtBlankRowsUnsupported;
+  if (error instanceof LrcInlineEscapeTagConflictError) return t.toast.lrcInlineEscapeConflict;
+  return t.toast.saveFailed;
+}
 
 function useGlobalKeys() {
   // 액션은 안정 참조 → 셀렉터로 좁혀 currentTime 등 매 프레임 갱신에 리렌더되지 않게
@@ -101,18 +114,38 @@ function useAutoSave() {
   const lrcPath = useLrcStore((s) => s.lrcPath);
   const doc = useLrcStore((s) => s.doc);
   const autoSave = useSettingsStore((s) => s.autoSave);
+  const shownError = useRef<string | null>(null);
+  const inlineEscapeNoticeSession = useRef<number | null>(null);
+  const session = useLrcStore((s) => s._documentSession);
+
+  useEffect(() => {
+    shownError.current = null;
+    inlineEscapeNoticeSession.current = null;
+  }, [session]);
 
   useEffect(() => {
     if (!autoSave || !lrcPath || !isDirty) return;
+    const needsExtensionNotice = lrcPath.toLowerCase().endsWith(".lrc") && needsInlineTimestampEscape(doc);
     const id = setTimeout(() => {
       // 자동저장: 성공은 조용히, 실패만 토스트로 알림
-      useLrcStore.getState().saveLrc().catch(() => {
-        toast.error(useI18nStore.getState().t.toast.saveFailed);
-      });
+      useLrcStore.getState().saveLrc()
+        .then((written) => {
+          if (!written || useLrcStore.getState()._documentSession !== session) return;
+          shownError.current = null;
+          if (needsExtensionNotice && inlineEscapeNoticeSession.current !== session) {
+            inlineEscapeNoticeSession.current = session;
+            toast.info(useI18nStore.getState().t.toast.lrcInlineEscapeNotice);
+          }
+        })
+        .catch((error) => {
+          const code = serializationErrorCode(error);
+          if (!code || shownError.current !== code) toast.error(saveErrorMessage(error, useI18nStore.getState().t));
+          shownError.current = code;
+        });
     }, 1500);
     return () => clearTimeout(id);
     // doc 변경마다 타이머 리셋 → 입력이 멈춘 뒤에만 저장(디바운스)
-  }, [autoSave, lrcPath, isDirty, doc]);
+  }, [autoSave, lrcPath, isDirty, doc, session]);
 }
 
 function App() {
@@ -151,11 +184,15 @@ function App() {
   const [showFormatChooser, setShowFormatChooser] = useState(false);
   const [showElrcNotice, setShowElrcNotice] = useState(false);
   const pendingSaveRef = useRef<(() => Promise<boolean>) | null>(null);
+  const serializationErrorShown = useRef<string | null>(null);
+  const inlineEscapeNoticeSession = useRef<number | null>(null);
   const documentSession = useLrcStore((s) => s._documentSession);
   useEffect(() => {
     setShowFormatChooser(false);
     setShowElrcNotice(false);
     pendingSaveRef.current = null;
+    serializationErrorShown.current = null;
+    inlineEscapeNoticeSession.current = null;
   }, [documentSession]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [dropConflict, setDropConflict] = useState<
@@ -179,14 +216,24 @@ function App() {
   const handleNewLrc = () => { void newLrc().catch(() => toast.error(t.toast.openFailed)); };
 
   // 저장 결과를 토스트로 알림(취소 시 무알림, 실패 시 에러)
-  const runSave = (p: Promise<boolean>, workingFile = true) => {
+  const runSave = (p: Promise<boolean>, workingFile = true, isLrcExport = false) => {
     const { _documentSession: session, _editRevision: revision } = useLrcStore.getState();
     p.then((written) => {
       const current = useLrcStore.getState();
-      if (written && current._documentSession === session && current._editRevision === revision && (!workingFile || !current.isDirty))
+      if (written && current._documentSession === session && current._editRevision === revision && (!workingFile || !current.isDirty)) {
         toast.success(t.toast.saved);
+        if (isLrcExport && current._documentSession === session && current.lrcPath?.toLowerCase().endsWith(".lrc") &&
+          needsInlineTimestampEscape(current.doc) && inlineEscapeNoticeSession.current !== session) {
+          inlineEscapeNoticeSession.current = session;
+          toast.info(t.toast.lrcInlineEscapeNotice);
+        }
+      }
     })
-     .catch(() => toast.error(t.toast.saveFailed));
+     .catch((error) => {
+       const code = serializationErrorCode(error);
+       if (!code || serializationErrorShown.current !== code) toast.error(saveErrorMessage(error, t));
+       serializationErrorShown.current = code;
+     });
   };
 
   // 글자/단어 동기화가 있어 E-LRC로 저장될 LRC 저장은 알림 팝업을 거쳐 실행
@@ -195,7 +242,7 @@ function App() {
       pendingSaveRef.current = fn;
       setShowElrcNotice(true);
     } else {
-      runSave(fn());
+      runSave(fn(), true, true);
     }
   };
 
@@ -381,7 +428,7 @@ function App() {
             setShowElrcNotice(false);
             const fn = pendingSaveRef.current;
             pendingSaveRef.current = null;
-            if (fn) runSave(fn());
+            if (fn) runSave(fn(), true, true);
           }}
           onCancel={() => { setShowElrcNotice(false); pendingSaveRef.current = null; }}
         />
