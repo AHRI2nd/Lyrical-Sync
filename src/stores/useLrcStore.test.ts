@@ -610,6 +610,26 @@ describe("useLrcStore — save completion races", () => {
     expect(useLrcStore.getState().isDirty).toBe(true);
   });
 
+  it("does not write an old Save As snapshot to a path selected by a different document", async () => {
+    let resolveDialog!: (path: string | null) => void;
+    vi.mocked(save).mockImplementation(() => new Promise((resolve) => { resolveDialog = resolve; }));
+    vi.mocked(invoke).mockImplementation((command: unknown) => {
+      if (command === "read_lrc_file") return Promise.resolve("[00:03.00]new document");
+      return Promise.resolve(undefined);
+    });
+
+    const saving = useLrcStore.getState().saveLrcAs("lrc");
+    await Promise.resolve();
+    await useLrcStore.getState().loadLyricsPath("/tmp/new-song.lrc");
+    resolveDialog("/tmp/new-song.lrc");
+
+    expect(await saving).toBe(false);
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState().lrcPath).toBe("/tmp/new-song.lrc");
+    expect(lines()[0].text).toBe("new document");
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
   it("keeps same-document edits dirty after Save As while adopting the selected path", async () => {
     vi.mocked(save).mockResolvedValue("/tmp/saved.lrc");
     let resolveWrite!: (value: undefined) => void;

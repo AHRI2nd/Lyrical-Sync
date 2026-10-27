@@ -155,8 +155,12 @@ export const useLrcStore = create<LrcStore>((set, get) => {
   let documentSessionId = 0;
   let lyricLoadGeneration = 0;
   let saveAsGeneration = 0;
-  const writeLrcFile = (path: string, content: string) => enqueuePathWrite(path,
-    () => invoke<void>("write_lrc_file", { path, content }));
+  const writeLrcFile = (path: string, content: string, isCurrent: () => boolean = () => true) =>
+    enqueuePathWrite(path, async () => {
+      if (!isCurrent()) return false;
+      await invoke<void>("write_lrc_file", { path, content });
+      return true;
+    });
 
   const beginDocumentSession = () => {
     documentSessionId += 1;
@@ -740,19 +744,24 @@ export const useLrcStore = create<LrcStore>((set, get) => {
       defaultPath: doc.metadata.title || "untitled",
     });
     if (path) {
+      const isCurrentRequest = () =>
+        requestId === saveAsGeneration &&
+        documentSessionId === sessionId &&
+        get().lrcPath === originalPath;
+      if (!isCurrentRequest()) return false;
+
       const end = duration > 0 ? duration : undefined;
       const content =
         format === "srt" ? serializeSrt(doc, end)
         : format === "vtt" ? serializeVtt(doc, end)
         : format === "ass" ? serializeAss(doc, end)
         : serializeLrc(doc, enhanced ?? true);
-      await writeLrcFile(path, content);
+      const written = await writeLrcFile(path, content, isCurrentRequest);
+      if (!written) return false;
       // 보조 포맷 저장 시엔 작업 파일 경로(lrcPath)·dirty 상태를 바꾸지 않음
       const current = get();
       if (
-        requestId === saveAsGeneration &&
-        documentSessionId === sessionId &&
-        current.lrcPath === originalPath &&
+        isCurrentRequest() &&
         (format === "lrc" || format === "srt")
       ) {
         set({ lrcPath: path, ...(current.doc === doc ? { isDirty: false } : {}) });
