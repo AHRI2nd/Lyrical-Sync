@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import { readLyrics } from "./fileAccess";
 import { batchOutputName, preflightBatch, runBatchOperation, type BatchFileEntry } from "./batchProcessor";
+import { SRT_UNREPRESENTABLE_CONTENT_CODE } from "./srtConverter";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("./fileAccess", () => ({ readLyrics: vi.fn() }));
@@ -38,6 +39,27 @@ describe("batch preflight", () => {
 });
 
 describe("batch output", () => {
+  it("fails only SRT files with blank paragraph rows and continues the batch", async () => {
+    vi.mocked(readLyrics)
+      .mockResolvedValueOnce({ value: "[00:01.00]first\n[x-lyrical-translations:1]\n[00:01.00]/translated\\n\\nparagraph", file: { path: "/inputs/bad.lrc", bookmark: "fresh" } })
+      .mockResolvedValueOnce({ value: "[00:01.00]first\n[x-lyrical-translations:1]\n[00:01.00]/translated", file: { path: "/inputs/good.lrc", bookmark: "fresh" } });
+    const status = vi.fn();
+
+    const summary = await runBatchOperation(
+      [entry("/inputs/bad.lrc", "bad"), entry("/inputs/good.lrc", "good")],
+      { kind: "convert", format: "srt" },
+      output,
+      status,
+      { concurrency: 1 },
+    );
+
+    expect(summary).toEqual({ done: 1, error: 1, cancelled: 0 });
+    expect(status).toHaveBeenCalledWith("bad", "error", SRT_UNREPRESENTABLE_CONTENT_CODE, { path: "/inputs/bad.lrc", bookmark: "fresh" });
+    expect(status).toHaveBeenCalledWith("good", "done", undefined, { path: "/inputs/good.lrc", bookmark: "fresh" });
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke).toHaveBeenCalledWith("write_batch_output", expect.objectContaining({ name: "good.srt" }));
+  });
+
   it("updates nonempty LRC tags while preserving existing metadata and lyric content", async () => {
     vi.mocked(readLyrics).mockResolvedValueOnce({ value: "[ti:Old]\n[ar:Existing]\n[00:02.00]Hello", file: entry("/inputs/song.lrc").file });
     await runBatchOperation([entry("/inputs/song.lrc")], { kind: "tag", title: " New ", artist: " " }, output, vi.fn());

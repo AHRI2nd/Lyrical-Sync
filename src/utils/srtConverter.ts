@@ -1,6 +1,24 @@
 import { LrcDocument, defaultDocument } from "../types/lrc";
 import { nextCueEnd } from "./exportFormats";
 
+export const SRT_UNREPRESENTABLE_CONTENT_CODE = "SRT_UNREPRESENTABLE_CONTENT";
+
+export class SrtUnrepresentableContentError extends Error {
+  readonly code = SRT_UNREPRESENTABLE_CONTENT_CODE;
+
+  constructor() {
+    super("SRT cannot preserve blank paragraph rows in a cue.");
+    this.name = "SrtUnrepresentableContentError";
+  }
+}
+
+function assertSrtBodyRepresentable(value: string | undefined): void {
+  if (value === undefined || value.trim() === "") return;
+  const rows = value.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+  while (rows.length && rows[rows.length - 1].trim() === "") rows.pop();
+  if (rows.some((row) => row.trim() === "")) throw new SrtUnrepresentableContentError();
+}
+
 // SubRip 시간 형식: HH:MM:SS,mmm
 function formatSrtTime(seconds: number): string {
   const totalMs = Math.max(0, Math.round(seconds * 1000));
@@ -44,6 +62,8 @@ export function serializeSrt(doc: LrcDocument, lastCueEnd?: number): string {
   for (let i = 0; i < timed.length; i++) {
     const line = timed[i];
     if (line.text.trim() === "" && !line.translation?.trim()) continue; // Empty rows provide boundaries only.
+    assertSrtBodyRepresentable(line.text);
+    assertSrtBodyRepresentable(line.translation);
     const start = line.timestamp as number;
     const end = nextCueEnd(timed, i, start, lastCueEnd);
     cues.push({ start, end, text: line.text.trim() === "" ? (line.translation ?? "") : line.translation ? `${line.text}\n${line.translation}` : line.text });

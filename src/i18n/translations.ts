@@ -379,6 +379,7 @@ export interface Translations {
   toast: {
     saved: string;
     saveFailed: string;
+    srtBlankRowsUnsupported: string;
     recoveryFailed: string;
     runtimeFailed: string;
     openFailed: string;
@@ -984,6 +985,7 @@ const ko: Translations = {
   toast: {
     saved: "저장되었습니다",
     saveFailed: "저장에 실패했습니다",
+    srtBlankRowsUnsupported: "SRT는 빈 문단을 보존할 수 없습니다. 빈 줄을 제거하거나 다른 형식으로 저장하세요.",
     runtimeFailed: "오류가 발생했습니다. 현재 작업을 저장한 뒤 다시 시도해 주세요.",
     recoveryFailed: "복구 사본을 저장할 수 없습니다. 작업을 파일로 저장해 주세요.",
     openFailed: "파일을 열지 못했습니다",
@@ -1587,6 +1589,7 @@ const en: Translations = {
   toast: {
     saved: "Saved",
     saveFailed: "Failed to save",
+    srtBlankRowsUnsupported: "SRT cannot preserve blank paragraph rows. Remove the blank rows or save in another format.",
     runtimeFailed: "An error occurred. Save your current work before trying again.",
     recoveryFailed: "Cannot save a recovery copy. Please save your work to a file.",
     openFailed: "Couldn't open file",
@@ -2189,6 +2192,7 @@ const ja: Translations = {
   toast: {
     saved: "保存しました",
     saveFailed: "保存に失敗しました",
+    srtBlankRowsUnsupported: "SRTでは空の段落を保持できません。空行を削除するか、別の形式で保存してください。",
     runtimeFailed: "エラーが発生しました。作業を保存してから再試行してください。",
     recoveryFailed: "復元用コピーを保存できません。作業をファイルに保存してください。",
     openFailed: "ファイルを開けませんでした",

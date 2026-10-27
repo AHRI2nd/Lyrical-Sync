@@ -47,6 +47,13 @@ describe("parseSrt", () => {
 });
 
 describe("serializeSrt", () => {
+  it.each([
+    ["original", "first\n\nsecond", undefined],
+    ["translation", "text", "translated\r\n \r\ncontinued"],
+  ])("rejects a blank paragraph row in %s text", (_field, text, translation) => {
+    expect(() => serializeSrt(docOf([{ id: "1", timestamp: 1, text, translation }]))).toThrow("SRT cannot preserve blank paragraph rows");
+  });
+
   it("uses the next line's time as each cue's end", () => {
     const out = serializeSrt(
       docOf([

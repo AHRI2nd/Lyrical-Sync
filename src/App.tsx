@@ -26,6 +26,7 @@ import { initSpotifyPlayer } from "./utils/spotifyPlayer";
 import { useUpdaterStore } from "./stores/useUpdaterStore";
 const UpdateModal = lazy(() => import("./components/Update/UpdateModal").then((m) => ({ default: m.UpdateModal })));
 import { useMacMenu } from "./hooks/useMacMenu";
+import { SrtUnrepresentableContentError } from "./utils/srtConverter";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -117,6 +118,7 @@ function useGlobalKeys() {
 // 새 문서(lrcPath 없음)는 저장 위치가 없으므로 자동 저장하지 않음.
 function useAutoSave(recoveryPending: boolean) {
   const recoveryFailed = useRef(false);
+  const srtExportErrorShown = useRef(false);
   const persistRecovery = () => {
     const st = useLrcStore.getState();
     if (!st.isDirty || recoveryPending) return;
@@ -130,12 +132,22 @@ function useAutoSave(recoveryPending: boolean) {
   const autoSave = useSettingsStore((s) => s.autoSave);
 
   useEffect(() => {
+    if (!isDirty) srtExportErrorShown.current = false;
     if (recoveryPending || !autoSave || !lrcPath || !isDirty) return;
     const id = setTimeout(() => {
       // 자동저장: 성공은 조용히, 실패만 토스트로 알림
-      useLrcStore.getState().saveLrc().catch(() => {
-        toast.error(useI18nStore.getState().t.toast.saveFailed);
-      });
+      useLrcStore.getState().saveLrc()
+        .then((written) => { if (written) srtExportErrorShown.current = false; })
+        .catch((error: unknown) => {
+          const t = useI18nStore.getState().t;
+          if (error instanceof SrtUnrepresentableContentError) {
+            if (!srtExportErrorShown.current) toast.error(t.toast.srtBlankRowsUnsupported);
+            srtExportErrorShown.current = true;
+          } else {
+            srtExportErrorShown.current = false;
+            toast.error(t.toast.saveFailed);
+          }
+        });
     }, 1500);
     return () => clearTimeout(id);
     // doc 변경마다 타이머 리셋 → 입력이 멈춘 뒤에만 저장(디바운스)
@@ -309,7 +321,7 @@ function App() {
   // 저장 결과를 토스트로 알림(취소 시 무알림, 실패 시 에러)
   const runSave = (p: Promise<boolean>) => {
     p.then((written) => { if (written) toast.success(t.toast.saved); })
-     .catch(() => toast.error(t.toast.saveFailed));
+     .catch((error: unknown) => toast.error(error instanceof SrtUnrepresentableContentError ? t.toast.srtBlankRowsUnsupported : t.toast.saveFailed));
   };
 
   // 글자/단어 동기화가 있어 E-LRC로 저장될 LRC 저장은 알림 팝업을 거쳐 실행

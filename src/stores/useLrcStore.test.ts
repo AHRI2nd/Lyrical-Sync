@@ -793,6 +793,37 @@ describe("useLrcStore — save completion races", () => {
     expect(lines()[0].text).toBe("edited during Save As");
     expect(useLrcStore.getState().isDirty).toBe(true);
   });
+
+  it("rejects an unrepresentable SRT save before file I/O and keeps the document dirty", async () => {
+    const state = useLrcStore.getState();
+    useLrcStore.setState({
+      doc: { ...state.doc, lines: [{ id: "1", timestamp: 1, text: "first\n\nsecond" }] },
+      lrcPath: "/tmp/song.srt",
+      isDirty: true,
+    });
+
+    await expect(useLrcStore.getState().saveLrc()).rejects.toThrow("SRT cannot preserve blank paragraph rows");
+
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState().lrcPath).toBe("/tmp/song.srt");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
+  it("rejects an unrepresentable SRT Save As without changing the working path", async () => {
+    const state = useLrcStore.getState();
+    useLrcStore.setState({
+      doc: { ...state.doc, lines: [{ id: "1", timestamp: 1, text: "first\n\nsecond" }] },
+      lrcPath: "/tmp/original.lrc",
+      isDirty: true,
+    });
+    vi.mocked(save).mockResolvedValue("/tmp/export.srt");
+
+    await expect(useLrcStore.getState().saveLrcAs("srt")).rejects.toThrow("SRT cannot preserve blank paragraph rows");
+
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState().lrcPath).toBe("/tmp/original.lrc");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
 });
 
 describe("useLrcStore — concurrent lyric loads", () => {
