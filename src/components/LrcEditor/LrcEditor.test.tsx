@@ -9,6 +9,7 @@ import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { defaultDocument } from "../../types/lrc";
+import { invoke } from "@tauri-apps/api/core";
 beforeEach(() => {
   useSettingsStore.setState({ showTranslationLines: false, showSpellCheck: false });
   vi.stubGlobal("DragEvent", class extends MouseEvent {});
@@ -93,6 +94,72 @@ it("ignores an unchanged enhanced lyric value", () => {
   fireEvent.change(input, { target: { value: "original" } });
   expect(queryByText(t.charSync.retokenizeTitle)).toBeNull();
   expect(useLrcStore.getState().doc.lines[0].syllables).toEqual([{ text: "original", time: 1 }]);
+});
+it("does not apply a pending retokenize confirmation to a replacement document with the same row ID", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "old lyric", timestamp: 1,
+    syllables: [{ text: "old lyric", time: 1 }] }] }, activeLineId: "a" });
+  const { getByDisplayValue, getByText, getByRole, queryByText } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.change(getByDisplayValue("old lyric"), { target: { value: "pending old edit" } });
+  expect(getByText(t.charSync.retokenizeTitle)).toBeTruthy();
+  const staleConfirmation = getByRole("button", { name: t.charSync.retokenizeOk });
+
+  act(() => useLrcStore.setState({
+    doc: { ...defaultDocument(), lines: [{ id: "a", text: "new document", timestamp: 2,
+      syllables: [{ text: "new document", time: 2 }] }] },
+    _documentSession: useLrcStore.getState()._documentSession + 1,
+    activeLineId: "a",
+  }));
+  fireEvent.click(staleConfirmation);
+
+  expect(queryByText(t.charSync.retokenizeTitle)).toBeNull();
+  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({
+    text: "new document", syllables: [{ text: "new document", time: 2 }],
+  });
+});
+it("does not apply a pending unit change to a replacement document with the same row ID", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "old lyric", timestamp: 1,
+    syllables: [{ text: "old lyric", time: 1 }] }] }, activeLineId: "a", syncMode: "line", syncUnit: "char" });
+  const { getByRole, getByText } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getByRole("button", { name: t.charSync.modeChar }));
+  fireEvent.click(getByRole("button", { name: t.charSync.unitWord }));
+  expect(getByText(t.charSync.unitChangeMsg)).toBeTruthy();
+  const staleConfirmation = getByRole("button", { name: t.charSync.retokenizeOk });
+
+  act(() => useLrcStore.setState({
+    doc: { ...defaultDocument(), lines: [{ id: "a", text: "new document", timestamp: 2,
+      syllables: [{ text: "new document", time: 2 }] }] },
+    _documentSession: useLrcStore.getState()._documentSession + 1,
+    activeLineId: "a",
+  }));
+  fireEvent.click(staleConfirmation);
+
+  expect(useLrcStore.getState().syncUnit).toBe("char");
+  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({
+    text: "new document", syllables: [{ text: "new document", time: 2 }],
+  });
+});
+it("does not start AI sync from a glyph warning after the audio selection changes", async () => {
+  const t = useI18nStore.getState().t;
+  vi.mocked(invoke).mockImplementation((command: unknown) => {
+    if (command === "get_python_env_info") return Promise.resolve({ packagesReady: true });
+    if (command === "check_model_files") return Promise.resolve([true]);
+    return Promise.resolve(undefined);
+  });
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "timed lyric", timestamp: 1,
+    syllables: [{ text: "timed lyric", time: 1 }] }] }, activeLineId: "a", audioPath: "/tmp/old-audio.wav", syncMode: "line" });
+  const { getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  const aiButton = await getByRole("button", { name: t.aiAutoSync });
+  await vi.waitFor(() => expect(aiButton.hasAttribute("disabled")).toBe(false));
+  fireEvent.click(aiButton);
+  const staleConfirmation = getByRole("button", { name: t.aiSyncGlyphWarnOk });
+
+  act(() => useLrcStore.getState().setAudioPath("/tmp/new-audio.wav"));
+  fireEvent.click(staleConfirmation);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  expect(invoke).not.toHaveBeenCalledWith("run_alignment", expect.anything());
 });
 it("rejects pending translation parts when the source has changed", () => {
   const t = useI18nStore.getState().t;

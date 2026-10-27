@@ -11,6 +11,7 @@ import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
 import { MODEL_DEFS } from "../../utils/modelDefs";
 import { listenSafely } from "../../utils/safeListen";
+import type { LrcSyllable } from "../../types/lrc";
 import { CurrentTimeFooter } from "./CurrentTimeFooter";
 import { MiniConfirm } from "./MiniConfirm";
 import { FindReplaceBar } from "./FindReplaceBar";
@@ -105,7 +106,9 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   const tsEditCancel = useRef(false);
 
   // 글자 동기화된 줄의 텍스트 수정 경고 / 단위 변경 경고
-  const [pendingTextEdit, setPendingTextEdit] = useState<{ id: string; text: string } | null>(null);
+  const [pendingTextEdit, setPendingTextEdit] = useState<{
+    id: string; text: string; session: number; baseText: string; baseSyllables: LrcSyllable[] | undefined;
+  } | null>(null);
   const [pendingTranslationSplit, setPendingTranslationSplit] = useState<{
     id: string;
     caretPos: number;
@@ -115,9 +118,18 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     first: string;
     second: string;
   } | null>(null);
-  const [pendingUnit, setPendingUnit] = useState<SyncUnit | null>(null);
-  const [pendingAiSync, setPendingAiSync] = useState(false);
-  useEffect(() => { setPendingTranslationSplit(null); }, [documentSession]);
+  const [pendingUnit, setPendingUnit] = useState<{
+    unit: SyncUnit; session: number; lineId: string; baseSyllables: LrcSyllable[];
+  } | null>(null);
+  const [pendingAiSync, setPendingAiSync] = useState<{
+    session: number; audioSelection: number; syncMode: string; doc: typeof doc;
+  } | null>(null);
+  useEffect(() => {
+    setPendingTextEdit(null);
+    setPendingUnit(null);
+    setPendingAiSync(null);
+    setPendingTranslationSplit(null);
+  }, [documentSession]);
   useEffect(() => {
     if (!pendingTranslationSplit) return;
     const cancel = (event: KeyboardEvent) => {
@@ -199,13 +211,27 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     const ln = useLrcStore.getState().doc.lines.find((l) => l.id === id);
     if (!ln || ln.text === value) return;
     if (ln.syllables?.some((s) => s.time !== null)) {
-      setPendingTextEdit({ id, text: value });
+      const current = useLrcStore.getState();
+      setPendingTextEdit({
+        id,
+        text: value,
+        session: current._documentSession,
+        baseText: ln.text,
+        baseSyllables: ln.syllables?.map((syllable) => ({ ...syllable })),
+      });
       return;
     }
     updateLine(id, { text: value });
   };
   const confirmTextEdit = () => {
-    if (pendingTextEdit) updateLine(pendingTextEdit.id, { text: pendingTextEdit.text, syllables: undefined });
+    if (pendingTextEdit) {
+      const current = useLrcStore.getState();
+      const line = current.doc.lines.find((item) => item.id === pendingTextEdit.id);
+      const syllablesMatch = JSON.stringify(line?.syllables) === JSON.stringify(pendingTextEdit.baseSyllables);
+      if (current._documentSession === pendingTextEdit.session && line?.text === pendingTextEdit.baseText && syllablesMatch) {
+        updateLine(pendingTextEdit.id, { text: pendingTextEdit.text, syllables: undefined });
+      }
+    }
     setPendingTextEdit(null);
   };
 
@@ -214,16 +240,27 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     if (u === syncUnit) return;
     const active = lines.find((l) => l.id === activeLineId);
     if (active?.syllables?.some((s) => s.time !== null)) {
-      setPendingUnit(u);
+      const current = useLrcStore.getState();
+      setPendingUnit({
+        unit: u,
+        session: current._documentSession,
+        lineId: active.id,
+        baseSyllables: active.syllables?.map((syllable) => ({ ...syllable })) ?? [],
+      });
       return;
     }
     setSyncUnit(u);
   };
   const confirmUnitChange = () => {
     if (pendingUnit) {
-      const active = lines.find((l) => l.id === activeLineId);
-      if (active) clearLineSyllables(active.id);
-      setSyncUnit(pendingUnit);
+      const current = useLrcStore.getState();
+      const active = current.doc.lines.find((line) => line.id === pendingUnit.lineId);
+      const syllablesMatch = JSON.stringify(active?.syllables) === JSON.stringify(pendingUnit.baseSyllables);
+      if (current._documentSession === pendingUnit.session && current.syncUnit !== pendingUnit.unit &&
+        current.activeLineId === pendingUnit.lineId && syllablesMatch) {
+        if (active) clearLineSyllables(active.id);
+        setSyncUnit(pendingUnit.unit);
+      }
     }
     setPendingUnit(null);
   };
@@ -518,7 +555,25 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   const handleAiSync = () => {
     // AI 정렬은 줄 단위 재정렬 → 기존 글자/단어 동기화가 삭제됨. 있으면 먼저 확인.
     const hasGlyph = lines.some((l) => l.syllables?.some((s) => s.time !== null));
-    if (hasGlyph) { setPendingAiSync(true); return; }
+    if (hasGlyph) {
+      const current = useLrcStore.getState();
+      setPendingAiSync({
+        session: current._documentSession,
+        audioSelection: current._audioSelection,
+        syncMode: current.syncMode,
+        doc: current.doc,
+      });
+      return;
+    }
+    runAiSyncNow();
+  };
+  const confirmAiSync = () => {
+    const pending = pendingAiSync;
+    setPendingAiSync(null);
+    if (!pending) return;
+    const current = useLrcStore.getState();
+    if (current._documentSession !== pending.session || current._audioSelection !== pending.audioSelection ||
+      current.syncMode !== pending.syncMode || current.doc !== pending.doc) return;
     runAiSyncNow();
   };
 
@@ -822,8 +877,8 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
           message={t.aiSyncGlyphWarnMsg}
           okLabel={t.aiSyncGlyphWarnOk}
           cancelLabel={t.charSync.retokenizeCancel}
-          onOk={() => { setPendingAiSync(false); runAiSyncNow(); }}
-          onCancel={() => setPendingAiSync(false)}
+          onOk={confirmAiSync}
+          onCancel={() => setPendingAiSync(null)}
         />
       )}
       {pendingTranslationSplit && (
