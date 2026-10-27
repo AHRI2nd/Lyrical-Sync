@@ -92,7 +92,7 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
     onStart: focusGlyphEditor,
     onCommit: seconds => {
       setPendingSeek({ ...displayRange.current, time: seconds, fromTime: useLrcStore.getState().currentTime, context: contextKey });
-      setFollow(true); setAnchor(seconds); controls.seekTo(seconds);
+      setAnchor(seconds); controls.seekTo(seconds);
     },
   });
   useEffect(() => {

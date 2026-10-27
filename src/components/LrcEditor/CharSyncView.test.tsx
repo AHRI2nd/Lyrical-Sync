@@ -179,6 +179,33 @@ it("keeps the following playhead centered and lets manual viewport navigation st
   expect(Number(lane.dataset.start)).toBe(10);
 });
 
+it.each([
+  { input: "click", startX: 75, endX: 75 },
+  { input: "drag", startX: 20, endX: 75 },
+])("keeps playback following disabled after a waveform $input seek", ({ startX, endX }) => {
+  useLrcStore.setState({ duration: 100, audioPath: "/song.mp3", isPlaying: true, currentTime: 12 });
+  const seek = vi.spyOn(audioControls, "seekTo").mockImplementation(time => useLrcStore.setState({ currentTime: time }));
+  const { getByRole, getByTestId } = render(<CharSyncView />);
+  const lane = getByTestId("glyph-seek-lane");
+  vi.spyOn(lane, "getBoundingClientRect").mockReturnValue({ left: 0, width: 100 } as DOMRect);
+  const follow = getByRole("button", { name: /재생 위치 따라가기|Follow playback/ });
+
+  fireEvent.click(follow);
+  expect(follow.getAttribute("aria-pressed")).toBe("false");
+  fireEvent.pointerDown(lane, { pointerId: 1, button: 0, clientX: startX });
+  fireEvent.pointerUp(window, { pointerId: 1, clientX: endX });
+  expect(seek).toHaveBeenCalledWith(14);
+  expect(follow.getAttribute("aria-pressed")).toBe("false");
+  expect(Number(lane.dataset.start)).toBe(10);
+
+  act(() => useLrcStore.setState({ currentTime: 14.5 }));
+  expect(Number(lane.dataset.start)).toBe(10);
+  fireEvent.click(follow);
+  expect(follow.getAttribute("aria-pressed")).toBe("true");
+  expect(Number(lane.dataset.start)).toBe(10.5);
+  expect(getByTestId("glyph-playhead").style.left).toBe("50%");
+});
+
 it("updates the actual waveform height and style from the view menu and dismisses it with Escape", () => {
   const { getByRole, getByTestId } = render(<CharSyncView />);
   const menu = getByRole("button", { name: translations.en.charSync.waveformView });
