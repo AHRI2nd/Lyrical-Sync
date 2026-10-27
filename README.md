@@ -7,7 +7,7 @@ A desktop app for creating, syncing, and editing `.lrc` (LRC) lyric files
 ![main](img/main_en.png)
 
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
-![Version](https://img.shields.io/badge/version-0.7.0-green)
+![Version](https://img.shields.io/badge/version-0.7.1-green)
 ![Tauri](https://img.shields.io/badge/Tauri-v2-24C8D8)
 ![React](https://img.shields.io/badge/React-19-61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6)
@@ -101,7 +101,7 @@ Default bindings — all of these can be remapped in **Settings → Shortcuts**.
 
 ---
 
-## Updating to 0.7.0
+## Important Notes When Updating from 0.6.3 or Earlier
 
 Save all open work before updating, especially when upgrading from 0.6.3: the old application's updater cannot gain the new unsaved-work protections retroactively. Keep your normal document backups.
 
