@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { installMemoryLocalStorage } from "../test/memoryLocalStorage";
 
 // zustand persist용 최소 localStorage 폴리필 (node 환경)
 if (typeof globalThis.localStorage === "undefined") {
@@ -67,26 +68,33 @@ describe("useSettingsStore — recent files", () => {
 
 describe("useSettingsStore — persisted writes are debounced", () => {
   it("collapses rapid successive set() calls (e.g. a slider drag) into a single localStorage write", () => {
+    const { storage, restore } = installMemoryLocalStorage();
+    const originalSetItem = storage.setItem.bind(storage);
+    const setItemSpy = vi.spyOn(storage, "setItem").mockImplementation((key, value) => {
+      originalSetItem(key, value);
+    });
     vi.useFakeTimers();
-    const setItemSpy = vi.spyOn(globalThis.localStorage, "setItem");
-    setItemSpy.mockClear();
+    try {
+      useSettingsStore.getState().setUiScale(1.1);
+      useSettingsStore.getState().setUiScale(1.2);
+      useSettingsStore.getState().setUiScale(1.3);
 
-    useSettingsStore.getState().setUiScale(1.1);
-    useSettingsStore.getState().setUiScale(1.2);
-    useSettingsStore.getState().setUiScale(1.3);
+      // Zustand state updates remain immediate while persistence waits for the debounce.
+      expect(useSettingsStore.getState().uiScale).toBe(1.3);
+      expect(setItemSpy).not.toHaveBeenCalled();
 
-    // 인메모리 상태는 매 호출마다 즉시 반영 — UI 반응성엔 영향 없음
-    expect(useSettingsStore.getState().uiScale).toBe(1.3);
-    // 하지만 실제 디스크 쓰기는 디바운스 구간 동안 아직 발생하지 않아야 함
-    expect(setItemSpy).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(299);
+      expect(setItemSpy).not.toHaveBeenCalled();
 
-    vi.advanceTimersByTime(300);
-
-    expect(setItemSpy).toHaveBeenCalledTimes(1);
-    const written = setItemSpy.mock.calls[0][1];
-    expect(JSON.parse(written).state.uiScale).toBe(1.3);
-
-    setItemSpy.mockRestore();
-    vi.useRealTimers();
+      vi.advanceTimersByTime(1);
+      expect(setItemSpy).toHaveBeenCalledTimes(1);
+      const written = setItemSpy.mock.calls[0][1];
+      expect(JSON.parse(written).state.uiScale).toBe(1.3);
+      expect(JSON.parse(storage.getItem("lyrical-sync-settings") ?? "{}").state.uiScale).toBe(1.3);
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+      restore();
+    }
   });
 });

@@ -50,6 +50,7 @@ vi.mock("./hooks/useMacMenu", () => ({ useMacMenu: () => {} }));
 import App from "./App";
 import { useLrcStore } from "./stores/useLrcStore";
 import { defaultDocument } from "./types/lrc";
+import { installMemoryLocalStorage } from "./test/memoryLocalStorage";
 
 const resetLrc = (overrides: Partial<ReturnType<typeof useLrcStore.getState>> = {}) => {
   useLrcStore.setState({
@@ -256,12 +257,22 @@ describe("App — recovery lifecycle", () => {
     expect(loadRecoverySnapshot()?.doc.lines[0].text).toBe("edit 5");
   });
   it("reports a failed recovery write without destroying the editor", () => {
-    render(<App />);
-    act(() => useLrcStore.getState().loadFromRawText("[00:01.00]not saved"));
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("quota exceeded"); });
-    fireEvent(window, new Event("pagehide"));
-    expect(screen.getByText(useI18nStore.getState().t.toast.recoveryFailed)).toBeTruthy();
-    expect(useLrcStore.getState().doc.lines[0].text).toBe("not saved");
+    const { storage, restore } = installMemoryLocalStorage();
+    const originalSetItem = storage.setItem.bind(storage);
+    const setItemSpy = vi.spyOn(storage, "setItem").mockImplementation((key, value) => {
+      if (key === "lyrical-sync-recovery") throw new Error("quota exceeded");
+      originalSetItem(key, value);
+    });
+    try {
+      render(<App />);
+      act(() => useLrcStore.getState().loadFromRawText("[00:01.00]not saved"));
+      fireEvent(window, new Event("pagehide"));
+      expect(setItemSpy).toHaveBeenCalledWith("lyrical-sync-recovery", expect.any(String));
+      expect(screen.getByText(useI18nStore.getState().t.toast.recoveryFailed)).toBeTruthy();
+      expect(useLrcStore.getState().doc.lines[0].text).toBe("not saved");
+    } finally {
+      restore();
+    }
   });
   it("flushes the latest edits on pagehide before the debounce fires", () => {
     render(<App />);
