@@ -227,7 +227,7 @@ describe("useUpdaterStore — installation durability", () => {
   });
   function update(download = vi.fn(async () => {}), install = vi.fn(async () => {})) {
     const close = vi.fn(async () => {});
-    useUpdaterStore.setState({ _update: { download, install, close } as unknown as Update });
+    useUpdaterStore.setState({ status: "available", _update: { version: "1.2.3", download, install, close } as unknown as Update });
     return { download, install, close };
   }
   it("preserves the latest edits after download before entering the installer", async () => {
@@ -300,5 +300,111 @@ describe("useUpdaterStore — installation durability", () => {
     await useUpdaterStore.getState().restart();
     expect(u.download).toHaveBeenCalledOnce(); expect(relaunch).not.toHaveBeenCalled(); finish(); await first;
     expect(u.install).toHaveBeenCalledOnce();
+  });
+});
+
+describe("useUpdaterStore — check and handle ownership", () => {
+  beforeEach(() => { reset(); check.mockReset(); });
+
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+    return { promise, resolve, reject };
+  }
+
+  function update(version: string) {
+    return { version, body: version, close: vi.fn(async () => {}), download: vi.fn(async () => {}), install: vi.fn(async () => {}) } as unknown as Update;
+  }
+
+  it("keeps the newer manual result when an earlier silent check returns null", async () => {
+    const earlier = deferred<Update | null>();
+    const latest = deferred<Update | null>();
+    check.mockReturnValueOnce(earlier.promise).mockReturnValueOnce(latest.promise);
+    const first = useUpdaterStore.getState().checkForUpdate(true);
+    await vi.waitFor(() => expect(check).toHaveBeenCalledTimes(1));
+    const second = useUpdaterStore.getState().checkForUpdate(false);
+    const latestUpdate = update("2.0.0");
+    latest.resolve(latestUpdate);
+    await second;
+    earlier.resolve(null);
+    await first;
+    expect(useUpdaterStore.getState()).toMatchObject({ status: "available", version: "2.0.0", _update: latestUpdate });
+  });
+
+  it("closes a stale update resource without replacing the latest handle", async () => {
+    const earlier = deferred<Update | null>();
+    const latest = deferred<Update | null>();
+    check.mockReturnValueOnce(earlier.promise).mockReturnValueOnce(latest.promise);
+    const first = useUpdaterStore.getState().checkForUpdate(true);
+    await vi.waitFor(() => expect(check).toHaveBeenCalledTimes(1));
+    const second = useUpdaterStore.getState().checkForUpdate(false);
+    const latestUpdate = update("2.0.0");
+    latest.resolve(latestUpdate);
+    await second;
+    const staleUpdate = update("1.9.0");
+    earlier.resolve(staleUpdate);
+    await first;
+    expect(useUpdaterStore.getState()._update).toBe(latestUpdate);
+    expect(staleUpdate.close).toHaveBeenCalledOnce();
+  });
+
+  it("does not let a stale error clear the latest available result", async () => {
+    const earlier = deferred<Update | null>();
+    const latest = deferred<Update | null>();
+    check.mockReturnValueOnce(earlier.promise).mockReturnValueOnce(latest.promise);
+    const first = useUpdaterStore.getState().checkForUpdate(true);
+    await vi.waitFor(() => expect(check).toHaveBeenCalledTimes(1));
+    const second = useUpdaterStore.getState().checkForUpdate(false);
+    const latestUpdate = update("2.0.0");
+    latest.resolve(latestUpdate);
+    await second;
+    earlier.reject(new Error("stale network error"));
+    await first;
+    expect(useUpdaterStore.getState()).toMatchObject({ status: "available", version: "2.0.0", error: null, _update: latestUpdate });
+  });
+
+  it("invalidates a pending check on dismiss and closes its late resource", async () => {
+    const pending = deferred<Update | null>();
+    check.mockReturnValueOnce(pending.promise);
+    const task = useUpdaterStore.getState().checkForUpdate(true);
+    await vi.waitFor(() => expect(check).toHaveBeenCalledOnce());
+    useUpdaterStore.getState().dismiss();
+    const lateUpdate = update("2.0.0");
+    pending.resolve(lateUpdate);
+    await task;
+    expect(useUpdaterStore.getState()).toMatchObject({ status: "idle", version: null, _update: null });
+    expect(lateUpdate.close).toHaveBeenCalledOnce();
+  });
+
+  it("closes the dismissed handle once and ignores dismiss during active download", async () => {
+    const handle = update("2.0.0");
+    useUpdaterStore.setState({ status: "available", version: handle.version, _update: handle });
+    useUpdaterStore.getState().dismiss();
+    await vi.waitFor(() => expect(handle.close).toHaveBeenCalledOnce());
+
+    let finish!: () => void;
+    const active = update("2.1.0");
+    active.download = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
+    useUpdaterStore.setState({ status: "available", version: active.version, _update: active });
+    check.mockReset();
+    const downloading = useUpdaterStore.getState().downloadAndInstall();
+    await useUpdaterStore.getState().checkForUpdate();
+    useUpdaterStore.getState().dismiss();
+    expect(useUpdaterStore.getState()).toMatchObject({ status: "downloading", _update: active });
+    expect(check).not.toHaveBeenCalled();
+    finish();
+    await downloading;
+  });
+
+  it("closes the previous handle and clears all displayed update fields on a current no-update result", async () => {
+    const previous = update("1.9.0");
+    useUpdaterStore.setState({ status: "available", version: previous.version, body: "old", progress: 85, error: "old error", _update: previous });
+    check.mockResolvedValueOnce(null);
+    await useUpdaterStore.getState().checkForUpdate();
+    expect(previous.close).toHaveBeenCalledOnce();
+    expect(useUpdaterStore.getState()).toMatchObject({
+      status: "up-to-date", version: null, body: null, progress: 0, error: null, _update: null,
+    });
   });
 });

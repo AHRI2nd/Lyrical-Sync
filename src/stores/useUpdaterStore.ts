@@ -24,6 +24,21 @@ interface UpdaterState {
 // Windows installation exits the process before the separate restart action.
 // Invoke the destructive action in the same turn as the final recovery snapshot.
 let updateOperationActive = false;
+let checkGeneration = 0;
+const updateClosePromises = new WeakMap<Update, Promise<void>>();
+
+function closeUpdateOnce(update: Update | null | undefined): Promise<void> {
+  if (!update) return Promise.resolve();
+  const existing = updateClosePromises.get(update);
+  if (existing) return existing;
+  const closing = Promise.resolve().then(() => update.close()).then(() => undefined, () => undefined);
+  updateClosePromises.set(update, closing);
+  return closing;
+}
+
+function isCurrentCheck(generation: number): boolean {
+  return checkGeneration === generation;
+}
 async function preserveBefore(action: () => Promise<void>): Promise<void> {
   const lrc = useLrcStore.getState();
   if (lrc.isDirty && lrc.lrcPath) {
@@ -45,23 +60,47 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
   _update: null,
 
   checkForUpdate: async (silent = false) => {
-    if (!silent) set({ status: "checking", error: null });
+    if (updateOperationActive || get().status === "downloading" || get().status === "ready") return;
+    const generation = ++checkGeneration;
+    set({ status: "checking", version: null, body: null, progress: 0, error: null });
     try {
       const { check } = await import("@tauri-apps/plugin-updater");
+      if (!isCurrentCheck(generation)) return;
       const update = await check();
+      if (!isCurrentCheck(generation)) {
+        if (get()._update !== update) await closeUpdateOnce(update);
+        return;
+      }
+      const previous = get()._update;
+      if (previous !== update) await closeUpdateOnce(previous);
+      if (!isCurrentCheck(generation)) {
+        if (get()._update !== update) await closeUpdateOnce(update);
+        return;
+      }
       if (update) {
         set({ status: "available", version: update.version, body: update.body ?? null, _update: update });
       } else {
-        set({ status: silent ? "idle" : "up-to-date" });
+        set({ status: silent ? "idle" : "up-to-date", version: null, body: null, progress: 0, error: null, _update: null });
       }
     } catch (e) {
-      set({ status: silent ? "idle" : "error", error: silent ? null : String(e) });
+      if (!isCurrentCheck(generation)) return;
+      const previous = get()._update;
+      await closeUpdateOnce(previous);
+      if (!isCurrentCheck(generation)) return;
+      set({
+        status: silent ? "idle" : "error",
+        version: null,
+        body: null,
+        progress: 0,
+        error: silent ? null : String(e),
+        _update: null,
+      });
     }
   },
 
   downloadAndInstall: async () => {
     const { _update } = get();
-    if (!_update || updateOperationActive) return;
+    if (!_update || get().status !== "available" || updateOperationActive) return;
     updateOperationActive = true;
     set({ status: "downloading", progress: 0, error: null });
     try {
@@ -82,12 +121,14 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
         }
       });
       await preserveBefore(() => _update.install());
-      set({ status: "ready" });
+      if (get()._update === _update) set({ status: "ready", progress: 100, error: null });
     } catch (e) {
       // Separate downloads own a native byte buffer until installation or close.
       // A failed attempt must be checked again rather than overwrite that buffer.
       try { await _update.close(); } catch { /* Preserve the original failure. */ }
-      set({ status: "error", error: String(e), _update: null });
+      if (get()._update === _update) {
+        set({ status: "error", version: null, body: null, progress: 0, error: String(e), _update: null });
+      }
     } finally {
       updateOperationActive = false;
     }
@@ -107,5 +148,11 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
     }
   },
 
-  dismiss: () => set({ status: "idle", version: null, body: null, progress: 0, error: null, _update: null }),
+  dismiss: () => {
+    if (updateOperationActive || get().status === "downloading") return;
+    checkGeneration += 1;
+    const update = get()._update;
+    set({ status: "idle", version: null, body: null, progress: 0, error: null, _update: null });
+    void closeUpdateOnce(update);
+  },
 }));
