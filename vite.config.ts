@@ -13,6 +13,19 @@ export default defineConfig(async () => ({
     setupFiles: ["./src/test/memoryLocalStorage.ts"],
   },
 
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          const path = id.replace(/\\/g, "/");
+          if (["/node_modules/react/", "/node_modules/react-dom/", "/node_modules/scheduler/"].some((part) => path.includes(part))) {
+            return "react-runtime";
+          }
+        },
+      },
+    },
+  },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors
