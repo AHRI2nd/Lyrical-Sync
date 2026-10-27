@@ -84,7 +84,7 @@ def publish(repo, version, output):
         raise ValueError('Updater assembly only modifies a draft release')
     # Normalize this version's x64 MSI name, retaining compatibility with older locale-suffixed builds.
     old_pattern = re.compile(r'(Lyrical[ .]Sync_' + re.escape(version)
-                             + r'_x64(?:_[a-z]{2}-[A-Z]{2})?\.msi')
+                             + r'_x64)(?:_[a-z]{2}-[A-Z]{2})?\.msi')
     names = {a['name'] for a in release['assets']}
     for asset in release['assets']:
         match = old_pattern.fullmatch(asset['name'])

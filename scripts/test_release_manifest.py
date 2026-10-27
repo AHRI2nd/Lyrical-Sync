@@ -35,7 +35,10 @@ class ReleaseManifestTests(unittest.TestCase):
             '2026-10-23T00:00:00Z')
 
     def test_windows_clients_receive_only_their_architecture_and_installer(self):
-        platforms = self.assemble()['platforms']
+        assets = [{'name':a['name'].replace('_x64.msi','_x64_setup.msi')} for a in self.assets]
+        signatures = {name.replace('_x64.msi','_x64_setup.msi'): signature
+            for name, signature in self.signatures.items()}
+        platforms = self.assemble(assets, signatures)['platforms']
         self.assertEqual(platforms['windows-x86_64']['url'],
             'https://github.com/AHRI2nd/Lyrical-Sync/releases/download/v0.7.0/Lyrical.Sync_0.7.0_x64_setup.msi')
         self.assertTrue(platforms['windows-x86_64-nsis']['url'].endswith('_x64-setup.exe'))
