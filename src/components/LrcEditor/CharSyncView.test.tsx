@@ -71,6 +71,23 @@ afterEach(() => {
 });
 
 describe("CharSyncView seek lane", () => {
+  it("shows the restored lyric after undo removes the split row selection", () => {
+    useLrcStore.setState({
+      doc: { ...defaultDocument(), lines: [{ id: "line-1", timestamp: 10, text: "helloworld" }] },
+      activeLineId: "line-1",
+      _history: [],
+      _future: [],
+    });
+    const view = render(<CharSyncView />);
+    act(() => useLrcStore.getState().splitLine("line-1", 5));
+    expect(view.container.querySelectorAll("[data-glyph]").length).toBeGreaterThan(0);
+
+    act(() => useLrcStore.getState().undo());
+
+    expect(view.container.querySelectorAll("[data-glyph]").length).toBeGreaterThan(0);
+    expect(useLrcStore.getState().activeLineId).toBe("line-1");
+  });
+
   it("keeps unrelated line buttons memoized during playback updates", () => {
     const otherLine = { id: "line-2", timestamp: 20, get text() { return "next"; } };
     const readOtherText = vi.spyOn(otherLine, "text", "get");

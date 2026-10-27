@@ -211,6 +211,18 @@ describe("useLrcStore — history & raw load", () => {
     expect(lines()).toHaveLength(1);
   });
 
+  it("restores a valid active line and clamps glyph selection when undo removes the selected row", () => {
+    reset([{ id: "1", timestamp: 5, text: "helloworld" }]);
+    useLrcStore.setState({ activeLineId: "1", loopLineId: "missing", activeSyllableIndex: 40 });
+    useLrcStore.getState().splitLine("1", 5);
+
+    useLrcStore.getState().undo();
+
+    expect(useLrcStore.getState().activeLineId).toBe("1");
+    expect(useLrcStore.getState().loopLineId).toBeNull();
+    expect(useLrcStore.getState().activeSyllableIndex).toBe(0);
+  });
+
   it("history entries are labeled by the action that produced them", () => {
     reset([]);
     useLrcStore.getState().addLine("x");

@@ -3,7 +3,7 @@ import { enqueuePathWrite } from "../utils/pathWriteQueue";
 import { create } from "zustand";
 import { LrcDocument, LrcLine, LrcMetadata, LrcSyllable, defaultDocument } from "../types/lrc";
 import { type HistoryEntry, type HistoryLabel } from "../types/history";
-import { parseLrc, serializeLrc, type SyncUnit } from "../utils/lrcParser";
+import { isStampable, parseLrc, serializeLrc, tokenizeText, type SyncUnit } from "../utils/lrcParser";
 import { nearestBeat } from "../utils/bpmDetect";
 import { serializeSrt, parseSrt } from "../utils/srtConverter";
 import { serializeVtt, serializeAss } from "../utils/exportFormats";
@@ -148,6 +148,26 @@ function serializeForPath(path: string, doc: LrcDocument, duration: number): str
 }
 
 const MAX_HISTORY = 50;
+function selectionForDocument(
+  doc: LrcDocument,
+  selection: { activeLineId: string | null; loopLineId: string | null; activeSyllableIndex: number },
+  syncUnit: SyncUnit,
+) {
+  const activeLineId = doc.lines.some((line) => line.id === selection.activeLineId)
+    ? selection.activeLineId
+    : (doc.lines[0]?.id ?? null);
+  const loopLineId = doc.lines.some((line) => line.id === selection.loopLineId)
+    ? selection.loopLineId
+    : null;
+  const activeLine = doc.lines.find((line) => line.id === activeLineId);
+  const tokens = activeLine?.syllables ?? tokenizeText(activeLine?.text ?? "", syncUnit);
+  const stampable = tokens.map((token, index) => isStampable(token) ? index : -1).filter((index) => index >= 0);
+  const activeSyllableIndex = stampable.includes(selection.activeSyllableIndex)
+    ? selection.activeSyllableIndex
+    : (stampable.find((index) => index >= selection.activeSyllableIndex) ?? stampable[0] ?? 0);
+  return { activeLineId, loopLineId, activeSyllableIndex };
+}
+
 // 비동기 정렬 결과가 새 문서나 이후 수동 편집을 덮어쓰지 않도록 실행 세대를 관리한다.
 let aiRunId = 0;
 
@@ -255,12 +275,14 @@ export const useLrcStore = create<LrcStore>((set, get) => {
   },
 
   undo: () => {
-    const { doc, _history, _future } = get();
+    const { doc, _history, _future, activeLineId, loopLineId, activeSyllableIndex, syncUnit } = get();
     if (_history.length === 0) return;
     const prevEntry = _history[_history.length - 1];
     const futureEntry: HistoryEntry = { doc, timestamp: Date.now(), label: prevEntry.label, count: prevEntry.count };
+    const selection = selectionForDocument(prevEntry.doc, { activeLineId, loopLineId, activeSyllableIndex }, syncUnit);
     set({
       doc: prevEntry.doc,
+      ...selection,
       ...invalidateAiRun(),
       _history: _history.slice(0, -1),
       _future: [futureEntry, ..._future].slice(0, MAX_HISTORY),
@@ -270,12 +292,14 @@ export const useLrcStore = create<LrcStore>((set, get) => {
   },
 
   redo: () => {
-    const { doc, _history, _future } = get();
+    const { doc, _history, _future, activeLineId, loopLineId, activeSyllableIndex, syncUnit } = get();
     if (_future.length === 0) return;
     const nextEntry = _future[0];
     const historyEntry: HistoryEntry = { doc, timestamp: Date.now(), label: nextEntry.label, count: nextEntry.count };
+    const selection = selectionForDocument(nextEntry.doc, { activeLineId, loopLineId, activeSyllableIndex }, syncUnit);
     set({
       doc: nextEntry.doc,
+      ...selection,
       ...invalidateAiRun(),
       _history: [..._history, historyEntry].slice(-MAX_HISTORY),
       _future: _future.slice(1),
