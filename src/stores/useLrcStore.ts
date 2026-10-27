@@ -651,7 +651,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
           get().setAudioPath(audio?.path ?? null, audio?.bookmark ?? null);
           return;
         }
-        let id = 1;
+        let id = intent.kind === "raw" ? nextId : 1;
         doc = { ...doc, lines: doc.lines.map((line) => ({ ...line, id: String(id++) })) };
         nextId = id;
         const session = previous._documentSession + 1;

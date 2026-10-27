@@ -159,6 +159,27 @@ describe("useLrcStore — history & raw load", () => {
     expect(lines()[0].text).toBe("hello");
     expect(lines()[0].timestamp).toBe(1);
   });
+
+  it("does not reuse a row ID retained by undo history after replacing three lines with raw text", async () => {
+    reset([]);
+    useLrcStore.getState().addLine("first");
+    useLrcStore.getState().addLine("second");
+    useLrcStore.getState().addLine("third");
+    const originalIds = lines().map((line) => line.id);
+
+    await useLrcStore.getState().loadFromRawText("[00:01.00]replacement");
+    expect(lines()[0].id).not.toBe(originalIds[0]);
+    useLrcStore.getState().undo();
+    useLrcStore.getState().addLine("fourth");
+
+    const ids = lines().map((line) => line.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    useLrcStore.getState().updateLine(originalIds[1], { text: "edited second" });
+    expect(lines().filter((line) => line.text === "edited second")).toHaveLength(1);
+    useLrcStore.getState().deleteLine(originalIds[1]);
+    expect(lines().filter((line) => line.id === originalIds[1])).toHaveLength(0);
+    expect(lines().map((line) => line.text)).toEqual(["first", "third", "fourth"]);
+  });
 });
 
 describe("useLrcStore — line manipulation", () => {
