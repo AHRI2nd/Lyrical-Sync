@@ -9,15 +9,20 @@ const LrcLibPublishModal = lazy(() => import("../LrcLib/LrcLibPublishModal").the
 
 export function MetaEditor() {
   // currentTime 등에 리렌더되지 않도록 필요한 필드만 구독
-  const { doc, setMetadata, applyOffset, loadFromRawText } = useLrcStore(
+  const { doc, setMetadata, applyOffset, loadFromRawText, documentSession, editRevision } = useLrcStore(
     useShallow((s) => ({
       doc: s.doc, setMetadata: s.setMetadata, applyOffset: s.applyOffset, loadFromRawText: s.loadFromRawText,
+      documentSession: s._documentSession, editRevision: s._editRevision,
     }))
   );
   const { t } = useI18nStore();
   const { metadata } = doc;
 
-  const [showRawEditor, setShowRawEditor] = useState(false);
+  const [rawEditorSnapshot, setRawEditorSnapshot] = useState<{
+    text: string;
+    documentSession: number;
+    editRevision: number;
+  } | null>(null);
   const [showLrcLib, setShowLrcLib] = useState(false);
   const [showPublish, setShowPublish] = useState(false);
 
@@ -52,7 +57,11 @@ export function MetaEditor() {
             <UploadIcon />
           </button>
           <button
-            onClick={() => setShowRawEditor(true)}
+            onClick={() => setRawEditorSnapshot({
+              text: serializeLrc(doc),
+              documentSession,
+              editRevision,
+            })}
             title={t.viewAll}
             aria-label={t.viewAll}
             className="ls-button hover:text-white transition-colors"
@@ -100,14 +109,20 @@ export function MetaEditor() {
         </button>
       </div>
 
-      {showRawEditor && (
+      {rawEditorSnapshot && (
         <RawEditorModal
-          initialValue={serializeLrc(doc)}
+          initialValue={rawEditorSnapshot.text}
           onApply={(raw) => {
+            const current = useLrcStore.getState();
+            if (
+              current._documentSession !== rawEditorSnapshot.documentSession ||
+              current._editRevision !== rawEditorSnapshot.editRevision
+            ) return false;
             loadFromRawText(raw);
-            setShowRawEditor(false);
+            setRawEditorSnapshot(null);
+            return true;
           }}
-          onClose={() => setShowRawEditor(false)}
+          onClose={() => setRawEditorSnapshot(null)}
         />
       )}
       {showLrcLib && (
@@ -176,11 +191,12 @@ function RawEditorModal({
   onClose,
 }: {
   initialValue: string;
-  onApply: (raw: string) => void;
+  onApply: (raw: string) => boolean;
   onClose: () => void;
 }) {
   const { t } = useI18nStore();
   const [value, setValue] = useState(initialValue);
+  const [isStale, setIsStale] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -224,6 +240,8 @@ function RawEditorModal({
           className="ls-field flex-1 min-h-0 text-sm font-mono resize-none"
         />
 
+        {isStale && <p role="alert" className="px-5 py-2 text-sm text-amber-300">{t.rawEditorStale}</p>}
+
         <div className="flex justify-end gap-2 px-5 py-3 border-t border-[var(--ls-border-subtle)] shrink-0">
           <button
             onClick={onClose}
@@ -232,7 +250,9 @@ function RawEditorModal({
             {t.rawEditorCancel}
           </button>
           <button
-            onClick={() => onApply(value)}
+            onClick={() => {
+              if (!onApply(value)) setIsStale(true);
+            }}
             className="ls-button text-sm bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] text-white transition-colors ls-button--primary"
           >
             {t.rawEditorApply}

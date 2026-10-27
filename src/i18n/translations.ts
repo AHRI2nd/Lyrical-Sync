@@ -316,6 +316,7 @@ export interface Translations {
   rawEditorTitle: string;
   rawEditorApply: string;
   rawEditorCancel: string;
+  rawEditorStale: string;
   previewBtn: string;
   previewClose: string;
   previewUntitled: string;
@@ -923,6 +924,7 @@ const ko: Translations = {
   rawEditorTitle: "LRC 전체 편집",
   rawEditorApply: "적용",
   rawEditorCancel: "취소",
+  rawEditorStale: "문서가 변경되어 적용할 수 없습니다. 초안은 이 창에 남아 있으니 복사하거나 취소하세요.",
   previewBtn: "미리보기",
   previewClose: "닫기",
   previewUntitled: "제목 없음",
@@ -1525,6 +1527,7 @@ const en: Translations = {
   rawEditorTitle: "Edit Full LRC",
   rawEditorApply: "Apply Changes",
   rawEditorCancel: "Discard",
+  rawEditorStale: "The document changed, so this draft cannot be applied. Your draft remains here to copy or discard.",
   previewBtn: "Preview",
   previewClose: "Close",
   previewUntitled: "Untitled",
@@ -2126,6 +2129,7 @@ const ja: Translations = {
   rawEditorTitle: "LRC全体を編集",
   rawEditorApply: "適用",
   rawEditorCancel: "キャンセル",
+  rawEditorStale: "編集中にドキュメントが変更されたため、この下書きは適用できません。下書きはここに残っているので、コピーするか破棄してください。",
   previewBtn: "プレビュー",
   previewClose: "閉じる",
   previewUntitled: "タイトルなし",
