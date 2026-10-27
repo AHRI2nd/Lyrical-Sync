@@ -41,6 +41,7 @@ import { NewFileIcon, OpenFolderIcon, SaveIcon, SaveAsIcon, UndoIcon, RedoIcon, 
 import { RecentFilesMenu } from "./components/AppShell/RecentFilesMenu";
 import { HistoryPanel } from "./components/AppShell/HistoryPanel";
 import type { RecentFileEntry } from "./stores/useSettingsStore";
+import { setDocumentConfirmation, type TransitionChoice } from "./utils/documentTransition";
 
 const AUDIO_EXTS = ["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff", "aif"];
 const LYRICS_EXTS = ["lrc", "srt"];
@@ -197,6 +198,8 @@ function App() {
   const [showFormatChooser, setShowFormatChooser] = useState(false);
   const [showElrcNotice, setShowElrcNotice] = useState(false);
   const [pendingDocumentOpen, setPendingDocumentOpen] = useState<{ lyricsPath: string; audioPath?: string | null } | null>(null);
+  const [pendingFetchedLyricsConfirm, setPendingFetchedLyricsConfirm] = useState(false);
+  const pendingFetchedLyricsResolveRef = useRef<((choice: TransitionChoice) => void) | null>(null);
   const pendingSaveRef = useRef<(() => Promise<boolean>) | null>(null);
   const [showSpotifySearch, setShowSpotifySearch] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -216,6 +219,31 @@ function App() {
   const { autoCheckUpdate, uiScale, spotifyMode, youtubeMode, deviceMode, setSpotifyMode, setYoutubeMode, setDeviceMode, showElrcSaveNotice, setShowElrcSaveNotice } = useSettingsStore();
   const { isLoggedIn, handleCallback, tryRestoreSession, pausePlayback } = useServiceStore();
   const [ytdlpInstalled, setYtdlpInstalled] = useState(false);
+
+  useEffect(() => {
+    const dismiss = () => {
+      const resolve = pendingFetchedLyricsResolveRef.current;
+      pendingFetchedLyricsResolveRef.current = null;
+      setPendingFetchedLyricsConfirm(false);
+      resolve?.("cancel");
+    };
+    const unregister = setDocumentConfirmation(() => new Promise((resolve) => {
+      dismiss();
+      pendingFetchedLyricsResolveRef.current = resolve;
+      setPendingFetchedLyricsConfirm(true);
+    }), dismiss);
+    return () => {
+      dismiss();
+      unregister();
+    };
+  }, []);
+
+  const settleFetchedLyricsConfirmation = (choice: TransitionChoice) => {
+    const resolve = pendingFetchedLyricsResolveRef.current;
+    pendingFetchedLyricsResolveRef.current = null;
+    setPendingFetchedLyricsConfirm(false);
+    resolve?.(choice);
+  };
 
   useAutoUpdateCheck(autoCheckUpdate);
 
@@ -519,6 +547,19 @@ function App() {
             setRecovery(null);
           }}
           onCancel={() => { clearRecoverySnapshot(recovery); setRecovery(null); }}
+        />
+      )}
+      {pendingFetchedLyricsConfirm && (
+        <ConfirmModal
+          title={t.confirmNewTitle}
+          message={t.confirmNewMessage}
+          leftLabel={t.save}
+          onLeft={() => settleFetchedLyricsConfirmation("save")}
+          cancelLabel={t.confirmNewCancel}
+          onCancel={() => settleFetchedLyricsConfirmation("cancel")}
+          okLabel={t.recovery.discard}
+          onOk={() => settleFetchedLyricsConfirmation("discard")}
+          priority
         />
       )}
       {showNewConfirm && (

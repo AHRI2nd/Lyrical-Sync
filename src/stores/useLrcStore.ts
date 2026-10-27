@@ -13,6 +13,7 @@ import { useSettingsStore } from "./useSettingsStore";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
+import { cancelDocumentConfirmation, confirmDocumentReplacement, runDocumentTransition } from "../utils/documentTransition";
 
 type AiSyncStatus = "idle" | "running" | "done" | "error";
 
@@ -33,6 +34,7 @@ interface AlignmentProgressEvent {
 interface LrcStore {
   doc: LrcDocument;
   _documentSession: number;
+  _editRevision: number;
   _audioSelection: number;
   _history: HistoryEntry[];
   _future: HistoryEntry[];
@@ -112,7 +114,7 @@ interface LrcStore {
   openAudio: () => Promise<void>;
   openLrc: () => Promise<void>;
   loadLyricsPath: (path: string, options?: { audioPath?: string | null }) => Promise<void>;
-  applyFetchedLyrics: (lrcText: string, meta?: { title: string; artist: string; album: string }) => void;
+  requestApplyFetchedLyrics: (lrcText: string, meta: { title: string; artist: string; album: string } | undefined, ownerSession: number) => Promise<"applied" | "cancelled">;
   // 반환값: 실제로 파일을 썼으면 true, 사용자가 저장 다이얼로그를 취소하면 false
   saveLrc: () => Promise<boolean>;
   // enhanced: 이번 저장에만 적용하는 일회성 override(미지정 시 글자 데이터 있으면 E-LRC)
@@ -171,10 +173,24 @@ function selectionForDocument(
 // 비동기 정렬 결과가 새 문서나 이후 수동 편집을 덮어쓰지 않도록 실행 세대를 관리한다.
 let aiRunId = 0;
 
-export const useLrcStore = create<LrcStore>((set, get) => {
+export const useLrcStore = create<LrcStore>((rawSet, get) => {
+  const set: typeof rawSet = (partial) => {
+    rawSet((state) => {
+      const patch = typeof partial === "function" ? partial(state) : partial;
+      const hasDocument = Object.prototype.hasOwnProperty.call(patch, "doc");
+      const sessionChanged = Object.prototype.hasOwnProperty.call(patch, "_documentSession") &&
+        patch._documentSession !== state._documentSession;
+      if (sessionChanged) return { ...patch, _editRevision: patch._editRevision ?? 0 };
+      if (hasDocument && patch.doc !== state.doc && !Object.prototype.hasOwnProperty.call(patch, "_editRevision")) {
+        return { ...patch, _editRevision: state._editRevision + 1 };
+      }
+      return patch;
+    });
+  };
   let documentSessionId = 0;
   let lyricLoadGeneration = 0;
   let saveAsGeneration = 0;
+  let fetchedLyricsRequestId = 0;
   const writeLrcFile = (path: string, content: string, isCurrent: () => boolean = () => true) =>
     enqueuePathWrite(path, async () => {
       if (!isCurrent()) return false;
@@ -204,6 +220,38 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     return resetAiState();
   };
 
+  const applyFetchedLyrics = (
+    lrcText: string,
+    meta?: { title: string; artist: string; album: string },
+  ) => {
+    beginDocumentSession();
+    const parsed = parseLrc(lrcText);
+    let id = 1;
+    parsed.lines = parsed.lines.map((line) => ({ ...line, id: String(id++) }));
+    nextId = id;
+    const current = get().doc.metadata;
+    const metadata = meta
+      ? {
+          ...current,
+          title: current.title.trim() || meta.title,
+          artist: current.artist.trim() || meta.artist,
+          album: current.album.trim() || meta.album,
+        }
+      : current;
+    const firstId = parsed.lines[0]?.id ?? null;
+    set({
+      doc: { ...parsed, metadata },
+      lrcPath: null,
+      isDirty: true,
+      activeLineId: firstId,
+      loopLineId: null,
+      _history: [],
+      _future: [],
+      _lastEditKey: null,
+      ...invalidateAiRun(),
+    });
+  };
+
   // 현재 doc을 히스토리 엔트리로 만들어 _history에 쌓고 _future를 비움.
   // 각 mutating 액션이 실제로 doc을 바꾸기 "직전"에 호출 — pushHistory 이후의 set()으로 새 doc을 반영한다.
   const pushHistory = (label: HistoryLabel, count?: number) => {
@@ -219,7 +267,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
 
   return {
   doc: defaultDocument(),
-  _documentSession: 0, _audioSelection: 0,
+  _documentSession: 0, _editRevision: 0, _audioSelection: 0,
   _history: [],
   _future: [],
   _lastEditKey: null,
@@ -384,7 +432,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
         _lastEditKey: key,
       }));
     } else {
-      set((s) => ({ doc: { ...s.doc, metadata: { ...s.doc.metadata, ...meta } } }));
+      rawSet((s) => ({ doc: { ...s.doc, metadata: { ...s.doc.metadata, ...meta } } }));
     }
   },
 
@@ -708,35 +756,20 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     useSettingsStore.getState().addRecentFile({ lrcPath: path, audioPath: get().audioPath });
   },
 
-  // LRCLIB 등 외부에서 가져온 가사 적용. 라인은 교체하되 메타데이터는 보존:
-  // 이미 입력된 title/artist/album은 그대로 두고, 비어 있는 필드만 결과로 채운다.
-  // (by/offset도 보존). 로컬 파일 무관 → lrcPath 비움.
-  applyFetchedLyrics: (lrcText, meta) => {
-    beginDocumentSession();
-    const parsed = parseLrc(lrcText);
-    let id = 1;
-    parsed.lines = parsed.lines.map((l) => ({ ...l, id: String(id++) }));
-    nextId = id;
-    const current = get().doc.metadata;
-    const metadata = meta
-      ? {
-          ...current,
-          title: current.title.trim() || meta.title,
-          artist: current.artist.trim() || meta.artist,
-          album: current.album.trim() || meta.album,
-        }
-      : current;
-    const firstId = parsed.lines[0]?.id ?? null;
-    set({
-      doc: { ...parsed, metadata },
-      lrcPath: null,
-      isDirty: true,
-      activeLineId: firstId,
-      loopLineId: null,
-      _history: [],
-      _future: [],
-      _lastEditKey: null,
-      ...invalidateAiRun(),
+  requestApplyFetchedLyrics: async (lrcText, meta, ownerSession) => {
+    cancelDocumentConfirmation();
+    const requestId = ++fetchedLyricsRequestId;
+    return runDocumentTransition({
+      snapshot: () => ({
+        session: get()._documentSession,
+        revision: get()._editRevision,
+        dirty: get().isDirty,
+      }),
+      isCurrent: () => fetchedLyricsRequestId === requestId && get()._documentSession === ownerSession,
+      confirm: confirmDocumentReplacement,
+      save: () => get().saveLrc(),
+      prepare: async () => ({ lrcText, meta }),
+      apply: (prepared) => applyFetchedLyrics(prepared.lrcText, prepared.meta),
     });
   },
 

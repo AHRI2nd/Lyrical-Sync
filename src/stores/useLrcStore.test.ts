@@ -25,6 +25,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { serializeLrc } from "../utils/lrcParser";
+import { setDocumentConfirmation } from "../utils/documentTransition";
 
 const reset = (lines: LrcLine[], offset = 0) =>
   useLrcStore.setState({
@@ -126,6 +127,92 @@ describe("useLrcStore — line actions", () => {
     expect(useLrcStore.getState()._history.length).toBe(h0);
     expect(useLrcStore.getState().isDirty).toBe(false);
     expect(useLrcStore.getState().doc.metadata.artist).toBe("A");
+  });
+
+  it("tracks document revisions for user edits and undo but excludes silent metadata sync", () => {
+    reset([{ id: "1", timestamp: 1, text: "a" }]);
+    const initial = useLrcStore.getState()._editRevision;
+    useLrcStore.getState().setMetadata({ title: "Edited" });
+    expect(useLrcStore.getState()._editRevision).toBe(initial + 1);
+    useLrcStore.getState().setMetadata({ artist: "Silent" }, true);
+    expect(useLrcStore.getState()._editRevision).toBe(initial + 1);
+    useLrcStore.getState().undo();
+    expect(useLrcStore.getState()._editRevision).toBe(initial + 2);
+  });
+
+  it("requires confirmation before applying fetched lyrics to dirty content", async () => {
+    reset([{ id: "1", timestamp: 1, text: "Unsaved lyric" }]);
+    useLrcStore.setState({ isDirty: true });
+    const before = useLrcStore.getState();
+    const confirm = vi.fn(async () => "cancel" as const);
+    const unregister = setDocumentConfirmation(confirm);
+    const result = await useLrcStore.getState().requestApplyFetchedLyrics(
+      "[00:02.00]Fetched lyric", { title: "Fetched" , artist: "Artist", album: "Album" }, before._documentSession,
+    );
+    unregister();
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(result).toBe("cancelled");
+    expect(useLrcStore.getState().doc).toBe(before.doc);
+    expect(useLrcStore.getState()._history).toBe(before._history);
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
+  it("applies fetched lyrics only after discard and keeps the existing metadata policy", async () => {
+    reset([{ id: "1", timestamp: 1, text: "Unsaved lyric" }]);
+    useLrcStore.setState({ isDirty: true, lrcPath: "/tmp/old.lrc" });
+    useLrcStore.getState().setMetadata({ title: "Existing title" });
+    const before = useLrcStore.getState();
+    const unregister = setDocumentConfirmation(async () => "discard");
+    const result = await useLrcStore.getState().requestApplyFetchedLyrics(
+      "[00:02.00]Fetched lyric", { title: "Fetched", artist: "Artist", album: "Album" }, before._documentSession,
+    );
+    unregister();
+    expect(result).toBe("applied");
+    expect(useLrcStore.getState().doc.lines.map((line) => line.text)).toEqual(["Fetched lyric"]);
+    expect(useLrcStore.getState().doc.metadata).toMatchObject({ title: "Existing title", artist: "Artist", album: "Album" });
+    expect(useLrcStore.getState().lrcPath).toBeNull();
+    expect(useLrcStore.getState()._history).toEqual([]);
+    expect(useLrcStore.getState()._documentSession).toBeGreaterThan(before._documentSession);
+  });
+
+  it("rechecks authorization after edits and rejects a result from an older document session", async () => {
+    reset([{ id: "1", timestamp: 1, text: "Original" }]);
+    useLrcStore.setState({ isDirty: true });
+    const ownerSession = useLrcStore.getState()._documentSession;
+    const confirm = vi.fn()
+      .mockImplementationOnce(async () => {
+        useLrcStore.getState().updateLine("1", { text: "Edited while waiting" });
+        return "discard" as const;
+      })
+      .mockResolvedValueOnce("cancel" as const);
+    const unregister = setDocumentConfirmation(confirm);
+    const result = await useLrcStore.getState().requestApplyFetchedLyrics(
+      "[00:02.00]Fetched", undefined, ownerSession,
+    );
+    unregister();
+    expect(result).toBe("cancelled");
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(useLrcStore.getState().doc.lines[0].text).toBe("Edited while waiting");
+
+    const stale = await useLrcStore.getState().requestApplyFetchedLyrics("[00:03.00]Stale", undefined, ownerSession);
+    expect(stale).toBe("cancelled");
+    expect(useLrcStore.getState().doc.lines[0].text).toBe("Edited while waiting");
+  });
+
+  it("does not restart confirmation for silent metadata synchronization", async () => {
+    reset([{ id: "1", timestamp: 1, text: "Original" }]);
+    useLrcStore.setState({ isDirty: true });
+    const ownerSession = useLrcStore.getState()._documentSession;
+    const confirmation: { resolve?: (choice: "save" | "discard" | "cancel") => void } = {};
+    const confirm = vi.fn(() => new Promise<"save" | "discard" | "cancel">((resolve) => { confirmation.resolve = resolve; }));
+    const unregister = setDocumentConfirmation(confirm);
+    const pending = useLrcStore.getState().requestApplyFetchedLyrics("[00:02.00]Fetched", undefined, ownerSession);
+    useLrcStore.getState().setMetadata({ artist: "Automatic" }, true);
+    confirmation.resolve?.("discard");
+    expect(await pending).toBe("applied");
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(useLrcStore.getState().doc.metadata.artist).toBe("Automatic");
+    unregister();
   });
 
   it("deleteLine removes and updates activeLineId", () => {

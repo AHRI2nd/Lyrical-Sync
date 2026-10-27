@@ -18,7 +18,8 @@ function fmtDur(sec: number): string {
 export function LrcLibModal({ onClose }: { onClose: () => void }) {
   const { t } = useI18nStore();
   const metadata = useLrcStore((s) => s.doc.metadata);
-  const applyFetchedLyrics = useLrcStore((s) => s.applyFetchedLyrics);
+  const ownerSession = useRef(useLrcStore.getState()._documentSession).current;
+  const requestApplyFetchedLyrics = useLrcStore((s) => s.requestApplyFetchedLyrics);
 
   const [title, setTitle] = useState(metadata.title);
   const [artist, setArtist] = useState(metadata.artist);
@@ -26,6 +27,7 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
   const [results, setResults] = useState<LrcLibResult[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [preview, setPreview] = useState<LrcLibResult | null>(null);
+  const [applying, setApplying] = useState(false);
   const [syncedOnly, setSyncedOnly] = useState(false);
   const [plainOnly, setPlainOnly] = useState(false);
 
@@ -41,6 +43,12 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
   }, [results, syncedOnly, plainOnly]);
 
   const reqId = useRef(0);
+  const applyingRef = useRef(false);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const runSearch = async (q: LrcLibQuery) => {
     if (!q.title?.trim() && !q.artist?.trim() && !q.album?.trim()) return;
@@ -77,11 +85,27 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
     return () => window.removeEventListener("keydown", h);
   }, [preview, onClose]);
 
-  const handleConfirm = (r: LrcLibResult) => {
+  const handleConfirm = async (r: LrcLibResult) => {
     const lrc = r.syncedLyrics ?? r.plainLyrics;
-    if (!lrc) return;
-    applyFetchedLyrics(lrc, { title: r.trackName, artist: r.artistName, album: r.albumName });
-    onClose();
+    if (!lrc || applyingRef.current) return;
+    applyingRef.current = true;
+    setApplying(true);
+    let result: "applied" | "cancelled";
+    try {
+      result = await requestApplyFetchedLyrics(
+        lrc,
+        { title: r.trackName, artist: r.artistName, album: r.albumName },
+        ownerSession,
+      );
+    } catch {
+      result = "cancelled";
+    }
+    if (result === "applied") {
+      onClose();
+    } else if (mountedRef.current) {
+      applyingRef.current = false;
+      setApplying(false);
+    }
   };
 
   return (
@@ -135,6 +159,7 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
                 t={t}
                 onPreview={() => setPreview(r)}
                 onConfirm={() => handleConfirm(r)}
+                applying={applying}
               />
             ))}
           </div>
@@ -161,7 +186,7 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => { handleConfirm(preview); }}
-                  disabled={!preview.syncedLyrics && !preview.plainLyrics}
+                  disabled={(!preview.syncedLyrics && !preview.plainLyrics) || applying}
                   className="ls-button text-sm bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors ls-button--primary"
                 >
                   {t.lrclib.confirm}
@@ -228,12 +253,13 @@ function Field({
 }
 
 function ResultRow({
-  r, t, onPreview, onConfirm,
+  r, t, onPreview, onConfirm, applying,
 }: {
   r: LrcLibResult;
   t: ReturnType<typeof useI18nStore.getState>["t"];
   onPreview: () => void;
   onConfirm: () => void;
+  applying: boolean;
 }) {
   const dur = fmtDur(r.duration);
   const hasLyrics = !!(r.syncedLyrics || r.plainLyrics);
@@ -268,7 +294,7 @@ function ResultRow({
         </button>
         <button
           onClick={onConfirm}
-          disabled={!hasLyrics}
+          disabled={!hasLyrics || applying}
           className="ls-button text-xs bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors ls-button--primary"
         >
           {t.lrclib.confirm}
