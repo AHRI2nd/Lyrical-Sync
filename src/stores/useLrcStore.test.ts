@@ -687,6 +687,36 @@ describe("useLrcStore — save completion races", () => {
     expect(useLrcStore.getState().isDirty).toBe(false);
   });
 
+  it("skips a queued regular save after another document takes ownership of the path", async () => {
+    let releaseFirst!: () => void;
+    const firstWritePending = new Promise<void>((resolve) => { releaseFirst = resolve; });
+    const writtenContents: string[] = [];
+    vi.mocked(invoke).mockImplementation(async (command: unknown, args?: unknown) => {
+      if (command === "write_lrc_file") {
+        writtenContents.push((args as { content: string }).content);
+        if (writtenContents.length === 1) await firstWritePending;
+        return undefined;
+      }
+      if (command === "read_lrc_file") return "[ti:next song]\n[00:03.00]next document";
+      return undefined;
+    });
+
+    const firstSave = useLrcStore.getState().saveLrc();
+    await vi.waitFor(() => expect(writtenContents).toHaveLength(1));
+    useLrcStore.getState().updateLine("1", { text: "queued old document" });
+    const queuedSave = useLrcStore.getState().saveLrc();
+
+    await useLrcStore.getState().loadLyricsPath("/tmp/song.lrc");
+    useLrcStore.getState().updateLine("1", { text: "edited next document" });
+    releaseFirst();
+
+    await expect(firstSave).resolves.toBe(true);
+    await expect(queuedSave).resolves.toBe(false);
+    expect(writtenContents).toHaveLength(1);
+    expect(lines()[0].text).toBe("edited next document");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
   it("does not let an old save clear the dirty state of a newly loaded document", async () => {
     let resolveWrite!: (value: undefined) => void;
     vi.mocked(invoke).mockImplementation((command: unknown) => {

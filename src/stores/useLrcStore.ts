@@ -791,7 +791,12 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     const { lrcPath, doc, duration } = get();
     if (!lrcPath) return get().saveLrcAs("lrc");
     const sessionId = documentSessionId;
-    await writeLrcFile(lrcPath, serializeForPath(lrcPath, doc, duration));
+    const written = await writeLrcFile(
+      lrcPath,
+      serializeForPath(lrcPath, doc, duration),
+      () => documentSessionId === sessionId && get().lrcPath === lrcPath,
+    );
+    if (!written) return false;
     const current = get();
     if (documentSessionId === sessionId && current.doc === doc && current.lrcPath === lrcPath) {
       set({ isDirty: false });
