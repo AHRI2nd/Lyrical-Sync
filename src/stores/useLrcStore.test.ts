@@ -24,6 +24,7 @@ import { saveRecoverySnapshot, loadRecoverySnapshot, clearRecoverySnapshot } fro
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
+import { serializeLrc } from "../utils/lrcParser";
 
 const reset = (lines: LrcLine[], offset = 0) =>
   useLrcStore.setState({
@@ -50,6 +51,23 @@ describe("useLrcStore — line actions", () => {
     reset([{ id: "1", timestamp: null, text: "a" }]);
     useLrcStore.getState().updateLine("1", { text: "b" });
     expect(lines()[0].text).toBe("b");
+  });
+
+  it("drops timed tokens when edited text no longer matches what save serializes", () => {
+    reset([{ id: "1", timestamp: 10, text: "old", syllables: [{ text: "old", time: 10 }] }]);
+    useLrcStore.getState().updateLine("1", { text: "new" });
+
+    expect(lines()[0].text).toBe("new");
+    expect(lines()[0].syllables).toBeUndefined();
+    expect(serializeLrc(useLrcStore.getState().doc).trim()).toBe("[00:10.00]new");
+  });
+
+  it("drops stale untimed tokens after ordinary text entry", () => {
+    reset([{ id: "1", timestamp: 10, text: "old", syllables: [{ text: "old", time: null }] }]);
+    useLrcStore.getState().updateLine("1", { text: "new" });
+
+    expect(lines()[0].text).toBe("new");
+    expect(lines()[0].syllables).toBeUndefined();
   });
 
   it("updateLine is undoable — first keystroke pushes history", () => {

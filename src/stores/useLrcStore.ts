@@ -396,14 +396,22 @@ export const useLrcStore = create<LrcStore>((set, get) => {
     // 끼어들기 전까지) 한 번의 undo 단위로 묶는다 — 글자 하나마다 undo가 쌓이는 걸 방지.
     const line = get().doc.lines.find(item => item.id === id);
     if (!line) return;
-    const fields = Object.keys(patch) as (keyof typeof patch)[];
-    if (fields.every(field => line[field] === patch[field])) return;
+    const normalizedPatch = { ...patch };
+    if (patch.text !== undefined && patch.text !== line.text) {
+      if (!Object.prototype.hasOwnProperty.call(patch, "syllables")) {
+        normalizedPatch.syllables = undefined;
+      } else if (normalizedPatch.syllables && normalizedPatch.syllables.map((s) => s.text).join("") !== patch.text) {
+        normalizedPatch.syllables = undefined;
+      }
+    }
+    const fields = Object.keys(normalizedPatch) as (keyof typeof normalizedPatch)[];
+    if (fields.every(field => line[field] === normalizedPatch[field])) return;
     const key = `${id}:${fields.sort().join(",")}`;
     if (get()._lastEditKey !== key) pushHistory("editText");
     set((s) => ({
       doc: {
         ...s.doc,
-        lines: s.doc.lines.map((l) => (l.id === id ? { ...(patch.timestamp !== undefined ? retimeLine(l, patch.timestamp) : l), ...patch } : l)),
+        lines: s.doc.lines.map((l) => (l.id === id ? { ...(normalizedPatch.timestamp !== undefined ? retimeLine(l, normalizedPatch.timestamp) : l), ...normalizedPatch } : l)),
       },
       isDirty: true,
       _lastEditKey: key,

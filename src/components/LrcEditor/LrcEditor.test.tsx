@@ -161,6 +161,25 @@ it("does not start AI sync from a glyph warning after the audio selection change
 
   expect(invoke).not.toHaveBeenCalledWith("run_alignment", expect.anything());
 });
+it("asks before an individual find-and-replace clears timed glyphs", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "old lyric", timestamp: 1,
+    syllables: [{ text: "old lyric", time: 1 }] }] } });
+  const { getByRole, getByPlaceholderText, getByText } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getByRole("button", { name: t.editorTools }));
+  fireEvent.click(getByRole("button", { name: t.findReplace }));
+  fireEvent.change(getByPlaceholderText(t.findPlaceholder), { target: { value: "old" } });
+  fireEvent.change(getByPlaceholderText(t.replacePlaceholder), { target: { value: "new" } });
+  expect(getByText("1 / 1")).toBeTruthy();
+  fireEvent.click(getByRole("button", { name: t.replaceBtn }));
+
+  expect(getByText(t.charSync.retokenizeTitle)).toBeTruthy();
+  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({
+    text: "old lyric", syllables: [{ text: "old lyric", time: 1 }],
+  });
+  fireEvent.click(getByRole("button", { name: t.charSync.retokenizeOk }));
+  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({ text: "new lyric", syllables: undefined });
+});
 it("rejects pending translation parts when the source has changed", () => {
   const t = useI18nStore.getState().t;
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "original", translation: "translated", timestamp: 1 }] } });
