@@ -606,7 +606,7 @@ export const useLrcStore = create<LrcStore>((set, get) => {
       doc: {
         ...doc,
         lines: doc.lines.map((l) =>
-          l.id === id ? { ...l, timestamp: currentTime } : l
+          l.id === id ? retimeLine(l, currentTime) : l
         ),
       },
       aiDraftConfidence: newConfidence,
