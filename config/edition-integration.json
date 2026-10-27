@@ -1111,17 +1111,17 @@
     {
       "path": "src/App.tsx",
       "resolution": "store-edition-adapter",
-      "resolvedSha256": "c5edf4b765a041c3c77a261195965031135392e3ba4dea26ed7e10ddc610fff0"
+      "resolvedSha256": "7a3830e00cc3d0757c553ce382bbe944f90476ed5d1c0c82533096d9adc81380"
     },
     {
       "path": "src/components/BatchTools/BatchFileList.test.tsx",
       "resolution": "shared-upstream",
-      "resolvedSha256": "2686d898bf8a04d406f5641c2153a8bfee517f9f0432e8108a3e5803bf2bbf1d"
+      "resolvedSha256": "30cebf4f0feac2faad3593f948255dbe61c5b3c0390344eda0c717fbe393aac7"
     },
     {
       "path": "src/components/BatchTools/BatchFileList.tsx",
       "resolution": "shared-upstream",
-      "resolvedSha256": "b1b6df5cdbe279f239d8951ea52ca95284314211e370bafeddc72a00c29734ba"
+      "resolvedSha256": "2422eb4a420ff8a6907af8e18101f50fc590066d13c8b8eaefc4d4ae002532f0"
     },
     {
       "path": "src/components/LrcLib/LrcLibModal.tsx",
@@ -1156,7 +1156,7 @@
     {
       "path": "src/i18n/translations.ts",
       "resolution": "store-edition-adapter",
-      "resolvedSha256": "c7878e54f21c300ea84d6331ebdbb42cde72dd39f4fe52e66ebbcae1e3685179"
+      "resolvedSha256": "9211d88c3f62e59fd6e6cabc1e78a038fd10400a795a0eda0343f5e88130588f"
     },
     {
       "path": "src/stores/useDeviceStore.test.ts",
@@ -1176,7 +1176,7 @@
     {
       "path": "src/stores/useLrcStore.test.ts",
       "resolution": "store-edition-adapter",
-      "resolvedSha256": "41d58cf600ee9376353d1047fd671e9eac892e9cde0ef6a3cfaaa894033b019d"
+      "resolvedSha256": "e75e74bc549685eed37d2f4afcca92489f7f032b46f102b3c411f09ce3e945f3"
     },
     {
       "path": "src/stores/useLrcStore.ts",
@@ -1216,12 +1216,12 @@
     {
       "path": "src/utils/batchProcessor.test.ts",
       "resolution": "shared-upstream",
-      "resolvedSha256": "80098014ca137d83f84a03e03b38cf3588e76f897407c78c3b8fc684dad5587d"
+      "resolvedSha256": "56233f392f48b985310cb684b9035c473b7039cb6b2938a56a30e372654e3db6"
     },
     {
       "path": "src/utils/batchProcessor.ts",
       "resolution": "shared-upstream",
-      "resolvedSha256": "a78b92f2b0deb2fadb1bc639b3feab3c56b6890be2729f61a30e2f0583877968"
+      "resolvedSha256": "9005c4ac5289ba887a7a2594b90ee1f05b3119cf3caa73c7d593b1960ba74ef6"
     },
     {
       "path": "src/utils/documentTransition.test.ts",
@@ -1236,12 +1236,12 @@
     {
       "path": "src/utils/exportFormats.test.ts",
       "resolution": "shared-upstream",
-      "resolvedSha256": "c9429d360ce5fc0f21780f74904758674d05d036b0ade556b32ac0b59cabcd8a"
+      "resolvedSha256": "a8735f3d87f4734dff3796e6aa89ab327f25a3b5caecb0c02e44cb0b2a6da1a4"
     },
     {
       "path": "src/utils/exportFormats.ts",
       "resolution": "shared-upstream",
-      "resolvedSha256": "30a6db47492a241584ec3fcd2fa90df4c34c2804b015e05510dca87f5e476a68"
+      "resolvedSha256": "8a1e90392034b4da92ae7f2f1ccbff8aa4c6e75f497bc9bff51acfaa9f174f7b"
     },
     {
       "path": "src/utils/lrcParser.test.ts",
@@ -1291,6 +1291,7 @@
     "Adopt N03 SRT representability errors and localized batch/manual/autosave reporting; adopt N04 marked LRC literal-timestamp round trips and N05 WebVTT body escaping.",
     "Exclude Dev-only LRCLIB, AI/device/model, service/Spotify, and updater product files while retaining Store 0.7.1 identity, dependencies, packaging, issue policy, and protected platform configuration.",
     "The merge ancestry includes six direct-edition commits (D04, D02, D03, D07, D06, D05) whose Store product changes are explicitly excluded above.",
-    "Resolved Store source hashes record the adapted final tree; shared upstream files are listed separately."
+    "Resolved Store source hashes record the adapted final tree; shared upstream files are listed separately.",
+    "Adopt A01 ASS literal-preservation guards and localized pre-write errors on Store while retaining Store-specific save, bookmark, recovery, and transition paths."
   ]
 }

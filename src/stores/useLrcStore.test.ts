@@ -486,6 +486,31 @@ describe("useLrcStore — security-scoped bookmarks (App Sandbox)", () => {
     expect(useLrcStore.getState()).toMatchObject({ lrcPath: "/working.lrc", isDirty: true });
   });
 
+  it("rejects unrepresentable ASS text before writing and keeps the document dirty", async () => {
+    useLrcStore.setState({
+      doc: { metadata: { title: "", artist: "", album: "", by: "", offset: 0 }, extraTags: {},
+        lines: [{ id: "1", timestamp: 1, text: "literal {override}" }] },
+      lrcPath: "/working.ass", isDirty: true,
+    });
+
+    await expect(useLrcStore.getState().saveLrc()).rejects.toMatchObject({ code: "ASS_UNREPRESENTABLE_CONTENT" });
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState()).toMatchObject({ lrcPath: "/working.ass", isDirty: true });
+  });
+
+  it("rejects unrepresentable ASS Save As before writing or changing the working path", async () => {
+    vi.mocked(save).mockResolvedValue("/export.ass");
+    useLrcStore.setState({
+      doc: { metadata: { title: "", artist: "", album: "", by: "", offset: 0 }, extraTags: {},
+        lines: [{ id: "1", timestamp: 1, text: "literal \\N" }] },
+      lrcPath: "/working.lrc", isDirty: true,
+    });
+
+    await expect(useLrcStore.getState().saveLrcAs("ass")).rejects.toMatchObject({ code: "ASS_UNREPRESENTABLE_CONTENT" });
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState()).toMatchObject({ lrcPath: "/working.lrc", isDirty: true });
+  });
+
   it("rejects a conflicting LRC escape marker before writing", async () => {
     vi.mocked(save).mockResolvedValue("/export.lrc");
     useLrcStore.setState({
