@@ -69,6 +69,8 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
   const setLoopLine = useLrcStore((s) => s.setLoopLine);
   const audioPath = useLrcStore((s) => s.audioPath);
   const syncUnit = useLrcStore((s) => s.syncUnit);
+  const syncMode = useLrcStore((s) => s.syncMode);
+  const documentSession = useLrcStore((s) => s._documentSession);
   const activeSyllableIndex = useLrcStore((s) => s.activeSyllableIndex);
   const setActiveSyllable = useLrcStore((s) => s.setActiveSyllable);
   const commitSyllables = useLrcStore((s) => s.commitSyllables);
@@ -216,6 +218,13 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
   });
   stateRef.current = { line, syllables, stampableIdx, lineIdx, linesLen: lines.length };
 
+  const glyphGestureContextRef = useRef({
+    documentSession, audioSelection, syncUnit, syncMode, controlSource, controlIdentity,
+  });
+  glyphGestureContextRef.current = {
+    documentSession, audioSelection, syncUnit, syncMode, controlSource, controlIdentity,
+  };
+
   const stampActive = () => {
     const { line: ln, syllables: syl, stampableIdx: sidx, lineIdx: li } = stateRef.current;
     if (!ln) return;
@@ -286,6 +295,10 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
 
   const laneRef = useRef<HTMLDivElement>(null);
   const dragCleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => () => dragCleanupRef.current?.(), [
+    documentSession, audioSelection, syncUnit, syncMode, controlSource, controlIdentity,
+  ]);
 
   useEffect(() => {
     const previewFor = (drag: LaneDrag, time: number): LanePreview => ({
@@ -424,16 +437,42 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
   // 글자 위 드래그 = 칠하기: 재생 중 글자 위를 끌면 지나는 글자가 현재 재생 시간으로 찍히고
   // 다음 글자가 준비됨(재생헤드 이동/스크럽 없음). 단순 클릭 = 그 글자를 활성(준비)으로 선택만.
   const beginDrag = (index: number, e: React.MouseEvent) => {
-    if (!line || e.button !== 0) return; // 좌클릭만 (우클릭은 글자 지우기)
+    if (!line || e.button !== 0 || anyModalOpen()) return; // 좌클릭만 (우클릭은 글자 지우기)
     e.preventDefault();
     textRef.current?.focus({ preventScroll: true });
+    const context = { ...glyphGestureContextRef.current, startButton: e.button };
     const startX = e.clientX;
     const startY = e.clientY;
     let painting = false;
     let lastIdx = -1;
     let advancedViaEnd = false;
 
+    let cleanedUp = false;
+    const cleanup = () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      window.removeEventListener("blur", onBlur);
+      if (dragCleanupRef.current === cleanup) dragCleanupRef.current = null;
+    };
+    const contextIsCurrent = () => {
+      const store = useLrcStore.getState();
+      const current = glyphGestureContextRef.current;
+      return !anyModalOpen() &&
+        context.startButton === 0 &&
+        store._documentSession === context.documentSession &&
+        store._audioSelection === context.audioSelection &&
+        store.syncUnit === context.syncUnit &&
+        store.syncMode === context.syncMode &&
+        current.controlSource === context.controlSource &&
+        current.controlIdentity === context.controlIdentity;
+    };
     const move = (ev: MouseEvent) => {
+      if (ev.buttons === 0 || !contextIsCurrent()) {
+        cleanup();
+        return;
+      }
       if (!painting) {
         if (Math.hypot(ev.clientX - startX, ev.clientY - startY) <= 5) return;
         painting = true;
@@ -460,18 +499,19 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
       lastIdx = gi;
       stampGlyphAt(gi, false);
     };
-    const cleanup = () => {
-      window.removeEventListener("mousemove", move);
-      window.removeEventListener("mouseup", up);
-      dragCleanupRef.current = null;
-    };
     const up = () => {
+      if (!contextIsCurrent()) {
+        cleanup();
+        return;
+      }
       cleanup();
       if (!painting) setActiveSyllable(index); // 단순 클릭 = 선택만(찍지 않음)
     };
+    const onBlur = () => cleanup();
     dragCleanupRef.current = cleanup;
     window.addEventListener("mousemove", move);
     window.addEventListener("mouseup", up);
+    window.addEventListener("blur", onBlur);
   };
 
   // 레인 = 탐색 전용. 드래그 중 미리보기만 움직이고 포인터를 놓을 때 한 번 탐색한다.

@@ -494,12 +494,64 @@ it('paints vertically across wrapped glyphs in a single undo entry', () => {
   const point = vi.fn(() => second);
   Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: point });
   fireEvent.mouseDown(first, { button: 0, clientX: 10, clientY: 10 });
-  fireEvent.mouseMove(window, { clientX: 10, clientY: 30 });
-  fireEvent.mouseMove(window, { clientX: 10, clientY: 40 });
+  fireEvent.mouseMove(window, { buttons: 1, clientX: 10, clientY: 30 });
+  fireEvent.mouseMove(window, { buttons: 1, clientX: 10, clientY: 40 });
   fireEvent.mouseUp(window);
   expect(useLrcStore.getState().doc.lines[0].syllables?.slice(0, 2).map(s => s.time)).toEqual([12, 12]);
   expect(useLrcStore.getState()._history).toHaveLength(1);
 });
+
+it.each(["window blur", "buttons=0 movement"])("cancels an unfinished glyph gesture after %s", (reason) => {
+  const { container } = setup();
+  const first = container.querySelector('[data-glyph="0"]')!;
+  const wasDirty = useLrcStore.getState().isDirty;
+  fireEvent.mouseDown(first, { button: 0, buttons: 1, clientX: 10, clientY: 10 });
+  if (reason === "buttons=0 movement") {
+    fireEvent.mouseMove(window, { buttons: 0, clientX: 20, clientY: 20 });
+  } else {
+    fireEvent.blur(window);
+    fireEvent.mouseMove(window, { buttons: 1, clientX: 20, clientY: 20 });
+  }
+  expect(useLrcStore.getState().doc.lines[0].syllables).toBeUndefined();
+  expect(useLrcStore.getState()._history).toHaveLength(0);
+  expect(useLrcStore.getState().isDirty).toBe(wasDirty);
+});
+
+it.each(["document", "audio", "sync unit", "sync mode", "playback source", "modal"])(
+  "cancels a glyph gesture when its %s context changes",
+  (context) => {
+    const { container } = setup();
+    const first = container.querySelector('[data-glyph="0"]')!;
+    const wasDirty = useLrcStore.getState().isDirty;
+    fireEvent.mouseDown(first, { button: 0, buttons: 1, clientX: 10, clientY: 10 });
+    act(() => {
+      if (context === "document") {
+        useLrcStore.setState({
+          _documentSession: useLrcStore.getState()._documentSession + 1,
+          doc: { ...defaultDocument(), lines: [{ id: "line-1", timestamp: 10, text: "hello" }] },
+        });
+      } else if (context === "audio") {
+        useLrcStore.setState({ _audioSelection: useLrcStore.getState()._audioSelection + 1 });
+      } else if (context === "sync unit") {
+        useLrcStore.getState().setSyncUnit("word");
+      } else if (context === "sync mode") {
+        useLrcStore.getState().setSyncMode("line");
+      } else if (context === "playback source") {
+        useSettingsStore.setState({ deviceMode: true });
+      } else {
+        const modal = document.createElement("div");
+        modal.className = "fixed inset-0";
+        modal.dataset.testModal = "true";
+        document.body.append(modal);
+      }
+    });
+    fireEvent.mouseMove(window, { buttons: 1, clientX: 30, clientY: 30 });
+    expect(useLrcStore.getState().doc.lines[0].syllables).toBeUndefined();
+    expect(useLrcStore.getState()._history).toHaveLength(0);
+    expect(useLrcStore.getState().isDirty).toBe(wasDirty);
+    document.querySelector('[data-test-modal="true"]')?.remove();
+  },
+);
 
 it('ignores stamp and nudge shortcuts during IME composition', () => {
   setup();
