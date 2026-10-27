@@ -6,13 +6,18 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager};
 
 pub struct DownloadState {
-    cancels: Mutex<HashMap<String, Arc<AtomicBool>>>,
+    active: Mutex<HashMap<String, ActiveDownload>>,
+}
+
+struct ActiveDownload {
+    run_id: String,
+    cancel: Arc<AtomicBool>,
 }
 
 impl Default for DownloadState {
     fn default() -> Self {
         Self {
-            cancels: Mutex::new(HashMap::new()),
+            active: Mutex::new(HashMap::new()),
         }
     }
 }
@@ -43,6 +48,7 @@ pub struct FileSpec {
 #[serde(rename_all = "camelCase")]
 struct DownloadProgressEvent {
     model_id: String,
+    run_id: String,
     file_index: usize,
     file_count: usize,
     downloaded: u64,
@@ -134,37 +140,59 @@ pub async fn download_model(
     dir_state: tauri::State<'_, ModelsDirState>,
     dl_state: tauri::State<'_, DownloadState>,
     model_id: String,
+    run_id: String,
+    expected_root: String,
     files: Vec<FileSpec>,
 ) -> Result<(), String> {
+    let base = models_dir(&app, &dir_state)?;
+    if !models_root_matches(&base, &expected_root) {
+        return Err("Model directory changed before download started".into());
+    }
     let cancel = Arc::new(AtomicBool::new(false));
     {
-        let mut active = dl_state.cancels.lock().unwrap_or_else(|e| e.into_inner());
+        let mut active = dl_state.active.lock().unwrap_or_else(|e| e.into_inner());
         if active.contains_key(&model_id) {
             return Err("Model download is already running".into());
         }
-        active.insert(model_id.clone(), cancel.clone());
+        active.insert(model_id.clone(), ActiveDownload { run_id: run_id.clone(), cancel: cancel.clone() });
     }
-    let result = download_files(&app, &dir_state, &model_id, &files, cancel).await;
-    dl_state
-        .cancels
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .remove(&model_id);
+    let result = download_files(&app, &base, &model_id, &run_id, &files, cancel).await;
+    let mut active = dl_state.active.lock().unwrap_or_else(|e| e.into_inner());
+    remove_download_if_current(&mut active, &model_id, &run_id);
     result
+}
+
+fn models_root_matches(current: &std::path::Path, expected_root: &str) -> bool {
+    !expected_root.is_empty() && current == PathBuf::from(expected_root)
+}
+
+fn remove_download_if_current(active: &mut HashMap<String, ActiveDownload>, model_id: &str, run_id: &str) {
+    if active.get(model_id).is_some_and(|download| download.run_id == run_id) {
+        active.remove(model_id);
+    }
+}
+
+fn cancel_download_if_current(active: &HashMap<String, ActiveDownload>, model_id: &str, run_id: &str) -> bool {
+    if let Some(download) = active.get(model_id).filter(|download| download.run_id == run_id) {
+        download.cancel.store(true, Ordering::Relaxed);
+        true
+    } else {
+        false
+    }
 }
 
 async fn download_files(
     app: &AppHandle,
-    dir_state: &ModelsDirState,
+    base: &std::path::Path,
     model_id: &str,
+    run_id: &str,
     files: &[FileSpec],
     cancel: Arc<AtomicBool>,
 ) -> Result<(), String> {
     use sha2::{Digest, Sha256};
     use std::io::Write;
-    let base = models_dir(app, dir_state)?;
     std::fs::create_dir_all(&base).map_err(|e| e.to_string())?;
-    let store = crate::model_store::ModelStore::open(&base).map_err(|e| e.to_string())?;
+    let store = crate::model_store::ModelStore::open(base).map_err(|e| e.to_string())?;
     let client = reqwest::Client::builder()
         .connect_timeout(std::time::Duration::from_secs(30))
         .timeout(std::time::Duration::from_secs(3600))
@@ -195,6 +223,7 @@ async fn download_files(
                     "model-download-progress",
                     DownloadProgressEvent {
                         model_id: model_id.into(),
+                        run_id: run_id.into(),
                         file_index: i,
                         file_count: files.len(),
                         downloaded: size,
@@ -230,6 +259,7 @@ async fn download_files(
                 "model-download-progress",
                 DownloadProgressEvent {
                     model_id: model_id.into(),
+                    run_id: run_id.into(),
                     file_index: i,
                     file_count: files.len(),
                     downloaded,
@@ -257,6 +287,7 @@ async fn download_files(
         "model-download-progress",
         DownloadProgressEvent {
             model_id: model_id.into(),
+            run_id: run_id.into(),
             file_index: files.len(),
             file_count: files.len(),
             downloaded: 0,
@@ -269,11 +300,9 @@ async fn download_files(
 }
 
 #[tauri::command]
-pub fn cancel_model_download(dl_state: tauri::State<'_, DownloadState>, model_id: String) {
-    if let Ok(cancels) = dl_state.cancels.lock() {
-        if let Some(flag) = cancels.get(&model_id) {
-            flag.store(true, Ordering::Relaxed);
-        }
+pub fn cancel_model_download(dl_state: tauri::State<'_, DownloadState>, model_id: String, run_id: String) {
+    if let Ok(active) = dl_state.active.lock() {
+        cancel_download_if_current(&active, &model_id, &run_id);
     }
 }
 
@@ -294,6 +323,28 @@ pub async fn delete_model_files(
 #[cfg(test)]
 mod integrity_tests {
     use super::*;
+
+    #[test]
+    fn only_the_current_run_can_be_removed_or_cancelled() {
+        let mut active = HashMap::new();
+        active.insert("model".into(), ActiveDownload { run_id: "new".into(), cancel: Arc::new(AtomicBool::new(false)) });
+        remove_download_if_current(&mut active, "model", "old");
+        assert!(active.contains_key("model"));
+        assert!(!cancel_download_if_current(&active, "model", "old"));
+        assert!(!active.get("model").unwrap().cancel.load(Ordering::Relaxed));
+        assert!(cancel_download_if_current(&active, "model", "new"));
+        assert!(active.get("model").unwrap().cancel.load(Ordering::Relaxed));
+        remove_download_if_current(&mut active, "model", "new");
+        assert!(!active.contains_key("model"));
+    }
+
+    #[test]
+    fn download_root_must_match_the_current_configured_root() {
+        let expected = PathBuf::from("/models/current");
+        assert!(models_root_matches(&expected, "/models/current"));
+        assert!(!models_root_matches(&expected, "/models/other"));
+        assert!(!models_root_matches(&expected, ""));
+    }
     #[cfg(unix)]
     #[test]
     fn model_parent_symlink_cannot_delete_outside_store() {

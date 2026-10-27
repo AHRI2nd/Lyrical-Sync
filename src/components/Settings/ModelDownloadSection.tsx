@@ -1,13 +1,10 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { listenSafely } from "../../utils/safeListen";
 import { type Translations } from "../../i18n/translations";
 import { useI18nStore } from "../../stores/useI18nStore";
-import { toast } from "../../stores/useToastStore";
+import { useModelDownloadStore, type ModelStatus } from "../../stores/useModelDownloadStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
-import { useBusyStore } from "../../stores/useBusyStore";
 import {
   CATEGORY_ORDER,
   MODEL_DEFS,
@@ -17,18 +14,6 @@ import {
 } from "../../utils/modelDefs";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-interface ProgressPayload {
-  modelId: string;
-  fileIndex: number;
-  fileCount: number;
-  downloaded: number;
-  total: number;
-  done: boolean;
-  error?: string;
-}
-
-type ModelStatus = "checking" | "installed" | "not-installed" | "downloading" | "error";
 
 interface ModelState {
   status: ModelStatus;
@@ -63,7 +48,7 @@ function ActionButton({
   onDelete: () => void;
   t: Translations;
 }) {
-  if (status === "checking") {
+  if (status === "checking" || status === "preparing") {
     return <span className="text-xs text-[var(--ls-text-secondary)] w-14 text-right">…</span>;
   }
   if (status === "downloading") {
@@ -105,140 +90,26 @@ export function ModelDownloadSection() {
   const { t, lang } = useI18nStore();
   const { modelsDir, setModelsDir, useVocalSeparation, setUseVocalSeparation, useVad, setUseVad } = useSettingsStore();
 
-  const [states, setStates] = useState<Record<string, ModelState>>(() =>
-    Object.fromEntries(
-      MODEL_DEFS.map((m) => [
-        m.id,
-        { status: "checking", progress: 0, _completedBytes: 0, _curFileIndex: -1, _curFileTotal: 0 },
-      ])
-    )
-  );
-  const [modelsPath, setModelsPath] = useState<string>("");
+  const states = useModelDownloadStore((state) => state.models);
+  const modelsPath = useModelDownloadStore((state) => state.modelsPath);
+  const refreshInstalled = useModelDownloadStore((state) => state.refreshInstalled);
+  const installModel = useModelDownloadStore((state) => state.installModel);
+  const cancelModel = useModelDownloadStore((state) => state.cancelModel);
   const [copied, setCopied] = useState(false);
+  useEffect(() => { void refreshInstalled(); }, [refreshInstalled]);
 
-  useEffect(() => {
-    const init = async () => {
-      await invoke("set_models_dir_override", { path: modelsDir || null }).catch(() => {});
-      const path = await invoke<string>("get_models_dir").catch(() => "");
-      setModelsPath(path);
-    };
-    init();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const checkInstalled = async () => {
-    for (const model of MODEL_DEFS) {
-      const filenames = model.files.map((f) => f.filename);
-      try {
-        const results = await invoke<boolean[]>("check_model_files", { filenames });
-        const installed = results.every(Boolean);
-        setStates((prev) => ({
-          ...prev,
-          [model.id]: { status: installed ? "installed" : "not-installed", progress: 0 },
-        }));
-      } catch {
-        setStates((prev) => ({
-          ...prev,
-          [model.id]: { status: "not-installed", progress: 0 },
-        }));
-      }
-    }
-  };
-
-  useEffect(() => { checkInstalled(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    const stopListening = listenSafely((isActive) => listen<ProgressPayload>("model-download-progress", (event) => {
-      if (!isActive()) return;
-      const p = event.payload;
-      setStates((prev) => {
-        const s = prev[p.modelId] ?? {
-          status: "checking", progress: 0,
-          _completedBytes: 0, _curFileIndex: -1, _curFileTotal: 0,
-        };
-        if (p.error) return { ...prev, [p.modelId]: { ...s, status: "error", progress: 0, error: p.error } };
-        if (p.done) {
-          // Finalize: add the last file's Content-Length to get the real total
-          const actualTotal = (s._completedBytes ?? 0) + (s._curFileTotal ?? 0);
-          return { ...prev, [p.modelId]: { ...s, status: "installed", progress: 100, _actualTotalBytes: actualTotal || undefined } };
-        }
-
-        // Accumulate bytes from files that just finished (fileIndex advanced)
-        const prevFileIndex = s._curFileIndex ?? -1;
-        const prevFileTotal = s._curFileTotal ?? 0;
-        let completedBytes = s._completedBytes ?? 0;
-        if (p.fileIndex > prevFileIndex && prevFileTotal > 0) {
-          completedBytes += prevFileTotal;
-        }
-
-        // Use the total model size estimate as the denominator for consistent overall progress.
-        // Per-file Content-Length would cause tiny config files (~KB) to briefly show 99%
-        // before the large model file starts downloading.
-        const modelDef = MODEL_DEFS.find((m) => m.id === p.modelId);
-        // Stale/unmatched event (e.g. modelId from a version whose defs changed) — ignore
-        // rather than crash the whole state update.
-        if (!modelDef) return prev;
-        const staticEstimate = modelDef.totalSizeMb * 1024 * 1024;
-        const denominator = staticEstimate > 0
-          ? staticEstimate
-          : Math.max(completedBytes + (p.total > 0 ? p.total : p.downloaded), 1);
-        const overall = Math.min((completedBytes + p.downloaded) / denominator * 100, 99);
-
-        return {
-          ...prev,
-          [p.modelId]: {
-            ...s,
-            status: "downloading",
-            progress: overall,
-            _completedBytes: completedBytes,
-            _curFileIndex: p.fileIndex,
-            _curFileTotal: p.total,
-          },
-        };
-      });
-    }));
-    return stopListening;
-  }, []);
-
-  const handleInstall = async (model: ModelDef) => {
-    const busyId = `model-download:${model.id}`;
-    useBusyStore.getState().markBusy(busyId);
-    setStates((prev) => ({
-      ...prev,
-      [model.id]: { status: "downloading", progress: 0, _completedBytes: 0, _curFileIndex: -1, _curFileTotal: 0 },
-    }));
-    try {
-      await invoke("download_model", {
-        modelId: model.id,
-        files: model.files.map((f) => ({ url: f.url, filename: f.filename, sha256: f.sha256 ?? null })),
-      });
-      toast.success(t.toast.modelDownloaded.replace("{name}", model.name));
-    } catch (e) {
-      if (String(e) === "cancelled") {
-        setStates((prev) => ({
-          ...prev,
-          [model.id]: { status: "not-installed", progress: 0, _completedBytes: 0, _curFileIndex: -1, _curFileTotal: 0 },
-        }));
-      } else {
-        // 취소가 아닌 실제 실패(네트워크·해시 불일치 등): 에러 상태 + 알림
-        setStates((prev) => ({ ...prev, [model.id]: { status: "error", progress: 0, error: String(e) } }));
-        toast.error(t.toast.modelDownloadFailed.replace("{name}", model.name));
-      }
-    } finally {
-      useBusyStore.getState().clearBusy(busyId);
-    }
-  };
-
-  const handleCancel = async (id: string) => {
-    await invoke("cancel_model_download", { modelId: id }).catch(() => {});
-  };
+  const handleInstall = (model: ModelDef) => { void installModel(model); };
+  const handleCancel = (id: string) => { void cancelModel(id); };
 
   const handleDelete = async (model: ModelDef) => {
+    if (useModelDownloadStore.getState().operations[model.id]) return;
     try {
       await invoke("delete_model_files", { filenames: model.files.map((f) => f.filename) });
-      setStates((prev) => ({ ...prev, [model.id]: { status: "not-installed", progress: 0 } }));
+      await refreshInstalled();
     } catch (e) {
-      setStates((prev) => ({ ...prev, [model.id]: { status: "error", progress: 0, error: String(e) } }));
+      useModelDownloadStore.setState((state) => ({
+        models: { ...state.models, [model.id]: { status: "error", progress: 0, error: String(e) } },
+      }));
     }
   };
 
@@ -253,18 +124,12 @@ export function ModelDownloadSection() {
     const selected = await openDialog({ directory: true, multiple: false }).catch(() => null);
     if (!selected || typeof selected !== "string") return;
     setModelsDir(selected);
-    await invoke("set_models_dir_override", { path: selected }).catch(() => {});
-    const newPath = await invoke<string>("get_models_dir").catch(() => selected);
-    setModelsPath(newPath);
-    checkInstalled();
+    await refreshInstalled();
   };
 
   const handleResetDir = async () => {
     setModelsDir("");
-    await invoke("set_models_dir_override", { path: null }).catch(() => {});
-    const defaultPath = await invoke<string>("get_models_dir").catch(() => "");
-    setModelsPath(defaultPath);
-    checkInstalled();
+    await refreshInstalled();
   };
 
   const grouped = CATEGORY_ORDER.map((cat) => ({
@@ -424,11 +289,12 @@ function ModelRow({
   const statusIcon =
     status === "installed" ? "✓"
     : status === "downloading" ? "↓"
+    : status === "preparing" ? "…"
     : status === "error" ? "✕"
     : "·";
   const iconColor =
     status === "installed" ? "text-emerald-400"
-    : status === "downloading" ? "text-[var(--ls-accent)]"
+    : status === "downloading" || status === "preparing" ? "text-[var(--ls-accent)]"
     : status === "error" ? "text-red-400"
     : "text-[var(--ls-text-secondary)]";
 
