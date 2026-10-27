@@ -46,13 +46,24 @@ beforeEach(() => {
     deviceId: null,
     isReady: false,
     isPlaying: false,
+    positionMs: 0,
+    durationMs: 0,
     trackName: "",
+    trackUri: null,
+    artistName: "",
+    albumName: "",
+    albumArtUrl: null,
+    _playbackRevision: 0,
     playerError: null,
   });
   (globalThis as any).Spotify = { Player: MockSpotifyPlayer };
 });
 
-afterEach(() => disconnectSpotifyPlayer());
+afterEach(() => {
+  disconnectSpotifyPlayer();
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 it("discards a token queued before the SDK becomes ready if logout invalidates its lease", () => {
   const generation = useServiceStore.getState()._authGeneration;
@@ -120,4 +131,103 @@ it("connects only one player for the current auth lease and supplies its current
   initSpotifyPlayer();
   expect(MockSpotifyPlayer.instances).toHaveLength(2);
   expect(instance.disconnect).toHaveBeenCalledOnce();
+});
+
+function spotifyResponse(trackName: string) {
+  return {
+    status: 200,
+    ok: true,
+    json: async () => ({
+      is_playing: false,
+      progress_ms: 1200,
+      item: {
+        uri: `spotify:track:${trackName}`,
+        name: trackName,
+        artists: [{ name: "Artist" }],
+        album: { name: "Album", images: [] },
+        duration_ms: 30000,
+      },
+      device: { id: "remote-device" },
+    }),
+  } as Response;
+}
+
+it("does not overlap Spotify polls and schedules the next request after settlement", async () => {
+  const first = deferred<Response>();
+  const fetchMock = vi.fn().mockReturnValue(first.promise);
+  vi.stubGlobal("fetch", fetchMock);
+  vi.useFakeTimers();
+  useSettingsStore.setState({ spotifyMode: true });
+  initSpotifyPlayer();
+
+  await vi.advanceTimersByTimeAsync(0);
+  await vi.advanceTimersByTimeAsync(6000);
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+
+  first.resolve(spotifyResponse("first"));
+  await vi.advanceTimersByTimeAsync(0);
+  await vi.advanceTimersByTimeAsync(1499);
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(1);
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+
+it("ignores an in-flight Spotify response after disconnect and a newer poll result", async () => {
+  const stale = deferred<Response>();
+  const fetchMock = vi.fn().mockReturnValueOnce(stale.promise).mockResolvedValueOnce(spotifyResponse("current"));
+  vi.stubGlobal("fetch", fetchMock);
+  useSettingsStore.setState({ spotifyMode: true });
+  initSpotifyPlayer();
+  await Promise.resolve();
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+
+  disconnectSpotifyPlayer();
+  initSpotifyPlayer();
+  await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  await vi.waitFor(() => expect(useServiceStore.getState().trackName).toBe("current"));
+  expect(useServiceStore.getState().trackName).toBe("current");
+
+  stale.resolve(spotifyResponse("stale"));
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(useServiceStore.getState().trackName).toBe("current");
+});
+
+it("does not let an older remote poll overwrite a newer accepted SDK playback state", async () => {
+  const pending = deferred<Response>();
+  const fetchMock = vi.fn().mockReturnValue(pending.promise);
+  vi.stubGlobal("fetch", fetchMock);
+  useSettingsStore.setState({ spotifyMode: true });
+  initSpotifyPlayer();
+  await Promise.resolve();
+
+  useServiceStore.getState().onPlayerStateChanged({
+    paused: false,
+    position: 7000,
+    duration: 30000,
+    track_window: { current_track: { uri: "spotify:track:sdk", name: "SDK Song", artists: [{ name: "SDK Artist" }], album: { name: "SDK Album", images: [] } } },
+  } as any);
+  pending.resolve(spotifyResponse("old-remote"));
+  await Promise.resolve();
+  await Promise.resolve();
+
+  expect(useServiceStore.getState().trackName).toBe("SDK Song");
+  expect(useServiceStore.getState().positionMs).toBe(7000);
+});
+
+it("discards an in-flight remote response after leaving Spotify mode", async () => {
+  const pending = deferred<Response>();
+  const fetchMock = vi.fn().mockReturnValue(pending.promise);
+  vi.stubGlobal("fetch", fetchMock);
+  useSettingsStore.setState({ spotifyMode: true });
+  initSpotifyPlayer();
+  await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+
+  useSettingsStore.getState().setSpotifyMode(false);
+  pending.resolve(spotifyResponse("out-of-mode"));
+  await Promise.resolve();
+  await Promise.resolve();
+
+  expect(useServiceStore.getState().trackName).toBe("");
+  expect(useServiceStore.getState().positionMs).toBe(0);
 });

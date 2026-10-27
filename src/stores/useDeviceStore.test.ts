@@ -22,12 +22,18 @@ vi.mock("./useToastStore", () => ({ toast: { error: (m: string) => pushErrorToas
 import { useDeviceStore } from "./useDeviceStore";
 import { useSettingsStore } from "./useSettingsStore";
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
 describe("useDeviceStore — failure notification", () => {
   beforeEach(() => {
     invoke.mockReset();
     pushErrorToast.mockClear();
     useSettingsStore.getState().setDeviceMode(false);
-    useDeviceStore.setState({ hasSession: false, isPlaying: false, positionMs: 0 });
+    useDeviceStore.setState({ hasSession: false, isPlaying: false, positionMs: 0, trackName: "" });
     vi.useFakeTimers();
   });
 
@@ -92,5 +98,61 @@ describe("useDeviceStore — failure notification", () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect(pushErrorToast).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not overlap slow polls and schedules the next poll after the previous one settles", async () => {
+    useSettingsStore.getState().setDeviceMode(true);
+    const first = deferred<null>();
+    invoke.mockReturnValue(first.promise);
+
+    useDeviceStore.getState().startPolling();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(invoke).toHaveBeenCalledTimes(1);
+
+    first.resolve(null);
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(999);
+    expect(invoke).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(invoke).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignores a native response that resolves after polling was stopped and restarted", async () => {
+    useSettingsStore.getState().setDeviceMode(true);
+    const stale = deferred<any>();
+    invoke.mockReturnValueOnce(stale.promise).mockResolvedValueOnce({
+      title: "Current", artist: "Artist", album: "Album", position_ms: 1200,
+      duration_ms: 30000, is_playing: false, source_app: "Test", last_updated_unix_ms: Date.now(),
+    });
+
+    useDeviceStore.getState().startPolling();
+    useDeviceStore.getState().stopPolling();
+    useDeviceStore.getState().startPolling();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useDeviceStore.getState().trackName).toBe("Current");
+
+    stale.resolve({
+      title: "Stale", artist: "Artist", album: "Album", position_ms: 9000,
+      duration_ms: 30000, is_playing: true, source_app: "Test", last_updated_unix_ms: Date.now(),
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useDeviceStore.getState().trackName).toBe("Current");
+    expect(useDeviceStore.getState().positionMs).toBe(1200);
+  });
+
+  it("ignores a native response that resolves after leaving device mode", async () => {
+    useSettingsStore.getState().setDeviceMode(true);
+    const pending = deferred<any>();
+    invoke.mockReturnValue(pending.promise);
+    useDeviceStore.getState().startPolling();
+    useSettingsStore.getState().setDeviceMode(false);
+    pending.resolve({
+      title: "Out of mode", artist: "Artist", album: "Album", position_ms: 5000,
+      duration_ms: 30000, is_playing: false, source_app: "Test", last_updated_unix_ms: Date.now(),
+    });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(useDeviceStore.getState().trackName).toBe("");
+    expect(useDeviceStore.getState().hasSession).toBe(false);
   });
 });

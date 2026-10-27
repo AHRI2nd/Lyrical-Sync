@@ -6,7 +6,10 @@ let player: Spotify.Player | null = null;
 type AuthLease = { generation: number; clientId: string };
 let pendingToken: { lease: AuthLease } | null = null;
 let sdkReady = false;
-let pollingInterval: ReturnType<typeof setInterval> | null = null;
+let pollingTimer: ReturnType<typeof setTimeout> | null = null;
+let pollingAbortController: AbortController | null = null;
+let pollingGeneration = 0;
+let isPolling = false;
 let playerGeneration = 0;
 
 function currentLease(): AuthLease {
@@ -161,37 +164,49 @@ useServiceStore.subscribe((state) => {
 });
 
 function startPolling(): void {
-  if (pollingInterval !== null) return;
-  pollOnce();
-  pollingInterval = setInterval(pollOnce, 1500);
+  if (isPolling || !useSettingsStore.getState().spotifyMode) return;
+  isPolling = true;
+  const generation = ++pollingGeneration;
+  void pollOnce(generation, currentLease());
 }
 
 function stopPolling(): void {
-  if (pollingInterval !== null) {
-    clearInterval(pollingInterval);
-    pollingInterval = null;
+  isPolling = false;
+  pollingGeneration += 1;
+  if (pollingTimer !== null) {
+    clearTimeout(pollingTimer);
+    pollingTimer = null;
   }
+  pollingAbortController?.abort();
+  pollingAbortController = null;
 }
 
-async function pollOnce(): Promise<void> {
-  // Spotify 모드가 아니면 폴링 불필요 → 불필요한 API 호출·보간 중단(모드 진입 시 다음 틱부터 재개)
-  if (!useSettingsStore.getState().spotifyMode) {
-    useServiceStore.getState()._stopInterpolation();
-    return;
-  }
+function isCurrentPoll(generation: number, lease: AuthLease): boolean {
+  return isPolling && pollingGeneration === generation && isCurrentLease(lease) &&
+    useSettingsStore.getState().spotifyMode;
+}
+
+async function pollOnce(generation: number, lease: AuthLease): Promise<void> {
+  if (!isCurrentPoll(generation, lease)) return;
+  const playbackRevision = useServiceStore.getState()._playbackRevision;
+  const controller = new AbortController();
+  pollingAbortController = controller;
   try {
     const token = await useServiceStore.getState().ensureToken();
+    if (!isCurrentPoll(generation, lease)) return;
     const t0 = Date.now();
     const resp = await fetch("https://api.spotify.com/v1/me/player", {
       headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
     });
+    if (!isCurrentPoll(generation, lease) || useServiceStore.getState()._playbackRevision !== playbackRevision) return;
     if (resp.status === 204 || !resp.ok) return;
     const data = await resp.json();
+    if (!isCurrentPoll(generation, lease) || useServiceStore.getState()._playbackRevision !== playbackRevision) return;
     if (!data?.item) return;
 
     const isPlaying = data.is_playing as boolean;
-    // progress_ms는 응답을 받기까지의 네트워크 왕복만큼 이미 과거 값.
-    // 재생 중이면 왕복의 절반을 더해 "현재"에 근접시킴(가사 하이라이트 지연 감소). 캡 750ms.
+    // progress_ms is already stale by the time the response arrives. Compensate by half the RTT, capped at 750ms.
     const latencyComp = isPlaying ? Math.min(1500, Date.now() - t0) / 2 : 0;
     const positionMs = Math.round((data.progress_ms as number) + latencyComp);
     const track = data.item;
@@ -215,18 +230,34 @@ async function pollOnce(): Promise<void> {
       _lastKnownPositionMs: positionMs,
       _lastStateTimestamp: Date.now(),
     });
-    // Spotify 모드일 때만 문서에 반영
-    const inSpotifyMode = useSettingsStore.getState().spotifyMode;
-    if (inSpotifyMode) {
-      useLrcStore.getState().setMetadata({ title: track.name, artist: artistName, album: track.album.name }, true);
-    }
+    // Spotify mode is checked again before document writes.
+    if (!isCurrentPoll(generation, lease) || useServiceStore.getState()._playbackRevision !== playbackRevision) return;
+    useLrcStore.getState().setMetadata({ title: track.name, artist: artistName, album: track.album.name }, true);
 
     if (isPlaying) useServiceStore.getState()._startInterpolation();
     else {
       useServiceStore.getState()._stopInterpolation();
-      if (inSpotifyMode) useLrcStore.getState().setCurrentTime(positionMs / 1000);
+      useLrcStore.getState().setCurrentTime(positionMs / 1000);
     }
   } catch {
-    // ignore
+    // Abort and stale session errors are expected during stop, mode changes, and logout.
+  } finally {
+    if (pollingAbortController === controller) pollingAbortController = null;
+    if (isCurrentPoll(generation, lease)) {
+      pollingTimer = setTimeout(() => {
+        pollingTimer = null;
+        void pollOnce(generation, lease);
+      }, 1500);
+    }
   }
 }
+
+useSettingsStore.subscribe((state, previous) => {
+  if (previous.spotifyMode === state.spotifyMode) return;
+  if (!state.spotifyMode) {
+    useServiceStore.getState()._stopInterpolation();
+    stopPolling();
+  } else if (useServiceStore.getState().isLoggedIn) {
+    startPolling();
+  }
+});

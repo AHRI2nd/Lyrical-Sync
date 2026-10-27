@@ -38,7 +38,9 @@ interface DeviceState {
   _stopInterpolation: () => void;
 }
 
-let pollingInterval: ReturnType<typeof setInterval> | null = null;
+let pollingTimer: ReturnType<typeof setTimeout> | null = null;
+let pollingGeneration = 0;
+let isPolling = false;
 let interpolationRaf: number | null = null;
 // 실패 스트릭당 1회만 알림 — 폴링은 계속하되(모드가 켜져 있는 한), 성공하면 리셋돼
 // 다음에 다시 끊기면 재알림된다.
@@ -57,16 +59,19 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
   _lastStateTimestamp: 0,
 
   startPolling: () => {
-    if (pollingInterval !== null) return;
+    if (isPolling || !useSettingsStore.getState().deviceMode) return;
+    isPolling = true;
+    const generation = ++pollingGeneration;
     hasNotifiedFailure = false;
-    pollOnce();
-    pollingInterval = setInterval(pollOnce, 1000);
+    void pollOnce(generation);
   },
 
   stopPolling: () => {
-    if (pollingInterval !== null) {
-      clearInterval(pollingInterval);
-      pollingInterval = null;
+    isPolling = false;
+    pollingGeneration += 1;
+    if (pollingTimer !== null) {
+      clearTimeout(pollingTimer);
+      pollingTimer = null;
     }
     get()._stopInterpolation();
   },
@@ -98,13 +103,20 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
   },
 }));
 
-async function pollOnce(): Promise<void> {
+function isCurrentPoll(generation: number): boolean {
+  return isPolling && pollingGeneration === generation;
+}
+
+async function pollOnce(generation: number): Promise<void> {
+  if (!isCurrentPoll(generation)) return;
   if (!useSettingsStore.getState().deviceMode) {
     useDeviceStore.getState()._stopInterpolation();
+    useDeviceStore.getState().stopPolling();
     return;
   }
   try {
     const info = await invoke<NowPlayingInfo | null>("get_now_playing");
+    if (!isCurrentPoll(generation) || !useSettingsStore.getState().deviceMode) return;
     hasNotifiedFailure = false;
     const store = useDeviceStore.getState();
     if (!info) {
@@ -142,11 +154,23 @@ async function pollOnce(): Promise<void> {
       if (useSettingsStore.getState().deviceMode) useLrcStore.getState().setCurrentTime(positionMs / 1000);
     }
   } catch {
+    if (!isCurrentPoll(generation)) return;
     // 어댑터 호출 자체가 실패(예: macOS 업데이트로 비공식 우회 경로가 막힘) — 폴링은
     // 모드가 켜져 있는 한 계속 재시도하되, 알림은 실패 스트릭당 1회만 띄운다.
     if (!hasNotifiedFailure) {
       hasNotifiedFailure = true;
       toast.error(useI18nStore.getState().t.toast.deviceUnavailable);
     }
+  } finally {
+    if (isCurrentPoll(generation) && useSettingsStore.getState().deviceMode) {
+      pollingTimer = setTimeout(() => {
+        pollingTimer = null;
+        void pollOnce(generation);
+      }, 1000);
+    }
   }
 }
+
+useSettingsStore.subscribe((state, previous) => {
+  if (previous.deviceMode && !state.deviceMode) useDeviceStore.getState().stopPolling();
+});

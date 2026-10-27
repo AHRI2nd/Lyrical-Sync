@@ -109,6 +109,7 @@ interface ServiceState {
   albumArtUrl: string | null;
   _lastKnownPositionMs: number;
   _lastStateTimestamp: number;
+  _playbackRevision: number;
 
   // Actions
   startLogin: () => Promise<void>;
@@ -158,6 +159,7 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
   albumArtUrl: null,
   _lastKnownPositionMs: 0,
   _lastStateTimestamp: 0,
+  _playbackRevision: 0,
 
   startLogin: async () => {
     const clientId = useSettingsStore.getState().spotifyClientId.trim();
@@ -366,6 +368,7 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
     const isPlaying = !state.paused;
 
     set({
+      _playbackRevision: get()._playbackRevision + 1,
       isPlaying,
       positionMs,
       durationMs: state.duration,
