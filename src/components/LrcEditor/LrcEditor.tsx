@@ -1,6 +1,7 @@
 import { isComposingKeyEvent } from "../../utils/keybindings";
 import { useRef, useEffect, useCallback, useState, useMemo, lazy, Suspense } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
@@ -311,7 +312,6 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   useEffect(() => {
     let active = true;
     const register = async (event: string) => {
-      const { listen } = await import("@tauri-apps/api/event");
       return listen<{ done: boolean }>(event, (e) => {
         if (active && e.payload.done) checkAiRequirements();
       });

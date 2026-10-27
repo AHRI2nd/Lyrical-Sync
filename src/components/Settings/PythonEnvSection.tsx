@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { safeUnlisten } from "../../utils/safeUnlisten";
 
@@ -42,31 +43,27 @@ export function PythonEnvSection() {
 
   useEffect(() => {
     let unlisten: (() => void) | null = null;
-    import("@tauri-apps/api/event").then(({ listen }) => {
-      listen<{ percent: number; done: boolean }>("python-download-progress", (e) => {
-        setDlPercent(e.payload.percent);
-        if (e.payload.done) {
-          setDownloading(false);
-          refresh();
-        }
-      }).then((fn) => { unlisten = fn; }).catch(() => {});
-    });
+    listen<{ percent: number; done: boolean }>("python-download-progress", (e) => {
+      setDlPercent(e.payload.percent);
+      if (e.payload.done) {
+        setDownloading(false);
+        refresh();
+      }
+    }).then((fn) => { unlisten = fn; }).catch(() => {});
     return () => { safeUnlisten(unlisten); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     let unlisten: (() => void) | null = null;
-    import("@tauri-apps/api/event").then(({ listen }) => {
-      listen<{ line: string; done: boolean; success: boolean }>("pip-install-progress", (e) => {
-        if (e.payload.done) {
-          setInstalling(false);
-          refresh();
-        } else if (e.payload.line) {
-          setInstallLog((prev) => [...prev, e.payload.line]);
-        }
-      }).then((fn) => { unlisten = fn; }).catch(() => {});
-    });
+    listen<{ line: string; done: boolean; success: boolean }>("pip-install-progress", (e) => {
+      if (e.payload.done) {
+        setInstalling(false);
+        refresh();
+      } else if (e.payload.line) {
+        setInstallLog((prev) => [...prev, e.payload.line]);
+      }
+    }).then((fn) => { unlisten = fn; }).catch(() => {});
     return () => { safeUnlisten(unlisten); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
