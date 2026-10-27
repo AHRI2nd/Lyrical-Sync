@@ -173,6 +173,11 @@ function selectionForDocument(
 // 비동기 정렬 결과가 새 문서나 이후 수동 편집을 덮어쓰지 않도록 실행 세대를 관리한다.
 let aiRunId = 0;
 
+function playbackSourceModeKey(): string {
+  const settings = useSettingsStore.getState();
+  return `${settings.spotifyMode}:${settings.deviceMode}:${settings.youtubeMode}`;
+}
+
 export const useLrcStore = create<LrcStore>((rawSet, get) => {
   const set: typeof rawSet = (partial) => {
     rawSet((state) => {
@@ -879,21 +884,41 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   },
 
   runAiSync: async (language, blankLineOffset, useSeparation, useVad) => {
-    const { audioPath, doc } = get();
+    const initial = get();
+    const { audioPath, doc } = initial;
     if (!audioPath) return;
 
     const runId = ++aiRunId;
+    const owner = {
+      session: initial._documentSession,
+      audioSelection: initial._audioSelection,
+      audioPath,
+      sourceMode: playbackSourceModeKey(),
+      editRevision: initial._editRevision,
+      lineIds: initial.doc.lines.map((line) => line.id),
+    };
+    const isCurrentOwner = () => {
+      const current = get();
+      return runId === aiRunId &&
+        current._documentSession === owner.session &&
+        current._audioSelection === owner.audioSelection &&
+        current.audioPath === owner.audioPath &&
+        current._editRevision === owner.editRevision &&
+        playbackSourceModeKey() === owner.sourceMode &&
+        current.doc.lines.length === owner.lineIds.length &&
+        current.doc.lines.every((line, index) => line.id === owner.lineIds[index]);
+    };
     set({ aiSyncStatus: "running", aiSyncMessage: "", aiSyncProgressStatus: "", _lastEditKey: null });
     let unlisten: (() => void) | undefined;
 
     try {
       unlisten = await listen<AlignmentProgressEvent>("alignment-progress", (e) => {
-        if (runId === aiRunId && e.payload.runId === runId) {
+        if (isCurrentOwner() && e.payload.runId === runId) {
           set({ aiSyncProgressStatus: e.payload.status, aiSyncMessage: e.payload.message });
         }
       });
 
-      if (runId !== aiRunId) return;
+      if (!isCurrentOwner()) return;
 
       // Only pass non-empty lines to Python; track their original indices
       const nonBlank = doc.lines
@@ -915,7 +940,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
       });
 
       // 실행 중 새 문서를 열거나 사용자가 편집했다면, 오래된 결과는 적용하지 않는다.
-      if (runId !== aiRunId) return;
+      if (!isCurrentOwner()) return;
 
       // align.py는 { lines, vocal_segments, separated } 객체를 반환(구버전은 배열).
       const parsed = JSON.parse(resultJson);
@@ -999,9 +1024,16 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
         confidence[doc.lines[i].id] = 1.0;
       }
 
+      if (!isCurrentOwner()) return;
+      const latestDoc = get().doc;
+      const finalLines = latestDoc.lines.map((line, index) => ({
+        ...line,
+        timestamp: newLines[index].timestamp,
+        syllables: newLines[index].syllables,
+      }));
       pushHistory("aiSync");
       set({
-        doc: { ...doc, lines: newLines },
+        doc: { ...get().doc, lines: finalLines },
         aiSyncStatus: "done",
         aiSyncProgressStatus: "done",
         aiDraftConfidence: confidence,
@@ -1029,4 +1061,13 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
 
   clearAiDraft: () => set({ aiDraftConfidence: null }),
   };
+});
+
+let previousPlaybackSourceMode = playbackSourceModeKey();
+useSettingsStore.subscribe(() => {
+  const currentPlaybackSourceMode = playbackSourceModeKey();
+  if (currentPlaybackSourceMode === previousPlaybackSourceMode) return;
+  previousPlaybackSourceMode = currentPlaybackSourceMode;
+  const state = useLrcStore.getState();
+  if (state.aiSyncStatus === "running" && state.audioPath) state.cancelAiSync();
 });
