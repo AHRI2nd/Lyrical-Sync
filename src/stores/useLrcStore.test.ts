@@ -825,6 +825,37 @@ describe("useLrcStore — save completion races", () => {
     expect(useLrcStore.getState().isDirty).toBe(true);
   });
 
+  it("rejects unrepresentable ASS text before writing and keeps the document dirty", async () => {
+    const state = useLrcStore.getState();
+    useLrcStore.setState({
+      doc: { ...state.doc, lines: [{ id: "1", timestamp: 1, text: "literal {override}" }] },
+      lrcPath: "/tmp/song.ass",
+      isDirty: true,
+    });
+
+    await expect(useLrcStore.getState().saveLrc()).rejects.toMatchObject({ code: "ASS_UNREPRESENTABLE_CONTENT" });
+
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState().lrcPath).toBe("/tmp/song.ass");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
+  it("rejects unrepresentable ASS Save As before writing and keeps the original path", async () => {
+    const state = useLrcStore.getState();
+    useLrcStore.setState({
+      doc: { ...state.doc, lines: [{ id: "1", timestamp: 1, text: "literal \\N" }] },
+      lrcPath: "/tmp/original.lrc",
+      isDirty: true,
+    });
+    vi.mocked(save).mockResolvedValue("/tmp/export.ass");
+
+    await expect(useLrcStore.getState().saveLrcAs("ass")).rejects.toMatchObject({ code: "ASS_UNREPRESENTABLE_CONTENT" });
+
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState().lrcPath).toBe("/tmp/original.lrc");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
   it("rejects a reserved LRC extension tag collision without dispatching a write", async () => {
     const state = useLrcStore.getState();
     useLrcStore.setState({

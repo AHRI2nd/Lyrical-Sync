@@ -27,6 +27,7 @@ import { useUpdaterStore } from "./stores/useUpdaterStore";
 const UpdateModal = lazy(() => import("./components/Update/UpdateModal").then((m) => ({ default: m.UpdateModal })));
 import { useMacMenu } from "./hooks/useMacMenu";
 import { SrtUnrepresentableContentError } from "./utils/srtConverter";
+import { AssUnrepresentableContentError } from "./utils/exportFormats";
 import { LrcInlineEscapeTagConflictError, needsInlineTimestampEscape } from "./utils/lrcParser";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
@@ -197,12 +198,13 @@ function useAutoSave(recoveryPending: boolean) {
 }
 
 function serializationErrorCode(error: unknown): string | null {
-  if (error instanceof SrtUnrepresentableContentError || error instanceof LrcInlineEscapeTagConflictError) return error.code;
+  if (error instanceof SrtUnrepresentableContentError || error instanceof AssUnrepresentableContentError || error instanceof LrcInlineEscapeTagConflictError) return error.code;
   return null;
 }
 
 function saveErrorMessage(error: unknown, t: ReturnType<typeof useI18nStore.getState>["t"]): string {
   if (error instanceof SrtUnrepresentableContentError) return t.toast.srtBlankRowsUnsupported;
+  if (error instanceof AssUnrepresentableContentError) return t.toast.assUnrepresentableContent;
   if (error instanceof LrcInlineEscapeTagConflictError) return t.toast.lrcInlineEscapeConflict;
   return t.toast.saveFailed;
 }

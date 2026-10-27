@@ -114,11 +114,27 @@ it("exports translations after enhanced originals in VTT and ASS", () => {
   expect(serializeVtt(doc, 3)).toContain("<00:00:01.000>hi\nhello");
   expect(serializeAss(doc, 3)).toContain("{\\k200}hi\\Nhello");
 });
-it("escapes ASS body newlines and literal backslashes without modifying karaoke tags", () => {
-  const doc = docOf([{ id: "a", timestamp: 1, text: "one\\Nliteral\ntwo", translation: "three\\path\nfour" }]);
+it.each(["{word}", "unmatched { brace", "unmatched } brace", "literal \\N line", "literal \\n line", "literal \\h space"])(
+  "rejects ASS text that cannot be represented literally: %s",
+  (text) => {
+    expect(() => serializeAss(docOf([{ id: "a", timestamp: 1, text }]))).toThrow(/ASS cannot preserve this text/);
+  },
+);
+it("rejects unrepresentable text in translations and timed syllables", () => {
+  expect(() => serializeAss(docOf([{ id: "a", timestamp: 1, text: "safe", translation: "{literal}" }]))).toThrow(/ASS cannot preserve this text/);
+  expect(() => serializeAss(docOf([{ id: "a", timestamp: 1, text: "safe", syllables: [{ text: "\\N", time: 1 }] }]))).toThrow(/ASS cannot preserve this text/);
+});
+it("rejects line breaks in the ASS title header", () => {
+  const doc = { ...docOf([{ id: "a", timestamp: 1, text: "safe" }]), metadata: { ...emptyMeta, title: "title\n[Events]" } };
+  expect(() => serializeAss(doc)).toThrow(/ASS cannot preserve this text/);
+});
+it("encodes actual body newlines while preserving ordinary backslashes and generated karaoke tags", () => {
+  const doc = docOf([{ id: "a", timestamp: 1, text: "one\\path\ntwo", translation: "three\\music\nfour" }]);
   const out = serializeAss(doc, 3);
-  expect(out).toContain("one\\\\Nliteral\\Ntwo\\Nthree\\\\path\\Nfour");
+  expect(out).toContain("one\\path\\Ntwo\\Nthree\\music\\Nfour");
   expect(out.split("\n").filter(l => l.startsWith("Dialogue:"))).toHaveLength(1);
+  const karaoke = serializeAss(docOf([{ id: "b", timestamp: 1, text: "ab", syllables: [{ text: "a", time: 1 }, { text: "b", time: 1.5 }] }]), 2);
+  expect(karaoke).toContain("{\\k50}a{\\k50}b");
 });
 it("does not add empty subtitle translation rows", () => {
   const doc = docOf([{ id: "a", timestamp: 1, text: "hi", translation: "" }]);

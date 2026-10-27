@@ -4,6 +4,17 @@ import { LrcDocument, LrcLine } from "../types/lrc";
 // SRT, VTT and ASS share strictly later boundaries, valid duration, or a four-second fallback.
 interface Cue { start: number; end: number; line: LrcLine; }
 
+export const ASS_UNREPRESENTABLE_CONTENT_CODE = "ASS_UNREPRESENTABLE_CONTENT";
+
+export class AssUnrepresentableContentError extends Error {
+  readonly code = ASS_UNREPRESENTABLE_CONTENT_CODE;
+
+  constructor() {
+    super("ASS cannot preserve this text literally.");
+    this.name = "AssUnrepresentableContentError";
+  }
+}
+
 // Compare boundaries at the output format precision so rounding cannot create an empty cue.
 export function nextCueEnd(timed: readonly LrcLine[], index: number, start: number, lastCueEnd?: number, timeUnitsPerSecond = 1000): number {
   const startUnit = Math.max(0, Math.round(start * timeUnitsPerSecond));
@@ -73,7 +84,8 @@ function assTime(seconds: number): string {
 
 // Timed glyphs use ASS karaoke tags with centisecond durations.
 function escapeAssText(text: string): string {
-  return text.replace(/\\/g, "\\\\").replace(/\r\n|\r|\n/g, "\\N");
+  if (/[{}]|\\[Nnh]/.test(text)) throw new AssUnrepresentableContentError();
+  return text.replace(/\r\n|\r|\n/g, "\\N");
 }
 
 function assText(line: LrcLine, cueEnd: number): string {
@@ -97,8 +109,9 @@ function assText(line: LrcLine, cueEnd: number): string {
 }
 
 export function serializeAss(doc: LrcDocument, lastCueEnd?: number): string {
-  const cues = buildCues(doc, lastCueEnd, 100);
   const title = doc.metadata.title || "Lyrical Sync";
+  if (/[\r\n]/.test(title)) throw new AssUnrepresentableContentError();
+  const cues = buildCues(doc, lastCueEnd, 100);
   const header =
 `[Script Info]
 Title: ${title}

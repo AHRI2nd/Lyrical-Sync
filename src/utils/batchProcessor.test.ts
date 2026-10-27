@@ -39,6 +39,26 @@ describe("batch preflight", () => {
 });
 
 describe("batch output", () => {
+  it("rejects an unrepresentable ASS cue before writing the target file", async () => {
+    vi.mocked(readLyrics).mockResolvedValueOnce({
+      value: "[00:02.00]literal {override}",
+      file: { path: "/inputs/song.lrc", bookmark: "fresh" },
+    });
+    const status = vi.fn();
+
+    const summary = await runBatchOperation(
+      [entry("/inputs/song.lrc", "ass")],
+      { kind: "convert", format: "ass" },
+      output,
+      status,
+      { concurrency: 1 },
+    );
+
+    expect(summary).toEqual({ done: 0, error: 1, cancelled: 0 });
+    expect(status).toHaveBeenCalledWith("ass", "error", "ASS_UNREPRESENTABLE_CONTENT", { path: "/inputs/song.lrc", bookmark: "fresh" });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
   it("fails only SRT files with blank paragraph rows and continues the batch", async () => {
     vi.mocked(readLyrics)
       .mockResolvedValueOnce({ value: "[00:01.00]first\n[x-lyrical-translations:1]\n[00:01.00]/translated\\n\\nparagraph", file: { path: "/inputs/bad.lrc", bookmark: "fresh" } })

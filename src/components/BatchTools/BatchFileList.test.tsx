@@ -18,3 +18,15 @@ it("localizes the SRT paragraph export error in the batch row", () => {
 
   expect(screen.getByText(t.toast.srtBlankRowsUnsupported)).toBeTruthy();
 });
+
+it("localizes unrepresentable ASS text in the batch row", () => {
+  const t = useI18nStore.getState().t;
+  render(<BatchFileList
+    t={t}
+    entries={[{ id: "file", file: { path: "/input/song.lrc", bookmark: "" }, status: "error", error: "ASS_UNREPRESENTABLE_CONTENT" }]}
+    onRemove={() => {}}
+    disabled={false}
+  />);
+
+  expect(screen.getByText(t.toast.assUnrepresentableContent)).toBeTruthy();
+});
