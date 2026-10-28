@@ -6263,8 +6263,7 @@
       "sourceArchive": "https://crates.io/api/v1/crates/xattr/1.6.1/download",
       "sourceCommit": "3e1914f5dac41437db1fed74f6284fd84cb26b26",
       "targets": [
-        "macOS ARM64",
-        "Windows x64"
+        "macOS ARM64"
       ],
       "version": "1.6.1"
     },
@@ -6569,8 +6568,8 @@
     "packaging/licenses/upstream/f5c342c49f3ac804f3e8e7bb62a8040a44c50d47bb36902b1abd13f66a1adf8b.txt": "f5c342c49f3ac804f3e8e7bb62a8040a44c50d47bb36902b1abd13f66a1adf8b",
     "scripts/generate-notices.py": "4953e82aee8e9a07168fcc6d17467c02a83d28d51ba69de00efb62fb91151c0e",
     "src-tauri/Cargo.lock": "38bd3c2b6508072f1c55757444355116d966dde898d51f4c963ff9e80c086642",
-    "src-tauri/Cargo.toml": "1711a84c233b8133c5f0c20420b9000312fcfa74bc9cabe49db1a4b1f8cad851"
+    "src-tauri/Cargo.toml": "09b3d3deccd33390eb7e97b9bb4469af536df0c837e3000e14c2ca2a95a6a1d7"
   },
-  "noticeSha256": "43ce39bc84327136056cc9fe1964af19ddd3bf33e2a5f5c7f14daad2a8be87f4",
+  "noticeSha256": "8a020441de11d3e2839d6982560be4224d86e875d3106ccc0b61b51494254dbf",
   "schema": 1
 }

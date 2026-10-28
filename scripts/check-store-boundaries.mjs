@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 
 function stripRustTestModules(source) {
-  const lines = source.split('\n');
+  const lines = source.replace(/\r\n/g, '\n').split('\n');
   const production = [];
   for (let index = 0; index < lines.length; index++) {
     if (/^#\[cfg\((?:test|all\(test,[^\]]+\))\)\]$/.test(lines[index].trim()) &&

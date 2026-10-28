@@ -2512,7 +2512,7 @@ License text: f73041468536d0b5fd1a6610fa3f317e3dc6cf9a0c0591a5529d6556a0d8a2c3 (
 
 xattr 1.6.1 (cargo)
 License: MIT OR Apache-2.0
-Scope: macOS ARM64, Windows x64
+Scope: macOS ARM64
 Source archive: https://crates.io/api/v1/crates/xattr/1.6.1/download
 Repository: https://github.com/Stebalien/xattr
 Source revision: 3e1914f5dac41437db1fed74f6284fd84cb26b26

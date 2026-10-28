@@ -51,7 +51,7 @@ test('rejects new native commands and external process execution', () => fixture
 }));
 
 test('ignores external tools used only by Rust unit tests', () => fixture(({ root, put, policy, native }) => {
-  put('src-tauri/src/lib.rs', `${native}\n#[cfg(test)]\nmod tests {\n  fn helper() { std::process::Command::new("chmod"); }\n}\nfn production() { std::process::Command::new("blocked"); }`);
+  put('src-tauri/src/lib.rs', `${native}\n#[cfg(test)]\nmod tests {\n  fn helper() { std::process::Command::new("chmod"); }\n}\nfn production() { std::process::Command::new("blocked"); }`.replace(/\n/g, "\r\n"));
   {
     const problems = checkStoreBoundaries(root, policy).join('\n');
     assert.match(problems, /Excluded native execution/);
