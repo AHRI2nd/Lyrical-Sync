@@ -37,7 +37,7 @@ fn valid_unix_timestamp(value: i64) -> Option<i64> {
 
 #[cfg(target_os = "windows")]
 mod platform {
-    use super::NowPlayingInfo;
+    use super::{valid_unix_timestamp, NowPlayingInfo};
     use tauri::AppHandle;
     use windows::Media::Control::GlobalSystemMediaTransportControlsSessionManager;
     use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
