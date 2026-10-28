@@ -6,6 +6,10 @@ const emptyMeta = { title: "Song", artist: "", album: "", by: "", offset: 0 };
 const docOf = (lines: LrcDocument["lines"]): LrcDocument => ({ metadata: emptyMeta, lines, extraTags: {} });
 
 describe("serializeVtt", () => {
+  it("rejects a blank paragraph formed where original text meets translation", () => {
+    expect(() => serializeVtt(docOf([{ id: "1", timestamp: 1, text: "original\n", translation: "translated" }]))).
+      toThrow("VTT cannot preserve blank paragraph rows");
+  });
   it("escapes text characters in order without changing original text", () => {
     expect(escapeVttText("& < > &amp;")).toBe("&amp; &lt; &gt; &amp;amp;");
   });

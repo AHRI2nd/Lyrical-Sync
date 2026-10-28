@@ -47,6 +47,10 @@ describe("parseSrt", () => {
 });
 
 describe("serializeSrt", () => {
+  it("rejects a blank paragraph formed where original text meets translation", () => {
+    expect(() => serializeSrt(docOf([{ id: "1", timestamp: 1, text: "original\r\n", translation: "translated" }]))).
+      toThrow("SRT cannot preserve blank paragraph rows");
+  });
   it.each([
     ["original", "first\n\nsecond", undefined],
     ["translation", "text", "translated\r\n \r\ncontinued"],
