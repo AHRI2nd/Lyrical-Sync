@@ -19,6 +19,20 @@ const docOf = (lines: LrcDocument["lines"]): LrcDocument => ({
   extraTags: {},
 });
 
+it.each([
+  ["title", { title: "safe\n[00:02.00]injected", artist: "", album: "", by: "", offset: 0 }],
+  ["artist", { title: "", artist: "safe\rvalue", album: "", by: "", offset: 0 }],
+  ["album", { title: "", artist: "", album: "safe\nvalue", by: "", offset: 0 }],
+  ["by", { title: "", artist: "", album: "", by: "safe\r\nvalue", offset: 0 }],
+])("rejects line breaks in %s metadata", (_field, metadata) => {
+  expect(() => serializeLrc({ ...docOf([]), metadata })).toThrow("LRC metadata cannot contain line breaks");
+});
+
+it("rejects line breaks in extra metadata keys and values", () => {
+  expect(() => serializeLrc({ ...docOf([]), extraTags: { "x-safe\n[00:02.00]": "value" } })).toThrow("LRC metadata cannot contain line breaks");
+  expect(() => serializeLrc({ ...docOf([]), extraTags: { "x-safe": "value\r\n[00:02.00]" } })).toThrow("LRC metadata cannot contain line breaks");
+});
+
 describe("tokenizeText", () => {
   it("splits by character, preserving spaces as tokens", () => {
     expect(tokenizeText("너의 손", "char").map((s) => s.text)).toEqual(["너", "의", " ", "손"]);
