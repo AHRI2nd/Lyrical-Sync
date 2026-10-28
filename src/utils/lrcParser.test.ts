@@ -98,6 +98,23 @@ describe("timestamp parsing/formatting", () => {
     expect(formatTimestamp(62.34)).toBe("01:02.34");
     expect(formatTimestamp(5)).toBe("00:05.00");
   });
+
+  it("serializes millisecond timestamps without rounding them to centiseconds", () => {
+    const document = docOf([{ id: "ms", timestamp: 1.123, text: "line" }]);
+    const serialized = serializeLrc(document);
+    expect(serialized).toContain("[00:01.123]line");
+    expect(parseLrc(serialized).lines[0].timestamp).toBe(1.123);
+    expect(serializeLrc(docOf([{ id: "cs", timestamp: 1.12, text: "legacy" }]))).toContain("[00:01.12]legacy");
+  });
+
+  it("serializes millisecond syllable timestamps without precision loss", () => {
+    const serialized = serializeLrc(docOf([{
+      id: "syllables", timestamp: 1.123, text: "ab",
+      syllables: [{ text: "a", time: 1.123 }, { text: "b", time: 1.456 }],
+    }]));
+    expect(serialized).toContain("[00:01.123]<00:01.123>a<00:01.456>b");
+    expect(parseLrc(serialized).lines[0].syllables?.map((syllable) => syllable.time)).toEqual([1.123, 1.456]);
+  });
 });
 
 it("round-trips bracketed metadata values without turning their suffixes into lyric rows", () => {

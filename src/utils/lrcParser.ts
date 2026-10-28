@@ -105,6 +105,19 @@ export function formatTimestamp(seconds: number): string {
   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
 }
 
+/** Format LRC timestamps at centisecond precision unless milliseconds are needed for a lossless round trip. */
+export function formatLrcTimestamp(seconds: number): string {
+  if (!Number.isFinite(seconds)) throw new LrcInvalidTimestampError();
+  const totalMs = Math.round(seconds * 1000);
+  if (!Number.isSafeInteger(totalMs)) throw new LrcInvalidTimestampError();
+  const ms = totalMs % 1000;
+  const totalSecs = Math.floor(totalMs / 1000);
+  const mins = Math.floor(totalSecs / 60);
+  const secs = totalSecs % 60;
+  const fraction = ms % 10 === 0 ? String(ms / 10).padStart(2, "0") : String(ms).padStart(3, "0");
+  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}.${fraction}`;
+}
+
 // UI 표시용 H:MM:SS.mmm
 export function formatDisplayTime(seconds: number): string {
   const totalMs = Math.round(seconds * 1000);
@@ -445,19 +458,19 @@ export function serializeLrc(doc: LrcDocument, enhanced = true): string {
       }
       const lineTs = line.timestamp ?? earliest;
       outputTs = lineTs;
-      let out = `[${formatTimestamp(lineTs)}]`;
+      let out = `[${formatLrcTimestamp(lineTs)}]`;
       for (const s of line.syllables) {
-        if (s.time !== null) out += `<${formatTimestamp(s.time)}>`;
+        if (s.time !== null) out += `<${formatLrcTimestamp(s.time)}>`;
         out += encode(s.text);
       }
       parts.push(out);
     } else if (line.timestamp !== null) {
-      parts.push(`[${formatTimestamp(line.timestamp)}]${encode(line.text)}`);
+      parts.push(`[${formatLrcTimestamp(line.timestamp)}]${encode(line.text)}`);
     } else if (line.text || typeof line.translation === "string" || (translationMode && line.timestamp === null && line.text === "")) {
       parts.push(translationMode && line.text === "" ? "\\0" : encode(line.text));
     }
     if (typeof line.translation === "string") {
-      const prefix = outputTs === null ? "" : `[${formatTimestamp(outputTs)}]`;
+      const prefix = outputTs === null ? "" : `[${formatLrcTimestamp(outputTs)}]`;
       parts.push(`${prefix}/${encode(line.translation)}`);
     }
   }
