@@ -696,6 +696,36 @@ describe("useLrcStore scoped file references", () => {
 
 });
 
+describe("useLrcStore SRT save policy", () => {
+  beforeEach(() => {
+    vi.mocked(invoke).mockReset().mockResolvedValue(undefined);
+    vi.mocked(save).mockReset();
+    reset([{ id: "1", timestamp: 1, text: "timed", syllables: [{ text: "timed", time: 1 }] }]);
+  });
+
+  it("rejects a lossy save over an SRT working file without writing", async () => {
+    useLrcStore.setState({ lrcPath: "/existing.srt", lrcBookmark: null, isDirty: true });
+
+    await expect(useLrcStore.getState().saveLrc()).rejects.toThrow("SRT cannot preserve");
+
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState().lrcPath).toBe("/existing.srt");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
+  it("exports rich lyrics to SRT without changing the working document", async () => {
+    useLrcStore.setState({ lrcPath: "/working.lrc", lrcBookmark: "working-grant", isDirty: true });
+    vi.mocked(save).mockResolvedValue("/exports/lyrics.srt");
+
+    expect(await useLrcStore.getState().saveLrcAs("srt")).toBe(true);
+
+    expect(invoke).toHaveBeenCalledWith("write_lrc_file", expect.objectContaining({ path: "/exports/lyrics.srt" }));
+    expect(useLrcStore.getState().lrcPath).toBe("/working.lrc");
+    expect(useLrcStore.getState().lrcBookmark).toBe("working-grant");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+});
+
 it.each(['$&', '$$', '$`', "$'", '$1'])('replaces all occurrences with literal dollar text: %s', replacement => {
  reset([{id:'a',timestamp:1,text:'original original'}]);
  useLrcStore.getState().replaceInLines('original',replacement,true);

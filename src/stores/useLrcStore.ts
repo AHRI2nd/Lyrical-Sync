@@ -3,7 +3,7 @@ import { nearestBeat } from "../utils/bpmDetect";
 import { create } from "zustand";
 import { LrcDocument, LrcLine, LrcMetadata, LrcSyllable, defaultDocument } from "../types/lrc";
 import { isStampable, parseLrc, serializeLrc, tokenizeText, type SyncUnit } from "../utils/lrcParser";
-import { serializeSrt, parseSrt } from "../utils/srtConverter";
+import { assertSrtDocumentLossless, serializeSrt, parseSrt } from "../utils/srtConverter";
 import { serializeVtt, serializeAss } from "../utils/exportFormats";
 import { prepareFileRef, readLyrics, writeLyrics, type FileRef } from "../utils/fileAccess";
 import { enqueuePathWrite } from "../utils/pathWriteQueue";
@@ -730,6 +730,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     set({ _lastEditKey: null });
     const { lrcPath, lrcBookmark, doc, duration, _documentSession: session, _editRevision: revision, _saveTarget: target } = get();
     if (!lrcPath) return get().saveLrcAs("lrc");
+    if (lrcPath.toLowerCase().endsWith(".srt")) assertSrtDocumentLossless(doc);
     const content = serializeForPath(lrcPath, doc, duration);
     const result = await enqueuePathWrite(lrcPath, () => writeLyrics(
       { path: lrcPath, bookmark: lrcBookmark },
@@ -779,7 +780,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
       });
       if (!written) return false;
       // 보조 포맷 저장 시엔 작업 파일 경로(lrcPath)·dirty 상태를 바꾸지 않음
-      if ((format === "lrc" || format === "srt") && isCurrentRequest()) {
+      if (format === "lrc" && isCurrentRequest()) {
         const target = get()._saveTarget + 1;
         set({ lrcPath: path, lrcBookmark: null, _saveTarget: target, isDirty: get()._editRevision !== revision });
         recordRecent();

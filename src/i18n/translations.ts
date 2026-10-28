@@ -268,6 +268,7 @@ export interface Translations {
     saved: string;
     saveFailed: string;
     srtBlankRowsUnsupported: string;
+    srtLossyDocument: string;
     assUnrepresentableContent: string;
     lrcInlineEscapeNotice: string;
     lrcInlineEscapeConflict: string;
@@ -639,6 +640,7 @@ const ko: Translations = {
     saved: "저장되었습니다",
     saveFailed: "저장에 실패했습니다",
     srtBlankRowsUnsupported: "SRT는 빈 문단을 보존할 수 없습니다. 빈 줄을 제거하거나 다른 형식으로 저장하세요.",
+    srtLossyDocument: "SRT는 LRC 메타데이터, 미입력 줄, 번역, 글자별 타이밍을 보존할 수 없습니다. LRC로 저장하거나 SRT로 내보내세요.",
     assUnrepresentableContent: "ASS는 중괄호와 \\N, \\n, \\h 문자를 그대로 보존하지 못합니다. 해당 문자를 제거하거나 다른 형식으로 저장하세요.",
     lrcInlineEscapeNotice: "문자열을 보존하기 위해 앱 전용 LRC 확장이 사용되었습니다. 일부 외부 플레이어는 이스케이프 문자를 표시할 수 있습니다.",
     lrcInlineEscapeConflict: "리터럴 타임스탬프 보존에 필요한 LRC 확장 태그가 기존 태그와 충돌합니다. 해당 태그 이름을 바꾼 뒤 저장하세요.",
@@ -1035,6 +1037,7 @@ const en: Translations = {
     saved: "Saved",
     saveFailed: "Failed to save",
     srtBlankRowsUnsupported: "SRT cannot preserve blank paragraph rows. Remove the blank rows or save in another format.",
+    srtLossyDocument: "SRT cannot preserve LRC metadata, untimed rows, translations, or timed syllables. Save as LRC or export as SRT.",
     assUnrepresentableContent: "ASS cannot preserve braces or \\N, \\n, \\h text literally. Remove those characters or save in another format.",
     lrcInlineEscapeNotice: "An app-specific LRC extension preserved literal timestamp text. Some external players may display its escape sequences.",
     lrcInlineEscapeConflict: "An existing LRC tag conflicts with the extension needed to preserve literal timestamps. Rename that tag before saving.",
@@ -1430,6 +1433,7 @@ const ja: Translations = {
     saved: "保存しました",
     saveFailed: "保存に失敗しました",
     srtBlankRowsUnsupported: "SRTでは空の段落を保持できません。空行を削除するか、別の形式で保存してください。",
+    srtLossyDocument: "SRTではLRCメタデータ、未タイム行、翻訳、文字ごとのタイミングを保持できません。LRCで保存するか、SRTとして書き出してください。",
     assUnrepresentableContent: "ASSでは中括弧や\\N、\\n、\\hを文字どおりに保持できません。該当文字を削除するか、別の形式で保存してください。",
     lrcInlineEscapeNotice: "文字列を保持するためにアプリ固有のLRC拡張を使用しました。一部の外部プレーヤーではエスケープ文字が表示される場合があります。",
     lrcInlineEscapeConflict: "リテラルのタイムスタンプを保持する拡張と既存のLRCタグが衝突しています。タグ名を変更してから保存してください。",

@@ -28,7 +28,7 @@ import { IconBtn } from "./components/AppShell/IconBtn";
 import { NewFileIcon, OpenFolderIcon, SaveIcon, SaveAsIcon, UndoIcon, RedoIcon, GearIcon } from "./components/AppShell/icons";
 import { HistoryPanel } from "./components/AppShell/HistoryPanel";
 import { RecentFilesMenu } from "./components/AppShell/RecentFilesMenu";
-import { SrtUnrepresentableContentError } from "./utils/srtConverter";
+import { SrtLossyDocumentError, SrtUnrepresentableContentError } from "./utils/srtConverter";
 import { AssUnrepresentableContentError } from "./utils/exportFormats";
 import { LrcInlineEscapeTagConflictError, needsInlineTimestampEscape } from "./utils/lrcParser";
 
@@ -37,12 +37,13 @@ const LYRICS_EXTS = ["lrc", "srt"];
 const fileExt = (p: string) => p.split(".").pop()?.toLowerCase() ?? "";
 
 function serializationErrorCode(error: unknown): string | null {
-  if (error instanceof SrtUnrepresentableContentError || error instanceof AssUnrepresentableContentError || error instanceof LrcInlineEscapeTagConflictError) return error.code;
+  if (error instanceof SrtUnrepresentableContentError || error instanceof SrtLossyDocumentError || error instanceof AssUnrepresentableContentError || error instanceof LrcInlineEscapeTagConflictError) return error.code;
   return null;
 }
 
 function saveErrorMessage(error: unknown, t: ReturnType<typeof useI18nStore.getState>["t"]): string {
   if (error instanceof SrtUnrepresentableContentError) return t.toast.srtBlankRowsUnsupported;
+  if (error instanceof SrtLossyDocumentError) return t.toast.srtLossyDocument;
   if (error instanceof AssUnrepresentableContentError) return t.toast.assUnrepresentableContent;
   if (error instanceof LrcInlineEscapeTagConflictError) return t.toast.lrcInlineEscapeConflict;
   return t.toast.saveFailed;
