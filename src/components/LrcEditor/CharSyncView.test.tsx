@@ -486,7 +486,7 @@ it('keeps the viewport scale when stamping changes the current line start', () =
   expect(Number(lane.dataset.end) - Number(lane.dataset.start)).toBeCloseTo(span);
 });
 
-it.each(['replay', 'nudge'])('reattaches following after manual pan and %s', action => {
+it.each(['replay', 'nudge', 'repeat'])('keeps following disabled after manual pan and %s', action => {
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
     { id: 'line-1', timestamp: 10, text: 'ab', syllables: [{ text: 'a', time: 10 }, { text: 'b', time: 12 }] },
     { id: 'line-2', timestamp: 20, text: 'next' },
@@ -494,10 +494,74 @@ it.each(['replay', 'nudge'])('reattaches following after manual pan and %s', act
   const { lane, getByRole } = setup();
   fireEvent.click(getByRole('button', { name: /다음 시간 구간|Next time window/ }));
   if (action === 'replay') fireEvent.click(getByRole('button', { name: /이 줄 재생|Replay line|Play line/ }));
-  else fireEvent.keyDown(window, { code: 'ArrowRight', shiftKey: true });
-  expect(getByRole('button', { name: /재생 위치 따라가기|Follow playback/ }).getAttribute('aria-pressed')).toBe('true');
+  else if (action === 'nudge') fireEvent.keyDown(window, { code: 'ArrowRight', shiftKey: true });
+  else fireEvent.click(getByRole('button', { name: /줄 반복|Repeat line/ }));
+  expect(seekSpy).toHaveBeenCalledTimes(1);
+  expect(getByRole('button', { name: /재생 위치 따라가기|Follow playback/ }).getAttribute('aria-pressed')).toBe('false');
+  const start = Number(lane.dataset.start);
   act(() => useLrcStore.setState({ currentTime: 40 }));
-  expect(Number(lane.dataset.start)).toBeCloseTo(35);
+  expect(Number(lane.dataset.start)).toBeCloseTo(start);
+});
+
+it.each(['char', 'word'] as const)('keeps following disabled across line and playback context changes in %s mode', unit => {
+  useLrcStore.setState({ syncUnit: unit, doc: { ...defaultDocument(), lines: [
+    { id: 'line-1', timestamp: 10, text: 'first' }, { id: 'line-2', timestamp: 20, text: 'next' },
+  ] } });
+  const { lane, getByRole } = setup();
+  const follow = getByRole('button', { name: /재생 위치 따라가기|Follow playback/ });
+  fireEvent.click(follow);
+  act(() => useLrcStore.setState({ activeLineId: 'line-2' }));
+  expect(follow.getAttribute('aria-pressed')).toBe('false');
+  act(() => useLrcStore.setState({ audioPath: '/music/other.mp3', duration: 30 }));
+  expect(follow.getAttribute('aria-pressed')).toBe('false');
+  const start = Number(lane.dataset.start);
+  expect(Number.isFinite(start)).toBe(true);
+  expect(Number(lane.dataset.end)).toBeLessThanOrEqual(30);
+  act(() => useLrcStore.setState({ currentTime: 25 }));
+  expect(Number(lane.dataset.start)).toBeCloseTo(start);
+  fireEvent.click(follow);
+  expect(follow.getAttribute('aria-pressed')).toBe('true');
+  expect((Number(lane.dataset.start) + Number(lane.dataset.end)) / 2).toBeCloseTo(25);
+});
+
+it.each(['spotify', 'device'] as const)('preserves disabled following when switching to %s playback', source => {
+  const externalSeek = vi.spyOn(source === 'spotify' ? serviceControls : deviceControls, 'seekTo').mockImplementation(() => {});
+  const { lane, getByRole } = setup();
+  const follow = getByRole('button', { name: /재생 위치 따라가기|Follow playback/ });
+  fireEvent.click(follow);
+  act(() => {
+    if (source === 'spotify') {
+      useSettingsStore.setState({ spotifyMode: true });
+      useServiceStore.setState({ isLoggedIn: true, trackUri: 'spotify:track:one', positionMs: 12000, durationMs: 100000, isPlaying: true });
+    } else {
+      useSettingsStore.setState({ deviceMode: true });
+      useDeviceStore.setState({ positionMs: 12000, durationMs: 100000, isPlaying: true });
+    }
+  });
+  expect(follow.getAttribute('aria-pressed')).toBe('false');
+  fireEvent.click(getByRole('button', { name: /이 줄 재생|Replay line|Play line/ }));
+  expect(externalSeek).toHaveBeenCalledTimes(1);
+  expect(seekSpy).not.toHaveBeenCalled();
+  const start = Number(lane.dataset.start);
+  act(() => {
+    if (source === 'spotify') useServiceStore.setState({ positionMs: 40000, trackUri: 'spotify:track:two' });
+    else useDeviceStore.setState({ positionMs: 40000 });
+  });
+  expect(follow.getAttribute('aria-pressed')).toBe('false');
+  if (source === 'device') expect(Number(lane.dataset.start)).toBeCloseTo(start);
+  fireEvent.click(follow);
+  expect(follow.getAttribute('aria-pressed')).toBe('true');
+  expect((Number(lane.dataset.start) + Number(lane.dataset.end)) / 2).toBeCloseTo(40);
+});
+
+it('keeps follow disabled after replacing the document with unknown audio duration', () => {
+  const { lane, getByRole } = setup();
+  const follow = getByRole('button', { name: /재생 위치 따라가기|Follow playback/ });
+  fireEvent.click(follow);
+  act(() => useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: 'new', timestamp: 1, text: 'new' }] }, activeLineId: 'new', duration: 0 }));
+  expect(follow.getAttribute('aria-pressed')).toBe('false');
+  expect(Number.isFinite(Number(lane.dataset.start))).toBe(true);
+  expect(Number.isFinite(Number(lane.dataset.end))).toBe(true);
 });
 
 it('paints vertically across wrapped glyphs in a single undo entry', () => {

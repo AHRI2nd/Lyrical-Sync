@@ -162,7 +162,6 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
       : controlSource === "device" ? useDeviceStore.getState().positionMs / 1000
       : useLrcStore.getState().currentTime;
     setZoom(1);
-    setFollowPlayback(true);
     setViewAnchor(anchor);
   }, [doc.extraTags, activeLineId, audioPath, controlIdentity, controlSource]);
   // Derive the following window in the same render as the playhead to avoid a frame of drift.
@@ -182,9 +181,8 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
     lanePreviewTimerRef.current = null;
     setLanePreview(null);
   };
-  const seekWithFollow = (seconds: number, controller = controls) => {
+  const seekWithAnchor = (seconds: number, controller = controls) => {
     discardLanePreview();
-    setFollowPlayback(true);
     setViewAnchor(seconds);
     controller.seekTo(seconds);
   };
@@ -284,7 +282,7 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
     const settings = useSettingsStore.getState();
     const ctrl = useServiceStore.getState().isLoggedIn && settings.spotifyMode
       ? serviceControls : settings.deviceMode ? deviceControls : audioControls;
-    seekWithFollow(nt, ctrl);
+    seekWithAnchor(nt, ctrl);
   };
 
   // ←→=글자 이동(Shift=미세조정, 고정) · stamp/prevLine=사용자 단축키
@@ -579,7 +577,7 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
   };
 
   const replayLine = () => {
-    seekWithFollow(winStart);
+    seekWithAnchor(winStart);
     if (!isPlaying) controls.togglePlay();
   };
 
@@ -689,7 +687,7 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
           title={canRepeat ? t.charSync.repeatLine : t.charSync.repeatUnavailable}
           onClick={e => {
             if (loopLineId === line.id) setLoopLine(null);
-            else if (canRepeat && repeatRange) { setLoopLine(line.id); seekWithFollow(repeatRange.start); }
+            else if (canRepeat && repeatRange) { setLoopLine(line.id); seekWithAnchor(repeatRange.start); }
             e.currentTarget.blur();
           }} className={`ls-button ls-button--compact ${`  text-xs rounded-md border border-[var(--ls-border-subtle)] disabled:opacity-30 ${loopLineId === line.id ? "bg-[var(--ls-selection)]/15 text-[var(--ls-accent)]" : "text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)]"}`}`}>
           {t.charSync.repeatLine} · {loopLineId === line.id ? t.charSync.repeatOn : t.charSync.repeatOff}
