@@ -9,6 +9,7 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 import { MetaEditor } from "./MetaEditor";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { defaultDocument } from "../../types/lrc";
 
 beforeEach(() => {
   useLrcStore.getState().newLrc();
@@ -60,4 +61,14 @@ it("applies an unchanged-session raw draft and keeps the operation undoable", ()
   expect(useLrcStore.getState().doc.lines.map((line) => line.text)).toEqual(["A updated"]);
   useLrcStore.getState().undo();
   expect(useLrcStore.getState().doc.lines.map((line) => line.text)).toEqual(["A original"]);
+});
+
+it("keeps the raw editor available when an inactive reserved tag has an unknown value", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), extraTags: { "x-lyrical-inline-escape": "external-value" },
+    lines: [{ id: "a", timestamp: 1, text: "A original" }] } });
+  render(<MetaEditor />);
+  fireEvent.click(screen.getByRole("button", { name: t.viewAll }));
+  const editor = screen.getAllByRole("textbox").find((element) => element.tagName === "TEXTAREA") as HTMLTextAreaElement;
+  expect(editor.value).toContain("[x-lyrical-inline-escape:external-value]");
 });

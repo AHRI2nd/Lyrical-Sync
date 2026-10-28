@@ -163,6 +163,17 @@ export class LrcMetadataLineBreakError extends Error {
   }
 }
 
+export const LRC_RESERVED_TAG_CONFLICT_CODE = "LRC_RESERVED_TAG_CONFLICT";
+
+export class LrcReservedTagConflictError extends Error {
+  readonly code = LRC_RESERVED_TAG_CONFLICT_CODE;
+
+  constructor() {
+    super("A reserved LRC tag has an unknown value and cannot be replaced safely.");
+    this.name = "LrcReservedTagConflictError";
+  }
+}
+
 export class LrcInlineEscapeTagConflictError extends Error {
   readonly code = LRC_INLINE_ESCAPE_CONFLICT_CODE;
 
@@ -278,7 +289,10 @@ export function parseLrc(raw: string): LrcDocument {
         const key = metaMatch[1].toLowerCase();
         const value = metaMatch[2].trim();
         const field = META_TAGS[key];
-        if (key === TRANSLATION_TAG) translationMode = value === "1";
+        if (key === TRANSLATION_TAG) {
+          if (value === "1") translationMode = true;
+          else doc.extraTags[key] = value;
+        }
         else if (key === INLINE_ESCAPE_TAG) {
           if (value === "1") inlineEscapeMode = true;
           else doc.extraTags[key] = value;
@@ -334,9 +348,12 @@ export function serializeLrc(doc: LrcDocument, enhanced = true): string {
   const parts: string[] = [];
   const translationMode = lines.some(line => typeof line.translation === "string" || /[\r\n]/.test(line.text) || /^\s*\[/.test(line.text));
   const inlineEscapeMode = needsInlineTimestampEscape(doc);
-  if (Object.keys(extraTags).some((key) => key.toLowerCase() === INLINE_ESCAPE_TAG)) {
+  const inlineEscapeValue = Object.entries(extraTags).find(([key]) => key.toLowerCase() === INLINE_ESCAPE_TAG)?.[1];
+  const translationTagValue = Object.entries(extraTags).find(([key]) => key.toLowerCase() === TRANSLATION_TAG)?.[1];
+  if (inlineEscapeMode && inlineEscapeValue !== undefined && inlineEscapeValue !== "1") {
     throw new LrcInlineEscapeTagConflictError();
   }
+  if (translationMode && translationTagValue !== undefined && translationTagValue !== "1") throw new LrcReservedTagConflictError();
   const encode = (text: string) => {
     const translated = translationMode ? escapeTranslationText(text) : text;
     return inlineEscapeMode ? escapeInlineTimestampText(translated) : translated;
@@ -348,7 +365,10 @@ export function serializeLrc(doc: LrcDocument, enhanced = true): string {
   if (metadata.by) parts.push(`[by:${metadata.by}]`);
   if (metadata.offset !== 0) parts.push(`[offset:${metadata.offset}]`);
   for (const [key, val] of Object.entries(extraTags)) {
-    if (key.toLowerCase() !== TRANSLATION_TAG) parts.push(`[${key}:${val}]`);
+    if (!(key.toLowerCase() === TRANSLATION_TAG && (translationMode || val === "1")) &&
+      !(key.toLowerCase() === INLINE_ESCAPE_TAG && (inlineEscapeMode || val === "1"))) {
+      parts.push(`[${key}:${val}]`);
+    }
   }
   if (inlineEscapeMode) parts.push(`[${INLINE_ESCAPE_TAG}:1]`);
   if (translationMode) parts.push(`[${TRANSLATION_TAG}:1]`);

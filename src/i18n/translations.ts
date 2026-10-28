@@ -387,6 +387,7 @@ export interface Translations {
     lrcInlineEscapeNotice: string;
     lrcInlineEscapeConflict: string;
     lrcMetadataLineBreak: string;
+    lrcReservedTagConflict: string;
     recoveryFailed: string;
     runtimeFailed: string;
     openFailed: string;
@@ -1000,6 +1001,7 @@ const ko: Translations = {
     lrcInlineEscapeNotice: "문자열을 보존하기 위해 앱 전용 LRC 확장이 사용되었습니다. 일부 외부 플레이어는 이스케이프 문자를 표시할 수 있습니다.",
     lrcInlineEscapeConflict: "리터럴 타임스탬프 보존에 필요한 LRC 확장 태그가 기존 태그와 충돌합니다. 해당 태그 이름을 바꾼 뒤 저장하세요.",
     lrcMetadataLineBreak: "LRC 메타데이터에는 줄바꿈을 저장할 수 없습니다. 해당 메타데이터를 수정한 뒤 다시 저장하세요.",
+    lrcReservedTagConflict: "알 수 없는 값을 가진 예약 LRC 태그를 안전하게 교체할 수 없습니다. 태그 값을 확인한 뒤 다시 저장하세요.",
     runtimeFailed: "오류가 발생했습니다. 현재 작업을 저장한 뒤 다시 시도해 주세요.",
     recoveryFailed: "복구 사본을 저장할 수 없습니다. 작업을 파일로 저장해 주세요.",
     openFailed: "파일을 열지 못했습니다",
@@ -1611,6 +1613,7 @@ const en: Translations = {
     lrcInlineEscapeNotice: "An app-specific LRC extension preserved literal timestamp text. Some external players may display its escape sequences.",
     lrcInlineEscapeConflict: "An existing LRC tag conflicts with the extension needed to preserve literal timestamps. Rename that tag before saving.",
     lrcMetadataLineBreak: "LRC metadata cannot contain line breaks. Edit the metadata value before saving.",
+    lrcReservedTagConflict: "A reserved LRC tag has an unknown value and cannot be replaced safely. Review the tag before saving.",
     runtimeFailed: "An error occurred. Save your current work before trying again.",
     recoveryFailed: "Cannot save a recovery copy. Please save your work to a file.",
     openFailed: "Couldn't open file",
@@ -2221,6 +2224,7 @@ const ja: Translations = {
     lrcInlineEscapeNotice: "文字列を保持するためにアプリ固有のLRC拡張を使用しました。一部の外部プレーヤーではエスケープ文字が表示される場合があります。",
     lrcInlineEscapeConflict: "リテラルのタイムスタンプを保持する拡張と既存のLRCタグが衝突しています。タグ名を変更してから保存してください。",
     lrcMetadataLineBreak: "LRCメタデータには改行を保存できません。メタデータを修正してから保存してください。",
+    lrcReservedTagConflict: "値が不明な予約済みLRCタグを安全に置き換えられません。タグを確認してから保存してください。",
     runtimeFailed: "エラーが発生しました。作業を保存してから再試行してください。",
     recoveryFailed: "復元用コピーを保存できません。作業をファイルに保存してください。",
     openFailed: "ファイルを開けませんでした",

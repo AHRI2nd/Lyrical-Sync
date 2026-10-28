@@ -33,6 +33,23 @@ it("rejects line breaks in extra metadata keys and values", () => {
   expect(() => serializeLrc({ ...docOf([]), extraTags: { "x-safe": "value\r\n[00:02.00]" } })).toThrow("LRC metadata cannot contain line breaks");
 });
 
+it("preserves non-active reserved tag values and serializes them when no feature uses the tag", () => {
+  const raw = "[x-lyrical-translations:custom]\n[x-lyrical-inline-escape:custom]\n[00:01.00]safe";
+  const parsed = parseLrc(raw);
+  expect(parsed.extraTags).toMatchObject({
+    "x-lyrical-translations": "custom",
+    "x-lyrical-inline-escape": "custom",
+  });
+  expect(serializeLrc(parsed)).toContain("[x-lyrical-translations:custom]");
+  expect(serializeLrc(parsed)).toContain("[x-lyrical-inline-escape:custom]");
+});
+
+it("refuses to overwrite an unknown translation extension value when translations are active", () => {
+  const doc = { ...docOf([{ id: "a", timestamp: 1, text: "original", translation: "translated" }]),
+    extraTags: { "x-lyrical-translations": "custom" } };
+  expect(() => serializeLrc(doc)).toThrow("reserved LRC tag has an unknown value");
+});
+
 describe("tokenizeText", () => {
   it("splits by character, preserving spaces as tokens", () => {
     expect(tokenizeText("너의 손", "char").map((s) => s.text)).toEqual(["너", "의", " ", "손"]);
