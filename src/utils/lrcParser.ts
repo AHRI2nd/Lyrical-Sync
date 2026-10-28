@@ -148,6 +148,7 @@ export function validateTimestamps(lines: LrcLine[]): Map<string, LineWarning> {
 
 const TRANSLATION_TAG = "x-lyrical-translations";
 const INLINE_ESCAPE_TAG = "x-lyrical-inline-escape";
+const LINE_ORDER_TAG = "x-lyrical-line-order";
 const INLINE_ESCAPE_CODE = "\\u003C";
 const INLINE_TIMESTAMP_TEXT_RE = /<\d+:\d{2}(?:\.\d{1,3})?>/;
 
@@ -169,6 +170,15 @@ export class LrcTranslationTagConflictError extends Error {
   constructor() {
     super("The x-lyrical-translations tag is reserved to preserve translation rows.");
     this.name = "LrcTranslationTagConflictError";
+  }
+}
+
+export class LrcLineOrderTagConflictError extends Error {
+  readonly code = "LRC_LINE_ORDER_TAG_CONFLICT";
+
+  constructor() {
+    super("The x-lyrical-line-order tag is reserved to preserve edited row order.");
+    this.name = "LrcLineOrderTagConflictError";
   }
 }
 
@@ -269,11 +279,16 @@ export function parseLrc(raw: string): LrcDocument {
   let lineId = 0;
   let translationMode = false;
   let inlineEscapeMode = false;
+  let preserveLineOrder = false;
   let previous: LrcLine[] = [];
 
   for (const rawLine of raw.split("\n")) {
     const line = translationMode ? rawLine.replace(/\r$/, "") : rawLine.trim();
-    if (!line.trim()) { previous = []; continue; }
+    if (line === "" || (!translationMode && !line.trim())) {
+      if (translationMode && line === "" && doc.lines.length > 0) doc.lines.push({ id: String(lineId++), timestamp: null, text: "" });
+      previous = [];
+      continue;
+    }
     const timestamps: number[] = [];
     let rest = line;
     let tok: RegExpExecArray | null;
@@ -293,6 +308,10 @@ export function parseLrc(raw: string): LrcDocument {
         }
         else if (key === INLINE_ESCAPE_TAG) {
           if (value === "1") inlineEscapeMode = true;
+          else doc.extraTags[key] = value;
+        }
+        else if (key === LINE_ORDER_TAG) {
+          if (value === "1") preserveLineOrder = true;
           else doc.extraTags[key] = value;
         }
         else if (field === "offset") doc.metadata.offset = parseInt(value, 10) || 0;
@@ -328,12 +347,14 @@ export function parseLrc(raw: string): LrcDocument {
     }));
     doc.lines.push(...previous);
   }
-  doc.lines.sort((a, b) => {
-    if (a.timestamp === null && b.timestamp === null) return 0;
-    if (a.timestamp === null) return 1;
-    if (b.timestamp === null) return -1;
-    return a.timestamp - b.timestamp;
-  });
+  if (!preserveLineOrder) {
+    doc.lines.sort((a, b) => {
+      if (a.timestamp === null && b.timestamp === null) return 0;
+      if (a.timestamp === null) return 1;
+      if (b.timestamp === null) return -1;
+      return a.timestamp - b.timestamp;
+    });
+  }
   return doc;
 }
 
@@ -344,13 +365,22 @@ export function serializeLrc(doc: LrcDocument, enhanced = true): string {
     throw new LrcMetadataLineBreakError();
   }
   const parts: string[] = [];
-  const translationMode = lines.some(line => typeof line.translation === "string" || /[\r\n]/.test(line.text) || /^\s*\[/.test(line.text));
+  const sortedLines = [...lines].sort((a, b) => {
+    if (a.timestamp === null && b.timestamp === null) return 0;
+    if (a.timestamp === null) return 1;
+    if (b.timestamp === null) return -1;
+    return a.timestamp - b.timestamp;
+  });
+  const orderNeedsMarker = sortedLines.some((line, index) => line !== lines[index]);
+  const translationMode = orderNeedsMarker || lines.some(line => typeof line.translation === "string" || line.text === "" || line.text.trim() !== line.text || /[\r\n]/.test(line.text) || /^\s*\[/.test(line.text));
   const inlineEscapeMode = needsInlineTimestampEscape(doc);
   if (Object.keys(extraTags).some((key) => key.toLowerCase() === INLINE_ESCAPE_TAG) && inlineEscapeMode) {
     throw new LrcInlineEscapeTagConflictError();
   }
   const translationTag = Object.keys(extraTags).find((key) => key.toLowerCase() === TRANSLATION_TAG);
   if (translationTag && translationMode) throw new LrcTranslationTagConflictError();
+  const lineOrderTag = Object.keys(extraTags).find((key) => key.toLowerCase() === LINE_ORDER_TAG);
+  if (lineOrderTag && orderNeedsMarker) throw new LrcLineOrderTagConflictError();
   const encode = (text: string) => {
     const translated = translationMode ? escapeTranslationText(text) : text;
     return inlineEscapeMode ? escapeInlineTimestampText(translated) : translated;
@@ -367,7 +397,8 @@ export function serializeLrc(doc: LrcDocument, enhanced = true): string {
   }
   if (inlineEscapeMode) parts.push(`[${INLINE_ESCAPE_TAG}:1]`);
   if (translationMode) parts.push(`[${TRANSLATION_TAG}:1]`);
-  parts.push("");
+  if (orderNeedsMarker) parts.push(`[${LINE_ORDER_TAG}:1]`);
+  if (!translationMode) parts.push("");
 
   for (const line of lines) {
     // Enhanced LRC(A2): 토큰에 시각이 하나라도 있으면 <mm:ss.xx> 인라인으로 출력
@@ -385,7 +416,7 @@ export function serializeLrc(doc: LrcDocument, enhanced = true): string {
       parts.push(out);
     } else if (line.timestamp !== null) {
       parts.push(`[${formatTimestamp(line.timestamp)}]${encode(line.text)}`);
-    } else if (line.text || typeof line.translation === "string") {
+    } else if (line.text || typeof line.translation === "string" || (translationMode && line.timestamp === null && line.text === "")) {
       parts.push(translationMode && line.text === "" ? "\\0" : encode(line.text));
     }
     if (typeof line.translation === "string") {

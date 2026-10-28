@@ -158,6 +158,28 @@ describe("parseLrc — line level", () => {
     expect(serializeLrc(parsedInline)).toContain("[x-lyrical-inline-escape:custom]");
   });
 
+  it("preserves app-edited row order while keeping default sorting for external LRC", () => {
+    const edited = docOf([
+      { id: "later", timestamp: 2, text: "later" },
+      { id: "earlier", timestamp: 1, text: "earlier" },
+    ]);
+    const serialized = serializeLrc(edited);
+    expect(serialized).toContain("[x-lyrical-line-order:1]");
+    expect(parseLrc(serialized).lines.map((line) => line.timestamp)).toEqual([2, 1]);
+    expect(parseLrc("[00:02.00]later\n[00:01.00]earlier").lines.map((line) => line.timestamp)).toEqual([1, 2]);
+  });
+
+  it("preserves blank and whitespace-only untimed rows in marked LRC", () => {
+    const edited = docOf([
+      { id: "timed", timestamp: 1, text: "line" },
+      { id: "blank", timestamp: null, text: "" },
+      { id: "spaces", timestamp: null, text: "  trailing " },
+    ]);
+    expect(parseLrc(serializeLrc(edited)).lines.map((line) => [line.timestamp, line.text])).toEqual([
+      [1, "line"], [null, ""], [null, "  trailing "],
+    ]);
+  });
+
   it("uses the extension in non-enhanced export without emitting inline timing tags", () => {
     const original = docOf([{
       id: "literal", timestamp: 1, text: "Look <00:02.00>",

@@ -30,14 +30,14 @@ import { HistoryPanel } from "./components/AppShell/HistoryPanel";
 import { RecentFilesMenu } from "./components/AppShell/RecentFilesMenu";
 import { SrtLossyDocumentError, SrtUnrepresentableContentError } from "./utils/srtConverter";
 import { AssUnrepresentableContentError, VttUnrepresentableContentError } from "./utils/exportFormats";
-import { LrcInlineEscapeTagConflictError, LrcMetadataLineBreakError, LrcTranslationTagConflictError, needsInlineTimestampEscape } from "./utils/lrcParser";
+import { LrcInlineEscapeTagConflictError, LrcLineOrderTagConflictError, LrcMetadataLineBreakError, LrcTranslationTagConflictError, needsInlineTimestampEscape } from "./utils/lrcParser";
 
 const AUDIO_EXTS = ["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff", "aif"];
 const LYRICS_EXTS = ["lrc", "srt"];
 const fileExt = (p: string) => p.split(".").pop()?.toLowerCase() ?? "";
 
 function serializationErrorCode(error: unknown): string | null {
-  if (error instanceof SrtUnrepresentableContentError || error instanceof SrtLossyDocumentError || error instanceof VttUnrepresentableContentError || error instanceof AssUnrepresentableContentError || error instanceof LrcInlineEscapeTagConflictError || error instanceof LrcMetadataLineBreakError || error instanceof LrcTranslationTagConflictError) return error.code;
+  if (error instanceof SrtUnrepresentableContentError || error instanceof SrtLossyDocumentError || error instanceof VttUnrepresentableContentError || error instanceof AssUnrepresentableContentError || error instanceof LrcInlineEscapeTagConflictError || error instanceof LrcMetadataLineBreakError || error instanceof LrcTranslationTagConflictError || error instanceof LrcLineOrderTagConflictError) return error.code;
   return null;
 }
 
@@ -49,6 +49,7 @@ function saveErrorMessage(error: unknown, t: ReturnType<typeof useI18nStore.getS
   if (error instanceof LrcInlineEscapeTagConflictError) return t.toast.lrcInlineEscapeConflict;
   if (error instanceof LrcMetadataLineBreakError) return t.toast.lrcMetadataLineBreak;
   if (error instanceof LrcTranslationTagConflictError) return t.toast.lrcTranslationTagConflict;
+  if (error instanceof LrcLineOrderTagConflictError) return t.toast.lrcLineOrderTagConflict;
   return t.toast.saveFailed;
 }
 

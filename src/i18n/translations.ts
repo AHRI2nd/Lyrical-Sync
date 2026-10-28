@@ -275,6 +275,7 @@ export interface Translations {
     lrcInlineEscapeConflict: string;
     lrcMetadataLineBreak: string;
     lrcTranslationTagConflict: string;
+    lrcLineOrderTagConflict: string;
     runtimeFailed: string;
     openFailed: string;
     audioLoadFailed: string;
@@ -650,6 +651,7 @@ const ko: Translations = {
     lrcInlineEscapeConflict: "리터럴 타임스탬프 보존에 필요한 LRC 확장 태그가 기존 태그와 충돌합니다. 해당 태그 이름을 바꾼 뒤 저장하세요.",
     lrcMetadataLineBreak: "LRC 메타데이터에 줄바꿈을 넣을 수 없습니다. 메타데이터를 수정한 뒤 저장하세요.",
     lrcTranslationTagConflict: "가사 번역을 보존하는 데 필요한 LRC 확장 태그가 기존 태그와 충돌합니다. 해당 태그를 정리한 뒤 저장하세요.",
+    lrcLineOrderTagConflict: "편집한 가사 행 순서를 보존하는 데 필요한 LRC 확장 태그가 기존 태그와 충돌합니다. 해당 태그를 정리한 뒤 저장하세요.",
     runtimeFailed: "오류가 발생했습니다. 현재 작업을 저장한 뒤 다시 시도해 주세요.",
     openFailed: "파일을 열지 못했습니다",
     audioLoadFailed: "오디오를 불러오지 못했습니다",
@@ -1050,6 +1052,7 @@ const en: Translations = {
     lrcInlineEscapeConflict: "An existing LRC tag conflicts with the extension needed to preserve literal timestamps. Rename that tag before saving.",
     lrcMetadataLineBreak: "LRC metadata cannot contain line breaks. Update the metadata before saving.",
     lrcTranslationTagConflict: "An existing LRC tag conflicts with the extension needed to preserve translations. Update the tag before saving.",
+    lrcLineOrderTagConflict: "An existing LRC tag conflicts with the extension needed to preserve edited row order. Update the tag before saving.",
     runtimeFailed: "An error occurred. Save your current work before trying again.",
     openFailed: "Couldn't open file",
     audioLoadFailed: "Couldn't load audio",
@@ -1449,6 +1452,7 @@ const ja: Translations = {
     lrcInlineEscapeConflict: "リテラルのタイムスタンプを保持する拡張と既存のLRCタグが衝突しています。タグ名を変更してから保存してください。",
     lrcMetadataLineBreak: "LRCメタデータに改行は使用できません。メタデータを修正してから保存してください。",
     lrcTranslationTagConflict: "翻訳を保持するために必要なLRC拡張タグが既存タグと競合しています。タグを修正してから保存してください。",
+    lrcLineOrderTagConflict: "編集した行順を保持するために必要なLRC拡張タグが既存タグと競合しています。タグを修正してから保存してください。",
     runtimeFailed: "エラーが発生しました。作業を保存してから再試行してください。",
     openFailed: "ファイルを開けませんでした",
     audioLoadFailed: "オーディオを読み込めませんでした",
