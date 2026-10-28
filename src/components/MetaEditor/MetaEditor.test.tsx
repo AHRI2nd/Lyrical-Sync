@@ -18,6 +18,16 @@ beforeEach(() => {
 
 afterEach(() => cleanup());
 
+it("connects metadata labels to their inputs", () => {
+  const t = useI18nStore.getState().t;
+  render(<MetaEditor />);
+  expect(screen.getByLabelText(t.metaTitle.label)).toBeTruthy();
+  expect(screen.getByLabelText(t.metaArtist.label)).toBeTruthy();
+  expect(screen.getByLabelText(t.metaAlbum.label)).toBeTruthy();
+  expect(screen.getByLabelText(t.metaBy.label)).toBeTruthy();
+  expect(screen.getByLabelText(t.metaOffsetShort)).toBeTruthy();
+});
+
 it("keeps a raw draft from being applied to a replacement document", () => {
   const t = useI18nStore.getState().t;
   render(<MetaEditor />);

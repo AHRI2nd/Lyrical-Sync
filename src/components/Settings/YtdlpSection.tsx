@@ -242,29 +242,33 @@ export function YtdlpSection() {
       <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* 오디오 품질 */}
-      <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-[var(--ls-text)]">{t.ytdlpAudioQuality}</span>
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-sm font-medium text-[var(--ls-text)]">{t.ytdlpAudioQuality}</legend>
         <div className="flex flex-col gap-1.5">
           {(["best", "192", "128"] as const).map((q) => (
             <label key={q} className="flex items-center gap-2.5 cursor-pointer group">
-              <div
-                className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                  ytdlpAudioQuality === q ? "border-red-500 bg-red-500" : "border-[var(--ls-border-control)] group-hover:border-[var(--ls-border-control)]"
-                }`}
-                onClick={() => setYtdlpAudioQuality(q)}
-              >
+              <input
+                type="radio"
+                name="ytdlp-audio-quality"
+                value={q}
+                checked={ytdlpAudioQuality === q}
+                onChange={() => setYtdlpAudioQuality(q)}
+                className="sr-only peer"
+              />
+              <span aria-hidden="true" className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center transition-colors peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--ls-accent)] ${
+                ytdlpAudioQuality === q ? "border-red-500 bg-red-500" : "border-[var(--ls-border-control)] group-hover:border-[var(--ls-border-control)]"
+              }`}>
                 {ytdlpAudioQuality === q && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-              </div>
+              </span>
               <span
-                className="text-sm text-[var(--ls-text-secondary)] cursor-pointer"
-                onClick={() => setYtdlpAudioQuality(q)}
+                className="text-sm text-[var(--ls-text-secondary)]"
               >
                 {q === "best" ? t.ytdlpQualityBest : q === "192" ? t.ytdlpQuality192 : t.ytdlpQuality128}
               </span>
             </label>
           ))}
         </div>
-      </div>
+      </fieldset>
 
       <div className="border-t border-[var(--ls-border-subtle)]" />
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, lazy, Suspense } from "react";
+import { useEffect, useId, useRef, useState, lazy, Suspense } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
@@ -82,6 +82,7 @@ export function MetaEditor() {
       <div className="flex items-center gap-1.5 pt-3 border-t border-[var(--ls-border-subtle)]">
         <span className="text-xs text-[var(--ls-text-secondary)] shrink-0">{t.metaOffsetShort}</span>
         <input
+          aria-label={t.metaOffsetShort}
           type="text"
           inputMode="numeric"
           value={offsetStr}
@@ -148,10 +149,12 @@ function Field({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const id = useId();
   return (
     <div className="min-w-0">
-      <label className="ls-label block text-[var(--ls-text-secondary)] mb-1">{label}</label>
+      <label htmlFor={id} className="ls-label block text-[var(--ls-text-secondary)] mb-1">{label}</label>
       <input
+        id={id}
         type="text"
         value={value}
         placeholder={placeholder}
