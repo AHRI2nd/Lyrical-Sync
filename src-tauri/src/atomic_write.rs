@@ -41,7 +41,7 @@ fn destination(path: &Path) -> io::Result<(PathBuf, Option<fs::Permissions>)> {
             Ok((target, Some(metadata.permissions())))
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok((PathBuf::from(path), None)),
-        Err(error) => return Err(error),
+        Err(error) => Err(error),
     }
 }
 
