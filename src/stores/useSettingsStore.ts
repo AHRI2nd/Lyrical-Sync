@@ -8,16 +8,22 @@ import { type KeyAction, DEFAULT_KEYBINDINGS, normalizeKeybindings } from "../ut
 function debouncedLocalStorage(delayMs: number): StateStorage {
   let timer: ReturnType<typeof setTimeout> | null = null;
   let pending: { key: string; value: string } | null = null;
+  const flush = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+    const next = pending;
+    pending = null;
+    if (next) {
+      try { localStorage.setItem(next.key, next.value); } catch { /* Keep in-memory settings usable. */ }
+    }
+  };
+  if (typeof window !== "undefined") window.addEventListener("pagehide", flush);
   return {
     getItem: (key) => { try { return localStorage.getItem(key); } catch { return null; } },
     setItem: (key, value) => {
       pending = { key, value };
       if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        if (pending) { try { localStorage.setItem(pending.key, pending.value); } catch { /* Keep in-memory settings usable. */ } }
-        pending = null;
-        timer = null;
-      }, delayMs);
+      timer = setTimeout(flush, delayMs);
     },
     removeItem: (key) => {
       if (timer) { clearTimeout(timer); timer = null; }
