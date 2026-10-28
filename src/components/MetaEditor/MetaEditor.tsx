@@ -4,6 +4,7 @@ import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { serializeLrc } from "../../utils/lrcParser";
+import { isComposingKeyEvent } from "../../utils/keybindings";
 
 export function MetaEditor() {
   // currentTime 등에 리렌더되지 않도록 필요한 필드만 구독
@@ -156,6 +157,7 @@ function RawEditorModal({
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (isComposingKeyEvent(e)) return;
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", handler);

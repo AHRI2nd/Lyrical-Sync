@@ -64,3 +64,11 @@ it("applies an unchanged raw draft and keeps it undoable", async () => {
   useLrcStore.getState().undo();
   expect(useLrcStore.getState().doc.lines.map((line) => line.text)).toEqual(["A original"]);
 });
+
+it.each([{ isComposing: true }, { keyCode: 229 }])("keeps the raw editor open when Escape belongs to IME composition (%j)", (composition) => {
+  useLrcStore.setState({ doc: defaultDocument(), _history: [], _future: [] });
+  const { container, getByTitle } = render(<MetaEditor />);
+  fireEvent.click(getByTitle(useI18nStore.getState().t.viewAll));
+  fireEvent.keyDown(window, { key: "Escape", ...composition });
+  expect(container.querySelector("textarea")).not.toBeNull();
+});
