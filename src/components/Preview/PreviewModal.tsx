@@ -7,6 +7,8 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
+import { deviceControls } from "../../utils/deviceControls";
+import { useDeviceStore } from "../../stores/useDeviceStore";
 import { formatDisplayTime, parseTimestampInput, isStampable } from "../../utils/lrcParser";
 import type { LrcSyllable } from "../../types/lrc";
 import { GearIcon } from "../AppShell/icons";
@@ -40,6 +42,7 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
     }))
   );
   const spotifyMode = useSettingsStore((s) => s.spotifyMode);
+  const deviceMode = useSettingsStore((s) => s.deviceMode);
   const previewFontScale = useSettingsStore((s) => s.previewFontScale);
   const previewActiveColor = useSettingsStore((s) => s.previewActiveColor);
   const previewAccentColor = useSettingsStore((s) => s.previewAccentColor);
@@ -48,13 +51,17 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
   const servicePositionMs = useServiceStore((s) => s.positionMs);
   const serviceDurationMs = useServiceStore((s) => s.durationMs);
   const serviceIsPlaying = useServiceStore((s) => s.isPlaying);
+  const devicePositionMs = useDeviceStore((s) => s.positionMs);
+  const deviceDurationMs = useDeviceStore((s) => s.durationMs);
+  const deviceIsPlaying = useDeviceStore((s) => s.isPlaying);
   const { t } = useI18nStore();
   const activeLineRef = useRef<HTMLDivElement>(null);
   const isServiceMode = serviceLoggedIn && spotifyMode;
-  const controls = isServiceMode ? serviceControls : audioControls;
-  const playbackTime = isServiceMode ? servicePositionMs / 1000 : currentTime;
-  const playbackDuration = isServiceMode ? serviceDurationMs / 1000 : duration;
-  const playbackIsPlaying = isServiceMode ? serviceIsPlaying : isPlaying;
+  const playbackSource = isServiceMode ? "spotify" : deviceMode ? "device" : "local";
+  const controls = playbackSource === "spotify" ? serviceControls : playbackSource === "device" ? deviceControls : audioControls;
+  const playbackTime = playbackSource === "spotify" ? servicePositionMs / 1000 : playbackSource === "device" ? devicePositionMs / 1000 : currentTime;
+  const playbackDuration = playbackSource === "spotify" ? serviceDurationMs / 1000 : playbackSource === "device" ? deviceDurationMs / 1000 : duration;
+  const playbackIsPlaying = playbackSource === "spotify" ? serviceIsPlaying : playbackSource === "device" ? deviceIsPlaying : isPlaying;
 
   // 인라인 타임스탬프 편집 상태
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -132,9 +139,10 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
   // 줄 클릭 시 시크(+정지 상태면 재생). 재생 상태는 fresh로 읽어 목록 메모 의존성에서 제외
   const seekToLine = useCallback((ts: number) => {
     controls.seekTo(ts);
-    const playing = isServiceMode ? useServiceStore.getState().isPlaying : useLrcStore.getState().isPlaying;
+    const playing = playbackSource === "spotify" ? useServiceStore.getState().isPlaying
+      : playbackSource === "device" ? useDeviceStore.getState().isPlaying : useLrcStore.getState().isPlaying;
     if (!playing) controls.togglePlay();
-  }, [controls, isServiceMode]);
+  }, [controls, playbackSource]);
 
   // 줄 목록을 메모화 → 부모가 매 프레임(currentTime) 리렌더돼도 활성 줄 전환·편집 시에만 재구성.
   // 활성 줄의 가라오케 채움은 KaraokeText가 시간을 자체 구독해 갱신.
@@ -197,7 +205,7 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
           {isActive ? (
             <span className="relative inline-block">
               {hasGlyphSync && line.syllables ? (
-                <KaraokeText syllables={line.syllables} lineEnd={lineEnd} isServiceMode={isServiceMode} activeColor={previewActiveColor} />
+                <KaraokeText syllables={line.syllables} lineEnd={lineEnd} playbackSource={playbackSource} activeColor={previewActiveColor} />
               ) : (
                 line.text || " "
               )}
@@ -222,7 +230,7 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
         </div>
       </div>
     );
-  }), [doc.lines, activeIdx, lineEnds, editingId, editValue, startEdit, commitEdit, seekToLine, isServiceMode, previewFontScale, previewActiveColor, previewAccentColor, previewGlowEnabled]);
+  }), [doc.lines, activeIdx, lineEnds, editingId, editValue, startEdit, commitEdit, seekToLine, playbackSource, previewFontScale, previewActiveColor, previewAccentColor, previewGlowEnabled]);
 
   const hasTimestamps = doc.lines.some((l) => l.timestamp !== null);
 
@@ -329,16 +337,17 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
 // 글자 단위 가라오케 채움: 각 글자를 시작~다음 시각 사이 진행도로 좌→우 채움
 // 시간을 자체 구독 → 부모(미리보기 목록)가 매 프레임 리렌더되지 않아도 활성 줄만 채움 갱신
 function KaraokeText({
-  syllables, lineEnd, isServiceMode, activeColor,
+  syllables, lineEnd, playbackSource, activeColor,
 }: {
   syllables: LrcSyllable[];
   lineEnd: number;
-  isServiceMode: boolean;
+  playbackSource: "spotify" | "device" | "local";
   activeColor: string;
 }) {
   const ct = useLrcStore((s) => s.currentTime);
   const pos = useServiceStore((s) => s.positionMs);
-  const currentTime = isServiceMode ? pos / 1000 : ct;
+  const devicePos = useDeviceStore((s) => s.positionMs);
+  const currentTime = playbackSource === "spotify" ? pos / 1000 : playbackSource === "device" ? devicePos / 1000 : ct;
   return (
     <>
       {syllables.map((s, i) => {

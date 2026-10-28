@@ -10,6 +10,7 @@ import { useServiceStore } from "../../stores/useServiceStore";
 import { formatDisplayTime, parseTimestampInput, validateTimestamps, type SyncUnit } from "../../utils/lrcParser";
 import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
+import { deviceControls } from "../../utils/deviceControls";
 import { MODEL_DEFS } from "../../utils/modelDefs";
 import { listenSafely } from "../../utils/safeListen";
 import type { LrcLine, LrcSyllable } from "../../types/lrc";
@@ -66,6 +67,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   // 단순 계정 연결만으로 AI 싱크를 막지 않도록 isReady 대신 spotifyMode 기준 사용.
   const isServiceMode = serviceLoggedIn && spotifyMode;
   const serviceActive = isServiceMode;
+  const seekControls = serviceActive ? serviceControls : deviceMode ? deviceControls : audioControls;
   // AI 자동 동기화는 로컬 오디오가 있는 파일/YouTube 모드에서만 의미가 있음.
   // Spotify는 로그인 전이어도, 기기 감지는 항상 로컬 오디오가 없으므로 둘 다 차단
   // (로그인 여부로 판단하는 isServiceMode와 달리 spotifyMode 자체로 판단).
@@ -511,13 +513,13 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     setActiveLineId(id);
     const ln = currentLines.find((l) => l.id === id);
     if (ln && ln.timestamp !== null) {
-      (serviceActive ? serviceControls : audioControls).seekTo(ln.timestamp);
+      seekControls.seekTo(ln.timestamp);
     }
     if (showFR) {
       const mi = matchIdsRef.current.indexOf(id);
       if (mi !== -1) setMatchPos(mi);
     }
-  }, [showFR, serviceActive, setActiveLineId]);
+  }, [showFR, seekControls, setActiveLineId]);
 
   // 매칭 줄 id 목록
   const matchIds = useMemo(() => {
@@ -860,7 +862,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
               lyricsFontScale={lyricsFontScale}
               showSpellCheck={showSpellCheck}
               showTranslationLines={showTranslationLines}
-              serviceActive={serviceActive}
+              serviceActive={serviceActive || deviceMode}
               dragIdx={dragIdx}
               showInsertionBefore={dragIdx !== null && dropGapIdx === idx}
               showInsertionAfter={dragIdx !== null && idx === lines.length - 1 && dropGapIdx === lines.length}
@@ -881,10 +883,11 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
               onRowClick={handleRowClick}
               onToggleLoop={(e) => {
                 e.stopPropagation();
+                if (serviceActive || deviceMode) return;
                 if (loopLineId === line.id) { setLoopLine(null); return; }
                 if (line.timestamp === null) return;
                 setLoopLine(line.id);
-                (serviceActive ? serviceControls : audioControls).seekTo(line.timestamp);
+                seekControls.seekTo(line.timestamp);
               }}
               onTextChange={(value) => handleTextChange(line.id, value)}
               onTranslationChange={(value) => updateLine(line.id, { translation: value })}

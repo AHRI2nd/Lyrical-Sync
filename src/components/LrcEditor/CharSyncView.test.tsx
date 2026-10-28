@@ -5,6 +5,8 @@ import { useI18nStore } from "../../stores/useI18nStore";
 import { CharSyncView } from "./CharSyncView";
 import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
+import { deviceControls } from "../../utils/deviceControls";
+import { useDeviceStore } from "../../stores/useDeviceStore";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
@@ -365,6 +367,17 @@ describe("CharSyncView seek lane", () => {
     expect(seekSpy).toHaveBeenCalledTimes(1);
     expect(seekSpy).toHaveBeenCalledWith(14.4);
     expect(useLrcStore.getState().currentTime).toBe(12);
+  });
+
+  it("routes waveform seeking to the device controller in device mode", () => {
+    const deviceSeek = vi.spyOn(deviceControls, "seekTo").mockImplementation(() => {});
+    useSettingsStore.setState({ deviceMode: true });
+    useDeviceStore.setState({ positionMs: 12000, durationMs: 100000 });
+    const { lane } = setup();
+    fireEvent.pointerDown(lane, { pointerId: 1, button: 0, clientX: 20 });
+    fireEvent.pointerUp(window, { pointerId: 1, button: 0, clientX: 75 });
+    expect(deviceSeek).toHaveBeenCalledTimes(1);
+    expect(seekSpy).not.toHaveBeenCalled();
   });
 
   it("does not seek when the drag is cancelled or the component unmounts", () => {

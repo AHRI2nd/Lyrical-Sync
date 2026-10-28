@@ -110,3 +110,15 @@ it("names the preview playback control and exposes playback state", async () => 
   act(() => useLrcStore.setState({ isPlaying: true }));
   expect(play.getAttribute("aria-pressed")).toBe("true");
 });
+
+it("uses device playback state and routes preview seeking to the device controller", async () => {
+  const { useSettingsStore } = await import("../../stores/useSettingsStore");
+  const { useDeviceStore } = await import("../../stores/useDeviceStore");
+  const { invoke } = await import("@tauri-apps/api/core");
+  useSettingsStore.setState({ deviceMode: true, spotifyMode: false });
+  useDeviceStore.setState({ positionMs: 4000, durationMs: 12000, isPlaying: true });
+  const { getByText, container } = render(<PreviewModal onOpenStyleSettings={() => {}} onClose={() => {}} />);
+  expect(container.textContent).toContain("0:00:04.000");
+  fireEvent.click(getByText("first"));
+  expect(invoke).toHaveBeenCalledWith("now_playing_seek", { positionMs: 1000 });
+});

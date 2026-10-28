@@ -10,6 +10,7 @@ import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { defaultDocument } from "../../types/lrc";
 import { invoke } from "@tauri-apps/api/core";
+import { useDeviceStore } from "../../stores/useDeviceStore";
 beforeEach(() => {
   useSettingsStore.setState({ showTranslationLines: false, showSpellCheck: false });
   vi.stubGlobal("DragEvent", class extends MouseEvent {});
@@ -160,6 +161,17 @@ it("does not start AI sync from a glyph warning after the audio selection change
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   expect(invoke).not.toHaveBeenCalledWith("run_alignment", expect.anything());
+});
+it("routes line seeking to the device controller when device mode is selected", () => {
+  useSettingsStore.setState({ deviceMode: true, spotifyMode: false });
+  useDeviceStore.setState({ hasSession: true, positionMs: 4321 });
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "device lyric", timestamp: 1 }] } });
+  const { container } = render(<LrcEditor onPreview={() => {}} />);
+  expect(document.body.textContent).toContain("현재: 0:00:04.321");
+  fireEvent.click(container.querySelector('[data-line-id="a"]')!);
+  expect(invoke).toHaveBeenCalledWith("now_playing_seek", { positionMs: 1000 });
+  expect(invoke).not.toHaveBeenCalledWith("seek_audio", expect.anything());
+  expect(document.body.textContent).toContain("현재: 0:00:01.000");
 });
 it("asks before an individual find-and-replace clears timed glyphs", () => {
   const t = useI18nStore.getState().t;

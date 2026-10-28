@@ -14,6 +14,7 @@ import { anyModalOpen } from "../../utils/modalGuard";
 import { isInteractiveKeyTarget, keyLabel, matchAction, normalizeKeybindings } from "../../utils/keybindings";
 import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
+import { deviceControls } from "../../utils/deviceControls";
 import type { LrcLine, LrcSyllable } from "../../types/lrc";
 
 // 줄 타임스탬프가 없을 때 글자를 펼칠 기본 시간 창(초)
@@ -62,9 +63,9 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
   const doc = useLrcStore((s) => s.doc);
   const activeLineId = useLrcStore((s) => s.activeLineId);
   const setActiveLineId = useLrcStore((s) => s.setActiveLineId);
-  const currentTime = useLrcStore((s) => s.currentTime);
-  const isPlaying = useLrcStore((s) => s.isPlaying);
-  const duration = useLrcStore((s) => s.duration);
+  const localCurrentTime = useLrcStore((s) => s.currentTime);
+  const localIsPlaying = useLrcStore((s) => s.isPlaying);
+  const localDuration = useLrcStore((s) => s.duration);
   const loopLineId = useLrcStore((s) => s.loopLineId);
   const setLoopLine = useLrcStore((s) => s.setLoopLine);
   const audioPath = useLrcStore((s) => s.audioPath);
@@ -82,14 +83,23 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
   const serviceLoggedIn = useServiceStore((s) => s.isLoggedIn);
   const serviceTrackUri = useServiceStore((s) => s.trackUri);
   const serviceDeviceId = useServiceStore((s) => s.deviceId);
+  const servicePosition = useServiceStore((s) => s.positionMs / 1000);
+  const serviceIsPlaying = useServiceStore((s) => s.isPlaying);
+  const serviceDuration = useServiceStore((s) => s.durationMs / 1000);
+  const deviceCurrentTime = useDeviceStore((s) => s.positionMs / 1000);
+  const deviceIsPlaying = useDeviceStore((s) => s.isPlaying);
+  const deviceDuration = useDeviceStore((s) => s.durationMs / 1000);
   const deviceIdentity = useDeviceStore((s) => JSON.stringify([
     s.hasSession, s.sourceApp, s.trackName, s.artistName, s.albumName,
   ]));
   const waveformHeight = useSettingsStore(s => s.glyphWaveformHeight);
   const waveformStyle = useSettingsStore(s => s.glyphWaveformStyle);
   const stampKey = keyLabel(normalizeKeybindings(useSettingsStore(s => s.keybindings)).stamp);
-  const controls = serviceLoggedIn && spotifyMode ? serviceControls : audioControls;
+  const controls = serviceLoggedIn && spotifyMode ? serviceControls : deviceMode ? deviceControls : audioControls;
   const controlSource = serviceLoggedIn && spotifyMode ? "spotify" : deviceMode ? "device" : "local";
+  const currentTime = controlSource === "spotify" ? servicePosition : controlSource === "device" ? deviceCurrentTime : localCurrentTime;
+  const isPlaying = controlSource === "spotify" ? serviceIsPlaying : controlSource === "device" ? deviceIsPlaying : localIsPlaying;
+  const duration = controlSource === "spotify" ? serviceDuration : controlSource === "device" ? deviceDuration : localDuration;
   const audioSelection = useLrcStore(s => s._audioSelection);
   const controlIdentity = controlSource === "spotify"
     ? `${serviceTrackUri ?? ""}:${serviceDeviceId ?? ""}`
@@ -147,7 +157,14 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
   const laneSeekPendingRef = useRef(false);
   const lanePreviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousCurrentTimeRef = useRef(currentTime);
-  useEffect(() => { setZoom(1); setFollowPlayback(true); setViewAnchor(useLrcStore.getState().currentTime); }, [doc.extraTags, activeLineId, audioPath, controlIdentity, controlSource]);
+  useEffect(() => {
+    const anchor = controlSource === "spotify" ? useServiceStore.getState().positionMs / 1000
+      : controlSource === "device" ? useDeviceStore.getState().positionMs / 1000
+      : useLrcStore.getState().currentTime;
+    setZoom(1);
+    setFollowPlayback(true);
+    setViewAnchor(anchor);
+  }, [doc.extraTags, activeLineId, audioPath, controlIdentity, controlSource]);
   // Derive the following window in the same render as the playhead to avoid a frame of drift.
   const { start: viewStart, end: viewEnd } = getLaneViewRange(
     0, viewSpan, duration, followPlayback ? currentTime : viewAnchor, zoom,
@@ -264,8 +281,9 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
     for (let i = idx + 1; i < syl.length; i++) { if (syl[i].time !== null) { hi = syl[i].time as number; break; } }
     const nt = Math.max(lo, Math.min(hi, Math.max(0, (s.time as number) + delta)));
     commitSyllables(ln.id, syl.map((x, i) => (i === idx ? { ...x, time: nt } : x)));
-    const ctrl = useServiceStore.getState().isLoggedIn && useSettingsStore.getState().spotifyMode
-      ? serviceControls : audioControls;
+    const settings = useSettingsStore.getState();
+    const ctrl = useServiceStore.getState().isLoggedIn && settings.spotifyMode
+      ? serviceControls : settings.deviceMode ? deviceControls : audioControls;
     seekWithFollow(nt, ctrl);
   };
 
