@@ -452,6 +452,21 @@ it("parses the millisecond timestamp displayed by hour-aware inline editors", ()
   expect(parseTimestampInput("60:02.369")).toBe(3602.369);
 });
 
+  it("rejects timestamp input that overflows JavaScript's finite number range", () => {
+    expect(parseTimestampInput(`${"9".repeat(310)}:00.00`)).toBeNull();
+    expect(parseTimestamp(`[${"9".repeat(310)}:00.00]`)).toBeNull();
+  });
+
+  it("keeps overflowing timestamps literal when parsing an LRC row", () => {
+    const raw = `[${"9".repeat(310)}:00.00]literal`;
+    expect(parseLrc(raw).lines.map(({ timestamp, text }) => [timestamp, text])).toEqual([[null, raw]]);
+  });
+
+  it("rejects non-finite values at the LRC serialization boundary", () => {
+    expect(() => serializeLrc(docOf([{ id: "bad", timestamp: Number.POSITIVE_INFINITY, text: "x" }]))).toThrow("timestamps and offsets must be finite");
+    expect(() => serializeLrc({ ...docOf([]), metadata: { ...emptyMeta, offset: Number.NaN } })).toThrow("timestamps and offsets must be finite");
+  });
+
 it.each(['[Intro: Instrumental]', '[ti:literal title]', '[00:02.00]literal cue'])('retains untimed bracket syntax as literal lyrics: %s', text => {
  const doc=docOf([{id:'a',timestamp:null,text}]);
  doc.metadata.title='actual title';

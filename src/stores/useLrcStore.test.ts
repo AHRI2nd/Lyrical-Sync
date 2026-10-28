@@ -279,6 +279,21 @@ describe("useLrcStore — offset / shift carry syllable times", () => {
     expect(lines()[0].srtEndTime).toBeUndefined();
   });
 
+  it("leaves the document and history untouched when scaling would overflow", () => {
+    reset([{ id: "1", timestamp: Number.MAX_VALUE, text: "a" }]);
+    useLrcStore.getState().scaleTimestamps(2);
+    expect(lines()[0].timestamp).toBe(Number.MAX_VALUE);
+    expect(useLrcStore.getState()._history).toHaveLength(0);
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
+  it("rejects a retime whose dependent cue end would overflow", () => {
+    reset([{ id: "1", timestamp: 0, srtEndTime: Number.MAX_VALUE, text: "a" }]);
+    useLrcStore.getState().updateLine("1", { timestamp: Number.MAX_VALUE });
+    expect([lines()[0].timestamp, lines()[0].srtEndTime]).toEqual([0, Number.MAX_VALUE]);
+    expect(useLrcStore.getState()._history).toHaveLength(0);
+  });
+
   it("replaceInLines drops syllables on changed lines", () => {
     reset([{ id: "1", timestamp: 1, text: "cat", syllables: [{ text: "cat", time: 1 }] }]);
     const n = useLrcStore.getState().replaceInLines("cat", "dog", false);
@@ -289,6 +304,14 @@ describe("useLrcStore — offset / shift carry syllable times", () => {
 });
 
 describe("useLrcStore — syllable actions", () => {
+  it("commits a very large syllable list without overflowing the call stack", () => {
+    const syllables = Array.from({ length: 200_000 }, (_, index) => ({ text: "x", time: index / 1000 }));
+    reset([{ id: "large", timestamp: 0, text: "x".repeat(syllables.length) }]);
+    expect(() => useLrcStore.getState().commitSyllables("large", syllables)).not.toThrow();
+    expect(lines()[0].timestamp).toBe(0);
+    expect(lines()[0].syllables).toHaveLength(200_000);
+  });
+
   it("commitSyllables sets syllables and line.timestamp = min time", () => {
     reset([{ id: "1", timestamp: null, text: "ab" }]);
     useLrcStore.getState().commitSyllables("1", [{ text: "a", time: 5 }, { text: "b", time: 3 }]);

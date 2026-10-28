@@ -15,6 +15,14 @@ import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { cancelDocumentConfirmation, confirmDocumentReplacement, runDocumentTransition } from "../utils/documentTransition";
 
+const hasFiniteLineTimes = (lines: LrcLine[]): boolean => lines.every((line) =>
+  (line.timestamp === null || Number.isFinite(line.timestamp)) &&
+  (line.srtEndTime === undefined || Number.isFinite(line.srtEndTime)) &&
+  (line.syllables?.every((syllable) => syllable.time === null || Number.isFinite(syllable.time)) ?? true)
+);
+
+const reportInvalidTime = (): void => toast.error(useI18nStore.getState().t.toast.invalidTimestamp);
+
 type AiSyncStatus = "idle" | "running" | "done" | "error";
 
 interface AlignmentResult {
@@ -301,10 +309,13 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   setActiveSyllable: (i) => set({ activeSyllableIndex: i }),
 
   commitSyllables: (lineId, syllables, recordHistory = true) => {
-    if (recordHistory) pushHistory("commitSyllables");
     const { doc } = get();
-    const times = syllables.filter((s) => s.time !== null).map((s) => s.time as number);
-    const lineTs = times.length > 0 ? Math.min(...times) : null;
+    let lineTs: number | null = null;
+    for (const syllable of syllables) {
+      if (syllable.time !== null && Number.isFinite(syllable.time) && (lineTs === null || syllable.time < lineTs)) lineTs = syllable.time;
+    }
+    if (syllables.some((syllable) => syllable.time !== null && !Number.isFinite(syllable.time))) { reportInvalidTime(); return; }
+    if (recordHistory) pushHistory("commitSyllables");
     const lines = doc.lines.map((l) =>
       l.id === lineId
         ? {
@@ -315,6 +326,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
           }
         : l
     );
+    if (!hasFiniteLineTimes(lines)) { reportInvalidTime(); return; }
     set({
       doc: { ...doc, lines },
       isDirty: true,
@@ -492,6 +504,11 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     const line = get().doc.lines.find(item => item.id === id);
     if (!line) return;
     const normalizedPatch = { ...patch };
+    if ((patch.timestamp !== undefined && patch.timestamp !== null && !Number.isFinite(patch.timestamp)) ||
+        patch.syllables?.some((syllable) => syllable.time !== null && !Number.isFinite(syllable.time))) {
+      reportInvalidTime();
+      return;
+    }
     if (patch.text !== undefined && patch.text !== line.text) {
       if (!Object.prototype.hasOwnProperty.call(patch, "syllables")) {
         normalizedPatch.syllables = undefined;
@@ -499,6 +516,11 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
         normalizedPatch.syllables = undefined;
       }
     }
+    const updatedLine = {
+      ...(normalizedPatch.timestamp !== undefined ? retimeLine(line, normalizedPatch.timestamp) : line),
+      ...normalizedPatch,
+    };
+    if (!hasFiniteLineTimes([updatedLine])) { reportInvalidTime(); return; }
     const fields = Object.keys(normalizedPatch) as (keyof typeof normalizedPatch)[];
     if (fields.every(field => line[field] === normalizedPatch[field])) return;
     const key = `${id}:${fields.sort().join(",")}`;
@@ -506,7 +528,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     set((s) => ({
       doc: {
         ...s.doc,
-        lines: s.doc.lines.map((l) => (l.id === id ? { ...(normalizedPatch.timestamp !== undefined ? retimeLine(l, normalizedPatch.timestamp) : l), ...normalizedPatch } : l)),
+        lines: s.doc.lines.map((l) => (l.id === id ? updatedLine : l)),
       },
       isDirty: true,
       _lastEditKey: key,
@@ -599,8 +621,10 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   },
 
   scaleTimestamps: (factor) => {
-    if (!(factor > 0) || factor === 1) return;
-    pushHistory("scaleTimestamps");
+    if (!(factor > 0) || !Number.isFinite(factor) || factor === 1) {
+      if (!Number.isFinite(factor)) reportInvalidTime();
+      return;
+    }
     const { doc } = get();
     const sc = (t: number | null) => (t !== null ? Math.max(0, Math.round(t * factor * 1000) / 1000) : null);
     const lines = doc.lines.map((l) => ({
@@ -609,6 +633,8 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
       srtEndTime: l.srtEndTime === undefined ? undefined : Math.max(0, Math.round(l.srtEndTime * factor * 1000) / 1000),
       syllables: l.syllables?.map((s) => ({ ...s, time: sc(s.time) })),
     }));
+    if (!hasFiniteLineTimes(lines)) { reportInvalidTime(); return; }
+    pushHistory("scaleTimestamps");
     set({ doc: { ...doc, lines }, isDirty: true });
   },
 
@@ -626,8 +652,8 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   },
 
   shiftLines: (ids, delta) => {
+    if (!Number.isFinite(delta)) { reportInvalidTime(); return; }
     if (delta === 0 || ids.length === 0) return;
-    pushHistory("shiftLines");
     const idSet = new Set(ids);
     const { doc } = get();
     const sh = (t: number | null) => (t !== null ? Math.max(0, Math.round((t + delta) * 1000) / 1000) : null);
@@ -636,6 +662,8 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
         ? { ...l, timestamp: sh(l.timestamp), srtEndTime: shiftSrtEnd(l, delta, sh(l.timestamp)), syllables: l.syllables?.map((s) => ({ ...s, time: sh(s.time) })) }
         : l
     );
+    if (!hasFiniteLineTimes(lines)) { reportInvalidTime(); return; }
+    pushHistory("shiftLines");
     set({ doc: { ...doc, lines }, isDirty: true });
   },
 
@@ -721,24 +749,21 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   applyOffset: () => {
     const { doc } = get();
     const deltaSeconds = doc.metadata.offset / 1000;
+    if (!Number.isFinite(deltaSeconds)) { reportInvalidTime(); return; }
     if (deltaSeconds === 0) return; // 변화 없음 → 히스토리 기록 안 함(빈 undo 방지)
+    const lines = doc.lines.map((l) => ({
+      ...l,
+      timestamp: l.timestamp !== null ? Math.max(0, l.timestamp + deltaSeconds) : null,
+      srtEndTime: shiftSrtEnd(l, deltaSeconds, l.timestamp === null ? null : Math.max(0, l.timestamp + deltaSeconds)),
+      syllables: l.syllables?.map((s) => ({ ...s, time: s.time !== null ? Math.max(0, s.time + deltaSeconds) : null })),
+    }));
+    if (!hasFiniteLineTimes(lines)) { reportInvalidTime(); return; }
     pushHistory("applyOffset");
     set({
       doc: {
         ...doc,
         metadata: { ...doc.metadata, offset: 0 },
-        lines: doc.lines.map((l) => ({
-          ...l,
-          timestamp: l.timestamp !== null
-            ? Math.max(0, l.timestamp + deltaSeconds)
-            : null,
-          srtEndTime: shiftSrtEnd(l, deltaSeconds, l.timestamp === null ? null : Math.max(0, l.timestamp + deltaSeconds)),
-          // 글자 동기화 토큰 시각도 함께 이동
-          syllables: l.syllables?.map((s) => ({
-            ...s,
-            time: s.time !== null ? Math.max(0, s.time + deltaSeconds) : null,
-          })),
-        })),
+        lines,
       },
       isDirty: true,
     });
@@ -876,8 +901,8 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   },
 
   shiftTimeRange: (fromIdx, toIdx, deltaSeconds) => {
+    if (!Number.isFinite(deltaSeconds)) { reportInvalidTime(); return; }
     if (deltaSeconds === 0) return;
-    pushHistory("shiftTimeRange");
     const { doc } = get();
     const newLines = doc.lines.map((l, i) => {
       if (i < fromIdx || i > toIdx || l.timestamp === null) return l;
@@ -892,6 +917,8 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
         })),
       };
     });
+    if (!hasFiniteLineTimes(newLines)) { reportInvalidTime(); return; }
+    pushHistory("shiftTimeRange");
     set({ doc: { ...doc, lines: newLines }, isDirty: true });
   },
 

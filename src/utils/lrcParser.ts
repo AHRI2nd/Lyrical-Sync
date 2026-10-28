@@ -48,8 +48,10 @@ function parseInlineSyllables(rest: string): LrcSyllable[] | null {
   const tags: { time: number; start: number; end: number }[] = [];
   let m: RegExpExecArray | null;
   while ((m = INLINE_TS_RE.exec(rest)) !== null) {
+    const time = parseInt(m[1], 10) * 60 + parseInt(m[2], 10) + fracToSeconds(m[3]);
+    if (!Number.isFinite(time)) return null;
     tags.push({
-      time: parseInt(m[1], 10) * 60 + parseInt(m[2], 10) + fracToSeconds(m[3]),
+      time,
       start: m.index,
       end: INLINE_TS_RE.lastIndex,
     });
@@ -77,7 +79,8 @@ function fracToSeconds(frac: string | undefined): number {
 export function parseTimestamp(ts: string): number | null {
   const m = TS_TOKEN_RE.exec(ts);
   if (!m) return null;
-  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10) + fracToSeconds(m[3]);
+  const seconds = parseInt(m[1], 10) * 60 + parseInt(m[2], 10) + fracToSeconds(m[3]);
+  return Number.isFinite(seconds) ? seconds : null;
 }
 
 // Accept both legacy minute timestamps and the hour-aware millisecond UI format.
@@ -88,7 +91,8 @@ export function parseTimestampInput(input: string): number | null {
   const mins = parseInt(m[2], 10);
   const secs = parseInt(m[3], 10);
   const fractionMs = parseInt(m[4], 10) * (m[4].length === 2 ? 10 : 1);
-  return ((hours * 3600 + mins * 60 + secs) * 1000 + fractionMs) / 1000;
+  const seconds = ((hours * 3600 + mins * 60 + secs) * 1000 + fractionMs) / 1000;
+  return Number.isFinite(seconds) ? seconds : null;
 }
 
 // LRC 파일 직렬화용 [MM:SS.xx]
@@ -165,6 +169,16 @@ export class LrcMetadataLineBreakError extends Error {
 }
 
 export const LRC_RESERVED_TAG_CONFLICT_CODE = "LRC_RESERVED_TAG_CONFLICT";
+export const LRC_INVALID_TIMESTAMP_CODE = "LRC_INVALID_TIMESTAMP";
+
+export class LrcInvalidTimestampError extends Error {
+  readonly code = LRC_INVALID_TIMESTAMP_CODE;
+
+  constructor() {
+    super("LRC timestamps and offsets must be finite numbers.");
+    this.name = "LrcInvalidTimestampError";
+  }
+}
 
 export class LrcReservedTagConflictError extends Error {
   readonly code = LRC_RESERVED_TAG_CONFLICT_CODE;
@@ -286,10 +300,20 @@ export function parseLrc(raw: string): LrcDocument {
     }
     const timestamps: number[] = [];
     let rest = line;
+    let invalidTimestamp = false;
     let tok: RegExpExecArray | null;
     while ((tok = TS_TOKEN_RE.exec(rest)) !== null) {
-      timestamps.push(parseInt(tok[1], 10) * 60 + parseInt(tok[2], 10) + fracToSeconds(tok[3]));
+      const timestamp = parseInt(tok[1], 10) * 60 + parseInt(tok[2], 10) + fracToSeconds(tok[3]);
+      if (!Number.isFinite(timestamp)) {
+        invalidTimestamp = true;
+        break;
+      }
+      timestamps.push(timestamp);
       rest = rest.slice(tok[0].length);
+    }
+    if (invalidTimestamp) {
+      timestamps.length = 0;
+      rest = line;
     }
     if (timestamps.length === 0) {
       const metaMatch = META_RE.exec(line.trim());
@@ -309,7 +333,11 @@ export function parseLrc(raw: string): LrcDocument {
           if (value === "1") preserveLineOrder = true;
           else doc.extraTags[key] = value;
         }
-        else if (field === "offset") doc.metadata.offset = parseInt(value, 10) || 0;
+        else if (field === "offset") {
+          const offset = Number(value);
+          if (Number.isFinite(offset)) doc.metadata.offset = offset;
+          else doc.extraTags[key] = value;
+        }
         else if (field) (doc.metadata as unknown as Record<string, string>)[field] = value;
         else doc.extraTags[key] = value;
         previous = [];
@@ -356,6 +384,11 @@ export function parseLrc(raw: string): LrcDocument {
 // enhanced=false면 글자/단어 동기화 태그를 제거하고 일반 LRC로 출력
 export function serializeLrc(doc: LrcDocument, enhanced = true): string {
   const { metadata, lines, extraTags } = doc;
+  if (!Number.isFinite(metadata.offset) || lines.some((line) =>
+    (line.timestamp !== null && !Number.isFinite(line.timestamp)) ||
+    line.syllables?.some((syllable) => syllable.time !== null && !Number.isFinite(syllable.time)))) {
+    throw new LrcInvalidTimestampError();
+  }
   const metadataValues = [metadata.title, metadata.artist, metadata.album, metadata.by,
     ...Object.entries(extraTags).flatMap(([key, value]) => [key, value])];
   if (metadataValues.some((value) => /[\r\n]/.test(value))) throw new LrcMetadataLineBreakError();
@@ -406,8 +439,11 @@ export function serializeLrc(doc: LrcDocument, enhanced = true): string {
     let outputTs = line.timestamp;
     const timedSyl = enhanced && line.syllables?.some((s) => s.time !== null);
     if (timedSyl && line.syllables) {
-      const times = line.syllables.filter((s) => s.time !== null).map((s) => s.time as number);
-      const lineTs = line.timestamp ?? Math.min(...times);
+      let earliest = Infinity;
+      for (const syllable of line.syllables) {
+        if (syllable.time !== null && syllable.time < earliest) earliest = syllable.time;
+      }
+      const lineTs = line.timestamp ?? earliest;
       outputTs = lineTs;
       let out = `[${formatTimestamp(lineTs)}]`;
       for (const s of line.syllables) {
