@@ -163,6 +163,15 @@ export class LrcMetadataLineBreakError extends Error {
   }
 }
 
+export class LrcTranslationTagConflictError extends Error {
+  readonly code = "LRC_TRANSLATION_TAG_CONFLICT";
+
+  constructor() {
+    super("The x-lyrical-translations tag is reserved to preserve translation rows.");
+    this.name = "LrcTranslationTagConflictError";
+  }
+}
+
 export class LrcInlineEscapeTagConflictError extends Error {
   readonly code = LRC_INLINE_ESCAPE_CONFLICT_CODE;
 
@@ -278,7 +287,10 @@ export function parseLrc(raw: string): LrcDocument {
         const key = metaMatch[1].toLowerCase();
         const value = metaMatch[2].trim();
         const field = META_TAGS[key];
-        if (key === TRANSLATION_TAG) translationMode = value === "1";
+        if (key === TRANSLATION_TAG) {
+          if (value === "1") translationMode = true;
+          else doc.extraTags[key] = value;
+        }
         else if (key === INLINE_ESCAPE_TAG) {
           if (value === "1") inlineEscapeMode = true;
           else doc.extraTags[key] = value;
@@ -334,9 +346,11 @@ export function serializeLrc(doc: LrcDocument, enhanced = true): string {
   const parts: string[] = [];
   const translationMode = lines.some(line => typeof line.translation === "string" || /[\r\n]/.test(line.text) || /^\s*\[/.test(line.text));
   const inlineEscapeMode = needsInlineTimestampEscape(doc);
-  if (Object.keys(extraTags).some((key) => key.toLowerCase() === INLINE_ESCAPE_TAG)) {
+  if (Object.keys(extraTags).some((key) => key.toLowerCase() === INLINE_ESCAPE_TAG) && inlineEscapeMode) {
     throw new LrcInlineEscapeTagConflictError();
   }
+  const translationTag = Object.keys(extraTags).find((key) => key.toLowerCase() === TRANSLATION_TAG);
+  if (translationTag && translationMode) throw new LrcTranslationTagConflictError();
   const encode = (text: string) => {
     const translated = translationMode ? escapeTranslationText(text) : text;
     return inlineEscapeMode ? escapeInlineTimestampText(translated) : translated;
@@ -348,7 +362,8 @@ export function serializeLrc(doc: LrcDocument, enhanced = true): string {
   if (metadata.by) parts.push(`[by:${metadata.by}]`);
   if (metadata.offset !== 0) parts.push(`[offset:${metadata.offset}]`);
   for (const [key, val] of Object.entries(extraTags)) {
-    if (key.toLowerCase() !== TRANSLATION_TAG) parts.push(`[${key}:${val}]`);
+    if (key.toLowerCase() === TRANSLATION_TAG && val === "1") continue;
+    parts.push(`[${key}:${val}]`);
   }
   if (inlineEscapeMode) parts.push(`[${INLINE_ESCAPE_TAG}:1]`);
   if (translationMode) parts.push(`[${TRANSLATION_TAG}:1]`);

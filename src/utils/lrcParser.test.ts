@@ -150,6 +150,14 @@ describe("parseLrc — line level", () => {
     expect(() => serializeLrc(original)).toThrow("x-lyrical-inline-escape tag is reserved");
   });
 
+  it("preserves unknown values for reserved LRC markers", () => {
+    const parsedTranslation = parseLrc("[x-lyrical-translations:custom]\n[00:01.00]text");
+    expect(serializeLrc(parsedTranslation)).toContain("[x-lyrical-translations:custom]");
+
+    const parsedInline = parseLrc("[x-lyrical-inline-escape:custom]\n[00:01.00]text");
+    expect(serializeLrc(parsedInline)).toContain("[x-lyrical-inline-escape:custom]");
+  });
+
   it("uses the extension in non-enhanced export without emitting inline timing tags", () => {
     const original = docOf([{
       id: "literal", timestamp: 1, text: "Look <00:02.00>",
