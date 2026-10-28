@@ -12,7 +12,7 @@ import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
 import { MODEL_DEFS } from "../../utils/modelDefs";
 import { listenSafely } from "../../utils/safeListen";
-import type { LrcSyllable } from "../../types/lrc";
+import type { LrcLine, LrcSyllable } from "../../types/lrc";
 import { CurrentTimeFooter } from "./CurrentTimeFooter";
 import { MiniConfirm } from "./MiniConfirm";
 import { FindReplaceBar } from "./FindReplaceBar";
@@ -34,7 +34,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   // currentTime은 푸터에서만 쓰므로 구독에서 제외 → 재생 중 줄 목록이 매 프레임 리렌더되지 않음
   const {
     doc, activeLineId, documentSession,
-    addLine, insertLinesAfter, updateLine, deleteLine,
+    addLine, insertLinesAfter, pasteLinesAfter, updateLine, deleteLine,
     duplicateLine, mergeLineUp, splitLine, moveLine, scaleTimestamps,
     deleteLines, shiftLines, clearTimestamps,
     stampCurrentLine, setActiveLineId,
@@ -47,7 +47,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   } = useLrcStore(
     useShallow((s) => ({
       doc: s.doc, activeLineId: s.activeLineId, documentSession: s._documentSession,
-      addLine: s.addLine, insertLinesAfter: s.insertLinesAfter, updateLine: s.updateLine, deleteLine: s.deleteLine,
+      addLine: s.addLine, insertLinesAfter: s.insertLinesAfter, pasteLinesAfter: s.pasteLinesAfter, updateLine: s.updateLine, deleteLine: s.deleteLine,
       duplicateLine: s.duplicateLine, mergeLineUp: s.mergeLineUp, splitLine: s.splitLine, moveLine: s.moveLine, scaleTimestamps: s.scaleTimestamps,
       deleteLines: s.deleteLines, shiftLines: s.shiftLines, clearTimestamps: s.clearTimestamps,
       stampCurrentLine: s.stampCurrentLine, setActiveLineId: s.setActiveLineId,
@@ -117,6 +117,11 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   const [pendingTextEdit, setPendingTextEdit] = useState<{
     id: string; text: string; session: number; baseText: string; baseSyllables: LrcSyllable[] | undefined;
   } | null>(null);
+  const [pendingGlyphMutation, setPendingGlyphMutation] = useState<{
+    session: number;
+    sources: Pick<LrcLine, "id" | "text" | "timestamp" | "syllables">[];
+    apply: () => void;
+  } | null>(null);
   const [pendingTranslationSplit, setPendingTranslationSplit] = useState<{
     id: string;
     caretPos: number;
@@ -140,6 +145,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     setEditingTsId(null);
     setEditTsValue("");
     setPendingTextEdit(null);
+    setPendingGlyphMutation(null);
     setPendingUnit(null);
     setPendingAiSync(null);
     setPendingTranslationSplit(null);
@@ -247,6 +253,33 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
       }
     }
     setPendingTextEdit(null);
+  };
+
+  const requestGlyphMutation = (sources: LrcLine[], apply: () => void) => {
+    if (!sources.some((line) => line.syllables?.some((syllable) => syllable.time !== null))) {
+      apply();
+      return;
+    }
+    setPendingGlyphMutation({
+      session: useLrcStore.getState()._documentSession,
+      sources: sources.map(({ id, text, timestamp, syllables }) => ({
+        id, text, timestamp, syllables: syllables?.map((syllable) => ({ ...syllable })),
+      })),
+      apply,
+    });
+  };
+
+  const confirmGlyphMutation = () => {
+    if (pendingGlyphMutation) {
+      const current = useLrcStore.getState();
+      const sourcesMatch = pendingGlyphMutation.sources.every((source) => {
+        const line = current.doc.lines.find((item) => item.id === source.id);
+        return line?.text === source.text && line.timestamp === source.timestamp &&
+          JSON.stringify(line?.syllables) === JSON.stringify(source.syllables);
+      });
+      if (current._documentSession === pendingGlyphMutation.session && sourcesMatch) pendingGlyphMutation.apply();
+    }
+    setPendingGlyphMutation(null);
   };
 
   // 단위 변경: 활성 줄에 글자 타이밍이 있으면 경고 후 해당 줄 초기화
@@ -404,14 +437,15 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     const after = currentText.slice(selEnd);
     const pasteLines = pasted.split(/\r?\n/);
 
-    // 텍스트가 바뀌므로 글자 동기화 토큰은 무효화
-    updateLine(id, { text: before + pasteLines[0], syllables: undefined });
-
     const restTexts = pasteLines.slice(1);
     restTexts[restTexts.length - 1] += after;
-    const newId = insertLinesAfter(id, restTexts);
-    setActiveLineId(newId);
-    pendingFocusId.current = newId;
+    const apply = () => {
+      const newId = pasteLinesAfter(id, before + pasteLines[0], restTexts);
+      setActiveLineId(newId);
+      pendingFocusId.current = newId;
+    };
+    const source = useLrcStore.getState().doc.lines.find((line) => line.id === id);
+    if (source) requestGlyphMutation([source], apply);
   };
 
   // 타임스탬프 검증 경고
@@ -563,9 +597,13 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
   const handleReplaceAll = useCallback(() => {
     if (!findText) return;
-    replaceInLines(findText, replaceText, caseSensitive);
+    const escaped = findText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(escaped, caseSensitive ? "g" : "gi");
+    const affected = useLrcStore.getState().doc.lines.filter((line) => line.text.replace(re, () => replaceText) !== line.text);
+    if (!affected.length) return;
+    requestGlyphMutation(affected, () => replaceInLines(findText, replaceText, caseSensitive));
     setMatchPos(0);
-  }, [findText, replaceText, caseSensitive, replaceInLines]);
+  }, [findText, replaceText, caseSensitive, replaceInLines, requestGlyphMutation]);
 
   const handleShiftApply = useCallback((fromIdx: number, toIdx: number, delta: number) => {
     shiftTimeRange(fromIdx, toIdx, delta);
@@ -856,8 +894,14 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
               onMergeUp={(e) => {
                 e.stopPropagation();
                 if (idx === 0) return;
-                const pid = mergeLineUp(line.id);
-                if (pid) { setActiveLineId(pid); pendingFocusId.current = pid; }
+                const currentLines = useLrcStore.getState().doc.lines;
+                const currentIndex = currentLines.findIndex((item) => item.id === line.id);
+                if (currentIndex <= 0) return;
+                const pair = currentLines.slice(currentIndex - 1, currentIndex + 1);
+                requestGlyphMutation(pair, () => {
+                  const pid = mergeLineUp(line.id);
+                  if (pid) { setActiveLineId(pid); pendingFocusId.current = pid; }
+                });
               }}
               onDuplicate={(e) => {
                 e.stopPropagation();
@@ -883,6 +927,16 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
           cancelLabel={t.charSync.retokenizeCancel}
           onOk={confirmTextEdit}
           onCancel={() => setPendingTextEdit(null)}
+        />
+      )}
+      {pendingGlyphMutation && (
+        <MiniConfirm
+          title={t.charSync.retokenizeTitle}
+          message={t.charSync.retokenizeMsg}
+          okLabel={t.charSync.retokenizeOk}
+          cancelLabel={t.charSync.retokenizeCancel}
+          onOk={confirmGlyphMutation}
+          onCancel={() => setPendingGlyphMutation(null)}
         />
       )}
       {pendingUnit && (

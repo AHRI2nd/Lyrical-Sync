@@ -180,6 +180,66 @@ it("asks before an individual find-and-replace clears timed glyphs", () => {
   fireEvent.click(getByRole("button", { name: t.charSync.retokenizeOk }));
   expect(useLrcStore.getState().doc.lines[0]).toMatchObject({ text: "new lyric", syllables: undefined });
 });
+it("asks before multiline paste replaces timed glyphs and preserves the source on cancel", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "old lyric", timestamp: 1,
+    syllables: [{ text: "old lyric", time: 1 }] }] } });
+  const { getByDisplayValue, getByText, getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  const input = getByDisplayValue("old lyric") as HTMLTextAreaElement;
+  input.setSelectionRange(0, input.value.length);
+  fireEvent.paste(input, { clipboardData: { getData: () => "new\nrow" } });
+  expect(getByText(t.charSync.retokenizeTitle)).toBeTruthy();
+  expect(useLrcStore.getState().doc.lines).toHaveLength(1);
+  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({ text: "old lyric", syllables: [{ text: "old lyric", time: 1 }] });
+  fireEvent.click(getByRole("button", { name: t.charSync.retokenizeCancel }));
+  expect(useLrcStore.getState().doc.lines).toHaveLength(1);
+  expect(useLrcStore.getState().doc.lines[0].syllables).toEqual([{ text: "old lyric", time: 1 }]);
+  fireEvent.paste(getByDisplayValue("old lyric"), { clipboardData: { getData: () => "new\nrow" } });
+  fireEvent.click(getByRole("button", { name: t.charSync.retokenizeOk }));
+  expect(useLrcStore.getState().doc.lines.map((line) => line.text)).toEqual(["new", "row"]);
+  expect(useLrcStore.getState()._history).toHaveLength(1);
+  act(() => useLrcStore.getState().undo());
+  expect(useLrcStore.getState().doc.lines).toHaveLength(1);
+  expect(useLrcStore.getState().doc.lines[0].syllables).toEqual([{ text: "old lyric", time: 1 }]);
+});
+it("asks before replace-all clears timed glyphs and treats identical replacement as a no-op", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "old lyric", timestamp: 1,
+    syllables: [{ text: "old lyric", time: 1 }] }] } });
+  const { getByRole, getByPlaceholderText, getByText, queryByText } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getByRole("button", { name: t.editorTools }));
+  fireEvent.click(getByRole("button", { name: t.findReplace }));
+  fireEvent.change(getByPlaceholderText(t.findPlaceholder), { target: { value: "old" } });
+  fireEvent.change(getByPlaceholderText(t.replacePlaceholder), { target: { value: "old" } });
+  fireEvent.click(getByRole("button", { name: t.replaceAll }));
+  expect(queryByText(t.charSync.retokenizeTitle)).toBeNull();
+  expect(useLrcStore.getState().doc.lines[0].syllables).toEqual([{ text: "old lyric", time: 1 }]);
+  fireEvent.change(getByPlaceholderText(t.replacePlaceholder), { target: { value: "new" } });
+  fireEvent.click(getByRole("button", { name: t.replaceAll }));
+  expect(getByText(t.charSync.retokenizeTitle)).toBeTruthy();
+  expect(useLrcStore.getState().doc.lines[0].text).toBe("old lyric");
+  fireEvent.click(getByRole("button", { name: t.charSync.retokenizeOk }));
+  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({ text: "new lyric", syllables: undefined });
+  expect(useLrcStore.getState()._history).toHaveLength(1);
+  act(() => useLrcStore.getState().undo());
+  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({ text: "old lyric", syllables: [{ text: "old lyric", time: 1 }] });
+});
+it("asks before merging timed glyph lines and leaves both intact until confirmed", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+    { id: "a", text: "first", timestamp: 1, syllables: [{ text: "first", time: 1 }] },
+    { id: "b", text: "second", timestamp: 2, syllables: [{ text: "second", time: 2 }] },
+  ] } });
+  const { getByRole, getByText, getAllByRole } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getAllByRole("button", { name: t.mergeLineUp })[1]);
+  expect(getByText(t.charSync.retokenizeTitle)).toBeTruthy();
+  expect(useLrcStore.getState().doc.lines).toHaveLength(2);
+  expect(useLrcStore.getState().doc.lines[1].syllables).toEqual([{ text: "second", time: 2 }]);
+  fireEvent.click(getByRole("button", { name: t.charSync.retokenizeOk }));
+  expect(useLrcStore.getState().doc.lines).toHaveLength(1);
+  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({ text: "first second", syllables: undefined });
+  expect(useLrcStore.getState()._history).toHaveLength(1);
+});
 it("rejects pending translation parts when the source has changed", () => {
   const t = useI18nStore.getState().t;
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "original", translation: "translated", timestamp: 1 }] } });

@@ -83,6 +83,7 @@ interface LrcStore {
   setLines: (lines: LrcLine[]) => void;
   addLine: (text?: string) => void;
   insertLinesAfter: (afterId: string, texts: string[]) => string;
+  pasteLinesAfter: (id: string, firstText: string, restTexts: string[]) => string;
   updateLine: (id: string, patch: Partial<Omit<LrcLine, "id">>) => void;
   deleteLine: (id: string) => void;
   /** 줄 복제(텍스트만, 타임스탬프 없이 바로 아래에). 새 줄 id 반환 */
@@ -466,6 +467,18 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     lines.splice(idx + 1, 0, ...newLines);
     set({ doc: { ...doc, lines }, isDirty: true });
     return lastId;
+  },
+
+  pasteLinesAfter: (id, firstText, restTexts) => {
+    const { doc } = get();
+    const idx = doc.lines.findIndex((line) => line.id === id);
+    if (idx < 0) return id;
+    const inserted = restTexts.map((text) => ({ id: genId(), timestamp: null as null, text }));
+    pushHistory("insertLines", inserted.length);
+    const lines = [...doc.lines];
+    lines.splice(idx, 1, { ...lines[idx], text: firstText, syllables: undefined }, ...inserted);
+    set({ doc: { ...doc, lines }, isDirty: true });
+    return inserted[inserted.length - 1]?.id ?? id;
   },
 
   updateLine: (id, patch) => {
@@ -879,9 +892,11 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     const newLines = doc.lines.map((l) => {
       const matches = l.text.match(re);
       if (!matches) return l;
+      const text = l.text.replace(re, () => replace);
+      if (text === l.text) return l;
       count += matches.length;
       // 텍스트가 바뀌면 옛 토큰 경계가 무효 → 글자 동기화 해제
-      return { ...l, text: l.text.replace(re, () => replace), syllables: undefined };
+      return { ...l, text, syllables: undefined };
     });
     if (count === 0) return 0;
     pushHistory("replaceAll", count);
