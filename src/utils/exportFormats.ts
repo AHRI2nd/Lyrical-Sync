@@ -5,6 +5,22 @@ import { LrcDocument, LrcLine } from "../types/lrc";
 interface Cue { start: number; end: number; line: LrcLine; }
 
 export const ASS_UNREPRESENTABLE_CONTENT_CODE = "ASS_UNREPRESENTABLE_CONTENT";
+export const VTT_UNREPRESENTABLE_CONTENT_CODE = "VTT_UNREPRESENTABLE_CONTENT";
+
+export class VttUnrepresentableContentError extends Error {
+  readonly code = VTT_UNREPRESENTABLE_CONTENT_CODE;
+
+  constructor() {
+    super("VTT cannot preserve blank paragraph rows in a cue.");
+    this.name = "VttUnrepresentableContentError";
+  }
+}
+
+function assertVttBodyRepresentable(value: string): void {
+  const rows = value.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+  while (rows.length && rows[rows.length - 1].trim() === "") rows.pop();
+  if (rows.some((row) => row.trim() === "")) throw new VttUnrepresentableContentError();
+}
 
 export class AssUnrepresentableContentError extends Error {
   readonly code = ASS_UNREPRESENTABLE_CONTENT_CODE;
@@ -71,7 +87,11 @@ function vttText(line: LrcLine): string {
 export function serializeVtt(doc: LrcDocument, lastCueEnd?: number): string {
   const cues = buildCues(doc, lastCueEnd);
   const body = cues
-    .map((c) => `${vttTime(c.start)} --> ${vttTime(c.end)}\n${vttText(c.line)}${c.line.text.trim() && c.line.translation ? `\n${escapeVttText(c.line.translation)}` : ""}`)
+    .map((c) => {
+      const text = c.line.text.trim() ? `${c.line.text}${c.line.translation ? `\n${c.line.translation}` : ""}` : c.line.translation ?? "";
+      assertVttBodyRepresentable(text);
+      return `${vttTime(c.start)} --> ${vttTime(c.end)}\n${vttText(c.line)}${c.line.text.trim() && c.line.translation ? `\n${escapeVttText(c.line.translation)}` : ""}`;
+    })
     .join("\n\n");
   return `WEBVTT\n\n${body}\n`;
 }

@@ -6,6 +6,12 @@ const emptyMeta = { title: "Song", artist: "", album: "", by: "", offset: 0 };
 const docOf = (lines: LrcDocument["lines"]): LrcDocument => ({ metadata: emptyMeta, lines, extraTags: {} });
 
 describe("serializeVtt", () => {
+  it.each([
+    { id: "combined", timestamp: 1, text: "original\r\n", translation: "translated" },
+    { id: "paragraph", timestamp: 1, text: "first\n\nsecond" },
+  ])("rejects cue bodies with blank paragraphs: $id", (line) => {
+    expect(() => serializeVtt(docOf([line]))).toThrow("VTT cannot preserve blank paragraph rows");
+  });
   it("escapes text characters in order without changing original text", () => {
     expect(escapeVttText("& < > &amp;")).toBe("&amp; &lt; &gt; &amp;amp;");
   });

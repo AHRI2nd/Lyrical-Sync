@@ -29,7 +29,7 @@ import { NewFileIcon, OpenFolderIcon, SaveIcon, SaveAsIcon, UndoIcon, RedoIcon, 
 import { HistoryPanel } from "./components/AppShell/HistoryPanel";
 import { RecentFilesMenu } from "./components/AppShell/RecentFilesMenu";
 import { SrtLossyDocumentError, SrtUnrepresentableContentError } from "./utils/srtConverter";
-import { AssUnrepresentableContentError } from "./utils/exportFormats";
+import { AssUnrepresentableContentError, VttUnrepresentableContentError } from "./utils/exportFormats";
 import { LrcInlineEscapeTagConflictError, needsInlineTimestampEscape } from "./utils/lrcParser";
 
 const AUDIO_EXTS = ["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff", "aif"];
@@ -37,13 +37,14 @@ const LYRICS_EXTS = ["lrc", "srt"];
 const fileExt = (p: string) => p.split(".").pop()?.toLowerCase() ?? "";
 
 function serializationErrorCode(error: unknown): string | null {
-  if (error instanceof SrtUnrepresentableContentError || error instanceof SrtLossyDocumentError || error instanceof AssUnrepresentableContentError || error instanceof LrcInlineEscapeTagConflictError) return error.code;
+  if (error instanceof SrtUnrepresentableContentError || error instanceof SrtLossyDocumentError || error instanceof VttUnrepresentableContentError || error instanceof AssUnrepresentableContentError || error instanceof LrcInlineEscapeTagConflictError) return error.code;
   return null;
 }
 
 function saveErrorMessage(error: unknown, t: ReturnType<typeof useI18nStore.getState>["t"]): string {
   if (error instanceof SrtUnrepresentableContentError) return t.toast.srtBlankRowsUnsupported;
   if (error instanceof SrtLossyDocumentError) return t.toast.srtLossyDocument;
+  if (error instanceof VttUnrepresentableContentError) return t.toast.vttBlankRowsUnsupported;
   if (error instanceof AssUnrepresentableContentError) return t.toast.assUnrepresentableContent;
   if (error instanceof LrcInlineEscapeTagConflictError) return t.toast.lrcInlineEscapeConflict;
   return t.toast.saveFailed;
