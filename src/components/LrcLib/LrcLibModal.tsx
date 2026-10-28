@@ -9,10 +9,11 @@ import {
   type LrcLibQuery,
 } from "../../utils/lrclib";
 
-function fmtDur(sec: number): string {
-  if (!sec || sec < 0) return "";
-  const m = Math.floor(sec / 60);
-  const s = Math.round(sec % 60);
+export function formatLrcLibDuration(sec: number): string {
+  if (!Number.isFinite(sec) || sec < 0) return "";
+  const totalSeconds = Math.round(sec);
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
@@ -262,7 +263,7 @@ function ResultRow({
   onConfirm: () => void;
   applying: boolean;
 }) {
-  const dur = fmtDur(r.duration);
+  const dur = formatLrcLibDuration(r.duration);
   const hasLyrics = !!(r.syncedLyrics || r.plainLyrics);
   return (
     <div className="flex items-center gap-3 rounded-lg px-3 py-2 bg-[var(--ls-control)]/50 hover:bg-[var(--ls-control)] transition-colors">

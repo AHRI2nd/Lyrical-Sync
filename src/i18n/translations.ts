@@ -434,6 +434,8 @@ export interface Translations {
   modelErrorPrefix: string;
   modelRequired: string;
   modelOptional: string;
+  modelRequiredHint: string;
+  modelOptionalHint: string;
   aiUsageTitle: string;
   aiUsageSeparation: string;
   aiUsageSeparationDesc: string;
@@ -521,6 +523,9 @@ export interface Translations {
   spotifyNoTrackAlertTitle: string;
   spotifyNoTrackAlertMessage: string;
   spotifyNoTrackAlertOk: string;
+  spotifyPlaylistLoadFailed: string;
+  spotifyNoPlayableDevices: string;
+  spotifyPlaybackFailed: string;
   settingsTabYouTube: string;
   ytdlpTitle: string;
   ytdlpInstalled: string;
@@ -529,6 +534,7 @@ export interface Translations {
   ytdlpDownload: string;
   ytdlpUpdate: string;
   ytdlpDownloading: string;
+  ytdlpChecking: string;
   ytdlpRefresh: string;
   ytdlpAudioQuality: string;
   ytdlpQualityBest: string;
@@ -1048,6 +1054,8 @@ const ko: Translations = {
   modelErrorPrefix: "오류",
   modelRequired: "필수",
   modelOptional: "선택",
+  modelRequiredHint: "AI 기능 동작에 필수",
+  modelOptionalHint: "설치 시 품질 향상",
   aiUsageTitle: "정렬에 사용",
   aiUsageSeparation: "보컬 분리 (Demucs)",
   aiUsageSeparationDesc: "정렬 전 보컬을 분리해 정확도를 높입니다 (느려짐)",
@@ -1133,6 +1141,9 @@ const ko: Translations = {
   spotifyNoTrackAlertTitle: "재생 중인 곡 없음",
   spotifyNoTrackAlertMessage: "현재 Spotify에서 재생 중인 곡이 없습니다.\nSpotify 앱에서 곡을 재생한 후 다시 시도하거나, 직접 검색하세요.",
   spotifyNoTrackAlertOk: "확인",
+  spotifyPlaylistLoadFailed: "플레이리스트 로드 실패 ({status})",
+  spotifyNoPlayableDevices: "재생 가능한 Spotify 기기가 없습니다. Spotify 앱(폰 또는 PC)을 먼저 열어주세요.",
+  spotifyPlaybackFailed: "재생 실패: {error}",
   settingsTabYouTube: "YouTube",
   ytdlpTitle: "yt-dlp",
   ytdlpInstalled: "설치됨",
@@ -1141,6 +1152,7 @@ const ko: Translations = {
   ytdlpDownload: "yt-dlp 다운로드",
   ytdlpUpdate: "업데이트",
   ytdlpDownloading: "다운로드 중...",
+  ytdlpChecking: "확인 중…",
   ytdlpRefresh: "새로고침",
   ytdlpAudioQuality: "오디오 품질",
   ytdlpQualityBest: "최고 품질 (bestaudio)",
@@ -1661,6 +1673,8 @@ const en: Translations = {
   modelErrorPrefix: "Error",
   modelRequired: "Required",
   modelOptional: "Optional",
+  modelRequiredHint: "Required for AI features to work",
+  modelOptionalHint: "Improves quality when installed",
   aiUsageTitle: "Use for alignment",
   aiUsageSeparation: "Vocal separation (Demucs)",
   aiUsageSeparationDesc: "Isolate vocals before alignment for better accuracy (slower)",
@@ -1746,6 +1760,9 @@ const en: Translations = {
   spotifyNoTrackAlertTitle: "No track playing",
   spotifyNoTrackAlertMessage: "No track is currently playing on Spotify.\nPlay a track in the Spotify app and try again, or search directly.",
   spotifyNoTrackAlertOk: "OK",
+  spotifyPlaylistLoadFailed: "Failed to load playlists ({status})",
+  spotifyNoPlayableDevices: "No playable Spotify device is available. Open Spotify on your phone or computer first.",
+  spotifyPlaybackFailed: "Playback failed: {error}",
   settingsTabYouTube: "YouTube",
   ytdlpTitle: "yt-dlp",
   ytdlpInstalled: "Installed",
@@ -1754,6 +1771,7 @@ const en: Translations = {
   ytdlpDownload: "Download yt-dlp",
   ytdlpUpdate: "Update",
   ytdlpDownloading: "Downloading...",
+  ytdlpChecking: "Checking…",
   ytdlpRefresh: "Refresh",
   ytdlpAudioQuality: "Audio quality",
   ytdlpQualityBest: "Best quality (bestaudio)",
@@ -2273,6 +2291,8 @@ const ja: Translations = {
   modelErrorPrefix: "エラー",
   modelRequired: "必須",
   modelOptional: "任意",
+  modelRequiredHint: "AI機能の動作に必要",
+  modelOptionalHint: "インストールすると品質が向上",
   aiUsageTitle: "整列に使用",
   aiUsageSeparation: "ボーカル分離 (Demucs)",
   aiUsageSeparationDesc: "整列前にボーカルを分離して精度を向上（遅くなります）",
@@ -2358,6 +2378,9 @@ const ja: Translations = {
   spotifyNoTrackAlertTitle: "再生中の曲なし",
   spotifyNoTrackAlertMessage: "現在Spotifyで再生中の曲がありません。\nSpotifyアプリで曲を再生してから再試行するか、直接検索してください。",
   spotifyNoTrackAlertOk: "OK",
+  spotifyPlaylistLoadFailed: "プレイリストの読み込みに失敗しました（{status}）",
+  spotifyNoPlayableDevices: "再生可能なSpotifyデバイスがありません。先にスマートフォンまたはPCでSpotifyを開いてください。",
+  spotifyPlaybackFailed: "再生に失敗しました: {error}",
   settingsTabYouTube: "YouTube",
   ytdlpTitle: "yt-dlp",
   ytdlpInstalled: "インストール済み",
@@ -2366,6 +2389,7 @@ const ja: Translations = {
   ytdlpDownload: "yt-dlpをダウンロード",
   ytdlpUpdate: "アップデート",
   ytdlpDownloading: "ダウンロード中...",
+  ytdlpChecking: "確認中…",
   ytdlpRefresh: "更新",
   ytdlpAudioQuality: "音声品質",
   ytdlpQualityBest: "最高品質 (bestaudio)",

@@ -15,6 +15,7 @@ beforeEach(() => {
   invoke.mockReset();
   listen.mockReset().mockResolvedValue(() => {});
   useSettingsStore.setState({ ytdlpAudioQuality: 'best' });
+  useI18nStore.getState().setLang('ko');
   vi.stubGlobal('fetch', vi.fn(async () => ({ json: async () => ({ tag_name: 'v1' }) })));
 });
 afterEach(cleanup);
@@ -41,4 +42,11 @@ it('exposes audio quality as a keyboard-operable radio group', async () => {
   await user.click(best);
   await user.keyboard('{ArrowDown}');
   expect(useSettingsStore.getState().ytdlpAudioQuality).toBe('192');
+});
+
+it.each(['ko', 'en', 'ja'] as const)('localizes the checking state in %s', async (lang) => {
+  useI18nStore.getState().setLang(lang);
+  invoke.mockImplementation((command: string) => command === 'check_ytdlp' ? new Promise(() => {}) : Promise.resolve(undefined));
+  render(<YtdlpSection />);
+  expect(screen.getByText(useI18nStore.getState().t.ytdlpChecking)).toBeTruthy();
 });

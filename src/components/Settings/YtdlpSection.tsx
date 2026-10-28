@@ -85,7 +85,7 @@ export function YtdlpSection() {
         if (total > 0) setDlPercent(Math.round((downloaded / total) * 100));
         if (done) {
           // Exit downloading state immediately — don't block on version check.
-          // refresh() runs in background; "확인 중…" shows during that time.
+          // Refresh runs in the background; the checking label remains visible during that time.
           setDlPercent(100);
           setDownloading(false);
           refresh();
@@ -156,7 +156,7 @@ export function YtdlpSection() {
               </span>
             )}
             {checking && (
-              <span className="text-xs text-[var(--ls-text-secondary)]">확인 중…</span>
+              <span className="text-xs text-[var(--ls-text-secondary)]">{t.ytdlpChecking}</span>
             )}
           </div>
           <button

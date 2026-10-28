@@ -66,7 +66,7 @@ export function SpotifySearchModal({ onClose }: Props) {
         if (!resp.ok) {
           const text = await resp.text();
           console.error("[playlists] fetch failed:", resp.status, text);
-          setError(`플레이리스트 로드 실패 (${resp.status})`);
+          setError(t.spotifyPlaylistLoadFailed.replace("{status}", String(resp.status)));
           setLoading(false);
           return;
         }
@@ -179,9 +179,9 @@ export function SpotifySearchModal({ onClose }: Props) {
     } catch (e) {
       const msg = String(e);
       if (msg.includes("NO_ACTIVE_DEVICE") || msg.includes("No active device")) {
-        setError("재생 가능한 Spotify 기기가 없습니다. Spotify 앱(폰 또는 PC)을 먼저 열어주세요.");
+        setError(t.spotifyNoPlayableDevices);
       } else {
-        setError(`재생 실패: ${msg}`);
+        setError(t.spotifyPlaybackFailed.replace("{error}", msg));
       }
     }
   };

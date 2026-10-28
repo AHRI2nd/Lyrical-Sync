@@ -182,13 +182,13 @@ export function ModelDownloadSection() {
           <span className="px-1.5 py-0.5 rounded text-[var(--ls-playhead)] bg-[var(--ls-playhead)]/40 font-semibold text-[10px]">
             {t.modelRequired}
           </span>
-          <span className="text-[var(--ls-text-secondary)]">AI 기능 동작에 필수</span>
+          <span className="text-[var(--ls-text-secondary)]">{t.modelRequiredHint}</span>
         </span>
         <span className="flex items-center gap-1.5">
           <span className="px-1.5 py-0.5 rounded text-[var(--ls-text-secondary)] bg-[var(--ls-control)]/60 font-semibold text-[10px]">
             {t.modelOptional}
           </span>
-          <span className="text-[var(--ls-text-secondary)]">설치 시 품질 향상</span>
+          <span className="text-[var(--ls-text-secondary)]">{t.modelOptionalHint}</span>
         </span>
       </div>
 
