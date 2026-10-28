@@ -162,6 +162,42 @@ it("does not start AI sync from a glyph warning after the audio selection change
 
   expect(invoke).not.toHaveBeenCalledWith("run_alignment", expect.anything());
 });
+it("ignores AI readiness results for a model directory that is no longer selected", async () => {
+  const deferred = <T,>() => {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((done) => { resolve = done; });
+    return { promise, resolve };
+  };
+  const envA = deferred<{ packagesReady: boolean }>();
+  const filesA = deferred<boolean[]>();
+  const envB = deferred<{ packagesReady: boolean }>();
+  const filesB = deferred<boolean[]>();
+  let envCalls = 0;
+  let fileCalls = 0;
+  vi.mocked(invoke).mockImplementation((command: unknown) => {
+    if (command === "set_models_dir_override") return Promise.resolve(undefined);
+    if (command === "get_python_env_info") return [envA.promise, envB.promise][envCalls++];
+    if (command === "check_model_files") return [filesA.promise, filesB.promise][fileCalls++];
+    return Promise.resolve(undefined);
+  });
+  useSettingsStore.setState({ modelsDir: "/models/A", deviceMode: false, spotifyMode: false });
+  useLrcStore.setState({ audioPath: "/tmp/audio.wav" });
+  const { getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  const aiButton = getByRole("button", { name: useI18nStore.getState().t.aiAutoSync });
+
+  await vi.waitFor(() => expect(envCalls).toBe(1));
+  await act(async () => { envA.resolve({ packagesReady: true }); await envA.promise; });
+  await vi.waitFor(() => expect(fileCalls).toBe(1));
+  act(() => useSettingsStore.setState({ modelsDir: "/models/B" }));
+  await vi.waitFor(() => expect(envCalls).toBe(2));
+  await act(async () => { envB.resolve({ packagesReady: true }); await envB.promise; });
+  await vi.waitFor(() => expect(fileCalls).toBe(2));
+  await act(async () => { filesB.resolve([true]); await filesB.promise; });
+  await vi.waitFor(() => expect(aiButton.hasAttribute("disabled")).toBe(false));
+
+  await act(async () => { filesA.resolve([false]); await filesA.promise; });
+  expect(aiButton.hasAttribute("disabled")).toBe(false);
+});
 it("routes line seeking to the device controller when device mode is selected", () => {
   useSettingsStore.setState({ deviceMode: true, spotifyMode: false });
   useDeviceStore.setState({ hasSession: true, positionMs: 4321 });

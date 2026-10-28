@@ -80,6 +80,16 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
   const [pythonReady, setPythonReady] = useState(false);
   const [missingModels, setMissingModels] = useState<string[]>([]);
+  const aiRequirementsRequest = useRef(0);
+  const aiRequirementsMounted = useRef(true);
+
+  useEffect(() => {
+    aiRequirementsMounted.current = true;
+    return () => {
+      aiRequirementsMounted.current = false;
+      aiRequirementsRequest.current += 1;
+    };
+  }, []);
 
   // Find/Replace state
   const [showFR, setShowFR] = useState(false);
@@ -343,24 +353,34 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   };
 
   const checkAiRequirements = useCallback(async () => {
+    const requestId = ++aiRequirementsRequest.current;
+    const requestedModelsDir = modelsDir;
+    const isCurrent = () => aiRequirementsMounted.current
+      && requestId === aiRequirementsRequest.current
+      && useSettingsStore.getState().modelsDir === requestedModelsDir;
     // 앱 재시작 뒤에도 설정 화면을 열기 전에 커스텀 모델 경로를 Rust 상태에 반영한다.
     await invoke("set_models_dir_override", { path: modelsDir || null }).catch(() => {});
+    if (!isCurrent()) return;
     try {
       const v = await invoke<{ packagesReady: boolean }>("get_python_env_info");
+      if (!isCurrent()) return;
       setPythonReady(v.packagesReady);
     } catch {
+      if (!isCurrent()) return;
       setPythonReady(false);
     }
     const missing: string[] = [];
     for (const model of MODEL_DEFS.filter((m) => m.required)) {
       try {
         const results = await invoke<boolean[]>("check_model_files", { filenames: model.files.map((f) => f.filename) });
+        if (!isCurrent()) return;
         if (!results.every(Boolean)) missing.push(model.name);
       } catch {
+        if (!isCurrent()) return;
         missing.push(model.name);
       }
     }
-    setMissingModels(missing);
+    if (isCurrent()) setMissingModels(missing);
   }, [modelsDir]);
 
   useEffect(() => { checkAiRequirements(); }, [checkAiRequirements]);
