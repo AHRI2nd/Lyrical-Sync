@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { isComposingKeyEvent } from "../../utils/keybindings";
 import {
   lrclibSearch,
   sortByAccuracy,
@@ -77,7 +78,7 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
   // ESC: 미리보기 먼저 닫고, 없으면 모달 닫기
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+      if (e.key !== "Escape" || isComposingKeyEvent(e)) return;
       if (preview) setPreview(null);
       else onClose();
     };
@@ -245,7 +246,7 @@ function Field({
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter") onEnter(); }}
+        onKeyDown={(e) => { if (e.key === "Enter" && !isComposingKeyEvent(e.nativeEvent)) onEnter(); }}
         className="ls-field text-sm"
       />
     </div>

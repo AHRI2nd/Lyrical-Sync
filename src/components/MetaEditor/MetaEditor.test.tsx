@@ -72,3 +72,18 @@ it("keeps the raw editor available when an inactive reserved tag has an unknown 
   const editor = screen.getAllByRole("textbox").find((element) => element.tagName === "TEXTAREA") as HTMLTextAreaElement;
   expect(editor.value).toContain("[x-lyrical-inline-escape:external-value]");
 });
+
+it("does not close the raw editor when Escape is composing an IME character", () => {
+  const t = useI18nStore.getState().t;
+  render(<MetaEditor />);
+  fireEvent.click(screen.getByRole("button", { name: t.viewAll }));
+  const editor = screen.getAllByRole("textbox").find((element) => element.tagName === "TEXTAREA");
+  expect(editor).toBeTruthy();
+
+  fireEvent.keyDown(window, { key: "Escape", isComposing: true });
+  fireEvent.keyDown(window, { key: "Escape", keyCode: 229 });
+
+  expect(screen.getAllByRole("textbox").some((element) => element.tagName === "TEXTAREA")).toBe(true);
+  fireEvent.keyDown(window, { key: "Escape" });
+  expect(screen.queryAllByRole("textbox").some((element) => element.tagName === "TEXTAREA")).toBe(false);
+});

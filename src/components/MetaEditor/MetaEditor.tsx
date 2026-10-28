@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { isComposingKeyEvent } from "../../utils/keybindings";
 import { serializeLrc } from "../../utils/lrcParser";
 // 검색/불러오기·업로드 모달은 버튼 클릭 시에만 필요 → 지연 로드(초기 번들 절감)
 const LrcLibModal = lazy(() => import("../LrcLib/LrcLibModal").then((m) => ({ default: m.LrcLibModal })));
@@ -205,7 +206,7 @@ function RawEditorModal({
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && !isComposingKeyEvent(e)) onClose();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);

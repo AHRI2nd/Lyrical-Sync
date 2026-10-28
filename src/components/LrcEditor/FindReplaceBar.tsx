@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { isComposingKeyEvent } from "../../utils/keybindings";
 
 export function FindReplaceBar({
   findText, replaceText, caseSensitive,
@@ -20,7 +21,7 @@ export function FindReplaceBar({
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && !isComposingKeyEvent(e)) onClose();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -42,7 +43,7 @@ export function FindReplaceBar({
           value={findText}
           onChange={(e) => onFindChange(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") { e.preventDefault(); e.shiftKey ? onPrev() : onNext(); }
+            if (e.key === "Enter" && !isComposingKeyEvent(e.nativeEvent)) { e.preventDefault(); e.shiftKey ? onPrev() : onNext(); }
           }}
           placeholder={t.findPlaceholder}
           className="ls-field flex-1 min-w-0 text-sm text-white transition-colors"
@@ -87,7 +88,7 @@ export function FindReplaceBar({
           type="text"
           value={replaceText}
           onChange={(e) => onReplaceChange(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onReplace(); } }}
+          onKeyDown={(e) => { if (e.key === "Enter" && !isComposingKeyEvent(e.nativeEvent)) { e.preventDefault(); onReplace(); } }}
           placeholder={t.replacePlaceholder}
           className="ls-field flex-1 min-w-0 text-sm text-white transition-colors"
         />
