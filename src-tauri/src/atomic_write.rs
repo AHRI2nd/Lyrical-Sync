@@ -1,25 +1,12 @@
 use std::fs::{self, File, OpenOptions};
 use std::io;
-#[cfg(any(test, not(target_os = "macos")))]
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
 pub fn write_atomic(path: &Path, content: &str) -> io::Result<()> {
     #[cfg(target_os = "macos")]
     {
-        use objc2_foundation::{NSData, NSDataWritingOptions, NSString, NSURL};
-        let (target, _) = destination(path)?;
-        let path = target
-            .to_str()
-            .ok_or_else(|| io::Error::other("Invalid file path"))?;
-        let url = NSURL::fileURLWithPath(&NSString::from_str(path));
-        // Foundation's atomic writer is the macOS document-save adapter. The
-        // caller retains the security-scoped FileAccess for the whole operation.
-        NSData::with_bytes(content.as_bytes())
-            .writeToURL_options_error(&url, NSDataWritingOptions::Atomic)
-            .map_err(|error| io::Error::other(error.to_string()))?;
-        File::open(&target)?.sync_all()?;
-        Ok(())
+        write_with(path, |file| file.write_all(content.as_bytes()))
     }
     #[cfg(not(target_os = "macos"))]
     write_with(path, |file| file.write_all(content.as_bytes()))
@@ -36,6 +23,21 @@ fn destination(path: &Path) -> io::Result<(PathBuf, Option<fs::Permissions>)> {
             if !metadata.is_file() {
                 return Err(io::Error::other("Destination is not a regular file"));
             }
+            #[cfg(target_os = "macos")]
+            {
+                use std::os::macos::fs::MetadataExt;
+                use std::os::unix::fs::MetadataExt as UnixMetadataExt;
+                if metadata.nlink() > 1 {
+                    return Err(io::Error::other(
+                        "Destination has multiple hard links; use Save As to preserve linked files",
+                    ));
+                }
+                if metadata.st_flags() != 0 {
+                    return Err(io::Error::other(
+                        "Destination has file flags that cannot be preserved by an atomic save",
+                    ));
+                }
+            }
             Ok((target, Some(metadata.permissions())))
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok((PathBuf::from(path), None)),
@@ -43,7 +45,6 @@ fn destination(path: &Path) -> io::Result<(PathBuf, Option<fs::Permissions>)> {
     }
 }
 
-#[cfg(any(test, not(target_os = "macos")))]
 fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> io::Result<()> {
     let (target, permissions) = destination(path)?;
     #[cfg(windows)]
@@ -54,8 +55,12 @@ fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> i
         .unwrap_or(Path::new("."));
     let mut stage = tempfile::NamedTempFile::new_in(parent)?;
     write(stage.as_file_mut())?;
-    if let Some(permissions) = permissions {
+    if let Some(permissions) = permissions.clone() {
         stage.as_file().set_permissions(permissions)?;
+    }
+    #[cfg(target_os = "macos")]
+    if permissions.is_some() {
+        preserve_macos_metadata(&target, stage.path(), stage.as_file())?;
     }
     stage.as_file_mut().flush()?;
     stage.as_file().sync_all()?;
@@ -67,6 +72,48 @@ fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> i
     // after the rename is reported as uncertain durability, never as success.
     #[cfg(unix)]
     File::open(parent)?.sync_all()?;
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn preserve_macos_metadata(source: &Path, stage_path: &Path, stage: &File) -> io::Result<()> {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+    use xattr::FileExt;
+
+    for name in xattr::list_deref(source)? {
+        let value = xattr::get_deref(source, &name)?
+            .ok_or_else(|| io::Error::other("Destination metadata changed during atomic save"))?;
+        stage.set_xattr(&name, &value)?;
+    }
+
+    type Acl = *mut std::ffi::c_void;
+    const ACL_TYPE_EXTENDED: u32 = 0x0000_0100;
+    #[link(name = "System")]
+    extern "C" {
+        fn acl_get_file(path: *const libc::c_char, acl_type: u32) -> Acl;
+        fn acl_set_file(path: *const libc::c_char, acl_type: u32, acl: Acl) -> libc::c_int;
+        fn acl_free(obj: *mut std::ffi::c_void) -> libc::c_int;
+    }
+
+    let source_path = CString::new(source.as_os_str().as_bytes())
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "Path contains a NUL byte"))?;
+    let stage_path = CString::new(stage_path.as_os_str().as_bytes())
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "Path contains a NUL byte"))?;
+    let acl = unsafe { acl_get_file(source_path.as_ptr(), ACL_TYPE_EXTENDED) };
+    if acl.is_null() {
+        let error = io::Error::last_os_error();
+        if error.kind() == io::ErrorKind::NotFound {
+            return Ok(());
+        }
+        return Err(error);
+    }
+    let result = unsafe { acl_set_file(stage_path.as_ptr(), ACL_TYPE_EXTENDED, acl) };
+    let error = (result == -1).then(io::Error::last_os_error);
+    unsafe { acl_free(acl.cast()) };
+    if let Some(error) = error {
+        return Err(error);
+    }
     Ok(())
 }
 
@@ -199,6 +246,81 @@ mod tests {
             .unwrap()
             .file_type()
             .is_symlink());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn refuses_to_replace_one_name_of_a_hard_link_pair() {
+        use std::os::unix::fs::MetadataExt;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("song.lrc");
+        let other = dir.path().join("alias.lrc");
+        std::fs::write(&path, "original").unwrap();
+        std::fs::hard_link(&path, &other).unwrap();
+
+        let error = write_atomic(&path, "updated").unwrap_err();
+
+        assert!(error.to_string().contains("hard links"));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "original");
+        assert_eq!(std::fs::read_to_string(&other).unwrap(), "original");
+        assert_eq!(std::fs::metadata(&path).unwrap().nlink(), 2);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn preserves_user_extended_attributes() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("tagged.lrc");
+        std::fs::write(&path, "old").unwrap();
+        xattr::set(&path, "com.lyrical-sync.test", b"metadata").unwrap();
+
+        write_atomic(&path, "new").unwrap();
+
+        assert_eq!(
+            xattr::get(&path, "com.lyrical-sync.test").unwrap(),
+            Some(b"metadata".to_vec())
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn preserves_extended_acl_entries() {
+        use std::ffi::{CStr, CString};
+        use std::os::unix::ffi::OsStrExt;
+        type Acl = *mut std::ffi::c_void;
+        const ACL_TYPE_EXTENDED: u32 = 0x0000_0100;
+        #[link(name = "System")]
+        extern "C" {
+            fn acl_get_file(path: *const libc::c_char, acl_type: u32) -> Acl;
+            fn acl_to_text(acl: Acl, len: *mut libc::ssize_t) -> *mut libc::c_char;
+            fn acl_free(obj: *mut std::ffi::c_void) -> libc::c_int;
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("acl.lrc");
+        std::fs::write(&path, "old").unwrap();
+        let path_c = CString::new(path.as_os_str().as_bytes()).unwrap();
+        let status = std::process::Command::new("chmod")
+            .args(["+a", "everyone allow read"])
+            .arg(&path)
+            .status()
+            .unwrap();
+        assert!(status.success());
+
+        write_atomic(&path, "new").unwrap();
+
+        let copied = unsafe { acl_get_file(path_c.as_ptr(), ACL_TYPE_EXTENDED) };
+        assert!(!copied.is_null());
+        let rendered_ptr = unsafe { acl_to_text(copied, std::ptr::null_mut()) };
+        assert!(!rendered_ptr.is_null());
+        let rendered = unsafe { CStr::from_ptr(rendered_ptr) }
+            .to_string_lossy()
+            .into_owned();
+        assert!(rendered.contains("everyone:12:allow:read"), "{rendered}");
+        unsafe {
+            acl_free(rendered_ptr.cast());
+            acl_free(copied.cast());
+        }
     }
 }
 

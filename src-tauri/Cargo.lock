@@ -2008,6 +2008,7 @@ name = "lyrical-sync"
 version = "0.7.1"
 dependencies = [
  "hound",
+ "libc",
  "lofty",
  "objc2",
  "objc2-foundation",
@@ -2020,6 +2021,7 @@ dependencies = [
  "tauri-plugin-fs",
  "tauri-plugin-opener",
  "tempfile",
+ "xattr",
 ]
 
 [[package]]
@@ -5292,6 +5294,16 @@ dependencies = [
  "libc",
  "once_cell",
  "pkg-config",
+]
+
+[[package]]
+name = "xattr"
+version = "1.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32e45ad4206f6d2479085147f02bc2ef834ac85886624a23575ae137c8aa8156"
+dependencies = [
+ "libc",
+ "rustix",
 ]
 
 [[package]]
