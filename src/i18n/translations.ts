@@ -171,6 +171,7 @@ export interface Translations {
     needArtist: string;
     needDuration: string;
     needSync: string;
+    unsupportedTimestampText: string;
     hint: string;
     warning: string;
     confirm: string;
@@ -774,6 +775,7 @@ const ko: Translations = {
     needArtist: "아티스트",
     needDuration: "오디오 길이(오디오를 열어주세요)",
     needSync: "타임스탬프가 있는 동기화 가사",
+    unsupportedTimestampText: "가사에 타임스탬프 형식의 리터럴 문자가 있어 안전하게 업로드할 수 없습니다. 해당 텍스트를 수정한 뒤 다시 시도하세요.",
     hint: "현재 곡 정보·동기화 가사를 LRCLIB에 공개 기여합니다. 정확한 제목·아티스트·길이를 확인하세요.",
     warning: "LRCLIB는 누구나 볼 수 있는 공개 데이터베이스입니다. 부정확하거나 테스트용 가사를 올리면 다른 사용자에게 영향을 주며 되돌리기 어렵습니다. 또한 가사는 저작권의 대상일 수 있으니 본인이 권리를 갖거나 허용된 경우에만 기여하세요. 제목·아티스트·가사가 정확한지 다시 확인하셨나요?",
     confirm: "확인했으며 업로드",
@@ -1383,6 +1385,7 @@ const en: Translations = {
     needArtist: "Artist",
     needDuration: "Audio duration (open an audio file)",
     needSync: "Synced lyrics with timestamps",
+    unsupportedTimestampText: "The lyrics contain literal timestamp-shaped text that external parsers may misread. Edit the text before publishing.",
     hint: "Publicly contribute the current song info and synced lyrics to LRCLIB. Double-check the title, artist, and duration.",
     warning: "LRCLIB is a public database visible to everyone. Uploading inaccurate or test lyrics affects other users and is hard to undo. Lyrics may also be copyrighted — only contribute content you own or are permitted to share. Have you double-checked the title, artist, and lyrics?",
     confirm: "I've checked — upload",
@@ -1993,6 +1996,7 @@ const ja: Translations = {
     needArtist: "アーティスト",
     needDuration: "音声の長さ（音声を開いてください）",
     needSync: "タイムスタンプ付きの同期歌詞",
+    unsupportedTimestampText: "歌詞に外部パーサーが誤読する可能性のあるタイムスタンプ形式の文字があります。テキストを修正してから公開してください。",
     hint: "現在の曲情報・同期歌詞をLRCLIBに公開貢献します。タイトル・アーティスト・長さを確認してください。",
     warning: "LRCLIBは誰でも閲覧できる公開データベースです。不正確またはテスト用の歌詞を投稿すると他のユーザーに影響し、取り消しが困難です。また歌詞は著作権の対象となる場合があるため、ご自身が権利を有するか許可された場合のみ投稿してください。タイトル・アーティスト・歌詞を再確認しましたか？",
     confirm: "確認のうえ公開",

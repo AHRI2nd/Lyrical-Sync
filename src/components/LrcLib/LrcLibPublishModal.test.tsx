@@ -31,3 +31,11 @@ it('Escape releases a pending publish without waiting for the native response',a
  invoke.mockImplementation((command)=>command==='lrclib_publish'?new Promise(()=>{}):Promise.resolve());
  const close=vi.fn();const {user}=await start(close);await user.keyboard('{Escape}');expect(close).toHaveBeenCalledOnce();
 });
+it('blocks LRCLIB upload when literal inline timestamps would be ambiguous to external parsers',async()=>{
+ useLrcStore.setState({doc:{...useLrcStore.getState().doc,lines:[{id:'audit',text:'Literal <00:02.00> text',timestamp:0}]}});
+ render(<LrcLibPublishModal onClose={vi.fn()}/>);
+ const t=useI18nStore.getState().t.lrclibPublish;
+ expect(screen.getByText(t.unsupportedTimestampText)).toBeTruthy();
+ expect(screen.getByRole('button',{name:t.publish}).hasAttribute('disabled')).toBe(true);
+ expect(invoke).not.toHaveBeenCalledWith('lrclib_publish',expect.anything());
+});

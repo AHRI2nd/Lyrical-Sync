@@ -6,6 +6,7 @@ import { useI18nStore } from "../../stores/useI18nStore";
 import { formatTimestamp } from "../../utils/lrcParser";
 
 type Status = "idle" | "confirm" | "publishing" | "done" | "error";
+const INLINE_TIMESTAMP_TEXT_RE = /<\d+:\d{2}(?:\.\d{1,3})?>/;
 
 export function LrcLibPublishModal({ onClose }: { onClose: () => void }) {
   const { t } = useI18nStore();
@@ -49,6 +50,7 @@ export function LrcLibPublishModal({ onClose }: { onClose: () => void }) {
   if (!artist) missing.push(t.lrclibPublish.needArtist);
   if (duration <= 0) missing.push(t.lrclibPublish.needDuration);
   if (!hasSync) missing.push(t.lrclibPublish.needSync);
+  if (doc.lines.some((line) => INLINE_TIMESTAMP_TEXT_RE.test(line.text))) missing.push(t.lrclibPublish.unsupportedTimestampText);
   const canPublish = missing.length === 0 && status !== "publishing";
 
   const publish = async () => {
