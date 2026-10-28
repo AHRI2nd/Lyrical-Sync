@@ -172,6 +172,7 @@ export interface Translations {
     needDuration: string;
     needSync: string;
     unsupportedTimestampText: string;
+    unsupportedMultiline: string;
     hint: string;
     warning: string;
     confirm: string;
@@ -382,6 +383,7 @@ export interface Translations {
     saveFailed: string;
     srtBlankRowsUnsupported: string;
     vttBlankRowsUnsupported: string;
+    vttInvalidSyllableTime: string;
     srtLossyDocument: string;
     assUnrepresentableContent: string;
     lrcInlineEscapeNotice: string;
@@ -785,6 +787,7 @@ const ko: Translations = {
     needDuration: "오디오 길이(오디오를 열어주세요)",
     needSync: "타임스탬프가 있는 동기화 가사",
     unsupportedTimestampText: "가사에 타임스탬프 형식의 리터럴 문자가 있어 안전하게 업로드할 수 없습니다. 해당 텍스트를 수정한 뒤 다시 시도하세요.",
+    unsupportedMultiline: "한 타임스탬프 줄 안에 여러 줄이 있어 LRCLIB 동기화 형식으로 안전하게 표현할 수 없습니다. 줄을 나누어 다시 시도하세요.",
     hint: "현재 곡 정보·동기화 가사를 LRCLIB에 공개 기여합니다. 정확한 제목·아티스트·길이를 확인하세요.",
     warning: "LRCLIB는 누구나 볼 수 있는 공개 데이터베이스입니다. 부정확하거나 테스트용 가사를 올리면 다른 사용자에게 영향을 주며 되돌리기 어렵습니다. 또한 가사는 저작권의 대상일 수 있으니 본인이 권리를 갖거나 허용된 경우에만 기여하세요. 제목·아티스트·가사가 정확한지 다시 확인하셨나요?",
     confirm: "확인했으며 업로드",
@@ -1004,6 +1007,7 @@ const ko: Translations = {
     saveFailed: "저장에 실패했습니다",
     srtBlankRowsUnsupported: "SRT는 빈 문단을 보존할 수 없습니다. 빈 줄을 제거하거나 다른 형식으로 저장하세요.",
     vttBlankRowsUnsupported: "VTT는 빈 문단을 보존할 수 없습니다. 빈 줄을 제거하거나 다른 형식으로 저장하세요.",
+    vttInvalidSyllableTime: "VTT에서 cue 내부 타이밍을 표현할 수 없습니다. 음절 시각을 cue 시작 뒤, 종료 전의 증가 순서로 조정하세요.",
     srtLossyDocument: "SRT로는 LRC 메타데이터, 미입력 줄, 번역 및 글자별 타이밍을 보존할 수 없습니다. LRC로 내보내거나 SRT 내보내기를 사용하세요.",
     assUnrepresentableContent: "ASS는 중괄호와 \\N, \\n, \\h 문자를 그대로 보존하지 못합니다. 해당 문자를 제거하거나 다른 형식으로 저장하세요.",
     lrcInlineEscapeNotice: "문자열을 보존하기 위해 앱 전용 LRC 확장이 사용되었습니다. 일부 외부 플레이어는 이스케이프 문자를 표시할 수 있습니다.",
@@ -1404,6 +1408,7 @@ const en: Translations = {
     needDuration: "Audio duration (open an audio file)",
     needSync: "Synced lyrics with timestamps",
     unsupportedTimestampText: "The lyrics contain literal timestamp-shaped text that external parsers may misread. Edit the text before publishing.",
+    unsupportedMultiline: "A timestamped lyric row contains multiple lines and cannot be represented safely in LRCLIB synced lyrics. Split the row before publishing.",
     hint: "Publicly contribute the current song info and synced lyrics to LRCLIB. Double-check the title, artist, and duration.",
     warning: "LRCLIB is a public database visible to everyone. Uploading inaccurate or test lyrics affects other users and is hard to undo. Lyrics may also be copyrighted — only contribute content you own or are permitted to share. Have you double-checked the title, artist, and lyrics?",
     confirm: "I've checked — upload",
@@ -1624,6 +1629,7 @@ const en: Translations = {
     saveFailed: "Failed to save",
     srtBlankRowsUnsupported: "SRT cannot preserve blank paragraph rows. Remove the blank rows or save in another format.",
     vttBlankRowsUnsupported: "VTT cannot preserve blank paragraph rows. Remove the blank rows or save in another format.",
+    vttInvalidSyllableTime: "VTT cannot represent the syllable times within this cue. Adjust them to increase after the cue start and before its end.",
     srtLossyDocument: "SRT cannot preserve LRC metadata, untimed rows, translations, or timed syllables. Export as LRC or use SRT export.",
     assUnrepresentableContent: "ASS cannot preserve braces or \\N, \\n, \\h text literally. Remove those characters or save in another format.",
     lrcInlineEscapeNotice: "An app-specific LRC extension preserved literal timestamp text. Some external players may display its escape sequences.",
@@ -2024,6 +2030,7 @@ const ja: Translations = {
     needDuration: "音声の長さ（音声を開いてください）",
     needSync: "タイムスタンプ付きの同期歌詞",
     unsupportedTimestampText: "歌詞に外部パーサーが誤読する可能性のあるタイムスタンプ形式の文字があります。テキストを修正してから公開してください。",
+    unsupportedMultiline: "1つのタイムスタンプ行に複数行があり、LRCLIBの同期形式で安全に表現できません。行を分割してから公開してください。",
     hint: "現在の曲情報・同期歌詞をLRCLIBに公開貢献します。タイトル・アーティスト・長さを確認してください。",
     warning: "LRCLIBは誰でも閲覧できる公開データベースです。不正確またはテスト用の歌詞を投稿すると他のユーザーに影響し、取り消しが困難です。また歌詞は著作権の対象となる場合があるため、ご自身が権利を有するか許可された場合のみ投稿してください。タイトル・アーティスト・歌詞を再確認しましたか？",
     confirm: "確認のうえ公開",
@@ -2243,6 +2250,7 @@ const ja: Translations = {
     saveFailed: "保存に失敗しました",
     srtBlankRowsUnsupported: "SRTでは空の段落を保持できません。空行を削除するか、別の形式で保存してください。",
     vttBlankRowsUnsupported: "VTTでは空の段落を保持できません。空行を削除するか、別の形式で保存してください。",
+    vttInvalidSyllableTime: "VTTではcue内の音節時刻を表現できません。cue開始後から終了前までの昇順に調整してください。",
     srtLossyDocument: "SRTではLRCのメタデータ、未タイム行、翻訳、文字ごとのタイミングを保持できません。LRCとして書き出すか、SRT書き出しを使用してください。",
     assUnrepresentableContent: "ASSでは中括弧や\\N、\\n、\\hを文字どおりに保持できません。該当文字を削除するか、別の形式で保存してください。",
     lrcInlineEscapeNotice: "文字列を保持するためにアプリ固有のLRC拡張を使用しました。一部の外部プレーヤーではエスケープ文字が表示される場合があります。",

@@ -27,7 +27,7 @@ import { useUpdaterStore } from "./stores/useUpdaterStore";
 const UpdateModal = lazy(() => import("./components/Update/UpdateModal").then((m) => ({ default: m.UpdateModal })));
 import { useMacMenu } from "./hooks/useMacMenu";
 import { SrtLossyDocumentError, SrtUnrepresentableContentError } from "./utils/srtConverter";
-import { AssUnrepresentableContentError, VttUnrepresentableContentError } from "./utils/exportFormats";
+import { AssUnrepresentableContentError, VttInvalidSyllableTimeError, VttUnrepresentableContentError } from "./utils/exportFormats";
 import { LrcInlineEscapeTagConflictError, LrcMetadataLineBreakError, LrcReservedTagConflictError, needsInlineTimestampEscape } from "./utils/lrcParser";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
@@ -198,7 +198,7 @@ function useAutoSave(recoveryPending: boolean) {
 }
 
 function serializationErrorCode(error: unknown): string | null {
-  if (error instanceof SrtUnrepresentableContentError || error instanceof SrtLossyDocumentError || error instanceof VttUnrepresentableContentError || error instanceof AssUnrepresentableContentError || error instanceof LrcInlineEscapeTagConflictError || error instanceof LrcMetadataLineBreakError || error instanceof LrcReservedTagConflictError) return error.code;
+  if (error instanceof SrtUnrepresentableContentError || error instanceof SrtLossyDocumentError || error instanceof VttUnrepresentableContentError || error instanceof VttInvalidSyllableTimeError || error instanceof AssUnrepresentableContentError || error instanceof LrcInlineEscapeTagConflictError || error instanceof LrcMetadataLineBreakError || error instanceof LrcReservedTagConflictError) return error.code;
   return null;
 }
 
@@ -206,6 +206,7 @@ function saveErrorMessage(error: unknown, t: ReturnType<typeof useI18nStore.getS
   if (error instanceof SrtUnrepresentableContentError) return t.toast.srtBlankRowsUnsupported;
   if (error instanceof SrtLossyDocumentError) return t.toast.srtLossyDocument;
   if (error instanceof VttUnrepresentableContentError) return t.toast.vttBlankRowsUnsupported;
+  if (error instanceof VttInvalidSyllableTimeError) return t.toast.vttInvalidSyllableTime;
   if (error instanceof AssUnrepresentableContentError) return t.toast.assUnrepresentableContent;
   if (error instanceof LrcInlineEscapeTagConflictError) return t.toast.lrcInlineEscapeConflict;
   if (error instanceof LrcMetadataLineBreakError) return t.toast.lrcMetadataLineBreak;

@@ -6,6 +6,7 @@ interface Cue { start: number; end: number; line: LrcLine; }
 
 export const ASS_UNREPRESENTABLE_CONTENT_CODE = "ASS_UNREPRESENTABLE_CONTENT";
 export const VTT_UNREPRESENTABLE_CONTENT_CODE = "VTT_UNREPRESENTABLE_CONTENT";
+export const VTT_INVALID_SYLLABLE_TIME_CODE = "VTT_INVALID_SYLLABLE_TIME";
 
 export class VttUnrepresentableContentError extends Error {
   readonly code = VTT_UNREPRESENTABLE_CONTENT_CODE;
@@ -13,6 +14,15 @@ export class VttUnrepresentableContentError extends Error {
   constructor() {
     super("VTT cannot preserve blank paragraph rows in a cue.");
     this.name = "VttUnrepresentableContentError";
+  }
+}
+
+export class VttInvalidSyllableTimeError extends Error {
+  readonly code = VTT_INVALID_SYLLABLE_TIME_CODE;
+
+  constructor() {
+    super("VTT cannot represent these syllable timestamps within the cue.");
+    this.name = "VttInvalidSyllableTimeError";
   }
 }
 
@@ -74,12 +84,32 @@ export function escapeVttText(text: string): string {
 }
 
 // Timed glyphs use VTT inline timestamps for karaoke.
-function vttText(line: LrcLine): string {
+function vttText(line: LrcLine, cueStart: number, cueEnd: number): string {
   if (line.text.trim() === "") return escapeVttText(line.translation ?? "");
   if (line.syllables?.some((s) => s.time !== null)) {
-    return line.syllables
-      .map((s) => (s.time !== null ? `<${vttTime(s.time)}>` : "") + escapeVttText(s.text))
-      .join("");
+    const startUnit = Math.round(cueStart * 1000);
+    const endUnit = Math.round(cueEnd * 1000);
+    let lastUnit = startUnit;
+    let sawTimed = false;
+    let hasTextBeforeStart = false;
+    let out = "";
+    for (const syllable of line.syllables) {
+      if (syllable.time !== null) {
+        const unit = Math.round(syllable.time * 1000);
+        const implicitCueStart = unit === startUnit && !sawTimed && !hasTextBeforeStart;
+        if (!Number.isFinite(syllable.time) || unit < startUnit || unit >= endUnit ||
+            (sawTimed && unit <= lastUnit) || (unit === startUnit && !implicitCueStart)) {
+          throw new VttInvalidSyllableTimeError();
+        }
+        if (!implicitCueStart) out += `<${vttTime(syllable.time)}>`;
+        lastUnit = unit;
+        sawTimed = true;
+      } else if (syllable.text.length > 0 && !sawTimed) {
+        hasTextBeforeStart = true;
+      }
+      out += escapeVttText(syllable.text);
+    }
+    return out;
   }
   return escapeVttText(line.text);
 }
@@ -90,7 +120,7 @@ export function serializeVtt(doc: LrcDocument, lastCueEnd?: number): string {
     .map((c) => {
       const text = c.line.text.trim() ? `${c.line.text}${c.line.translation ? `\n${c.line.translation}` : ""}` : c.line.translation ?? "";
       assertVttBodyRepresentable(text);
-      return `${vttTime(c.start)} --> ${vttTime(c.end)}\n${vttText(c.line)}${c.line.text.trim() && c.line.translation ? `\n${escapeVttText(c.line.translation)}` : ""}`;
+      return `${vttTime(c.start)} --> ${vttTime(c.end)}\n${vttText(c.line, c.start, c.end)}${c.line.text.trim() && c.line.translation ? `\n${escapeVttText(c.line.translation)}` : ""}`;
     })
     .join("\n\n");
   return `WEBVTT\n\n${body}\n`;

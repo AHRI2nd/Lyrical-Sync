@@ -3,7 +3,7 @@ import { useModalFocus } from "../../hooks/useModalFocus";
 import { invoke } from "@tauri-apps/api/core";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
-import { formatTimestamp } from "../../utils/lrcParser";
+import { formatLrcTimestamp } from "../../utils/lrcParser";
 
 type Status = "idle" | "confirm" | "publishing" | "done" | "error";
 const INLINE_TIMESTAMP_TEXT_RE = /<\d+:\d{2}(?:\.\d{1,3})?>/;
@@ -38,7 +38,7 @@ export function LrcLibPublishModal({ onClose }: { onClose: () => void }) {
   const { plainLyrics, syncedLyrics, hasSync } = useMemo(() => {
     const synced = doc.lines
       .filter((l) => l.timestamp !== null)
-      .map((l) => `[${formatTimestamp(l.timestamp as number)}]${l.text}`)
+      .map((l) => `[${formatLrcTimestamp(l.timestamp as number)}]${l.text}`)
       .join("\n");
     const plain = doc.lines.map((l) => l.text).join("\n").trim();
     return { plainLyrics: plain, syncedLyrics: synced, hasSync: synced.length > 0 };
@@ -51,6 +51,7 @@ export function LrcLibPublishModal({ onClose }: { onClose: () => void }) {
   if (duration <= 0) missing.push(t.lrclibPublish.needDuration);
   if (!hasSync) missing.push(t.lrclibPublish.needSync);
   if (doc.lines.some((line) => INLINE_TIMESTAMP_TEXT_RE.test(line.text))) missing.push(t.lrclibPublish.unsupportedTimestampText);
+  if (doc.lines.some((line) => line.timestamp !== null && /[\r\n]/.test(line.text))) missing.push(t.lrclibPublish.unsupportedMultiline);
   const canPublish = missing.length === 0 && status !== "publishing";
 
   const publish = async () => {

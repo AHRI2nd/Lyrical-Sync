@@ -39,3 +39,11 @@ it('blocks LRCLIB upload when literal inline timestamps would be ambiguous to ex
  expect(screen.getByRole('button',{name:t.publish}).hasAttribute('disabled')).toBe(true);
  expect(invoke).not.toHaveBeenCalledWith('lrclib_publish',expect.anything());
 });
+it('blocks LRCLIB upload when a timestamped row contains multiple lines',async()=>{
+ useLrcStore.setState({doc:{...useLrcStore.getState().doc,lines:[{id:'audit',text:'first\nsecond',timestamp:0}]}});
+ render(<LrcLibPublishModal onClose={vi.fn()}/>);
+ const t=useI18nStore.getState().t.lrclibPublish;
+ expect(screen.getByText(t.unsupportedMultiline)).toBeTruthy();
+ expect(screen.getByRole('button',{name:t.publish}).hasAttribute('disabled')).toBe(true);
+ expect(invoke).not.toHaveBeenCalledWith('lrclib_publish',expect.anything());
+});
