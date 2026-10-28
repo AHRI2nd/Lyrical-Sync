@@ -43,6 +43,7 @@ interface LrcStore {
   doc: LrcDocument;
   _documentSession: number;
   _editRevision: number;
+  _manualMetadataFields: Set<keyof LrcMetadata>;
   _audioSelection: number;
   _history: HistoryEntry[];
   _future: HistoryEntry[];
@@ -215,7 +216,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   const beginDocumentSession = () => {
     documentSessionId += 1;
     lyricLoadGeneration += 1;
-    set({ _documentSession: documentSessionId });
+    set({ _documentSession: documentSessionId, _manualMetadataFields: new Set() });
   };
 
   const resetAiState = () => ({
@@ -281,7 +282,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
 
   return {
   doc: defaultDocument(),
-  _documentSession: 0, _editRevision: 0, _audioSelection: 0,
+  _documentSession: 0, _editRevision: 0, _manualMetadataFields: new Set(), _audioSelection: 0,
   _history: [],
   _future: [],
   _lastEditKey: null,
@@ -446,16 +447,22 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     // silent 갱신(서비스 자동 동기화 등)은 사용자 편집이 아니므로 undo 대상에서 제외.
     // 사용자 입력은 같은 필드 조합을 연속으로 수정하는 동안(다른 액션이 끼어들기 전까지)
     // 한 번의 undo 단위로 묶는다 — updateLine과 동일한 _lastEditKey 코얼레싱 패턴.
-    if (!silent) {
-      const key = `meta:${Object.keys(meta).sort().join(",")}`;
-      if (get()._lastEditKey !== key) pushHistory("editMetadata");
+    const state = get();
+    const changed = (Object.entries(meta) as [keyof LrcMetadata, LrcMetadata[keyof LrcMetadata]][])
+      .filter(([field, value]) => state.doc.metadata[field] !== value && (!silent || !state._manualMetadataFields.has(field)));
+    if (!changed.length) return;
+    const changedMeta = Object.fromEntries(changed) as Partial<LrcMetadata>;
+    if (silent) {
+      rawSet((s) => ({ doc: { ...s.doc, metadata: { ...s.doc.metadata, ...changedMeta } } }));
+    } else {
+      const key = `meta:${changed.map(([field]) => field).sort().join(",")}`;
+      if (state._lastEditKey !== key) pushHistory("editMetadata");
       set((s) => ({
-        doc: { ...s.doc, metadata: { ...s.doc.metadata, ...meta } },
+        doc: { ...s.doc, metadata: { ...s.doc.metadata, ...changedMeta } },
+        _manualMetadataFields: new Set([...s._manualMetadataFields, ...changed.map(([field]) => field)]),
         isDirty: true,
         _lastEditKey: key,
       }));
-    } else {
-      rawSet((s) => ({ doc: { ...s.doc, metadata: { ...s.doc.metadata, ...meta } } }));
     }
   },
 

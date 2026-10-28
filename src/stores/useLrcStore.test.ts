@@ -32,6 +32,7 @@ const reset = (lines: LrcLine[], offset = 0) =>
     doc: { metadata: { title: "", artist: "", album: "", by: "", offset }, lines, extraTags: {} },
     _history: [],
     _future: [],
+    _manualMetadataFields: new Set(),
     _lastEditKey: null,
     currentTime: 0,
     activeLineId: null,
@@ -127,6 +128,19 @@ describe("useLrcStore — line actions", () => {
     expect(useLrcStore.getState()._history.length).toBe(h0);
     expect(useLrcStore.getState().isDirty).toBe(false);
     expect(useLrcStore.getState().doc.metadata.artist).toBe("A");
+    const unchanged = useLrcStore.getState().doc;
+    useLrcStore.getState().setMetadata({ artist: "A" }, true);
+    expect(useLrcStore.getState().doc).toBe(unchanged);
+  });
+
+  it("keeps manually edited metadata fields from being overwritten by automatic track sync", () => {
+    reset([]);
+    useLrcStore.getState().setMetadata({ title: "My title" });
+    useLrcStore.getState().setMetadata({ title: "Track title", artist: "Track artist" }, true);
+    expect(useLrcStore.getState().doc.metadata).toMatchObject({ title: "My title", artist: "Track artist" });
+    useLrcStore.getState().newLrc();
+    useLrcStore.getState().setMetadata({ title: "Next track" }, true);
+    expect(useLrcStore.getState().doc.metadata.title).toBe("Next track");
   });
 
   it("tracks document revisions for user edits and undo but excludes silent metadata sync", () => {

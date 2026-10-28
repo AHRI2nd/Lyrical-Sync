@@ -139,14 +139,16 @@ function useAutoSave(recoveryPending: boolean) {
   const isDirty = useLrcStore((s) => s.isDirty);
   const lrcPath = useLrcStore((s) => s.lrcPath);
   const doc = useLrcStore((s) => s.doc);
+  const editRevision = useLrcStore((s) => s._editRevision);
   const autoSave = useSettingsStore((s) => s.autoSave);
 
   useEffect(() => {
     if (!isDirty) serializationErrorShown.current = null;
     if (recoveryPending || !autoSave || !lrcPath || !isDirty) return;
-    const needsLrcNotice = lrcPath.toLowerCase().endsWith(".lrc") && needsInlineTimestampEscape(doc);
     const id = setTimeout(() => {
       // 자동저장: 성공은 조용히, 실패만 토스트로 알림
+      const current = useLrcStore.getState();
+      const needsLrcNotice = lrcPath.toLowerCase().endsWith(".lrc") && needsInlineTimestampEscape(current.doc);
       useLrcStore.getState().saveLrc()
         .then((written) => {
           if (!written) return;
@@ -169,8 +171,8 @@ function useAutoSave(recoveryPending: boolean) {
         });
     }, 1500);
     return () => clearTimeout(id);
-    // doc 변경마다 타이머 리셋 → 입력이 멈춘 뒤에만 저장(디바운스)
-  }, [autoSave, lrcPath, isDirty, doc, recoveryPending, documentSession]);
+    // Reset the debounce timer for user edits, not automatic metadata refreshes.
+  }, [autoSave, lrcPath, isDirty, editRevision, recoveryPending, documentSession]);
 
   // 미저장 작업 자동 복구 스냅샷: dirty면 디바운스로 저장, 저장되면(dirty 해제) 제거.
   // 저장 경로가 없어도 보호되므로 autoSave와 독립적으로 동작.
