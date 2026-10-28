@@ -1,4 +1,4 @@
-import { retimeLine } from "../utils/lineTiming";
+import { retimeLine, shiftSrtEnd } from "../utils/lineTiming";
 import { enqueuePathWrite } from "../utils/pathWriteQueue";
 import { create } from "zustand";
 import { LrcDocument, LrcLine, LrcMetadata, LrcSyllable, defaultDocument } from "../types/lrc";
@@ -307,7 +307,12 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     const lineTs = times.length > 0 ? Math.min(...times) : null;
     const lines = doc.lines.map((l) =>
       l.id === lineId
-        ? { ...l, syllables, timestamp: lineTs !== null ? lineTs : l.timestamp }
+        ? {
+            ...l,
+            syllables,
+            timestamp: lineTs !== null ? lineTs : l.timestamp,
+            srtEndTime: lineTs !== null ? shiftSrtEnd(l, lineTs - (l.timestamp ?? lineTs), lineTs) : l.srtEndTime,
+          }
         : l
     );
     set({
@@ -601,6 +606,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     const lines = doc.lines.map((l) => ({
       ...l,
       timestamp: sc(l.timestamp),
+      srtEndTime: l.srtEndTime === undefined ? undefined : Math.max(0, Math.round(l.srtEndTime * factor * 1000) / 1000),
       syllables: l.syllables?.map((s) => ({ ...s, time: sc(s.time) })),
     }));
     set({ doc: { ...doc, lines }, isDirty: true });
@@ -627,7 +633,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     const sh = (t: number | null) => (t !== null ? Math.max(0, Math.round((t + delta) * 1000) / 1000) : null);
     const lines = doc.lines.map((l) =>
       idSet.has(l.id)
-        ? { ...l, timestamp: sh(l.timestamp), syllables: l.syllables?.map((s) => ({ ...s, time: sh(s.time) })) }
+        ? { ...l, timestamp: sh(l.timestamp), srtEndTime: shiftSrtEnd(l, delta, sh(l.timestamp)), syllables: l.syllables?.map((s) => ({ ...s, time: sh(s.time) })) }
         : l
     );
     set({ doc: { ...doc, lines }, isDirty: true });
@@ -638,7 +644,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     pushHistory("clearTimestamps");
     const idSet = new Set(ids);
     const { doc } = get();
-    const lines = doc.lines.map((l) => (idSet.has(l.id) ? { ...l, timestamp: null, syllables: undefined } : l));
+    const lines = doc.lines.map((l) => (idSet.has(l.id) ? { ...l, timestamp: null, srtEndTime: undefined, syllables: undefined } : l));
     set({ doc: { ...doc, lines }, isDirty: true });
   },
 
@@ -726,6 +732,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
           timestamp: l.timestamp !== null
             ? Math.max(0, l.timestamp + deltaSeconds)
             : null,
+          srtEndTime: shiftSrtEnd(l, deltaSeconds, l.timestamp === null ? null : Math.max(0, l.timestamp + deltaSeconds)),
           // 글자 동기화 토큰 시각도 함께 이동
           syllables: l.syllables?.map((s) => ({
             ...s,
@@ -874,9 +881,11 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     const { doc } = get();
     const newLines = doc.lines.map((l, i) => {
       if (i < fromIdx || i > toIdx || l.timestamp === null) return l;
+      const timestamp = Math.max(0, l.timestamp + deltaSeconds);
       return {
         ...l,
-        timestamp: Math.max(0, l.timestamp + deltaSeconds),
+        timestamp,
+        srtEndTime: shiftSrtEnd(l, deltaSeconds, timestamp),
         syllables: l.syllables?.map((s) => ({
           ...s,
           time: s.time !== null ? Math.max(0, s.time + deltaSeconds) : null,
@@ -1005,7 +1014,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
           const adjusted = r.confidence * (0.4 + 0.6 * ratio);
           confidence[line.id] = Math.round(adjusted * 1000) / 1000;
           // AI가 줄 단위로 재정렬 → 기존 글자 동기화는 무효화
-          return { ...line, timestamp: r.start, syllables: undefined };
+          return { ...line, timestamp: r.start, srtEndTime: shiftSrtEnd(line, r.start - (line.timestamp ?? r.start), r.start), syllables: undefined };
         }
         return line;
       });
@@ -1044,7 +1053,8 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
         const useResume = resume !== null && (nextStart === null || resume < nextStart);
         const desired = useResume ? (resume as number) : prevEnd + blankLineOffset;
         const ts = nextStart !== null ? Math.min(desired, nextStart) : desired;
-        newLines[i] = { ...newLines[i], timestamp: Math.round(ts * 1000) / 1000 };
+        const timestamp = Math.round(ts * 1000) / 1000;
+        newLines[i] = { ...newLines[i], timestamp, srtEndTime: shiftSrtEnd(newLines[i], timestamp - (newLines[i].timestamp ?? timestamp), timestamp) };
         confidence[doc.lines[i].id] = 1.0;
       }
 
@@ -1053,6 +1063,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
       const finalLines = latestDoc.lines.map((line, index) => ({
         ...line,
         timestamp: newLines[index].timestamp,
+        srtEndTime: newLines[index].srtEndTime,
         syllables: newLines[index].syllables,
       }));
       pushHistory("aiSync");

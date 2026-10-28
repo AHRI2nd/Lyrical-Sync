@@ -244,6 +244,13 @@ describe("useLrcStore — offset / shift carry syllable times", () => {
     expect(useLrcStore.getState().doc.metadata.offset).toBe(0);
   });
 
+  it("applyOffset shifts imported SRT cue ends with their starts", () => {
+    reset([{ id: "1", timestamp: 10, srtEndTime: 12, text: "a" }], 500);
+    useLrcStore.getState().applyOffset();
+    expect(lines()[0].timestamp).toBe(10.5);
+    expect(lines()[0].srtEndTime).toBe(12.5);
+  });
+
   it("shiftTimeRange shifts only the range incl. syllable times", () => {
     reset([
       { id: "1", timestamp: 10, text: "a", syllables: [{ text: "a", time: 10 }] },
@@ -253,6 +260,23 @@ describe("useLrcStore — offset / shift carry syllable times", () => {
     expect(lines()[0].timestamp).toBe(12);
     expect(lines()[0].syllables!.map((s) => s.time)).toEqual([12]);
     expect(lines()[1].timestamp).toBe(20);
+  });
+
+  it("shifts SRT cue ends with selected line starts", () => {
+    reset([
+      { id: "1", timestamp: 10, srtEndTime: 12, text: "a" },
+      { id: "2", timestamp: 20, srtEndTime: 22, text: "b" },
+    ]);
+    useLrcStore.getState().shiftLines(["1"], 0.5);
+    expect(lines().map((line) => [line.timestamp, line.srtEndTime])).toEqual([[10.5, 12.5], [20, 22]]);
+  });
+
+  it("scales and clears imported SRT cue ends with their starts", () => {
+    reset([{ id: "1", timestamp: 10, srtEndTime: 12, text: "a" }]);
+    useLrcStore.getState().scaleTimestamps(2);
+    expect([lines()[0].timestamp, lines()[0].srtEndTime]).toEqual([20, 24]);
+    useLrcStore.getState().clearTimestamps(["1"]);
+    expect(lines()[0].srtEndTime).toBeUndefined();
   });
 
   it("replaceInLines drops syllables on changed lines", () => {

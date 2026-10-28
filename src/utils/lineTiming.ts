@@ -2,11 +2,21 @@ import type { LrcLine } from '../types/lrc';
 
 /** Move the earliest timed glyph to the new onset, preserving calibrated intervals. */
 export function retimeLine(line: LrcLine, timestamp: number | null): LrcLine {
-  if (timestamp === null) return { ...line, timestamp, syllables: undefined };
+  if (timestamp === null) return { ...line, timestamp, srtEndTime: undefined, syllables: undefined };
+  const delta = line.timestamp === null ? 0 : timestamp - line.timestamp;
   const times = line.syllables?.flatMap(s => s.time === null ? [] : [s.time]) ?? [];
-  if (!times.length) return { ...line, timestamp };
-  const delta = timestamp - Math.min(...times);
+  if (!times.length) return {
+    ...line,
+    timestamp,
+    srtEndTime: Number.isFinite(line.srtEndTime) ? Math.max(timestamp, (line.srtEndTime as number) + delta) : line.srtEndTime,
+  };
+  const syllableDelta = timestamp - Math.min(...times);
   return { ...line, timestamp, syllables: line.syllables?.map(s => ({
-    ...s, time: s.time === null ? null : Math.max(0, s.time + delta),
-  })) };
+    ...s, time: s.time === null ? null : Math.max(0, s.time + syllableDelta),
+  })), srtEndTime: Number.isFinite(line.srtEndTime) ? Math.max(timestamp, (line.srtEndTime as number) + delta) : line.srtEndTime };
+}
+
+export function shiftSrtEnd(line: LrcLine, delta: number, nextTimestamp: number | null = line.timestamp): number | undefined {
+  if (!Number.isFinite(line.srtEndTime) || nextTimestamp === null) return line.srtEndTime;
+  return Math.max(nextTimestamp, (line.srtEndTime as number) + delta);
 }
