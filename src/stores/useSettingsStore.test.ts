@@ -16,6 +16,21 @@ if (typeof globalThis.localStorage === "undefined") {
 
 import { useSettingsStore } from "./useSettingsStore";
 
+describe("playback mode ownership", () => {
+  it("provides one atomic mode selector that clears competing modes", () => {
+    const setPlaybackMode = (useSettingsStore.getState() as unknown as { setPlaybackMode?: (mode: string) => void }).setPlaybackMode;
+    expect(setPlaybackMode).toBeTypeOf("function");
+    setPlaybackMode!("youtube");
+    expect(useSettingsStore.getState()).toMatchObject({ spotifyMode: false, youtubeMode: true, deviceMode: false });
+  });
+
+  it("keeps legacy mode setters mutually exclusive when enabling a mode", () => {
+    useSettingsStore.getState().setSpotifyMode(true);
+    useSettingsStore.getState().setDeviceMode(true);
+    expect(useSettingsStore.getState()).toMatchObject({ spotifyMode: false, youtubeMode: false, deviceMode: true });
+  });
+});
+
 describe("useSettingsStore — recent files", () => {
   beforeEach(() => useSettingsStore.setState({ recentFiles: [] }));
 

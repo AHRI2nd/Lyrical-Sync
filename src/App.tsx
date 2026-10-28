@@ -272,7 +272,7 @@ function App() {
   if (lrcExtensionNoticeShown.current.session !== appDocumentSession) {
     lrcExtensionNoticeShown.current = { session: appDocumentSession, shown: false };
   }
-  const { autoCheckUpdate, uiScale, spotifyMode, youtubeMode, deviceMode, setSpotifyMode, setYoutubeMode, setDeviceMode, showElrcSaveNotice, setShowElrcSaveNotice } = useSettingsStore();
+  const { autoCheckUpdate, uiScale, spotifyMode, youtubeMode, deviceMode, setPlaybackMode, showElrcSaveNotice, setShowElrcSaveNotice } = useSettingsStore();
   const { isLoggedIn, handleCallback, tryRestoreSession, pausePlayback } = useServiceStore();
   const [ytdlpInstalled, setYtdlpInstalled] = useState(false);
 
@@ -488,15 +488,19 @@ function App() {
   };
   const selectModeFile = () => {
     stopCurrentPlaybackForModeSwitch();
-    setSpotifyMode(false); setYoutubeMode(false); setDeviceMode(false);
+    setPlaybackMode("file");
   };
   const selectModeSpotify = () => {
     stopCurrentPlaybackForModeSwitch();
-    setSpotifyMode(true); setYoutubeMode(false); setDeviceMode(false);
+    setPlaybackMode("spotify");
   };
   const selectModeYouTube = () => {
     stopCurrentPlaybackForModeSwitch();
-    setSpotifyMode(false); setYoutubeMode(true); setDeviceMode(false);
+    setPlaybackMode("youtube");
+  };
+  const selectModeDevice = () => {
+    stopCurrentPlaybackForModeSwitch();
+    setPlaybackMode("device");
   };
 
   // 재생 컨트롤은 현재 모드(로컬/Spotify/기기 감지)에 맞게 선택
@@ -519,11 +523,12 @@ function App() {
       modeFile: selectModeFile,
       modeSpotify: selectModeSpotify,
       modeYouTube: selectModeYouTube,
+      modeDevice: selectModeDevice,
       openSettings: () => { setSettingsInitialTab("general"); setShowSettings(true); },
       openPreview: () => setShowPreview(true),
       openHelp: () => setShowHelp(true),
     },
-    { t, spotifyMode, youtubeMode, ytdlpInstalled }
+    { t, spotifyMode, youtubeMode, deviceMode, ytdlpInstalled }
   );
 
   const title = lrcPath

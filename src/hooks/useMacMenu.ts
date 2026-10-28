@@ -18,6 +18,7 @@ export interface MacMenuHandlers {
   modeFile: () => void;
   modeSpotify: () => void;
   modeYouTube: () => void;
+  modeDevice: () => void;
   openSettings: () => void;
   openPreview: () => void;
   openHelp: () => void;
@@ -27,6 +28,7 @@ export interface MacMenuState {
   t: Translations;
   spotifyMode: boolean;
   youtubeMode: boolean;
+  deviceMode: boolean;
   ytdlpInstalled: boolean;
 }
 
@@ -41,7 +43,7 @@ export function useMacMenu(handlers: MacMenuHandlers, state: MacMenuState) {
   hRef.current = handlers;
   const h = () => hRef.current;
 
-  const { t, spotifyMode, youtubeMode, ytdlpInstalled } = state;
+  const { t, spotifyMode, youtubeMode, deviceMode, ytdlpInstalled } = state;
 
   useEffect(() => {
     if (!isMac) return;
@@ -117,19 +119,24 @@ export function useMacMenu(handlers: MacMenuHandlers, state: MacMenuState) {
         items: [
           await CheckMenuItem.new({
             text: t.modeFile,
-            checked: !spotifyMode && !youtubeMode,
+            checked: !spotifyMode && !youtubeMode && !deviceMode,
             action: () => h().modeFile(),
           }),
           await CheckMenuItem.new({
             text: "Spotify",
-            checked: spotifyMode && !youtubeMode,
+            checked: spotifyMode && !youtubeMode && !deviceMode,
             action: () => h().modeSpotify(),
           }),
           await CheckMenuItem.new({
             text: t.modeYouTube,
-            checked: youtubeMode,
+            checked: youtubeMode && !deviceMode,
             enabled: ytdlpInstalled,
             action: () => h().modeYouTube(),
+          }),
+          await CheckMenuItem.new({
+            text: t.modeDevice,
+            checked: deviceMode,
+            action: () => h().modeDevice(),
           }),
         ],
       });
@@ -156,5 +163,5 @@ export function useMacMenu(handlers: MacMenuHandlers, state: MacMenuState) {
       cancelled = true;
     };
     // 라벨(언어)·모드 체크 표시·YouTube 활성 여부가 바뀌면 메뉴 재구성
-  }, [t, spotifyMode, youtubeMode, ytdlpInstalled]);
+  }, [t, spotifyMode, youtubeMode, deviceMode, ytdlpInstalled]);
 }

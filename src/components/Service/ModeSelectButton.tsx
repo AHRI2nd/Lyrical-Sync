@@ -19,9 +19,7 @@ export function ModeSelectButton() {
   const spotifyMode = useSettingsStore((s) => s.spotifyMode);
   const youtubeMode = useSettingsStore((s) => s.youtubeMode);
   const deviceMode = useSettingsStore((s) => s.deviceMode);
-  const setSpotifyMode = useSettingsStore((s) => s.setSpotifyMode);
-  const setYoutubeMode = useSettingsStore((s) => s.setYoutubeMode);
-  const setDeviceMode = useSettingsStore((s) => s.setDeviceMode);
+  const setPlaybackMode = useSettingsStore((s) => s.setPlaybackMode);
   const isLoggedIn = useServiceStore((s) => s.isLoggedIn);
   const isReady = useServiceStore((s) => s.isReady);
   const trackName = useServiceStore((s) => s.trackName);
@@ -85,19 +83,19 @@ export function ModeSelectButton() {
 
   const selectFile = () => {
     stopCurrentPlayback();
-    setSpotifyMode(false); setYoutubeMode(false); setDeviceMode(false); setOpen(false);
+    setPlaybackMode("file"); setOpen(false);
   };
   const selectSpotify = () => {
     stopCurrentPlayback();
-    setSpotifyMode(true); setYoutubeMode(false); setDeviceMode(false); setOpen(false);
+    setPlaybackMode("spotify"); setOpen(false);
   };
   const selectYouTube = () => {
     stopCurrentPlayback();
-    setSpotifyMode(false); setYoutubeMode(true); setDeviceMode(false); setOpen(false);
+    setPlaybackMode("youtube"); setOpen(false);
   };
   const selectDevice = () => {
     stopCurrentPlayback();
-    setSpotifyMode(false); setYoutubeMode(false); setDeviceMode(true); setOpen(false);
+    setPlaybackMode("device"); setOpen(false);
   };
 
   return (

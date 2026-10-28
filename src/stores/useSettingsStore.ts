@@ -118,6 +118,7 @@ interface SettingsState {
   setSpotifyMode: (v: boolean) => void;
   setYoutubeMode: (v: boolean) => void;
   setDeviceMode: (v: boolean) => void;
+  setPlaybackMode: (mode: PlaybackMode) => void;
   setYtdlpAudioQuality: (v: "best" | "192" | "128") => void;
   setYtdlpCookiesFile: (v: string) => void;
   setYtdlpProxy: (v: string) => void;
@@ -132,6 +133,8 @@ export interface RecentFileEntry {
   audioPath: string | null;
   openedAt: number;
 }
+
+export type PlaybackMode = "file" | "spotify" | "youtube" | "device";
 
 const MAX_RECENT_FILES = 8;
 const isPreviewColor = (value: unknown): value is string => typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value);
@@ -154,6 +157,12 @@ function restoreSettings(value: unknown, current: SettingsState): SettingsState 
   next.glyphWaveformStyle = saved.glyphWaveformStyle === "bars" ? "bars" : "continuous";
   next.previewActiveColor = isPreviewColor(saved.previewActiveColor) ? saved.previewActiveColor : current.previewActiveColor;
   next.previewAccentColor = isPreviewColor(saved.previewAccentColor) ? saved.previewAccentColor : current.previewAccentColor;
+  if (next.deviceMode) {
+    next.spotifyMode = false;
+    next.youtubeMode = false;
+  } else if (next.youtubeMode) {
+    next.spotifyMode = false;
+  }
   next.ytdlpAudioQuality = ["best", "192", "128"].includes(String(saved.ytdlpAudioQuality)) ? saved.ytdlpAudioQuality as SettingsState["ytdlpAudioQuality"] : current.ytdlpAudioQuality;
   next.keybindings = normalizeKeybindings(saved.keybindings && typeof saved.keybindings === "object" && !Array.isArray(saved.keybindings) ? Object.fromEntries(Object.entries(saved.keybindings).filter(([, value]) => typeof value === "string")) : undefined);
   if (Array.isArray(saved.recentFiles)) next.recentFiles = saved.recentFiles.filter((entry): entry is RecentFileEntry =>
@@ -217,9 +226,20 @@ export const useSettingsStore = create<SettingsState>()(
         set((s) => ({ keybindings: { ...s.keybindings, [action]: code } })),
       resetKeybindings: () => set({ keybindings: { ...DEFAULT_KEYBINDINGS } }),
       setSpotifyClientId: (v) => set({ spotifyClientId: v }),
-      setSpotifyMode: (v) => set({ spotifyMode: v }),
-      setYoutubeMode: (v) => set({ youtubeMode: v }),
-      setDeviceMode: (v) => set({ deviceMode: v }),
+      setPlaybackMode: (mode) => set({
+        spotifyMode: mode === "spotify",
+        youtubeMode: mode === "youtube",
+        deviceMode: mode === "device",
+      }),
+      setSpotifyMode: (v) => v
+        ? set({ spotifyMode: true, youtubeMode: false, deviceMode: false })
+        : set({ spotifyMode: false }),
+      setYoutubeMode: (v) => v
+        ? set({ spotifyMode: false, youtubeMode: true, deviceMode: false })
+        : set({ youtubeMode: false }),
+      setDeviceMode: (v) => v
+        ? set({ spotifyMode: false, youtubeMode: false, deviceMode: true })
+        : set({ deviceMode: false }),
       setYtdlpAudioQuality: (v) => set({ ytdlpAudioQuality: v }),
       setYtdlpCookiesFile: (v) => set({ ytdlpCookiesFile: v }),
       setYtdlpProxy: (v) => set({ ytdlpProxy: v }),
