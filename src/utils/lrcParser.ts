@@ -152,6 +152,16 @@ const INLINE_ESCAPE_CODE = "\\u003C";
 const INLINE_TIMESTAMP_TEXT_RE = /<\d+:\d{2}(?:\.\d{1,3})?>/;
 
 export const LRC_INLINE_ESCAPE_CONFLICT_CODE = "LRC_INLINE_ESCAPE_TAG_CONFLICT";
+export const LRC_METADATA_LINE_BREAK_CODE = "LRC_METADATA_LINE_BREAK";
+
+export class LrcMetadataLineBreakError extends Error {
+  readonly code = LRC_METADATA_LINE_BREAK_CODE;
+
+  constructor() {
+    super("LRC metadata keys and values cannot contain line breaks.");
+    this.name = "LrcMetadataLineBreakError";
+  }
+}
 
 export class LrcInlineEscapeTagConflictError extends Error {
   readonly code = LRC_INLINE_ESCAPE_CONFLICT_CODE;
@@ -318,6 +328,9 @@ export function parseLrc(raw: string): LrcDocument {
 // enhanced=false면 글자/단어 동기화 태그를 제거하고 일반 LRC로 출력
 export function serializeLrc(doc: LrcDocument, enhanced = true): string {
   const { metadata, lines, extraTags } = doc;
+  if ([metadata.title, metadata.artist, metadata.album, metadata.by, ...Object.entries(extraTags).flat()].some((value) => /[\r\n]/.test(String(value)))) {
+    throw new LrcMetadataLineBreakError();
+  }
   const parts: string[] = [];
   const translationMode = lines.some(line => typeof line.translation === "string" || /[\r\n]/.test(line.text) || /^\s*\[/.test(line.text));
   const inlineEscapeMode = needsInlineTimestampEscape(doc);

@@ -98,6 +98,15 @@ it("round-trips empty bracket metadata and timestamp-like literal lyric text", (
 });
 
 describe("parseLrc — line level", () => {
+  it("rejects metadata and extra tag values containing line breaks", () => {
+    const doc = docOf([]);
+    doc.metadata = { ...emptyMeta, title: "title\n[00:01.00]injected" };
+    expect(() => serializeLrc(doc)).toThrow("line breaks");
+    doc.metadata = { ...emptyMeta };
+    doc.extraTags["x-source"] = "provider\r\n[00:02.00]injected";
+    expect(() => serializeLrc(doc)).toThrow("line breaks");
+  });
+
   it("round-trips literal inline timestamp text without treating it as Enhanced LRC timing", () => {
     const original = docOf([{ id: "literal", timestamp: 1, text: "Look <00:02.00> here" }]);
     const serialized = serializeLrc(original);
