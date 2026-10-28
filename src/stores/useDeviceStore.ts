@@ -41,10 +41,15 @@ interface DeviceState {
 let pollingTimer: ReturnType<typeof setTimeout> | null = null;
 let pollingGeneration = 0;
 let isPolling = false;
+let deviceCommandRevision = 0;
 let interpolationRaf: number | null = null;
 // 실패 스트릭당 1회만 알림 — 폴링은 계속하되(모드가 켜져 있는 한), 성공하면 리셋돼
 // 다음에 다시 끊기면 재알림된다.
 let hasNotifiedFailure = false;
+
+export function markDeviceCommand(): void {
+  deviceCommandRevision += 1;
+}
 
 export const useDeviceStore = create<DeviceState>((set, get) => ({
   isPlaying: false,
@@ -114,9 +119,11 @@ async function pollOnce(generation: number): Promise<void> {
     useDeviceStore.getState().stopPolling();
     return;
   }
+  const commandRevision = deviceCommandRevision;
   try {
     const info = await invoke<NowPlayingInfo | null>("get_now_playing");
     if (!isCurrentPoll(generation) || !useSettingsStore.getState().deviceMode) return;
+    if (deviceCommandRevision !== commandRevision) return;
     hasNotifiedFailure = false;
     const store = useDeviceStore.getState();
     if (!info) {

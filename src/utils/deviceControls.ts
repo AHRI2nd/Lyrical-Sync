@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useDeviceStore } from "../stores/useDeviceStore";
+import { markDeviceCommand, useDeviceStore } from "../stores/useDeviceStore";
+import { useI18nStore } from "../stores/useI18nStore";
+import { toast } from "../stores/useToastStore";
 
 async function deviceTogglePlay(): Promise<void> {
   const store = useDeviceStore.getState();
@@ -17,12 +19,18 @@ async function deviceTogglePlay(): Promise<void> {
 
 async function deviceSeekTo(seconds: number): Promise<void> {
   const posMs = Math.max(0, Math.round(seconds * 1000));
+  markDeviceCommand();
   useDeviceStore.setState({
     positionMs: posMs,
     _lastKnownPositionMs: posMs,
     _lastStateTimestamp: Date.now(),
   });
-  await invoke("now_playing_seek", { positionMs: posMs });
+  try {
+    await invoke("now_playing_seek", { positionMs: posMs });
+  } catch (error) {
+    toast.error(useI18nStore.getState().t.toast.deviceControlFailed);
+    throw error;
+  }
 }
 
 export const deviceControls = {

@@ -21,6 +21,7 @@ vi.mock("./useToastStore", () => ({ toast: { error: (m: string) => pushErrorToas
 
 import { useDeviceStore } from "./useDeviceStore";
 import { useSettingsStore } from "./useSettingsStore";
+import { deviceControls } from "../utils/deviceControls";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -154,5 +155,35 @@ describe("useDeviceStore — failure notification", () => {
 
     expect(useDeviceStore.getState().trackName).toBe("");
     expect(useDeviceStore.getState().hasSession).toBe(false);
+  });
+
+  it("does not let a poll started before a seek overwrite the requested position", async () => {
+    useSettingsStore.getState().setDeviceMode(true);
+    const poll = deferred<any>();
+    invoke.mockImplementation((command: string) => command === "get_now_playing" ? poll.promise : Promise.resolve());
+    useDeviceStore.getState().startPolling();
+    deviceControls.seekTo(5);
+    expect(useDeviceStore.getState().positionMs).toBe(5000);
+
+    poll.resolve({ title: "Track", artist: "Artist", album: "Album", position_ms: 1200,
+      duration_ms: 30000, is_playing: false, source_app: "Test", last_updated_unix_ms: Date.now() });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(useDeviceStore.getState().positionMs).toBe(5000);
+  });
+
+  it("reports a failed seek and lets the next poll restore the authoritative position", async () => {
+    useSettingsStore.getState().setDeviceMode(true);
+    invoke.mockImplementation((command: string) => command === "now_playing_seek"
+      ? Promise.reject(new Error("seek failed"))
+      : Promise.resolve({ title: "Track", artist: "Artist", album: "Album", position_ms: 1200,
+        duration_ms: 30000, is_playing: false, source_app: "Test", last_updated_unix_ms: Date.now() }));
+
+    deviceControls.seekTo(5);
+    await vi.waitFor(() => expect(pushErrorToast).toHaveBeenCalledOnce());
+    expect(useDeviceStore.getState().positionMs).toBe(5000);
+    useDeviceStore.getState().startPolling();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useDeviceStore.getState().positionMs).toBe(1200);
   });
 });

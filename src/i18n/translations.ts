@@ -397,6 +397,7 @@ export interface Translations {
     modelDownloaded: string;
     modelDownloadFailed: string;
     deviceUnavailable: string;
+    deviceControlFailed: string;
   };
   keys: {
     title: string;
@@ -1011,6 +1012,7 @@ const ko: Translations = {
     modelDownloaded: "{name} 다운로드 완료",
     modelDownloadFailed: "{name} 다운로드 실패",
     deviceUnavailable: "기기 감지를 사용할 수 없습니다",
+    deviceControlFailed: "미디어 기기를 제어하지 못했습니다. 재생 상태를 다시 확인하세요.",
   },
   keys: {
     title: "단축키",
@@ -1623,6 +1625,7 @@ const en: Translations = {
     modelDownloaded: "{name} downloaded",
     modelDownloadFailed: "{name} download failed",
     deviceUnavailable: "Device detection is unavailable",
+    deviceControlFailed: "Could not control the media device. Playback state will be refreshed.",
   },
   keys: {
     title: "Keyboard shortcuts",
@@ -2234,6 +2237,7 @@ const ja: Translations = {
     modelDownloaded: "{name} のダウンロード完了",
     modelDownloadFailed: "{name} のダウンロード失敗",
     deviceUnavailable: "デバイス検出を利用できません",
+    deviceControlFailed: "メディアデバイスを操作できませんでした。再生状態を再確認します。",
   },
   keys: {
     title: "ショートカット",
