@@ -6248,6 +6248,29 @@
     {
       "documents": [
         {
+          "file": "LICENSE-APACHE",
+          "text": "143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "text": "8b427f5bc501764575e52ba4f9d95673cf8f6d80a86d0d06599852e1a9a20a36"
+        }
+      ],
+      "ecosystem": "cargo",
+      "license": "MIT OR Apache-2.0",
+      "name": "xattr",
+      "repository": "https://github.com/Stebalien/xattr",
+      "sourceArchive": "https://crates.io/api/v1/crates/xattr/1.6.1/download",
+      "sourceCommit": "3e1914f5dac41437db1fed74f6284fd84cb26b26",
+      "targets": [
+        "macOS ARM64",
+        "Windows x64"
+      ],
+      "version": "1.6.1"
+    },
+    {
+      "documents": [
+        {
           "file": "LICENSE",
           "text": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2"
         }
@@ -6545,9 +6568,9 @@
     "packaging/licenses/upstream/c76f740d1521b9bed9ca7a04ad526c310493c62621b1341d623b431736533b30.txt": "c76f740d1521b9bed9ca7a04ad526c310493c62621b1341d623b431736533b30",
     "packaging/licenses/upstream/f5c342c49f3ac804f3e8e7bb62a8040a44c50d47bb36902b1abd13f66a1adf8b.txt": "f5c342c49f3ac804f3e8e7bb62a8040a44c50d47bb36902b1abd13f66a1adf8b",
     "scripts/generate-notices.py": "4953e82aee8e9a07168fcc6d17467c02a83d28d51ba69de00efb62fb91151c0e",
-    "src-tauri/Cargo.lock": "a1c4b72aeefa9cdf04aff70546953e5b0f00a831b48260b2d334f8a5571a0716",
-    "src-tauri/Cargo.toml": "20335e48143a532e5ba15d85133e05064508c2fa21722dce6b45d88386644ead"
+    "src-tauri/Cargo.lock": "38bd3c2b6508072f1c55757444355116d966dde898d51f4c963ff9e80c086642",
+    "src-tauri/Cargo.toml": "1711a84c233b8133c5f0c20420b9000312fcfa74bc9cabe49db1a4b1f8cad851"
   },
-  "noticeSha256": "1c743311ecff62c490e35342714e0cf0bf7b8beb717b11fb9753ffc19fb78eed",
+  "noticeSha256": "43ce39bc84327136056cc9fe1964af19ddd3bf33e2a5f5c7f14daad2a8be87f4",
   "schema": 1
 }

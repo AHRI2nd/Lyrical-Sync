@@ -2510,6 +2510,15 @@ License text: 143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4 (
 License text: ef88893533af22ffbb68ceef0724ba1389518df26165a34f3c99ad30b884df4f (LICENSE-MIT)
 License text: f73041468536d0b5fd1a6610fa3f317e3dc6cf9a0c0591a5529d6556a0d8a2c3 (LICENSE.spdx)
 
+xattr 1.6.1 (cargo)
+License: MIT OR Apache-2.0
+Scope: macOS ARM64, Windows x64
+Source archive: https://crates.io/api/v1/crates/xattr/1.6.1/download
+Repository: https://github.com/Stebalien/xattr
+Source revision: 3e1914f5dac41437db1fed74f6284fd84cb26b26
+License text: 143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4 (LICENSE-APACHE)
+License text: 8b427f5bc501764575e52ba4f9d95673cf8f6d80a86d0d06599852e1a9a20a36 (LICENSE-MIT)
+
 yoke-derive 0.8.2 (cargo)
 License: Unicode-3.0
 Scope: macOS ARM64, Windows x64
