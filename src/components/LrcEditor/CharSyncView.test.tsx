@@ -594,7 +594,7 @@ it.each(["window blur", "buttons=0 movement"])("cancels an unfinished glyph gest
   expect(useLrcStore.getState().isDirty).toBe(wasDirty);
 });
 
-it.each(["document", "audio", "sync unit", "sync mode", "playback source", "modal"])(
+it.each(["document", "active line", "audio", "sync unit", "sync mode", "playback source", "modal"])(
   "cancels a glyph gesture when its %s context changes",
   (context) => {
     const { container } = setup();
@@ -609,6 +609,14 @@ it.each(["document", "audio", "sync unit", "sync mode", "playback source", "moda
         });
       } else if (context === "audio") {
         useLrcStore.setState({ _audioSelection: useLrcStore.getState()._audioSelection + 1 });
+      } else if (context === "active line") {
+        useLrcStore.setState({
+          doc: { ...defaultDocument(), lines: [
+            { id: "line-1", timestamp: 10, text: "hello" },
+            { id: "line-2", timestamp: 20, text: "world" },
+          ] },
+          activeLineId: "line-2",
+        });
       } else if (context === "sync unit") {
         useLrcStore.getState().setSyncUnit("word");
       } else if (context === "sync mode") {
@@ -623,7 +631,7 @@ it.each(["document", "audio", "sync unit", "sync mode", "playback source", "moda
       }
     });
     fireEvent.mouseMove(window, { buttons: 1, clientX: 30, clientY: 30 });
-    expect(useLrcStore.getState().doc.lines[0].syllables).toBeUndefined();
+    expect(useLrcStore.getState().doc.lines.every((line) => line.syllables === undefined)).toBe(true);
     expect(useLrcStore.getState()._history).toHaveLength(0);
     expect(useLrcStore.getState().isDirty).toBe(wasDirty);
     document.querySelector('[data-test-modal="true"]')?.remove();

@@ -234,10 +234,10 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
   stateRef.current = { line, syllables, stampableIdx, lineIdx, linesLen: lines.length };
 
   const glyphGestureContextRef = useRef({
-    documentSession, audioSelection, syncUnit, syncMode, controlSource, controlIdentity,
+    documentSession, audioSelection, activeLineId, syncUnit, syncMode, controlSource, controlIdentity,
   });
   glyphGestureContextRef.current = {
-    documentSession, audioSelection, syncUnit, syncMode, controlSource, controlIdentity,
+    documentSession, audioSelection, activeLineId, syncUnit, syncMode, controlSource, controlIdentity,
   };
 
   const stampActive = () => {
@@ -479,6 +479,7 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
         context.startButton === 0 &&
         store._documentSession === context.documentSession &&
         store._audioSelection === context.audioSelection &&
+        store.activeLineId === context.activeLineId &&
         store.syncUnit === context.syncUnit &&
         store.syncMode === context.syncMode &&
         current.controlSource === context.controlSource &&

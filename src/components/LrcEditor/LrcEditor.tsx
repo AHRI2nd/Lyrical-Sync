@@ -131,7 +131,8 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   } | null>(null);
   const [pendingGlyphMutation, setPendingGlyphMutation] = useState<{
     session: number;
-    sources: Pick<LrcLine, "id" | "text" | "timestamp" | "syllables">[];
+    sources: Pick<LrcLine, "id" | "text" | "timestamp" | "syllables" | "translation">[];
+    requireAdjacentSources: boolean;
     apply: () => void;
   } | null>(null);
   const [pendingTranslationSplit, setPendingTranslationSplit] = useState<{
@@ -267,16 +268,17 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     setPendingTextEdit(null);
   };
 
-  const requestGlyphMutation = (sources: LrcLine[], apply: () => void) => {
+  const requestGlyphMutation = (sources: LrcLine[], apply: () => void, requireAdjacentSources = false) => {
     if (!sources.some((line) => line.syllables?.some((syllable) => syllable.time !== null))) {
       apply();
       return;
     }
     setPendingGlyphMutation({
       session: useLrcStore.getState()._documentSession,
-      sources: sources.map(({ id, text, timestamp, syllables }) => ({
-        id, text, timestamp, syllables: syllables?.map((syllable) => ({ ...syllable })),
+      sources: sources.map(({ id, text, timestamp, syllables, translation }) => ({
+        id, text, timestamp, translation, syllables: syllables?.map((syllable) => ({ ...syllable })),
       })),
+      requireAdjacentSources,
       apply,
     });
   };
@@ -286,10 +288,15 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
       const current = useLrcStore.getState();
       const sourcesMatch = pendingGlyphMutation.sources.every((source) => {
         const line = current.doc.lines.find((item) => item.id === source.id);
-        return line?.text === source.text && line.timestamp === source.timestamp &&
+        return line?.text === source.text && line.timestamp === source.timestamp && line.translation === source.translation &&
           JSON.stringify(line?.syllables) === JSON.stringify(source.syllables);
       });
-      if (current._documentSession === pendingGlyphMutation.session && sourcesMatch) pendingGlyphMutation.apply();
+      const sourcesStayAdjacent = !pendingGlyphMutation.requireAdjacentSources || (
+        pendingGlyphMutation.sources.length === 2 &&
+        current.doc.lines.findIndex((line) => line.id === pendingGlyphMutation.sources[1].id) ===
+          current.doc.lines.findIndex((line) => line.id === pendingGlyphMutation.sources[0].id) + 1
+      );
+      if (current._documentSession === pendingGlyphMutation.session && sourcesMatch && sourcesStayAdjacent) pendingGlyphMutation.apply();
     }
     setPendingGlyphMutation(null);
   };
@@ -430,8 +437,18 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
       const current = useLrcStore.getState();
       const line = current.doc.lines.find((item) => item.id === id);
       if (line?.translation !== undefined) {
-        setPendingTranslationSplit({ id, caretPos: caret, session: current._documentSession, text: line.text,
-          translation: line.translation, first: line.translation, second: "" });
+        const requestSplit = () => setPendingTranslationSplit({ id, caretPos: caret, session: current._documentSession, text: line.text,
+          translation: line.translation!, first: line.translation!, second: "" });
+        if (line.syllables?.some((syllable) => syllable.time !== null)) requestGlyphMutation([line], requestSplit);
+        else requestSplit();
+        return;
+      }
+      if (line?.syllables?.some((syllable) => syllable.time !== null)) {
+        requestGlyphMutation([line], () => {
+          const newId = splitLine(id, caret);
+          setActiveLineId(newId);
+          pendingFocusId.current = newId;
+        });
         return;
       }
       const newId = splitLine(id, caret);
@@ -924,7 +941,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
                 requestGlyphMutation(pair, () => {
                   const pid = mergeLineUp(line.id);
                   if (pid) { setActiveLineId(pid); pendingFocusId.current = pid; }
-                });
+                }, true);
               }}
               onDuplicate={(e) => {
                 e.stopPropagation();

@@ -288,6 +288,41 @@ it("asks before merging timed glyph lines and leaves both intact until confirmed
   expect(useLrcStore.getState().doc.lines[0]).toMatchObject({ text: "first second", syllables: undefined });
   expect(useLrcStore.getState()._history).toHaveLength(1);
 });
+it("does not merge a different line pair if adjacency changes while confirmation is open", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+    { id: "a", text: "first", timestamp: 1, syllables: [{ text: "first", time: 1 }] },
+    { id: "b", text: "second", timestamp: 2, syllables: [{ text: "second", time: 2 }] },
+  ] } });
+  const { getByRole, getAllByRole } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getAllByRole("button", { name: t.mergeLineUp })[1]);
+  act(() => useLrcStore.setState({ doc: { ...useLrcStore.getState().doc, lines: [
+    useLrcStore.getState().doc.lines[0],
+    { id: "middle", text: "inserted", timestamp: 1.5 },
+    useLrcStore.getState().doc.lines[1],
+  ] } }));
+  fireEvent.click(getByRole("button", { name: t.charSync.retokenizeOk }));
+  expect(useLrcStore.getState().doc.lines.map((line) => line.id)).toEqual(["a", "middle", "b"]);
+});
+
+it("asks before splitting a timed glyph line and preserves it when cancelled", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{
+    id: "a", text: "original", timestamp: 1, syllables: [{ text: "original", time: 1 }],
+  }] } });
+  const { getByDisplayValue, getByRole, getByText } = render(<LrcEditor onPreview={() => {}} />);
+  const input = getByDisplayValue("original") as HTMLInputElement;
+  input.setSelectionRange(3, 3);
+  fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+  expect(getByText(t.charSync.retokenizeTitle)).toBeTruthy();
+  fireEvent.click(getByRole("button", { name: t.charSync.retokenizeCancel }));
+  expect(useLrcStore.getState().doc.lines).toHaveLength(1);
+  expect(useLrcStore.getState().doc.lines[0].syllables).toEqual([{ text: "original", time: 1 }]);
+  fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+  fireEvent.click(getByRole("button", { name: t.charSync.retokenizeOk }));
+  expect(useLrcStore.getState().doc.lines).toHaveLength(2);
+  expect(useLrcStore.getState().doc.lines.every((line) => line.syllables === undefined)).toBe(true);
+});
 it("rejects pending translation parts when the source has changed", () => {
   const t = useI18nStore.getState().t;
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "original", translation: "translated", timestamp: 1 }] } });
