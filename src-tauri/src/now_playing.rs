@@ -16,7 +16,23 @@ pub struct NowPlayingInfo {
     source_app: String,
     /// Unix epoch(ms) 기준 timeline 마지막 갱신 시각 — 프런트엔드가 Date.now() 기준으로
     /// 보간(interpolation)할 때 앵커로 사용(Spotify 모드와 동일한 기법).
-    last_updated_unix_ms: i64,
+    last_updated_unix_ms: Option<i64>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::valid_unix_timestamp;
+
+    #[test]
+    fn invalid_native_timestamps_are_unknown() {
+        assert_eq!(valid_unix_timestamp(0), None);
+        assert_eq!(valid_unix_timestamp(-1), None);
+        assert_eq!(valid_unix_timestamp(1_700_000_000_000), Some(1_700_000_000_000));
+    }
+}
+
+fn valid_unix_timestamp(value: i64) -> Option<i64> {
+    (value > 0).then_some(value)
 }
 
 #[cfg(target_os = "windows")]
@@ -70,8 +86,9 @@ mod platform {
 
         let position_ticks = timeline.Position().map(|t| t.Duration).unwrap_or(0);
         let end_ticks = timeline.EndTime().map(|t| t.Duration).unwrap_or(0);
-        let last_updated_ticks = timeline.LastUpdatedTime().map(|d| d.UniversalTime).unwrap_or(0);
-        let last_updated_unix_ms = (last_updated_ticks - EPOCH_DIFF_TICKS) / 10_000;
+        let last_updated_unix_ms = timeline.LastUpdatedTime().ok()
+            .map(|d| (d.UniversalTime - EPOCH_DIFF_TICKS) / 10_000)
+            .and_then(valid_unix_timestamp);
 
         let status_raw = playback_info.PlaybackStatus().map(|s| s.0).unwrap_or(0);
         let is_playing = status_raw == 4; // GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing
@@ -133,7 +150,6 @@ mod platform {
     use super::NowPlayingInfo;
     use serde::Deserialize;
     use std::path::PathBuf;
-    use std::time::{SystemTime, UNIX_EPOCH};
     use tauri::{AppHandle, Manager};
     use tokio::process::Command;
 
@@ -227,18 +243,12 @@ mod platform {
         }
 
         // elapsedTime은 재생 앱이 실제로 값을 밀어줄 때만 갱신되므로, 어댑터가 함께 주는
-        // timestamp(그 스냅샷이 찍힌 시각)를 그대로 보간 앵커로 써야 한다. 파싱 실패 시에만
-        // 현재 시각으로 폴백(약간의 오차는 있어도 완전히 멈추는 것보다는 낫다).
+        // timestamp가 유효할 때만 보간 앵커로 사용한다.
         let last_updated_unix_ms = info
             .timestamp
             .as_deref()
             .and_then(parse_iso8601_utc_ms)
-            .unwrap_or_else(|| {
-                SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .map(|d| d.as_millis() as i64)
-                    .unwrap_or(0)
-            });
+            .and_then(super::valid_unix_timestamp);
 
         Ok(Some(NowPlayingInfo {
             title,

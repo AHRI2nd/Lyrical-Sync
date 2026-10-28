@@ -17,7 +17,7 @@ interface NowPlayingInfo {
   duration_ms: number;
   is_playing: boolean;
   source_app: string;
-  last_updated_unix_ms: number;
+  last_updated_unix_ms: number | null;
 }
 
 interface DeviceState {
@@ -90,7 +90,9 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
         return;
       }
       const elapsed = Date.now() - _lastStateTimestamp;
-      const interpolated = Math.min(_lastKnownPositionMs + elapsed, durationMs);
+      const interpolated = durationMs > 0
+        ? Math.min(_lastKnownPositionMs + elapsed, durationMs)
+        : _lastKnownPositionMs + elapsed;
       set({ positionMs: interpolated });
       if (useSettingsStore.getState().deviceMode) {
         useLrcStore.getState().setCurrentTime(interpolated / 1000);
@@ -133,10 +135,13 @@ async function pollOnce(generation: number): Promise<void> {
     }
 
     // last_updated_unix_ms 이후 경과한 시간만큼 위치를 보정(폴링 지연 보상)
-    const elapsedSinceUpdate = info.is_playing
-      ? Math.max(0, Date.now() - info.last_updated_unix_ms)
+    const lastUpdated = info.last_updated_unix_ms;
+    const elapsedSinceUpdate = info.is_playing && typeof lastUpdated === "number" &&
+      Number.isFinite(lastUpdated) && lastUpdated > 0
+      ? Math.max(0, Date.now() - lastUpdated)
       : 0;
-    const positionMs = Math.min(info.position_ms + elapsedSinceUpdate, info.duration_ms || info.position_ms);
+    const rawPositionMs = Math.max(0, info.position_ms) + elapsedSinceUpdate;
+    const positionMs = info.duration_ms > 0 ? Math.min(rawPositionMs, info.duration_ms) : rawPositionMs;
 
     useDeviceStore.setState({
       hasSession: true,

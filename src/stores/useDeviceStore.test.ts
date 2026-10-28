@@ -186,4 +186,28 @@ describe("useDeviceStore — failure notification", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(useDeviceStore.getState().positionMs).toBe(1200);
   });
+
+  it("does not infer that an invalid native timestamp means playback reached the track end", async () => {
+    useSettingsStore.getState().setDeviceMode(true);
+    invoke.mockResolvedValue({ title: "Track", artist: "Artist", album: "Album", position_ms: 1500,
+      duration_ms: 60000, is_playing: true, source_app: "Test", last_updated_unix_ms: 0 });
+    useDeviceStore.getState().startPolling();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useDeviceStore.getState().positionMs).toBe(1500);
+    expect(useDeviceStore.getState().durationMs).toBe(60000);
+  });
+
+  it("does not clamp interpolation to zero when duration is unknown", async () => {
+    useSettingsStore.getState().setDeviceMode(true);
+    const raf: { tick?: FrameRequestCallback } = {};
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { raf.tick = callback; return 1; });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    invoke.mockResolvedValue({ title: "Unknown length", artist: "Artist", album: "Album", position_ms: 3000,
+      duration_ms: 0, is_playing: true, source_app: "Test", last_updated_unix_ms: Date.now() });
+    useDeviceStore.getState().startPolling();
+    await vi.advanceTimersByTimeAsync(0);
+    useDeviceStore.setState({ _lastStateTimestamp: Date.now() - 2000 });
+    raf.tick?.(0);
+    expect(useDeviceStore.getState().positionMs).toBeGreaterThan(3000);
+  });
 });
