@@ -82,7 +82,10 @@ export function serializeSrt(doc: LrcDocument, lastCueEnd?: number): string {
     const line = timed[i];
     if (line.text.trim() === "" && !line.translation?.trim()) continue; // Empty rows provide boundaries only.
     const start = line.timestamp as number;
-    const end = nextCueEnd(timed, i, start, lastCueEnd);
+    const importedEnd = line.srtEndTime;
+    const end = Number.isFinite(importedEnd) && (importedEnd as number) > start
+      ? importedEnd as number
+      : nextCueEnd(timed, i, start, lastCueEnd);
     const text = line.text.trim() === "" ? (line.translation ?? "") : line.translation ? `${line.text}\n${line.translation}` : line.text;
     assertSrtBodyRepresentable(text);
     cues.push({ start, end, text });
@@ -99,8 +102,8 @@ export function serializeSrt(doc: LrcDocument, lastCueEnd?: number): string {
 }
 
 /**
- * Import cue starts and preserve multiline bodies. Intermediate gaps become
- * blank timed boundaries. Original overlaps are not stored; the final cue end is retained.
+ * Import cue starts and preserve multiline bodies and original cue ends.
+ * Intermediate gaps also become blank timed boundaries for LRC-compatible editing.
  */
 export function parseSrt(raw: string): LrcDocument {
   const doc = defaultDocument();
@@ -134,7 +137,7 @@ export function parseSrt(raw: string): LrcDocument {
   // 2) cue → 가사 줄 + 가사 사이 갭에 빈 줄(경계) 삽입
   for (let i = 0; i < cues.length; i++) {
     const cue = cues[i];
-    doc.lines.push({ id: String(lineId++), timestamp: cue.start, text: cue.text });
+    doc.lines.push({ id: String(lineId++), timestamp: cue.start, srtEndTime: cue.end, text: cue.text });
 
     // Keep gap boundaries and the final cue end so imports retain their duration.
     const next = cues[i + 1];

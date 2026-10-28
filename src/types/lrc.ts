@@ -16,6 +16,8 @@ export interface LrcSyllable {
 export interface LrcLine {
   id: string;
   timestamp: number | null; // seconds
+  /** Original SRT cue end, retained so overlapping cue intervals survive import/export. */
+  srtEndTime?: number;
   text: string;
   // 존재하면 Enhanced LRC(글자/단어 동기화) 줄. 없으면 일반 줄 단위.
   syllables?: LrcSyllable[];
