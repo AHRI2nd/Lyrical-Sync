@@ -53,9 +53,12 @@ import { defaultDocument } from "./types/lrc";
 import { useI18nStore } from "./stores/useI18nStore";
 import { installMemoryLocalStorage } from "./test/memoryLocalStorage";
 
+const initialLoadLyricsPath = useLrcStore.getInitialState().loadLyricsPath;
+
 const resetLrc = (overrides: Partial<ReturnType<typeof useLrcStore.getState>> = {}) => {
   useLrcStore.setState({
     doc: defaultDocument(),
+    loadLyricsPath: initialLoadLyricsPath,
     audioPath: null,
     lrcPath: null,
     isDirty: false,
@@ -168,6 +171,7 @@ describe("App — drag-and-drop conflict resolution", () => {
 
   it("confirms before File > Open replaces unsaved lyrics", async () => {
     resetLrc({ isDirty: true, lrcPath: "/music/old.lrc" });
+    expect(useLrcStore.getState().loadLyricsPath).toBe(initialLoadLyricsPath);
     dialogOpen.mockResolvedValue("/music/new.lrc");
     const loadLyricsPathSpy = vi.spyOn(useLrcStore.getState(), "loadLyricsPath").mockResolvedValue(undefined);
     const user = userEvent.setup();
@@ -321,6 +325,7 @@ describe("App — paired drop transactions", () => {
     render(<App />);
     act(() => dragDropHandler.current?.({ payload: { type: "drop", paths: ["/new.mp3", "/new.lrc"] } }));
     await userEvent.setup().click(screen.getByText(useI18nStore.getState().t.drop.replaceOk));
+    expect(invoke).toHaveBeenCalledWith("read_lrc_file", { path: "/new.lrc" });
     expect(await screen.findByText(useI18nStore.getState().t.toast.openFailed)).toBeTruthy();
     expect(useLrcStore.getState().audioPath).toBe("/old.mp3");
     expect(useLrcStore.getState().lrcPath).toBe("/old.lrc");
