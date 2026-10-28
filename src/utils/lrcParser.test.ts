@@ -158,6 +158,13 @@ describe("parseLrc — line level", () => {
     expect(serializeLrc(parsedInline)).toContain("[x-lyrical-inline-escape:custom]");
   });
 
+  it("keeps an existing active inline-escape marker compatible with document text", () => {
+    const doc = docOf([{ id: "text", timestamp: 1, text: "\\u003C00:02.00>" }]);
+    doc.extraTags["x-lyrical-inline-escape"] = "1";
+    const restored = parseLrc(serializeLrc(doc));
+    expect(restored.lines[0].text).toBe(doc.lines[0].text);
+  });
+
   it("preserves app-edited row order while keeping default sorting for external LRC", () => {
     const edited = docOf([
       { id: "later", timestamp: 2, text: "later" },

@@ -373,8 +373,9 @@ export function serializeLrc(doc: LrcDocument, enhanced = true): string {
   });
   const orderNeedsMarker = sortedLines.some((line, index) => line !== lines[index]);
   const translationMode = orderNeedsMarker || lines.some(line => typeof line.translation === "string" || line.text === "" || line.text.trim() !== line.text || /[\r\n]/.test(line.text) || /^\s*\[/.test(line.text));
-  const inlineEscapeMode = needsInlineTimestampEscape(doc);
-  if (Object.keys(extraTags).some((key) => key.toLowerCase() === INLINE_ESCAPE_TAG) && inlineEscapeMode) {
+  const inlineEscapeTag = Object.entries(extraTags).find(([key]) => key.toLowerCase() === INLINE_ESCAPE_TAG);
+  const inlineEscapeMode = needsInlineTimestampEscape(doc) || inlineEscapeTag?.[1] === "1";
+  if (inlineEscapeTag && inlineEscapeTag[1] !== "1" && inlineEscapeMode) {
     throw new LrcInlineEscapeTagConflictError();
   }
   const translationTag = Object.keys(extraTags).find((key) => key.toLowerCase() === TRANSLATION_TAG);
@@ -393,6 +394,7 @@ export function serializeLrc(doc: LrcDocument, enhanced = true): string {
   if (metadata.offset !== 0) parts.push(`[offset:${metadata.offset}]`);
   for (const [key, val] of Object.entries(extraTags)) {
     if (key.toLowerCase() === TRANSLATION_TAG && val === "1") continue;
+    if (key.toLowerCase() === INLINE_ESCAPE_TAG && val === "1") continue;
     parts.push(`[${key}:${val}]`);
   }
   if (inlineEscapeMode) parts.push(`[${INLINE_ESCAPE_TAG}:1]`);
