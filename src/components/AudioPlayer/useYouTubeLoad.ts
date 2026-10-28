@@ -35,6 +35,7 @@ export function useYouTubeLoad(setAudioPath: (path: string) => void) {
   const handleYtLoad = async () => {
     const url = ytUrl.trim();
     if (!url || operation.current || !mounted.current) return;
+    if (!useSettingsStore.getState().youtubeMode) return;
     const request = { cancelled: false };
     operation.current = request;
     const { _audioSelection: audioSelection, _documentSession: documentSession } = useLrcStore.getState();
@@ -48,8 +49,9 @@ export function useYouTubeLoad(setAudioPath: (path: string) => void) {
         proxy: ytdlpProxy,
       });
       const current = useLrcStore.getState();
+      const isYouTubeMode = useSettingsStore.getState().youtubeMode;
       if (!mounted.current || request.cancelled || current._audioSelection !== audioSelection ||
-          current._documentSession !== documentSession) return;
+          current._documentSession !== documentSession || !isYouTubeMode) return;
       setAudioPath(path);
       setYtModalOpen(false);
       setYtUrl("");

@@ -8,9 +8,11 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 import { useYouTubeLoad } from "./useYouTubeLoad";
 import { useBusyStore } from "../../stores/useBusyStore";
 import { useLrcStore } from "../../stores/useLrcStore";
+import { useSettingsStore } from "../../stores/useSettingsStore";
 beforeEach(() => {
  invokeMock.mockReset().mockResolvedValue(undefined);
  useBusyStore.setState({reasons:new Set()});
+ useSettingsStore.getState().setPlaybackMode("youtube");
  useLrcStore.getState().newLrc();useLrcStore.getState().setAudioPath(null);
 });
 afterEach(cleanup);
@@ -38,6 +40,13 @@ it.each(['different','same path','new document'])('ignores a result after a late
  await act(async()=>{run.resolve('/obsolete.wav');await run.pending;});
  expect(run.apply).not.toHaveBeenCalled();expect(run.result.current.ytLoading).toBe(false);
  expect(useBusyStore.getState().reasons.size).toBe(0);
+});
+it('does not apply a download result after leaving YouTube mode', async () => {
+ const run=start();
+ useSettingsStore.getState().setPlaybackMode("spotify");
+ await act(async()=>{run.resolve('/stale-mode.wav');await run.pending;});
+ expect(run.apply).not.toHaveBeenCalled();
+ expect(run.result.current.ytLoading).toBe(false);
 });
 it('keeps cancellation busy until native completion without applying a late success', async () => {
  const run=start();act(()=>run.result.current.handleYtCancel());
