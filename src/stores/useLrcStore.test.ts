@@ -794,6 +794,31 @@ describe("useLrcStore — save completion races", () => {
     expect(useLrcStore.getState().isDirty).toBe(true);
   });
 
+  it("keeps SRT Save As as an export and preserves the active LRC state", async () => {
+    useLrcStore.setState({ doc: { ...useLrcStore.getState().doc, metadata: { ...useLrcStore.getState().doc.metadata, title: "Rich title" }, lines: [{ id: "1", timestamp: 1, text: "lyrics", syllables: [{ text: "lyrics", time: 1 }] }] }, lrcPath: "/tmp/source.lrc", isDirty: true });
+    vi.mocked(save).mockResolvedValue("/tmp/export.srt");
+    vi.mocked(invoke).mockResolvedValue(undefined);
+
+    await expect(useLrcStore.getState().saveLrcAs("srt")).resolves.toBe(true);
+
+    expect(invoke).toHaveBeenCalledWith("write_lrc_file", expect.objectContaining({ path: "/tmp/export.srt" }));
+    expect(useLrcStore.getState().lrcPath).toBe("/tmp/source.lrc");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
+  it("refuses to overwrite an SRT source when the document has LRC-only content", async () => {
+    const state = useLrcStore.getState();
+    useLrcStore.setState({
+      doc: { ...state.doc, metadata: { ...state.doc.metadata, title: "LRC title" }, lines: [{ id: "1", timestamp: 1, text: "lyrics", syllables: [{ text: "lyrics", time: 1 }] }] },
+      lrcPath: "/tmp/song.srt", isDirty: true,
+    });
+
+    await expect(useLrcStore.getState().saveLrc()).rejects.toMatchObject({ code: "SRT_LOSSY_DOCUMENT" });
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState().lrcPath).toBe("/tmp/song.srt");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
   it("rejects an unrepresentable SRT save before file I/O and keeps the document dirty", async () => {
     const state = useLrcStore.getState();
     useLrcStore.setState({

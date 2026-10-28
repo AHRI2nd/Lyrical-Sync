@@ -5,7 +5,7 @@ import { LrcDocument, LrcLine, LrcMetadata, LrcSyllable, defaultDocument } from 
 import { type HistoryEntry, type HistoryLabel } from "../types/history";
 import { isStampable, parseLrc, serializeLrc, tokenizeText, type SyncUnit } from "../utils/lrcParser";
 import { nearestBeat } from "../utils/bpmDetect";
-import { serializeSrt, parseSrt } from "../utils/srtConverter";
+import { assertSrtDocumentLossless, serializeSrt, parseSrt } from "../utils/srtConverter";
 import { serializeVtt, serializeAss } from "../utils/exportFormats";
 import { toast } from "./useToastStore";
 import { useI18nStore } from "./useI18nStore";
@@ -791,6 +791,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     const { lrcPath, doc, duration } = get();
     if (!lrcPath) return get().saveLrcAs("lrc");
     const sessionId = documentSessionId;
+    if (lrcPath.toLowerCase().endsWith(".srt")) assertSrtDocumentLossless(doc);
     const written = await writeLrcFile(
       lrcPath,
       serializeForPath(lrcPath, doc, duration),
@@ -837,7 +838,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
       const current = get();
       if (
         isCurrentRequest() &&
-        (format === "lrc" || format === "srt")
+        format === "lrc"
       ) {
         set({ lrcPath: path, ...(current.doc === doc ? { isDirty: false } : {}) });
       }
