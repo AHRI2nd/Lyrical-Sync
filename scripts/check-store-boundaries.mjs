@@ -5,6 +5,22 @@ import { fileURLToPath } from 'node:url';
 
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 
+function stripRustTestModules(source) {
+  const lines = source.split('\n');
+  const production = [];
+  for (let index = 0; index < lines.length; index++) {
+    if (/^#\[cfg\((?:test|all\(test,[^\]]+\))\)\]$/.test(lines[index].trim()) &&
+        /^\s*mod\s+\w+\s*\{/.test(lines[index + 1] ?? '')) {
+      index++;
+      while (index + 1 < lines.length && lines[index + 1] !== '}') index++;
+      index++;
+      continue;
+    }
+    production.push(lines[index]);
+  }
+  return production.join('\n');
+}
+
 /** Check the reviewed Store source and platform contract, without changing files. */
 export function checkStoreBoundaries(root, policy) {
   root = resolve(root);
@@ -45,7 +61,10 @@ export function checkStoreBoundaries(root, policy) {
   const commands = new Set();
   for (const path of sources) {
     if (!/\.(?:[cm]?jsx?|tsx?|rs)$/.test(path) || /\.test\./.test(path)) continue;
-    const text = readFileSync(resolve(root, path), 'utf8');
+    let text = readFileSync(resolve(root, path), 'utf8');
+    // Rust unit-test modules are compiled only for tests and may invoke host tools.
+    // Keep the production boundary scan focused on code that ships in the Store app.
+    if (path.endsWith('.rs')) text = stripRustTestModules(text);
     for (const match of text.matchAll(/(?:from\s*|import\s*(?:\(|)|require\s*\()\s*["']([^"']+)["']/g)) {
       if (bannedImport.test(match[1])) problems.push(`Excluded integration import in ${path}: ${match[1]}`);
     }

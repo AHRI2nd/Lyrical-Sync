@@ -49,6 +49,16 @@ test('rejects new native commands and external process execution', () => fixture
   const problems = checkStoreBoundaries(root, policy).join('\n');
   assert.match(problems, /Unreviewed native command: install_code/); assert.match(problems, /Excluded native execution/);
 }));
+
+test('ignores external tools used only by Rust unit tests', () => fixture(({ root, put, policy, native }) => {
+  put('src-tauri/src/lib.rs', `${native}\n#[cfg(test)]\nmod tests {\n  fn helper() { std::process::Command::new("chmod"); }\n}\nfn production() { std::process::Command::new("blocked"); }`);
+  {
+    const problems = checkStoreBoundaries(root, policy).join('\n');
+    assert.match(problems, /Excluded native execution/);
+    put('src-tauri/src/lib.rs', `${native}\n#[cfg(test)]\nmod tests {\n  fn helper() { std::process::Command::new("chmod"); }\n}\nfn production() {}`);
+  }
+  assert.deepEqual(checkStoreBoundaries(root, policy), []);
+}));
 test('rejects deletion of reviewed Store sources', () => fixture(({ root, policy }) => {
   rmSync(join(root, 'src/App.tsx'));
   assert.match(checkStoreBoundaries(root, policy).join('\n'), /Reviewed Store source removed/);

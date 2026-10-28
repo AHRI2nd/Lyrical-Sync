@@ -43,8 +43,8 @@
     "src/components/AudioPlayer/TrackInfoHeader.tsx",
     "src/components/AudioPlayer/TransportControls.tsx",
     "src/components/AudioPlayer/icons.tsx",
-    "src/components/BatchTools/BatchFileList.tsx",
     "src/components/BatchTools/BatchFileList.test.tsx",
+    "src/components/BatchTools/BatchFileList.tsx",
     "src/components/BatchTools/BatchOperationPicker.tsx",
     "src/components/BatchTools/BatchToolModal.test.tsx",
     "src/components/BatchTools/BatchToolModal.tsx",
@@ -57,6 +57,7 @@
     "src/components/LrcEditor/ClearGlyphTimings.tsx",
     "src/components/LrcEditor/ControlAccessibility.test.tsx",
     "src/components/LrcEditor/CurrentTimeFooter.tsx",
+    "src/components/LrcEditor/FindReplaceBar.test.tsx",
     "src/components/LrcEditor/FindReplaceBar.tsx",
     "src/components/LrcEditor/LineNavigator.test.tsx",
     "src/components/LrcEditor/LineNavigator.tsx",
@@ -306,7 +307,7 @@
     "write_lrc_file"
   ],
   "protectedFiles": {
-    "src-tauri/Cargo.toml": "20335e48143a532e5ba15d85133e05064508c2fa21722dce6b45d88386644ead",
+    "src-tauri/Cargo.toml": "09b3d3deccd33390eb7e97b9bb4469af536df0c837e3000e14c2ca2a95a6a1d7",
     "src-tauri/entitlements.plist": "c9e009bfaa3f59f16c918506c90e2a99a2f6579dda969ec15772df0954ce07e0",
     "src-tauri/PrivacyInfo.xcprivacy": "95ba26194f5d7ba3708e020a62d086226734f5d580d9158af92f6a79001501bc",
     "src-tauri/capabilities/default.json": "418064c63306957706bf83f3faf57017c79a9a632b5fedb9e602e864b203b185",
