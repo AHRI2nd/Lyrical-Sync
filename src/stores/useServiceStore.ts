@@ -4,6 +4,8 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { generatePkce, buildAuthUrl, SPOTIFY_REDIRECT_URI } from "../utils/spotifyAuth";
 import { useLrcStore } from "./useLrcStore";
 import { useSettingsStore } from "./useSettingsStore";
+import { useI18nStore } from "./useI18nStore";
+import { toast } from "./useToastStore";
 
 export interface SpotifyTrack {
   uri: string;
@@ -30,12 +32,75 @@ interface TokenResponse {
 
 // Module-level RAF handle — not stored in Zustand since it doesn't drive UI
 let interpolationRaf: number | null = null;
-type AuthLease = { generation: number; clientId: string };
+export type AuthLease = { generation: number; clientId: string };
 let refreshPromises = new Map<number, Promise<void>>();
 let loopRequestGeneration = 0;
 let tokenQueue: Promise<void> = Promise.resolve();
 let oauthListenerQueue: Promise<void> = Promise.resolve();
 let pendingLoginLease: AuthLease | null = null;
+const activeSpotifyRequests = new Set<AbortController>();
+const SPOTIFY_REQUEST_TIMEOUT_MS = 15_000;
+
+export class SpotifyHttpError extends Error {
+  constructor(readonly status: number) {
+    super(`Spotify request failed (${status})`);
+    this.name = "SpotifyHttpError";
+  }
+}
+
+export function spotifyAuthLease(): AuthLease {
+  return authLease();
+}
+
+function abortSpotifyRequests(): void {
+  for (const controller of activeSpotifyRequests) controller.abort();
+  activeSpotifyRequests.clear();
+}
+
+export async function spotifyApiRequest<T>(
+  input: string | URL,
+  init: RequestInit,
+  readResponse: (response: Response) => Promise<T>,
+  lease: AuthLease = authLease(),
+): Promise<T> {
+  const url = new URL(input);
+  if (url.origin !== "https://api.spotify.com") throw new Error("invalid_spotify_origin");
+  if (!isCurrentLease(lease)) throw new Error("auth_changed");
+  const token = await useServiceStore.getState().ensureToken();
+  if (!isCurrentLease(lease)) throw new Error("auth_changed");
+
+  const controller = new AbortController();
+  const callerSignal = init.signal;
+  if (callerSignal?.aborted) throw new DOMException("Aborted", "AbortError");
+  const abortFromCaller = () => controller.abort();
+  callerSignal?.addEventListener("abort", abortFromCaller, { once: true });
+  activeSpotifyRequests.add(controller);
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, SPOTIFY_REQUEST_TIMEOUT_MS);
+  try {
+    const headers = new Headers(init.headers);
+    headers.set("Authorization", `Bearer ${token}`);
+    const response = await fetch(input, { ...init, headers, signal: controller.signal });
+    if (timedOut) throw new Error("spotify_timeout");
+    if (!isCurrentLease(lease)) throw new Error("auth_changed");
+    if (!response.ok) throw new SpotifyHttpError(response.status);
+    const result = await readResponse(response);
+    if (timedOut) throw new Error("spotify_timeout");
+    if (!isCurrentLease(lease)) throw new Error("auth_changed");
+    return result;
+  } catch (error) {
+    if (timedOut) throw new Error("spotify_timeout");
+    if (!isCurrentLease(lease)) throw new Error("auth_changed");
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    callerSignal?.removeEventListener("abort", abortFromCaller);
+    activeSpotifyRequests.delete(controller);
+  }
+}
 
 function enqueueTokenTask<T>(task: () => Promise<T>): Promise<T> {
   const result = tokenQueue.then(task, task);
@@ -61,6 +126,10 @@ function isCurrentLease(lease: AuthLease): boolean {
     useSettingsStore.getState().spotifyClientId.trim() === lease.clientId;
 }
 
+export function isSpotifyAuthLeaseCurrent(lease: AuthLease): boolean {
+  return isCurrentLease(lease);
+}
+
 function loadRefreshToken(lease: AuthLease): Promise<string | null> {
   return enqueueTokenTask(async () => {
     if (!isCurrentLease(lease)) return null;
@@ -77,7 +146,9 @@ function saveRefreshToken(lease: AuthLease, token: string): Promise<boolean> {
 }
 
 function clearRefreshToken(): void {
-  void enqueueTokenTask(() => invoke("clear_refresh_token")).catch(() => {});
+  void enqueueTokenTask(() => invoke("clear_refresh_token")).catch(() => {
+    toast.error(useI18nStore.getState().t.toast.spotifyTokenCleanupFailed);
+  });
 }
 
 function cancelOAuthListener(): void {
@@ -188,6 +259,7 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
       albumName: "",
       albumArtUrl: null,
     });
+    abortSpotifyRequests();
     get()._stopInterpolation();
     cancelOAuthListener();
     clearRefreshToken();
@@ -234,7 +306,8 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
     if (!isCurrentLease(lease)) throw new Error("auth_changed");
 
     if (resp.refreshToken) {
-      await saveRefreshToken(lease, resp.refreshToken);
+      const saved = await saveRefreshToken(lease, resp.refreshToken);
+      if (!saved) throw new Error("refresh_token_save_failed");
     }
     if (!isCurrentLease(lease)) throw new Error("auth_changed");
 
@@ -286,7 +359,8 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
       if (!isCurrentLease(lease)) throw new Error("auth_changed");
 
       if (resp.refreshToken) {
-        await saveRefreshToken(lease, resp.refreshToken);
+        const saved = await saveRefreshToken(lease, resp.refreshToken);
+        if (!saved) throw new Error("refresh_token_save_failed");
       }
       if (!isCurrentLease(lease)) throw new Error("auth_changed");
 
@@ -305,23 +379,20 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
   },
 
   toggleLoop: async () => {
-    const { ensureToken } = get();
     const previous = get().isLooping;
     const next = !previous;
     const requestId = ++loopRequestGeneration;
     const lease = authLease();
     set({ isLooping: next });
     try {
-      const token = await ensureToken();
       if (!isCurrentLease(lease) || requestId !== loopRequestGeneration) return;
-      const response = await fetch(`https://api.spotify.com/v1/me/player/repeat?state=${next ? "track" : "off"}`, {
+      await spotifyApiRequest(`https://api.spotify.com/v1/me/player/repeat?state=${next ? "track" : "off"}`, {
         method: "PUT",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) throw new Error(`Spotify repeat request failed (${response.status})`);
+      }, async () => undefined, lease);
       if (isCurrentLease(lease) && requestId === loopRequestGeneration) set({ isLooping: next });
     } catch (error) {
-      if (isCurrentLease(lease) && requestId === loopRequestGeneration) set({ isLooping: previous });
+      if (!isCurrentLease(lease) || requestId !== loopRequestGeneration) return;
+      set({ isLooping: previous });
       throw error;
     }
   },
@@ -348,6 +419,7 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
       albumName: "",
       albumArtUrl: null,
     });
+    abortSpotifyRequests();
     get()._stopInterpolation();
     cancelOAuthListener();
     clearRefreshToken();
@@ -412,115 +484,98 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
   },
 
   transferPlaybackToApp: async () => {
+    const lease = authLease();
     // SDK 'ready'가 아직 안 왔을 수 있으니 deviceId를 잠깐 대기(최대 ~3초)
     let deviceId = get().deviceId;
     for (let i = 0; i < 12 && !deviceId; i++) {
       await new Promise((r) => setTimeout(r, 250));
+      if (!isCurrentLease(lease)) throw new Error("auth_changed");
       deviceId = get().deviceId;
     }
     if (!deviceId) return; // SDK 기기 미준비(playerError 참고) → 기존 기기 유지
-    const token = await get().ensureToken();
-    await fetch("https://api.spotify.com/v1/me/player", {
+    await spotifyApiRequest("https://api.spotify.com/v1/me/player", {
       method: "PUT",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ device_ids: [deviceId], play: true }),
-    });
+    }, async () => undefined, lease);
   },
 
   fetchDevices: async () => {
-    const token = await get().ensureToken();
-    const resp = await fetch("https://api.spotify.com/v1/me/player/devices", {
-      headers: { Authorization: `Bearer ${token}` },
+    return spotifyApiRequest("https://api.spotify.com/v1/me/player/devices", {}, async (resp) => {
+      const data = await resp.json();
+      return (data.devices ?? []) as SpotifyDevice[];
     });
-    if (!resp.ok) return [];
-    const data = await resp.json();
-    return (data.devices ?? []) as SpotifyDevice[];
   },
 
   transferToDevice: async (deviceId, play) => {
-    const token = await get().ensureToken();
-    await fetch("https://api.spotify.com/v1/me/player", {
+    await spotifyApiRequest("https://api.spotify.com/v1/me/player", {
       method: "PUT",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ device_ids: [deviceId], play }),
-    });
+    }, async () => undefined);
   },
 
   pausePlayback: async () => {
-    const { isPlaying, ensureToken } = get();
+    const { isPlaying } = get();
     if (!isPlaying) return;
-    try {
-      const token = await ensureToken();
-      await fetch("https://api.spotify.com/v1/me/player/pause", {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-    } catch { /* ignore */ }
+    await spotifyApiRequest("https://api.spotify.com/v1/me/player/pause", {
+      method: "PUT",
+    }, async () => undefined);
   },
 
   playTrack: async (uri: string) => {
-    const { deviceId: sdkDeviceId, ensureToken } = get();
-    const token = await ensureToken();
+    const lease = authLease();
+    const { deviceId: sdkDeviceId } = get();
 
     const playUrl = sdkDeviceId
       ? `https://api.spotify.com/v1/me/player/play?device_id=${sdkDeviceId}`
       : "https://api.spotify.com/v1/me/player/play";
 
-    let resp = await fetch(playUrl, {
+    try {
+      await spotifyApiRequest(playUrl, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uris: [uri] }),
+      }, async () => undefined, lease);
+      return;
+    } catch (error) {
+      if (!(error instanceof SpotifyHttpError) || error.status !== 404 || !sdkDeviceId) throw error;
+    }
+
+    const devices = await spotifyApiRequest("https://api.spotify.com/v1/me/player/devices", {}, async (resp) => {
+      const data = await resp.json() as { devices?: { id: string; is_active: boolean }[] };
+      return data.devices ?? [];
+    }, lease);
+    const target = devices.find((d) => d.is_active) ?? devices[0];
+    if (!target) throw new Error("no_active_spotify_device");
+    await spotifyApiRequest("https://api.spotify.com/v1/me/player", {
       method: "PUT",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device_ids: [target.id], play: false }),
+    }, async () => undefined, lease);
+    await new Promise((r) => setTimeout(r, 500));
+    if (!isCurrentLease(lease)) throw new Error("auth_changed");
+    await spotifyApiRequest(`https://api.spotify.com/v1/me/player/play?device_id=${target.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ uris: [uri] }),
-    });
-
-    // If SDK device not found, fall back to any available device
-    if (!resp.ok && sdkDeviceId) {
-      const devResp = await fetch("https://api.spotify.com/v1/me/player/devices", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (devResp.ok) {
-        const { devices = [] } = await devResp.json() as { devices: { id: string; is_active: boolean }[] };
-        const target = devices.find((d) => d.is_active) ?? devices[0];
-        if (target) {
-          await fetch("https://api.spotify.com/v1/me/player", {
-            method: "PUT",
-            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ device_ids: [target.id], play: false }),
-          });
-          await new Promise((r) => setTimeout(r, 500));
-          resp = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${target.id}`, {
-            method: "PUT",
-            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ uris: [uri] }),
-          });
-        }
-      }
-    }
-
-    if (!resp.ok) {
-      const text = await resp.text();
-      throw new Error(text);
-    }
+    }, async () => undefined, lease);
   },
 
   fetchCurrentlyPlaying: async () => {
-    const token = await get().ensureToken();
-    const resp = await fetch("https://api.spotify.com/v1/me/player/currently-playing", {
-      headers: { Authorization: `Bearer ${token}` },
+    return spotifyApiRequest("https://api.spotify.com/v1/me/player/currently-playing", {}, async (resp) => {
+      if (resp.status === 204) return null;
+      const data = await resp.json();
+      if (!data?.item) return null;
+      return {
+        uri: data.item.uri as string,
+        name: data.item.name as string,
+        artistName: (data.item.artists as { name: string }[]).map((a) => a.name).join(", "),
+        albumName: data.item.album.name as string,
+        albumArtUrl: (data.item.album.images as { url: string }[])[0]?.url ?? null,
+        durationMs: data.item.duration_ms as number,
+      };
     });
-    if (!resp.ok || resp.status === 204) return null;
-    const data = await resp.json();
-    if (!data?.item) return null;
-    return {
-      uri: data.item.uri as string,
-      name: data.item.name as string,
-      artistName: (data.item.artists as { name: string }[]).map((a) => a.name).join(", "),
-      albumName: data.item.album.name as string,
-      albumArtUrl: (data.item.album.images as { url: string }[])[0]?.url ?? null,
-      durationMs: data.item.duration_ms as number,
-    };
   },
 
   _startInterpolation: () => {

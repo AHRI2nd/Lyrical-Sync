@@ -329,7 +329,7 @@ function App() {
         await handleCallback(e.payload);
         initSpotifyPlayer();
       } catch {
-        // OAuth failed — user can retry from settings
+        toast.error(useI18nStore.getState().t.toast.spotifyActionFailed);
       }
     }).then((fn) => {
       if (cancelled) safeUnlisten(fn);

@@ -9,6 +9,8 @@ vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
 
 import { useServiceStore } from "../stores/useServiceStore";
 import { useSettingsStore } from "../stores/useSettingsStore";
+import { useI18nStore } from "../stores/useI18nStore";
+import { useToastStore } from "../stores/useToastStore";
 import { disconnectSpotifyPlayer, initSpotifyPlayer } from "./spotifyPlayer";
 
 type Listener = (...args: any[]) => void;
@@ -39,6 +41,8 @@ beforeEach(() => {
   disconnectSpotifyPlayer();
   invoke.mockReset().mockResolvedValue(undefined);
   useSettingsStore.setState({ spotifyClientId: "spotify-player-test", spotifyMode: false });
+  useI18nStore.getState().setLang("en");
+  useToastStore.setState({ toasts: [] });
   useServiceStore.setState({
     isLoggedIn: true,
     accessToken: "access-token",
@@ -230,4 +234,17 @@ it("discards an in-flight remote response after leaving Spotify mode", async () 
 
   expect(useServiceStore.getState().trackName).toBe("");
   expect(useServiceStore.getState().positionMs).toBe(0);
+});
+
+it("reports a failed Spotify poll once per failure streak", async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 503 }));
+  useSettingsStore.setState({ spotifyMode: true });
+  initSpotifyPlayer();
+
+  await vi.advanceTimersByTimeAsync(0);
+  expect(useToastStore.getState().toasts).toHaveLength(1);
+  expect(useToastStore.getState().toasts[0]?.message).toBe(useI18nStore.getState().t.toast.spotifyActionFailed);
+  await vi.advanceTimersByTimeAsync(1500);
+  expect(useToastStore.getState().toasts).toHaveLength(1);
 });

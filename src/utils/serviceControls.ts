@@ -1,51 +1,119 @@
-import { useServiceStore } from "../stores/useServiceStore";
+import { spotifyApiRequest, spotifyAuthLease, isSpotifyAuthLeaseCurrent, useServiceStore } from "../stores/useServiceStore";
+import { useI18nStore } from "../stores/useI18nStore";
+import { toast } from "../stores/useToastStore";
+
+function restorePlayback(
+  revision: number,
+  snapshot: ReturnType<typeof useServiceStore.getState>,
+  includePlaying: boolean,
+): void {
+  const current = useServiceStore.getState();
+  if (current._playbackRevision !== revision) return;
+  useServiceStore.setState({
+    ...(includePlaying ? { isPlaying: snapshot.isPlaying } : {}),
+    positionMs: snapshot.positionMs,
+    _lastKnownPositionMs: snapshot._lastKnownPositionMs,
+    _lastStateTimestamp: snapshot._lastStateTimestamp,
+    _playbackRevision: revision + 1,
+  });
+  const store = useServiceStore.getState();
+  if (store.isPlaying) store._startInterpolation();
+  else store._stopInterpolation();
+}
+
+function reportControlFailure(): void {
+  toast.error(useI18nStore.getState().t.toast.spotifyActionFailed);
+}
 
 async function spotifySeekTo(seconds: number): Promise<void> {
+  const snapshot = useServiceStore.getState();
+  const lease = spotifyAuthLease();
   const posMs = Math.max(0, Math.round(seconds * 1000));
-  // Update local state immediately for responsive UI
+  const revision = snapshot._playbackRevision + 1;
   useServiceStore.setState({
     positionMs: posMs,
     _lastKnownPositionMs: posMs,
     _lastStateTimestamp: Date.now(),
+    _playbackRevision: revision,
   });
-  const token = await useServiceStore.getState().ensureToken();
-  await fetch(`https://api.spotify.com/v1/me/player/seek?position_ms=${posMs}`, {
-    method: "PUT",
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  try {
+    await spotifyApiRequest(`https://api.spotify.com/v1/me/player/seek?position_ms=${posMs}`, {
+      method: "PUT",
+    }, async () => undefined, lease);
+  } catch (error) {
+    if (isSpotifyAuthLeaseCurrent(lease)) {
+      restorePlayback(revision, snapshot, false);
+      reportControlFailure();
+    }
+    throw error;
+  }
 }
 
 async function spotifyTogglePlay(): Promise<void> {
-  const store = useServiceStore.getState();
-  const willPlay = !store.isPlaying;
-  // 낙관적 갱신: API 응답 지연 동안 표시 시간이 실제 재생과 어긋나지 않도록
-  // 현재 표시 위치에서 앵커를 다시 잡고 isPlaying·보간을 즉시 반영.
+  const snapshot = useServiceStore.getState();
+  const lease = spotifyAuthLease();
+  const willPlay = !snapshot.isPlaying;
+  const revision = snapshot._playbackRevision + 1;
   useServiceStore.setState({
     isPlaying: willPlay,
-    _lastKnownPositionMs: store.positionMs,
+    _lastKnownPositionMs: snapshot.positionMs,
     _lastStateTimestamp: Date.now(),
+    _playbackRevision: revision,
   });
-  if (willPlay) store._startInterpolation();
-  else store._stopInterpolation();
+  if (willPlay) snapshot._startInterpolation();
+  else snapshot._stopInterpolation();
 
-  const token = await store.ensureToken();
-  await fetch(`https://api.spotify.com/v1/me/player/${willPlay ? "play" : "pause"}`, {
-    method: "PUT",
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  try {
+    await spotifyApiRequest(`https://api.spotify.com/v1/me/player/${willPlay ? "play" : "pause"}`, {
+      method: "PUT",
+    }, async () => undefined, lease);
+  } catch (error) {
+    if (isSpotifyAuthLeaseCurrent(lease)) {
+      restorePlayback(revision, snapshot, true);
+      reportControlFailure();
+    }
+    throw error;
+  }
 }
 
 async function spotifyStop(): Promise<void> {
-  // 정지 = 일시정지 + 처음으로. 보간 멈추고 isPlaying 즉시 false(시간 괴리 방지).
-  const store = useServiceStore.getState();
-  store._stopInterpolation();
-  useServiceStore.setState({ isPlaying: false });
-  const token = await store.ensureToken();
-  await fetch("https://api.spotify.com/v1/me/player/pause", {
-    method: "PUT",
-    headers: { Authorization: `Bearer ${token}` },
+  const snapshot = useServiceStore.getState();
+  if (!snapshot.isPlaying) return;
+  const lease = spotifyAuthLease();
+  const revision = snapshot._playbackRevision + 1;
+  useServiceStore.setState({ isPlaying: false, _playbackRevision: revision });
+  snapshot._stopInterpolation();
+  try {
+    await spotifyApiRequest("https://api.spotify.com/v1/me/player/pause", {
+      method: "PUT",
+    }, async () => undefined, lease);
+  } catch (error) {
+    if (isSpotifyAuthLeaseCurrent(lease)) {
+      restorePlayback(revision, snapshot, true);
+      reportControlFailure();
+    }
+    throw error;
+  }
+
+  const paused = useServiceStore.getState();
+  const seekRevision = paused._playbackRevision + 1;
+  useServiceStore.setState({
+    positionMs: 0,
+    _lastKnownPositionMs: 0,
+    _lastStateTimestamp: Date.now(),
+    _playbackRevision: seekRevision,
   });
-  await spotifySeekTo(0);
+  try {
+    await spotifyApiRequest("https://api.spotify.com/v1/me/player/seek?position_ms=0", {
+      method: "PUT",
+    }, async () => undefined, lease);
+  } catch (error) {
+    if (isSpotifyAuthLeaseCurrent(lease)) {
+      restorePlayback(seekRevision, paused, false);
+      reportControlFailure();
+    }
+    throw error;
+  }
 }
 
 export const serviceControls = {

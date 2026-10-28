@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::Write;
 use std::path::Path;
+use std::time::Duration;
 use tauri::{AppHandle, Manager, Emitter};
 
 static OAUTH_SERVER: crate::oauth_listener::OAuthServer = crate::oauth_listener::OAuthServer::new();
@@ -15,6 +16,14 @@ fn token_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
 
 const KEYRING_SERVICE: &str = "Lyrical Sync";
 const KEYRING_USER: &str = "spotify_refresh_token";
+const TOKEN_REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
+
+fn token_client() -> Result<Client, String> {
+    Client::builder()
+        .timeout(TOKEN_REQUEST_TIMEOUT)
+        .build()
+        .map_err(|e| format!("Spotify token client initialization failed: {e}"))
+}
 
 // `npm run tauri dev`는 재빌드마다 서명(identity)이 바뀌어 매번 키체인 접근 허가를
 // 새로 물어봄 → 개발 빌드에서는 키체인을 건너뛰고 평문 파일로만 저장(배포용 release
@@ -60,7 +69,7 @@ pub async fn exchange_spotify_token(
     client_id: String,
     redirect_uri: String,
 ) -> Result<TokenResponse, String> {
-    let client = Client::new();
+    let client = token_client()?;
     let mut params = HashMap::new();
     params.insert("grant_type", "authorization_code");
     params.insert("code", code.as_str());
@@ -76,8 +85,7 @@ pub async fn exchange_spotify_token(
         .map_err(|e| format!("토큰 요청 실패: {e}"))?;
 
     if !resp.status().is_success() {
-        let text = resp.text().await.unwrap_or_default();
-        return Err(format!("토큰 발급 실패: {text}"));
+        return Err(format!("Spotify token exchange failed ({})", resp.status()));
     }
 
     resp.json::<SpotifyApiToken>()
@@ -91,7 +99,7 @@ pub async fn refresh_spotify_token(
     refresh_token: String,
     client_id: String,
 ) -> Result<TokenResponse, String> {
-    let client = Client::new();
+    let client = token_client()?;
     let mut params = HashMap::new();
     params.insert("grant_type", "refresh_token");
     params.insert("refresh_token", refresh_token.as_str());
@@ -105,8 +113,7 @@ pub async fn refresh_spotify_token(
         .map_err(|e| format!("토큰 갱신 요청 실패: {e}"))?;
 
     if !resp.status().is_success() {
-        let text = resp.text().await.unwrap_or_default();
-        return Err(format!("토큰 갱신 실패: {text}"));
+        return Err(format!("Spotify token refresh failed ({})", resp.status()));
     }
 
     resp.json::<SpotifyApiToken>()
@@ -162,14 +169,23 @@ fn write_restricted_token_file(path: &Path, token: &str) -> Result<(), String> {
 
 #[tauri::command]
 pub fn save_refresh_token(token: String, app: AppHandle) -> Result<(), String> {
-    // 1순위: OS 키체인(암호화 저장). 성공 시 기존 평문 파일은 제거(마이그레이션).
-    if let Ok(entry) = keyring_entry() {
-        if entry.set_password(&token).is_ok() {
-            if let Ok(path) = token_path(&app) {
-                let _ = std::fs::remove_file(path);
-            }
-            return Ok(());
+    // 1순위: OS 키체인(암호화 저장). 성공 후 기존 평문 파일 제거도 확인한다.
+    let entry = match keyring_entry() {
+        Ok(entry) => Some(entry),
+        Err(keyring::Error::NoEntry) => None,
+        Err(error) => return Err(format!("Spotify keyring is unavailable for save: {error}")),
+    };
+    if let Some(entry) = entry {
+        entry
+            .set_password(&token)
+            .map_err(|e| format!("Spotify keyring save failed: {e}"))?;
+        let path = token_path(&app)?;
+        match std::fs::remove_file(path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(format!("Legacy Spotify token cleanup failed: {error}")),
         }
+        return Ok(());
     }
     // 폴백: 0600 평문 파일
     save_token_file(&app, &token)
@@ -214,14 +230,28 @@ pub async fn cancel_oauth_listener() {
 #[tauri::command]
 pub fn clear_refresh_token(app: AppHandle) -> Result<(), String> {
     // 키체인 + 레거시 파일 모두 제거
-    if let Ok(entry) = keyring_entry() {
-        let _ = entry.delete_credential();
+    let keyring_result = match keyring_entry() {
+        Ok(entry) => match entry.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(error) => Err(format!("Spotify keyring cleanup failed: {error}")),
+        },
+        Err(keyring::Error::NoEntry) => Ok(()),
+        Err(error) => Err(format!(
+            "Spotify keyring is unavailable for cleanup: {error}"
+        )),
+    };
+    let file_result = token_path(&app).and_then(|path| match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!("Legacy Spotify token cleanup failed: {error}")),
+    });
+
+    match (keyring_result, file_result) {
+        (Ok(()), Ok(())) => Ok(()),
+        (Err(keyring_error), Ok(())) => Err(keyring_error),
+        (Ok(()), Err(file_error)) => Err(file_error),
+        (Err(keyring_error), Err(file_error)) => Err(format!("{keyring_error}; {file_error}")),
     }
-    let path = token_path(&app)?;
-    if path.exists() {
-        std::fs::remove_file(&path).map_err(|e| format!("토큰 삭제 실패: {e}"))?;
-    }
-    Ok(())
 }
 
 #[cfg(test)]

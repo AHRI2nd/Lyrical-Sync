@@ -1,6 +1,8 @@
-import { useServiceStore } from "../stores/useServiceStore";
+import { spotifyApiRequest, useServiceStore } from "../stores/useServiceStore";
 import { useLrcStore } from "../stores/useLrcStore";
 import { useSettingsStore } from "../stores/useSettingsStore";
+import { useI18nStore } from "../stores/useI18nStore";
+import { toast } from "../stores/useToastStore";
 
 let player: Spotify.Player | null = null;
 type AuthLease = { generation: number; clientId: string };
@@ -11,6 +13,7 @@ let pollingAbortController: AbortController | null = null;
 let pollingGeneration = 0;
 let isPolling = false;
 let playerGeneration = 0;
+let hasNotifiedPollFailure = false;
 
 function currentLease(): AuthLease {
   return {
@@ -166,6 +169,7 @@ useServiceStore.subscribe((state) => {
 function startPolling(): void {
   if (isPolling || !useSettingsStore.getState().spotifyMode) return;
   isPolling = true;
+  hasNotifiedPollFailure = false;
   const generation = ++pollingGeneration;
   void pollOnce(generation, currentLease());
 }
@@ -192,16 +196,11 @@ async function pollOnce(generation: number, lease: AuthLease): Promise<void> {
   const controller = new AbortController();
   pollingAbortController = controller;
   try {
-    const token = await useServiceStore.getState().ensureToken();
-    if (!isCurrentPoll(generation, lease)) return;
     const t0 = Date.now();
-    const resp = await fetch("https://api.spotify.com/v1/me/player", {
-      headers: { Authorization: `Bearer ${token}` },
+    const data = await spotifyApiRequest("https://api.spotify.com/v1/me/player", {
       signal: controller.signal,
-    });
-    if (!isCurrentPoll(generation, lease) || useServiceStore.getState()._playbackRevision !== playbackRevision) return;
-    if (resp.status === 204 || !resp.ok) return;
-    const data = await resp.json();
+    }, async (resp) => resp.status === 204 ? null : resp.json(), lease);
+    hasNotifiedPollFailure = false;
     if (!isCurrentPoll(generation, lease) || useServiceStore.getState()._playbackRevision !== playbackRevision) return;
     if (!data?.item) return;
 
@@ -217,7 +216,9 @@ async function pollOnce(generation: number, lease: AuthLease): Promise<void> {
     const activeDeviceId = data.device?.id as string | undefined;
     if (deviceId && activeDeviceId === deviceId) return; // SDK handles this
 
+    const acceptedRevision = playbackRevision + 1;
     useServiceStore.setState({
+      _playbackRevision: acceptedRevision,
       isReady: true,
       isPlaying,
       positionMs,
@@ -231,7 +232,7 @@ async function pollOnce(generation: number, lease: AuthLease): Promise<void> {
       _lastStateTimestamp: Date.now(),
     });
     // Spotify mode is checked again before document writes.
-    if (!isCurrentPoll(generation, lease) || useServiceStore.getState()._playbackRevision !== playbackRevision) return;
+    if (!isCurrentPoll(generation, lease) || useServiceStore.getState()._playbackRevision !== acceptedRevision) return;
     useLrcStore.getState().setMetadata({ title: track.name, artist: artistName, album: track.album.name }, true);
 
     if (isPlaying) useServiceStore.getState()._startInterpolation();
@@ -241,6 +242,10 @@ async function pollOnce(generation: number, lease: AuthLease): Promise<void> {
     }
   } catch {
     // Abort and stale session errors are expected during stop, mode changes, and logout.
+    if (isCurrentPoll(generation, lease) && !controller.signal.aborted && !hasNotifiedPollFailure) {
+      hasNotifiedPollFailure = true;
+      toast.error(useI18nStore.getState().t.toast.spotifyActionFailed);
+    }
   } finally {
     if (pollingAbortController === controller) pollingAbortController = null;
     if (isCurrentPoll(generation, lease)) {
