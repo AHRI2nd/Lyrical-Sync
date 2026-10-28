@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useServiceStore, type SpotifyDevice } from "../../stores/useServiceStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 
@@ -11,16 +11,26 @@ export function DevicePickerModal({ onClose }: { onClose: () => void }) {
   const [devices, setDevices] = useState<SpotifyDevice[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const requestGeneration = useRef(0);
+  const mounted = useRef(true);
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(() => {
+    const requestId = ++requestGeneration.current;
     setLoading(true);
     fetchDevices()
-      .then(setDevices)
-      .catch(() => setDevices([]))
-      .finally(() => setLoading(false));
+      .then((result) => { if (mounted.current && requestId === requestGeneration.current) setDevices(result); })
+      .catch(() => { if (mounted.current && requestId === requestGeneration.current) setDevices([]); })
+      .finally(() => { if (mounted.current && requestId === requestGeneration.current) setLoading(false); });
   }, [fetchDevices]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => () => {
+    mounted.current = false;
+    requestGeneration.current += 1;
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+  }, []);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -29,11 +39,14 @@ export function DevicePickerModal({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   const select = async (id: string) => {
+    const operationId = ++requestGeneration.current;
     setBusyId(id);
     try { await transferToDevice(id, isPlaying); } catch { /* ignore */ }
+    if (!mounted.current || operationId !== requestGeneration.current) return;
     setBusyId(null);
     // 전환 반영(활성 표시)될 시간을 두고 새로고침
-    setTimeout(load, 600);
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    refreshTimer.current = setTimeout(load, 600);
   };
 
   return (

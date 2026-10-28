@@ -18,6 +18,7 @@ interface Props {
 export function SpotifySearchModal({ onClose }: Props) {
   const { t } = useI18nStore();
   const { ensureToken, playTrack } = useServiceStore();
+  const authGeneration = useServiceStore((s) => s._authGeneration);
   const setSpotifyMode = useSettingsStore((s) => s.setSpotifyMode);
   const [tab, setTab] = useState<"search" | "playlists">("search");
   const [query, setQuery] = useState("");
@@ -28,12 +29,28 @@ export function SpotifySearchModal({ onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchGeneration = useRef(0);
+  const searchAbort = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
+
+  useEffect(() => () => {
+      searchGeneration.current += 1;
+      searchAbort.current?.abort();
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (tab === "search") return;
+    searchGeneration.current += 1;
+    searchAbort.current?.abort();
+    searchAbort.current = null;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+  }, [tab]);
 
   // Load playlists when tab switches
   useEffect(() => {
@@ -74,20 +91,31 @@ export function SpotifySearchModal({ onClose }: Props) {
   }, [tab]);
 
   const handleSearch = (q: string) => {
+    const requestId = ++searchGeneration.current;
+    searchAbort.current?.abort();
+    searchAbort.current = null;
     setQuery(q);
+    setSearchResults([]);
+    setError(null);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!q.trim()) { setSearchResults([]); return; }
+    if (!q.trim()) { setLoading(false); return; }
+    const authGenerationAtStart = authGeneration;
     debounceRef.current = setTimeout(async () => {
+      const controller = new AbortController();
+      searchAbort.current = controller;
       setLoading(true);
       try {
         const token = await ensureToken();
+        if (requestId !== searchGeneration.current || useServiceStore.getState()._authGeneration !== authGenerationAtStart) return;
         const resp = await fetch(
           `https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=track&limit=20`,
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal }
         );
+        if (!resp.ok) throw new Error(`Spotify search failed (${resp.status})`);
         const data = await resp.json();
+        if (requestId !== searchGeneration.current || useServiceStore.getState()._authGeneration !== authGenerationAtStart) return;
         setSearchResults(
-          (data.tracks.items as {
+          ((data.tracks?.items ?? []) as {
             uri: string; name: string;
             artists: { name: string }[];
             album: { name: string; images: { url: string }[] };
@@ -101,8 +129,11 @@ export function SpotifySearchModal({ onClose }: Props) {
             durationMs: item.duration_ms,
           }))
         );
-      } catch { /* ignore */ }
-      setLoading(false);
+      } catch (e) {
+        if (requestId === searchGeneration.current && !controller.signal.aborted) setError(String(e));
+      } finally {
+        if (requestId === searchGeneration.current) setLoading(false);
+      }
     }, 400);
   };
 
