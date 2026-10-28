@@ -102,6 +102,17 @@ it("preserves millisecond and submillisecond timestamps on an unchanged preview 
   expect(useLrcStore.getState()._history).toHaveLength(0);
 });
 
+it("does not apply an unfinished preview timestamp edit to a replacement document with the same line id", () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "same", text: "old", timestamp: 1 }] }, _documentSession: 10 });
+  const { getByRole } = render(<PreviewModal onOpenStyleSettings={() => {}} onClose={() => {}} />);
+  fireEvent.click(getByRole("button", { name: "0:00:01.000" }));
+  const input = getByRole("textbox");
+  fireEvent.change(input, { target: { value: "0:00:05.000" } });
+  act(() => useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "same", text: "new", timestamp: 2 }] }, _documentSession: 11 }));
+  fireEvent.blur(input);
+  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({ id: "same", text: "new", timestamp: 2 });
+});
+
 it("names the preview playback control and exposes playback state", async () => {
   const { useI18nStore } = await import("../../stores/useI18nStore");
   const { getByRole } = render(<PreviewModal onOpenStyleSettings={() => {}} onClose={() => {}} />);
