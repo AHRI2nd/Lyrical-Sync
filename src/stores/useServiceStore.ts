@@ -32,6 +32,7 @@ interface TokenResponse {
 let interpolationRaf: number | null = null;
 type AuthLease = { generation: number; clientId: string };
 let refreshPromises = new Map<number, Promise<void>>();
+let loopRequestGeneration = 0;
 let tokenQueue: Promise<void> = Promise.resolve();
 let oauthListenerQueue: Promise<void> = Promise.resolve();
 let pendingLoginLease: AuthLease | null = null;
@@ -304,14 +305,25 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
   },
 
   toggleLoop: async () => {
-    const { isLooping, ensureToken } = get();
-    const next = !isLooping;
-    const token = await ensureToken();
-    await fetch(`https://api.spotify.com/v1/me/player/repeat?state=${next ? "track" : "off"}`, {
-      method: "PUT",
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const { ensureToken } = get();
+    const previous = get().isLooping;
+    const next = !previous;
+    const requestId = ++loopRequestGeneration;
+    const lease = authLease();
     set({ isLooping: next });
+    try {
+      const token = await ensureToken();
+      if (!isCurrentLease(lease) || requestId !== loopRequestGeneration) return;
+      const response = await fetch(`https://api.spotify.com/v1/me/player/repeat?state=${next ? "track" : "off"}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error(`Spotify repeat request failed (${response.status})`);
+      if (isCurrentLease(lease) && requestId === loopRequestGeneration) set({ isLooping: next });
+    } catch (error) {
+      if (isCurrentLease(lease) && requestId === loopRequestGeneration) set({ isLooping: previous });
+      throw error;
+    }
   },
 
   logout: () => {

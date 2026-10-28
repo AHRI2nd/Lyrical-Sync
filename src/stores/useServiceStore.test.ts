@@ -186,6 +186,48 @@ describe("useServiceStore — session restore & logout", () => {
   });
 });
 
+describe("useServiceStore — Spotify repeat ownership", () => {
+  beforeEach(() => {
+    reset();
+    useServiceStore.setState({ isLoggedIn: true, accessToken: "token", tokenExpiresAt: Date.now() + 3600000, isLooping: false });
+  });
+
+  it("keeps loop state unchanged when Spotify rejects the repeat request", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 403 }));
+    await expect(useServiceStore.getState().toggleLoop()).rejects.toThrow();
+    expect(useServiceStore.getState().isLooping).toBe(false);
+  });
+
+  it("does not restore loop state after logout while the repeat request is pending", async () => {
+    const pending = deferred<Response>();
+    vi.stubGlobal("fetch", vi.fn().mockReturnValue(pending.promise));
+    const toggle = useServiceStore.getState().toggleLoop();
+    expect(useServiceStore.getState().isLooping).toBe(true);
+    useServiceStore.getState().logout();
+    pending.resolve({ ok: true } as Response);
+    await toggle;
+    expect(useServiceStore.getState().isLooping).toBe(false);
+    expect(useServiceStore.getState().isLoggedIn).toBe(false);
+  });
+
+  it("keeps the newest of two repeat toggles when responses finish in reverse order", async () => {
+    const first = deferred<Response>();
+    const second = deferred<Response>();
+    const fetchMock = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    vi.stubGlobal("fetch", fetchMock);
+    const older = useServiceStore.getState().toggleLoop();
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const newer = useServiceStore.getState().toggleLoop();
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(useServiceStore.getState().isLooping).toBe(false);
+    second.resolve({ ok: true } as Response);
+    await newer;
+    first.resolve({ ok: true } as Response);
+    await older;
+    expect(useServiceStore.getState().isLooping).toBe(false);
+  });
+});
+
 describe("OAuth listener security", () => {
   beforeEach(() => { reset(); invoke.mockReset(); invoke.mockResolvedValue(undefined); });
   it("passes the pending random state to the native listener", async () => {
