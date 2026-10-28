@@ -83,6 +83,14 @@ describe("serializeAss", () => {
     // a: 1.0→1.5 = 50cs, b: 1.5→cueEnd(2.0) = 50cs
     expect(out).toContain("{\\k50}a{\\k50}b");
   });
+
+  it("preserves the silent gap before the first timed glyph", () => {
+    const out = serializeAss(docOf([{
+      id: "1", timestamp: 1, text: "ab",
+      syllables: [{ text: "a", time: 1.25 }, { text: "b", time: 1.5 }],
+    }]), 2);
+    expect(out).toContain("{\\k25}{\\k25}a{\\k50}b");
+  });
 });
 
 

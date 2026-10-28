@@ -108,14 +108,24 @@ function escapeAssText(text: string): string {
   return text.replace(/\r\n|\r|\n/g, "\\N");
 }
 
-function assText(line: LrcLine, cueEnd: number): string {
+function assText(line: LrcLine, cueStart: number, cueEnd: number): string {
   if (line.text.trim() === "") return escapeAssText(line.translation ?? "");
   const syl = line.syllables;
   if (syl?.some((s) => s.time !== null)) {
+    const timed = syl.filter((s) => s.time !== null);
+    if (timed.some((s) => !Number.isFinite(s.time) || (s.time as number) < cueStart || (s.time as number) > cueEnd) ||
+        timed.some((s, i) => i > 0 && (s.time as number) < (timed[i - 1].time as number))) {
+      throw new AssUnrepresentableContentError();
+    }
     let out = "";
+    let firstTimed = true;
     for (let i = 0; i < syl.length; i++) {
       const s = syl[i];
       if (s.time === null) { out += escapeAssText(s.text); continue; }
+      if (firstTimed && s.time > cueStart) {
+        out += `{\\k${Math.round((s.time - cueStart) * 100)}}`;
+      }
+      firstTimed = false;
       let nextT = cueEnd;
       for (let j = i + 1; j < syl.length; j++) {
         if (syl[j].time !== null) { nextT = syl[j].time as number; break; }
@@ -149,7 +159,7 @@ Style: Default,Arial,72,&H00FFFFFF,&H00E8A33D,&H00000000,&H64000000,0,0,0,0,100,
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
   const events = cues
-    .map((c) => `Dialogue: 0,${assTime(c.start)},${assTime(c.end)},Default,,0,0,0,,${assText(c.line, c.end)}${c.line.text.trim() && c.line.translation ? `\\N${escapeAssText(c.line.translation)}` : ""}`)
+    .map((c) => `Dialogue: 0,${assTime(c.start)},${assTime(c.end)},Default,,0,0,0,,${assText(c.line, c.start, c.end)}${c.line.text.trim() && c.line.translation ? `\\N${escapeAssText(c.line.translation)}` : ""}`)
     .join("\n");
   return header + events + "\n";
 }
