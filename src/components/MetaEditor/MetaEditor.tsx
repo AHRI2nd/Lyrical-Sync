@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { toast } from "../../stores/useToastStore";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
@@ -115,10 +115,12 @@ function Field({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const inputId = useId();
   return (
     <div className="min-w-0">
-      <label className="ls-label block text-[var(--ls-text-secondary)] mb-1">{label}</label>
+      <label htmlFor={inputId} className="ls-label block text-[var(--ls-text-secondary)] mb-1">{label}</label>
       <input
+        id={inputId}
         type="text"
         value={value}
         placeholder={placeholder}

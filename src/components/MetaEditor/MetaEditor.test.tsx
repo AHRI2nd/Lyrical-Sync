@@ -11,10 +11,11 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 it("keeps metadata and local raw lyrics editing available without online lookup", () => {
   const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
   useLrcStore.setState({ doc: defaultDocument(), isDirty: false, _history: [], _future: [] });
-  const { container, getByTitle, getAllByRole } = render(<MetaEditor />);
+  const { container, getByTitle, getAllByRole, getByLabelText } = render(<MetaEditor />);
   expect(container.textContent).not.toContain("LRCLIB");
   fireEvent.change(getAllByRole("textbox")[0], { target: { value: "Local song" } });
   expect(useLrcStore.getState().doc.metadata.title).toBe("Local song");
+  expect(() => getByLabelText(useI18nStore.getState().t.metaTitle.label)).not.toThrow();
   fireEvent.click(getByTitle(useI18nStore.getState().t.viewAll));
   expect(container.querySelector("textarea")?.value).toContain("Local song");
   expect(fetch).not.toHaveBeenCalled();
