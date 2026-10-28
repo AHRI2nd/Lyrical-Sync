@@ -238,6 +238,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<"general" | "preview" | "models" | "spotify" | "youtube" | "shortcuts">("general");
   const [showNewConfirm, setShowNewConfirm] = useState(false);
+  const [newConfirmSession, setNewConfirmSession] = useState<number | null>(null);
   const [showFormatChooser, setShowFormatChooser] = useState(false);
   const [showElrcNotice, setShowElrcNotice] = useState(false);
   const [pendingDocumentOpen, setPendingDocumentOpen] = useState<{ lyricsPath: string; audioPath?: string | null } | null>(null);
@@ -348,6 +349,7 @@ function App() {
 
   const handleNewLrc = () => {
     if (isDirty) {
+      setNewConfirmSession(useLrcStore.getState()._documentSession);
       setShowNewConfirm(true);
     } else {
       newLrc();
@@ -617,13 +619,16 @@ function App() {
           priority
         />
       )}
-      {showNewConfirm && (
+      {showNewConfirm && newConfirmSession === appDocumentSession && (
         <ConfirmModal
           title={t.confirmNewTitle}
           message={t.confirmNewMessage}
           okLabel={t.confirmNewOk}
           cancelLabel={t.confirmNewCancel}
-          onOk={() => { setShowNewConfirm(false); newLrc(); }}
+          onOk={() => {
+            setShowNewConfirm(false);
+            if (useLrcStore.getState()._documentSession === newConfirmSession) newLrc();
+          }}
           onCancel={() => setShowNewConfirm(false)}
         />
       )}

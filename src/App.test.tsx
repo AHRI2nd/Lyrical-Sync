@@ -50,6 +50,7 @@ vi.mock("./hooks/useMacMenu", () => ({ useMacMenu: () => {} }));
 import App from "./App";
 import { useLrcStore } from "./stores/useLrcStore";
 import { defaultDocument } from "./types/lrc";
+import { useI18nStore } from "./stores/useI18nStore";
 import { installMemoryLocalStorage } from "./test/memoryLocalStorage";
 
 const resetLrc = (overrides: Partial<ReturnType<typeof useLrcStore.getState>> = {}) => {
@@ -134,6 +135,27 @@ describe("App — drag-and-drop conflict resolution", () => {
     ).toBeTruthy();
   });
 
+  it("does not let a stale New confirmation erase a document opened afterward", async () => {
+    const first = defaultDocument();
+    first.lines = [{ id: "old", timestamp: 1, text: "unsaved" }];
+    resetLrc({ doc: first, isDirty: true, lrcPath: "/music/old.lrc" });
+    const user = userEvent.setup();
+    vi.spyOn(useLrcStore.getState(), "loadLyricsPath").mockImplementation(async () => {
+      const next = defaultDocument();
+      next.lines = [{ id: "new", timestamp: 2, text: "new document" }];
+      useLrcStore.getState().restoreDoc(next, "/music/new.lrc", null);
+    });
+    render(<App />);
+
+    const t = useI18nStore.getState().t;
+    await user.click(screen.getByRole("button", { name: t.newFileBtn }));
+    expect(await screen.findByText(t.confirmNewMessage)).toBeTruthy();
+    await act(async () => { drop(["/music/new.lrc"]); });
+    await user.click(screen.getAllByText(t.drop.replaceOk)[screen.getAllByText(t.drop.replaceOk).length - 1]);
+    expect(useLrcStore.getState().doc.lines[0]?.text).toBe("new document");
+    expect(screen.queryByRole("dialog", { name: t.confirmNewTitle })).toBeNull();
+  });
+
   it("ignores dropped files with unsupported extensions", async () => {
     const setAudioPathSpy = vi.spyOn(useLrcStore.getState(), "setAudioPath").mockImplementation(() => {});
     render(<App />);
@@ -200,7 +222,6 @@ describe("App — drag-and-drop conflict resolution", () => {
 
 import { saveRecoverySnapshot, loadRecoverySnapshot } from "./utils/recovery";
 import { useSettingsStore } from "./stores/useSettingsStore";
-import { useI18nStore } from "./stores/useI18nStore";
 
 // These exercise the actual startup effects and persisted bytes, not a mocked recovery hook.
 describe("App — recovery lifecycle", () => {
