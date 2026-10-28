@@ -50,6 +50,14 @@ it("refuses to overwrite an unknown translation extension value when translation
   expect(() => serializeLrc(doc)).toThrow("reserved LRC tag has an unknown value");
 });
 
+it("preserves and protects unknown line-order extension values", () => {
+  const parsed = parseLrc("[x-lyrical-line-order:external]\n[00:01.00]a");
+  expect(serializeLrc(parsed)).toContain("[x-lyrical-line-order:external]");
+  const conflict = { ...docOf([{ id: "late", timestamp: 2, text: "late" }, { id: "early", timestamp: 1, text: "early" }]),
+    extraTags: { "x-lyrical-line-order": "external" } };
+  expect(() => serializeLrc(conflict)).toThrow("reserved LRC tag has an unknown value");
+});
+
 describe("tokenizeText", () => {
   it("splits by character, preserving spaces as tokens", () => {
     expect(tokenizeText("너의 손", "char").map((s) => s.text)).toEqual(["너", "의", " ", "손"]);
@@ -419,6 +427,23 @@ it("does not merge pre-marker or mismatched repeated timestamps", () => {
 
 it("retains ordinary LRC whitespace normalization around timestamps", () => {
   expect(parseLrc("  [00:01.00]hello  ").lines[0]).toMatchObject({ timestamp: 1, text: "hello" });
+});
+
+it("round-trips edited row order, untimed blank rows, and lyric edge whitespace", () => {
+  const doc = docOf([
+    { id: 'first', timestamp: 1, text: '  first  ' },
+    { id: 'blank', timestamp: null, text: '' },
+    { id: 'middle', timestamp: null, text: '   ' },
+    { id: 'last', timestamp: 3, text: 'last' },
+  ]);
+  const restored = parseLrc(serializeLrc(doc));
+  expect(restored.lines.map(({ timestamp, text }) => [timestamp, text])).toEqual([
+    [1, '  first  '], [null, ''], [null, '   '], [3, 'last'],
+  ]);
+});
+
+it("keeps legacy external LRC timestamp sorting without the app preservation marker", () => {
+  expect(parseLrc('[00:03.00]late\n[00:01.00]early').lines.map((line) => line.text)).toEqual(['early', 'late']);
 });
 
 it("parses the millisecond timestamp displayed by hour-aware inline editors", () => {
