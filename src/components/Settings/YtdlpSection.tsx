@@ -26,12 +26,21 @@ export function YtdlpSection() {
   // overwriting the result of a more recent one (React StrictMode runs
   // effects twice, so refresh() can be called concurrently on mount).
   const refreshIdRef = useRef(0);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      refreshIdRef.current += 1;
+    };
+  }, []);
 
   const fetchLatestTag = async () => {
     try {
       const r = await fetch("https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest");
       const data = await r.json();
-      if (typeof data.tag_name === "string") setLatestTag(data.tag_name);
+      if (typeof data.tag_name === "string" && mountedRef.current) setLatestTag(data.tag_name);
     } catch {
       // ignore — no internet or rate limited
     }
@@ -39,8 +48,10 @@ export function YtdlpSection() {
 
   const refresh = async () => {
     const id = ++refreshIdRef.current;
-    setChecking(true);
-    setError(null);
+    if (mountedRef.current) {
+      setChecking(true);
+      setError(null);
+    }
     try {
       const v = await invoke<string | null>("check_ytdlp");
       if (refreshIdRef.current === id) {
@@ -98,8 +109,13 @@ export function YtdlpSection() {
     try {
       await invoke("download_ytdlp");
     } catch (e) {
-      setDownloading(false);
-      setError(String(e));
+      if (mountedRef.current) setError(String(e));
+    } finally {
+      if (mountedRef.current) {
+        setDlPercent(100);
+        setDownloading(false);
+        void refresh();
+      }
     }
   };
 

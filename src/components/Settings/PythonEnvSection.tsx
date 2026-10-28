@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useI18nStore } from "../../stores/useI18nStore";
-import { safeUnlisten } from "../../utils/safeUnlisten";
+import { listenSafely } from "../../utils/safeListen";
 import { useBusyStore } from "../../stores/useBusyStore";
 
 interface PythonEnvInfo {
@@ -32,12 +32,12 @@ export function PythonEnvSection() {
   }, []);
 
   const refresh = async () => {
-    setLoading(true);
+    if (mounted.current) setLoading(true);
     try {
       const v = await invoke<PythonEnvInfo>("get_python_env_info");
-      setInfo(v);
+      if (mounted.current) setInfo(v);
     } catch { /* ignore */ }
-    setLoading(false);
+    if (mounted.current) setLoading(false);
   };
 
   useEffect(() => { refresh(); }, []);
@@ -51,29 +51,20 @@ export function PythonEnvSection() {
   }, [info]);
 
   useEffect(() => {
-    let unlisten: (() => void) | null = null;
-    listen<{ percent: number; done: boolean }>("python-download-progress", (e) => {
+    return listenSafely((isActive) => listen<{ percent: number; done: boolean }>("python-download-progress", (e) => {
+      if (!isActive() || !mounted.current) return;
       setDlPercent(e.payload.percent);
-      if (e.payload.done) {
-        setDownloading(false);
-        refresh();
-      }
-    }).then((fn) => { unlisten = fn; }).catch(() => {});
-    return () => { safeUnlisten(unlisten); };
+    }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    let unlisten: (() => void) | null = null;
-    listen<{ line: string; done: boolean; success: boolean }>("pip-install-progress", (e) => {
-      if (e.payload.done) {
-        setInstalling(false);
-        refresh();
-      } else if (e.payload.line) {
+    return listenSafely((isActive) => listen<{ line: string; done: boolean; success: boolean }>("pip-install-progress", (e) => {
+      if (!isActive() || !mounted.current) return;
+      if (!e.payload.done && e.payload.line) {
         setInstallLog((prev) => [...prev, e.payload.line]);
       }
-    }).then((fn) => { unlisten = fn; }).catch(() => {});
-    return () => { safeUnlisten(unlisten); };
+    }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
