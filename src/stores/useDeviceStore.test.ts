@@ -41,6 +41,7 @@ describe("useDeviceStore — failure notification", () => {
   afterEach(() => {
     useDeviceStore.getState().stopPolling();
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it("shows a toast once when the adapter fails, then stops repeating it while still failing", async () => {
@@ -159,6 +160,7 @@ describe("useDeviceStore — failure notification", () => {
 
   it("does not let a poll started before a seek overwrite the requested position", async () => {
     useSettingsStore.getState().setDeviceMode(true);
+    useDeviceStore.setState({ hasSession: true });
     const poll = deferred<any>();
     invoke.mockImplementation((command: string) => command === "get_now_playing" ? poll.promise : Promise.resolve());
     useDeviceStore.getState().startPolling();
@@ -174,6 +176,7 @@ describe("useDeviceStore — failure notification", () => {
 
   it("reports a failed seek and lets the next poll restore the authoritative position", async () => {
     useSettingsStore.getState().setDeviceMode(true);
+    useDeviceStore.setState({ hasSession: true });
     invoke.mockImplementation((command: string) => command === "now_playing_seek"
       ? Promise.reject(new Error("seek failed"))
       : Promise.resolve({ title: "Track", artist: "Artist", album: "Album", position_ms: 1200,
@@ -181,10 +184,60 @@ describe("useDeviceStore — failure notification", () => {
 
     deviceControls.seekTo(5);
     await vi.waitFor(() => expect(pushErrorToast).toHaveBeenCalledOnce());
-    expect(useDeviceStore.getState().positionMs).toBe(5000);
+    expect(useDeviceStore.getState().positionMs).toBe(0);
     useDeviceStore.getState().startPolling();
     await vi.advanceTimersByTimeAsync(0);
     expect(useDeviceStore.getState().positionMs).toBe(1200);
+  });
+
+  it("rolls back an optimistic play toggle and reports command failure", async () => {
+    vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    useDeviceStore.setState({ hasSession: true, isPlaying: false, positionMs: 1250, _lastKnownPositionMs: 1200 });
+    invoke.mockRejectedValue(new Error("toggle failed"));
+
+    deviceControls.togglePlay();
+    expect(useDeviceStore.getState().isPlaying).toBe(true);
+    await vi.waitFor(() => expect(pushErrorToast).toHaveBeenCalledOnce());
+
+    expect(useDeviceStore.getState().isPlaying).toBe(false);
+    expect(useDeviceStore.getState().positionMs).toBe(1250);
+    expect(useDeviceStore.getState()._lastKnownPositionMs).toBe(1200);
+  });
+
+  it("clears stale track timing and editor time when the active session disappears", async () => {
+    const { useLrcStore } = await import("./useLrcStore");
+    useSettingsStore.getState().setDeviceMode(true);
+    useDeviceStore.setState({
+      hasSession: true,
+      isPlaying: true,
+      positionMs: 12000,
+      durationMs: 90000,
+      trackName: "Previous track",
+      artistName: "Artist",
+      albumName: "Album",
+      sourceApp: "Player",
+      _lastKnownPositionMs: 12000,
+      _lastStateTimestamp: Date.now(),
+    });
+    useLrcStore.getState().setCurrentTime(12);
+    invoke.mockResolvedValueOnce(null);
+
+    useDeviceStore.getState().startPolling();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(useDeviceStore.getState()).toMatchObject({
+      hasSession: false,
+      isPlaying: false,
+      positionMs: 0,
+      durationMs: 0,
+      trackName: "",
+      artistName: "",
+      albumName: "",
+      sourceApp: "",
+      _lastKnownPositionMs: 0,
+    });
+    expect(useLrcStore.getState().currentTime).toBe(0);
   });
 
   it("does not infer that an invalid native timestamp means playback reached the track end", async () => {

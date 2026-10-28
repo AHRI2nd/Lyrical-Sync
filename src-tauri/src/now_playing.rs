@@ -114,12 +114,16 @@ mod platform {
             .await
             .map_err(|e| e.to_string())?;
         let session = manager.GetCurrentSession().map_err(|e| e.to_string())?;
-        session
+        let accepted = session
             .TryTogglePlayPauseAsync()
             .map_err(|e| e.to_string())?
             .await
             .map_err(|e| e.to_string())?;
-        Ok(())
+        if accepted {
+            Ok(())
+        } else {
+            Err("The active media session rejected the play/pause command".into())
+        }
     }
 
     pub async fn seek(_app: &AppHandle, position_ms: i64) -> Result<(), String> {
@@ -130,12 +134,16 @@ mod platform {
             .map_err(|e| e.to_string())?;
         let session = manager.GetCurrentSession().map_err(|e| e.to_string())?;
         let ticks = position_ms.max(0) * 10_000;
-        session
+        let accepted = session
             .TryChangePlaybackPositionAsync(ticks)
             .map_err(|e| e.to_string())?
             .await
             .map_err(|e| e.to_string())?;
-        Ok(())
+        if accepted {
+            Ok(())
+        } else {
+            Err("The active media session rejected the seek command".into())
+        }
     }
 }
 
@@ -225,6 +233,17 @@ mod platform {
             .output()
             .await
             .map_err(|e| e.to_string())?;
+        adapter_stdout(output)
+    }
+
+    fn adapter_stdout(output: std::process::Output) -> Result<String, String> {
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            if !stderr.is_empty() {
+                return Err(stderr);
+            }
+            return Err(format!("MediaRemote adapter exited with {}", output.status));
+        }
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     }
 
@@ -271,6 +290,33 @@ mod platform {
         let micros = position_ms.max(0) * 1000;
         let micros_str = micros.to_string();
         run_adapter(app, &["seek", &micros_str]).await.map(|_| ())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::adapter_stdout;
+        use std::os::unix::process::ExitStatusExt;
+        use std::process::{ExitStatus, Output};
+
+        #[test]
+        fn adapter_nonzero_exit_propagates_stderr() {
+            let result = adapter_stdout(Output {
+                status: ExitStatus::from_raw(1 << 8),
+                stdout: Vec::new(),
+                stderr: b"adapter command rejected".to_vec(),
+            });
+            assert_eq!(result, Err("adapter command rejected".into()));
+        }
+
+        #[test]
+        fn adapter_success_returns_trimmed_stdout() {
+            let result = adapter_stdout(Output {
+                status: ExitStatus::from_raw(0),
+                stdout: b"  {\"ok\":true} \n".to_vec(),
+                stderr: Vec::new(),
+            });
+            assert_eq!(result, Ok("{\"ok\":true}".into()));
+        }
     }
 }
 

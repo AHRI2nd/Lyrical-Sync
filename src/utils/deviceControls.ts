@@ -1,11 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
-import { markDeviceCommand, useDeviceStore } from "../stores/useDeviceStore";
+import { isCurrentDeviceCommand, markDeviceCommand, useDeviceStore } from "../stores/useDeviceStore";
 import { useI18nStore } from "../stores/useI18nStore";
 import { toast } from "../stores/useToastStore";
 
 async function deviceTogglePlay(): Promise<void> {
   const store = useDeviceStore.getState();
+  if (!store.hasSession) return;
   const willPlay = !store.isPlaying;
+  const commandRevision = markDeviceCommand();
   // 낙관적 갱신: 커맨드 응답 지연 동안 표시 시간이 어긋나지 않도록 즉시 반영(Spotify 패턴과 동일)
   useDeviceStore.setState({
     isPlaying: willPlay,
@@ -14,12 +16,29 @@ async function deviceTogglePlay(): Promise<void> {
   });
   if (willPlay) store._startInterpolation();
   else store._stopInterpolation();
-  await invoke("now_playing_toggle_play_pause");
+  try {
+    await invoke("now_playing_toggle_play_pause");
+  } catch (error) {
+    if (isCurrentDeviceCommand(commandRevision)) {
+      useDeviceStore.setState({
+        isPlaying: store.isPlaying,
+        positionMs: store.positionMs,
+        _lastKnownPositionMs: store._lastKnownPositionMs,
+        _lastStateTimestamp: store._lastStateTimestamp,
+      });
+      if (store.isPlaying) store._startInterpolation();
+      else store._stopInterpolation();
+    }
+    toast.error(useI18nStore.getState().t.toast.deviceControlFailed);
+    throw error;
+  }
 }
 
 async function deviceSeekTo(seconds: number): Promise<void> {
+  const store = useDeviceStore.getState();
+  if (!store.hasSession) return;
   const posMs = Math.max(0, Math.round(seconds * 1000));
-  markDeviceCommand();
+  const commandRevision = markDeviceCommand();
   useDeviceStore.setState({
     positionMs: posMs,
     _lastKnownPositionMs: posMs,
@@ -28,6 +47,13 @@ async function deviceSeekTo(seconds: number): Promise<void> {
   try {
     await invoke("now_playing_seek", { positionMs: posMs });
   } catch (error) {
+    if (isCurrentDeviceCommand(commandRevision)) {
+      useDeviceStore.setState({
+        positionMs: store.positionMs,
+        _lastKnownPositionMs: store._lastKnownPositionMs,
+        _lastStateTimestamp: store._lastStateTimestamp,
+      });
+    }
     toast.error(useI18nStore.getState().t.toast.deviceControlFailed);
     throw error;
   }

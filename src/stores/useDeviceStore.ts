@@ -47,8 +47,13 @@ let interpolationRaf: number | null = null;
 // 다음에 다시 끊기면 재알림된다.
 let hasNotifiedFailure = false;
 
-export function markDeviceCommand(): void {
+export function markDeviceCommand(): number {
   deviceCommandRevision += 1;
+  return deviceCommandRevision;
+}
+
+export function isCurrentDeviceCommand(revision: number): boolean {
+  return deviceCommandRevision === revision;
 }
 
 export const useDeviceStore = create<DeviceState>((set, get) => ({
@@ -129,7 +134,21 @@ async function pollOnce(generation: number): Promise<void> {
     hasNotifiedFailure = false;
     const store = useDeviceStore.getState();
     if (!info) {
-      if (store.hasSession) useDeviceStore.setState({ hasSession: false, isPlaying: false });
+      if (store.hasSession) {
+        useDeviceStore.setState({
+          hasSession: false,
+          isPlaying: false,
+          positionMs: 0,
+          durationMs: 0,
+          trackName: "",
+          artistName: "",
+          albumName: "",
+          sourceApp: "",
+          _lastKnownPositionMs: 0,
+          _lastStateTimestamp: Date.now(),
+        });
+        if (useSettingsStore.getState().deviceMode) useLrcStore.getState().setCurrentTime(0);
+      }
       store._stopInterpolation();
       return;
     }

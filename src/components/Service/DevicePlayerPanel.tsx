@@ -48,19 +48,19 @@ export function DevicePlayerPanel() {
 
       {/* 컨트롤 */}
       <div className="flex items-center justify-center gap-0.5">
-        <DeviceCtrlBtn onClick={() => deviceControls.skip(-5)} title={t.tooltipSkipBack5}>
+        <DeviceCtrlBtn disabled={!hasSession} onClick={() => deviceControls.skip(-5)} title={t.tooltipSkipBack5}>
           <SkipBackIcon size={12} /><span className="text-[10px] font-bold ml-0.5">5</span>
         </DeviceCtrlBtn>
-        <DeviceCtrlBtn onClick={() => deviceControls.skip(-1)} title={t.tooltipSkipBack1}>
+        <DeviceCtrlBtn disabled={!hasSession} onClick={() => deviceControls.skip(-1)} title={t.tooltipSkipBack1}>
           <SkipBackIcon size={12} /><span className="text-[10px] font-bold ml-0.5">1</span>
         </DeviceCtrlBtn>
-        <DeviceCtrlBtn onClick={deviceControls.togglePlay} title={t.tooltipPlayPause} accent>
+        <DeviceCtrlBtn disabled={!hasSession} onClick={deviceControls.togglePlay} title={t.tooltipPlayPause} accent>
           {isPlaying ? <PauseIcon size={14} /> : <PlayIcon size={14} />}
         </DeviceCtrlBtn>
-        <DeviceCtrlBtn onClick={() => deviceControls.skip(1)} title={t.tooltipSkipFwd1}>
+        <DeviceCtrlBtn disabled={!hasSession} onClick={() => deviceControls.skip(1)} title={t.tooltipSkipFwd1}>
           <span className="text-[10px] font-bold mr-0.5">1</span><SkipFwdIcon size={12} />
         </DeviceCtrlBtn>
-        <DeviceCtrlBtn onClick={() => deviceControls.skip(5)} title={t.tooltipSkipFwd5}>
+        <DeviceCtrlBtn disabled={!hasSession} onClick={() => deviceControls.skip(5)} title={t.tooltipSkipFwd5}>
           <span className="text-[10px] font-bold mr-0.5">5</span><SkipFwdIcon size={12} />
         </DeviceCtrlBtn>
       </div>
