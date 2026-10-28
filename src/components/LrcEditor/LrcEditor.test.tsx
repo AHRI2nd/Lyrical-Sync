@@ -254,3 +254,31 @@ it.each([false,true])('keeps replacement dollar text literal in the editor (all=
  fireEvent.click(getByRole('button',{name:all?t.replaceAll:t.replaceBtn}));
  expect(useLrcStore.getState().doc.lines[0].text).toBe(all?'$& $&':'$& original');
 });
+it("does not carry bulk selection into a replacement document", () => {
+  const t = useI18nStore.getState().t;
+  const { container, queryByText } = render(<LrcEditor onPreview={() => {}} />);
+  const oldRow = container.querySelector('[data-line-id="a"]');
+  expect(oldRow).toBeTruthy();
+  fireEvent.click(oldRow!, { ctrlKey: true });
+  expect(queryByText(`1 ${t.bulkSelected}`)).toBeTruthy();
+  act(() => useLrcStore.setState({
+    doc: { ...defaultDocument(), lines: [{ id: "a", text: "replacement", timestamp: 2 }] },
+    _documentSession: useLrcStore.getState()._documentSession + 1,
+  }));
+  expect(queryByText(`1 ${t.bulkSelected}`)).toBeNull();
+  expect(useLrcStore.getState().doc.lines[0].text).toBe("replacement");
+});
+
+it("does not commit a timestamp draft into a replacement document with a reused row ID", () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "old", timestamp: null }] } });
+  const { getByPlaceholderText, getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getByRole("button", { name: "-:--:--.---" }));
+  const input = getByPlaceholderText("H:MM:SS.mmm");
+  fireEvent.change(input, { target: { value: "0:00:12.000" } });
+  act(() => useLrcStore.setState({
+    doc: { ...defaultDocument(), lines: [{ id: "a", text: "replacement", timestamp: 2 }] },
+    _documentSession: useLrcStore.getState()._documentSession + 1,
+  }));
+  fireEvent.blur(input);
+  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({ text: "replacement", timestamp: 2 });
+});

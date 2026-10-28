@@ -88,10 +88,16 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   const [showBpmSnap, setShowBpmSnap] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
   // 줄 다중선택(일괄 작업)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selection, setSelection] = useState<{ session: number; ids: Set<string> }>({ session: documentSession, ids: new Set() });
+  const selectedIds = selection.session === documentSession ? selection.ids : new Set<string>();
+  const changeSelection = (update: (ids: Set<string>) => Set<string>) => {
+    const session = useLrcStore.getState()._documentSession;
+    setSelection((previous) => ({ session, ids: update(previous.session === session ? previous.ids : new Set()) }));
+  };
   // 렌더에 직접 반영되지 않는(shift-클릭 범위 선택 계산에만 쓰이는) 값이라 ref로 보관 —
   // handleRowClick을 useCallback으로 안정화할 때 상태로 두면 의존성이 돼 참조가 계속 바뀜
   const selAnchorRef = useRef<string | null>(null);
+  const selAnchorSessionRef = useRef<number | null>(documentSession);
 
   const [findText, setFindText] = useState("");
   const [replaceText, setReplaceText] = useState("");
@@ -105,6 +111,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
   // Esc 취소 시 input 언마운트로 onBlur가 commit을 유발하지 않도록 가드
   const tsEditCancel = useRef(false);
+  const tsEditSession = useRef<number | null>(null);
 
   // 글자 동기화된 줄의 텍스트 수정 경고 / 단위 변경 경고
   const [pendingTextEdit, setPendingTextEdit] = useState<{
@@ -126,6 +133,12 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     session: number; audioSelection: number; syncMode: string; doc: typeof doc;
   } | null>(null);
   useEffect(() => {
+    setSelection({ session: documentSession, ids: new Set() });
+    selAnchorRef.current = null;
+    selAnchorSessionRef.current = documentSession;
+    tsEditSession.current = null;
+    setEditingTsId(null);
+    setEditTsValue("");
     setPendingTextEdit(null);
     setPendingUnit(null);
     setPendingAiSync(null);
@@ -268,17 +281,25 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
   const startTsEdit = (id: string, timestamp: number | null) => {
     tsEditCancel.current = false;
+    tsEditSession.current = useLrcStore.getState()._documentSession;
     setActiveLineId(id);
     setEditTsValue(timestamp !== null ? formatDisplayTime(timestamp) : "");
     setEditingTsId(id);
   };
   const commitTsEdit = (id: string) => {
     if (tsEditCancel.current) { tsEditCancel.current = false; return; }
+    const store = useLrcStore.getState();
+    if (tsEditSession.current === null || store._documentSession !== tsEditSession.current) {
+      tsEditSession.current = null;
+      setEditingTsId(null);
+      return;
+    }
     const parsed = parseTimestampInput(editTsValue.trim());
-    const current = useLrcStore.getState().doc.lines.find((line) => line.id === id)?.timestamp;
-    if (parsed !== null && parsed !== current && (current == null || editTsValue.trim() !== formatDisplayTime(current))) {
+    const current = store.doc.lines.find((line) => line.id === id)?.timestamp;
+    if (parsed !== null && current !== undefined && parsed !== current && (current == null || editTsValue.trim() !== formatDisplayTime(current))) {
       updateLine(id, { timestamp: parsed });
     }
+    tsEditSession.current = null;
     setEditingTsId(null);
   };
   const cancelTsEdit = () => {
@@ -428,28 +449,31 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   // 클릭해도 항상 최신 선택/검색 상태를 참조한다.
   const handleRowClick = useCallback((e: React.MouseEvent, id: string, idx: number) => {
     const currentLines = useLrcStore.getState().doc.lines;
-    if (e.shiftKey && selAnchorRef.current) {
+    const currentSession = useLrcStore.getState()._documentSession;
+    if (e.shiftKey && selAnchorRef.current && selAnchorSessionRef.current === currentSession) {
       const aIdx = currentLines.findIndex((l) => l.id === selAnchorRef.current);
       if (aIdx >= 0) {
         const [lo, hi] = aIdx <= idx ? [aIdx, idx] : [idx, aIdx];
-        setSelectedIds(new Set(currentLines.slice(lo, hi + 1).map((l) => l.id)));
+        changeSelection(() => new Set(currentLines.slice(lo, hi + 1).map((l) => l.id)));
       }
       setActiveLineId(id);
       return;
     }
     if (e.metaKey || e.ctrlKey) {
-      setSelectedIds((prev) => {
+      changeSelection((prev) => {
         const n = new Set(prev);
         if (n.has(id)) n.delete(id); else n.add(id);
         return n;
       });
       selAnchorRef.current = id;
+      selAnchorSessionRef.current = currentSession;
       setActiveLineId(id);
       return;
     }
     // 일반 클릭: 다중선택 해제 + 기존 동작(활성/시크/찾기)
-    setSelectedIds((prev) => (prev.size > 0 ? new Set() : prev));
+    changeSelection((prev) => (prev.size > 0 ? new Set() : prev));
     selAnchorRef.current = id;
+    selAnchorSessionRef.current = currentSession;
     setActiveLineId(id);
     const ln = currentLines.find((l) => l.id === id);
     if (ln && ln.timestamp !== null) {
@@ -738,8 +762,8 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
         onShiftMinus={() => shiftLines([...selectedIds], -0.1)}
         onShiftPlus={() => shiftLines([...selectedIds], 0.1)}
         onClearTs={() => clearTimestamps([...selectedIds])}
-        onDelete={() => { deleteLines([...selectedIds]); setSelectedIds(new Set()); }}
-        onDeselect={() => setSelectedIds(new Set())}
+        onDelete={() => { deleteLines([...selectedIds]); changeSelection(() => new Set()); }}
+        onDeselect={() => changeSelection(() => new Set())}
       />
 
       {showFR && (
