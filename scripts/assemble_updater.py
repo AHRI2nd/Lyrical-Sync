@@ -85,34 +85,46 @@ def publish(repo, version, output):
     # Normalize this version's x64 MSI name, retaining compatibility with older locale-suffixed builds.
     old_pattern = re.compile(r'(Lyrical[ .]Sync_' + re.escape(version)
                              + r'_x64)(?:_[a-z]{2}-[A-Z]{2})?\.msi')
-    names = {a['name'] for a in release['assets']}
+    source_names = set()
     for asset in release['assets']:
-        match = old_pattern.fullmatch(asset['name'])
-        if not match:
-            continue
-        source_name = asset['name']
-        signature_name = source_name + '.sig'
+        name = asset['name'][:-4] if asset['name'].endswith('.sig') else asset['name']
+        if old_pattern.fullmatch(name):
+            source_names.add(name)
+    if len(source_names) > 1:
+        raise ValueError('Ambiguous legacy MSI assets; refusing to rename or delete assets')
+
+    assets_by_name = {asset['name']: asset for asset in release['assets']}
+    for source_name in source_names:
+        match = old_pattern.fullmatch(source_name)
         new_name = match[1] + '_setup.msi'
-        new_signature_name = new_name + '.sig'
-        if new_name in names or new_signature_name in names:
-            if new_name not in names or new_signature_name not in names:
-                raise ValueError(f'Incomplete existing MSI asset pair: {new_name}')
-            for duplicate in release['assets']:
-                if duplicate['name'] in {source_name, signature_name}:
-                    gh('api', '--method', 'DELETE',
-                       f'repos/{repo}/releases/assets/{duplicate["id"]}')
-                    names.discard(duplicate['name'])
+        source_signature = source_name + '.sig'
+        new_signature = new_name + '.sig'
+        old_installer = source_name in assets_by_name
+        old_signature = source_signature in assets_by_name
+        new_installer = new_name in assets_by_name
+        new_signature_exists = new_signature in assets_by_name
+
+        if new_installer and new_signature_exists:
+            if old_installer or old_signature:
+                raise ValueError(f'Ambiguous duplicate MSI asset pair: {new_name}')
             continue
-        if signature_name not in names:
-            raise ValueError(f'Missing signature asset: {source_name}')
-        for source, destination in ((source_name, new_name),
-                                    (signature_name, new_signature_name)):
-            matching_asset = next(a for a in release['assets'] if a['name'] == source)
+        if old_installer and old_signature and not new_installer and not new_signature_exists:
+            renames = [(source_name, new_name), (source_signature, new_signature)]
+        elif new_installer and old_signature and not old_installer and not new_signature_exists:
+            renames = [(source_signature, new_signature)]
+        elif old_installer and new_signature_exists and not old_signature and not new_installer:
+            renames = [(source_name, new_name)]
+        else:
+            raise ValueError(f'Incomplete or ambiguous MSI asset pair: {new_name}')
+
+        for source, destination in renames:
+            asset = assets_by_name[source]
             gh('api', '--method', 'PATCH',
-               f'repos/{repo}/releases/assets/{matching_asset["id"]}',
+               f'repos/{repo}/releases/assets/{asset["id"]}',
                '-f', f'name={destination}')
-            names.discard(source)
-            names.add(destination)
+            asset['name'] = destination
+            del assets_by_name[source]
+            assets_by_name[destination] = asset
     release = get_draft_release(repo, tag)
     signatures = {}
     for asset in release['assets']:

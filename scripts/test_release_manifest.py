@@ -117,7 +117,7 @@ class ReleaseManifestTests(unittest.TestCase):
         self.assertTrue(uploaded[0]['platforms']['windows-x86_64-msi']['url'].endswith('_x64_setup.msi'))
         self.assertNotIn('Lyrical.Sync_0.7.0_x64_en-US.msi',{a['name'] for a in assets})
 
-    def test_rebuild_drops_duplicate_msi_when_canonical_pair_already_exists(self):
+    def test_duplicate_msi_pair_is_preserved_when_ownership_is_ambiguous(self):
         self.assemble()
         names = [
             'Lyrical.Sync_0.7.0_x64_setup.msi',
@@ -141,12 +141,81 @@ class ReleaseManifestTests(unittest.TestCase):
             name=next(a for a in assets if a['id']==asset_id)['name']
             return base64.b64encode(b'untrusted comment: fixture\n' + name.encode())
         with tempfile.TemporaryDirectory() as directory, patch.object(self.module,'gh',fake_gh):
-            self.module.publish('AHRI2nd/Lyrical-Sync','0.7.0',Path(directory)/'latest.json')
+            with self.assertRaisesRegex(ValueError, 'Ambiguous duplicate MSI asset pair'):
+                self.module.publish('AHRI2nd/Lyrical-Sync','0.7.0',Path(directory)/'latest.json')
         remaining = {a['name'] for a in assets}
-        self.assertNotIn('Lyrical.Sync_0.7.0_x64.msi',remaining)
-        self.assertNotIn('Lyrical.Sync_0.7.0_x64.msi.sig',remaining)
+        self.assertIn('Lyrical.Sync_0.7.0_x64.msi',remaining)
+        self.assertIn('Lyrical.Sync_0.7.0_x64.msi.sig',remaining)
         self.assertIn('Lyrical.Sync_0.7.0_x64_setup.msi',remaining)
-        self.assertTrue(uploaded[0]['platforms']['windows-x86_64-msi']['url'].endswith('_x64_setup.msi'))
+        self.assertEqual(uploaded, [])
+
+    def test_retry_resumes_a_pair_when_the_first_msi_rename_succeeded(self):
+        self.assemble()
+        assets = [{'id':i+1,'name':a['name']} for i,a in enumerate(self.assets)]
+        draft = {'id':99,'tag_name':'v0.7.0','draft':True,'assets':assets}
+        patch_calls = 0
+        uploaded = []
+        def fake_gh(*args, binary=False):
+            nonlocal patch_calls
+            if args[0] == 'release':
+                uploaded.append(json.loads(Path(args[3]).read_text()))
+                return ''
+            if args[0] == 'api' and '--paginate' in args:
+                return json.dumps(draft)
+            if '--method' in args:
+                asset_id = int(next(arg for arg in args if '/releases/assets/' in arg).split('/')[-1])
+                if args[args.index('--method') + 1] == 'PATCH':
+                    patch_calls += 1
+                    if patch_calls == 2:
+                        raise RuntimeError('transient signature rename failure')
+                    name = args[-1].removeprefix('name=')
+                    next(asset for asset in assets if asset['id'] == asset_id)['name'] = name
+                return '{}'
+            asset_id = int(args[1].split('/')[-1])
+            name = next(asset for asset in assets if asset['id'] == asset_id)['name']
+            return base64.b64encode(b'untrusted comment: fixture\n' + name.encode())
+
+        with tempfile.TemporaryDirectory() as directory, patch.object(self.module, 'gh', fake_gh):
+            output = Path(directory) / 'latest.json'
+            with self.assertRaisesRegex(RuntimeError, 'transient signature'):
+                self.module.publish('AHRI2nd/Lyrical-Sync', '0.7.0', output)
+            self.module.publish('AHRI2nd/Lyrical-Sync', '0.7.0', output)
+
+        self.assertEqual(len(uploaded), 1)
+        final_names = {asset['name'] for asset in assets}
+        self.assertIn('Lyrical.Sync_0.7.0_x64_setup.msi', final_names)
+        self.assertIn('Lyrical.Sync_0.7.0_x64_setup.msi.sig', final_names)
+        self.assertNotIn('Lyrical.Sync_0.7.0_x64.msi.sig', final_names)
+
+    def test_resumes_when_only_the_signature_has_the_canonical_name(self):
+        self.assemble()
+        assets = [{'id':i+1,'name':a['name']} for i,a in enumerate(self.assets)]
+        old_signature = next(asset for asset in assets if asset['name'] == 'Lyrical.Sync_0.7.0_x64.msi.sig')
+        old_signature['name'] = 'Lyrical.Sync_0.7.0_x64_setup.msi.sig'
+        draft = {'id':99,'tag_name':'v0.7.0','draft':True,'assets':assets}
+        uploaded = []
+        def fake_gh(*args, binary=False):
+            if args[0] == 'release':
+                uploaded.append(json.loads(Path(args[3]).read_text()))
+                return ''
+            if args[0] == 'api' and '--paginate' in args:
+                return json.dumps(draft)
+            if '--method' in args:
+                asset_id = int(next(arg for arg in args if '/releases/assets/' in arg).split('/')[-1])
+                name = args[-1].removeprefix('name=')
+                next(asset for asset in assets if asset['id'] == asset_id)['name'] = name
+                return '{}'
+            asset_id = int(args[1].split('/')[-1])
+            name = next(asset for asset in assets if asset['id'] == asset_id)['name']
+            return base64.b64encode(b'untrusted comment: fixture\n' + name.encode())
+
+        with tempfile.TemporaryDirectory() as directory, patch.object(self.module, 'gh', fake_gh):
+            self.module.publish('AHRI2nd/Lyrical-Sync', '0.7.0', Path(directory) / 'latest.json')
+
+        self.assertEqual(len(uploaded), 1)
+        final_names = {asset['name'] for asset in assets}
+        self.assertIn('Lyrical.Sync_0.7.0_x64_setup.msi', final_names)
+        self.assertIn('Lyrical.Sync_0.7.0_x64_setup.msi.sig', final_names)
 
     def test_missing_arm_artifact_never_falls_back_to_x64(self):
         assets = [a for a in self.assets if '_arm64-' not in a['name']]
