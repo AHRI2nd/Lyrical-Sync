@@ -118,6 +118,18 @@ it("exports translations after enhanced originals in VTT and ASS", () => {
   expect(serializeVtt(doc, 3)).toContain("<00:00:01.000>hi\nhello");
   expect(serializeAss(doc, 3)).toContain("{\\k200}hi\\Nhello");
 });
+it("waits from the cue start until the first timed ASS syllable", () => {
+  const doc = docOf([{ id: "a", timestamp: 1, text: "ab", syllables: [
+    { text: "a", time: 2 }, { text: "b", time: 2.5 },
+  ] }]);
+  expect(serializeAss(doc, 4)).toContain("Default,,0,0,0,,{\\k100}{\\k50}a{\\k150}b");
+});
+it.each([
+  { id: "a", timestamp: 2, text: "a", syllables: [{ text: "a", time: 1 }] },
+  { id: "a", timestamp: 1, text: "ab", syllables: [{ text: "a", time: 2 }, { text: "b", time: 1.5 }] },
+])("rejects ASS syllable times before the cue or in reverse order", (line) => {
+  expect(() => serializeAss(docOf([line]), 4)).toThrow(/ASS cannot preserve this text/);
+});
 it.each(["{word}", "unmatched { brace", "unmatched } brace", "literal \\N line", "literal \\n line", "literal \\h space"])(
   "rejects ASS text that cannot be represented literally: %s",
   (text) => {

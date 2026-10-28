@@ -108,11 +108,16 @@ function escapeAssText(text: string): string {
   return text.replace(/\r\n|\r|\n/g, "\\N");
 }
 
-function assText(line: LrcLine, cueEnd: number): string {
+function assText(line: LrcLine, cueStart: number, cueEnd: number): string {
   if (line.text.trim() === "") return escapeAssText(line.translation ?? "");
   const syl = line.syllables;
   if (syl?.some((s) => s.time !== null)) {
     let out = "";
+    const firstTimed = syl.find((syllable) => syllable.time !== null);
+    if (firstTimed?.time !== null && firstTimed) {
+      const delay = Math.round(((firstTimed.time as number) - cueStart) * 100);
+      if (delay > 0) out += `{\\k${delay}}`;
+    }
     for (let i = 0; i < syl.length; i++) {
       const s = syl[i];
       if (s.time === null) { out += escapeAssText(s.text); continue; }
@@ -132,6 +137,16 @@ export function serializeAss(doc: LrcDocument, lastCueEnd?: number): string {
   const title = doc.metadata.title || "Lyrical Sync";
   if (/[\r\n]/.test(title)) throw new AssUnrepresentableContentError();
   const cues = buildCues(doc, lastCueEnd, 100);
+  for (const cue of cues) {
+    let previous = cue.start;
+    for (const syllable of cue.line.syllables ?? []) {
+      if (syllable.time === null) continue;
+      if (!Number.isFinite(syllable.time) || Math.round(syllable.time * 100) < Math.round(previous * 100)) {
+        throw new AssUnrepresentableContentError();
+      }
+      previous = syllable.time;
+    }
+  }
   const header =
 `[Script Info]
 Title: ${title}
@@ -149,7 +164,7 @@ Style: Default,Arial,72,&H00FFFFFF,&H00E8A33D,&H00000000,&H64000000,0,0,0,0,100,
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
   const events = cues
-    .map((c) => `Dialogue: 0,${assTime(c.start)},${assTime(c.end)},Default,,0,0,0,,${assText(c.line, c.end)}${c.line.text.trim() && c.line.translation ? `\\N${escapeAssText(c.line.translation)}` : ""}`)
+    .map((c) => `Dialogue: 0,${assTime(c.start)},${assTime(c.end)},Default,,0,0,0,,${assText(c.line, c.start, c.end)}${c.line.text.trim() && c.line.translation ? `\\N${escapeAssText(c.line.translation)}` : ""}`)
     .join("\n");
   return header + events + "\n";
 }
