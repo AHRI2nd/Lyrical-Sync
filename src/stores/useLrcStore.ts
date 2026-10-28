@@ -813,7 +813,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     if (!written) return false;
     const current = get();
     if (documentSessionId === sessionId && current.doc === doc && current.lrcPath === lrcPath) {
-      set({ isDirty: false });
+      set({ isDirty: false, _lastEditKey: null });
     }
     return true;
   },
@@ -853,7 +853,10 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
         isCurrentRequest() &&
         format === "lrc"
       ) {
-        set({ lrcPath: path, ...(current.doc === doc ? { isDirty: false } : {}) });
+        set({
+          lrcPath: path,
+          ...(current.doc === doc ? { isDirty: false, _lastEditKey: null } : {}),
+        });
       }
       return true;
     }

@@ -653,6 +653,47 @@ describe("useLrcStore — save completion races", () => {
     expect(useLrcStore.getState().isDirty).toBe(true);
   });
 
+  it("starts a new undo group after a successful save of the same edit revision", async () => {
+    vi.mocked(invoke).mockResolvedValue(undefined);
+    useLrcStore.getState().updateLine("1", { text: "saved revision" });
+    await useLrcStore.getState().saveLrc();
+    useLrcStore.getState().updateLine("1", { text: "later revision" });
+
+    useLrcStore.getState().undo();
+
+    expect(lines()[0].text).toBe("saved revision");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+    useLrcStore.getState().redo();
+    expect(lines()[0].text).toBe("later revision");
+  });
+
+  it("does not close the undo group after a failed save", async () => {
+    vi.mocked(invoke).mockRejectedValue(new Error("write failed"));
+    useLrcStore.getState().updateLine("1", { text: "first edit" });
+    await expect(useLrcStore.getState().saveLrc()).rejects.toThrow("write failed");
+    useLrcStore.getState().updateLine("1", { text: "second edit" });
+
+    useLrcStore.getState().undo();
+
+    expect(lines()[0].text).toBe("before save");
+  });
+
+  it("does not close a newer undo group when an older save finishes after an edit", async () => {
+    let resolveWrite!: () => void;
+    vi.mocked(invoke).mockImplementation(() => new Promise<void>((resolve) => { resolveWrite = resolve; }));
+    useLrcStore.getState().updateLine("1", { text: "saving" });
+    const saving = useLrcStore.getState().saveLrc();
+    await vi.waitFor(() => expect(resolveWrite).toBeTypeOf("function"));
+    useLrcStore.getState().updateLine("1", { text: "edited during save" });
+    resolveWrite();
+    await saving;
+    useLrcStore.getState().updateLine("1", { text: "continued edit" });
+
+    useLrcStore.getState().undo();
+
+    expect(lines()[0].text).toBe("before save");
+  });
+
   it("serializes overlapping saves to the same document so older content cannot finish last", async () => {
     const writes: { content: string; resolve: () => void }[] = [];
     let persistedContent = "";
