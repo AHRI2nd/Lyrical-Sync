@@ -2275,6 +2275,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "windows 0.62.2",
+ "xattr",
 ]
 
 [[package]]
