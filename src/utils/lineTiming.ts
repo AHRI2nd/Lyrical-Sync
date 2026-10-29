@@ -1,5 +1,10 @@
 import type { LrcLine } from '../types/lrc';
 
+export function shiftSrtEnd(line: LrcLine, delta: number, nextTimestamp: number | null = line.timestamp): number | undefined {
+  if (!Number.isFinite(line.srtEndTime) || nextTimestamp === null) return line.srtEndTime;
+  return Math.max(nextTimestamp, (line.srtEndTime as number) + delta);
+}
+
 /** Move the earliest timed glyph to the new onset, preserving calibrated intervals. */
 export function retimeLine(line: LrcLine, timestamp: number | null): LrcLine {
   if (timestamp === null) return { ...line, timestamp, syllables: undefined };

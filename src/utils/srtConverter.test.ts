@@ -11,6 +11,14 @@ const docOf = (lines: LrcDocument["lines"]): LrcDocument => ({
 });
 
 describe("parseSrt", () => {
+  it("preserves overlapping cue end times through an SRT round trip", () => {
+    const input =
+      "1\n00:00:01,000 --> 00:00:04,000\nfirst\n\n" +
+      "2\n00:00:02,000 --> 00:00:05,000\nsecond\n";
+
+    expect(serializeSrt(parseSrt(input))).toBe(input);
+  });
+
   it("parses cue start times and preserves multi-line text", () => {
     const srt = "1\n00:00:01,000 --> 00:00:03,000\nHello\nworld\n";
     const d = parseSrt(srt);
