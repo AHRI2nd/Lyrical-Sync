@@ -5,7 +5,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { formatDisplayTime, parseTimestampInput, validateTimestamps, type SyncUnit } from "../../utils/lrcParser";
-import type { LrcSyllable } from "../../types/lrc";
+import type { LrcLine, LrcSyllable } from "../../types/lrc";
 import { audioControls } from "../../utils/audioControls";
 import { CurrentTimeFooter } from "./CurrentTimeFooter";
 import { MiniConfirm } from "./MiniConfirm";
@@ -88,14 +88,22 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   const [pendingTextEdit, setPendingTextEdit] = useState<{
     id: string; text: string; session: number; baseText: string; baseSyllables: LrcSyllable[] | undefined;
   } | null>(null);
+  const [pendingGlyphMutation, setPendingGlyphMutation] = useState<{
+    session: number;
+    sources: Pick<LrcLine, "id" | "text" | "timestamp" | "syllables" | "translation">[];
+    requireAdjacentSources: boolean;
+    apply: () => void;
+  } | null>(null);
   const [pendingUnit, setPendingUnit] = useState<{
     unit: SyncUnit; session: number; lineId: string; baseSyllables: LrcSyllable[];
   } | null>(null);
   const [pendingSplit, setPendingSplit] = useState<{
-    id: string; caret: number; session: number; text: string; translation: string; first: string; second: string;
+    id: string; caret: number; session: number; text: string; translation: string;
+    syllables: LrcSyllable[] | undefined; first: string; second: string;
   } | null>(null);
   useEffect(() => {
     setPendingTextEdit(null);
+    setPendingGlyphMutation(null);
     setPendingUnit(null);
     setPendingSplit(null);
   }, [documentSession]);
@@ -111,7 +119,8 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     if (!pendingSplit) return;
     const current = useLrcStore.getState();
     const line = current.doc.lines.find(item => item.id === pendingSplit.id);
-    if (current._documentSession === pendingSplit.session && line?.text === pendingSplit.text && line.translation === pendingSplit.translation) {
+    if (current._documentSession === pendingSplit.session && line?.text === pendingSplit.text &&
+        line.translation === pendingSplit.translation && JSON.stringify(line.syllables) === JSON.stringify(pendingSplit.syllables)) {
       const newId = splitLine(pendingSplit.id, pendingSplit.caret, { first: pendingSplit.first, second: pendingSplit.second });
       setActiveLineId(newId); pendingFocusId.current = newId;
     }
@@ -223,6 +232,40 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     setPendingTextEdit(null);
   };
 
+  const requestGlyphMutation = useCallback((sources: LrcLine[], apply: () => void, requireAdjacentSources = false) => {
+    if (!sources.some((line) => line.syllables?.some((syllable) => syllable.time !== null))) {
+      apply();
+      return;
+    }
+    setPendingGlyphMutation({
+      session: useLrcStore.getState()._documentSession,
+      sources: sources.map(({ id, text, timestamp, syllables, translation }) => ({
+        id, text, timestamp, translation, syllables: syllables?.map((syllable) => ({ ...syllable })),
+      })),
+      requireAdjacentSources,
+      apply,
+    });
+  }, []);
+
+  const confirmGlyphMutation = () => {
+    if (pendingGlyphMutation) {
+      const current = useLrcStore.getState();
+      const sourceIndexes = pendingGlyphMutation.sources.map((source) => current.doc.lines.findIndex((line) => line.id === source.id));
+      const sourcesMatch = pendingGlyphMutation.sources.every((source) => {
+        const line = current.doc.lines.find((item) => item.id === source.id);
+        return line?.text === source.text && line.timestamp === source.timestamp && line.translation === source.translation &&
+          JSON.stringify(line?.syllables) === JSON.stringify(source.syllables);
+      });
+      const sourcesStayAdjacent = !pendingGlyphMutation.requireAdjacentSources || (
+        sourceIndexes.length === 2 && sourceIndexes[0] >= 0 && sourceIndexes[1] === sourceIndexes[0] + 1
+      );
+      if (current._documentSession === pendingGlyphMutation.session && sourcesMatch && sourcesStayAdjacent) {
+        pendingGlyphMutation.apply();
+      }
+    }
+    setPendingGlyphMutation(null);
+  };
+
   // 단위 변경: 활성 줄에 글자 타이밍이 있으면 경고 후 해당 줄 초기화
   const handleUnitChange = (u: SyncUnit) => {
     if (u === syncUnit) return;
@@ -299,13 +342,18 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
       const caret = e.currentTarget.selectionStart ?? e.currentTarget.value.length;
       const line = lines.find(item => item.id === id);
       if (line?.translation !== undefined) {
-        setPendingSplit({ id, caret, session: documentSession, text: line.text, translation: line.translation,
-          first: line.translation, second: "" });
+        requestGlyphMutation([line], () => setPendingSplit({ id, caret, session: documentSession, text: line.text,
+          translation: line.translation!, syllables: line.syllables?.map((syllable) => ({ ...syllable })),
+          first: line.translation!, second: "" }));
         return;
       }
-      const newId = splitLine(id, caret);
-      setActiveLineId(newId);
-      pendingFocusId.current = newId;
+      const applySplit = () => {
+        const newId = splitLine(id, caret);
+        setActiveLineId(newId);
+        pendingFocusId.current = newId;
+      };
+      const currentLine = useLrcStore.getState().doc.lines.find((line) => line.id === id);
+      if (currentLine) requestGlyphMutation([currentLine], applySplit);
       return;
     }
     if (e.key === "Enter") {
@@ -328,14 +376,16 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     const after = currentText.slice(selEnd);
     const pasteLines = pasted.split(/\r?\n/);
 
-    // 텍스트가 바뀌므로 글자 동기화 토큰은 무효화
-    updateLine(id, { text: before + pasteLines[0], syllables: undefined });
-
     const restTexts = pasteLines.slice(1);
     restTexts[restTexts.length - 1] += after;
-    const newId = insertLinesAfter(id, restTexts);
-    setActiveLineId(newId);
-    pendingFocusId.current = newId;
+    const apply = () => {
+      updateLine(id, { text: before + pasteLines[0], syllables: undefined });
+      const newId = insertLinesAfter(id, restTexts);
+      setActiveLineId(newId);
+      pendingFocusId.current = newId;
+    };
+    const source = useLrcStore.getState().doc.lines.find((line) => line.id === id);
+    if (source) requestGlyphMutation([source], apply);
   };
 
   // 타임스탬프 검증 경고
@@ -484,9 +534,13 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
   const handleReplaceAll = useCallback(() => {
     if (!findText) return;
-    replaceInLines(findText, replaceText, caseSensitive);
+    const escaped = findText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(escaped, caseSensitive ? "g" : "gi");
+    const affected = useLrcStore.getState().doc.lines.filter((line) => line.text.replace(re, () => replaceText) !== line.text);
+    if (!affected.length) return;
+    requestGlyphMutation(affected, () => replaceInLines(findText, replaceText, caseSensitive));
     setMatchPos(0);
-  }, [findText, replaceText, caseSensitive, replaceInLines]);
+  }, [findText, replaceText, caseSensitive, replaceInLines, requestGlyphMutation]);
 
   const handleShiftApply = useCallback((fromIdx: number, toIdx: number, delta: number) => {
     shiftTimeRange(fromIdx, toIdx, delta);
@@ -651,8 +705,17 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
             onTranslationChange={(value) => updateLine(line.id, { translation: value })}
             onKeyDown={(e) => handleKeyDown(e, line.id)} onPaste={(e) => handlePaste(e, line.id, line.text)}
             onFocus={() => setActiveLineId(line.id)}
-            onMergeUp={(e) => { e.stopPropagation(); if (idx === 0) return; const pid = mergeLineUp(line.id);
-              if (pid) { setActiveLineId(pid); pendingFocusId.current = pid; } }}
+            onMergeUp={(e) => {
+              e.stopPropagation();
+              const currentLines = useLrcStore.getState().doc.lines;
+              const currentIndex = currentLines.findIndex((item) => item.id === line.id);
+              if (currentIndex <= 0) return;
+              const pair = currentLines.slice(currentIndex - 1, currentIndex + 1);
+              requestGlyphMutation(pair, () => {
+                const pid = mergeLineUp(line.id);
+                if (pid) { setActiveLineId(pid); pendingFocusId.current = pid; }
+              }, true);
+            }}
             onDuplicate={(e) => { e.stopPropagation(); const nid = duplicateLine(line.id); setActiveLineId(nid); pendingFocusId.current = nid; }}
             onDelete={(e) => { e.stopPropagation(); deleteLine(line.id); }}
             inputRef={setInputRef(line.id)} rowRef={setRowRef(line.id)} />
@@ -694,6 +757,16 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
           cancelLabel={t.charSync.retokenizeCancel}
           onOk={confirmTextEdit}
           onCancel={() => setPendingTextEdit(null)}
+        />
+      )}
+      {pendingGlyphMutation && (
+        <MiniConfirm
+          title={t.charSync.retokenizeTitle}
+          message={t.charSync.retokenizeMsg}
+          okLabel={t.charSync.retokenizeOk}
+          cancelLabel={t.charSync.retokenizeCancel}
+          onOk={confirmGlyphMutation}
+          onCancel={() => setPendingGlyphMutation(null)}
         />
       )}
       {pendingUnit && (

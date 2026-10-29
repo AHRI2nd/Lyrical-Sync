@@ -157,6 +157,49 @@ it("keeps imported multiline subtitle bodies intact while editing", () => {
   expect(useLrcStore.getState().doc.lines[0].text).toBe("first\nchanged");
 });
 
+it("asks before multiline paste replaces timed glyphs and preserves the line on cancel", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "old lyric", timestamp: 1,
+    syllables: [{ text: "old lyric", time: 1 }] }] } });
+  const { getByDisplayValue, getByText, getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  const input = getByDisplayValue("old lyric") as HTMLTextAreaElement;
+  input.setSelectionRange(0, input.value.length);
+  fireEvent.paste(input, { clipboardData: { getData: () => "new\nrow" } });
+  expect(getByText(t.charSync.retokenizeTitle)).toBeTruthy();
+  expect(useLrcStore.getState().doc.lines[0].syllables).toEqual([{ text: "old lyric", time: 1 }]);
+  fireEvent.click(getByRole("button", { name: t.charSync.retokenizeCancel }));
+  expect(useLrcStore.getState().doc.lines).toHaveLength(1);
+  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({ text: "old lyric", syllables: [{ text: "old lyric", time: 1 }] });
+});
+
+it("asks before merging timed glyph rows and keeps them when cancelled", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+    { id: "a", text: "first", timestamp: 1, syllables: [{ text: "first", time: 1 }] },
+    { id: "b", text: "second", timestamp: 2, syllables: [{ text: "second", time: 2 }] },
+  ] } });
+  const { getByRole, getAllByRole, getByText } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getAllByRole("button", { name: t.mergeLineUp })[1]);
+  expect(getByText(t.charSync.retokenizeTitle)).toBeTruthy();
+  expect(useLrcStore.getState().doc.lines).toHaveLength(2);
+  fireEvent.click(getByRole("button", { name: t.charSync.retokenizeCancel }));
+  expect(useLrcStore.getState().doc.lines[1].syllables).toEqual([{ text: "second", time: 2 }]);
+});
+
+it("asks before replace-all clears timed glyphs", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "old lyric", timestamp: 1,
+    syllables: [{ text: "old lyric", time: 1 }] }] } });
+  const { getByRole, getByPlaceholderText, getByText } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getByRole("button", { name: t.editorTools }));
+  fireEvent.click(getByRole("button", { name: t.findReplace }));
+  fireEvent.change(getByPlaceholderText(t.findPlaceholder), { target: { value: "old" } });
+  fireEvent.change(getByPlaceholderText(t.replacePlaceholder), { target: { value: "new" } });
+  fireEvent.click(getByRole("button", { name: t.replaceAll }));
+  expect(getByText(t.charSync.retokenizeTitle)).toBeTruthy();
+  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({ text: "old lyric", syllables: [{ text: "old lyric", time: 1 }] });
+});
+
 
 it("asks for explicit translation parts when splitting and cancellation leaves the cue untouched", () => {
   const t = useI18nStore.getState().t;
@@ -175,6 +218,20 @@ it("asks for explicit translation parts when splitting and cancellation leaves t
   fireEvent.change(getByRole("textbox", { name: t.translationSecondPart }), { target: { value: "second part" } });
   fireEvent.click(getByRole("button", { name: t.translationSplitAction }));
   expect(useLrcStore.getState().doc.lines.map(l => [l.text, l.translation])).toEqual([["ori", "first part"], ["ginal", "second part"]]);
+});
+
+it("asks before splitting a timed glyph row and preserves it when cancelled", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "original", timestamp: 1,
+    syllables: [{ text: "original", time: 1 }] }] } });
+  const { getByDisplayValue, getByText, getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  const input = getByDisplayValue("original") as HTMLInputElement;
+  input.setSelectionRange(3, 3);
+  fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+  expect(getByText(t.charSync.retokenizeTitle)).toBeTruthy();
+  expect(useLrcStore.getState().doc.lines).toHaveLength(1);
+  fireEvent.click(getByRole("button", { name: t.charSync.retokenizeCancel }));
+  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({ text: "original", syllables: [{ text: "original", time: 1 }] });
 });
 
 
