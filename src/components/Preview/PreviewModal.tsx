@@ -9,6 +9,7 @@ import { formatDisplayTime, parseTimestampInput, isStampable } from "../../utils
 import type { LrcSyllable } from "../../types/lrc";
 
 export function PreviewModal({ onClose }: { onClose: () => void }) {
+  const documentSession = useLrcStore((s) => s._documentSession);
   const { doc, currentTime, duration, isPlaying, updateLine, audioPath } = useLrcStore(useShallow((s) => ({
     doc: s.doc, currentTime: s.currentTime, duration: s.duration,
     isPlaying: s.isPlaying, updateLine: s.updateLine, audioPath: s.audioPath,
@@ -28,6 +29,15 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const editInputRef = useRef<HTMLInputElement>(null);
+  const editOwnerRef = useRef<{ session: number; timestamp: number | null } | null>(null);
+
+  useEffect(() => {
+    if (editOwnerRef.current && editOwnerRef.current.session !== documentSession) {
+      editOwnerRef.current = null;
+      setEditingId(null);
+      setEditValue("");
+    }
+  }, [documentSession]);
 
   // 현재 시각 기준으로 활성 줄 인덱스 계산
   const activeIdx = useMemo(() => {
@@ -70,6 +80,7 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
       if (isComposingKeyEvent(e)) return;
       if (e.key === "Escape") {
         if (editingId) {
+          editOwnerRef.current = null;
           setEditingId(null);
         } else {
           onClose();
@@ -84,16 +95,21 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
   const skip = useCallback((d: number) => controls.skip(d), [controls]);
 
   const startEdit = useCallback((id: string, currentTs: number | null) => {
+    editOwnerRef.current = { session: useLrcStore.getState()._documentSession, timestamp: currentTs };
     setEditingId(id);
     setEditValue(currentTs !== null ? formatDisplayTime(currentTs) : "");
   }, []);
 
   const commitEdit = useCallback((id: string) => {
     const parsed = parseTimestampInput(editValue);
-    const current = useLrcStore.getState().doc.lines.find((line) => line.id === id)?.timestamp;
-    if (parsed !== null && parsed !== current && (current == null || editValue.trim() !== formatDisplayTime(current))) {
+    const state = useLrcStore.getState();
+    const owner = editOwnerRef.current;
+    const current = state.doc.lines.find((line) => line.id === id)?.timestamp;
+    const stillOwnsLine = owner !== null && owner.session === state._documentSession && current === owner.timestamp;
+    if (stillOwnsLine && parsed !== null && parsed !== current && (current == null || editValue.trim() !== formatDisplayTime(current))) {
       updateLine(id, { timestamp: parsed });
     }
+    editOwnerRef.current = null;
     setEditingId(null);
   }, [editValue, updateLine]);
 
@@ -134,7 +150,7 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
                 e.stopPropagation();
                 if (isComposingKeyEvent(e.nativeEvent)) return;
                 if (e.key === "Enter") commitEdit(line.id);
-                if (e.key === "Escape") setEditingId(null);
+                if (e.key === "Escape") { editOwnerRef.current = null; setEditingId(null); }
               }}
               placeholder="H:MM:SS.mmm"
               className="ls-field ls-row-input ls-time-input w-full text-xs font-mono"
