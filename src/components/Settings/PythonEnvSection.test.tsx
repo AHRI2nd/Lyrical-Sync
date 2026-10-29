@@ -10,7 +10,7 @@ const ipc = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock('@tauri-apps/api/core', () => ipc);
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async () => () => {}) }));
 afterEach(cleanup);
-beforeEach(() => { ipc.invoke.mockReset(); });
+beforeEach(() => { ipc.invoke.mockReset(); useBusyStore.setState({ reasons: new Set() }); });
 it('shows upgrade failures and allows retry while the old interpreter is incompatible', async () => {
   ipc.invoke.mockImplementation(async (command: string) => {
     if (command === 'get_python_env_info') return { pythonReady: false, packagesReady: false };
@@ -58,4 +58,30 @@ it('keeps updater blocked by a Python download after the settings section unmoun
 
   await act(async () => { resolveDownload(); await download; });
   expect(useBusyStore.getState().reasons.size).toBe(0);
+});
+
+it('keeps download state visible after the settings section remounts', async () => {
+  let resolveDownload!: () => void;
+  const download = new Promise<void>((resolve) => { resolveDownload = resolve; });
+  ipc.invoke.mockImplementation((command: string) => {
+    if (command === 'get_python_env_info') return Promise.resolve({ pythonReady: false, packagesReady: false });
+    if (command === 'download_embedded_python') return download;
+    return Promise.resolve(undefined);
+  });
+  const first = render(<PythonEnvSection />);
+  const button = await screen.findByRole('button', { name: /Python|AI/ });
+  fireEvent.click(button);
+  await vi.waitFor(() => expect(useBusyStore.getState().reasons.has('python-download')).toBe(true));
+  first.unmount();
+
+  render(<PythonEnvSection />);
+  const refreshButton = await screen.findByRole('button', { name: useI18nStore.getState().t.settingsVenvRefresh });
+  expect(refreshButton.hasAttribute('disabled')).toBe(true);
+  expect(screen.getByText(useI18nStore.getState().t.settingsVenvCmdWarning)).toBeTruthy();
+
+  await act(async () => { resolveDownload(); await download; });
+  await vi.waitFor(() => expect(useBusyStore.getState().reasons.has('python-download')).toBe(false));
+  await vi.waitFor(() => expect(ipc.invoke).toHaveBeenCalledTimes(3));
+  const retryButton = await screen.findByRole('button', { name: useI18nStore.getState().t.settingsVenvCreate });
+  expect(retryButton.hasAttribute('disabled')).toBe(false);
 });

@@ -9,6 +9,7 @@ pub async fn run_child(
     cancel: Arc<AtomicBool>,
     mut progress: impl FnMut(&str) -> Result<(), String>,
 ) -> Result<String, String> {
+    let process_id = child.id();
     let stdout = child.stdout.take();
     let mut output = tokio::spawn(async move {
         let mut bytes = String::new();
@@ -48,9 +49,55 @@ pub async fn run_child(
             .map_err(|_| "Python output did not close".to_string())?
             .map_err(|e| e.to_string())?
     }.await;
-    if result.is_err() { let _ = child.kill().await; let _ = child.wait().await; }
+    if result.is_err() {
+        if let Some(pid) = process_id {
+            terminate_process_tree(pid).await;
+        }
+        let _ = child.kill().await;
+        let _ = child.wait().await;
+    }
     output.abort();
     result
+}
+
+async fn terminate_process_tree(pid: u32) {
+    #[cfg(unix)]
+    unsafe {
+        // Production Python commands start in their own process group.
+        libc::kill(-(pid as i32), libc::SIGKILL);
+    }
+    #[cfg(windows)]
+    {
+        let pid = pid.to_string();
+        let _ = tokio::time::timeout(
+            Duration::from_secs(5),
+            tokio::process::Command::new("taskkill")
+                .args(["/PID", &pid, "/T", "/F"])
+                .creation_flags(0x08000000)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status(),
+        )
+        .await;
+    }
+}
+
+pub async fn run_child_with_timeout(
+    child: tokio::process::Child,
+    cancel: Arc<AtomicBool>,
+    timeout: Duration,
+    progress: impl FnMut(&str) -> Result<(), String>,
+) -> Result<String, String> {
+    let run = run_child(child, cancel.clone(), progress);
+    tokio::pin!(run);
+    match tokio::time::timeout(timeout, &mut run).await {
+        Ok(result) => result,
+        Err(_) => {
+            cancel.store(true, Ordering::Relaxed);
+            let _ = run.await;
+            Err("Python process timed out".into())
+        }
+    }
 }
 
 #[cfg(test)]
@@ -94,11 +141,15 @@ mod tests {
         }
     }
     fn child(mode: &str) -> tokio::process::Child {
-        tokio::process::Command::new(std::env::current_exe().unwrap())
+        let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+        command
             .args(["--exact", "alignment_process::tests::child_fixture", "--nocapture"])
             .env("LYRICAL_PROCESS_FIXTURE", mode)
             .stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped())
-            .kill_on_drop(true).spawn().unwrap()
+            .kill_on_drop(true);
+        #[cfg(unix)]
+        command.process_group(0);
+        command.spawn().unwrap()
     }
     #[test]
     fn cancels_and_reaps_a_silent_process_without_waiting_for_a_log_line() {
@@ -112,6 +163,19 @@ mod tests {
             worker.join().unwrap();
             assert_eq!(result.unwrap().unwrap_err(), "cancelled");
             assert!(start.elapsed() < Duration::from_secs(2));
+        });
+    }
+
+    #[test]
+    fn times_out_and_reaps_a_hung_child() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let cancel = Arc::new(AtomicBool::new(false));
+            let result = tokio::time::timeout(
+                Duration::from_secs(2),
+                run_child_with_timeout(child("silent"), cancel.clone(), Duration::from_millis(50), |_| Ok(())),
+            ).await.unwrap();
+            assert_eq!(result.unwrap_err(), "Python process timed out");
+            assert!(cancel.load(Ordering::Relaxed));
         });
     }
     #[test]

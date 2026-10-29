@@ -456,6 +456,11 @@ export interface Translations {
   modelInstalledVariants: string;
   modelNoneInstalled: string;
   // AI Auto Sync
+  aiLanguageLabel: string;
+  aiLanguageAuto: string;
+  aiLanguageEnglish: string;
+  aiLanguageKorean: string;
+  aiLanguageJapanese: string;
   aiAutoSync: string;
   aiSyncRunning: string;
   aiSyncCancel: string;
@@ -1073,6 +1078,11 @@ const ko: Translations = {
   modelRequiredHint: "AI 기능 동작에 필수",
   modelOptionalHint: "설치 시 품질 향상",
   aiUsageTitle: "정렬에 사용",
+  aiLanguageLabel: "정렬 언어",
+  aiLanguageAuto: "UI 언어 사용",
+  aiLanguageEnglish: "영어",
+  aiLanguageKorean: "한국어",
+  aiLanguageJapanese: "일본어",
   aiUsageSeparation: "보컬 분리 (Demucs)",
   aiUsageSeparationDesc: "정렬 전 보컬을 분리해 정확도를 높입니다 (느려짐)",
   aiUsageVad: "보컬 활동 감지 (VAD)",
@@ -1713,6 +1723,11 @@ const en: Translations = {
   modelInstalledVariants: "Installed",
   modelNoneInstalled: "None",
   aiAutoSync: "AI Auto Sync",
+  aiLanguageLabel: "Alignment language",
+  aiLanguageAuto: "Use UI language",
+  aiLanguageEnglish: "English",
+  aiLanguageKorean: "Korean",
+  aiLanguageJapanese: "Japanese",
   aiSyncRunning: "Analyzing...",
   aiSyncCancel: "Cancel",
   aiSyncClear: "Clear Draft",
@@ -2340,6 +2355,11 @@ const ja: Translations = {
   modelInstalledVariants: "インストール済み",
   modelNoneInstalled: "なし",
   aiAutoSync: "AI自動シンク",
+  aiLanguageLabel: "アライメント言語",
+  aiLanguageAuto: "UI言語を使う",
+  aiLanguageEnglish: "英語",
+  aiLanguageKorean: "韓国語",
+  aiLanguageJapanese: "日本語",
   aiSyncRunning: "解析中...",
   aiSyncCancel: "キャンセル",
   aiSyncClear: "下書きを消去",

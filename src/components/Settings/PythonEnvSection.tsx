@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useI18nStore } from "../../stores/useI18nStore";
@@ -14,14 +14,12 @@ interface PythonEnvInfo {
 
 export function PythonEnvSection() {
   const { t } = useI18nStore();
-  const instanceId = useId();
-  const operationActive = useRef(false);
   const mounted = useRef(true);
   const [info, setInfo] = useState<PythonEnvInfo | null>(null);
   const [loading, setLoading] = useState(true);
-  const [downloading, setDownloading] = useState(false);
+  const downloading = useBusyStore((state) => state.reasons.has("python-download"));
   const [dlPercent, setDlPercent] = useState(0);
-  const [installing, setInstalling] = useState(false);
+  const installing = useBusyStore((state) => state.reasons.has("python-packages"));
   const [installLog, setInstallLog] = useState<string[]>([]);
   const [installError, setInstallError] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
@@ -31,16 +29,22 @@ export function PythonEnvSection() {
     return () => { mounted.current = false; };
   }, []);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     if (mounted.current) setLoading(true);
     try {
       const v = await invoke<PythonEnvInfo>("get_python_env_info");
       if (mounted.current) setInfo(v);
     } catch { /* ignore */ }
     if (mounted.current) setLoading(false);
-  };
+  }, []);
 
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    if (downloading || installing) {
+      setLoading(false);
+      return;
+    }
+    void refresh();
+  }, [downloading, installing, refresh]);
 
   // Clear stale install error once packages are confirmed ready (handles the
   // case where pip exits with non-zero on Windows but packages are installed).
@@ -75,11 +79,10 @@ export function PythonEnvSection() {
   }, [installLog]);
 
   const handleDownload = async () => {
-    if (operationActive.current) return;
-    operationActive.current = true;
-    const busyId = `python-download:${instanceId}`;
+    const busy = useBusyStore.getState().reasons;
+    if (busy.has("python-download") || busy.has("python-packages")) return;
+    const busyId = "python-download";
     useBusyStore.getState().markBusy(busyId);
-    setDownloading(true);
     setDlPercent(0);
     setInstallLog([]);
     setInstallError(null);
@@ -88,21 +91,15 @@ export function PythonEnvSection() {
     } catch (e) {
       if (mounted.current) setInstallError(String(e));
     } finally {
-      operationActive.current = false;
       useBusyStore.getState().clearBusy(busyId);
-      if (mounted.current) {
-        setDownloading(false);
-        await refresh();
-      }
     }
   };
 
   const handleInstall = async () => {
-    if (operationActive.current) return;
-    operationActive.current = true;
-    const busyId = `python-packages:${instanceId}`;
+    const busy = useBusyStore.getState().reasons;
+    if (busy.has("python-download") || busy.has("python-packages")) return;
+    const busyId = "python-packages";
     useBusyStore.getState().markBusy(busyId);
-    setInstalling(true);
     setInstallLog([]);
     setInstallError(null);
     try {
@@ -110,12 +107,7 @@ export function PythonEnvSection() {
     } catch (e) {
       if (mounted.current) setInstallError(String(e));
     } finally {
-      operationActive.current = false;
       useBusyStore.getState().clearBusy(busyId);
-      if (mounted.current) {
-        setInstalling(false);
-        await refresh();
-      }
     }
   };
 

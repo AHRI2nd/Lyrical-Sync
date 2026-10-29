@@ -2,6 +2,7 @@
 """Forced-alignment sidecar for Lyrical Sync.
 Stdin/argv: --models-dir DIR --audio PATH --lines JSON [--language ISO639-3]
 Stderr:     JSON progress lines  {"status":…,"message":…,"percent":…}
+Stdin:      JSON lyric array when --lines-stdin is used
 Stdout:     JSON result          [{"index":int,"start":float,"end":float,"confidence":float},…]
 """
 import sys
@@ -76,12 +77,19 @@ def verify_model_file(path, expected_sha256):
         raise ValueError("Model checksum mismatch. Download it again in Settings > AI Models.")
 
 
+def read_lines_input(lines_json, from_stdin):
+    """Read line JSON from stdin to avoid platform command-line length limits."""
+    return json.load(sys.stdin) if from_stdin else json.loads(lines_json)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--models-dir", required=True)
     parser.add_argument("--model-sha256", required=True)
     parser.add_argument("--audio", required=True)
-    parser.add_argument("--lines", required=True)
+    lines_source = parser.add_mutually_exclusive_group(required=True)
+    lines_source.add_argument("--lines")
+    lines_source.add_argument("--lines-stdin", action="store_true")
     parser.add_argument("--language", default="eng",
                         help="ISO 639-3 language code (eng/kor/jpn/…)")
     parser.add_argument("--separated", default="false",
@@ -93,7 +101,7 @@ def main():
     vad_enabled = args.vad == "true"
 
     try:
-        lines = json.loads(args.lines)  # [{"index": int, "text": str}]
+        lines = read_lines_input(args.lines, args.lines_stdin)
     except json.JSONDecodeError as e:
         progress("error", f"Invalid lines JSON: {e}")
         sys.exit(1)

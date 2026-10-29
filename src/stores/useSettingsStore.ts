@@ -51,6 +51,8 @@ interface SettingsState {
   modelsDir: string;
   /** 빈 줄 타임스탬프 = 앞 가사 end + blankLineOffset 초 */
   blankLineOffset: number;
+  /** AI alignment language; auto preserves the historical UI-language behavior. */
+  aiAlignmentLanguage: AlignmentLanguage;
   /** 글자/단어 동기화가 있어 Enhanced LRC로 저장될 때 알림 팝업 표시. false면 묻지 않고 저장 */
   showElrcSaveNotice: boolean;
   /** 가사 편집 글꼴 크기 배율 (0.8 ~ 1.5, 기본값: 1.0) */
@@ -100,6 +102,7 @@ interface SettingsState {
   setUiScale: (v: number) => void;
   setModelsDir: (v: string) => void;
   setBlankLineOffset: (v: number) => void;
+  setAiAlignmentLanguage: (v: AlignmentLanguage) => void;
   setShowElrcSaveNotice: (v: boolean) => void;
   setLyricsFontScale: (v: number) => void;
   setShowGlyphTimeMarkers: (v: boolean) => void;
@@ -135,6 +138,7 @@ export interface RecentFileEntry {
 }
 
 export type PlaybackMode = "file" | "spotify" | "youtube" | "device";
+export type AlignmentLanguage = "auto" | "eng" | "kor" | "jpn";
 
 const MAX_RECENT_FILES = 8;
 const isPreviewColor = (value: unknown): value is string => typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value);
@@ -164,6 +168,9 @@ function restoreSettings(value: unknown, current: SettingsState): SettingsState 
     next.spotifyMode = false;
   }
   next.ytdlpAudioQuality = ["best", "192", "128"].includes(String(saved.ytdlpAudioQuality)) ? saved.ytdlpAudioQuality as SettingsState["ytdlpAudioQuality"] : current.ytdlpAudioQuality;
+  next.aiAlignmentLanguage = ["auto", "eng", "kor", "jpn"].includes(String(saved.aiAlignmentLanguage))
+    ? saved.aiAlignmentLanguage as AlignmentLanguage
+    : current.aiAlignmentLanguage;
   next.keybindings = normalizeKeybindings(saved.keybindings && typeof saved.keybindings === "object" && !Array.isArray(saved.keybindings) ? Object.fromEntries(Object.entries(saved.keybindings).filter(([, value]) => typeof value === "string")) : undefined);
   if (Array.isArray(saved.recentFiles)) next.recentFiles = saved.recentFiles.filter((entry): entry is RecentFileEntry =>
     !!entry && typeof entry === "object" && (entry.lrcPath === null || typeof entry.lrcPath === "string") &&
@@ -183,6 +190,7 @@ export const useSettingsStore = create<SettingsState>()(
       uiScale: 1.0,
       modelsDir: "",
       blankLineOffset: 1.0,
+      aiAlignmentLanguage: "auto",
       showElrcSaveNotice: true,
       lyricsFontScale: 1.0,
       showGlyphTimeMarkers: true,
@@ -210,6 +218,7 @@ export const useSettingsStore = create<SettingsState>()(
       setUiScale: (v) => set({ uiScale: v }),
       setModelsDir: (v) => set({ modelsDir: v }),
       setBlankLineOffset: (v) => set({ blankLineOffset: v }),
+      setAiAlignmentLanguage: (v) => set({ aiAlignmentLanguage: ["auto", "eng", "kor", "jpn"].includes(v) ? v : "auto" }),
       setShowElrcSaveNotice: (v) => set({ showElrcSaveNotice: v }),
       setLyricsFontScale: (v) => set({ lyricsFontScale: v }),
       setShowGlyphTimeMarkers: (v) => set({ showGlyphTimeMarkers: v }),

@@ -12,6 +12,7 @@ pub struct DownloadState {
 struct ActiveDownload {
     run_id: String,
     cancel: Arc<AtomicBool>,
+    started: bool,
 }
 
 impl Default for DownloadState {
@@ -135,6 +136,25 @@ async fn hash_model_file(file: std::fs::File) -> Result<String, std::io::Error> 
     Ok(format!("{:x}", digest.finalize()))
 }
 
+async fn wait_for_download_io<T, E>(
+    future: impl std::future::Future<Output = Result<T, E>>,
+    cancel: &AtomicBool,
+) -> Result<T, String>
+where
+    E: std::fmt::Display,
+{
+    tokio::pin!(future);
+    loop {
+        if cancel.load(Ordering::Relaxed) {
+            return Err("cancelled".into());
+        }
+        match tokio::time::timeout(std::time::Duration::from_millis(75), &mut future).await {
+            Ok(result) => return result.map_err(|error| error.to_string()),
+            Err(_) => continue,
+        }
+    }
+}
+
 async fn model_file_matches(
     store: &crate::model_store::ModelStore,
     name: &str,
@@ -159,6 +179,58 @@ async fn model_file_matches(
 
 /// 모델 파일 목록을 다운로드합니다. 진행 상황은 `model-download-progress` 이벤트로 전달됩니다.
 #[tauri::command]
+pub fn begin_model_download(
+    app: AppHandle,
+    dir_state: tauri::State<'_, ModelsDirState>,
+    dl_state: tauri::State<'_, DownloadState>,
+    model_id: String,
+    run_id: String,
+    expected_root: String,
+) -> Result<(), String> {
+    let base = models_dir(&app, &dir_state)?;
+    if !models_root_matches(&base, &expected_root) {
+        return Err("Model directory changed before download started".into());
+    }
+    register_download(&dl_state, &model_id, &run_id).map(|_| ())
+}
+
+fn register_download(
+    dl_state: &DownloadState,
+    model_id: &str,
+    run_id: &str,
+) -> Result<Arc<AtomicBool>, String> {
+    let cancel = Arc::new(AtomicBool::new(false));
+    {
+        let mut active = dl_state.active.lock().unwrap_or_else(|e| e.into_inner());
+        if active.contains_key(model_id) {
+            return Err("Model download is already running".into());
+        }
+        active.insert(
+            model_id.to_string(),
+            ActiveDownload {
+                run_id: run_id.to_string(),
+                cancel: cancel.clone(),
+                started: false,
+            },
+        );
+    }
+    Ok(cancel)
+}
+
+fn start_registered_download(
+    dl_state: &DownloadState,
+    model_id: &str,
+    run_id: &str,
+) -> Result<Arc<AtomicBool>, String> {
+    let mut active = dl_state.active.lock().unwrap_or_else(|e| e.into_inner());
+    let Some(download) = active.get_mut(model_id).filter(|download| download.run_id == run_id) else {
+        return Err("Model download was not registered".into());
+    };
+    download.started = true;
+    Ok(download.cancel.clone())
+}
+
+#[tauri::command]
 pub async fn download_model(
     app: AppHandle,
     dir_state: tauri::State<'_, ModelsDirState>,
@@ -168,25 +240,15 @@ pub async fn download_model(
     expected_root: String,
     files: Vec<FileSpec>,
 ) -> Result<(), String> {
-    let base = models_dir(&app, &dir_state)?;
-    if !models_root_matches(&base, &expected_root) {
-        return Err("Model directory changed before download started".into());
-    }
-    let cancel = Arc::new(AtomicBool::new(false));
-    {
-        let mut active = dl_state.active.lock().unwrap_or_else(|e| e.into_inner());
-        if active.contains_key(&model_id) {
-            return Err("Model download is already running".into());
+    let result = async {
+        let base = models_dir(&app, &dir_state)?;
+        if !models_root_matches(&base, &expected_root) {
+            return Err("Model directory changed before download started".into());
         }
-        active.insert(
-            model_id.clone(),
-            ActiveDownload {
-                run_id: run_id.clone(),
-                cancel: cancel.clone(),
-            },
-        );
+        let cancel = start_registered_download(&dl_state, &model_id, &run_id)?;
+        download_files(&app, &base, &model_id, &run_id, &files, cancel).await
     }
-    let result = download_files(&app, &base, &model_id, &run_id, &files, cancel).await;
+    .await;
     let mut active = dl_state.active.lock().unwrap_or_else(|e| e.into_inner());
     remove_download_if_current(&mut active, &model_id, &run_id);
     result
@@ -210,15 +272,16 @@ fn remove_download_if_current(
 }
 
 fn cancel_download_if_current(
-    active: &HashMap<String, ActiveDownload>,
+    active: &mut HashMap<String, ActiveDownload>,
     model_id: &str,
     run_id: &str,
 ) -> bool {
-    if let Some(download) = active
-        .get(model_id)
-        .filter(|download| download.run_id == run_id)
-    {
+    if let Some(download) = active.get_mut(model_id).filter(|download| download.run_id == run_id) {
         download.cancel.store(true, Ordering::Relaxed);
+        let registered_only = !download.started;
+        if registered_only {
+            active.remove(model_id);
+        }
         true
     } else {
         false
@@ -257,7 +320,7 @@ async fn download_files(
         if let Ok(file) = store.read(&spec.filename) {
             let size = file.metadata().map_err(|e| e.to_string())?.len();
             let valid = match verify {
-                Some(expected) => hash_model_file(file)
+                Some(expected) => wait_for_download_io(hash_model_file(file), &cancel)
                     .await
                     .is_ok_and(|got| got.eq_ignore_ascii_case(expected)),
                 None => size > 0,
@@ -279,11 +342,8 @@ async fn download_files(
                 continue;
             }
         }
-        let mut response = client
-            .get(&spec.url)
-            .send()
-            .await
-            .map_err(|e| e.to_string())?
+        let mut response = wait_for_download_io(client.get(&spec.url).send(), &cancel)
+            .await?
             .error_for_status()
             .map_err(|e| e.to_string())?;
         let total = response.content_length().unwrap_or(0);
@@ -292,7 +352,7 @@ async fn download_files(
         // Unique staging remains owned by this operation and is removed on every failure.
         // All publication paths are relative to the already-open destination directory.
         let mut stage = cap_tempfile::TempFile::new(&parent).map_err(|e| e.to_string())?;
-        while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
+        while let Some(chunk) = wait_for_download_io(response.chunk(), &cancel).await? {
             if cancel.load(Ordering::Relaxed) {
                 return Err("cancelled".into());
             }
@@ -349,8 +409,8 @@ pub fn cancel_model_download(
     model_id: String,
     run_id: String,
 ) {
-    if let Ok(active) = dl_state.active.lock() {
-        cancel_download_if_current(&active, &model_id, &run_id);
+    if let Ok(mut active) = dl_state.active.lock() {
+        cancel_download_if_current(&mut active, &model_id, &run_id);
     }
 }
 
@@ -384,13 +444,14 @@ mod integrity_tests {
             ActiveDownload {
                 run_id: "new".into(),
                 cancel: Arc::new(AtomicBool::new(false)),
+                started: true,
             },
         );
         remove_download_if_current(&mut active, "model", "old");
         assert!(active.contains_key("model"));
-        assert!(!cancel_download_if_current(&active, "model", "old"));
+        assert!(!cancel_download_if_current(&mut active, "model", "old"));
         assert!(!active.get("model").unwrap().cancel.load(Ordering::Relaxed));
-        assert!(cancel_download_if_current(&active, "model", "new"));
+        assert!(cancel_download_if_current(&mut active, "model", "new"));
         assert!(active.get("model").unwrap().cancel.load(Ordering::Relaxed));
         remove_download_if_current(&mut active, "model", "new");
         assert!(!active.contains_key("model"));
@@ -402,6 +463,51 @@ mod integrity_tests {
         assert!(models_root_matches(&expected, "/models/current"));
         assert!(!models_root_matches(&expected, "/models/other"));
         assert!(!models_root_matches(&expected, ""));
+    }
+
+    #[test]
+    fn cancellation_is_registered_before_the_download_request_starts() {
+        let state = DownloadState::default();
+        let cancel = register_download(&state, "model", "run-1").unwrap();
+        assert!(cancel_download_if_current(
+            &mut state.active.lock().unwrap(),
+            "model",
+            "run-1",
+        ));
+        assert!(cancel.load(Ordering::Relaxed));
+        assert!(!state.active.lock().unwrap().contains_key("model"));
+        assert!(start_registered_download(&state, "model", "run-1").is_err());
+    }
+
+    #[test]
+    fn cancellation_during_a_started_download_keeps_its_run_registered() {
+        let state = DownloadState::default();
+        let cancel = register_download(&state, "model", "run-1").unwrap();
+        start_registered_download(&state, "model", "run-1").unwrap();
+        assert!(cancel_download_if_current(
+            &mut state.active.lock().unwrap(),
+            "model",
+            "run-1",
+        ));
+        assert!(cancel.load(Ordering::Relaxed));
+        assert!(state.active.lock().unwrap().contains_key("model"));
+    }
+
+    #[tokio::test]
+    async fn cancellation_interrupts_a_stalled_model_request_or_body_read() {
+        let cancel = Arc::new(AtomicBool::new(false));
+        let trigger = cancel.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            trigger.store(true, Ordering::Relaxed);
+        });
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            wait_for_download_io(std::future::pending::<Result<(), std::io::Error>>(), &cancel),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result.unwrap_err(), "cancelled");
     }
     #[cfg(unix)]
     #[test]

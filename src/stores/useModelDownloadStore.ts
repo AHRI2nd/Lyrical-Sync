@@ -26,6 +26,8 @@ export interface ModelOperation {
   promise: Promise<void>;
   status: "preparing" | "downloading" | "installed" | "not-installed" | "error";
   progress: number;
+  cancelRequested: boolean;
+  nativeStarted: boolean;
 }
 
 interface ProgressPayload {
@@ -184,6 +186,8 @@ export const useModelDownloadStore = create<ModelDownloadState>((set, get) => ({
       promise,
       status: "preparing",
       progress: 0,
+      cancelRequested: false,
+      nativeStarted: false,
     };
     activeOperations.set(model.id, operation);
     useBusyStore.getState().markBusy(`model-download:${model.id}:${runId}`);
@@ -199,11 +203,19 @@ export const useModelDownloadStore = create<ModelDownloadState>((set, get) => ({
         const root = await invoke<string>("get_models_dir");
         if ((useSettingsStore.getState().modelsDir || null) !== configuredRoot) throw new Error("models_root_changed");
         operation.root = root;
-        updateOperation(operation, { root, status: "downloading" }, { status: "downloading", progress: 0 });
+        updateOperation(operation, { root }, { status: "preparing", progress: 0 });
 
         // Subscribe before invoking the native job so the first progress event cannot be lost.
         await ensureProgressListener();
         if (activeOperations.get(model.id)?.runId !== runId) return;
+        if (operation.cancelRequested) throw new Error("cancelled");
+        await invoke("begin_model_download", { modelId: model.id, runId, expectedRoot: root });
+        operation.nativeStarted = true;
+        if (operation.cancelRequested) {
+          await invoke("cancel_model_download", { modelId: model.id, runId });
+          throw new Error("cancelled");
+        }
+        updateOperation(operation, { status: "downloading" }, { status: "downloading", progress: 0 });
         await invoke("download_model", {
           modelId: model.id,
           runId,
@@ -254,6 +266,9 @@ export const useModelDownloadStore = create<ModelDownloadState>((set, get) => ({
   cancelModel: async (modelId) => {
     const operation = activeOperations.get(modelId);
     if (!operation) return;
+    operation.cancelRequested = true;
+    updateOperation(operation, {});
+    if (!operation.nativeStarted) return;
     await invoke("cancel_model_download", { modelId, runId: operation.runId }).catch(() => {});
   },
 }));

@@ -192,6 +192,7 @@ pub fn run() {
             set_models_dir_override,
             get_models_dir,
             check_model_files,
+            begin_model_download,
             download_model,
             cancel_model_download,
             delete_model_files,

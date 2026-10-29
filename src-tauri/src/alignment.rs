@@ -74,6 +74,8 @@ pub async fn run_alignment(
     use_separation: bool,
     use_vad: bool,
 ) -> Result<String, String> {
+    let run = al_state.begin(run_id)?;
+    let cancel = run.cancel.clone();
     let _environment = crate::python_runtime::ENV_LOCK.try_lock().map_err(|_| "AI environment is busy")?;
     // Use the app-embedded Python (downloaded once via Settings > AI Models)
     let python_exe = embedded_python_exe(&app)?;
@@ -82,8 +84,6 @@ pub async fn run_alignment(
             "Python이 설정되지 않았습니다. 설정 > AI 모델 탭에서 Python을 다운로드하세요.".to_string()
         );
     }
-    let run = al_state.begin(run_id)?;
-    let cancel = run.cancel.clone();
     if !wait_for_package_probe(crate::python_env::packages_ready(&python_exe), &cancel).await? {
         return Err("AI packages are outdated or incomplete. Reinstall them in Settings > AI Models.".into());
     }
@@ -166,25 +166,39 @@ pub async fn run_alignment(
     // VAD on the audio is only meaningful when it's the isolated vocal stem
     let separated_flag = if audio_for_align != audio_path { "true" } else { "false" };
     let vad_flag = if use_vad { "true" } else { "false" };
-    let child = python_cmd_inference(&python_str)
+    let mut child = python_cmd_inference(&python_str)
         .args([
             script_str.as_str(),
             "--models-dir", &models_dir_str,
             "--model-sha256", model_sha256,
             "--audio",      &audio_for_align,
-            "--lines",      &lines_json,
+            "--lines-stdin",
             "--language",   &language,
             "--separated",  separated_flag,
             "--vad",        vad_flag,
         ])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
+        .stdin(std::process::Stdio::piped())
         .kill_on_drop(true)
         .spawn()
         .map_err(|e| format!("Python 실행 실패: {e}"))?;
 
-    let output = run_child(child, cancel, progress).await?;
-    Ok(output.trim().to_string())
+    use tokio::io::AsyncWriteExt;
+    let mut stdin = child.stdin.take().ok_or("Python stdin is unavailable")?;
+    let input = lines_json.into_bytes();
+    let input_task = tokio::spawn(async move {
+        stdin.write_all(&input).await.map_err(|error| error.to_string())
+    });
+    let output = run_child(child, cancel, progress).await;
+    let input_result = input_task.await.map_err(|error| error.to_string())?;
+    match output {
+        Ok(output) => {
+            input_result?;
+            Ok(output.trim().to_string())
+        }
+        Err(error) => Err(error),
+    }
 }
 
 #[tauri::command]

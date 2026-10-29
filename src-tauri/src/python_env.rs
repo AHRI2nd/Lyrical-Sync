@@ -32,6 +32,8 @@ fn python_cmd(python: impl AsRef<std::ffi::OsStr>) -> tokio::process::Command {
         // CREATE_NO_WINDOW: prevents a black CMD console from flashing during Python subprocess spawns.
         cmd.creation_flags(0x08000000);
     }
+    #[cfg(unix)]
+    cmd.process_group(0);
     cmd
 }
 
@@ -47,6 +49,8 @@ pub fn python_cmd_inference(python: impl AsRef<std::ffi::OsStr>) -> tokio::proce
         // CREATE_NO_WINDOW (0x08000000) | ABOVE_NORMAL_PRIORITY_CLASS (0x00008000)
         cmd.creation_flags(0x08008000);
     }
+    #[cfg(unix)]
+    cmd.process_group(0);
     cmd
 }
 
@@ -56,6 +60,7 @@ use crate::python_runtime::{
 use sha2::{Digest, Sha256};
 use std::path::Path;
 use std::time::Duration;
+const INSTALL_STEP_TIMEOUT: Duration = Duration::from_secs(60 * 60);
 
 #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
 const REQUIREMENTS: &str = include_str!("../requirements-ai.txt");
@@ -270,9 +275,11 @@ async fn install_step(
         .kill_on_drop(true)
         .spawn()
         .map_err(|e| e.to_string())?;
-    crate::alignment_process::run_child(
+    let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    crate::alignment_process::run_child_with_timeout(
         child,
-        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        cancel.clone(),
+        INSTALL_STEP_TIMEOUT,
         |line| {
             let _ = app.emit(
                 "pip-install-progress",
@@ -285,7 +292,12 @@ async fn install_step(
             Ok(())
         },
     )
-    .await?;
+    .await
+    .map_err(|error| if error == "Python process timed out" {
+        "Python package installation step timed out; the previous runtime was retained".into()
+    } else {
+        error
+    })?;
     Ok(())
 }
 
@@ -365,11 +377,15 @@ async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> 
         .await
         .map_err(|e| e.to_string())?;
         install_step(&app, python_cmd(&python).arg(&audit).arg("--installed")).await?;
-        let graph = python_cmd(&python)
+        let graph = tokio::time::timeout(
+            INSTALL_STEP_TIMEOUT,
+            python_cmd(&python)
             .args(["-m", "pip", "freeze", "--all"])
             .kill_on_drop(true)
-            .output()
+            .output(),
+        )
             .await
+            .map_err(|_| "Python package installation step timed out; the previous runtime was retained")?
             .map_err(|e| e.to_string())?;
         if !graph.status.success() {
             return Err("Cannot record installed package versions".into());

@@ -39,6 +39,46 @@ beforeEach(() => {
   });
 });
 
+it("honors cancellation while waiting for the progress listener before native registration", async () => {
+  const pendingListener = deferred<() => void>();
+  listen.mockImplementationOnce(async (_event, callback: typeof progressListener) => {
+    progressListener = callback;
+    return pendingListener.promise;
+  });
+  const model = MODEL_DEFS[0];
+  const task = useModelDownloadStore.getState().installModel(model);
+  await vi.waitFor(() => expect(listen).toHaveBeenCalled());
+
+  await useModelDownloadStore.getState().cancelModel(model.id);
+  pendingListener.resolve(() => {});
+  await task;
+
+  expect(invoke).not.toHaveBeenCalledWith("begin_model_download", expect.anything());
+  expect(invoke).not.toHaveBeenCalledWith("download_model", expect.anything());
+  expect(useBusyStore.getState().reasons.size).toBe(0);
+});
+
+it("cancels a native registration that completes after the user requests cancellation", async () => {
+  const registration = deferred<void>();
+  invoke.mockImplementation((command: string) => {
+    if (command === "get_models_dir") return Promise.resolve("/models/default");
+    if (command === "begin_model_download") return registration.promise;
+    return Promise.resolve(undefined);
+  });
+  const model = MODEL_DEFS[0];
+  const task = useModelDownloadStore.getState().installModel(model);
+  await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("begin_model_download", expect.anything()));
+  const runId = useModelDownloadStore.getState().operations[model.id].runId;
+
+  await useModelDownloadStore.getState().cancelModel(model.id);
+  registration.resolve();
+  await task;
+
+  expect(invoke).toHaveBeenCalledWith("cancel_model_download", { modelId: model.id, runId });
+  expect(invoke).not.toHaveBeenCalledWith("download_model", expect.anything());
+  expect(useBusyStore.getState().reasons.size).toBe(0);
+});
+
 it("keeps one model operation and one busy lease across duplicate requests", async () => {
   const pending = deferred<void>();
   invoke.mockImplementation((command: string) => {
