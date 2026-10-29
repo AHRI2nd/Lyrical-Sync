@@ -4,7 +4,9 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import plistlib
 import re
+import tarfile
 
 
 def record(root, target, source_sha, version):
@@ -24,12 +26,24 @@ def record(root, target, source_sha, version):
                 raise ValueError(f'Missing candidate updater signature: {path.name}')
             row['signaturePath']=sig.relative_to(root).as_posix()
             row['signatureSha256']=hashlib.sha256(sig.read_bytes()).hexdigest()
+            row['signatureVerification']='Presence and hash only; cryptographic verification is not performed here'
         installers.append(row)
     if target=='aarch64-apple-darwin':
         archives=[p for p in files if p.name.endswith('.app.tar.gz')]
         dmgs=[p for p in files if p.suffix=='.dmg']
         if len(archives)!=1 or len(dmgs)!=1:
             raise ValueError('Expected exactly one Mac updater archive and DMG')
+        with tarfile.open(archives[0], 'r:gz') as archive:
+            metadata=[member for member in archive.getmembers()
+                      if member.name.endswith('.app/Contents/Info.plist') and member.isfile()]
+            if len(metadata)!=1:
+                raise ValueError('Expected exactly one app Info.plist in updater archive')
+            stream=archive.extractfile(metadata[0])
+            if stream is None:
+                raise ValueError('Unable to read app metadata from updater archive')
+            app_version=plistlib.load(stream).get('CFBundleShortVersionString')
+        if app_version!=version:
+            raise ValueError('Mac updater archive app version does not match candidate version')
         add(archives[0],'app');add(dmgs[0],'dmg',False)
     elif target in ('x86_64-pc-windows-msvc','aarch64-pc-windows-msvc'):
         arch='x64' if target.startswith('x86_64') else 'arm64'
@@ -49,7 +63,7 @@ def record(root, target, source_sha, version):
                     and p.relative_to(root).as_posix() not in selected]
         if unexpected:raise ValueError('Unexpected architecture or version installer in candidate bundle')
     return {'sourceSha':source_sha,'version':version,'target':target,'installers':installers,
-            'qualification':'Updater signature presence and hashes only; cryptographic and OS signature acceptance must be verified separately'}
+            'qualification':'Updater signature sidecar presence and hashes only; no cryptographic or OS publisher signature acceptance is verified'}
 
 
 def main():
