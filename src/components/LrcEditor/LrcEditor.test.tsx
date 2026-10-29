@@ -285,6 +285,35 @@ it("does not apply a pending sync-unit confirmation to a different active row", 
   expect(useLrcStore.getState().syncUnit).toBe("char");
   expect(useLrcStore.getState().doc.lines[0].syllables).toEqual([{ text: "timed", time: 1 }]);
 });
+it("discards a pending timestamp edit when the document is replaced with the same row ID", () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "same", text: "old", timestamp: 1 }] } });
+  const { container, getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getByRole("button", { name: "0:00:01.000" }));
+  const input = container.querySelector('.ls-line-time input')!;
+  fireEvent.change(input, { target: { value: "0:00:05.000" } });
+  act(() => useLrcStore.setState({
+    doc: { ...defaultDocument(), lines: [{ id: "same", text: "new", timestamp: 2 }] },
+    _documentSession: useLrcStore.getState()._documentSession + 1,
+  }));
+  fireEvent.blur(input);
+  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({ id: "same", text: "new", timestamp: 2 });
+});
+
+it("clears multi-row selection when the document changes", () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+    { id: "a", text: "old one", timestamp: 1 }, { id: "b", text: "old two", timestamp: 2 },
+  ] } });
+  const { container, queryByRole, getByText } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(container.querySelector('[data-line-id="a"]')!, { ctrlKey: true });
+  expect(getByText(new RegExp(`1 ${useI18nStore.getState().t.bulkSelected}`))).toBeTruthy();
+  act(() => useLrcStore.setState({
+    doc: { ...defaultDocument(), lines: [
+      { id: "a", text: "new one", timestamp: 3 }, { id: "b", text: "new two", timestamp: 4 },
+    ] },
+    _documentSession: useLrcStore.getState()._documentSession + 1,
+  }));
+  expect(queryByRole("button", { name: "+0.1s" })).toBeNull();
+});
 it("opens the real lazy batch tool from the editor menu", async () => {
   const t = useI18nStore.getState().t;
   const { getByRole, findByRole } = render(<LrcEditor onPreview={() => {}} />);
