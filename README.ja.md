@@ -61,7 +61,7 @@
 
 ### macOS
 
-[Releases](../../releases) ページから最新の `.dmg` インストーラーをダウンロードし、Lyrical Sync をアプリケーションフォルダにドラッグします。
+[Releases](../../releases) ページから最新の `.dmg` インストーラーをダウンロードし、Lyrical Sync をアプリケーションフォルダにドラッグします。macOS は Apple Silicon に対応し、Intel Mac はサポートしていません。
 
 ### Windows
 
@@ -107,7 +107,7 @@
 | スタイリング | Tailwind CSS + @tailwindcss/vite | 4.3.2 |
 | 状態管理 | Zustand | 5.0.14 |
 | 波形 | Wavesurfer.js | 7.12.10 |
-| AI ランタイム | 内蔵 Python | 3.11.10（ビルド 20241016） |
+| AI ランタイム | 内蔵 Python | CPython 3.13.17（ビルド 20261021） |
 | AI 整列 | ctc-forced-aligner + MMS-300M | `1.0.2`; ONNX revision `77d85f9` + SHA-256 |
 | ボーカル分離 | Demucs + htdemucs チェックポイント | Demucs `4.0.1`;チェックポイント SHA-256 `8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4` |
 | 音声タグ / トランスコード | lofty + Symphonia (Rust) | 0.22.4、0.5.5 |

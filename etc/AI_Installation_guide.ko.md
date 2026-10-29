@@ -9,7 +9,7 @@ Lyrical Sync의 AI 자동 싱크 기능은 음성 인식(CTC Forced Aligner)을 
 
 | 항목 | 최소 사양 |
 |------|-----------|
-| OS | macOS 14+ (Apple Silicon), Windows 10+ (x64) |
+| OS | macOS 14+ (Apple Silicon), Windows 10+ (x64), Windows ARM64 |
 | RAM | 8 GB (16 GB 권장) |
 | 저장 공간 | 필수 모델만: 약 3 GB / 전체: 약 5 GB |
 | 인터넷 | 최초 설치 시 필요 |
@@ -22,19 +22,21 @@ Lyrical Sync의 AI 자동 싱크 기능은 음성 인식(CTC Forced Aligner)을 
 
 ## 1단계 — Python 환경 설치
 
-AI 기능은 별도의 Python 설치 없이 앱 내장 Python(CPython 3.11)을 사용합니다.
+AI 기능은 별도의 Python 설치 없이 앱 내장 Python(CPython 3.13.17, 빌드 20261021)을 사용합니다.
 
 1. 앱 좌측 하단의 **⚙ 설정** 버튼을 클릭합니다.
 2. **AI 환경** 탭을 선택합니다.
 3. **"Python 다운로드"** 버튼을 클릭합니다.
-   - macOS: `python-3.11.10-macos-...` 배포판이 다운로드됩니다.
-   - Windows: `python-3.11.10-windows-...` 배포판이 다운로드됩니다.
+   - macOS: CPython 3.13.17 Apple Silicon 배포판이 다운로드됩니다.
+   - Windows x64: CPython 3.13.17 x64 배포판이 다운로드됩니다.
+   - Windows ARM64: CPython 3.13.17 ARM64 배포판이 별도 디렉터리에 설치됩니다.
 4. 다운로드 완료 후 **"패키지 설치"** 버튼을 클릭합니다.
    - `torch`, `unidecode`, `demucs`, `ctc-forced-aligner` 등이 설치됩니다.
-   - Windows에서는 `ctc-forced-aligner`를 소스에서 빌드합니다 (10~20분 소요).
+   - Windows x64에서는 `ctc-forced-aligner`를 소스에서 빌드할 수 있어 Visual Studio C++ 빌드 도구가 필요합니다.
+   - Windows ARM64에서는 검증된 네이티브 CPU 패키지를 사용하며 `ctc-forced-aligner`를 소스에서 빌드하지 않습니다.
 5. 설치 로그에 **"설치 완료"** 메시지가 표시되면 완료입니다.
 
-> **Windows 주의**: Visual Studio Build Tools(C++ 빌드 도구)가 없으면 소스 빌드가 실패할 수 있습니다. 오류 발생 시 [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)를 먼저 설치하세요.
+> **Windows x64 주의**: Visual Studio Build Tools(C++ 빌드 도구)가 없으면 소스 빌드가 실패할 수 있습니다. 오류 발생 시 [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)를 먼저 설치하세요. ARM64에서는 앱이 검증된 네이티브 패키지를 사용합니다.
 
 ---
 
@@ -117,7 +119,7 @@ A. 설정 → AI 환경에서 Python 설치 상태를 확인하세요. 설치가
 **Q. macOS에서 "손상된 파일" 경고가 떠요.**  
 A. 앱이 자동으로 quarantine 속성을 제거하지만, 실패할 경우 터미널에서 아래 명령을 실행하세요:  
 ```bash
-xattr -rd com.apple.quarantine ~/Library/Application\ Support/lyrical-sync/python
+xattr -rd com.apple.quarantine "$HOME/Library/Application Support/com.arisair.lyricalsync/embedded_python"
 ```
 
 **Q. Windows에서 패키지 설치가 실패해요.**  

@@ -25,13 +25,13 @@ No server required — it works with just your own Spotify Developer App Client 
    |-------|-------|
    | App name | Any name (e.g., `Lyrical Sync`) |
    | App description | Any description |
-   | Redirect URIs | `http://127.0.0.1:54321/callback` |
+   | Redirect URIs | `http://127.0.0.1:8888/callback` |
    | Which API/SDKs | Check **Web Playback SDK** |
 
 4. Click **"Save"**.
 5. Copy the **Client ID** from the **Settings** page of the created app.
 
-> **Redirect URI Notice**: Enter `http://127.0.0.1:54321/callback` exactly. Using `localhost` or a different port will cause authentication to fail.
+> **Redirect URI Notice**: Enter `http://127.0.0.1:8888/callback` exactly. Using `localhost` or a different port will cause authentication to fail.
 
 ---
 
@@ -134,7 +134,7 @@ Due to the nature of Spotify streaming, the following features are unavailable:
 A. Launch the Spotify app (mobile or PC) first, then try again. The app must be running for the Web Playback SDK to register as a device.
 
 **Q. The browser doesn't return to the app after authentication.**  
-A. Verify that the Redirect URI is set to exactly `http://127.0.0.1:54321/callback`. Note that changes in the Developer Dashboard can take a few minutes to take effect after saving.
+A. Verify that the Redirect URI is set to exactly `http://127.0.0.1:8888/callback`. Note that changes in the Developer Dashboard can take a few minutes to take effect after saving.
 
 **Q. I see a "Spotify Premium is required" error.**  
 A. The Web Playback SDK is a Spotify Premium exclusive feature and cannot be used with a Free account.
@@ -143,4 +143,4 @@ A. The Web Playback SDK is a Spotify Premium exclusive feature and cannot be use
 A. Click the **"Log out"** button in Settings → Spotify tab. This removes the stored credentials from the system keychain.
 
 **Q. I entered the Client ID but can't log in.**  
-A. Double-check that `http://127.0.0.1:54321/callback` is listed in the Redirect URIs for your app in the Developer Dashboard.
+A. Double-check that `http://127.0.0.1:8888/callback` is listed in the Redirect URIs for your app in the Developer Dashboard.

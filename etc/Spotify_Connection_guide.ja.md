@@ -25,13 +25,13 @@ Lyrical SyncはSpotify Web Playback SDKを通じて、アプリ内でSpotifyの�
    |------|--------|
    | App name | 任意（例: `Lyrical Sync`） |
    | App description | 任意 |
-   | Redirect URIs | `http://127.0.0.1:54321/callback` |
+   | Redirect URIs | `http://127.0.0.1:8888/callback` |
    | Which API/SDKs | **Web Playback SDK** にチェック |
 
 4. **「Save」** をクリックします。
 5. 作成したアプリの **Settings** ページから **Client ID** をコピーします。
 
-> **Redirect URIの注意**: `http://127.0.0.1:54321/callback` を正確に入力してください。`localhost` や異なるポートを入力すると認証が失敗します。
+> **Redirect URIの注意**: `http://127.0.0.1:8888/callback` を正確に入力してください。`localhost` や異なるポートを入力すると認証が失敗します。
 
 ---
 
@@ -134,7 +134,7 @@ Spotifyストリーミングの特性上、以下の機能は使用できませ�
 A. まずSpotifyアプリ（モバイルまたはPC）を起動してから再試行してください。アプリが起動していないとWeb Playback SDKがデバイスとして登録されません。
 
 **Q. ブラウザで認証後、アプリに戻りません。**  
-A. Redirect URIが `http://127.0.0.1:54321/callback` に正確に設定されているか確認してください。Developer Dashboardでの変更は保存後、数分かかる場合があります。
+A. Redirect URIが `http://127.0.0.1:8888/callback` に正確に設定されているか確認してください。Developer Dashboardでの変更は保存後、数分かかる場合があります。
 
 **Q. 「Spotify Premiumが必要です」というエラーが出ます。**  
 A. Web Playback SDKはSpotify Premium専用の機能です。Freeアカウントでは使用できません。
@@ -143,4 +143,4 @@ A. Web Playback SDKはSpotify Premium専用の機能です。Freeアカウント
 A. 設定 → Spotifyタブの **「ログアウト」** ボタンをクリックしてください。保存されていた認証情報がシステムキーチェーンから削除されます。
 
 **Q. Client IDを入力してもログインできません。**  
-A. Developer Dashboardの該当アプリのRedirect URIリストに `http://127.0.0.1:54321/callback` が含まれているか再確認してください。
+A. Developer Dashboardの該当アプリのRedirect URIリストに `http://127.0.0.1:8888/callback` が含まれているか再確認してください。

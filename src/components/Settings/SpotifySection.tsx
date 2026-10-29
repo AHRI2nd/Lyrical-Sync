@@ -70,7 +70,7 @@ export function SpotifySection({
         <div className="flex flex-col gap-0.5">
           <span className="text-sm font-medium text-[var(--ls-text)]">{t.spotifyModeToggle}</span>
           <span className="text-xs text-[var(--ls-text-secondary)]">
-            {spotifyMode ? "Spotify 플레이어 사용 중" : "일반 오디오 파일 모드"}
+            {spotifyMode ? t.spotifyModeActive : t.spotifyModeLocal}
           </span>
         </div>
         <button
@@ -84,7 +84,7 @@ export function SpotifySection({
           role="switch"
           aria-label={t.spotifyModeToggle}
           aria-checked={spotifyMode}
-          title={!isLoggedIn ? "먼저 Spotify에 연결하세요" : undefined}
+          title={!isLoggedIn ? t.spotifyConnectFirst : undefined}
         >
           <span
             className={[

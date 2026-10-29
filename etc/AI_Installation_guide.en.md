@@ -9,7 +9,7 @@ Optionally, Demucs vocal separation can be used as a preprocessing step to impro
 
 | Item | Minimum |
 |------|---------|
-| OS | macOS 14+ (Apple Silicon), Windows 10+ (x64) |
+| OS | macOS 14+ (Apple Silicon), Windows 10+ (x64), Windows ARM64 |
 | RAM | 8 GB (16 GB recommended) |
 | Storage | Required models only: ~3 GB / Full: ~5 GB |
 | Internet | Required for initial setup |
@@ -22,19 +22,21 @@ Optionally, Demucs vocal separation can be used as a preprocessing step to impro
 
 ## Step 1 — Install Python Environment
 
-The AI feature uses a bundled Python (CPython 3.11) — no separate Python installation required.
+The AI feature uses bundled CPython 3.13.17 (build 20261021) — no separate Python installation required.
 
 1. Click the **⚙ Settings** button at the bottom-left of the app.
 2. Select the **AI Environment** tab.
 3. Click **"Download Python"**.
-   - macOS: Downloads the `python-3.11.10-macos-...` distribution.
-   - Windows: Downloads the `python-3.11.10-windows-...` distribution.
+   - macOS: Downloads the CPython 3.13.17 Apple Silicon distribution.
+   - Windows x64: Downloads the CPython 3.13.17 x64 distribution.
+   - Windows ARM64: Installs the CPython 3.13.17 ARM64 distribution in a separate directory.
 4. After the download completes, click **"Install Packages"**.
    - Installs `torch`, `unidecode`, `demucs`, `ctc-forced-aligner`, and more.
-   - On Windows, `ctc-forced-aligner` is built from source (takes 10–20 minutes).
+   - Windows x64 may build `ctc-forced-aligner` from source and may require Visual Studio C++ build tools.
+   - Windows ARM64 uses verified native CPU packages and does not build `ctc-forced-aligner` from source.
 5. When the installation log shows **"Installation complete"**, you're done.
 
-> **Windows Note**: If Visual Studio Build Tools (C++ build tools) are not installed, the source build may fail. If you encounter an error, install [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) first.
+> **Windows x64 note**: Source builds may fail without Visual Studio Build Tools (C++ build tools). Install [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) if needed. ARM64 uses verified native packages.
 
 ---
 
@@ -117,7 +119,7 @@ A. Check the Python installation status under Settings → AI Environment. If it
 **Q. macOS shows a "damaged file" warning.**  
 A. The app automatically removes the quarantine attribute, but if it fails, run the following in Terminal:  
 ```bash
-xattr -rd com.apple.quarantine ~/Library/Application\ Support/lyrical-sync/python
+xattr -rd com.apple.quarantine "$HOME/Library/Application Support/com.arisair.lyricalsync/embedded_python"
 ```
 
 **Q. Package installation fails on Windows.**  

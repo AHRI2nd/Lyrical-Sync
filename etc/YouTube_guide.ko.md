@@ -85,8 +85,8 @@ Lyrical Sync는 yt-dlp를 통해 YouTube 영상의 오디오를 임시 파일로
 
 다운로드된 오디오는 앱 캐시 디렉터리에 임시 저장됩니다. 앱을 종료해도 자동으로 삭제되지는 않으며, 수동으로 정리하려면 아래 경로를 확인하세요.
 
-- **macOS**: `~/Library/Caches/com.lyricalsync.app/ytdlp-audio/`
-- **Windows**: `%LOCALAPPDATA%\com.lyricalsync.app\cache\ytdlp-audio\`
+- **macOS**: `~/Library/Caches/com.arisair.lyricalsync/ytdlp-audio/`
+- **Windows**: `%LOCALAPPDATA%\com.arisair.lyricalsync\ytdlp-audio\`
 
 ---
 

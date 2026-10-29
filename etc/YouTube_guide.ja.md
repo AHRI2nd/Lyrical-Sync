@@ -85,8 +85,8 @@ _Get cookies.txt LOCALLY_ などのブラウザ拡張機能を使用して、You
 
 ダウンロードされた音声はアプリのキャッシュディレクトリに一時保存されます。アプリ終了時に自動削除はされません。手動で削除する場合は以下のパスを確認してください。
 
-- **macOS**: `~/Library/Caches/com.lyricalsync.app/ytdlp-audio/`
-- **Windows**: `%LOCALAPPDATA%\com.lyricalsync.app\cache\ytdlp-audio\`
+- **macOS**: `~/Library/Caches/com.arisair.lyricalsync/ytdlp-audio/`
+- **Windows**: `%LOCALAPPDATA%\com.arisair.lyricalsync\ytdlp-audio\`
 
 ---
 

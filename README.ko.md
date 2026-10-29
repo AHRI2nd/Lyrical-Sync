@@ -61,7 +61,7 @@
 
 ### macOS
 
-[Releases](../../releases) 페이지에서 최신 `.dmg` 설치 파일을 받아 Lyrical Sync를 응용 프로그램 폴더로 드래그합니다.
+[Releases](../../releases) 페이지에서 최신 `.dmg` 설치 파일을 받아 Lyrical Sync를 응용 프로그램 폴더로 드래그합니다. macOS는 Apple Silicon을 지원하며 Intel Mac은 지원하지 않습니다.
 
 ### Windows
 
@@ -107,7 +107,7 @@
 | 스타일링 | Tailwind CSS + @tailwindcss/vite | 4.3.2 |
 | 상태 관리 | Zustand | 5.0.14 |
 | 파형 | Wavesurfer.js | 7.12.10 |
-| AI 런타임 | 내장 Python | 3.11.10 (빌드 20241016) |
+| AI 런타임 | 내장 Python | CPython 3.13.17 (빌드 20261021) |
 | AI 정렬 | ctc-forced-aligner + MMS-300M | `1.0.2`; ONNX revision `77d85f9` + SHA-256 |
 | 보컬 분리 | Demucs + htdemucs 체크포인트 | Demucs `4.0.1`; 체크포인트 SHA-256 `8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4` |
 | 오디오 태그 / 트랜스코딩 | lofty + Symphonia (Rust) | 0.22.4, 0.5.5 |

@@ -9,7 +9,7 @@ Lyrical SyncのAI自動同期機能は、CTC Forced Alignerを使って歌詞テ
 
 | 項目 | 最小仕様 |
 |------|---------|
-| OS | macOS 14+ (Apple Silicon), Windows 10+ (x64) |
+| OS | macOS 14+ (Apple Silicon), Windows 10+ (x64), Windows ARM64 |
 | RAM | 8 GB（16 GB 推奨） |
 | ストレージ | 必須モデルのみ: 約3 GB / フル: 約5 GB |
 | インターネット | 初回セットアップ時に必要 |
@@ -22,19 +22,21 @@ Lyrical SyncのAI自動同期機能は、CTC Forced Alignerを使って歌詞テ
 
 ## ステップ1 — Python環境のインストール
 
-AI機能はアプリ内蔵Python（CPython 3.11）を使用するため、別途Pythonのインストールは不要です。
+AI機能はアプリ内蔵Python（CPython 3.13.17、ビルド20261021）を使用するため、別途Pythonのインストールは不要です。
 
 1. アプリ左下の **⚙ 設定** ボタンをクリックします。
 2. **AI環境** タブを選択します。
 3. **「Pythonをダウンロード」** ボタンをクリックします。
-   - macOS: `python-3.11.10-macos-...` ディストリビューションがダウンロードされます。
-   - Windows: `python-3.11.10-windows-...` ディストリビューションがダウンロードされます。
+   - macOS: CPython 3.13.17 Apple Silicon版がダウンロードされます。
+   - Windows x64: CPython 3.13.17 x64版がダウンロードされます。
+   - Windows ARM64: CPython 3.13.17 ARM64版が専用ディレクトリにインストールされます。
 4. ダウンロード完了後、**「パッケージをインストール」** ボタンをクリックします。
    - `torch`、`unidecode`、`demucs`、`ctc-forced-aligner` などがインストールされます。
-   - Windowsでは `ctc-forced-aligner` をソースからビルドします（10〜20分かかります）。
+   - Windows x64では `ctc-forced-aligner` をソースからビルドするため、Visual Studio C++ビルドツールが必要になる場合があります。
+   - Windows ARM64では検証済みのネイティブCPUパッケージを使い、`ctc-forced-aligner` をソースからビルドしません。
 5. インストールログに **「インストール完了」** と表示されたら完了です。
 
-> **Windowsの注意**: Visual Studio Build Tools（C++ビルドツール）がインストールされていない場合、ソースビルドが失敗する可能性があります。エラーが発生した場合は、先に [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) をインストールしてください。
+> **Windows x64の注意**: Visual Studio Build Tools（C++ビルドツール）がないとソースビルドが失敗する場合があります。必要に応じて [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) をインストールしてください。ARM64ではアプリが検証済みネイティブパッケージを使います。
 
 ---
 
@@ -117,7 +119,7 @@ A. 設定 → AI環境でPythonのインストール状態を確認してくだ�
 **Q. macOSで「破損したファイル」の警告が出ます。**  
 A. アプリが自動的にquarantine属性を削除しますが、失敗した場合はターミナルで以下のコマンドを実行してください:  
 ```bash
-xattr -rd com.apple.quarantine ~/Library/Application\ Support/lyrical-sync/python
+xattr -rd com.apple.quarantine "$HOME/Library/Application Support/com.arisair.lyricalsync/embedded_python"
 ```
 
 **Q. Windowsでパッケージのインストールが失敗します。**  

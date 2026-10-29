@@ -25,13 +25,13 @@ Lyrical Sync는 Spotify Web Playback SDK를 통해 Spotify 곡을 앱 내에서 
    |------|--------|
    | App name | `Lyrical Sync` |
    | App description | 자유롭게 입력 |
-   | Redirect URIs | `http://127.0.0.1:54321/callback` |
+   | Redirect URIs | `http://127.0.0.1:8888/callback` |
    | Which API/SDKs | **Web Playback SDK** 체크 |
 
 4. **"Save"** 를 클릭합니다.
 5. 생성된 앱의 **Settings** 페이지에서 **Client ID**를 복사합니다.
 
-> **Redirect URI 주의**: `http://127.0.0.1:54321/callback` 을 정확하게 입력해야 합니다.
+> **Redirect URI 주의**: `http://127.0.0.1:8888/callback` 을 정확하게 입력해야 합니다.
 
 ---
 
@@ -132,7 +132,7 @@ Spotify 스트리밍 특성상 아래 기능은 사용할 수 없습니다.
 A. Spotify 앱(모바일 또는 PC)을 먼저 실행한 뒤 다시 시도하세요. 앱이 실행되어 있어야 Web Playback SDK가 기기로 등록됩니다.
 
 **Q. 브라우저에서 인증 후 앱으로 돌아오지 않아요.**  
-A. Redirect URI가 `http://127.0.0.1:54321/callback` 으로 정확히 설정됐는지 확인하세요. Developer Dashboard에서 저장 후 몇 분이 지나야 적용되는 경우가 있습니다.
+A. Redirect URI가 `http://127.0.0.1:8888/callback` 으로 정확히 설정됐는지 확인하세요. Developer Dashboard에서 저장 후 몇 분이 지나야 적용되는 경우가 있습니다.
 
 **Q. "Premium 계정이 필요합니다" 오류가 떠요.**  
 A. Web Playback SDK는 Spotify Premium 전용 기능입니다. Free 계정으로는 사용할 수 없습니다.
@@ -141,4 +141,4 @@ A. Web Playback SDK는 Spotify Premium 전용 기능입니다. Free 계정으로
 A. 설정 → Spotify 탭의 **"로그아웃"** 버튼을 클릭하세요. 저장된 인증 정보가 시스템 키체인에서 삭제됩니다.
 
 **Q. Client ID를 입력했는데 로그인이 안 돼요.**  
-A. Developer Dashboard에서 해당 앱의 Redirect URI 목록에 `http://127.0.0.1:54321/callback` 이 포함되어 있는지 다시 확인하세요.
+A. Developer Dashboard에서 해당 앱의 Redirect URI 목록에 `http://127.0.0.1:8888/callback` 이 포함되어 있는지 다시 확인하세요.

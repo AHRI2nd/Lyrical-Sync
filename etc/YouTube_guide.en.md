@@ -85,8 +85,8 @@ Use a browser extension such as _Get cookies.txt LOCALLY_ to export your YouTube
 
 Downloaded audio is stored temporarily in the app cache directory. Files are not deleted automatically when the app exits. To clean them up manually, check the following paths:
 
-- **macOS**: `~/Library/Caches/com.lyricalsync.app/ytdlp-audio/`
-- **Windows**: `%LOCALAPPDATA%\com.lyricalsync.app\cache\ytdlp-audio\`
+- **macOS**: `~/Library/Caches/com.arisair.lyricalsync/ytdlp-audio/`
+- **Windows**: `%LOCALAPPDATA%\com.arisair.lyricalsync\ytdlp-audio\`
 
 ---
 
