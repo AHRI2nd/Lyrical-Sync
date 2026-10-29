@@ -59,6 +59,18 @@ describe("timestamp parsing/formatting", () => {
     expect(formatTimestamp(62.34)).toBe("01:02.34");
     expect(formatTimestamp(5)).toBe("00:05.00");
   });
+  it("preserves millisecond timing when centisecond output would lose precision", () => {
+    const doc = docOf([{ id: "ms", timestamp: 1.234, text: "line", syllables: [{ text: "line", time: 1.234 }] }]);
+    const serialized = serializeLrc(doc);
+    expect(serialized).toContain("[00:01.234]<00:01.234>line");
+    expect(parseLrc(serialized).lines[0]).toMatchObject({ timestamp: 1.234, syllables: [{ time: 1.234 }] });
+  });
+  it("rejects timestamps whose numeric value overflows", () => {
+    const digits = "9".repeat(310);
+    expect(parseTimestamp(`[${digits}:00.00]`)).toBeNull();
+    expect(parseTimestampInput(`${digits}:00.00`)).toBeNull();
+    expect(parseLrc(`[${digits}:00.00]bad`).lines.every((line) => line.timestamp === null || Number.isFinite(line.timestamp))).toBe(true);
+  });
 });
 
 it("round-trips bracketed metadata values without turning their suffixes into lyric rows", () => {

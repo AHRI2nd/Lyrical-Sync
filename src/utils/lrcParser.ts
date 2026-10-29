@@ -48,8 +48,10 @@ function parseInlineSyllables(rest: string): LrcSyllable[] | null {
   const tags: { time: number; start: number; end: number }[] = [];
   let m: RegExpExecArray | null;
   while ((m = INLINE_TS_RE.exec(rest)) !== null) {
+    const time = parseInt(m[1], 10) * 60 + parseInt(m[2], 10) + fracToSeconds(m[3]);
+    if (!Number.isFinite(time)) return null;
     tags.push({
-      time: parseInt(m[1], 10) * 60 + parseInt(m[2], 10) + fracToSeconds(m[3]),
+      time,
       start: m.index,
       end: INLINE_TS_RE.lastIndex,
     });
@@ -77,7 +79,8 @@ function fracToSeconds(frac: string | undefined): number {
 export function parseTimestamp(ts: string): number | null {
   const m = TS_TOKEN_RE.exec(ts);
   if (!m) return null;
-  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10) + fracToSeconds(m[3]);
+  const seconds = parseInt(m[1], 10) * 60 + parseInt(m[2], 10) + fracToSeconds(m[3]);
+  return Number.isFinite(seconds) ? seconds : null;
 }
 
 // Accept both legacy minute timestamps and the hour-aware millisecond UI format.
@@ -88,7 +91,8 @@ export function parseTimestampInput(input: string): number | null {
   const mins = parseInt(m[2], 10);
   const secs = parseInt(m[3], 10);
   const fractionMs = parseInt(m[4], 10) * (m[4].length === 2 ? 10 : 1);
-  return ((hours * 3600 + mins * 60 + secs) * 1000 + fractionMs) / 1000;
+  const seconds = ((hours * 3600 + mins * 60 + secs) * 1000 + fractionMs) / 1000;
+  return Number.isFinite(seconds) ? seconds : null;
 }
 
 // LRC 파일 직렬화용 [MM:SS.xx]
@@ -99,6 +103,20 @@ export function formatTimestamp(seconds: number): string {
   const mins = Math.floor(totalSecs / 60);
   const secs = totalSecs % 60;
   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
+}
+
+/** Keep the legacy centisecond form unless milliseconds are needed for a lossless round trip. */
+export function formatLrcTimestamp(seconds: number): string {
+  const totalMs = Math.round(seconds * 1000);
+  if (!Number.isFinite(seconds) || !Number.isSafeInteger(totalMs) || seconds < 0) {
+    throw new Error("LRC timestamps must be finite, non-negative, and representable in milliseconds.");
+  }
+  const ms = totalMs % 1000;
+  const totalSecs = Math.floor(totalMs / 1000);
+  const mins = Math.floor(totalSecs / 60);
+  const secs = totalSecs % 60;
+  const fraction = ms % 10 === 0 ? String(ms / 10).padStart(2, "0") : String(ms).padStart(3, "0");
+  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}.${fraction}`;
 }
 
 // UI 표시용 H:MM:SS.mmm
@@ -240,7 +258,9 @@ function parseMarkedInlineSyllables(raw: string): { text: string; syllables: Lrc
         if (parts.length === 0 ? buffer.length > 0 : parts[parts.length - 1].kind === "time" || buffer.length > 0) {
           parts.push({ kind: "text", text: buffer });
         }
-        parts.push({ kind: "time", time: parseInt(match[1], 10) * 60 + parseInt(match[2], 10) + fracToSeconds(match[3]) });
+        const time = parseInt(match[1], 10) * 60 + parseInt(match[2], 10) + fracToSeconds(match[3]);
+        if (!Number.isFinite(time)) return { text: raw, syllables: null };
+        parts.push({ kind: "time", time });
         buffer = "";
         hasTimestamp = true;
         i += match[0].length;
@@ -293,7 +313,9 @@ export function parseLrc(raw: string): LrcDocument {
     let rest = line;
     let tok: RegExpExecArray | null;
     while ((tok = TS_TOKEN_RE.exec(rest)) !== null) {
-      timestamps.push(parseInt(tok[1], 10) * 60 + parseInt(tok[2], 10) + fracToSeconds(tok[3]));
+      const time = parseInt(tok[1], 10) * 60 + parseInt(tok[2], 10) + fracToSeconds(tok[3]);
+      if (!Number.isFinite(time)) break;
+      timestamps.push(time);
       rest = rest.slice(tok[0].length);
     }
     if (timestamps.length === 0) {
@@ -314,7 +336,10 @@ export function parseLrc(raw: string): LrcDocument {
           if (value === "1") preserveLineOrder = true;
           else doc.extraTags[key] = value;
         }
-        else if (field === "offset") doc.metadata.offset = parseInt(value, 10) || 0;
+        else if (field === "offset") {
+          const offset = Number.parseInt(value, 10);
+          if (Number.isFinite(offset)) doc.metadata.offset = offset;
+        }
         else if (field) (doc.metadata as unknown as Record<string, string>)[field] = value;
         else doc.extraTags[key] = value;
         previous = [];
@@ -410,19 +435,19 @@ export function serializeLrc(doc: LrcDocument, enhanced = true): string {
       const times = line.syllables.filter((s) => s.time !== null).map((s) => s.time as number);
       const lineTs = line.timestamp ?? Math.min(...times);
       outputTs = lineTs;
-      let out = `[${formatTimestamp(lineTs)}]`;
+      let out = `[${formatLrcTimestamp(lineTs)}]`;
       for (const s of line.syllables) {
-        if (s.time !== null) out += `<${formatTimestamp(s.time)}>`;
+        if (s.time !== null) out += `<${formatLrcTimestamp(s.time)}>`;
         out += encode(s.text);
       }
       parts.push(out);
     } else if (line.timestamp !== null) {
-      parts.push(`[${formatTimestamp(line.timestamp)}]${encode(line.text)}`);
+      parts.push(`[${formatLrcTimestamp(line.timestamp)}]${encode(line.text)}`);
     } else if (line.text || typeof line.translation === "string" || (translationMode && line.timestamp === null && line.text === "")) {
       parts.push(translationMode && line.text === "" ? "\\0" : encode(line.text));
     }
     if (typeof line.translation === "string") {
-      const prefix = outputTs === null ? "" : `[${formatTimestamp(outputTs)}]`;
+      const prefix = outputTs === null ? "" : `[${formatLrcTimestamp(outputTs)}]`;
       parts.push(`${prefix}/${encode(line.translation)}`);
     }
   }
