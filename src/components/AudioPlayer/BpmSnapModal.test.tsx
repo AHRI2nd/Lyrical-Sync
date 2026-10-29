@@ -9,6 +9,7 @@ vi.mock("../../stores/useI18nStore", () => ({ useI18nStore: () => ({ t: {
   bpmDecodeError: "Decode failed", bpmLabel: "Tempo", bpmOffset: "Offset", bpmTapTempo: "Tap tempo",
   bpmScopeSelected: "Selected", bpmScopeAll: "All", bpmConfidence: "Confidence", bpmAppliedAll: "Applied all",
   bpmAppliedCount: "applied", bpmManualHint: "Without audio, enter a BPM or use Tap Tempo", cancelLabel: "Cancel", applyLabel: "Apply",
+  toast: { audioResourceLimit: "Audio exceeds safe processing limits" },
 } }) }));
 import { decodeAudioSamples } from "../../utils/decodeAudioSamples";
 import { useLrcStore } from "../../stores/useLrcStore";
@@ -84,6 +85,12 @@ it("cancels a pending decode when dismissed", async () => {
   fireEvent.keyDown(window, { key: "Escape" });
   expect(signal?.aborted).toBe(true);
   expect(onClose).toHaveBeenCalledOnce();
+});
+
+it("explains when the selected audio exceeds the safe processing budget", async () => {
+  vi.mocked(decodeAudioSamples).mockRejectedValue(new Error("AUDIO_RESOURCE_LIMIT"));
+  render(<BpmSnapModal onClose={() => {}} selectedIds={[]} />);
+  expect(await screen.findByText("Audio exceeds safe processing limits")).toBeTruthy();
 });
 
 it("keeps duplicate tap timestamps safe and computes a later 120 BPM sequence", async () => {

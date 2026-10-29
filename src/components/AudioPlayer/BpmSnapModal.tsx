@@ -59,8 +59,10 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
             setConfidence(result.confidence);
           } else setError(t.bpmDetectFailed);
         })
-        .catch(() => {
-          if (!controller.signal.aborted && isCurrent()) setError(t.bpmDecodeError);
+        .catch((error: unknown) => {
+          if (!controller.signal.aborted && isCurrent()) {
+            setError(String(error).includes("AUDIO_RESOURCE_LIMIT") ? t.toast.audioResourceLimit : t.bpmDecodeError);
+          }
         })
         .finally(() => {
           if (!controller.signal.aborted && isCurrent()) setLoading(false);

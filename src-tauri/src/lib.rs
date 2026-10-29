@@ -7,6 +7,7 @@ mod platform_profile;
 mod arm_ai;
 mod alignment_process;
 mod atomic_write;
+mod audio_resource;
 mod batch_output;
 mod oauth_listener;
 mod service_auth;
@@ -39,10 +40,14 @@ async fn write_lrc_file(path: String, content: String) -> Result<(), String> {
 
 #[tauri::command]
 async fn read_audio_file(path: String) -> Result<tauri::ipc::Response, String> {
-    // 바이트를 JSON(number[]) 대신 raw 바이너리로 반환 → 대용량 오디오도 빠름
-    std::fs::read(&path)
-        .map(tauri::ipc::Response::new)
-        .map_err(|e| e.to_string())
+    // Return raw bytes through IPC after applying the compressed and decoded-memory limits.
+    audio_resource::read_bounded_audio_file(std::path::Path::new(&path))
+        .map(|(bytes, _)| tauri::ipc::Response::new(bytes))
+}
+
+#[tauri::command]
+fn validate_audio_file(path: String) -> Result<audio_resource::AudioResourceInfo, String> {
+    audio_resource::inspect_audio_file(std::path::Path::new(&path))
 }
 
 fn is_normal_audio_eof(error: &symphonia::core::errors::Error) -> bool {
@@ -61,6 +66,9 @@ async fn decode_audio_to_wav(path: String) -> Result<tauri::ipc::Response, Strin
     use symphonia::core::probe::Hint;
 
     let file = std::fs::File::open(&path).map_err(|e| e.to_string())?;
+    if file.metadata().map_err(|e| e.to_string())?.len() > audio_resource::MAX_AUDIO_FILE_BYTES {
+        return Err(audio_resource::AUDIO_RESOURCE_LIMIT_ERROR.into());
+    }
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
     let mut hint = Hint::new();
@@ -86,6 +94,13 @@ async fn decode_audio_to_wav(path: String) -> Result<tauri::ipc::Response, Strin
     let track_id = track.id;
     let sample_rate = codec_params.sample_rate.ok_or("샘플레이트 없음")?;
     let channels = codec_params.channels.ok_or("채널 정보 없음")?.count();
+    let channels_u8 =
+        u8::try_from(channels).map_err(|_| audio_resource::AUDIO_RESOURCE_LIMIT_ERROR)?;
+    audio_resource::validate_pcm_frames(
+        sample_rate,
+        channels_u8,
+        codec_params.n_frames.unwrap_or(0),
+    )?;
     let spec = hound::WavSpec {
         channels: u16::try_from(channels).map_err(|_| "채널 수가 너무 많습니다")?,
         sample_rate,
@@ -103,6 +118,7 @@ async fn decode_audio_to_wav(path: String) -> Result<tauri::ipc::Response, Strin
     let mut writer =
         hound::WavWriter::new(&mut output, spec).map_err(|e| format!("WAV 생성 오류: {e}"))?;
 
+    let mut decoded_frames = 0u64;
     loop {
         let packet = match format.next_packet() {
             Ok(packet) => packet,
@@ -115,6 +131,21 @@ async fn decode_audio_to_wav(path: String) -> Result<tauri::ipc::Response, Strin
         let decoded = decoder
             .decode(&packet)
             .map_err(|e| format!("오디오 디코딩 오류: {e}"))?;
+        if decoded.spec().channels.count() != channels {
+            return Err("AUDIO_METADATA_UNAVAILABLE".into());
+        }
+        audio_resource::validate_pcm_frames(
+            sample_rate,
+            channels_u8,
+            u64::try_from(decoded.capacity())
+                .map_err(|_| audio_resource::AUDIO_RESOURCE_LIMIT_ERROR)?,
+        )?;
+        let packet_frames = u64::try_from(decoded.frames())
+            .map_err(|_| audio_resource::AUDIO_RESOURCE_LIMIT_ERROR)?;
+        decoded_frames = decoded_frames
+            .checked_add(packet_frames)
+            .ok_or(audio_resource::AUDIO_RESOURCE_LIMIT_ERROR)?;
+        audio_resource::validate_pcm_frames(sample_rate, channels_u8, decoded_frames)?;
         let mut buf = SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
         buf.copy_interleaved_ref(decoded);
         for &sample in buf.samples() {
@@ -143,6 +174,11 @@ struct AudioMetadata {
 fn read_audio_metadata(path: String) -> Result<AudioMetadata, String> {
     use lofty::file::TaggedFileExt;
     use lofty::tag::Accessor;
+    if std::fs::metadata(&path).map_err(|e| e.to_string())?.len()
+        > audio_resource::MAX_AUDIO_FILE_BYTES
+    {
+        return Err(audio_resource::AUDIO_RESOURCE_LIMIT_ERROR.into());
+    }
     let tagged = lofty::read_from_path(&path).map_err(|e| e.to_string())?;
     let tag = tagged.primary_tag().or_else(|| tagged.first_tag());
     let s = |o: Option<std::borrow::Cow<str>>| o.map(|c| c.trim().to_string()).unwrap_or_default();
@@ -187,6 +223,7 @@ pub fn run() {
             write_lrc_file,
             batch_output::write_batch_output,
             read_audio_file,
+            validate_audio_file,
             decode_audio_to_wav,
             read_audio_metadata,
             set_models_dir_override,

@@ -58,6 +58,7 @@ vi.mock("../../utils/readAudioBytes", () => ({ readAudioBytes: vi.fn() }));
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useWaveformStore } from "../../stores/useWaveformStore";
+import { useToastStore } from "../../stores/useToastStore";
 import { AudioPlayer } from "./AudioPlayer";
 import { readAudioBytes } from "../../utils/readAudioBytes";
 import { useLrcStore } from "../../stores/useLrcStore";
@@ -82,6 +83,7 @@ const loadBlobSpy = vi.spyOn(wsMock, "loadBlob");
 describe("AudioPlayer — local audio loading", () => {
   beforeEach(() => {
     vi.mocked(readAudioBytes).mockReset();
+    useToastStore.setState({ toasts: [] });
     loadSpy.mockClear();
     loadBlobSpy.mockClear();
   });
@@ -134,6 +136,16 @@ describe("AudioPlayer — local audio loading", () => {
 
     await waitFor(() => expect(loadBlobSpy).toHaveBeenCalledTimes(1));
     expect(loadBlobSpy.mock.calls[0][0].type).toBe("audio/wav");
+  });
+
+  it("shows the localized guidance when audio exceeds the processing budget", async () => {
+    vi.mocked(readAudioBytes).mockRejectedValue(new Error("AUDIO_RESOURCE_LIMIT"));
+    resetLrc([], null);
+    useLrcStore.setState({ audioPath: "/music/long-song.mp3" });
+    render(<AudioPlayer />);
+
+    await waitFor(() => expect(useToastStore.getState().toasts[useToastStore.getState().toasts.length - 1]?.message)
+      .toBe(useI18nStore.getState().t.toast.audioResourceLimit));
   });
 
   it("publishes decoded detail after loading and clears it when audio is unloaded", async () => {

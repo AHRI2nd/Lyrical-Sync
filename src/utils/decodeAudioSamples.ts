@@ -6,7 +6,7 @@ export async function decodeAudioSamples(audioPath: string, signal?: AbortSignal
     if (signal?.aborted) throw new DOMException("Audio analysis cancelled", "AbortError");
   };
   checkCancelled();
-  const { bytes } = await readAudioBytes(audioPath);
+  const { bytes } = await readAudioBytes(audioPath, signal);
   checkCancelled();
   const ctx = new AudioContext();
   try {

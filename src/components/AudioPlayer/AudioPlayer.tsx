@@ -222,6 +222,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     clearWaveform();
     if (!wsRef.current || !audioPath || spotifyMode || deviceMode) return;
     let cancelled = false;
+    const controller = new AbortController();
 
     setIsAudioReady(false);
     // ready 이벤트가 올 때까지 이전 트랙의 시간/재생 상태가 남아 있으면 스탬프와 UI가
@@ -235,7 +236,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
 
     const ext = audioPath.split(".").pop()?.toLowerCase() ?? "";
 
-    readAudioBytes(audioPath).then(async ({ bytes, transcoded }) => {
+    readAudioBytes(audioPath, controller.signal).then(async ({ bytes, transcoded }) => {
       if (cancelled || !wsRef.current) return;
 
       const mimeType = transcoded ? "audio/wav" : (AUDIO_MIME[ext] ?? "audio/*");
@@ -249,10 +250,11 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       // 새 로드로 인한 중단(AbortError)은 무시, 실제 디코드/읽기 실패만 알림
       if (cancelled || (e && (e as Error).name === "AbortError")) return;
       clearWaveform();
-      toast.error(useI18nStore.getState().t.toast.audioLoadFailed);
+      const messages = useI18nStore.getState().t.toast;
+      toast.error(String(e).includes("AUDIO_RESOURCE_LIMIT") ? messages.audioResourceLimit : messages.audioLoadFailed);
     });
 
-    return () => { cancelled = true; clearWaveform(); };
+    return () => { cancelled = true; controller.abort(); clearWaveform(); };
   }, [audioPath, audioSelection, spotifyMode, deviceMode]);
 
   // 오디오 열면 파일 태그(ID3 등)에서 메타데이터를 읽어 비어 있는 필드만 자동 채움

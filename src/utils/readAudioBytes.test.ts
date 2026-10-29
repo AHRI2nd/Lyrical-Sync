@@ -26,6 +26,37 @@ describe("readAudioBytes", () => {
     expect(invoke).not.toHaveBeenCalledWith("decode_audio_to_wav", expect.anything());
   });
 
+  it("checks the decoded-memory budget before reading a non-AIFF file", async () => {
+    invoke.mockResolvedValue(undefined);
+    readFile.mockResolvedValue(new Uint8Array([1, 2, 3]));
+    await readAudioBytes("/song.mp3");
+    expect(invoke).toHaveBeenCalledWith("validate_audio_file", { path: "/song.mp3" });
+    expect(invoke.mock.invocationCallOrder[0]).toBeLessThan(readFile.mock.invocationCallOrder[0]);
+  });
+
+  it("rejects an unsafe audio file before reading its bytes", async () => {
+    invoke.mockRejectedValue(new Error("AUDIO_RESOURCE_LIMIT"));
+    await expect(readAudioBytes("/very-long-song.mp3")).rejects.toThrow("AUDIO_RESOURCE_LIMIT");
+    expect(readFile).not.toHaveBeenCalled();
+  });
+
+  it("does not start a file read when the audio source has already been cancelled", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await expect(readAudioBytes("/song.mp3", controller.signal)).rejects.toMatchObject({ name: "AbortError" });
+    expect(invoke).not.toHaveBeenCalled();
+    expect(readFile).not.toHaveBeenCalled();
+  });
+
+  it("stops after a cancelled file read before returning bytes for decoding", async () => {
+    const controller = new AbortController();
+    readFile.mockImplementation(async () => {
+      controller.abort();
+      return new Uint8Array([1, 2, 3]);
+    });
+    await expect(readAudioBytes("/song.mp3", controller.signal)).rejects.toMatchObject({ name: "AbortError" });
+  });
+
   it("does not transcode AIFF on macOS (native support)", async () => {
     setPlatform("MacIntel");
     readFile.mockResolvedValue(new Uint8Array([9]));

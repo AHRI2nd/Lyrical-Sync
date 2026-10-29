@@ -16,7 +16,7 @@ it("uses the original direct-file reader for a separate audio analysis read", as
     }
   });
   const result = await decodeAudioSamples("/song.mp3");
-  expect(readAudioBytes).toHaveBeenCalledWith("/song.mp3");
+  expect(readAudioBytes).toHaveBeenCalledWith("/song.mp3", undefined);
   expect(result.samples).toHaveLength(2);
   expect(close).toHaveBeenCalledOnce();
 });
@@ -52,6 +52,18 @@ it("closes the context when cancellation arrives during native decoding", async 
     }
   });
   await expect(decodeAudioSamples("/song.mp3", controller.signal)).rejects.toMatchObject({ name: "AbortError" });
+  expect(close).toHaveBeenCalledOnce();
+});
+
+it("closes the context when decoding fails from an unavailable memory allocation", async () => {
+  vi.mocked(readAudioBytes).mockResolvedValue({ bytes: new Uint8Array([1]), transcoded: false });
+  const close = vi.fn();
+  vi.stubGlobal("AudioContext", class {
+    close = close;
+    async decodeAudioData() { throw new DOMException("allocation failed", "EncodingError"); }
+  });
+
+  await expect(decodeAudioSamples("/song.mp3")).rejects.toMatchObject({ name: "EncodingError" });
   expect(close).toHaveBeenCalledOnce();
 });
 
