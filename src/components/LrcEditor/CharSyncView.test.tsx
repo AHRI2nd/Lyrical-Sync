@@ -274,16 +274,22 @@ it("starts painting vertically in wrapped lyrics without seeking", () => {
   expect(useLrcStore.getState().activeSyllableIndex).toBe(1);
   expect(seek).not.toHaveBeenCalled();
 });
-it.each(["window blur", "buttons=0 movement", "document replacement"])("cancels a glyph gesture after %s", (reason) => {
+it.each(["window blur", "buttons=0 movement", "document replacement", "active line change"])("cancels a glyph gesture after %s", (reason) => {
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "abc", timestamp: 0 }] } });
   const { container } = render(<CharSyncView />);
   const first = container.querySelector('[data-glyph="0"]')!;
   fireEvent.mouseDown(first, { button: 0, buttons: 1, clientX: 10, clientY: 10 });
   if (reason === "window blur") fireEvent.blur(window);
   else if (reason === "buttons=0 movement") fireEvent.mouseMove(window, { buttons: 0, clientX: 30, clientY: 30 });
-  else act(() => useLrcStore.setState({ _documentSession: useLrcStore.getState()._documentSession + 1 }));
+  else if (reason === "document replacement") act(() => useLrcStore.setState({ _documentSession: useLrcStore.getState()._documentSession + 1 }));
+  else act(() => useLrcStore.setState({
+    doc: { ...defaultDocument(), lines: [
+      { id: "a", text: "abc", timestamp: 0 }, { id: "b", text: "new active row", timestamp: 1 },
+    ] },
+    activeLineId: "b",
+  }));
   fireEvent.mouseMove(window, { buttons: 1, clientX: 40, clientY: 40 });
-  expect(useLrcStore.getState().doc.lines[0].syllables).toBeUndefined();
+  expect(useLrcStore.getState().doc.lines.every((line) => line.syllables === undefined)).toBe(true);
   expect(useLrcStore.getState()._history).toHaveLength(0);
 });
 it("starts a second seek in the still-visible pending viewport", () => {

@@ -222,6 +222,7 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
     const context = {
       documentSession: store._documentSession,
       audioSelection: store._audioSelection,
+      activeLineId: store.activeLineId,
       syncUnit: store.syncUnit,
       syncMode: store.syncMode,
       startButton: e.button,
@@ -246,6 +247,7 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
       return !anyModalOpen() && context.startButton === 0 &&
         current._documentSession === context.documentSession &&
         current._audioSelection === context.audioSelection &&
+        current.activeLineId === context.activeLineId &&
         current.syncUnit === context.syncUnit && current.syncMode === context.syncMode;
     };
 
