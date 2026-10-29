@@ -1,5 +1,11 @@
-import { useEffect, useRef, useState } from "react";
-import { useServiceStore, type SpotifyTrack } from "../../stores/useServiceStore";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  isSpotifyAuthLeaseCurrent,
+  spotifyApiRequest,
+  spotifyAuthLease,
+  useServiceStore,
+  type SpotifyTrack,
+} from "../../stores/useServiceStore";
 import { activateSpotifyPlayer } from "../../utils/spotifyPlayer";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useI18nStore } from "../../stores/useI18nStore";
@@ -11,26 +17,138 @@ interface Playlist {
   trackCount: number;
 }
 
+interface SpotifyTrackPayload {
+  uri: string;
+  name: string;
+  artists: { name: string }[];
+  album: { name: string; images: { url: string }[] };
+  duration_ms: number;
+}
+
+function toSpotifyTrack(item: SpotifyTrackPayload): SpotifyTrack {
+  return {
+    uri: item.uri,
+    name: item.name,
+    artistName: item.artists.map((artist) => artist.name).join(", "),
+    albumName: item.album.name,
+    albumArtUrl: item.album.images[0]?.url ?? null,
+    durationMs: item.duration_ms,
+  };
+}
+
+function validateNextPage(next: string | null | undefined, expectedPath: string): string | null {
+  if (!next) return null;
+  const url = new URL(next);
+  if (url.origin !== "https://api.spotify.com" || url.pathname !== expectedPath) {
+    throw new Error("invalid_spotify_pagination_url");
+  }
+  return url.toString();
+}
+
 interface Props {
   onClose: () => void;
 }
 
 export function SpotifySearchModal({ onClose }: Props) {
   const { t } = useI18nStore();
-  const { ensureToken, playTrack } = useServiceStore();
+  const playTrack = useServiceStore((s) => s.playTrack);
   const authGeneration = useServiceStore((s) => s._authGeneration);
   const setSpotifyMode = useSettingsStore((s) => s.setSpotifyMode);
   const [tab, setTab] = useState<"search" | "playlists">("search");
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SpotifyTrack[]>([]);
+  const [nextSearchUrl, setNextSearchUrl] = useState<string | null>(null);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [playlistTracks, setPlaylistTracks] = useState<SpotifyTrack[] | null>(null);
+  const [nextPlaylistUrl, setNextPlaylistUrl] = useState<string | null>(null);
+  const [nextTrackUrl, setNextTrackUrl] = useState<string | null>(null);
+  const [playlistsLoaded, setPlaylistsLoaded] = useState(false);
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchGeneration = useRef(0);
   const searchAbort = useRef<AbortController | null>(null);
+  const playlistGeneration = useRef(0);
+  const playlistDetailGeneration = useRef(0);
+  const playlistAbort = useRef<AbortController | null>(null);
+  const playlistDetailAbort = useRef<AbortController | null>(null);
+  const mounted = useRef(false);
+  const observedAuthGeneration = useRef(authGeneration);
+
+  const loadPlaylistPage = useCallback(async (nextUrl: string | null, append: boolean) => {
+    const requestId = ++playlistGeneration.current;
+    playlistAbort.current?.abort();
+    const controller = new AbortController();
+    playlistAbort.current = controller;
+    const lease = spotifyAuthLease();
+    const path = "/v1/me/playlists";
+    setLoading(true);
+    setError(null);
+    try {
+      const url = nextUrl ? validateNextPage(nextUrl, path)! : `https://api.spotify.com${path}?limit=50`;
+      const page = await spotifyApiRequest(url, { signal: controller.signal }, (response) => response.json(), lease);
+      if (!mounted.current || requestId !== playlistGeneration.current || !isSpotifyAuthLeaseCurrent(lease)) return;
+      const items = ((page.items ?? []) as { id: string; name: string; images?: { url: string }[]; tracks?: { total: number } }[])
+        .filter((item) => item && typeof item.id === "string")
+        .map((item) => ({
+          id: item.id,
+          name: item.name,
+          imageUrl: item.images?.[0]?.url ?? null,
+          trackCount: item.tracks?.total ?? 0,
+        }));
+      setPlaylists((current) => append ? [...current, ...items] : items);
+      setNextPlaylistUrl(validateNextPage(page.next, path));
+      setPlaylistsLoaded(true);
+    } catch (requestError) {
+      if (!mounted.current || requestId !== playlistGeneration.current || controller.signal.aborted) return;
+      if (isSpotifyAuthLeaseCurrent(lease)) {
+        const status = typeof requestError === "object" && requestError !== null && "status" in requestError
+          ? String(requestError.status)
+          : "";
+        setError(status
+          ? t.spotifyPlaylistLoadFailed.replace("{status}", status)
+          : t.spotifySearchFailed);
+      }
+    } finally {
+      if (mounted.current && requestId === playlistGeneration.current) setLoading(false);
+    }
+  }, [t.spotifyPlaylistLoadFailed, t.spotifySearchFailed]);
+
+  const loadPlaylistTrackPage = useCallback(async (playlist: Playlist, nextUrl: string | null, append: boolean) => {
+    const requestId = ++playlistDetailGeneration.current;
+    playlistDetailAbort.current?.abort();
+    const controller = new AbortController();
+    playlistDetailAbort.current = controller;
+    const lease = spotifyAuthLease();
+    const path = `/v1/playlists/${encodeURIComponent(playlist.id)}/tracks`;
+    setLoading(true);
+    setError(null);
+    try {
+      const url = nextUrl
+        ? validateNextPage(nextUrl, path)!
+        : `https://api.spotify.com${path}?limit=50&fields=items(track(uri,name,artists,album,duration_ms)),next`;
+      const page = await spotifyApiRequest(url, { signal: controller.signal }, (response) => response.json(), lease);
+      if (!mounted.current || requestId !== playlistDetailGeneration.current || !isSpotifyAuthLeaseCurrent(lease)) return;
+      const tracks = ((page.items ?? []) as { track: SpotifyTrackPayload | null }[])
+        .filter((item) => item?.track)
+        .map((item) => toSpotifyTrack(item.track!));
+      setPlaylistTracks((current) => append ? [...(current ?? []), ...tracks] : tracks);
+      setNextTrackUrl(validateNextPage(page.next, path));
+    } catch (requestError) {
+      if (!mounted.current || requestId !== playlistDetailGeneration.current || controller.signal.aborted) return;
+      if (isSpotifyAuthLeaseCurrent(lease)) {
+        const status = typeof requestError === "object" && requestError !== null && "status" in requestError
+          ? String(requestError.status)
+          : "";
+        setError(status
+          ? t.spotifyPlaylistLoadFailed.replace("{status}", status)
+          : t.spotifySearchFailed);
+      }
+    } finally {
+      if (mounted.current && requestId === playlistDetailGeneration.current) setLoading(false);
+    }
+  }, [t.spotifyPlaylistLoadFailed, t.spotifySearchFailed]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -38,145 +156,130 @@ export function SpotifySearchModal({ onClose }: Props) {
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  useEffect(() => () => {
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
       searchGeneration.current += 1;
+      playlistGeneration.current += 1;
+      playlistDetailGeneration.current += 1;
       searchAbort.current?.abort();
+      playlistAbort.current?.abort();
+      playlistDetailAbort.current?.abort();
       if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, []);
 
   useEffect(() => {
-    if (tab === "search") return;
+    if (observedAuthGeneration.current === authGeneration) return;
+    observedAuthGeneration.current = authGeneration;
     searchGeneration.current += 1;
+    playlistGeneration.current += 1;
+    playlistDetailGeneration.current += 1;
     searchAbort.current?.abort();
-    searchAbort.current = null;
+    playlistAbort.current?.abort();
+    playlistDetailAbort.current?.abort();
     if (debounceRef.current) clearTimeout(debounceRef.current);
-  }, [tab]);
+    setLoading(false);
+    setError(null);
+    setSearchResults([]);
+    setNextSearchUrl(null);
+    setPlaylists([]);
+    setPlaylistsLoaded(false);
+    setNextPlaylistUrl(null);
+    setPlaylistTracks(null);
+    setNextTrackUrl(null);
+    setSelectedPlaylist(null);
+  }, [authGeneration]);
 
-  // Load playlists when tab switches
   useEffect(() => {
-    if (tab !== "playlists" || playlists.length > 0) return;
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const token = await ensureToken();
-        const resp = await fetch("https://api.spotify.com/v1/me/playlists?limit=50", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!resp.ok) {
-          const text = await resp.text();
-          console.error("[playlists] fetch failed:", resp.status, text);
-          setError(t.spotifyPlaylistLoadFailed.replace("{status}", String(resp.status)));
-          setLoading(false);
-          return;
-        }
-        const data = await resp.json();
-        setPlaylists(
-          ((data.items ?? []) as { id: string; name: string; images: { url: string }[]; tracks: { total: number } }[])
-            .filter(Boolean)
-            .map((p) => ({
-              id: p.id,
-              name: p.name,
-              imageUrl: p.images?.[0]?.url ?? null,
-              trackCount: p.tracks?.total ?? 0,
-            }))
-        );
-      } catch (e) {
-        console.error("[playlists] error:", e);
-        setError(String(e));
-      }
+    if (tab === "playlists") {
+      searchGeneration.current += 1;
+      searchAbort.current?.abort();
+      searchAbort.current = null;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (!playlistsLoaded) void loadPlaylistPage(null, false);
+      else setLoading(false);
+    } else {
+      playlistGeneration.current += 1;
+      playlistDetailGeneration.current += 1;
+      playlistAbort.current?.abort();
+      playlistDetailAbort.current?.abort();
       setLoading(false);
-    })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+    }
+  }, [tab, playlistsLoaded, loadPlaylistPage]);
+
+  const loadSearchPage = useCallback(async (q: string, nextUrl: string | null, append: boolean) => {
+    const requestId = ++searchGeneration.current;
+    searchAbort.current?.abort();
+    const controller = new AbortController();
+    searchAbort.current = controller;
+    const lease = spotifyAuthLease();
+    setLoading(true);
+    setError(null);
+    try {
+      const url = nextUrl
+        ? validateNextPage(nextUrl, "/v1/search")!
+        : `https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=track&limit=50`;
+      const data = await spotifyApiRequest(url, { signal: controller.signal }, (response) => response.json(), lease);
+      if (!mounted.current || requestId !== searchGeneration.current || !isSpotifyAuthLeaseCurrent(lease)) return;
+      const tracks = ((data.tracks?.items ?? []) as SpotifyTrackPayload[]).map(toSpotifyTrack);
+      setSearchResults((current) => append ? [...current, ...tracks] : tracks);
+      setNextSearchUrl(validateNextPage(data.tracks?.next, "/v1/search"));
+    } catch {
+      if (mounted.current && requestId === searchGeneration.current && !controller.signal.aborted && isSpotifyAuthLeaseCurrent(lease)) {
+        setError(t.spotifySearchFailed);
+      }
+    } finally {
+      if (mounted.current && requestId === searchGeneration.current) setLoading(false);
+    }
+  }, [t.spotifySearchFailed]);
 
   const handleSearch = (q: string) => {
-    const requestId = ++searchGeneration.current;
+    const queryGeneration = ++searchGeneration.current;
     searchAbort.current?.abort();
     searchAbort.current = null;
     setQuery(q);
     setSearchResults([]);
+    setNextSearchUrl(null);
     setError(null);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (!q.trim()) { setLoading(false); return; }
-    const authGenerationAtStart = authGeneration;
     debounceRef.current = setTimeout(async () => {
-      const controller = new AbortController();
-      searchAbort.current = controller;
-      setLoading(true);
-      try {
-        const token = await ensureToken();
-        if (requestId !== searchGeneration.current || useServiceStore.getState()._authGeneration !== authGenerationAtStart) return;
-        const resp = await fetch(
-          `https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=track&limit=20`,
-          { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal }
-        );
-        if (!resp.ok) throw new Error(`Spotify search failed (${resp.status})`);
-        const data = await resp.json();
-        if (requestId !== searchGeneration.current || useServiceStore.getState()._authGeneration !== authGenerationAtStart) return;
-        setSearchResults(
-          ((data.tracks?.items ?? []) as {
-            uri: string; name: string;
-            artists: { name: string }[];
-            album: { name: string; images: { url: string }[] };
-            duration_ms: number;
-          }[]).map((item) => ({
-            uri: item.uri,
-            name: item.name,
-            artistName: item.artists.map((a) => a.name).join(", "),
-            albumName: item.album.name,
-            albumArtUrl: item.album.images[0]?.url ?? null,
-            durationMs: item.duration_ms,
-          }))
-        );
-      } catch (e) {
-        if (requestId === searchGeneration.current && !controller.signal.aborted) setError(String(e));
-      } finally {
-        if (requestId === searchGeneration.current) setLoading(false);
-      }
+      if (queryGeneration === searchGeneration.current) void loadSearchPage(q, null, false);
     }, 400);
   };
 
-  const openPlaylist = async (pl: Playlist) => {
+  const openPlaylist = (pl: Playlist) => {
+    playlistDetailAbort.current?.abort();
     setSelectedPlaylist(pl);
+    setPlaylistTracks([]);
+    setNextTrackUrl(null);
+    void loadPlaylistTrackPage(pl, null, false);
+  };
+
+  const backToPlaylists = () => {
+    playlistDetailGeneration.current += 1;
+    playlistDetailAbort.current?.abort();
+    setSelectedPlaylist(null);
     setPlaylistTracks(null);
-    setLoading(true);
-    try {
-      const token = await ensureToken();
-      const resp = await fetch(
-        `https://api.spotify.com/v1/playlists/${pl.id}/tracks?limit=50&fields=items(track(uri,name,artists,album,duration_ms))`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      const data = await resp.json();
-      setPlaylistTracks(
-        (data.items as { track: {
-          uri: string; name: string;
-          artists: { name: string }[];
-          album: { name: string; images: { url: string }[] };
-          duration_ms: number;
-        } | null }[])
-          .filter((i) => i.track)
-          .map((i) => ({
-            uri: i.track!.uri,
-            name: i.track!.name,
-            artistName: i.track!.artists.map((a) => a.name).join(", "),
-            albumName: i.track!.album.name,
-            albumArtUrl: i.track!.album.images[0]?.url ?? null,
-            durationMs: i.track!.duration_ms,
-          }))
-      );
-    } catch { /* ignore */ }
+    setNextTrackUrl(null);
     setLoading(false);
+    setError(null);
   };
 
   const handleSelectTrack = async (track: SpotifyTrack) => {
+    const lease = spotifyAuthLease();
     setError(null);
     try {
       await activateSpotifyPlayer(); // unlock audio context on user gesture
+      if (!isSpotifyAuthLeaseCurrent(lease)) return;
       await playTrack(track.uri);
+      if (!isSpotifyAuthLeaseCurrent(lease)) return;
       setSpotifyMode(true);
       onClose();
     } catch (e) {
+      if (!isSpotifyAuthLeaseCurrent(lease)) return;
       const msg = String(e);
       if (msg.includes("NO_ACTIVE_DEVICE") || msg.includes("No active device")) {
         setError(t.spotifyNoPlayableDevices);
@@ -203,7 +306,7 @@ export function SpotifySearchModal({ onClose }: Props) {
 
         {/* Tabs */}
         <div className="flex border-b border-[var(--ls-border-subtle)] shrink-0">
-          <TabBtn active={tab === "search"} onClick={() => { setTab("search"); setSelectedPlaylist(null); setPlaylistTracks(null); }}>
+          <TabBtn active={tab === "search"} onClick={() => { setTab("search"); backToPlaylists(); }}>
             {t.spotifySearchPlaceholder.split(",")[0]}
           </TabBtn>
           <TabBtn active={tab === "playlists"} onClick={() => setTab("playlists")}>
@@ -233,6 +336,15 @@ export function SpotifySearchModal({ onClose }: Props) {
               {searchResults.map((track) => (
                 <TrackRow key={track.uri} track={track} onSelect={handleSelectTrack} />
               ))}
+              {nextSearchUrl && (
+                <button
+                  onClick={() => void loadSearchPage(query, nextSearchUrl, true)}
+                  disabled={loading}
+                  className="ls-button text-sm transition-colors"
+                >
+                  {t.spotifyLoadMore}
+                </button>
+              )}
             </div>
           )}
 
@@ -255,13 +367,22 @@ export function SpotifySearchModal({ onClose }: Props) {
                   </div>
                 </button>
               ))}
+              {nextPlaylistUrl && (
+                <button
+                  onClick={() => void loadPlaylistPage(nextPlaylistUrl, true)}
+                  disabled={loading}
+                  className="ls-button text-sm transition-colors"
+                >
+                  {t.spotifyLoadMore}
+                </button>
+              )}
             </div>
           )}
 
           {tab === "playlists" && selectedPlaylist && (
             <div className="flex flex-col">
               <button
-                onClick={() => { setSelectedPlaylist(null); setPlaylistTracks(null); }}
+                onClick={backToPlaylists}
                 className="ls-button flex items-center gap-2 text-xs transition-colors sticky top-0 border-b"
               >
                 ← {selectedPlaylist.name}
@@ -270,6 +391,15 @@ export function SpotifySearchModal({ onClose }: Props) {
               {playlistTracks?.map((track) => (
                 <TrackRow key={track.uri} track={track} onSelect={handleSelectTrack} />
               ))}
+              {nextTrackUrl && (
+                <button
+                  onClick={() => selectedPlaylist && void loadPlaylistTrackPage(selectedPlaylist, nextTrackUrl, true)}
+                  disabled={loading}
+                  className="ls-button text-sm transition-colors"
+                >
+                  {t.spotifyLoadMore}
+                </button>
+              )}
             </div>
           )}
         </div>

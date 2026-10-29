@@ -72,9 +72,26 @@ export function getSpotifyDeviceId(): string | null {
 }
 
 export async function setSpotifyVolume(volume: number): Promise<void> {
-  if (player) {
+  const { deviceId, activePlaybackDeviceId } = useServiceStore.getState();
+  if (player && (!activePlaybackDeviceId || activePlaybackDeviceId === deviceId)) {
     await player.setVolume(volume);
+    return;
   }
+  if (!activePlaybackDeviceId) throw new Error("spotify_player_not_ready");
+  await spotifyApiRequest(
+    `https://api.spotify.com/v1/me/player/volume?volume_percent=${Math.round(Math.max(0, Math.min(1, volume)) * 100)}&device_id=${encodeURIComponent(activePlaybackDeviceId)}`,
+    { method: "PUT" },
+    async () => undefined,
+  );
+}
+
+export async function getSpotifyVolume(): Promise<number | null> {
+  const { deviceId, activePlaybackDeviceId, activePlaybackVolumePercent } = useServiceStore.getState();
+  if (activePlaybackDeviceId && activePlaybackDeviceId !== deviceId) {
+    return activePlaybackVolumePercent === null ? null : activePlaybackVolumePercent / 100;
+  }
+  if (player) return player.getVolume();
+  return activePlaybackVolumePercent === null ? null : activePlaybackVolumePercent / 100;
 }
 
 function disconnectOwnedPlayer(instance: Spotify.Player, generation: number): void {
@@ -202,7 +219,28 @@ async function pollOnce(generation: number, lease: AuthLease): Promise<void> {
     }, async (resp) => resp.status === 204 ? null : resp.json(), lease);
     hasNotifiedPollFailure = false;
     if (!isCurrentPoll(generation, lease) || useServiceStore.getState()._playbackRevision !== playbackRevision) return;
-    if (!data?.item) return;
+    if (!data?.item) {
+      const playbackDevice = data?.device;
+      const acceptedRevision = playbackRevision + 1;
+      useServiceStore.setState({
+        _playbackRevision: acceptedRevision,
+        isPlaying: false,
+        positionMs: 0,
+        durationMs: 0,
+        trackUri: null,
+        trackName: "",
+        artistName: "",
+        albumName: "",
+        albumArtUrl: null,
+        activePlaybackDeviceId: typeof playbackDevice?.id === "string" ? playbackDevice.id : null,
+        activePlaybackVolumePercent: typeof playbackDevice?.volume_percent === "number" ? playbackDevice.volume_percent : null,
+        _lastKnownPositionMs: 0,
+        _lastStateTimestamp: Date.now(),
+      });
+      useServiceStore.getState()._stopInterpolation();
+      if (useSettingsStore.getState().spotifyMode) useLrcStore.getState().setCurrentTime(0);
+      return;
+    }
 
     const isPlaying = data.is_playing as boolean;
     // progress_ms is already stale by the time the response arrives. Compensate by half the RTT, capped at 750ms.
@@ -213,7 +251,12 @@ async function pollOnce(generation: number, lease: AuthLease): Promise<void> {
 
     // Only update from poll if SDK isn't providing state (no SDK device active)
     const { deviceId } = useServiceStore.getState();
-    const activeDeviceId = data.device?.id as string | undefined;
+    const playbackDevice = data.device;
+    const activeDeviceId = playbackDevice?.id as string | undefined;
+    useServiceStore.setState({
+      activePlaybackDeviceId: activeDeviceId ?? null,
+      activePlaybackVolumePercent: typeof playbackDevice?.volume_percent === "number" ? playbackDevice.volume_percent : null,
+    });
     if (deviceId && activeDeviceId === deviceId) return; // SDK handles this
 
     const acceptedRevision = playbackRevision + 1;

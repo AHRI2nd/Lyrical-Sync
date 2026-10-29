@@ -148,6 +148,8 @@ export interface Translations {
     refresh: string;
     loading: string;
     empty: string;
+    error: string;
+    transferFailed: string;
     active: string;
     close: string;
     hint: string;
@@ -511,6 +513,8 @@ export interface Translations {
   spotifySearchTitle: string;
   spotifySearchPlaceholder: string;
   spotifyMyPlaylists: string;
+  spotifyLoadMore: string;
+  spotifySearchFailed: string;
   spotifyNoResults: string;
   spotifyServiceModeInfo: string;
   spotifyBackToFileMode: string;
@@ -752,6 +756,8 @@ const ko: Translations = {
     refresh: "새로고침",
     loading: "기기 목록 불러오는 중…",
     empty: "사용 가능한 기기가 없습니다. Spotify 앱이 실행 중인지 확인하세요.",
+    error: "기기 목록을 불러오지 못했습니다. 연결을 확인하고 다시 시도하세요.",
+    transferFailed: "재생 기기를 변경하지 못했습니다. 다시 시도하세요.",
     active: "재생 중",
     close: "닫기",
     hint: "기기를 선택하면 해당 기기에서 재생됩니다.",
@@ -1134,6 +1140,8 @@ const ko: Translations = {
   spotifySearchTitle: "Spotify에서 곡 선택",
   spotifySearchPlaceholder: "곡, 아티스트 검색...",
   spotifyMyPlaylists: "내 플레이리스트",
+  spotifyLoadMore: "더 불러오기",
+  spotifySearchFailed: "Spotify 검색에 실패했습니다. 연결을 확인하고 다시 시도하세요.",
   spotifyNoResults: "검색 결과가 없습니다",
   spotifyServiceModeInfo: "Spotify 모드에서는 파형 시각화, 배속 조절, AI Sync를 사용할 수 없습니다.",
   spotifyBackToFileMode: "파일 모드로 돌아가기",
@@ -1375,6 +1383,8 @@ const en: Translations = {
     refresh: "Refresh",
     loading: "Loading devices…",
     empty: "No devices available. Make sure the Spotify app is running.",
+    error: "Couldn't load devices. Check your connection and try again.",
+    transferFailed: "Couldn't switch playback devices. Please try again.",
     active: "Active",
     close: "Close",
     hint: "Pick a device to play on it.",
@@ -1758,6 +1768,8 @@ const en: Translations = {
   spotifySearchTitle: "Select a track from Spotify",
   spotifySearchPlaceholder: "Search tracks, artists...",
   spotifyMyPlaylists: "My Playlists",
+  spotifyLoadMore: "Load more",
+  spotifySearchFailed: "Spotify search failed. Check your connection and try again.",
   spotifyNoResults: "No results found",
   spotifyServiceModeInfo: "Waveform, speed control, and AI Sync are not available in Spotify mode.",
   spotifyBackToFileMode: "Back to File Mode",
@@ -1999,6 +2011,8 @@ const ja: Translations = {
     refresh: "更新",
     loading: "デバイスを読み込み中…",
     empty: "利用可能なデバイスがありません。Spotifyアプリが起動しているか確認してください。",
+    error: "デバイスを読み込めませんでした。接続を確認して再試行してください。",
+    transferFailed: "再生デバイスを切り替えられませんでした。再試行してください。",
     active: "再生中",
     close: "閉じる",
     hint: "デバイスを選ぶとそのデバイスで再生します。",
@@ -2381,6 +2395,8 @@ const ja: Translations = {
   spotifySearchTitle: "Spotifyから曲を選択",
   spotifySearchPlaceholder: "曲名、アーティストを検索...",
   spotifyMyPlaylists: "マイプレイリスト",
+  spotifyLoadMore: "さらに読み込む",
+  spotifySearchFailed: "Spotify の検索に失敗しました。接続を確認して再試行してください。",
   spotifyNoResults: "検索結果がありません",
   spotifyServiceModeInfo: "Spotifyモードでは波形表示・速度調整・AI Syncは利用できません。",
   spotifyBackToFileMode: "ファイルモードに戻る",

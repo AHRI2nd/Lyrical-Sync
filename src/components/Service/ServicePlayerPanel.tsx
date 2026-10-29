@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { serviceControls } from "../../utils/serviceControls";
-import { setSpotifyVolume } from "../../utils/spotifyPlayer";
+import { getSpotifyVolume, setSpotifyVolume } from "../../utils/spotifyPlayer";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { toast } from "../../stores/useToastStore";
 import { DevicePickerModal } from "./DevicePickerModal";
 import { TrackInfoHeader } from "../AudioPlayer/TrackInfoHeader";
 import { SeekBar } from "../AudioPlayer/SeekBar";
@@ -35,7 +36,7 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
   const {
     isPlaying, isLooping, positionMs, durationMs,
     trackName, artistName, albumName, albumArtUrl, trackUri,
-    deviceId, toggleLoop,
+    deviceId, activePlaybackDeviceId, toggleLoop,
   } = useServiceStore();
 
   // Spotify 콘텐츠 출처표시: 트랙을 Spotify에서 열기 (spotify:track:ID → open.spotify.com)
@@ -44,7 +45,53 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
     : null;
 
   const [volume, setVolume] = useState(1.0);
+  const [volumeAvailable, setVolumeAvailable] = useState(false);
   const [showDevices, setShowDevices] = useState(false);
+  const volumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingVolume = useRef<number | null>(null);
+  const volumeRequestGeneration = useRef(0);
+
+  useEffect(() => {
+    let active = true;
+    const generation = ++volumeRequestGeneration.current;
+    if (volumeTimer.current) clearTimeout(volumeTimer.current);
+    volumeTimer.current = null;
+    pendingVolume.current = null;
+    void getSpotifyVolume().then((currentVolume) => {
+      if (!active || generation !== volumeRequestGeneration.current) return;
+      setVolumeAvailable(currentVolume !== null);
+      if (currentVolume !== null) setVolume(currentVolume);
+    }).catch(() => {
+      if (active && generation === volumeRequestGeneration.current) setVolumeAvailable(false);
+    });
+    return () => {
+      active = false;
+      volumeRequestGeneration.current += 1;
+      if (volumeTimer.current) clearTimeout(volumeTimer.current);
+      volumeTimer.current = null;
+      pendingVolume.current = null;
+    };
+  }, [deviceId, activePlaybackDeviceId]);
+
+  useEffect(() => () => {
+    if (volumeTimer.current) clearTimeout(volumeTimer.current);
+  }, []);
+
+  const commitVolume = () => {
+    if (volumeTimer.current) clearTimeout(volumeTimer.current);
+    volumeTimer.current = null;
+    const nextVolume = pendingVolume.current;
+    pendingVolume.current = null;
+    if (nextVolume === null) return;
+    const requestId = volumeRequestGeneration.current;
+    void setSpotifyVolume(nextVolume).catch(async () => {
+      toast.error(useI18nStore.getState().t.toast.spotifyActionFailed);
+      const currentVolume = await getSpotifyVolume().catch(() => null);
+      if (requestId !== volumeRequestGeneration.current) return;
+      setVolumeAvailable(currentVolume !== null);
+      if (currentVolume !== null) setVolume(currentVolume);
+    });
+  };
 
   const positionSec = positionMs / 1000;
   const durationSec = durationMs / 1000;
@@ -101,19 +148,24 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
       </div>
 
       {/* Volume */}
-      <div className="flex items-center gap-2.5 text-[var(--ls-text-secondary)]" title={`${t.volume} ${Math.round(volume * 100)}%`}>
+      <div className="flex items-center gap-2.5 text-[var(--ls-text-secondary)]" title={`${t.volume} ${volumeAvailable ? `${Math.round(volume * 100)}%` : "—"}`}>
         <span className="shrink-0"><VolumeIcon /></span>
         <input
-          type="range" min={0} max={1} step={0.01} value={volume}
+          type="range" min={0} max={1} step={0.01} value={volumeAvailable ? volume : 0} disabled={!volumeAvailable}
           onChange={(e) => {
             const v = parseFloat(Number(e.target.value).toFixed(2));
+            volumeRequestGeneration.current += 1;
+            pendingVolume.current = v;
             setVolume(v);
-            setSpotifyVolume(v).catch(() => {});
+            if (volumeTimer.current) clearTimeout(volumeTimer.current);
+            volumeTimer.current = setTimeout(commitVolume, 180);
           }}
+          onPointerUp={commitVolume}
+          onKeyUp={commitVolume}
           className="ls-range range-slim min-w-0 flex-1"
           style={{ backgroundImage: `linear-gradient(to right, #22c55e ${Math.round(volume * 100)}%, #3f3f46 ${Math.round(volume * 100)}%)`, ["--slim-accent" as string]: "#22c55e" }}
         />
-        <span className="shrink-0 w-9 text-right text-xs text-[var(--ls-text-secondary)] tabular-nums">{Math.round(volume * 100)}%</span>
+        <span className="shrink-0 w-9 text-right text-xs text-[var(--ls-text-secondary)] tabular-nums">{volumeAvailable ? `${Math.round(volume * 100)}%` : "—"}</span>
       </div>
 
       {/* 곡 검색/열기 버튼 + 기기 선택 */}

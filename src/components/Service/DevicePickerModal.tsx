@@ -11,6 +11,7 @@ export function DevicePickerModal({ onClose }: { onClose: () => void }) {
   const [devices, setDevices] = useState<SpotifyDevice[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const requestGeneration = useRef(0);
   const mounted = useRef(true);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -18,19 +19,28 @@ export function DevicePickerModal({ onClose }: { onClose: () => void }) {
   const load = useCallback(() => {
     const requestId = ++requestGeneration.current;
     setLoading(true);
+    setBusyId(null);
+    setError(null);
     fetchDevices()
       .then((result) => { if (mounted.current && requestId === requestGeneration.current) setDevices(result); })
-      .catch(() => { if (mounted.current && requestId === requestGeneration.current) setDevices([]); })
+      .catch(() => {
+        if (mounted.current && requestId === requestGeneration.current) {
+          setDevices([]);
+          setError(t.devicePicker.error);
+        }
+      })
       .finally(() => { if (mounted.current && requestId === requestGeneration.current) setLoading(false); });
-  }, [fetchDevices]);
+  }, [fetchDevices, t.devicePicker.error]);
 
-  useEffect(() => { load(); }, [load]);
-
-  useEffect(() => () => {
-    mounted.current = false;
-    requestGeneration.current += 1;
-    if (refreshTimer.current) clearTimeout(refreshTimer.current);
-  }, []);
+  useEffect(() => {
+    mounted.current = true;
+    load();
+    return () => {
+      mounted.current = false;
+      requestGeneration.current += 1;
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    };
+  }, [load]);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -41,9 +51,17 @@ export function DevicePickerModal({ onClose }: { onClose: () => void }) {
   const select = async (id: string) => {
     const operationId = ++requestGeneration.current;
     setBusyId(id);
-    try { await transferToDevice(id, isPlaying); } catch { /* ignore */ }
+    setError(null);
+    let transferred = false;
+    try {
+      await transferToDevice(id, isPlaying);
+      transferred = true;
+    } catch {
+      if (mounted.current && operationId === requestGeneration.current) setError(t.devicePicker.transferFailed);
+    }
     if (!mounted.current || operationId !== requestGeneration.current) return;
     setBusyId(null);
+    if (!transferred) return;
     // 전환 반영(활성 표시)될 시간을 두고 새로고침
     if (refreshTimer.current) clearTimeout(refreshTimer.current);
     refreshTimer.current = setTimeout(load, 600);
@@ -71,36 +89,41 @@ export function DevicePickerModal({ onClose }: { onClose: () => void }) {
         <div className="p-3 flex-1 overflow-y-auto flex flex-col gap-1 min-h-[120px]">
           {loading ? (
             <p className="text-sm text-[var(--ls-text-secondary)] text-center py-8">{t.devicePicker.loading}</p>
+          ) : error && devices.length === 0 ? (
+            <p role="alert" className="text-sm text-red-400 text-center py-8 px-4 leading-relaxed">{error}</p>
           ) : devices.length === 0 ? (
             <p className="text-sm text-[var(--ls-text-secondary)] text-center py-8 px-4 leading-relaxed">{t.devicePicker.empty}</p>
           ) : (
-            devices.map((d) => (
-              <button
-                key={d.id}
-                onClick={() => !d.is_active && select(d.id)}
-                disabled={d.is_active || busyId !== null}
-                className={`ls-button ${`flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors disabled:cursor-default ${
-                  d.is_active
-                    ? "bg-green-500/15 border border-green-500/40"
-                    : "border border-transparent hover:bg-[var(--ls-control)]"
-                }`}`}
-              >
-                <span className={d.is_active ? "text-green-400" : "text-[var(--ls-text-secondary)]"}>
-                  <DeviceIcon type={d.type} />
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm text-[var(--ls-text)] truncate">{d.name}</div>
-                  <div className="text-xs text-[var(--ls-text-secondary)] truncate">
-                    {d.type}{d.volume_percent != null ? ` · ${d.volume_percent}%` : ""}
+            <>
+              {error && <p role="alert" className="text-sm text-red-400 text-center px-4 py-2">{error}</p>}
+              {devices.map((d) => (
+                <button
+                  key={d.id}
+                  onClick={() => !d.is_active && select(d.id)}
+                  disabled={d.is_active || busyId !== null}
+                  className={`ls-button ${`flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors disabled:cursor-default ${
+                    d.is_active
+                      ? "bg-green-500/15 border border-green-500/40"
+                      : "border border-transparent hover:bg-[var(--ls-control)]"
+                  }`}`}
+                >
+                  <span className={d.is_active ? "text-green-400" : "text-[var(--ls-text-secondary)]"}>
+                    <DeviceIcon type={d.type} />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-[var(--ls-text)] truncate">{d.name}</div>
+                    <div className="text-xs text-[var(--ls-text-secondary)] truncate">
+                      {d.type}{d.volume_percent != null ? ` · ${d.volume_percent}%` : ""}
+                    </div>
                   </div>
-                </div>
-                {busyId === d.id ? (
-                  <span className="text-xs text-[var(--ls-text-secondary)] shrink-0">…</span>
-                ) : d.is_active ? (
-                  <span className="text-xs text-green-400 shrink-0">{t.devicePicker.active}</span>
-                ) : null}
-              </button>
-            ))
+                  {busyId === d.id ? (
+                    <span className="text-xs text-[var(--ls-text-secondary)] shrink-0">…</span>
+                  ) : d.is_active ? (
+                    <span className="text-xs text-green-400 shrink-0">{t.devicePicker.active}</span>
+                  ) : null}
+                </button>
+              ))}
+            </>
           )}
         </div>
 

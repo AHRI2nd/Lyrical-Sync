@@ -18,6 +18,8 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: (...args: unknown[]) => invoke(
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: (...args: unknown[]) => openUrl(...args) }));
 
 import { spotifyApiRequest, useServiceStore } from "./useServiceStore";
+import { useSettingsStore } from "./useSettingsStore";
+import { useLrcStore } from "./useLrcStore";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -32,6 +34,8 @@ const reset = () =>
     _pendingCodeVerifier: null,
     _pendingOAuthState: null,
     deviceId: null,
+    activePlaybackDeviceId: null,
+    activePlaybackVolumePercent: null,
     playerError: null,
     isReady: false,
     isPlaying: false,
@@ -142,6 +146,48 @@ describe("useServiceStore — token refresh", () => {
     });
 
     await expect(useServiceStore.getState().refreshAccessToken()).rejects.toThrow("no_refresh_token");
+  });
+});
+
+describe("useServiceStore — player state", () => {
+  beforeEach(() => {
+    reset();
+    useSettingsStore.setState({ spotifyMode: true });
+    useLrcStore.getState().setCurrentTime(45);
+    useServiceStore.setState({
+      isPlaying: true,
+      positionMs: 45000,
+      durationMs: 180000,
+      trackUri: "spotify:track:old",
+      trackName: "Old track",
+      artistName: "Artist",
+      albumName: "Album",
+      albumArtUrl: "https://example.test/cover.jpg",
+      _lastKnownPositionMs: 45000,
+      _lastStateTimestamp: Date.now(),
+    });
+  });
+
+  it("clears stale playback and lyric time when the SDK state has no current track", () => {
+    useServiceStore.getState().onPlayerStateChanged({
+      paused: true,
+      position: 0,
+      duration: 0,
+      track_window: { current_track: null },
+    } as unknown as Spotify.PlaybackState);
+
+    expect(useServiceStore.getState()).toMatchObject({
+      isPlaying: false,
+      positionMs: 0,
+      durationMs: 0,
+      trackUri: null,
+      trackName: "",
+      artistName: "",
+      albumName: "",
+      albumArtUrl: null,
+      _lastKnownPositionMs: 0,
+    });
+    expect(useLrcStore.getState().currentTime).toBe(0);
   });
 });
 

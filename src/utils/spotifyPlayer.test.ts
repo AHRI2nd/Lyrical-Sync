@@ -11,7 +11,7 @@ import { useServiceStore } from "../stores/useServiceStore";
 import { useSettingsStore } from "../stores/useSettingsStore";
 import { useI18nStore } from "../stores/useI18nStore";
 import { useToastStore } from "../stores/useToastStore";
-import { disconnectSpotifyPlayer, initSpotifyPlayer } from "./spotifyPlayer";
+import { disconnectSpotifyPlayer, getSpotifyVolume, initSpotifyPlayer, setSpotifyVolume } from "./spotifyPlayer";
 
 type Listener = (...args: any[]) => void;
 class MockSpotifyPlayer {
@@ -22,6 +22,8 @@ class MockSpotifyPlayer {
   connect = vi.fn();
   activateElement = vi.fn(async () => {});
   setVolume = vi.fn(async () => {});
+  getVolume = vi.fn(async () => this.volume);
+  volume = 1;
   constructor(options: MockSpotifyPlayer["options"]) {
     this.options = options;
     MockSpotifyPlayer.instances.push(this);
@@ -48,6 +50,8 @@ beforeEach(() => {
     accessToken: "access-token",
     tokenExpiresAt: Date.now() + 3600000,
     deviceId: null,
+    activePlaybackDeviceId: null,
+    activePlaybackVolumePercent: null,
     isReady: false,
     isPlaying: false,
     positionMs: 0,
@@ -247,4 +251,54 @@ it("reports a failed Spotify poll once per failure streak", async () => {
   expect(useToastStore.getState().toasts[0]?.message).toBe(useI18nStore.getState().t.toast.spotifyActionFailed);
   await vi.advanceTimersByTimeAsync(1500);
   expect(useToastStore.getState().toasts).toHaveLength(1);
+});
+
+it("clears stale track and stamp timing after Spotify reports no active item", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 204 }));
+  useServiceStore.setState({
+    trackUri: "spotify:track:previous",
+    trackName: "Previous track",
+    artistName: "Artist",
+    albumName: "Album",
+    albumArtUrl: "https://example.test/cover.png",
+    isPlaying: true,
+    positionMs: 12000,
+    durationMs: 90000,
+    activePlaybackDeviceId: "old-device",
+    activePlaybackVolumePercent: 80,
+  });
+  const { useLrcStore } = await import("../stores/useLrcStore");
+  useLrcStore.getState().setCurrentTime(12);
+  useSettingsStore.setState({ spotifyMode: true });
+  initSpotifyPlayer();
+
+  await vi.waitFor(() => expect(useServiceStore.getState().trackName).toBe(""));
+
+  expect(useServiceStore.getState()).toMatchObject({
+    isPlaying: false,
+    positionMs: 0,
+    durationMs: 0,
+    trackUri: null,
+    activePlaybackDeviceId: null,
+    activePlaybackVolumePercent: null,
+  });
+  expect(useLrcStore.getState().currentTime).toBe(0);
+});
+
+it("uses the active external device for volume reads and writes", async () => {
+  useServiceStore.setState({
+    deviceId: "web-player",
+    activePlaybackDeviceId: "external-speaker",
+    activePlaybackVolumePercent: 42,
+  });
+  expect(await getSpotifyVolume()).toBe(0.42);
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 204 });
+  vi.stubGlobal("fetch", fetchMock);
+
+  await setSpotifyVolume(0.73);
+
+  expect(fetchMock).toHaveBeenCalledWith(
+    "https://api.spotify.com/v1/me/player/volume?volume_percent=73&device_id=external-speaker",
+    expect.objectContaining({ method: "PUT", headers: expect.any(Headers) }),
+  );
 });

@@ -166,6 +166,8 @@ interface ServiceState {
 
   // SDK / playback
   deviceId: string | null;
+  activePlaybackDeviceId: string | null;
+  activePlaybackVolumePercent: number | null;
   /** 최근 Web Playback SDK 오류(초기화/인증/계정/재생). null=정상 */
   playerError: string | null;
   setPlayerError: (msg: string | null) => void;
@@ -218,6 +220,8 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
   _pendingCodeVerifier: null,
   _pendingOAuthState: null,
   deviceId: null,
+  activePlaybackDeviceId: null,
+  activePlaybackVolumePercent: null,
   playerError: null,
   isReady: false,
   isPlaying: false,
@@ -248,6 +252,8 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
       accessToken: null,
       tokenExpiresAt: null,
       deviceId: null,
+      activePlaybackDeviceId: null,
+      activePlaybackVolumePercent: null,
       isReady: false,
       isPlaying: false,
       isLooping: false,
@@ -408,6 +414,8 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
       accessToken: null,
       tokenExpiresAt: null,
       deviceId: null,
+      activePlaybackDeviceId: null,
+      activePlaybackVolumePercent: null,
       isReady: false,
       isPlaying: false,
       isLooping: false,
@@ -448,6 +456,24 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
   onPlayerStateChanged: (state: Spotify.PlaybackState) => {
     if (!state) return;
     const track = state.track_window.current_track;
+    if (!track) {
+      set({
+        _playbackRevision: get()._playbackRevision + 1,
+        isPlaying: false,
+        positionMs: 0,
+        durationMs: 0,
+        trackUri: null,
+        trackName: "",
+        artistName: "",
+        albumName: "",
+        albumArtUrl: null,
+        _lastKnownPositionMs: 0,
+        _lastStateTimestamp: Date.now(),
+      });
+      get()._stopInterpolation();
+      if (useSettingsStore.getState().spotifyMode) useLrcStore.getState().setCurrentTime(0);
+      return;
+    }
     const positionMs = state.position;
     const isPlaying = !state.paused;
 
