@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { LrcDocument } from "../types/lrc";
+import { shiftSrtEnd } from "./lineTiming";
 import { readLyrics, type FileRef } from "./fileAccess";
 import { enqueuePathWrite } from "./pathWriteQueue";
 import { parseLrc, serializeLrc } from "./lrcParser";
@@ -57,11 +58,15 @@ function transformDocument(doc: LrcDocument, operation: BatchOperation): LrcDocu
   if (operation.kind === "offset") {
     return {
       ...doc,
-      lines: doc.lines.map((line) => ({
-        ...line,
-        timestamp: line.timestamp === null ? null : Math.max(0, line.timestamp + operation.deltaSeconds),
-        syllables: line.syllables?.map((s) => ({ ...s, time: s.time === null ? null : Math.max(0, s.time + operation.deltaSeconds) })),
-      })),
+      lines: doc.lines.map((line) => {
+        const timestamp = line.timestamp === null ? null : Math.max(0, line.timestamp + operation.deltaSeconds);
+        return {
+          ...line,
+          timestamp,
+          srtEndTime: shiftSrtEnd(line, operation.deltaSeconds, timestamp),
+          syllables: line.syllables?.map((s) => ({ ...s, time: s.time === null ? null : Math.max(0, s.time + operation.deltaSeconds) })),
+        };
+      }),
     };
   }
   if (operation.kind === "tag") {
