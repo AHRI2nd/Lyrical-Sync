@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { formatLrcLibDuration, LrcLibModal } from './LrcLibModal';
 import { useLrcStore } from '../../stores/useLrcStore';
+import { useI18nStore } from '../../stores/useI18nStore';
 
 const { lrclibSearch } = vi.hoisted(() => ({ lrclibSearch: vi.fn() }));
 vi.mock('../../utils/lrclib', () => ({ lrclibSearch, sortByAccuracy: (results: unknown[]) => results }));
@@ -26,8 +27,17 @@ it('ignores composing Enter and Escape keys', () => {
 
   fireEvent.change(title, { target: { value: 'Song' } });
   fireEvent.keyDown(title, { key: 'Enter', isComposing: true });
-  fireEvent.keyDown(window, { key: 'Escape', isComposing: true });
+  fireEvent.keyDown(title, { key: 'Escape', isComposing: true });
 
   expect(lrclibSearch).not.toHaveBeenCalled();
   expect(onClose).not.toHaveBeenCalled();
+});
+
+it('exposes labeled search fields and an isolated dialog', () => {
+  const { t } = useI18nStore.getState();
+  render(<LrcLibModal onClose={() => {}} />);
+  expect(screen.getByRole('dialog', { name: t.lrclib.title })).toBeTruthy();
+  expect(screen.getByRole('textbox', { name: t.lrclib.fieldTitle })).toBeTruthy();
+  expect(screen.getByRole('textbox', { name: t.lrclib.fieldArtist })).toBeTruthy();
+  expect(screen.getByRole('textbox', { name: t.lrclib.fieldAlbum })).toBeTruthy();
 });

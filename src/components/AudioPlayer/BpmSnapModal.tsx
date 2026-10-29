@@ -1,11 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { decodeAudioSamples } from "../../utils/decodeAudioSamples";
 import { detectBpm } from "../../utils/bpmDetect";
+import { useModalFocus } from "../../hooks/useModalFocus";
 
 export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; selectedIds: string[] }) {
   const { t } = useI18nStore();
+  const dialog = useRef<HTMLDivElement>(null);
+  const titleId = useId();
   const audioPath = useLrcStore((s) => s.audioPath);
   const session = useLrcStore((s) => s._documentSession);
   const selection = useLrcStore((s) => s._audioSelection);
@@ -32,6 +35,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
     abortRef.current?.abort();
     onClose();
   };
+  useModalFocus(dialog, close, true, 60);
 
   useEffect(() => {
     const state = useLrcStore.getState();
@@ -73,13 +77,6 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, selection, audioPath]);
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onClose]);
-
   const bpm = Number(bpmStr);
   const offsetSec = Number(offsetStr);
   const sourceCurrent = !dismissedRef.current && owner.session === session &&
@@ -113,6 +110,10 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
 
   return (
     <div
+      ref={dialog}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={close}
     >
@@ -121,7 +122,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)]">
-          <span className="font-semibold text-[var(--ls-text)] text-sm">{t.bpmTitle}</span>
+          <span id={titleId} className="font-semibold text-[var(--ls-text)] text-sm">{t.bpmTitle}</span>
           <button
             onClick={close}
             className="ls-button hover:text-white transition-colors text-lg leading-none"

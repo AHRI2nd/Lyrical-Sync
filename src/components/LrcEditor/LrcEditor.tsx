@@ -16,6 +16,7 @@ import { listenSafely } from "../../utils/safeListen";
 import type { LrcLine, LrcSyllable } from "../../types/lrc";
 import { CurrentTimeFooter } from "./CurrentTimeFooter";
 import { MiniConfirm } from "./MiniConfirm";
+import { useModalFocus } from "../../hooks/useModalFocus";
 import { FindReplaceBar } from "./FindReplaceBar";
 import { TimeShiftBar } from "./TimeShiftBar";
 import { ValidationPanel } from "./ValidationPanel";
@@ -150,6 +151,8 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     first: string;
     second: string;
   } | null>(null);
+  const translationSplitDialog = useRef<HTMLDivElement>(null);
+  useModalFocus(translationSplitDialog, () => setPendingTranslationSplit(null), !!pendingTranslationSplit, 90);
   const [pendingUnit, setPendingUnit] = useState<{
     unit: SyncUnit; session: number; lineId: string; baseSyllables: LrcSyllable[];
   } | null>(null);
@@ -169,14 +172,6 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     setPendingAiSync(null);
     setPendingTranslationSplit(null);
   }, [documentSession]);
-  useEffect(() => {
-    if (!pendingTranslationSplit) return;
-    const cancel = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !isComposingKeyEvent(event)) setPendingTranslationSplit(null);
-    };
-    window.addEventListener("keydown", cancel);
-    return () => window.removeEventListener("keydown", cancel);
-  }, [pendingTranslationSplit]);
   const applyTranslationSplit = () => {
     const pending = pendingTranslationSplit;
     if (!pending) return;
@@ -1036,6 +1031,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
           onClick={() => setPendingTranslationSplit(null)}
         >
           <div
+            ref={translationSplitDialog}
             role="dialog"
             aria-modal="true"
             aria-labelledby="translation-split-title"

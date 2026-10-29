@@ -47,6 +47,7 @@ export function SpotifySection({
         <div className="flex gap-2 mt-1">
           <input
             type="text"
+            aria-label={t.spotifyClientId}
             value={draft}
             onChange={(e) => { setDraft(e.target.value); setSaved(false); }}
             placeholder={t.spotifyClientIdPlaceholder}
@@ -67,7 +68,7 @@ export function SpotifySection({
       {/* Mode toggle */}
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-medium text-[var(--ls-text)]">Spotify 모드</span>
+          <span className="text-sm font-medium text-[var(--ls-text)]">{t.spotifyModeToggle}</span>
           <span className="text-xs text-[var(--ls-text-secondary)]">
             {spotifyMode ? "Spotify 플레이어 사용 중" : "일반 오디오 파일 모드"}
           </span>
@@ -81,6 +82,7 @@ export function SpotifySection({
             !isLoggedIn ? "opacity-40 cursor-not-allowed" : "",
           ].join(" ")}`}
           role="switch"
+          aria-label={t.spotifyModeToggle}
           aria-checked={spotifyMode}
           title={!isLoggedIn ? "먼저 Spotify에 연결하세요" : undefined}
         >

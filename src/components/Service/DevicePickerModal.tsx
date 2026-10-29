@@ -1,9 +1,13 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useId, useRef } from "react";
 import { useServiceStore, type SpotifyDevice } from "../../stores/useServiceStore";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { useModalFocus } from "../../hooks/useModalFocus";
 
 export function DevicePickerModal({ onClose }: { onClose: () => void }) {
   const { t } = useI18nStore();
+  const dialog = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useModalFocus(dialog, onClose, true, 60);
   const fetchDevices = useServiceStore((s) => s.fetchDevices);
   const transferToDevice = useServiceStore((s) => s.transferToDevice);
   const isPlaying = useServiceStore((s) => s.isPlaying);
@@ -42,12 +46,6 @@ export function DevicePickerModal({ onClose }: { onClose: () => void }) {
     };
   }, [load]);
 
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [onClose]);
-
   const select = async (id: string) => {
     const operationId = ++requestGeneration.current;
     setBusyId(id);
@@ -73,11 +71,15 @@ export function DevicePickerModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
+        ref={dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden flex flex-col max-h-[calc(100%-2rem)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)] shrink-0">
-          <span className="font-semibold text-[var(--ls-text)]">{t.devicePicker.title}</span>
+          <span id={titleId} className="font-semibold text-[var(--ls-text)]">{t.devicePicker.title}</span>
           <button
             onClick={load}
             className="ls-button text-xs hover:text-white transition-colors"

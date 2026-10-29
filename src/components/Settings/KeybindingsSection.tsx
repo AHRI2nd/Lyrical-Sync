@@ -3,7 +3,7 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import {
   type KeyAction, PLAYBACK_ACTIONS, RESERVED_CODES,
-  keyLabel, conflictingAction, normalizeKeybindings,
+  keyLabel, conflictingAction, conflictsWithFixedShortcut, normalizeKeybindings,
 } from "../../utils/keybindings";
 
 const MODIFIER_CODES = new Set([
@@ -39,6 +39,7 @@ export function KeybindingsSection({ focusCharacterSync = false }: { focusCharac
       // Wait for an unmodified key rather than a modifier or chord.
       if (e.ctrlKey || e.metaKey || e.altKey || MODIFIER_CODES.has(e.code)) return;
       if (RESERVED_CODES.has(e.code)) { setError(t.keys.reserved); return; }
+      if (conflictsWithFixedShortcut(e.code)) { setError(t.keys.fixedShortcutConflict); return; }
       const conflict = conflictingAction(e.code, capturing, kb);
       if (conflict) {
         const label = conflict === "stamp" ? t.charSync.stampHint

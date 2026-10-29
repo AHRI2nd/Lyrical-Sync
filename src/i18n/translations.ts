@@ -413,6 +413,7 @@ export interface Translations {
     reset: string;
     conflict: string;
     reserved: string;
+    fixedShortcutConflict: string;
     hint: string;
     skipBack5: string;
     skipBack1: string;
@@ -500,6 +501,7 @@ export interface Translations {
   // Spotify
   settingsTabSpotify: string;
   spotifyClientId: string;
+  spotifyModeToggle: string;
   spotifyClientIdDesc: string;
   spotifyClientIdPlaceholder: string;
   spotifyClientIdSave: string;
@@ -1050,6 +1052,7 @@ const ko: Translations = {
     reset: "기본값 복원",
     conflict: "이미 「{action}」에 할당된 키입니다",
     reserved: "사용할 수 없는 키입니다",
+    fixedShortcutConflict: "← / → 키는 고정 탐색 단축키로 사용 중이므로 지정할 수 없습니다.",
     hint: "변경할 항목을 클릭한 뒤 원하는 키를 누르세요. 같은 키를 두 곳에 줄 수 없습니다. (Ctrl/⌘ 조합·Esc는 예약)",
     skipBack5: "−5초",
     skipBack1: "−1초",
@@ -1134,6 +1137,7 @@ const ko: Translations = {
   settingsVenvCmdWarning: "설치에 수 분이 소요될 수 있습니다. 완료될 때까지 창을 닫지 마세요.",
   settingsTabSpotify: "Spotify",
   spotifyClientId: "Client ID",
+  spotifyModeToggle: "Spotify 모드",
   spotifyClientIdDesc: "Spotify Developer 대시보드에서 앱을 만들고 Client ID를 입력하세요. Redirect URI에 lyricsync://callback 을 추가해야 합니다.",
   spotifyClientIdPlaceholder: "Spotify Client ID를 입력하세요",
   spotifyClientIdSave: "저장",
@@ -1685,6 +1689,7 @@ const en: Translations = {
     reset: "Reset to defaults",
     conflict: "Already assigned to “{action}”",
     reserved: "That key can't be used",
+    fixedShortcutConflict: "← / → are fixed navigation shortcuts and cannot be assigned.",
     hint: "Click an action, then press a key. The same key can't be used twice. (Ctrl/⌘ combos and Esc are reserved.)",
     skipBack5: "Skip back 5s",
     skipBack1: "Skip back 1s",
@@ -1769,6 +1774,7 @@ const en: Translations = {
   settingsVenvCmdWarning: "Installation may take several minutes. Please do not close this window.",
   settingsTabSpotify: "Spotify",
   spotifyClientId: "Client ID",
+  spotifyModeToggle: "Spotify mode",
   spotifyClientIdDesc: "Create an app on the Spotify Developer Dashboard and enter your Client ID. Add lyricsync://callback as a Redirect URI.",
   spotifyClientIdPlaceholder: "Enter your Spotify Client ID",
   spotifyClientIdSave: "Save",
@@ -2319,6 +2325,7 @@ const ja: Translations = {
     reset: "デフォルトに戻す",
     conflict: "すでに「{action}」に割り当て済みです",
     reserved: "使用できないキーです",
+    fixedShortcutConflict: "← / → は固定の移動ショートカットのため割り当てできません。",
     hint: "項目をクリックしてキーを押します。同じキーを2か所には設定できません。（Ctrl/⌘ 組合せ・Escは予約）",
     skipBack5: "5秒戻る",
     skipBack1: "1秒戻る",
@@ -2403,6 +2410,7 @@ const ja: Translations = {
   settingsVenvCmdWarning: "インストールには数分かかる場合があります。完了するまでウィンドウを閉じないでください。",
   settingsTabSpotify: "Spotify",
   spotifyClientId: "クライアントID",
+  spotifyModeToggle: "Spotifyモード",
   spotifyClientIdDesc: "Spotify Developerダッシュボードでアプリを作成し、クライアントIDを入力してください。リダイレクトURIにlyricsync://callbackを追加する必要があります。",
   spotifyClientIdPlaceholder: "Spotify クライアントIDを入力",
   spotifyClientIdSave: "保存",

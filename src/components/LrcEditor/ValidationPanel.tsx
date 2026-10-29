@@ -1,5 +1,6 @@
-import { useEffect } from "react";
+import { useId, useRef } from "react";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { useModalFocus } from "../../hooks/useModalFocus";
 
 export function ValidationPanel({ stats, issues, onJump, onClose }: {
   stats: { total: number; stamped: number; pct: number };
@@ -8,20 +9,18 @@ export function ValidationPanel({ stats, issues, onJump, onClose }: {
   onClose: () => void;
 }) {
   const { t } = useI18nStore();
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [onClose]);
+  const dialog = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useModalFocus(dialog, onClose, true, 60);
 
   const label = (ty: string) =>
     ty === "duplicate" ? t.warnDuplicate : ty === "outOfOrder" ? t.warnOutOfOrder : t.validationUnstamped;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden flex flex-col max-h-[calc(100%-2rem)]" onClick={(e) => e.stopPropagation()}>
+      <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby={titleId} className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden flex flex-col max-h-[calc(100%-2rem)]" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-3 border-b border-[var(--ls-border-subtle)] flex items-center justify-between shrink-0">
-          <span className="font-semibold text-[var(--ls-text)]">{t.validationTitle}</span>
+          <span id={titleId} className="font-semibold text-[var(--ls-text)]">{t.validationTitle}</span>
           <button onClick={onClose} aria-label={t.close} className="ls-button hover:text-white transition-colors text-lg leading-none">✕</button>
         </div>
 

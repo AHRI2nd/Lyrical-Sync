@@ -16,6 +16,12 @@ for(const lang of ['ko','en','ja'] as const)it(`names all six general switches i
 it('retains the named switch toggle behavior',async()=>{
  useI18nStore.getState().setLang('en');render(<GeneralSettingsTab checkState="idle" onCheckNow={()=>{}}/>);const control=screen.getByRole('switch',{name:'Auto-save'});await userEvent.setup().click(control);expect(control.getAttribute('aria-checked')).toBe('false');expect(useSettingsStore.getState().autoSave).toBe(false);
 });
+it('names each settings range control',()=>{
+ useI18nStore.getState().setLang('en');const t=useI18nStore.getState().t;render(<GeneralSettingsTab checkState="idle" onCheckNow={()=>{}}/>);
+ expect(screen.getByRole('slider',{name:t.aiSyncBlankOffset})).toBeTruthy();
+ expect(screen.getByRole('slider',{name:t.settingsUiScale})).toBeTruthy();
+ expect(screen.getByRole('slider',{name:t.settingsLyricsFontSize})).toBeTruthy();
+});
 it('keeps settings open when cancelling the nested translation warning',async()=>{
  useI18nStore.getState().setLang('en');const close=vi.fn();render(<SettingsModal onClose={close} onUpdateFound={()=>{}}/>);const user=userEvent.setup();const control=screen.getByRole('switch',{name:useI18nStore.getState().t.translationToggle});await user.click(control);
  const warning=screen.getByRole('dialog',{name:useI18nStore.getState().t.translationWarningTitle});expect(warning.contains(document.activeElement)).toBe(true);await user.keyboard('{Escape}');expect(close).not.toHaveBeenCalled();expect(screen.queryByRole('dialog',{name:useI18nStore.getState().t.translationWarningTitle})).toBeNull();expect(useSettingsStore.getState().showTranslationLines).toBe(false);expect(document.activeElement).toBe(control);

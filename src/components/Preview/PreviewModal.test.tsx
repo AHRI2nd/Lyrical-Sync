@@ -28,6 +28,11 @@ it("does not rerender for unrelated store changes but reflects document, time an
   expect(container.querySelector('path[d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"]')).not.toBeNull();
 });
 
+it("exposes the lyric preview as a named modal dialog", () => {
+  const { getByRole } = render(<PreviewModal onOpenStyleSettings={() => {}} onClose={() => {}} />);
+  expect(getByRole("dialog", { name: "song" })).toBeTruthy();
+});
+
 it("updates rendered lyric font, active color and accent glow when preview settings change", async () => {
   const { useSettingsStore } = await import("../../stores/useSettingsStore");
   useSettingsStore.setState({ previewFontScale: 1, previewActiveColor: "#ffffff", previewAccentColor: "#6366f1", previewGlowEnabled: true });
@@ -74,11 +79,12 @@ it("ignores composition Enter and Escape while editing timestamps", () => {
 
 it("does not close the preview on composition Escape", () => {
   const close = vi.fn();
-  render(<PreviewModal onOpenStyleSettings={() => {}} onClose={close} />);
-  fireEvent.keyDown(window, { key: "Escape", isComposing: true });
-  fireEvent.keyDown(window, { key: "Escape", keyCode: 229 });
+  const { getByRole } = render(<PreviewModal onOpenStyleSettings={() => {}} onClose={close} />);
+  const dialog = getByRole("dialog");
+  fireEvent.keyDown(dialog, { key: "Escape", isComposing: true });
+  fireEvent.keyDown(dialog, { key: "Escape", keyCode: 229 });
   expect(close).not.toHaveBeenCalled();
-  fireEvent.keyDown(window, { key: "Escape" });
+  fireEvent.keyDown(dialog, { key: "Escape" });
   expect(close).toHaveBeenCalledTimes(1);
 });
 

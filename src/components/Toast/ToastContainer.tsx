@@ -39,6 +39,9 @@ export function ToastContainer() {
       {toasts.map((t) => (
         <div
           key={t.id}
+          role={t.type === "error" ? "alert" : "status"}
+          aria-live={t.type === "error" ? "assertive" : "polite"}
+          aria-atomic="true"
           onClick={() => dismiss(t.id)}
           className={`pointer-events-auto cursor-pointer flex items-start gap-2 px-3.5 py-2.5 rounded-lg shadow-xl border text-sm max-w-xs animate-[toastIn_.18s_ease-out] backdrop-blur-sm ${STYLE[t.type]}`}
         >

@@ -4,6 +4,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { isComposingKeyEvent } from "../../utils/keybindings";
+import { useModalFocus } from "../../hooks/useModalFocus";
 import type { LrcDocument } from "../../types/lrc";
 
 type Snapshot = { doc: LrcDocument; session: number; audio: number; lineId: string };
@@ -20,12 +21,14 @@ export function ClearGlyphTimings({ lineId }: { lineId: string }) {
   const [cleared, setCleared] = useState<Snapshot | null>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
+  const dialog = useRef<HTMLDivElement>(null);
   const undoButton = useRef<HTMLButtonElement>(null);
   const restoreAfterUndo = useRef(false);
   const titleId = useId();
   const messageId = useId();
   const count = context.doc.lines.find(line => line.id === lineId)?.syllables?.filter(s => s.time !== null).length ?? 0;
   const confirming = pending !== null && pending.lineId === lineId && isCurrent(pending);
+  useModalFocus(dialog, () => setPending(null), confirming, 80);
   const canUndo = cleared !== null && cleared.lineId === lineId && isCurrent(cleared);
 
   useEffect(() => {
@@ -75,7 +78,7 @@ export function ClearGlyphTimings({ lineId }: { lineId: string }) {
       }}>{t.charSync.undoClear}</button>
     </div>}
     {confirming && createPortal(<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setPending(null)}>
-      <div role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={messageId}
+      <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={messageId}
         className="w-full max-w-md mx-4 rounded-xl border border-[var(--ls-border-subtle)] bg-[var(--ls-surface)] p-5 shadow-2xl" onClick={e => e.stopPropagation()}
         onKeyDown={e => {
           if (isComposingKeyEvent(e.nativeEvent)) return;

@@ -90,10 +90,10 @@ it("does not close the raw editor when Escape is composing an IME character", ()
   const editor = screen.getAllByRole("textbox").find((element) => element.tagName === "TEXTAREA");
   expect(editor).toBeTruthy();
 
-  fireEvent.keyDown(window, { key: "Escape", isComposing: true });
-  fireEvent.keyDown(window, { key: "Escape", keyCode: 229 });
+  fireEvent.keyDown(editor!, { key: "Escape", isComposing: true });
+  fireEvent.keyDown(editor!, { key: "Escape", keyCode: 229 });
 
   expect(screen.getAllByRole("textbox").some((element) => element.tagName === "TEXTAREA")).toBe(true);
-  fireEvent.keyDown(window, { key: "Escape" });
+  fireEvent.keyDown(editor!, { key: "Escape" });
   expect(screen.queryAllByRole("textbox").some((element) => element.tagName === "TEXTAREA")).toBe(false);
 });

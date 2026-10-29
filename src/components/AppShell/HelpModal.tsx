@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { normalizeKeybindings, keyLabel } from "../../utils/keybindings";
+import { useModalFocus } from "../../hooks/useModalFocus";
 
 export function HelpModal({ onClose }: { onClose: () => void }) {
   const { t, lang } = useI18nStore();
@@ -13,6 +14,9 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
   const spotifyGuideUrl = `https://ahri2nd.xyz/posts/lyrical-sync-spotify-guide-${guideFileSuffix}/`;
   const youtubeGuideUrl = `https://ahri2nd.xyz/posts/lyrical-sync-youtube-guide-${guideFileSuffix}/`;
   const [tab, setTab] = useState<"shortcuts" | "ai" | "spotify" | "youtube">("shortcuts");
+  const dialog = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useModalFocus(dialog, onClose, true, 60);
 
   const shortcutGroups = [
     {
@@ -60,14 +64,6 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
     },
   ];
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
-
   const tabs = [
     { id: "shortcuts" as const, label: t.helpTabShortcuts },
     { id: "ai" as const, label: t.helpTabAi },
@@ -81,12 +77,16 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
+        ref={dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[calc(100%-2rem)] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)] shrink-0">
-          <span className="font-semibold text-[var(--ls-text)]">{t.helpTitle}</span>
+          <span id={titleId} className="font-semibold text-[var(--ls-text)]">{t.helpTitle}</span>
           <button
             onClick={onClose}
             aria-label={t.close}

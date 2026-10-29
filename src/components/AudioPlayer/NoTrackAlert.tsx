@@ -1,12 +1,11 @@
-import { useEffect } from "react";
+import { useId, useRef } from "react";
 import { type Translations } from "../../i18n/translations";
+import { useModalFocus } from "../../hooks/useModalFocus";
 
 export function NoTrackAlert({ t, onClose }: { t: Translations; onClose: () => void }) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape" || e.key === "Enter") onClose(); };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
+  const dialog = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useModalFocus(dialog, onClose, true, 60);
 
   return (
     <div
@@ -14,11 +13,15 @@ export function NoTrackAlert({ t, onClose }: { t: Translations; onClose: () => v
       onClick={onClose}
     >
       <div
+        ref={dialog}
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-5 py-4 border-b border-[var(--ls-border-subtle)]">
-          <span className="font-semibold text-[var(--ls-text)]">{t.spotifyNoTrackAlertTitle}</span>
+          <span id={titleId} className="font-semibold text-[var(--ls-text)]">{t.spotifyNoTrackAlertTitle}</span>
         </div>
         <div className="px-5 py-4">
           <p className="text-sm text-[var(--ls-text-secondary)] whitespace-pre-line">{t.spotifyNoTrackAlertMessage}</p>

@@ -27,6 +27,8 @@ export const DEFAULT_KEYBINDINGS: Record<KeyAction, string> = {
 
 // 바인딩 불가(시스템 예약) 키
 export const RESERVED_CODES = new Set(["Escape", "Tab"]);
+// Arrow keys have fixed navigation/seek behavior and cannot be reassigned.
+export const FIXED_SHORTCUT_CODES = new Set(["ArrowLeft", "ArrowRight"]);
 
 // 넘패드 숫자를 일반 숫자와 동일 취급(기존 동작 유지)
 function normalizeCode(code: string): string {
@@ -74,6 +76,10 @@ export function conflictingAction(
     if (a !== action && normalizeCode(kb[a]) === c) return a;
   }
   return null;
+}
+
+export function conflictsWithFixedShortcut(code: string): boolean {
+  return FIXED_SHORTCUT_CODES.has(normalizeCode(code));
 }
 
 // 표시용 라벨

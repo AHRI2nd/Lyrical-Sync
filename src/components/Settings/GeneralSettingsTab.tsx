@@ -138,6 +138,7 @@ export function GeneralSettingsTab({
         </div>
         <input
           type="range"
+          aria-label={t.aiSyncBlankOffset}
           min={0}
           max={5}
           step={0.1}
@@ -170,6 +171,7 @@ export function GeneralSettingsTab({
         </div>
         <input
           type="range"
+          aria-label={t.settingsUiScale}
           min={0.7}
           max={1.3}
           step={0.05}
@@ -206,6 +208,7 @@ export function GeneralSettingsTab({
         </div>
         <input
           type="range"
+          aria-label={t.settingsLyricsFontSize}
           min={0.8}
           max={1.5}
           step={0.05}

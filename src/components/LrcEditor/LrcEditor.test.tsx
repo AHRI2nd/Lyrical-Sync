@@ -348,9 +348,11 @@ it("cancels a translation split with Escape while preserving composition", () =>
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "original", translation: "translated", timestamp: 1 }] } });
   const { getByDisplayValue, queryByRole } = render(<LrcEditor onPreview={() => {}} />);
   fireEvent.keyDown(getByDisplayValue("original"), { key: "Enter", shiftKey: true });
-  fireEvent.keyDown(window, { key: "Escape", isComposing: true });
+  const dialog = queryByRole("dialog", { name: t.translationSplitTitle })!;
+  const textarea = dialog.querySelector("textarea")!;
+  fireEvent.keyDown(textarea, { key: "Escape", isComposing: true });
   expect(queryByRole("dialog", { name: t.translationSplitTitle })).not.toBeNull();
-  fireEvent.keyDown(window, { key: "Escape" });
+  fireEvent.keyDown(textarea, { key: "Escape" });
   expect(queryByRole("dialog", { name: t.translationSplitTitle })).toBeNull();
 });
 it("requires explicit parts for an empty translation and retains both empty strings", () => {

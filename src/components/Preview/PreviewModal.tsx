@@ -1,5 +1,5 @@
 import { isComposingKeyEvent } from "../../utils/keybindings";
-import { useEffect, useRef, useMemo, useCallback, useState } from "react";
+import { useEffect, useId, useRef, useMemo, useCallback, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
@@ -12,6 +12,7 @@ import { useDeviceStore } from "../../stores/useDeviceStore";
 import { formatDisplayTime, parseTimestampInput, isStampable } from "../../utils/lrcParser";
 import type { LrcSyllable } from "../../types/lrc";
 import { GearIcon } from "../AppShell/icons";
+import { useModalFocus } from "../../hooks/useModalFocus";
 
 // "#rrggbb" → "rgba(r,g,b,alpha)" — 사용자 지정 색상에 투명도를 적용할 때 사용
 // (previewActiveColor/previewAccentColor는 hex 문자열로 저장되므로 Tailwind 클래스로는 표현 불가)
@@ -56,6 +57,9 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
   const deviceDurationMs = useDeviceStore((s) => s.durationMs);
   const deviceIsPlaying = useDeviceStore((s) => s.isPlaying);
   const { t } = useI18nStore();
+  const dialog = useRef<HTMLDivElement>(null);
+  const dialogTitleId = useId();
+  useModalFocus(dialog, () => { if (editingId) setEditingId(null); else onClose(); }, true, 60);
   const activeLineRef = useRef<HTMLDivElement>(null);
   const isServiceMode = serviceLoggedIn && spotifyMode;
   const playbackSource = isServiceMode ? "spotify" : deviceMode ? "device" : "local";
@@ -112,22 +116,6 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
   useEffect(() => {
     if (editingId) editInputRef.current?.focus();
   }, [editingId]);
-
-  // ESC: 편집 중이면 편집 취소, 아니면 모달 닫기
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (isComposingKeyEvent(e)) return;
-      if (e.key === "Escape") {
-        if (editingId) {
-          setEditingId(null);
-        } else {
-          onClose();
-        }
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose, editingId]);
 
   const togglePlay = useCallback(() => controls.togglePlay(), [controls]);
   const skip = useCallback((d: number) => controls.skip(d), [controls]);
@@ -259,7 +247,7 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
   }, [controls, playbackDuration]);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[var(--ls-canvas)]">
+    <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby={dialogTitleId} tabIndex={-1} className="fixed inset-0 z-50 flex flex-col bg-[var(--ls-canvas)]">
       {/* 진행 상태바 */}
       <div
         className="shrink-0 h-1 bg-[var(--ls-control)] cursor-pointer group"
@@ -277,7 +265,7 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
       <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-[var(--ls-border-subtle)]/60">
         <div className="flex flex-col gap-0.5 min-w-0">
           <span className="text-white font-sans text-lg tracking-tight truncate leading-tight">
-            {doc.metadata.title || t.previewUntitled}
+            <span id={dialogTitleId}>{doc.metadata.title || t.previewUntitled}</span>
           </span>
           {doc.metadata.artist && (
             <span className="text-[var(--ls-text-secondary)] font-sans text-sm truncate leading-tight">

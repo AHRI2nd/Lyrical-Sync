@@ -66,4 +66,13 @@ describe("KeybindingsSection", () => {
     fireEvent.click(getByRole("button", { name: t.keys.reset }));
     expect(useSettingsStore.getState().keybindings).toEqual(DEFAULT_KEYBINDINGS);
   });
+
+  it("rejects character-sync bindings that collide with fixed arrow controls", () => {
+    const t = useI18nStore.getState().t;
+    const { getByRole, getByText } = render(<KeybindingsSection />);
+    fireEvent.click(getByRole("button", { name: `${t.charSync.stampHint} Space` }));
+    fireEvent.keyDown(window, { code: "ArrowLeft" });
+    expect(getByText(t.keys.fixedShortcutConflict)).toBeTruthy();
+    expect(useSettingsStore.getState().keybindings.stamp).toBe("Space");
+  });
 });

@@ -82,7 +82,7 @@ it("cancels a pending decode when dismissed", async () => {
   const onClose = vi.fn();
   render(<BpmSnapModal onClose={onClose} selectedIds={[]} />);
   const signal = vi.mocked(decodeAudioSamples).mock.calls[0][1];
-  fireEvent.keyDown(window, { key: "Escape" });
+  fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
   expect(signal?.aborted).toBe(true);
   expect(onClose).toHaveBeenCalledOnce();
 });

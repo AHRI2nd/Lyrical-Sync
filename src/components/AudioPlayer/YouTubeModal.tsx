@@ -1,7 +1,9 @@
-import { useEffect } from "react";
+import { useId, useRef } from "react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { type Translations } from "../../i18n/translations";
 import { YouTubeLinkIcon } from "./icons";
+import { useModalFocus } from "../../hooks/useModalFocus";
+import { isComposingKeyEvent } from "../../utils/keybindings";
 
 export function YouTubeModal({
   t, ytUrl, ytLoading, ytError,
@@ -18,14 +20,9 @@ export function YouTubeModal({
 }) {
   const youtubeDisclaimerAccepted = useSettingsStore((s) => s.youtubeDisclaimerAccepted);
   const setYoutubeDisclaimerAccepted = useSettingsStore((s) => s.setYoutubeDisclaimerAccepted);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !ytLoading) onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [ytLoading, onClose]);
+  const dialog = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useModalFocus(dialog, () => { if (!ytLoading) onClose(); }, true, 60);
 
   return (
     <div
@@ -33,13 +30,17 @@ export function YouTubeModal({
       onClick={onClose}
     >
       <div
+        ref={dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)]">
           <div className="flex items-center gap-2">
             <span className="text-red-500"><YouTubeLinkIcon /></span>
-            <span className="font-semibold text-[var(--ls-text)] text-sm">{t.youtubeModalTitle}</span>
+            <span id={titleId} className="font-semibold text-[var(--ls-text)] text-sm">{t.youtubeModalTitle}</span>
           </div>
           {!ytLoading && (
             <button
@@ -78,7 +79,8 @@ export function YouTubeModal({
               type="text"
               value={ytUrl}
               onChange={(e) => onChangeUrl(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !ytLoading && ytUrl.trim()) onLoad(); }}
+              onKeyDown={(e) => { if (e.key === "Enter" && !isComposingKeyEvent(e.nativeEvent) && !ytLoading && ytUrl.trim()) onLoad(); }}
+              aria-label={t.youtubeUrlPlaceholder}
               placeholder={t.youtubeUrlPlaceholder}
               disabled={ytLoading}
               autoFocus

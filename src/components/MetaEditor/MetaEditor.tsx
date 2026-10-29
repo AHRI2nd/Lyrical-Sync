@@ -2,8 +2,8 @@ import { useEffect, useId, useRef, useState, lazy, Suspense } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
-import { isComposingKeyEvent } from "../../utils/keybindings";
 import { serializeLrc } from "../../utils/lrcParser";
+import { useModalFocus } from "../../hooks/useModalFocus";
 // 검색/불러오기·업로드 모달은 버튼 클릭 시에만 필요 → 지연 로드(초기 번들 절감)
 const LrcLibModal = lazy(() => import("../LrcLib/LrcLibModal").then((m) => ({ default: m.LrcLibModal })));
 const LrcLibPublishModal = lazy(() => import("../LrcLib/LrcLibPublishModal").then((m) => ({ default: m.LrcLibPublishModal })));
@@ -202,18 +202,13 @@ function RawEditorModal({
   const [value, setValue] = useState(initialValue);
   const [isStale, setIsStale] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const dialog = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useModalFocus(dialog, onClose, true, 60);
 
   useEffect(() => {
     textareaRef.current?.focus();
   }, []);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !isComposingKeyEvent(e)) onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
 
   return (
     <div
@@ -221,12 +216,16 @@ function RawEditorModal({
       onClick={onClose}
     >
       <div
+        ref={dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl flex flex-col w-full max-w-2xl mx-4"
         style={{ height: "70%", maxHeight: "calc(100% - 2rem)" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)] shrink-0">
-          <span className="font-semibold text-[var(--ls-text)]">{t.rawEditorTitle}</span>
+          <span id={titleId} className="font-semibold text-[var(--ls-text)]">{t.rawEditorTitle}</span>
           <button
             onClick={onClose}
             aria-label={t.close}
@@ -238,6 +237,7 @@ function RawEditorModal({
 
         <textarea
           ref={textareaRef}
+          aria-label={t.rawEditorTitle}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           spellCheck={false}

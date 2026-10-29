@@ -65,9 +65,9 @@ function resetDocument(overrides: Partial<ReturnType<typeof useLrcStore.getState
 }
 
 function openLrcLib() {
-  const { getByRole } = render(<App />);
+  const { getByRole, queryByRole } = render(<App />);
   fireEvent.click(getByRole("button", { name: "LRCLIB" }));
-  return { getByRole };
+  return { getByRole, queryByRole };
 }
 
 async function searchAndSelect(getByRole: ReturnType<typeof openLrcLib>["getByRole"]) {
@@ -96,15 +96,15 @@ afterEach(() => {
 });
 
 it("keeps the dirty document on Cancel and applies the chosen result only after Discard", async () => {
-  const { getByRole } = openLrcLib();
+  const { getByRole, queryByRole } = openLrcLib();
   await searchAndSelect(getByRole);
   const t = useI18nStore.getState().t;
-  const dialog = getByRole("dialog");
+  const dialog = getByRole("dialog", { name: t.lrclib.title });
   expect(dialog).toBeTruthy();
   expect(useLrcStore.getState().doc.lines[0].text).toBe("Original unsaved lyric");
 
   fireEvent.click(getByRole("button", { name: t.confirmNewCancel }));
-  await waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeNull());
+  await waitFor(() => expect(queryByRole("dialog", { name: t.confirmNewTitle })).toBeNull());
   expect(useLrcStore.getState().doc.lines[0].text).toBe("Original unsaved lyric");
   expect(useLrcStore.getState()._history).toHaveLength(0);
 
@@ -120,41 +120,41 @@ it("saves an existing dirty file before replacing it and keeps the new file clea
   const { getByRole } = openLrcLib();
   await searchAndSelect(getByRole);
   const t = useI18nStore.getState().t;
-  fireEvent.click(within(getByRole("dialog")).getByRole("button", { name: t.save }));
+  fireEvent.click(within(getByRole("dialog", { name: t.confirmNewTitle })).getByRole("button", { name: t.save }));
   await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("write_lrc_file", expect.objectContaining({ path: "/tmp/current.lrc" })));
   await waitFor(() => expect(useLrcStore.getState().doc.lines[0].text).toBe("Fetched lyric"));
   expect(useLrcStore.getState().isDirty).toBe(true);
 });
 
 it("asks again after a manual edit during confirmation and lets Escape cancel the top modal", async () => {
-  const { getByRole } = openLrcLib();
+  const { getByRole, queryByRole } = openLrcLib();
   await searchAndSelect(getByRole);
   const t = useI18nStore.getState().t;
   act(() => useLrcStore.getState().setMetadata({ title: "Edited while waiting" }));
-  fireEvent.click(within(getByRole("dialog")).getByRole("button", { name: t.recovery.discard }));
-  await waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeTruthy());
+  fireEvent.click(within(getByRole("dialog", { name: t.confirmNewTitle })).getByRole("button", { name: t.recovery.discard }));
+  await waitFor(() => expect(queryByRole("dialog", { name: t.confirmNewTitle })).toBeTruthy());
   expect(useLrcStore.getState().doc.lines[0].text).toBe("Original unsaved lyric");
 
-  fireEvent.keyDown(getByRole("dialog"), { key: "Escape" });
-  await waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeNull());
+  fireEvent.keyDown(getByRole("dialog", { name: t.confirmNewTitle }), { key: "Escape" });
+  await waitFor(() => expect(queryByRole("dialog", { name: t.confirmNewTitle })).toBeNull());
   expect(useLrcStore.getState().doc.lines[0].text).toBe("Original unsaved lyric");
   expect(useLrcStore.getState().doc.metadata.title).toBe("Edited while waiting");
 });
 
 it("does not replace dirty content when writing the selected Save target fails", async () => {
   resetDocument({ lrcPath: "/tmp/current.lrc" });
-  const { getByRole } = openLrcLib();
+  const { getByRole, queryByRole } = openLrcLib();
   await searchAndSelect(getByRole);
   invokeMock.mockRejectedValueOnce(new Error("disk write failed"));
   const t = useI18nStore.getState().t;
-  fireEvent.click(within(getByRole("dialog")).getByRole("button", { name: t.save }));
-  await waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeNull());
+  fireEvent.click(within(getByRole("dialog", { name: t.confirmNewTitle })).getByRole("button", { name: t.save }));
+  await waitFor(() => expect(queryByRole("dialog", { name: t.confirmNewTitle })).toBeNull());
   expect(useLrcStore.getState().doc.lines[0].text).toBe("Original unsaved lyric");
   expect(useLrcStore.getState().isDirty).toBe(true);
 });
 
 it("rejects search results owned by a document session that has since changed", async () => {
-  const { getByRole } = openLrcLib();
+  const { getByRole, queryByRole } = openLrcLib();
   await waitFor(() => expect(document.querySelector('.fixed.inset-0 input[type="text"]')).toBeTruthy());
   const searchField = document.querySelector('.fixed.inset-0 input[type="text"]') as HTMLInputElement;
   fireEvent.change(searchField, { target: { value: "Fetched Song" } });
@@ -164,14 +164,14 @@ it("rejects search results owned by a document session that has since changed", 
   fireEvent.click(getByRole("button", { name: useI18nStore.getState().t.lrclib.confirm }));
   await waitFor(() => expect(useLrcStore.getState().doc.lines).toHaveLength(0));
   expect(useLrcStore.getState().doc.lines).toEqual([]);
-  expect(document.querySelector('[role="dialog"]')).toBeNull();
+  expect(queryByRole("dialog", { name: useI18nStore.getState().t.lrclib.title })).toBeTruthy();
 });
 
 it("does not replace an existing document when Save As is cancelled", async () => {
   const { getByRole } = openLrcLib();
   await searchAndSelect(getByRole);
   const t = useI18nStore.getState().t;
-  fireEvent.click(within(getByRole("dialog")).getByRole("button", { name: t.save }));
+  fireEvent.click(within(getByRole("dialog", { name: t.confirmNewTitle })).getByRole("button", { name: t.save }));
   await waitFor(() => expect(saveDialog).toHaveBeenCalled());
   expect(useLrcStore.getState().doc.lines[0].text).toBe("Original unsaved lyric");
   expect(useLrcStore.getState().isDirty).toBe(true);

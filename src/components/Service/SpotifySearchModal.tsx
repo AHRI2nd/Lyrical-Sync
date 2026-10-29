@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   isSpotifyAuthLeaseCurrent,
   spotifyApiRequest,
@@ -9,6 +9,7 @@ import {
 import { activateSpotifyPlayer } from "../../utils/spotifyPlayer";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { useModalFocus } from "../../hooks/useModalFocus";
 
 interface Playlist {
   id: string;
@@ -51,6 +52,9 @@ interface Props {
 
 export function SpotifySearchModal({ onClose }: Props) {
   const { t } = useI18nStore();
+  const dialog = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useModalFocus(dialog, onClose, true, 60);
   const playTrack = useServiceStore((s) => s.playTrack);
   const authGeneration = useServiceStore((s) => s._authGeneration);
   const setSpotifyMode = useSettingsStore((s) => s.setSpotifyMode);
@@ -149,12 +153,6 @@ export function SpotifySearchModal({ onClose }: Props) {
       if (mounted.current && requestId === playlistDetailGeneration.current) setLoading(false);
     }
   }, [t.spotifyPlaylistLoadFailed, t.spotifySearchFailed]);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
 
   useEffect(() => {
     mounted.current = true;
@@ -295,12 +293,16 @@ export function SpotifySearchModal({ onClose }: Props) {
       onClick={onClose}
     >
       <div
+        ref={dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col overflow-hidden max-h-[calc(100%-2rem)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)] shrink-0">
-          <span className="font-semibold text-[var(--ls-text)]">{t.spotifySearchTitle}</span>
+          <span id={titleId} className="font-semibold text-[var(--ls-text)]">{t.spotifySearchTitle}</span>
           <button onClick={onClose} aria-label={t.close} className="ls-button hover:text-white transition-colors text-lg leading-none">✕</button>
         </div>
 

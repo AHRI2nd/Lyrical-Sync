@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { isComposingKeyEvent } from "../../utils/keybindings";
+import { useModalFocus } from "../../hooks/useModalFocus";
 import {
   lrclibSearch,
   sortByAccuracy,
@@ -19,6 +20,10 @@ export function formatLrcLibDuration(sec: number): string {
 
 export function LrcLibModal({ onClose }: { onClose: () => void }) {
   const { t } = useI18nStore();
+  const dialog = useRef<HTMLDivElement>(null);
+  const previewDialog = useRef<HTMLDivElement>(null);
+  const dialogTitleId = useId();
+  const previewTitleId = useId();
   const metadata = useLrcStore((s) => s.doc.metadata);
   const ownerSession = useRef(useLrcStore.getState()._documentSession).current;
   const requestApplyFetchedLyrics = useLrcStore((s) => s.requestApplyFetchedLyrics);
@@ -29,6 +34,8 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
   const [results, setResults] = useState<LrcLibResult[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [preview, setPreview] = useState<LrcLibResult | null>(null);
+  useModalFocus(dialog, onClose, true, 60);
+  useModalFocus(previewDialog, () => setPreview(null), !!preview, 70);
   const [applying, setApplying] = useState(false);
   const [syncedOnly, setSyncedOnly] = useState(false);
   const [plainOnly, setPlainOnly] = useState(false);
@@ -76,17 +83,6 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ESC: 미리보기 먼저 닫고, 없으면 모달 닫기
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || isComposingKeyEvent(e)) return;
-      if (preview) setPreview(null);
-      else onClose();
-    };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [preview, onClose]);
-
   const handleConfirm = async (r: LrcLibResult) => {
     const lrc = r.syncedLyrics ?? r.plainLyrics;
     if (!lrc || applyingRef.current) return;
@@ -116,12 +112,16 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
+        ref={dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={dialogTitleId}
         className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-2xl h-4/5 max-h-[calc(100%-2rem)] mx-4 flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)] shrink-0">
-          <span className="font-semibold text-[var(--ls-text)]">{t.lrclib.title}</span>
+          <span id={dialogTitleId} className="font-semibold text-[var(--ls-text)]">{t.lrclib.title}</span>
           <button onClick={onClose} aria-label={t.close} className="ls-button hover:text-white transition-colors text-lg leading-none">✕</button>
         </div>
 
@@ -175,12 +175,16 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
           onClick={(e) => { e.stopPropagation(); setPreview(null); }}
         >
           <div
+            ref={previewDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={previewTitleId}
             className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-2xl h-4/5 max-h-[calc(100%-2rem)] mx-4 flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)] shrink-0">
               <div className="min-w-0">
-                <p className="font-semibold text-[var(--ls-text)] truncate">{preview.trackName || "—"}</p>
+                <p id={previewTitleId} className="font-semibold text-[var(--ls-text)] truncate">{preview.trackName || "—"}</p>
                 <p className="text-xs text-[var(--ls-text-secondary)] truncate">
                   {[preview.artistName, preview.albumName].filter(Boolean).join(" · ")}
                 </p>
@@ -242,14 +246,16 @@ function Field({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs text-[var(--ls-text-secondary)]">{label}</label>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter" && !isComposingKeyEvent(e.nativeEvent)) onEnter(); }}
-        className="ls-field text-sm"
-      />
+      <label className="text-xs text-[var(--ls-text-secondary)]">
+        {label}
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && !isComposingKeyEvent(e.nativeEvent)) onEnter(); }}
+          className="ls-field text-sm"
+        />
+      </label>
     </div>
   );
 }
