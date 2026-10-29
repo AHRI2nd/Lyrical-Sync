@@ -4,8 +4,8 @@ use std::io::Read;
 use std::path::Path;
 use std::time::Duration;
 
-pub const MAX_AUDIO_FILE_BYTES: u64 = 256 * 1024 * 1024;
-pub const MAX_AUDIO_PCM_BYTES: u64 = 512 * 1024 * 1024;
+pub const MAX_AUDIO_FILE_BYTES: u64 = 1024 * 1024 * 1024;
+pub const MAX_AUDIO_PCM_BYTES: u64 = 1024 * 1024 * 1024;
 pub const MAX_AUDIO_DURATION: Duration = Duration::from_secs(4 * 60 * 60);
 const MAX_AUDIO_CHANNELS: u8 = 8;
 const MIN_AUDIO_SAMPLE_RATE: u32 = 8_000;
@@ -134,6 +134,26 @@ mod tests {
     fn estimates_pcm_memory_from_synthetic_audio_metadata() {
         let info = validate_audio_properties(1024, Duration::from_secs(60), 48_000, 2).unwrap();
         assert_eq!(info.estimated_pcm_bytes, 60 * 48_000 * 2 * 4);
+    }
+
+    #[test]
+    fn permits_exactly_one_gibibyte_resource_budgets_and_rejects_the_next_unit() {
+        let one_gib = 1024_u64 * 1024 * 1024;
+        assert_eq!(MAX_AUDIO_FILE_BYTES, one_gib);
+        assert_eq!(MAX_AUDIO_PCM_BYTES, one_gib);
+        assert!(validate_audio_properties(one_gib, Duration::from_secs(1), 48_000, 2).is_ok());
+        assert_eq!(
+            validate_audio_properties(one_gib + 1, Duration::from_secs(1), 48_000, 2)
+                .unwrap_err(),
+            AUDIO_RESOURCE_LIMIT_ERROR
+        );
+
+        let stereo_frames_at_limit = MAX_AUDIO_PCM_BYTES / (2 * 4);
+        assert!(validate_pcm_frames(48_000, 2, stereo_frames_at_limit).is_ok());
+        assert_eq!(
+            validate_pcm_frames(48_000, 2, stereo_frames_at_limit + 1).unwrap_err(),
+            AUDIO_RESOURCE_LIMIT_ERROR
+        );
     }
 
     #[test]

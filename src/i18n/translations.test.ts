@@ -28,3 +28,9 @@ it('keeps Spotify setup text aligned with the runtime redirect URI', () => {
     expect(JSON.stringify(translations[lang])).not.toContain('lyricsync://callback');
   }
 });
+
+it('describes the one-GiB audio file and decoded PCM limits in every language', () => {
+  for (const lang of ['ko', 'en', 'ja'] as const) {
+    expect(translations[lang].toast.audioResourceLimit).toContain('1 GiB');
+  }
+});
