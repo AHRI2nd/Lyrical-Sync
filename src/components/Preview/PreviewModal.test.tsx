@@ -133,7 +133,7 @@ it("uses device playback state and routes preview seeking to the device controll
   const { useDeviceStore } = await import("../../stores/useDeviceStore");
   const { invoke } = await import("@tauri-apps/api/core");
   useSettingsStore.setState({ deviceMode: true, spotifyMode: false });
-  useDeviceStore.setState({ positionMs: 4000, durationMs: 12000, isPlaying: true });
+  useDeviceStore.setState({ positionMs: 4000, durationMs: 12000, isPlaying: true, hasSession: true });
   const { getByText, container } = render(<PreviewModal onOpenStyleSettings={() => {}} onClose={() => {}} />);
   expect(container.textContent).toContain("0:00:04.000");
   fireEvent.click(getByText("first"));
