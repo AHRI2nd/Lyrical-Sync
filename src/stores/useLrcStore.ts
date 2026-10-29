@@ -1,4 +1,4 @@
-import { retimeLine } from "../utils/lineTiming";
+import { retimeLine, shiftSrtEnd } from "../utils/lineTiming";
 import { nearestBeat } from "../utils/bpmDetect";
 import { create } from "zustand";
 import { LrcDocument, LrcLine, LrcMetadata, LrcSyllable, defaultDocument } from "../types/lrc";
@@ -237,7 +237,12 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     const lineTs = times.length > 0 ? Math.min(...times) : null;
     const lines = doc.lines.map((l) =>
       l.id === lineId
-        ? { ...l, syllables, timestamp: lineTs !== null ? lineTs : l.timestamp }
+        ? {
+            ...l,
+            syllables,
+            timestamp: lineTs !== null ? lineTs : l.timestamp,
+            srtEndTime: lineTs !== null ? shiftSrtEnd(l, lineTs - (l.timestamp ?? lineTs), lineTs) : l.srtEndTime,
+          }
         : l
     );
     set({
@@ -492,6 +497,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     const lines = doc.lines.map((l) => ({
       ...l,
       timestamp: sc(l.timestamp),
+      srtEndTime: l.srtEndTime === undefined ? undefined : sc(l.srtEndTime),
       syllables: l.syllables?.map((s) => ({ ...s, time: sc(s.time) })),
     }));
     set({ ...pushHistory(doc, null, "scaleTimestamps"), doc: { ...doc, lines }, isDirty: true });
@@ -516,7 +522,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     const sh = (t: number | null) => (t !== null ? Math.max(0, Math.round((t + delta) * 1000) / 1000) : null);
     const lines = doc.lines.map((l) =>
       idSet.has(l.id)
-        ? { ...l, timestamp: sh(l.timestamp), syllables: l.syllables?.map((s) => ({ ...s, time: sh(s.time) })) }
+        ? { ...l, timestamp: sh(l.timestamp), srtEndTime: shiftSrtEnd(l, delta, sh(l.timestamp)), syllables: l.syllables?.map((s) => ({ ...s, time: sh(s.time) })) }
         : l
     );
     set({ ...pushHistory(doc, null, "shiftLines"), doc: { ...doc, lines }, isDirty: true });
@@ -526,7 +532,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     if (ids.length === 0) return;
     const idSet = new Set(ids);
     const { doc } = get();
-    const lines = doc.lines.map((l) => (idSet.has(l.id) ? { ...l, timestamp: null, syllables: undefined } : l));
+    const lines = doc.lines.map((l) => (idSet.has(l.id) ? { ...l, timestamp: null, srtEndTime: undefined, syllables: undefined } : l));
     set({ ...pushHistory(doc, null, "clearTimestamps"), doc: { ...doc, lines }, isDirty: true });
   },
 
@@ -542,7 +548,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
       changed = true;
       const delta = timestamp - line.timestamp;
       // Keep glyph offsets relative to their line instead of discarding timed text.
-      return { ...line, timestamp, syllables: line.syllables?.map(s => ({ ...s,
+      return { ...line, timestamp, srtEndTime: shiftSrtEnd(line, delta, timestamp), syllables: line.syllables?.map(s => ({ ...s,
         time: s.time === null ? null : Math.round(Math.max(0, s.time + delta) * 1000) / 1000 })) };
     });
     if (changed) set({ ...pushHistory(doc, null, "snapBeatGrid"), doc: { ...doc, lines }, isDirty: true });
@@ -583,6 +589,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
           timestamp: l.timestamp !== null
             ? Math.max(0, l.timestamp + deltaSeconds)
             : null,
+          srtEndTime: shiftSrtEnd(l, deltaSeconds, l.timestamp === null ? null : Math.max(0, l.timestamp + deltaSeconds)),
           // 글자 동기화 토큰 시각도 함께 이동
           syllables: l.syllables?.map((s) => ({
             ...s,
@@ -803,6 +810,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
       return {
         ...l,
         timestamp: Math.max(0, l.timestamp + deltaSeconds),
+        srtEndTime: shiftSrtEnd(l, deltaSeconds, Math.max(0, l.timestamp + deltaSeconds)),
         syllables: l.syllables?.map((s) => ({
           ...s,
           time: s.time !== null ? Math.max(0, s.time + deltaSeconds) : null,

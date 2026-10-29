@@ -84,6 +84,12 @@ describe("useLrcStore — line actions", () => {
     expect(lines()[0].timestamp).toBe(5);
     expect(useLrcStore.getState().activeLineId).toBe("2");
   });
+
+  it("keeps imported SRT cue duration when its start time is edited", () => {
+    reset([{ id: "1", timestamp: 10, srtEndTime: 12, text: "a" }]);
+    useLrcStore.getState().updateLine("1", { timestamp: 11.5 });
+    expect(lines()[0]).toMatchObject({ timestamp: 11.5, srtEndTime: 13.5 });
+  });
 });
 
 describe("useLrcStore — offset / shift carry syllable times", () => {
