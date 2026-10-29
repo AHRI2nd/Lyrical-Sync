@@ -210,6 +210,7 @@ pub fn run() {
             clear_refresh_token,
             check_ytdlp,
             download_ytdlp,
+            cancel_ytdlp_install,
             ytdlp_load_audio,
             cancel_ytdlp_load,
             lrclib_publish,

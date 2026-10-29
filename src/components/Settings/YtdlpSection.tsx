@@ -5,6 +5,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { safeUnlisten } from "../../utils/safeUnlisten";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
+import { useBusyStore } from "../../stores/useBusyStore";
 
 export function YtdlpSection() {
   const { t } = useI18nStore();
@@ -16,9 +17,10 @@ export function YtdlpSection() {
   const [version, setVersion] = useState<string | null>(null);
   const [latestTag, setLatestTag] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
-  const [downloading, setDownloading] = useState(false);
+  const downloading = useBusyStore((state) => state.reasons.has("ytdlp-install"));
   const [dlPercent, setDlPercent] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  const [installError, setInstallError] = useState<string | null>(null);
+  const [checkError, setCheckError] = useState<string | null>(null);
   const [proxyDraft, setProxyDraft] = useState(ytdlpProxy);
   const [proxySaved, setProxySaved] = useState(false);
 
@@ -36,11 +38,12 @@ export function YtdlpSection() {
     };
   }, []);
 
-  const fetchLatestTag = async () => {
+  const fetchLatestTag = async (refreshId: number) => {
     try {
-      const r = await fetch("https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest");
+      const r = await fetch("https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest", { signal: AbortSignal.timeout(10000) });
+      if (!r.ok) return;
       const data = await r.json();
-      if (typeof data.tag_name === "string" && mountedRef.current) setLatestTag(data.tag_name);
+      if (typeof data.tag_name === "string" && mountedRef.current && refreshIdRef.current === refreshId) setLatestTag(data.tag_name);
     } catch {
       // ignore — no internet or rate limited
     }
@@ -50,19 +53,18 @@ export function YtdlpSection() {
     const id = ++refreshIdRef.current;
     if (mountedRef.current) {
       setChecking(true);
-      setError(null);
+      setCheckError(null);
     }
     try {
       const v = await invoke<string | null>("check_ytdlp");
       if (refreshIdRef.current === id) {
         setVersion(v);
         setChecking(false);
-        if (v !== null) fetchLatestTag();
+        if (v !== null) void fetchLatestTag(id);
       }
     } catch (e) {
       if (refreshIdRef.current === id) {
-        setVersion(null);
-        setError(String(e));
+        setCheckError(String(e));
         setChecking(false);
       }
     }
@@ -77,18 +79,18 @@ export function YtdlpSection() {
     let active = true;
     let unlisten: (() => void) | null = null;
 
-    listen<{ downloaded: number; total: number; done: boolean }>(
+    listen<{ downloaded: number; total: number; done: boolean; error?: string }>(
       "ytdlp-install-progress",
       (e) => {
         if (!active) return;
         const { downloaded, total, done } = e.payload;
         if (total > 0) setDlPercent(Math.round((downloaded / total) * 100));
         if (done) {
-          // Exit downloading state immediately — don't block on version check.
-          // Refresh runs in the background; the checking label remains visible during that time.
-          setDlPercent(100);
-          setDownloading(false);
-          refresh();
+          if (e.payload.error) {
+            if (!e.payload.error.toLowerCase().includes("cancelled")) setInstallError(e.payload.error);
+          } else {
+            setDlPercent(100);
+          }
         }
       }
     ).then((fn) => {
@@ -103,19 +105,30 @@ export function YtdlpSection() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDownload = async () => {
-    setDownloading(true);
+    if (useBusyStore.getState().reasons.has("ytdlp-install")) return;
+    useBusyStore.getState().markBusy("ytdlp-install");
     setDlPercent(0);
-    setError(null);
+    setInstallError(null);
+    let succeeded = false;
     try {
       await invoke("download_ytdlp");
+      succeeded = true;
     } catch (e) {
-      if (mountedRef.current) setError(String(e));
+      if (mountedRef.current && !String(e).toLowerCase().includes("cancelled")) setInstallError(String(e));
     } finally {
+      useBusyStore.getState().clearBusy("ytdlp-install");
       if (mountedRef.current) {
-        setDlPercent(100);
-        setDownloading(false);
+        if (succeeded) setDlPercent(100);
         void refresh();
       }
+    }
+  };
+
+  const handleCancel = async () => {
+    try {
+      await invoke("cancel_ytdlp_install");
+    } catch (e) {
+      if (mountedRef.current) setInstallError(String(e));
     }
   };
 
@@ -186,7 +199,14 @@ export function YtdlpSection() {
           </div>
         )}
 
-        {error && <span className="text-xs text-red-400 break-all">{error}</span>}
+        {checkError && <span className="text-xs text-red-400 break-all">{checkError}</span>}
+        {installError && <span role="alert" className="text-xs text-red-400 break-all">{installError}</span>}
+
+        {downloading && (
+          <button onClick={handleCancel} className="ls-button self-start text-xs transition-colors">
+            {t.ytdlpCancel}
+          </button>
+        )}
 
         {/* Button: hidden while downloading or checking */}
         {!downloading && !checking && (

@@ -6,6 +6,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 pub struct YtdlpState {
     active_cancel: Mutex<Option<Arc<AtomicBool>>>,
+    active_install_cancel: Mutex<Option<Arc<AtomicBool>>>,
 }
 
 static YTDLP_RUN_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -25,11 +26,49 @@ impl Default for YtdlpState {
     fn default() -> Self {
         Self {
             active_cancel: Mutex::new(None),
+            active_install_cancel: Mutex::new(None),
         }
     }
 }
 
 impl YtdlpState {
+    fn start_install(&self) -> Result<Arc<AtomicBool>, String> {
+        let mut active = self
+            .active_install_cancel
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        if active.is_some() {
+            return Err("yt-dlp 설치가 이미 진행 중입니다".into());
+        }
+        let flag = Arc::new(AtomicBool::new(false));
+        *active = Some(flag.clone());
+        Ok(flag)
+    }
+
+    fn cancel_install(&self) {
+        if let Some(flag) = self
+            .active_install_cancel
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+        {
+            flag.store(true, Ordering::Relaxed);
+        }
+    }
+
+    fn finish_install(&self, flag: &Arc<AtomicBool>) {
+        let mut active = self
+            .active_install_cancel
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        if active
+            .as_ref()
+            .is_some_and(|current| Arc::ptr_eq(current, flag))
+        {
+            *active = None;
+        }
+    }
+
     fn start_run(&self) -> Result<Arc<AtomicBool>, String> {
         let mut active = self.active_cancel.lock().unwrap_or_else(|e| e.into_inner());
         if active.is_some() {
@@ -68,6 +107,7 @@ struct YtdlpInstallProgress {
     downloaded: u64,
     total: u64,
     done: bool,
+    error: Option<String>,
 }
 
 #[derive(Serialize, Clone)]
@@ -96,9 +136,8 @@ fn ytdlp_exe(app: &AppHandle) -> Result<PathBuf, String> {
     return Ok(dir.join("yt-dlp"));
 }
 
-fn finalize_ytdlp_install(
+fn prepare_ytdlp_install(
     part: &std::path::Path,
-    dest: &std::path::Path,
     expected: Option<&str>,
     actual: &str,
 ) -> Result<(), String> {
@@ -123,13 +162,133 @@ fn finalize_ytdlp_install(
             std::fs::set_permissions(part, permissions).map_err(|e| e.to_string())?;
         }
 
-        std::fs::rename(part, dest).map_err(|e| format!("yt-dlp 설치 파일 교체 실패: {e}"))
+        Ok(())
     })();
 
     if result.is_err() {
         let _ = std::fs::remove_file(part);
     }
     result
+}
+
+fn publish_ytdlp_install(
+    part: &std::path::Path,
+    version_part: &std::path::Path,
+    dest: &std::path::Path,
+    version: &std::path::Path,
+    run_id: &str,
+) -> Result<(), String> {
+    let backup_path = |path: &std::path::Path| {
+        let name = path.file_name().unwrap_or_default().to_string_lossy();
+        path.with_file_name(format!(".{name}.{run_id}.backup"))
+    };
+    let dest_backup = backup_path(dest);
+    let version_backup = backup_path(version);
+    let entry_exists = |path: &std::path::Path| match std::fs::symlink_metadata(path) {
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!("{} 확인 실패: {error}", path.display())),
+    };
+    let had_dest = entry_exists(dest)?;
+    let had_version = entry_exists(version)?;
+
+    for backup in [&dest_backup, &version_backup] {
+        if entry_exists(backup)? {
+            return Err(format!(
+                "yt-dlp 임시 백업 경로가 이미 존재합니다: {}",
+                backup.display()
+            ));
+        }
+    }
+
+    for (path, exists) in [(dest, had_dest), (version, had_version)] {
+        if exists {
+            let metadata = std::fs::symlink_metadata(path).map_err(|e| e.to_string())?;
+            let kind = metadata.file_type();
+            if !kind.is_file() && !kind.is_symlink() {
+                return Err(format!(
+                    "yt-dlp 설치 대상이 파일이 아닙니다: {}",
+                    path.display()
+                ));
+            }
+        }
+    }
+
+    if had_dest {
+        std::fs::rename(dest, &dest_backup)
+            .map_err(|e| format!("기존 yt-dlp 실행 파일 백업 실패: {e}"))?;
+    }
+    if had_version {
+        if let Err(error) = std::fs::rename(version, &version_backup) {
+            if had_dest {
+                let _ = std::fs::rename(&dest_backup, dest);
+            }
+            return Err(format!("기존 yt-dlp 버전 정보 백업 실패: {error}"));
+        }
+    }
+
+    let publish_result = std::fs::rename(part, dest)
+        .map_err(|e| format!("yt-dlp 설치 파일 확정 실패: {e}"))
+        .and_then(|()| {
+            std::fs::rename(version_part, version)
+                .map_err(|e| format!("yt-dlp 버전 정보 확정 실패: {e}"))
+        });
+
+    if let Err(error) = publish_result {
+        let mut rollback_errors = Vec::new();
+        match std::fs::remove_file(dest) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => rollback_errors.push(format!("새 실행 파일 제거 실패: {error}")),
+        }
+        if had_version {
+            if let Err(error) = std::fs::rename(&version_backup, version) {
+                rollback_errors.push(format!("기존 버전 정보 복구 실패: {error}"));
+            }
+        }
+        if had_dest {
+            if let Err(error) = std::fs::rename(&dest_backup, dest) {
+                rollback_errors.push(format!("기존 실행 파일 복구 실패: {error}"));
+            }
+        }
+        let _ = std::fs::remove_file(part);
+        let _ = std::fs::remove_file(version_part);
+        return Err(if rollback_errors.is_empty() {
+            error
+        } else {
+            format!(
+                "{error}; 롤백이 완료되지 않았습니다: {}",
+                rollback_errors.join(" / ")
+            )
+        });
+    }
+
+    if had_dest {
+        let _ = std::fs::remove_file(dest_backup);
+    }
+    if had_version {
+        let _ = std::fs::remove_file(version_backup);
+    }
+    Ok(())
+}
+
+async fn wait_for_ytdlp_io<T, E>(
+    future: impl std::future::Future<Output = Result<T, E>>,
+    cancel: &AtomicBool,
+) -> Result<T, String>
+where
+    E: std::fmt::Display,
+{
+    tokio::pin!(future);
+    loop {
+        if cancel.load(Ordering::Relaxed) {
+            return Err("cancelled".into());
+        }
+        match tokio::time::timeout(std::time::Duration::from_millis(75), &mut future).await {
+            Ok(result) => return result.map_err(|error| error.to_string()),
+            Err(_) => continue,
+        }
+    }
 }
 
 #[tauri::command]
@@ -151,7 +310,31 @@ pub fn check_ytdlp(app: AppHandle) -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
-pub async fn download_ytdlp(app: AppHandle) -> Result<(), String> {
+pub async fn download_ytdlp(
+    app: AppHandle,
+    state: tauri::State<'_, YtdlpState>,
+) -> Result<(), String> {
+    let cancel = state.start_install()?;
+    let result = download_ytdlp_inner(app.clone(), cancel.clone()).await;
+    state.finish_install(&cancel);
+    let _ = app.emit(
+        "ytdlp-install-progress",
+        YtdlpInstallProgress {
+            downloaded: 0,
+            total: 0,
+            done: true,
+            error: result.as_ref().err().cloned(),
+        },
+    );
+    result
+}
+
+#[tauri::command]
+pub fn cancel_ytdlp_install(state: tauri::State<'_, YtdlpState>) {
+    state.cancel_install();
+}
+
+async fn download_ytdlp_inner(app: AppHandle, cancel: Arc<AtomicBool>) -> Result<(), String> {
     let dir = ytdlp_dir(&app)?;
     tokio::fs::create_dir_all(&dir)
         .await
@@ -161,21 +344,27 @@ pub async fn download_ytdlp(app: AppHandle) -> Result<(), String> {
         crate::platform_profile::ytdlp_asset(std::env::consts::OS, std::env::consts::ARCH);
 
     let dest = dir.join(local_name);
-    let client = reqwest::Client::new();
-    let mut pending_file: Option<PathBuf> = None;
+    let client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(20))
+        .timeout(std::time::Duration::from_secs(600))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let mut pending_files: Vec<PathBuf> = Vec::new();
 
     let result = async {
-        let release_response = client
-            .get("https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest")
-            .header("User-Agent", "lyrical-sync/1.0")
-            .send()
-            .await
-            .map_err(|e| format!("릴리스 정보 요청 실패: {e}"))?;
+        let release_response = wait_for_ytdlp_io(
+            client
+                .get("https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest")
+                .header("User-Agent", "lyrical-sync/1.0")
+                .send(),
+            &cancel,
+        )
+        .await
+        .map_err(|e| format!("릴리스 정보 요청 실패: {e}"))?;
         if !release_response.status().is_success() {
             return Err(format!("릴리스 정보 HTTP {}", release_response.status()));
         }
-        let release: serde_json::Value = release_response
-            .json()
+        let release: serde_json::Value = wait_for_ytdlp_io(release_response.json(), &cancel)
             .await
             .map_err(|e| format!("릴리스 정보 파싱 실패: {e}"))?;
         let version_tag = release["tag_name"]
@@ -190,12 +379,15 @@ pub async fn download_ytdlp(app: AppHandle) -> Result<(), String> {
         let release_url =
             format!("https://github.com/yt-dlp/yt-dlp/releases/download/{version_tag}");
 
-        let mut resp = client
-            .get(format!("{release_url}/{remote_name}"))
-            .header("User-Agent", "lyrical-sync/1.0")
-            .send()
-            .await
-            .map_err(|e| format!("요청 실패: {e}"))?;
+        let mut resp = wait_for_ytdlp_io(
+            client
+                .get(format!("{release_url}/{remote_name}"))
+                .header("User-Agent", "lyrical-sync/1.0")
+                .send(),
+            &cancel,
+        )
+        .await
+        .map_err(|e| format!("요청 실패: {e}"))?;
         if !resp.status().is_success() {
             return Err(format!("HTTP {}", resp.status()));
         }
@@ -203,7 +395,7 @@ pub async fn download_ytdlp(app: AppHandle) -> Result<(), String> {
         let total = resp.content_length().unwrap_or(0);
         let mut downloaded: u64 = 0;
         let part = dir.join(format!("{local_name}.{}.part", next_ytdlp_run_id()));
-        pending_file = Some(part.clone());
+        pending_files.push(part.clone());
         use sha2::{Digest, Sha256};
         use tokio::io::AsyncWriteExt;
         let mut hasher = Sha256::new();
@@ -213,7 +405,7 @@ pub async fn download_ytdlp(app: AppHandle) -> Result<(), String> {
 
         let stream_result: Result<(), String> = async {
             loop {
-                match resp.chunk().await {
+                match wait_for_ytdlp_io(resp.chunk(), &cancel).await {
                     Ok(Some(chunk)) => {
                         file.write_all(&chunk)
                             .await
@@ -226,6 +418,7 @@ pub async fn download_ytdlp(app: AppHandle) -> Result<(), String> {
                                 downloaded,
                                 total,
                                 done: false,
+                                error: None,
                             },
                         );
                     }
@@ -250,50 +443,51 @@ pub async fn download_ytdlp(app: AppHandle) -> Result<(), String> {
         drop(file);
         stream_result?;
 
-        let sums_response = client
-            .get(format!("{release_url}/SHA2-256SUMS"))
-            .header("User-Agent", "lyrical-sync/1.0")
-            .send()
-            .await
-            .map_err(|e| format!("yt-dlp 체크섬 요청 실패: {e}"))?;
+        let sums_response = wait_for_ytdlp_io(
+            client
+                .get(format!("{release_url}/SHA2-256SUMS"))
+                .header("User-Agent", "lyrical-sync/1.0")
+                .send(),
+            &cancel,
+        )
+        .await
+        .map_err(|e| format!("yt-dlp 체크섬 요청 실패: {e}"))?;
         if !sums_response.status().is_success() {
             let _ = tokio::fs::remove_file(&part).await;
             return Err(format!("yt-dlp 체크섬 HTTP {}", sums_response.status()));
         }
-        let sums_text = sums_response
-            .text()
+        let sums_text = wait_for_ytdlp_io(sums_response.text(), &cancel)
             .await
             .map_err(|e| format!("yt-dlp 체크섬 읽기 실패: {e}"))?;
         let expected = checksum_for_asset(&sums_text, remote_name)
             .ok_or("yt-dlp 릴리스 체크섬에서 실행 파일을 찾을 수 없습니다")?;
         let actual = format!("{:x}", hasher.finalize());
-        finalize_ytdlp_install(&part, &dest, Some(expected), &actual)?;
+        prepare_ytdlp_install(&part, Some(expected), &actual)?;
 
         // 버전 정보는 설치된 실행 파일과 같은 릴리스 태그를 기록합니다.
         let version_tmp = dir.join(format!("version.txt.{}.part", next_ytdlp_run_id()));
-        pending_file = Some(version_tmp.clone());
+        pending_files.push(version_tmp.clone());
         tokio::fs::write(&version_tmp, version_tag)
             .await
             .map_err(|e| format!("yt-dlp 버전 파일 쓰기 실패: {e}"))?;
-        tokio::fs::rename(&version_tmp, dir.join("version.txt"))
-            .await
-            .map_err(|e| format!("yt-dlp 버전 파일 확정 실패: {e}"))?;
-        pending_file = None;
+        if cancel.load(Ordering::Relaxed) {
+            return Err("cancelled".into());
+        }
+        publish_ytdlp_install(
+            &part,
+            &version_tmp,
+            &dest,
+            &dir.join("version.txt"),
+            &next_ytdlp_run_id(),
+        )?;
+        pending_files.clear();
 
-        let _ = app.emit(
-            "ytdlp-install-progress",
-            YtdlpInstallProgress {
-                downloaded,
-                total,
-                done: true,
-            },
-        );
         Ok(())
     }
     .await;
 
     if result.is_err() {
-        if let Some(path) = pending_file {
+        for path in pending_files {
             let _ = std::fs::remove_file(path);
         }
     }
@@ -455,7 +649,8 @@ async fn ytdlp_run_child(
         }
     }
 
-    cmd.arg(&url)
+    cmd.arg("--")
+        .arg(&url)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
 
@@ -630,6 +825,54 @@ mod tests {
     }
 
     #[test]
+    fn installation_is_single_owner_and_cancellation_targets_that_run() {
+        let state = YtdlpState::default();
+        let first = state.start_install().expect("first install should start");
+        assert!(state.start_install().is_err());
+
+        state.cancel_install();
+        assert!(first.load(Ordering::Relaxed));
+
+        state.finish_install(&first);
+        let second = state
+            .start_install()
+            .expect("a new install should start after completion");
+        assert!(!second.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn finishing_an_old_install_does_not_clear_a_new_install() {
+        let state = YtdlpState::default();
+        let first = state.start_install().expect("first install should start");
+        state.finish_install(&first);
+        let second = state.start_install().expect("second install should start");
+
+        state.finish_install(&first);
+
+        assert!(state.start_install().is_err());
+        state.finish_install(&second);
+        assert!(state.start_install().is_ok());
+    }
+
+    #[tokio::test]
+    async fn stalled_install_request_can_be_cancelled() {
+        let cancel = Arc::new(AtomicBool::new(false));
+        let cancel_task = cancel.clone();
+        let task = tokio::spawn(async move {
+            wait_for_ytdlp_io(
+                std::future::pending::<Result<(), std::io::Error>>(),
+                &cancel_task,
+            )
+            .await
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        cancel.store(true, Ordering::Relaxed);
+
+        let result = task.await.expect("cancellation task should finish");
+        assert_eq!(result.unwrap_err(), "cancelled");
+    }
+
+    #[test]
     fn download_run_ids_are_unique_even_within_one_millisecond() {
         assert_ne!(next_ytdlp_run_id(), next_ytdlp_run_id());
     }
@@ -662,10 +905,50 @@ mod tests {
 
         let expected = "a".repeat(64);
         let actual = "b".repeat(64);
-        let result = finalize_ytdlp_install(&part, &dest, Some(&expected), &actual);
+        let result = prepare_ytdlp_install(&part, Some(&expected), &actual);
 
         assert!(result.is_err());
         assert_eq!(std::fs::read(&dest).unwrap(), b"working binary");
         assert!(!part.exists());
+    }
+
+    #[test]
+    fn failed_version_publish_preserves_the_previous_binary_and_version() {
+        let dir = tempfile::tempdir().unwrap();
+        let part = dir.path().join("yt-dlp.part");
+        let version_part = dir.path().join("version.txt.part");
+        let dest = dir.path().join("yt-dlp");
+        let version = dir.path().join("version.txt");
+        std::fs::write(&part, b"new binary").unwrap();
+        std::fs::write(&dest, b"working binary").unwrap();
+        std::fs::write(&version, "old-version").unwrap();
+
+        let result = publish_ytdlp_install(&part, &version_part, &dest, &version, "test-run");
+
+        assert!(result.is_err());
+        assert_eq!(std::fs::read(&dest).unwrap(), b"working binary");
+        assert_eq!(std::fs::read_to_string(&version).unwrap(), "old-version");
+        assert!(!part.exists());
+        assert!(!version_part.exists());
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 2);
+    }
+
+    #[test]
+    fn successful_publish_replaces_binary_and_version_together() {
+        let dir = tempfile::tempdir().unwrap();
+        let part = dir.path().join("yt-dlp.part");
+        let version_part = dir.path().join("version.txt.part");
+        let dest = dir.path().join("yt-dlp");
+        let version = dir.path().join("version.txt");
+        std::fs::write(&part, b"new binary").unwrap();
+        std::fs::write(&version_part, "new-version").unwrap();
+        std::fs::write(&dest, b"old binary").unwrap();
+        std::fs::write(&version, "old-version").unwrap();
+
+        publish_ytdlp_install(&part, &version_part, &dest, &version, "success-run").unwrap();
+
+        assert_eq!(std::fs::read(&dest).unwrap(), b"new binary");
+        assert_eq!(std::fs::read_to_string(&version).unwrap(), "new-version");
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 2);
     }
 }

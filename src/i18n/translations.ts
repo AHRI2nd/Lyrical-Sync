@@ -542,6 +542,7 @@ export interface Translations {
   spotifyPlaybackFailed: string;
   settingsTabYouTube: string;
   ytdlpTitle: string;
+  ytdlpCancel: string;
   ytdlpInstalled: string;
   ytdlpNotInstalled: string;
   ytdlpVersion: string;
@@ -1174,6 +1175,7 @@ const ko: Translations = {
   spotifyPlaybackFailed: "재생 실패: {error}",
   settingsTabYouTube: "YouTube",
   ytdlpTitle: "yt-dlp",
+  ytdlpCancel: "취소",
   ytdlpInstalled: "설치됨",
   ytdlpNotInstalled: "미설치",
   ytdlpVersion: "버전",
@@ -1807,6 +1809,7 @@ const en: Translations = {
   spotifyPlaybackFailed: "Playback failed: {error}",
   settingsTabYouTube: "YouTube",
   ytdlpTitle: "yt-dlp",
+  ytdlpCancel: "Cancel",
   ytdlpInstalled: "Installed",
   ytdlpNotInstalled: "Not installed",
   ytdlpVersion: "Version",
@@ -2439,6 +2442,7 @@ const ja: Translations = {
   spotifyPlaybackFailed: "再生に失敗しました: {error}",
   settingsTabYouTube: "YouTube",
   ytdlpTitle: "yt-dlp",
+  ytdlpCancel: "キャンセル",
   ytdlpInstalled: "インストール済み",
   ytdlpNotInstalled: "未インストール",
   ytdlpVersion: "バージョン",
