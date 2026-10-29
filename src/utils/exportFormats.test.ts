@@ -37,7 +37,21 @@ describe("serializeVtt", () => {
     const out = serializeVtt(docOf([
       { id: "1", timestamp: 1, text: "ab", syllables: [{ text: "a", time: 1 }, { text: "b", time: 1.5 }] },
     ]), 3);
-    expect(out).toContain("<00:00:01.000>a<00:00:01.500>b");
+    expect(out).toContain("a<00:00:01.500>b");
+  });
+
+  it.each([0.5, 2, Number.NaN])("rejects VTT glyph time %s outside its cue", (time) => {
+    expect(() => serializeVtt(docOf([
+      { id: "1", timestamp: 1, text: "a", syllables: [{ text: "a", time }] },
+      { id: "2", timestamp: 2, text: "next" },
+    ]))).toThrow("VTT cannot represent these syllable timestamps");
+  });
+
+  it("omits a redundant inline glyph timestamp at the cue start", () => {
+    const out = serializeVtt(docOf([
+      { id: "1", timestamp: 1, text: "ab", syllables: [{ text: "a", time: 1 }, { text: "b", time: 1.5 }] },
+    ]), 3);
+    expect(out).toContain("00:00:01.000 --> 00:00:03.000\na<00:00:01.500>b");
   });
 
   it("escapes syllable text but leaves generated VTT timing tags intact", () => {
@@ -125,7 +139,7 @@ it("keeps valid cue ends after ASS centisecond rounding without shortening VTT p
 
 it("exports translations after enhanced originals in VTT and ASS", () => {
   const doc = docOf([{ id: "a", timestamp: 1, text: "hi", translation: "hello", syllables: [{ text: "hi", time: 1 }] }]);
-  expect(serializeVtt(doc, 3)).toContain("<00:00:01.000>hi\nhello");
+  expect(serializeVtt(doc, 3)).toContain("hi\nhello");
   expect(serializeAss(doc, 3)).toContain("{\\k200}hi\\Nhello");
 });
 it.each(["{word}", "unmatched { brace", "unmatched } brace", "literal \\N line", "literal \\n line", "literal \\h space"])(

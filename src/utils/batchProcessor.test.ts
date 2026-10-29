@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { readLyrics } from "./fileAccess";
 import { batchOutputName, preflightBatch, runBatchOperation, type BatchFileEntry } from "./batchProcessor";
 import { SRT_UNREPRESENTABLE_CONTENT_CODE } from "./srtConverter";
+import { VTT_INVALID_SYLLABLE_TIME_CODE } from "./exportFormats";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("./fileAccess", () => ({ readLyrics: vi.fn() }));
@@ -109,6 +110,25 @@ describe("batch output", () => {
       name: "song.vtt",
       content: expect.stringContaining("A &lt;b&gt;bold&lt;/b&gt; &amp;amp; B"),
     }));
+  });
+  it("rejects invalid VTT syllable timings before writing the target file", async () => {
+    vi.mocked(readLyrics).mockResolvedValueOnce({
+      value: "[00:02.00]<00:01.00>Hello",
+      file: { path: "/inputs/song.lrc", bookmark: "fresh" },
+    });
+    const status = vi.fn();
+
+    const summary = await runBatchOperation(
+      [entry("/inputs/song.lrc", "invalid-vtt")],
+      { kind: "convert", format: "vtt" },
+      output,
+      status,
+      { concurrency: 1 },
+    );
+
+    expect(summary).toEqual({ done: 0, error: 1, cancelled: 0 });
+    expect(status).toHaveBeenCalledWith("invalid-vtt", "error", VTT_INVALID_SYLLABLE_TIME_CODE, { path: "/inputs/song.lrc", bookmark: "fresh" });
+    expect(invoke).not.toHaveBeenCalled();
   });
   it("shifts both line and syllable times and writes a new output with the selected folder grant", async () => {
     const status = vi.fn();
