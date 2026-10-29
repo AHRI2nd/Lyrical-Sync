@@ -245,7 +245,7 @@ it("shows a valid line repeat beside replay without starting playback and clears
   expect(useLrcStore.getState().loopLineId).toBeNull();
 });
 
-it.each(["replay", "nudge"])("restores waveform following for explicit %s after manual navigation", action => {
+it.each(["replay", "nudge"])("keeps waveform following disabled after explicit %s and manual navigation", action => {
   useLrcStore.setState({ duration: 100, audioPath: "/song.mp3", currentTime: 12, doc: { ...defaultDocument(), lines: [
     { id: "a", text: "ab", timestamp: 10, syllables: [{ text: "a", time: 10 }, { text: "b", time: 12 }] },
     { id: "b", text: "next", timestamp: 20 },
@@ -259,7 +259,7 @@ it.each(["replay", "nudge"])("restores waveform following for explicit %s after 
     act(() => useLrcStore.setState({ activeSyllableIndex: 1 }));
     fireEvent.keyDown(window, { code: "ArrowRight", shiftKey: true });
   }
-  expect(getByRole("button", { name: /재생 위치 따라가기|Follow playback/ }).getAttribute("aria-pressed")).toBe("true");
+  expect(getByRole("button", { name: /재생 위치 따라가기|Follow playback/ }).getAttribute("aria-pressed")).toBe("false");
   expect(getByTestId("glyph-playhead").style.left).toBe("50%");
 });
 
@@ -273,6 +273,30 @@ it("starts painting vertically in wrapped lyrics without seeking", () => {
   expect(useLrcStore.getState().doc.lines[0].syllables?.[0].time).toBe(12);
   expect(useLrcStore.getState().activeSyllableIndex).toBe(1);
   expect(seek).not.toHaveBeenCalled();
+});
+it.each(["replay", "nudge", "repeat"])("keeps playback following disabled after manual pan and %s", (action) => {
+  useLrcStore.setState({ duration: 100, audioPath: "/song.mp3", currentTime: 12, doc: { ...defaultDocument(), lines: [
+    { id: "a", timestamp: 10, text: "abc", syllables: [{ text: "a", time: 10 }, { text: "b", time: 11 }, { text: "c", time: 12 }] },
+    { id: "b", timestamp: 20, text: "next" },
+  ] } });
+  const seek = vi.spyOn(audioControls, "seekTo");
+  const { getByRole, getByTestId } = render(<CharSyncView />);
+  const follow = getByRole("button", { name: useI18nStore.getState().t.charSync.followPlayback });
+  fireEvent.click(getByRole("button", { name: /Next time window/ }));
+  expect(follow.getAttribute("aria-pressed")).toBe("false");
+  if (action === "replay") fireEvent.click(getByRole("button", { name: /Play line/ }));
+  else if (action === "nudge") {
+    act(() => useLrcStore.setState({ currentTime: 10.2 }));
+    fireEvent.keyDown(window, { code: "ArrowRight", shiftKey: true });
+  }
+  else fireEvent.click(getByRole("button", { name: useI18nStore.getState().t.charSync.repeatLine }));
+  expect(seek).toHaveBeenCalledTimes(1);
+  expect(follow.getAttribute("aria-pressed")).toBe("false");
+  const lane = getByTestId("glyph-seek-lane");
+  const start = Number(lane.getAttribute("data-start"));
+  act(() => useLrcStore.setState({ currentTime: 40 }));
+  expect(follow.getAttribute("aria-pressed")).toBe("false");
+  expect(Number(lane.getAttribute("data-start"))).toBeCloseTo(start);
 });
 it.each(["window blur", "buttons=0 movement", "document replacement", "active line change"])("cancels a glyph gesture after %s", (reason) => {
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "abc", timestamp: 0 }] } });

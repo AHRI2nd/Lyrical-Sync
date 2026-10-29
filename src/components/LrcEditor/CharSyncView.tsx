@@ -79,7 +79,7 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
   const waveformStyle = useSettingsStore(s => s.glyphWaveformStyle);
   // Keep the viewing scale stable while stamps change the lyric's start timestamp.
   const baseSpan = useMemo(() => Math.max(2, winEnd - winStart), [documentSession, audioSelection, activeLineId, duration]);
-  useEffect(() => { setZoom(1); setFollow(true); setAnchor(useLrcStore.getState().currentTime); }, [documentSession, audioSelection, activeLineId]);
+  useEffect(() => { setZoom(1); setAnchor(useLrcStore.getState().currentTime); }, [documentSession, audioSelection, activeLineId]);
   let { start: viewStart, end: viewEnd } = getCenteredView(follow ? currentTime : anchor, baseSpan / zoom, duration);
   const contextKey = JSON.stringify([documentSession, audioSelection, audioPath, activeLineId, zoom, winStart, winEnd, duration]);
   const displayRange = useRef({ start: viewStart, end: viewEnd });
@@ -105,8 +105,8 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
   if (frozen) { viewStart = frozen.start; viewEnd = frozen.end; }
   displayRange.current = { start: viewStart, end: viewEnd };
   const visiblePlayhead = laneScrub.preview ?? (pendingSeek?.context === contextKey ? pendingSeek.time : currentTime);
-  const seekWithFollow = (seconds: number) => {
-    setFollow(true); setAnchor(seconds); setPendingSeek(null); controls.seekTo(seconds);
+  const seekWithAnchor = (seconds: number) => {
+    setAnchor(seconds); setPendingSeek(null); controls.seekTo(seconds);
   };
   const playingIdx = useMemo(() => {
     if (currentTime < winStart || currentTime > winEnd) return -1;
@@ -179,7 +179,7 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
     for (let i = idx + 1; i < syl.length; i++) { if (syl[i].time !== null) { hi = syl[i].time as number; break; } }
     const nt = Math.max(lo, Math.min(hi, Math.max(0, (s.time as number) + delta)));
     commitSyllables(ln.id, syl.map((x, i) => (i === idx ? { ...x, time: nt } : x)));
-    seekWithFollow(nt);
+    seekWithAnchor(nt);
   };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -290,7 +290,7 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
   };
 
   const replayLine = () => {
-    seekWithFollow(winStart);
+    seekWithAnchor(winStart);
     if (!isPlaying) controls.togglePlay();
   };
 
@@ -387,7 +387,7 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
           title={canRepeat ? t.charSync.repeatLine : t.charSync.repeatUnavailable}
           onClick={e => {
             if (loopLineId === line.id) setLoopLine(null);
-            else if (canRepeat && repeatRange) { setLoopLine(line.id); setFollow(true); controls.seekTo(repeatRange.start); }
+            else if (canRepeat && repeatRange) { setLoopLine(line.id); setAnchor(repeatRange.start); controls.seekTo(repeatRange.start); }
             e.currentTarget.blur();
           }} className={`ls-button ls-button--compact ${`text-xs rounded-md border border-[var(--ls-border-subtle)] disabled:opacity-30 ${loopLineId === line.id ? "bg-[var(--ls-selection)]/15 text-[var(--ls-accent)]" : "text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)]"}`}`}>
           {t.charSync.repeatLine} · {loopLineId === line.id ? t.charSync.repeatOn : t.charSync.repeatOff}
