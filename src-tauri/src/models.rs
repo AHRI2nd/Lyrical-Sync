@@ -100,21 +100,23 @@ pub async fn get_models_dir(
 pub async fn check_model_files(
     app: AppHandle,
     dir_state: tauri::State<'_, ModelsDirState>,
+    expected_root: String,
     filenames: Vec<String>,
+    sha256: Vec<Option<String>>,
 ) -> Result<Vec<bool>, String> {
+    if filenames.len() != sha256.len() {
+        return Err("Model inventory checksum list does not match filenames".into());
+    }
     let base = models_dir(&app, &dir_state)?;
-    let store = crate::model_store::ModelStore::open(&base);
-    Ok(filenames
-        .iter()
-        .map(|name| {
-            store
-                .as_ref()
-                .ok()
-                .and_then(|store| store.read(name).ok())
-                .and_then(|file| file.metadata().ok())
-                .is_some_and(|m| m.len() > 0)
-        })
-        .collect())
+    if !models_root_matches(&base, &expected_root) {
+        return Err("Model directory changed before inventory check".into());
+    }
+    let store = crate::model_store::ModelStore::open(&base).map_err(|e| e.to_string())?;
+    let mut results = Vec::with_capacity(filenames.len());
+    for (name, expected_checksum) in filenames.iter().zip(sha256) {
+        results.push(model_file_matches(&store, name, expected_checksum.as_deref()).await);
+    }
+    Ok(results)
 }
 
 async fn hash_model_file(file: std::fs::File) -> Result<String, std::io::Error> {
@@ -131,6 +133,28 @@ async fn hash_model_file(file: std::fs::File) -> Result<String, std::io::Error> 
         digest.update(&buffer[..read]);
     }
     Ok(format!("{:x}", digest.finalize()))
+}
+
+async fn model_file_matches(
+    store: &crate::model_store::ModelStore,
+    name: &str,
+    expected_checksum: Option<&str>,
+) -> bool {
+    let Ok(file) = store.read(name) else {
+        return false;
+    };
+    if !file.metadata().is_ok_and(|metadata| metadata.len() > 0) {
+        return false;
+    }
+    match expected_checksum
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        Some(expected) => hash_model_file(file)
+            .await
+            .is_ok_and(|actual| actual.eq_ignore_ascii_case(expected)),
+        None => true,
+    }
 }
 
 /// 모델 파일 목록을 다운로드합니다. 진행 상황은 `model-download-progress` 이벤트로 전달됩니다.
@@ -154,7 +178,13 @@ pub async fn download_model(
         if active.contains_key(&model_id) {
             return Err("Model download is already running".into());
         }
-        active.insert(model_id.clone(), ActiveDownload { run_id: run_id.clone(), cancel: cancel.clone() });
+        active.insert(
+            model_id.clone(),
+            ActiveDownload {
+                run_id: run_id.clone(),
+                cancel: cancel.clone(),
+            },
+        );
     }
     let result = download_files(&app, &base, &model_id, &run_id, &files, cancel).await;
     let mut active = dl_state.active.lock().unwrap_or_else(|e| e.into_inner());
@@ -166,14 +196,28 @@ fn models_root_matches(current: &std::path::Path, expected_root: &str) -> bool {
     !expected_root.is_empty() && current == PathBuf::from(expected_root)
 }
 
-fn remove_download_if_current(active: &mut HashMap<String, ActiveDownload>, model_id: &str, run_id: &str) {
-    if active.get(model_id).is_some_and(|download| download.run_id == run_id) {
+fn remove_download_if_current(
+    active: &mut HashMap<String, ActiveDownload>,
+    model_id: &str,
+    run_id: &str,
+) {
+    if active
+        .get(model_id)
+        .is_some_and(|download| download.run_id == run_id)
+    {
         active.remove(model_id);
     }
 }
 
-fn cancel_download_if_current(active: &HashMap<String, ActiveDownload>, model_id: &str, run_id: &str) -> bool {
-    if let Some(download) = active.get(model_id).filter(|download| download.run_id == run_id) {
+fn cancel_download_if_current(
+    active: &HashMap<String, ActiveDownload>,
+    model_id: &str,
+    run_id: &str,
+) -> bool {
+    if let Some(download) = active
+        .get(model_id)
+        .filter(|download| download.run_id == run_id)
+    {
         download.cancel.store(true, Ordering::Relaxed);
         true
     } else {
@@ -300,7 +344,11 @@ async fn download_files(
 }
 
 #[tauri::command]
-pub fn cancel_model_download(dl_state: tauri::State<'_, DownloadState>, model_id: String, run_id: String) {
+pub fn cancel_model_download(
+    dl_state: tauri::State<'_, DownloadState>,
+    model_id: String,
+    run_id: String,
+) {
     if let Ok(active) = dl_state.active.lock() {
         cancel_download_if_current(&active, &model_id, &run_id);
     }
@@ -310,9 +358,13 @@ pub fn cancel_model_download(dl_state: tauri::State<'_, DownloadState>, model_id
 pub async fn delete_model_files(
     app: AppHandle,
     dir_state: tauri::State<'_, ModelsDirState>,
+    expected_root: String,
     filenames: Vec<String>,
 ) -> Result<(), String> {
     let base = models_dir(&app, &dir_state)?;
+    if !models_root_matches(&base, &expected_root) {
+        return Err("Model directory changed before deletion".into());
+    }
     let store = crate::model_store::ModelStore::open(&base).map_err(|e| e.to_string())?;
     for name in filenames {
         store.remove(&name).map_err(|e| e.to_string())?;
@@ -327,7 +379,13 @@ mod integrity_tests {
     #[test]
     fn only_the_current_run_can_be_removed_or_cancelled() {
         let mut active = HashMap::new();
-        active.insert("model".into(), ActiveDownload { run_id: "new".into(), cancel: Arc::new(AtomicBool::new(false)) });
+        active.insert(
+            "model".into(),
+            ActiveDownload {
+                run_id: "new".into(),
+                cancel: Arc::new(AtomicBool::new(false)),
+            },
+        );
         remove_download_if_current(&mut active, "model", "old");
         assert!(active.contains_key("model"));
         assert!(!cancel_download_if_current(&active, "model", "old"));
@@ -370,13 +428,43 @@ mod integrity_tests {
             let dir = tempfile::tempdir().unwrap();
             let path = dir.path().join("model");
             std::fs::write(&path, b"abc").unwrap();
+            let store = crate::model_store::ModelStore::open(dir.path()).unwrap();
             assert_eq!(
                 hash_model_file(std::fs::File::open(&path).unwrap())
                     .await
                     .unwrap(),
                 "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
             );
+            assert!(
+                model_file_matches(
+                    &store,
+                    "model",
+                    Some("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"),
+                )
+                .await
+            );
+            assert!(!model_file_matches(&store, "model", Some("00".repeat(32).as_str())).await);
+            assert!(model_file_matches(&store, "model", None).await);
             assert!(std::fs::File::open(dir.path().join("missing")).is_err());
         });
+    }
+
+    #[tokio::test]
+    async fn inventory_rejects_nonempty_corrupt_model_files() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("corrupt.onnx"),
+            b"nonempty but not the model",
+        )
+        .unwrap();
+        let store = crate::model_store::ModelStore::open(dir.path()).unwrap();
+        assert!(
+            !model_file_matches(
+                &store,
+                "corrupt.onnx",
+                Some("e8bad67fd3533b3d3c145b0ca31bb15383945c13384dd8975baaa7b73f7b61ac"),
+            )
+            .await
+        );
     }
 }

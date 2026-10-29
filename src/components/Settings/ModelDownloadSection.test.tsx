@@ -97,3 +97,21 @@ it("does not expose model deletion while that model has an active job", async ()
   finish();
   await task;
 });
+
+it("binds deletion to the model root shown by the completed inventory", async () => {
+  const model = MODEL_DEFS[0];
+  invoke.mockImplementation((command: string) => {
+    if (command === "get_models_dir") return Promise.resolve("/models/default");
+    if (command === "check_model_files") return Promise.resolve([true]);
+    return Promise.resolve(undefined);
+  });
+  const { getByText } = render(<ModelDownloadSection />);
+  const row = within(getByText(model.name).parentElement!.parentElement!);
+  const deleteButton = await row.findByRole("button", { name: useI18nStore.getState().t.modelDelete });
+  deleteButton.click();
+
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith("delete_model_files", {
+    expectedRoot: "/models/default",
+    filenames: model.files.map((file) => file.filename),
+  }));
+});

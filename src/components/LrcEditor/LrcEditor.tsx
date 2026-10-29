@@ -376,10 +376,23 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
       if (!isCurrent()) return;
       setPythonReady(false);
     }
+    let expectedRoot: string;
+    try {
+      expectedRoot = await invoke<string>("get_models_dir");
+      if (!isCurrent()) return;
+    } catch {
+      if (!isCurrent()) return;
+      setMissingModels(MODEL_DEFS.filter((model) => model.required).map((model) => model.name));
+      return;
+    }
     const missing: string[] = [];
     for (const model of MODEL_DEFS.filter((m) => m.required)) {
       try {
-        const results = await invoke<boolean[]>("check_model_files", { filenames: model.files.map((f) => f.filename) });
+        const results = await invoke<boolean[]>("check_model_files", {
+          expectedRoot,
+          filenames: model.files.map((f) => f.filename),
+          sha256: model.files.map((f) => f.sha256 ?? null),
+        });
         if (!isCurrent()) return;
         if (!results.every(Boolean)) missing.push(model.name);
       } catch {

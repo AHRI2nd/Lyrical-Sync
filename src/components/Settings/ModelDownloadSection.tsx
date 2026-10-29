@@ -37,18 +37,20 @@ const CATEGORY_LABEL_KEY: Record<ModelCategory, keyof Translations> = {
 
 function ActionButton({
   status,
+  modelsPath,
   onInstall,
   onCancel,
   onDelete,
   t,
 }: {
   status: ModelStatus;
+  modelsPath: string;
   onInstall: () => void;
   onCancel: () => void;
   onDelete: () => void;
   t: Translations;
 }) {
-  if (status === "checking" || status === "preparing") {
+  if (status === "checking" || status === "preparing" || (status !== "downloading" && !modelsPath)) {
     return <span className="text-xs text-[var(--ls-text-secondary)] w-14 text-right">…</span>;
   }
   if (status === "downloading") {
@@ -103,8 +105,14 @@ export function ModelDownloadSection() {
 
   const handleDelete = async (model: ModelDef) => {
     if (useModelDownloadStore.getState().operations[model.id]) return;
+    const configuredRoot = useSettingsStore.getState().modelsDir || null;
+    const expectedRoot = configuredRoot || modelsPath;
+    if (!expectedRoot || (configuredRoot && configuredRoot !== modelsPath)) return;
+    useModelDownloadStore.setState((state) => ({
+      models: { ...state.models, [model.id]: { status: "checking", progress: 0 } },
+    }));
     try {
-      await invoke("delete_model_files", { filenames: model.files.map((f) => f.filename) });
+      await invoke("delete_model_files", { filenames: model.files.map((f) => f.filename), expectedRoot });
       await refreshInstalled();
     } catch (e) {
       useModelDownloadStore.setState((state) => ({
@@ -245,6 +253,7 @@ export function ModelDownloadSection() {
                 key={model.id}
                 model={model}
                 state={states[model.id] ?? { status: "checking", progress: 0 }}
+                modelsPath={modelsPath}
                 lang={lang}
                 t={t}
                 onInstall={() => handleInstall(model)}
@@ -264,6 +273,7 @@ export function ModelDownloadSection() {
 function ModelRow({
   model,
   state,
+  modelsPath,
   lang,
   t,
   onInstall,
@@ -272,6 +282,7 @@ function ModelRow({
 }: {
   model: ModelDef;
   state: ModelState;
+  modelsPath: string;
   lang: string;
   t: Translations;
   onInstall: () => void;
@@ -321,6 +332,7 @@ function ModelRow({
         </span>
         <ActionButton
           status={status}
+          modelsPath={modelsPath}
           onInstall={onInstall}
           onCancel={onCancel}
           onDelete={onDelete}

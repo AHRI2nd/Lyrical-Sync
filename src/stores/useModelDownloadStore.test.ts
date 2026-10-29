@@ -141,6 +141,31 @@ it("does not overwrite an active install with a late inventory response", async 
   await install;
 });
 
+it("hides stale inventory while resolving the current model root", async () => {
+  const root = deferred<string>();
+  useModelDownloadStore.setState({
+    modelsPath: "/models/old",
+    models: Object.fromEntries(MODEL_DEFS.map((model) => [model.id, { status: "installed", progress: 100 }])),
+  });
+  invoke.mockImplementation((command: string) => {
+    if (command === "get_models_dir") return root.promise;
+    if (command === "check_model_files") return Promise.resolve([false]);
+    return Promise.resolve(undefined);
+  });
+
+  const refresh = useModelDownloadStore.getState().refreshInstalled();
+  expect(useModelDownloadStore.getState().modelsPath).toBe("");
+  expect(useModelDownloadStore.getState().models[MODEL_DEFS[0].id].status).toBe("checking");
+  root.resolve("/models/current");
+  await refresh;
+
+  expect(invoke).toHaveBeenCalledWith("check_model_files", expect.objectContaining({
+    expectedRoot: "/models/current",
+    sha256: [MODEL_DEFS[0].files[0].sha256],
+  }));
+  expect(useModelDownloadStore.getState().modelsPath).toBe("/models/current");
+});
+
 it("rejects a root that changes while the operation is preparing", async () => {
   const root = deferred<string>();
   invoke.mockImplementation((command: string) => {

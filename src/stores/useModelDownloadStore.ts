@@ -116,6 +116,13 @@ function updateOperation(
 async function refreshInventory(): Promise<void> {
   const generation = ++inventoryGeneration;
   const configuredRoot = useSettingsStore.getState().modelsDir || null;
+  useModelDownloadStore.setState((state) => ({
+    modelsPath: "",
+    models: Object.fromEntries(Object.entries(state.models).map(([id, model]) => [
+      id,
+      activeOperations.has(id) ? model : { status: "checking" as const, progress: 0 },
+    ])),
+  }));
   try {
     await invoke("set_models_dir_override", { path: configuredRoot });
     const root = await invoke<string>("get_models_dir");
@@ -125,7 +132,11 @@ async function refreshInventory(): Promise<void> {
     const results = await Promise.all(MODEL_DEFS.map(async (model) => {
       if (activeOperations.has(model.id)) return null;
       try {
-        const files = await invoke<boolean[]>("check_model_files", { filenames: model.files.map((file) => file.filename) });
+        const files = await invoke<boolean[]>("check_model_files", {
+          expectedRoot: root,
+          filenames: model.files.map((file) => file.filename),
+          sha256: model.files.map((file) => file.sha256 ?? null),
+        });
         return { model, installed: files.length === model.files.length && files.every(Boolean) };
       } catch {
         return { model, installed: false };
@@ -140,9 +151,15 @@ async function refreshInventory(): Promise<void> {
       }
       return { models };
     });
-  } catch {
+  } catch (error) {
     if (generation !== inventoryGeneration) return;
-    useModelDownloadStore.setState({ modelsPath: "" });
+    useModelDownloadStore.setState((state) => ({
+      modelsPath: "",
+      models: Object.fromEntries(Object.entries(state.models).map(([id, model]) => [
+        id,
+        activeOperations.has(id) ? model : { status: "error" as const, progress: 0, error: String(error) },
+      ])),
+    }));
   }
 }
 
