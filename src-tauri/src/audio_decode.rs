@@ -1,5 +1,115 @@
+use lofty::file::AudioFile;
 use std::io::{Read, Seek, SeekFrom};
+use std::path::Path;
+use std::time::Duration;
 use symphonia::core::io::MediaSource;
+
+pub const MAX_AUDIO_FILE_BYTES: u64 = 1024 * 1024 * 1024;
+pub const MAX_AUDIO_PCM_BYTES: u64 = 1024 * 1024 * 1024;
+pub const MAX_AUDIO_DURATION: Duration = Duration::from_secs(4 * 60 * 60);
+const MAX_AUDIO_CHANNELS: u8 = 8;
+const MIN_AUDIO_SAMPLE_RATE: u32 = 8_000;
+const MAX_AUDIO_SAMPLE_RATE: u32 = 192_000;
+const WEBAUDIO_BASE_SAMPLE_RATE: u32 = 48_000;
+pub const AUDIO_RESOURCE_LIMIT_ERROR: &str = "AUDIO_RESOURCE_LIMIT";
+
+pub fn validate_audio_properties(
+    file_bytes: u64,
+    duration: Duration,
+    sample_rate: u32,
+    channels: u8,
+) -> Result<(), String> {
+    if file_bytes > MAX_AUDIO_FILE_BYTES
+        || duration.is_zero()
+        || duration > MAX_AUDIO_DURATION
+        || !(MIN_AUDIO_SAMPLE_RATE..=MAX_AUDIO_SAMPLE_RATE).contains(&sample_rate)
+        || channels == 0
+        || channels > MAX_AUDIO_CHANNELS
+    {
+        return Err(AUDIO_RESOURCE_LIMIT_ERROR.into());
+    }
+    let effective_rate = sample_rate.max(WEBAUDIO_BASE_SAMPLE_RATE);
+    let frames = duration
+        .as_nanos()
+        .checked_mul(u128::from(effective_rate))
+        .and_then(|samples| samples.checked_add(999_999_999))
+        .map(|samples| samples / 1_000_000_000)
+        .ok_or_else(|| AUDIO_RESOURCE_LIMIT_ERROR.to_string())?;
+    let pcm_bytes = frames
+        .checked_mul(u128::from(channels))
+        .and_then(|samples| samples.checked_mul(4))
+        .and_then(|bytes| u64::try_from(bytes).ok())
+        .ok_or_else(|| AUDIO_RESOURCE_LIMIT_ERROR.to_string())?;
+    if pcm_bytes > MAX_AUDIO_PCM_BYTES {
+        return Err(AUDIO_RESOURCE_LIMIT_ERROR.into());
+    }
+    Ok(())
+}
+
+pub fn validate_pcm_frames(sample_rate: u32, channels: u8, frames: u64) -> Result<(), String> {
+    if !(MIN_AUDIO_SAMPLE_RATE..=MAX_AUDIO_SAMPLE_RATE).contains(&sample_rate)
+        || channels == 0
+        || channels > MAX_AUDIO_CHANNELS
+    {
+        return Err(AUDIO_RESOURCE_LIMIT_ERROR.into());
+    }
+    let pcm_bytes = u128::from(frames)
+        .checked_mul(u128::from(channels))
+        .and_then(|samples| samples.checked_mul(4))
+        .ok_or_else(|| AUDIO_RESOURCE_LIMIT_ERROR.to_string())?;
+    let duration_nanos = u128::from(frames)
+        .checked_mul(1_000_000_000)
+        .map(|nanos| nanos / u128::from(sample_rate))
+        .ok_or_else(|| AUDIO_RESOURCE_LIMIT_ERROR.to_string())?;
+    if pcm_bytes > u128::from(MAX_AUDIO_PCM_BYTES)
+        || pcm_bytes
+            .checked_add(128)
+            .map_or(true, |bytes| bytes > u128::from(MAX_AUDIO_FILE_BYTES))
+        || duration_nanos > MAX_AUDIO_DURATION.as_nanos()
+    {
+        return Err(AUDIO_RESOURCE_LIMIT_ERROR.into());
+    }
+    Ok(())
+}
+
+pub fn inspect_audio_file(path: &Path) -> Result<u64, String> {
+    let file_bytes = std::fs::metadata(path)
+        .map_err(|error| error.to_string())?
+        .len();
+    if file_bytes > MAX_AUDIO_FILE_BYTES {
+        return Err(AUDIO_RESOURCE_LIMIT_ERROR.into());
+    }
+    let tagged = lofty::read_from_path(path).map_err(|error| error.to_string())?;
+    let properties = tagged.properties();
+    let sample_rate = properties
+        .sample_rate()
+        .ok_or_else(|| "AUDIO_METADATA_UNAVAILABLE".to_string())?;
+    let channels = properties
+        .channels()
+        .ok_or_else(|| "AUDIO_METADATA_UNAVAILABLE".to_string())?;
+    validate_audio_properties(file_bytes, properties.duration(), sample_rate, channels)?;
+    Ok(file_bytes)
+}
+
+pub fn read_bounded_audio_file(path: &Path) -> Result<Vec<u8>, String> {
+    let expected_len = inspect_audio_file(path)?;
+    let mut file = std::fs::File::open(path).map_err(|error| error.to_string())?;
+    if file.metadata().map_err(|error| error.to_string())?.len() > MAX_AUDIO_FILE_BYTES {
+        return Err(AUDIO_RESOURCE_LIMIT_ERROR.into());
+    }
+    let mut bytes = Vec::new();
+    file.by_ref()
+        .take(MAX_AUDIO_FILE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| error.to_string())?;
+    if bytes.len() as u64 > MAX_AUDIO_FILE_BYTES {
+        return Err(AUDIO_RESOURCE_LIMIT_ERROR.into());
+    }
+    if bytes.len() as u64 != expected_len {
+        return Err("AUDIO_FILE_CHANGED".into());
+    }
+    Ok(bytes)
+}
 
 // Symphonia 0.5.5 counts the SSND offset/block-size header as sample data.
 // Present only its length field corrected to the decoder; never modify the file.
@@ -125,12 +235,14 @@ pub fn decode_to_wav(source: Box<dyn MediaSource>, extension: &str) -> Result<Ve
     if channels == 0 || channels > u16::MAX as usize {
         return Err("Invalid channel count".into());
     }
+    let channels_u8 = u8::try_from(channels).map_err(|_| AUDIO_RESOURCE_LIMIT_ERROR)?;
     let mut decoder = symphonia::default::get_codecs()
         .make(&params, &DecoderOptions::default())
         .map_err(|e| format!("Unsupported audio codec: {e}"))?;
     if declared_frames.is_some_and(|frames| Some(frames) != params.n_frames) {
         return Err("Inconsistent AIFF frame count".into());
     }
+    validate_pcm_frames(sample_rate, channels_u8, params.n_frames.unwrap_or(0))?;
     // Reserve the known output once to avoid retaining old and new allocations
     // while a long WAV grows. IPC and browser copies still remain whole-file.
     let mut bytes = Vec::new();
@@ -140,7 +252,7 @@ pub fn decode_to_wav(source: Box<dyn MediaSource>, extension: &str) -> Result<Ve
             .and_then(|n| n.checked_mul(4))
             .and_then(|n| n.checked_add(128))
             .ok_or("WAV size overflow")?;
-        if capacity > u32::MAX as u64 {
+        if capacity > u32::MAX as u64 || capacity > MAX_AUDIO_FILE_BYTES {
             return Err("Audio exceeds WAV size limit".into());
         }
         bytes
@@ -174,7 +286,18 @@ pub fn decode_to_wav(source: Box<dyn MediaSource>, extension: &str) -> Result<Ve
         if decoded.spec().rate != sample_rate || decoded.spec().channels.count() != channels {
             return Err("Audio format changed during decoding".into());
         }
-        frames += decoded.frames() as u64;
+        frames = frames
+            .checked_add(decoded.frames() as u64)
+            .ok_or(AUDIO_RESOURCE_LIMIT_ERROR)?;
+        validate_pcm_frames(sample_rate, channels_u8, frames)?;
+        let output_size = u128::from(frames)
+            .checked_mul(u128::from(channels_u8))
+            .and_then(|samples| samples.checked_mul(4))
+            .and_then(|bytes| bytes.checked_add(128))
+            .ok_or(AUDIO_RESOURCE_LIMIT_ERROR)?;
+        if output_size > u128::from(MAX_AUDIO_FILE_BYTES) {
+            return Err(AUDIO_RESOURCE_LIMIT_ERROR.into());
+        }
         // Only this packet's interleaved PCM is retained alongside the output WAV.
         let mut samples = SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
         samples.copy_interleaved_ref(decoded);
@@ -239,6 +362,74 @@ mod tests {
                 .samples::<f32>()
                 .all(|s| (s.unwrap() - 0.25).abs() < 0.0001));
         }
+    }
+
+    #[test]
+    fn enforces_the_one_gib_audio_file_and_pcm_limits() {
+        assert!(
+            validate_audio_properties(1024, std::time::Duration::from_secs(60), 48_000, 2).is_ok()
+        );
+        assert!(validate_audio_properties(
+            MAX_AUDIO_FILE_BYTES,
+            std::time::Duration::from_secs(60),
+            48_000,
+            2
+        )
+        .is_ok());
+        assert_eq!(
+            validate_audio_properties(
+                MAX_AUDIO_FILE_BYTES + 1,
+                std::time::Duration::from_secs(60),
+                48_000,
+                2
+            )
+            .unwrap_err(),
+            AUDIO_RESOURCE_LIMIT_ERROR
+        );
+        assert_eq!(
+            validate_audio_properties(1024, std::time::Duration::from_secs(30 * 60), 192_000, 2)
+                .unwrap_err(),
+            AUDIO_RESOURCE_LIMIT_ERROR
+        );
+        assert!(validate_pcm_frames(48_000, 2, 48_000 * 60).is_ok());
+        assert_eq!(
+            validate_pcm_frames(192_000, 2, 192_000 * 30 * 60).unwrap_err(),
+            AUDIO_RESOURCE_LIMIT_ERROR
+        );
+    }
+
+    #[test]
+    fn rejects_oversized_sparse_audio_before_parsing_or_reading_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("oversized.mp3");
+        std::fs::File::create(&path)
+            .unwrap()
+            .set_len(MAX_AUDIO_FILE_BYTES + 1)
+            .unwrap();
+        assert_eq!(
+            inspect_audio_file(&path).unwrap_err(),
+            AUDIO_RESOURCE_LIMIT_ERROR
+        );
+    }
+
+    #[test]
+    fn reads_a_supported_audio_file_after_validating_its_size_and_pcm_estimate() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("audio.wav");
+        let spec = hound::WavSpec {
+            channels: 2,
+            sample_rate: 48_000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut writer = hound::WavWriter::create(&path, spec).unwrap();
+        for _ in 0..480 {
+            writer.write_sample(0_i16).unwrap();
+            writer.write_sample(0_i16).unwrap();
+        }
+        writer.finalize().unwrap();
+        let bytes = read_bounded_audio_file(&path).unwrap();
+        assert_eq!(bytes.len() as u64, std::fs::metadata(path).unwrap().len());
     }
 
     #[test]

@@ -280,6 +280,7 @@ export interface Translations {
     runtimeFailed: string;
     openFailed: string;
     audioLoadFailed: string;
+    audioResourceLimit: string;
   };
   keys: {
     title: string;
@@ -657,6 +658,7 @@ const ko: Translations = {
     runtimeFailed: "오류가 발생했습니다. 현재 작업을 저장한 뒤 다시 시도해 주세요.",
     openFailed: "파일을 열지 못했습니다",
     audioLoadFailed: "오디오를 불러오지 못했습니다",
+    audioResourceLimit: "오디오 파일이 지원 가능한 1GiB 또는 디코딩 메모리 한도를 초과했습니다",
   },
   keys: {
     title: "단축키",
@@ -1059,6 +1061,7 @@ const en: Translations = {
     runtimeFailed: "An error occurred. Save your current work before trying again.",
     openFailed: "Couldn't open file",
     audioLoadFailed: "Couldn't load audio",
+    audioResourceLimit: "The audio file exceeds the 1 GiB file or decoded-memory limit.",
   },
   keys: {
     title: "Keyboard shortcuts",
@@ -1460,6 +1463,7 @@ const ja: Translations = {
     runtimeFailed: "エラーが発生しました。作業を保存してから再試行してください。",
     openFailed: "ファイルを開けませんでした",
     audioLoadFailed: "オーディオを読み込めませんでした",
+    audioResourceLimit: "オーディオファイルが1GiBのファイルまたはデコードメモリ上限を超えています",
   },
   keys: {
     title: "ショートカット",

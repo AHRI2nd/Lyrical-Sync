@@ -182,7 +182,9 @@ export function AudioPlayer() {
         return ws.loadBlob(new Blob([bytes], { type: mimeType }));
       }).catch((e: unknown) => {
         if (cancelled || !isCurrent() || (e instanceof Error && e.name === "AbortError")) return;
-        toast.error(useI18nStore.getState().t.toast.audioLoadFailed);
+        const message = typeof e === "string" ? e : e instanceof Error ? e.message : "";
+        const t = useI18nStore.getState().t.toast;
+        toast.error(message.includes("AUDIO_RESOURCE_LIMIT") ? t.audioResourceLimit : t.audioLoadFailed);
       });
     }
     return () => { cancelled = true; };

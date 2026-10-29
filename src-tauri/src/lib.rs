@@ -32,11 +32,12 @@ async fn write_lrc_file(path: String, content: String, bookmark: Option<String>)
 
 #[tauri::command]
 async fn read_audio_file(path: String, bookmark: Option<String>) -> Result<tauri::ipc::Response, String> {
-    // 바이트를 JSON(number[]) 대신 raw 바이너리로 반환 → 대용량 오디오도 빠름
-    let access = file_access::FileAccess::open(path, bookmark)?;
-    std::fs::read(access.path())
-        .map(tauri::ipc::Response::new)
-        .map_err(|e| e.to_string())
+    tauri::async_runtime::spawn_blocking(move || {
+        let access = file_access::FileAccess::open(path, bookmark)?;
+        audio_decode::read_bounded_audio_file(&access.path()).map(tauri::ipc::Response::new)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Convert unsupported WebView2 audio to a binary WAV response without a shared file.
@@ -47,6 +48,9 @@ async fn decode_audio_to_wav(path: String, bookmark: Option<String>) -> Result<t
         let access = file_access::FileAccess::open(path, bookmark)?;
         let resolved_path = access.path();
         let file = std::fs::File::open(&resolved_path).map_err(|e| e.to_string())?;
+        if file.metadata().map_err(|e| e.to_string())?.len() > audio_decode::MAX_AUDIO_FILE_BYTES {
+            return Err(audio_decode::AUDIO_RESOURCE_LIMIT_ERROR.into());
+        }
         let extension = resolved_path
             .extension()
             .and_then(|e| e.to_str())

@@ -48,6 +48,7 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import { audioControls } from "../../utils/audioControls";
 import { defaultDocument } from "../../types/lrc";
 import { useWaveformStore, clearWaveform } from "../../stores/useWaveformStore";
+import { useToastStore } from "../../stores/useToastStore";
 import { translations } from "../../i18n/translations";
 
 const originalControls = { ...audioControls };
@@ -64,6 +65,7 @@ describe("AudioPlayer loop-line boundaries", () => {
     Object.defineProperty(URL, "createObjectURL", { configurable: true, value: vi.fn(() => "blob:audio") });
     Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() });
     localStorage.clear();
+    useToastStore.setState({ toasts: [] });
     useSettingsStore.setState({ showSpectrogram: false });
     useLrcStore.setState({
       doc: {
@@ -102,6 +104,15 @@ describe("AudioPlayer loop-line boundaries", () => {
     await waitFor(() => expect(useWaveformStore.getState().path).toBe("/replacement.wav"));
     unmount();
     expect(useWaveformStore.getState().source).toBeNull();
+  });
+
+  it("explains when an audio file exceeds the resource limit", async () => {
+    vi.mocked(readAudioBytes).mockRejectedValue("AUDIO_RESOURCE_LIMIT");
+    useLrcStore.setState({ audioPath: "/large.wav", audioBookmark: null });
+    render(<AudioPlayer />);
+    await waitFor(() => expect(useToastStore.getState().toasts[useToastStore.getState().toasts.length - 1]?.message)
+      .toBe(translations[useI18nStore.getState().lang].toast.audioResourceLimit));
+    expect(load).not.toHaveBeenCalled();
   });
 
   afterEach(() => {
