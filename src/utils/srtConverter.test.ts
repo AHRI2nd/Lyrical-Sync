@@ -100,6 +100,9 @@ describe("serializeSrt", () => {
 
 
 describe("SRT cue boundaries", () => {
+  it("rejects invalid cue timestamps before serialization", () => {
+    expect(() => serializeSrt(docOf([{ id: "invalid", timestamp: Number.NaN, text: "bad" }]))).toThrow("SRT timestamps must be finite");
+  });
   it("uses the next strictly later boundary for coincident starts", () => {
     const out = serializeSrt(docOf([
       { id: "a", timestamp: 1, text: "a" }, { id: "blank", timestamp: 1, text: "" },

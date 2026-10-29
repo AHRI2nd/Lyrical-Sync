@@ -9,13 +9,16 @@ export function shiftSrtEnd(line: LrcLine, delta: number, nextTimestamp: number 
 export function retimeLine(line: LrcLine, timestamp: number | null): LrcLine {
   if (timestamp === null) return { ...line, timestamp, srtEndTime: undefined, syllables: undefined };
   const lineDelta = line.timestamp === null ? 0 : timestamp - line.timestamp;
-  const times = line.syllables?.flatMap(s => s.time === null ? [] : [s.time]) ?? [];
-  if (!times.length) return {
+  let earliest: number | null = null;
+  for (const syllable of line.syllables ?? []) {
+    if (syllable.time !== null && Number.isFinite(syllable.time) && (earliest === null || syllable.time < earliest)) earliest = syllable.time;
+  }
+  if (earliest === null) return {
     ...line,
     timestamp,
     srtEndTime: Number.isFinite(line.srtEndTime) ? Math.max(timestamp, (line.srtEndTime as number) + lineDelta) : line.srtEndTime,
   };
-  const delta = timestamp - Math.min(...times);
+  const delta = timestamp - earliest;
   return { ...line, timestamp, syllables: line.syllables?.map(s => ({
     ...s, time: s.time === null ? null : Math.max(0, s.time + delta),
   })), srtEndTime: Number.isFinite(line.srtEndTime) ? Math.max(timestamp, (line.srtEndTime as number) + lineDelta) : line.srtEndTime };

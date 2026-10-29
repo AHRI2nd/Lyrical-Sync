@@ -11,6 +11,16 @@ import { runDocumentTransition, confirmDocumentReplacement, cancelDocumentConfir
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { useSettingsStore } from "./useSettingsStore";
+import { toast } from "./useToastStore";
+import { useI18nStore } from "./useI18nStore";
+
+const hasFiniteLineTimes = (lines: LrcLine[]): boolean => lines.every((line) =>
+  (line.timestamp === null || Number.isFinite(line.timestamp)) &&
+  (line.srtEndTime === undefined || Number.isFinite(line.srtEndTime)) &&
+  (line.syllables?.every((syllable) => syllable.time === null || Number.isFinite(syllable.time)) ?? true)
+);
+
+const reportInvalidTime = (): void => toast.error(useI18nStore.getState().t.toast.invalidTimestamp);
 
 // App Sandbox 보안 스코프 북마크 생성(best-effort) — 크래시 복구 후 파일 접근 권한 복원용.
 // 실패해도(구버전 macOS, 권한 문제 등) 조용히 null 반환 — 복구 기능만 못 쓸 뿐 파일 열기 자체는 계속 동작.
@@ -233,8 +243,12 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
 
   commitSyllables: (lineId, syllables, recordHistory = true) => {
     const { doc } = get();
-    const times = syllables.filter((s) => s.time !== null).map((s) => s.time as number);
-    const lineTs = times.length > 0 ? Math.min(...times) : null;
+    let lineTs: number | null = null;
+    for (const syllable of syllables) {
+      if (syllable.time === null) continue;
+      if (!Number.isFinite(syllable.time)) { reportInvalidTime(); return; }
+      if (lineTs === null || syllable.time < lineTs) lineTs = syllable.time;
+    }
     const lines = doc.lines.map((l) =>
       l.id === lineId
         ? {
@@ -245,6 +259,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
           }
         : l
     );
+    if (!hasFiniteLineTimes(lines)) { reportInvalidTime(); return; }
     set({
       ...(recordHistory
         ? pushHistory(doc, null, "commitSyllables")
@@ -361,6 +376,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
 
   setMetadata: (meta, silent = false) => {
     const { doc, isDirty } = get();
+    if (meta.offset !== undefined && (!Number.isFinite(meta.offset) || !Number.isSafeInteger(meta.offset))) { reportInvalidTime(); return; }
     const fields = (Object.keys(meta) as (keyof LrcMetadata)[]).filter((field) => !Object.is(doc.metadata[field], meta[field]));
     if (fields.length === 0) return;
     const editKey = fields.length === 1 ? `metadata:${fields[0]}` : null;
@@ -370,6 +386,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
 
   setLines: (lines) => {
     const { doc } = get();
+    if (!hasFiniteLineTimes(lines)) { reportInvalidTime(); return; }
     set({ ...pushHistory(doc, null, "setLines"), doc: { ...doc, lines }, isDirty: true });
   },
 
@@ -423,8 +440,10 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     }
     const fields = (Object.keys(normalizedPatch) as (keyof typeof normalizedPatch)[]).filter((field) => !Object.is(line[field], normalizedPatch[field]));
     if (fields.length === 0) return;
+    const updatedLine = { ...(normalizedPatch.timestamp !== undefined ? retimeLine(line, normalizedPatch.timestamp) : line), ...normalizedPatch };
+    if (!hasFiniteLineTimes([updatedLine])) { reportInvalidTime(); return; }
     const key = fields.length === 1 && (fields[0] === "text" || fields[0] === "translation") ? `line:${id}:${fields[0]}` : null;
-    set({ ...pushHistory(doc, key), doc: { ...doc, lines: doc.lines.map((item) => item.id === id ? { ...(normalizedPatch.timestamp !== undefined ? retimeLine(item, normalizedPatch.timestamp) : item), ...normalizedPatch } : item) }, isDirty: true });
+    set({ ...pushHistory(doc, key), doc: { ...doc, lines: doc.lines.map((item) => item.id === id ? updatedLine : item) }, isDirty: true });
   },
 
   deleteLine: (id) => {
@@ -491,15 +510,19 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
   },
 
   scaleTimestamps: (factor) => {
-    if (!(factor > 0) || factor === 1) return;
+    if (!(factor > 0) || !Number.isFinite(factor) || factor === 1) {
+      if (!Number.isFinite(factor)) reportInvalidTime();
+      return;
+    }
     const { doc } = get();
     const sc = (t: number | null) => (t !== null ? Math.max(0, Math.round(t * factor * 1000) / 1000) : null);
     const lines = doc.lines.map((l) => ({
       ...l,
       timestamp: sc(l.timestamp),
-      srtEndTime: l.srtEndTime === undefined ? undefined : sc(l.srtEndTime),
+      srtEndTime: l.srtEndTime === undefined ? undefined : Math.max(0, Math.round(l.srtEndTime * factor * 1000) / 1000),
       syllables: l.syllables?.map((s) => ({ ...s, time: sc(s.time) })),
     }));
+    if (!hasFiniteLineTimes(lines)) { reportInvalidTime(); return; }
     set({ ...pushHistory(doc, null, "scaleTimestamps"), doc: { ...doc, lines }, isDirty: true });
   },
 
@@ -516,6 +539,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
   },
 
   shiftLines: (ids, delta) => {
+    if (!Number.isFinite(delta)) { reportInvalidTime(); return; }
     if (delta === 0 || ids.length === 0) return;
     const idSet = new Set(ids);
     const { doc } = get();
@@ -525,6 +549,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
         ? { ...l, timestamp: sh(l.timestamp), srtEndTime: shiftSrtEnd(l, delta, sh(l.timestamp)), syllables: l.syllables?.map((s) => ({ ...s, time: sh(s.time) })) }
         : l
     );
+    if (!hasFiniteLineTimes(lines)) { reportInvalidTime(); return; }
     set({ ...pushHistory(doc, null, "shiftLines"), doc: { ...doc, lines }, isDirty: true });
   },
 
@@ -551,7 +576,10 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
       return { ...line, timestamp, srtEndTime: shiftSrtEnd(line, delta, timestamp), syllables: line.syllables?.map(s => ({ ...s,
         time: s.time === null ? null : Math.round(Math.max(0, s.time + delta) * 1000) / 1000 })) };
     });
-    if (changed) set({ ...pushHistory(doc, null, "snapBeatGrid"), doc: { ...doc, lines }, isDirty: true });
+    if (changed) {
+      if (!hasFiniteLineTimes(lines)) { reportInvalidTime(); return; }
+      set({ ...pushHistory(doc, null, "snapBeatGrid"), doc: { ...doc, lines }, isDirty: true });
+    }
   },
 
   stampCurrentLine: (id) => {
@@ -578,24 +606,21 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
   applyOffset: () => {
     const { doc } = get();
     const deltaSeconds = doc.metadata.offset / 1000;
+    if (!Number.isFinite(deltaSeconds)) { reportInvalidTime(); return; }
     if (deltaSeconds === 0) return; // 변화 없음 → 히스토리 기록 안 함(빈 undo 방지)
-    set({ ...pushHistory(doc, null, "applyOffset") });
+    const lines = doc.lines.map((l) => ({
+      ...l,
+      timestamp: l.timestamp !== null ? Math.max(0, l.timestamp + deltaSeconds) : null,
+      srtEndTime: shiftSrtEnd(l, deltaSeconds, l.timestamp === null ? null : Math.max(0, l.timestamp + deltaSeconds)),
+      syllables: l.syllables?.map((s) => ({ ...s, time: s.time !== null ? Math.max(0, s.time + deltaSeconds) : null })),
+    }));
+    if (!hasFiniteLineTimes(lines)) { reportInvalidTime(); return; }
     set({
+      ...pushHistory(doc, null, "applyOffset"),
       doc: {
         ...doc,
         metadata: { ...doc.metadata, offset: 0 },
-        lines: doc.lines.map((l) => ({
-          ...l,
-          timestamp: l.timestamp !== null
-            ? Math.max(0, l.timestamp + deltaSeconds)
-            : null,
-          srtEndTime: shiftSrtEnd(l, deltaSeconds, l.timestamp === null ? null : Math.max(0, l.timestamp + deltaSeconds)),
-          // 글자 동기화 토큰 시각도 함께 이동
-          syllables: l.syllables?.map((s) => ({
-            ...s,
-            time: s.time !== null ? Math.max(0, s.time + deltaSeconds) : null,
-          })),
-        })),
+        lines,
       },
       isDirty: true,
     });
@@ -803,6 +828,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
   newLrc: async () => { await get().requestDocumentTransition({ kind: "new" }); },
 
   shiftTimeRange: (fromIdx, toIdx, deltaSeconds) => {
+    if (!Number.isFinite(deltaSeconds)) { reportInvalidTime(); return; }
     if (deltaSeconds === 0) return;
     const { doc } = get();
     const newLines = doc.lines.map((l, i) => {
@@ -817,6 +843,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
         })),
       };
     });
+    if (!hasFiniteLineTimes(newLines)) { reportInvalidTime(); return; }
     set({ ...pushHistory(doc, null, "shiftTimeRange"), doc: { ...doc, lines: newLines }, isDirty: true });
   },
 

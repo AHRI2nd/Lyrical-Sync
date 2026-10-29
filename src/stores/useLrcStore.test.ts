@@ -90,6 +90,33 @@ describe("useLrcStore — line actions", () => {
     useLrcStore.getState().updateLine("1", { timestamp: 11.5 });
     expect(lines()[0]).toMatchObject({ timestamp: 11.5, srtEndTime: 13.5 });
   });
+
+  it("rejects a non-finite edited timestamp without changing the document", () => {
+    reset([{ id: "1", timestamp: 1, text: "a" }]);
+    const before = useLrcStore.getState().doc;
+    useLrcStore.getState().updateLine("1", { timestamp: Number.NaN });
+    expect(useLrcStore.getState().doc).toBe(before);
+  });
+
+  it("handles lyric rows with large syllable arrays", () => {
+    reset([{ id: "1", timestamp: 0, text: "a" }]);
+    const syllables = Array.from({ length: 200_000 }, (_, index) => ({ text: "a", time: index / 1000 }));
+    expect(() => useLrcStore.getState().commitSyllables("1", syllables)).not.toThrow();
+    expect(lines()[0].timestamp).toBe(0);
+  });
+
+  it("retimes a line with a large existing syllable array", () => {
+    reset([{ id: "1", timestamp: 0, text: "a", syllables: Array.from({ length: 200_000 }, (_, index) => ({ text: "a", time: index / 1000 })) }]);
+    expect(() => useLrcStore.getState().updateLine("1", { timestamp: 1 })).not.toThrow();
+    expect(lines()[0].timestamp).toBe(1);
+  });
+
+  it("rejects timestamp scaling that overflows without changing the document", () => {
+    reset([{ id: "1", timestamp: 10, text: "a" }]);
+    const before = useLrcStore.getState().doc;
+    useLrcStore.getState().scaleTimestamps(Number.MAX_VALUE);
+    expect(useLrcStore.getState().doc).toBe(before);
+  });
 });
 
 describe("useLrcStore — offset / shift carry syllable times", () => {

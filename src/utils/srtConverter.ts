@@ -42,7 +42,10 @@ function assertSrtBodyRepresentable(value: string | undefined): void {
 
 // SubRip 시간 형식: HH:MM:SS,mmm
 function formatSrtTime(seconds: number): string {
-  const totalMs = Math.max(0, Math.round(seconds * 1000));
+  const totalMs = Math.round(seconds * 1000);
+  if (!Number.isFinite(seconds) || !Number.isSafeInteger(totalMs) || seconds < 0) {
+    throw new Error("SRT timestamps must be finite, non-negative, and representable in milliseconds.");
+  }
   const ms = totalMs % 1000;
   const totalSecs = Math.floor(totalMs / 1000);
   const s = totalSecs % 60;
@@ -74,6 +77,11 @@ function parseSrtTime(str: string): number | null {
  * a finite later audio duration, or a four-second fallback. Coincident starts share an end.
  */
 export function serializeSrt(doc: LrcDocument, lastCueEnd?: number): string {
+  if (!doc.lines.every((line) =>
+    (line.timestamp === null || (Number.isFinite(line.timestamp) && line.timestamp >= 0)) &&
+    (line.srtEndTime === undefined || (Number.isFinite(line.srtEndTime) && line.srtEndTime >= 0)) &&
+    (line.syllables?.every((syllable) => syllable.time === null || (Number.isFinite(syllable.time) && syllable.time >= 0)) ?? true)
+  )) throw new Error("SRT timestamps must be finite and non-negative.");
   const timed = doc.lines
     .filter((l) => l.timestamp !== null)
     .slice()

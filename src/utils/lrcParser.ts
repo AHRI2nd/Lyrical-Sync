@@ -83,6 +83,13 @@ export function parseTimestamp(ts: string): number | null {
   return Number.isFinite(seconds) ? seconds : null;
 }
 
+export class LrcInvalidTimestampError extends Error {
+  constructor() {
+    super("LRC timestamps must be finite, non-negative, and representable in milliseconds.");
+    this.name = "LrcInvalidTimestampError";
+  }
+}
+
 // Accept both legacy minute timestamps and the hour-aware millisecond UI format.
 export function parseTimestampInput(input: string): number | null {
   const m = /^(?:(\d+):)?(\d+):(\d{2})\.(\d{2,3})$/.exec(input.trim());
@@ -109,7 +116,7 @@ export function formatTimestamp(seconds: number): string {
 export function formatLrcTimestamp(seconds: number): string {
   const totalMs = Math.round(seconds * 1000);
   if (!Number.isFinite(seconds) || !Number.isSafeInteger(totalMs) || seconds < 0) {
-    throw new Error("LRC timestamps must be finite, non-negative, and representable in milliseconds.");
+    throw new LrcInvalidTimestampError();
   }
   const ms = totalMs % 1000;
   const totalSecs = Math.floor(totalMs / 1000);
@@ -386,6 +393,12 @@ export function parseLrc(raw: string): LrcDocument {
 // enhanced=false면 글자/단어 동기화 태그를 제거하고 일반 LRC로 출력
 export function serializeLrc(doc: LrcDocument, enhanced = true): string {
   const { metadata, lines, extraTags } = doc;
+  if (!Number.isFinite(metadata.offset) || !Number.isSafeInteger(metadata.offset) ||
+      !lines.every((line) => (line.timestamp === null || (Number.isFinite(line.timestamp) && line.timestamp >= 0)) &&
+        (line.srtEndTime === undefined || (Number.isFinite(line.srtEndTime) && line.srtEndTime >= 0)) &&
+        (line.syllables?.every((syllable) => syllable.time === null || (Number.isFinite(syllable.time) && syllable.time >= 0)) ?? true))) {
+    throw new LrcInvalidTimestampError();
+  }
   if ([metadata.title, metadata.artist, metadata.album, metadata.by, ...Object.entries(extraTags).flat()].some((value) => /[\r\n]/.test(String(value)))) {
     throw new LrcMetadataLineBreakError();
   }
@@ -432,8 +445,11 @@ export function serializeLrc(doc: LrcDocument, enhanced = true): string {
     let outputTs = line.timestamp;
     const timedSyl = enhanced && line.syllables?.some((s) => s.time !== null);
     if (timedSyl && line.syllables) {
-      const times = line.syllables.filter((s) => s.time !== null).map((s) => s.time as number);
-      const lineTs = line.timestamp ?? Math.min(...times);
+      let earliest = Infinity;
+      for (const syllable of line.syllables) {
+        if (syllable.time !== null && syllable.time < earliest) earliest = syllable.time;
+      }
+      const lineTs = line.timestamp ?? earliest;
       outputTs = lineTs;
       let out = `[${formatLrcTimestamp(lineTs)}]`;
       for (const s of line.syllables) {
