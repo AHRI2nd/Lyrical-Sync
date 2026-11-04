@@ -25,6 +25,9 @@ lerna-debug.log*
 .DS_Store
 Thumbs.db
 
+# Alma snapshots
+.alma-snapshots
+
 # Editor
 .vscode
 .idea
