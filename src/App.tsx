@@ -132,7 +132,7 @@ function useAutoSave(recoveryPending: boolean) {
   const persistRecovery = () => {
     const st = useLrcStore.getState();
     if (!st.isDirty || recoveryPending) return;
-    const saved = saveRecoverySnapshot(st.doc, st.lrcPath, st.audioPath);
+    const saved = saveRecoverySnapshot(st.doc, st.lrcPath, st.audioPath, null, null, undefined, st._documentSession, st._editRevision);
     if (!saved && !recoveryFailed.current) toast.error(useI18nStore.getState().t.toast.recoveryFailed);
     recoveryFailed.current = !saved;
   };
@@ -617,8 +617,7 @@ function App() {
           cancelLabel={t.recovery.discard}
           onOk={() => {
             useLrcStore.getState().restoreDoc(recovery.doc, recovery.lrcPath, recovery.audioPath);
-            // Keep the durable snapshot until the restored document is saved.
-            setRecovery(null);
+            // Keep recovery snapshot until restored document is explicitly saved
           }}
           onCancel={() => { clearRecoverySnapshot(recovery); setRecovery(null); }}
         />

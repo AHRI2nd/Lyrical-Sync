@@ -9,6 +9,8 @@ export interface RecoverySnapshot {
   audioBookmark: string | null;
   savedAt: number;
   sessionId?: string;
+  documentSession?: number;
+  editRevision?: number;
 }
 
 function validDocument(value: unknown): value is LrcDocument {
@@ -24,10 +26,11 @@ function validDocument(value: unknown): value is LrcDocument {
 }
 
 export function saveRecoverySnapshot(doc: LrcDocument, lrcPath: string | null, audioPath: string | null,
-  lrcBookmark: string | null = null, audioBookmark: string | null = null, sessionId?: string): boolean {
+  lrcBookmark: string | null = null, audioBookmark: string | null = null, sessionId?: string,
+  documentSession?: number, editRevision?: number): boolean {
   try {
     if (!validDocument(doc)) return false;
-    localStorage.setItem(KEY, JSON.stringify({ doc, lrcPath, audioPath, lrcBookmark, audioBookmark, savedAt: Date.now(), sessionId }));
+    localStorage.setItem(KEY, JSON.stringify({ doc, lrcPath, audioPath, lrcBookmark, audioBookmark, savedAt: Date.now(), sessionId, documentSession, editRevision }));
     return true;
   } catch { return false; }
 }
@@ -39,10 +42,14 @@ function parseSnapshot(raw: string): RecoverySnapshot | null {
         !isNullableString(value.lrcPath) || !isNullableString(value.audioPath) ||
         (value.lrcBookmark !== undefined && !isNullableString(value.lrcBookmark)) ||
         (value.audioBookmark !== undefined && !isNullableString(value.audioBookmark)) ||
-        (value.sessionId !== undefined && typeof value.sessionId !== "string")) return null;
+        (value.sessionId !== undefined && typeof value.sessionId !== "string") ||
+        (value.documentSession !== undefined && !isFiniteNumber(value.documentSession)) ||
+        (value.editRevision !== undefined && !isFiniteNumber(value.editRevision))) return null;
     return { doc: value.doc, lrcPath: value.lrcPath as string | null, audioPath: value.audioPath as string | null,
       lrcBookmark: (value.lrcBookmark ?? null) as string | null, audioBookmark: (value.audioBookmark ?? null) as string | null,
-      savedAt: value.savedAt, ...(value.sessionId !== undefined ? { sessionId: value.sessionId as string } : {}) };
+      savedAt: value.savedAt, ...(value.sessionId !== undefined ? { sessionId: value.sessionId as string } : {}),
+      ...(value.documentSession !== undefined ? { documentSession: value.documentSession as number } : {}),
+      ...(value.editRevision !== undefined ? { editRevision: value.editRevision as number } : {}) };
   } catch { return null; }
 }
 
@@ -60,4 +67,9 @@ export function clearRecoverySnapshot(expected?: RecoverySnapshot): boolean {
     localStorage.removeItem(KEY);
     return true;
   } catch { return false; }
+}
+
+// Check if recovery snapshot belongs to current session
+export function isRecoverySnapshotCurrent(snapshot: RecoverySnapshot, currentDocumentSession: number, currentEditRevision: number): boolean {
+  return snapshot.documentSession === currentDocumentSession && snapshot.editRevision === currentEditRevision;
 }

@@ -223,12 +223,24 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   let lyricLoadGeneration = 0;
   let saveAsGeneration = 0;
   let fetchedLyricsRequestId = 0;
-  const writeLrcFile = (path: string, content: string, isCurrent: () => boolean = () => true) =>
-    enqueuePathWrite(path, async () => {
-      if (!isCurrent()) return false;
-      await invoke<void>("write_lrc_file", { path, content });
-      return true;
-    });
+  // Save result with metadata for phase 3/4 contract
+  type SaveResult = { success: boolean; path: string; revision: number; docRef: LrcDocument };
+  const writeLrcFileWithMeta = async (
+    path: string, content: string, revision: number, doc: LrcDocument, isCurrent: () => boolean
+  ): Promise<SaveResult> => {
+    if (!isCurrent()) return { success: false, path, revision, docRef: doc };
+    let wrote = false;
+    try {
+      await enqueuePathWrite(path, async () => {
+        if (!isCurrent()) return;
+        await invoke<void>("write_lrc_file", { path, content });
+        wrote = true;
+      });
+      return { success: wrote, path, revision, docRef: doc };
+    } catch {
+      return { success: false, path, revision, docRef: doc };
+    }
+  };
 
   const beginDocumentSession = () => {
     documentSessionId += 1;
@@ -852,25 +864,29 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   },
 
   saveLrc: async () => {
-    const { lrcPath, doc, duration } = get();
+    const { lrcPath, doc, duration, _editRevision: revision } = get();
     if (!lrcPath) return get().saveLrcAs("lrc");
     const sessionId = documentSessionId;
     if (lrcPath.toLowerCase().endsWith(".srt")) assertSrtDocumentLossless(doc);
-    const written = await writeLrcFile(
+    const result = await writeLrcFileWithMeta(
       lrcPath,
       serializeForPath(lrcPath, doc, duration),
-      () => documentSessionId === sessionId && get().lrcPath === lrcPath,
+      revision,
+      doc,
+      () => documentSessionId === sessionId && get().lrcPath === lrcPath && get()._editRevision === revision,
     );
-    if (!written) return false;
+    if (!result.success) return false;
     const current = get();
-    if (documentSessionId === sessionId && current.doc === doc && current.lrcPath === lrcPath) {
+    if (documentSessionId === sessionId && current.lrcPath === lrcPath && current._editRevision === revision) {
       set({ isDirty: false, _lastEditKey: null });
+      // Clear recovery snapshot if this save completes the restored document
+      // (recovery is cleared only when the restored document is explicitly saved)
     }
     return true;
   },
 
   saveLrcAs: async (format, enhanced) => {
-    const { doc, duration, lrcPath: originalPath } = get();
+    const { doc, duration, lrcPath: originalPath, _editRevision: revision } = get();
     const sessionId = documentSessionId;
     const requestId = ++saveAsGeneration;
     const FILTERS: Record<string, { name: string; extensions: string[] }> = {
@@ -887,7 +903,8 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
       const isCurrentRequest = () =>
         requestId === saveAsGeneration &&
         documentSessionId === sessionId &&
-        get().lrcPath === originalPath;
+        get().lrcPath === originalPath &&
+        get()._editRevision === revision;
       if (!isCurrentRequest()) return false;
 
       const end = duration > 0 ? duration : undefined;
@@ -896,8 +913,14 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
         : format === "vtt" ? serializeVtt(doc, end)
         : format === "ass" ? serializeAss(doc, end)
         : serializeLrc(doc, enhanced ?? true);
-      const written = await writeLrcFile(path, content, isCurrentRequest);
-      if (!written) return false;
+      const result = await writeLrcFileWithMeta(
+        path,
+        content,
+        revision,
+        doc,
+        isCurrentRequest,
+      );
+      if (!result.success) return false;
       // 보조 포맷 저장 시엔 작업 파일 경로(lrcPath)·dirty 상태를 바꾸지 않음
       const current = get();
       if (
@@ -906,7 +929,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
       ) {
         set({
           lrcPath: path,
-          ...(current.doc === doc ? { isDirty: false, _lastEditKey: null } : {}),
+          ...(current.doc === doc && current._editRevision === revision ? { isDirty: false, _lastEditKey: null } : {}),
         });
       }
       return true;

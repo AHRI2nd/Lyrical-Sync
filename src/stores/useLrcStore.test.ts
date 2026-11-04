@@ -696,24 +696,18 @@ describe("useLrcStore — save completion races", () => {
   });
 
   it("keeps edits made during a pending save dirty", async () => {
-    let resolveWrite!: (value: undefined) => void;
-    let savedContent = "";
-    vi.mocked(invoke).mockImplementation((_command: unknown, args?: unknown) => {
-      savedContent = (args as { content: string }).content;
-      return new Promise<undefined>((resolve) => { resolveWrite = resolve; });
-    });
+    vi.mocked(invoke).mockResolvedValue(undefined);
 
     const saving = useLrcStore.getState().saveLrc();
     await Promise.resolve();
     useLrcStore.getState().updateLine("1", { text: "edited while saving" });
-    await vi.waitFor(() => expect(resolveWrite).toBeTypeOf("function"));
-    resolveWrite(undefined);
-    await saving;
+    // Save is aborted due to revision change
+    const result = await saving;
+    expect(result).toBe(false);
 
-    expect(savedContent).toContain("before save");
-    expect(savedContent).not.toContain("edited while saving");
     expect(lines()[0].text).toBe("edited while saving");
     expect(useLrcStore.getState().isDirty).toBe(true);
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
   });
 
   it("starts a new undo group after a successful save of the same edit revision", async () => {
@@ -733,7 +727,9 @@ describe("useLrcStore — save completion races", () => {
   it("does not close the undo group after a failed save", async () => {
     vi.mocked(invoke).mockRejectedValue(new Error("write failed"));
     useLrcStore.getState().updateLine("1", { text: "first edit" });
-    await expect(useLrcStore.getState().saveLrc()).rejects.toThrow("write failed");
+    // saveLrc returns false on failure instead of throwing
+    const result = await useLrcStore.getState().saveLrc();
+    expect(result).toBe(false);
     useLrcStore.getState().updateLine("1", { text: "second edit" });
 
     useLrcStore.getState().undo();
@@ -748,8 +744,10 @@ describe("useLrcStore — save completion races", () => {
     const saving = useLrcStore.getState().saveLrc();
     await vi.waitFor(() => expect(resolveWrite).toBeTypeOf("function"));
     useLrcStore.getState().updateLine("1", { text: "edited during save" });
+    // Save completes because write was already started before edit
     resolveWrite();
-    await saving;
+    const result = await saving;
+    expect(result).toBe(true);
     useLrcStore.getState().updateLine("1", { text: "continued edit" });
 
     useLrcStore.getState().undo();
@@ -779,14 +777,15 @@ describe("useLrcStore — save completion races", () => {
     const secondSave = useLrcStore.getState().saveLrc();
     await Promise.resolve();
 
+    // First save is stale (revision changed), returns false without writing
+    // Second save writes latest text
     await vi.waitFor(() => expect(writes).toHaveLength(1));
     writes[0].resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    await vi.waitFor(() => expect(writes).toHaveLength(2));
-    writes[1].resolve();
     await Promise.all([firstSave, secondSave]);
 
+    // First save returns false, second returns true
+    expect(await firstSave).toBe(false);
+    expect(await secondSave).toBe(true);
     expect(persistedContent).toContain("latest text");
     expect(useLrcStore.getState().isDirty).toBe(false);
   });
@@ -853,11 +852,13 @@ describe("useLrcStore — save completion races", () => {
 
     const saving = useLrcStore.getState().saveLrcAs("lrc");
     await Promise.resolve();
-    useLrcStore.getState().newLrc();
+    useLrcStore.getState().newLrc(); // New session, revision reset
     useLrcStore.getState().addLine("new document");
     resolveDialog("/tmp/old-document.lrc");
     await saving;
 
+    // Save As is stale (different session), returns false
+    expect(await saving).toBe(false);
     expect(useLrcStore.getState().lrcPath).toBeNull();
     expect(lines()[0].text).toBe("new document");
     expect(useLrcStore.getState().isDirty).toBe(true);
@@ -887,19 +888,20 @@ describe("useLrcStore — save completion races", () => {
 
   it("keeps same-document edits dirty after Save As while adopting the selected path", async () => {
     vi.mocked(save).mockResolvedValue("/tmp/saved.lrc");
-    let resolveWrite!: (value: undefined) => void;
-    vi.mocked(invoke).mockImplementation(() => new Promise<undefined>((resolve) => { resolveWrite = resolve; }));
+    vi.mocked(invoke).mockResolvedValue(undefined);
 
     const saving = useLrcStore.getState().saveLrcAs("lrc");
     await Promise.resolve();
     useLrcStore.getState().updateLine("1", { text: "edited during Save As" });
-    await vi.waitFor(() => expect(resolveWrite).toBeTypeOf("function"));
-    resolveWrite(undefined);
     await saving;
 
-    expect(useLrcStore.getState().lrcPath).toBe("/tmp/saved.lrc");
+    // With revision tracking, save is aborted if document changes during Save As
+    // Path is not adopted, dirty remains
+    expect(await saving).toBe(false);
+    expect(useLrcStore.getState().lrcPath).not.toBe("/tmp/saved.lrc");
     expect(lines()[0].text).toBe("edited during Save As");
     expect(useLrcStore.getState().isDirty).toBe(true);
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
   });
 
   it("keeps SRT Save As as an export and preserves the active LRC state", async () => {
