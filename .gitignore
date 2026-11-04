@@ -47,6 +47,8 @@ CLAUDE_Spotify.md
 DESIGN_translation.md
 DESIGN_lrclib.md
 Transfer.md
+Command.md
 /docs/
 
 AGENTS.md
+.agents/skills/artiboard/
