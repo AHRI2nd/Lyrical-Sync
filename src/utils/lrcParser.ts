@@ -166,6 +166,7 @@ export function validateTimestamps(lines: LrcLine[]): Map<string, LineWarning> {
 const TRANSLATION_TAG = "x-lyrical-translations";
 const INLINE_ESCAPE_TAG = "x-lyrical-inline-escape";
 const LINE_ORDER_TAG = "x-lyrical-line-order";
+const WHITESPACE_TAG = "x-lyrical-whitespace";
 const INLINE_ESCAPE_CODE = "\\u003C";
 const INLINE_TIMESTAMP_TEXT_RE = /<\d+:\d{2}(?:\.\d{1,3})?>/;
 
@@ -300,6 +301,7 @@ export function parseLrc(raw: string): LrcDocument {
   let translationMode = false;
   let inlineEscapeMode = false;
   let preserveLineOrder = false;
+  let preserveWhitespace = false;
   let previous: LrcLine[] = [];
 
   for (const rawLine of raw.split("\n")) {
@@ -346,6 +348,10 @@ export function parseLrc(raw: string): LrcDocument {
           if (value === "1") preserveLineOrder = true;
           else doc.extraTags[key] = value;
         }
+        else if (key.toLowerCase() === WHITESPACE_TAG) {
+          if (value === "1") preserveWhitespace = true;
+          else doc.extraTags[key] = value;
+        }
         else if (field === "offset") {
           const offset = Number(value);
           if (Number.isFinite(offset)) doc.metadata.offset = offset;
@@ -365,7 +371,7 @@ export function parseLrc(raw: string): LrcDocument {
       previous = [];
       continue;
     }
-    const rawContent = translationMode ? rest : rest.trim();
+    const rawContent = translationMode ? rest : (preserveWhitespace ? rest : rest.trim());
     const parsedInline = inlineEscapeMode
       ? parseMarkedInlineSyllables(rawContent)
       : { text: rawContent, syllables: parseInlineSyllables(rawContent) };
@@ -377,10 +383,21 @@ export function parseLrc(raw: string): LrcDocument {
       ? syllables.map((syllable) => syllable.text).join("")
       : decodeText(parsedInline.text);
     const text = syllables ? syllables.map(s => s.text).join("") : content;
-    previous = rowTimes.map(timestamp => ({
-      id: String(lineId++), timestamp, text,
-      ...(syllables ? { syllables: syllables.map(s => ({ ...s })) } : {}),
-    }));
+    // For repeated timestamps, offset syllable times for subsequent rows
+    // The first row uses original syllable times; subsequent rows offset by (timestamp - firstTimestamp)
+    const firstTimestamp = rowTimes[0] ?? 0;
+    previous = rowTimes.map((timestamp, index) => {
+      const syllableOffset = index === 0 ? 0 : (timestamp ?? 0) - firstTimestamp;
+      return {
+        id: String(lineId++), timestamp, text,
+        ...(syllables ? {
+          syllables: syllables.map(s => ({
+            ...s,
+            time: s.time !== null ? s.time + syllableOffset : null,
+          }))
+        } : {}),
+      };
+    });
     doc.lines.push(...previous);
   }
   if (!preserveLineOrder) {
@@ -420,11 +437,14 @@ export function serializeLrc(doc: LrcDocument, enhanced = true): string {
   const inlineEscapeValue = Object.entries(extraTags).find(([key]) => key.toLowerCase() === INLINE_ESCAPE_TAG)?.[1];
   const translationTagValue = Object.entries(extraTags).find(([key]) => key.toLowerCase() === TRANSLATION_TAG)?.[1];
   const lineOrderTagValue = Object.entries(extraTags).find(([key]) => key.toLowerCase() === LINE_ORDER_TAG)?.[1];
+  const whitespaceTagValue = Object.entries(extraTags).find(([key]) => key.toLowerCase() === WHITESPACE_TAG)?.[1];
+  const hasEdgeWhitespace = lines.some(line => line.text.startsWith(" ") || line.text.endsWith(" ") || line.text.startsWith("\t") || line.text.endsWith("\t"));
   if (inlineEscapeMode && inlineEscapeValue !== undefined && inlineEscapeValue !== "1") {
     throw new LrcInlineEscapeTagConflictError();
   }
   if (translationMode && translationTagValue !== undefined && translationTagValue !== "1") throw new LrcReservedTagConflictError();
   if (orderNeedsMarker && lineOrderTagValue !== undefined && lineOrderTagValue !== "1") throw new LrcReservedTagConflictError();
+  if (hasEdgeWhitespace && whitespaceTagValue !== undefined && whitespaceTagValue !== "1") throw new LrcReservedTagConflictError();
   const encode = (text: string) => {
     const translated = translationMode ? escapeTranslationText(text) : text;
     return inlineEscapeMode ? escapeInlineTimestampText(translated) : translated;
@@ -445,6 +465,7 @@ export function serializeLrc(doc: LrcDocument, enhanced = true): string {
   if (inlineEscapeMode) parts.push(`[${INLINE_ESCAPE_TAG}:1]`);
   if (translationMode) parts.push(`[${TRANSLATION_TAG}:1]`);
   if (orderNeedsMarker) parts.push(`[${LINE_ORDER_TAG}:1]`);
+  if (hasEdgeWhitespace) parts.push(`[${WHITESPACE_TAG}:1]`);
   if (!translationMode) parts.push("");
 
   for (const line of lines) {

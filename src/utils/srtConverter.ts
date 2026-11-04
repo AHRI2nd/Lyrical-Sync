@@ -86,7 +86,9 @@ export function serializeSrt(doc: LrcDocument, lastCueEnd?: number): string {
     const end = Number.isFinite(importedEnd) && (importedEnd as number) > start
       ? importedEnd as number
       : nextCueEnd(timed, i, start, lastCueEnd);
-    const text = line.text.trim() === "" ? (line.translation ?? "") : line.translation ? `${line.text}\n${line.translation}` : line.text;
+    const rawText = line.text.trim() === "" ? (line.translation ?? "") : line.translation ? `${line.text}\n${line.translation}` : line.text;
+    // Escape angle brackets to prevent interpretation as markup by SRT players/FFmpeg
+    const text = rawText.replace(/</g, "<").replace(/>/g, ">");
     assertSrtBodyRepresentable(text);
     cues.push({ start, end, text });
   }
