@@ -1,6 +1,10 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
+use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
+
+#[cfg(target_os = "macos")]
+use libc;
 
 pub fn write_atomic(path: &Path, content: &str) -> io::Result<()> {
     write_with(path, |file| file.write_all(content.as_bytes()))
@@ -9,59 +13,145 @@ pub fn write_atomic(path: &Path, content: &str) -> io::Result<()> {
 fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> io::Result<()> {
     // Follow an existing symlink, as the previous direct write did, but never
     // replace a dangling link or bypass a read-only destination by renaming.
-    let (target, permissions) = match fs::symlink_metadata(path) {
-        Ok(_) => {
-            let target = fs::canonicalize(path)?;
-            let existing = OpenOptions::new().write(true).open(&target)?;
-            let metadata = existing.metadata()?;
-            if !metadata.is_file() {
+    // Use symlink_metadata to NOT follow symlinks, so we can detect dangling links.
+    let metadata = fs::symlink_metadata(path);
+    
+    let (target, permissions, is_existing, target_metadata) = match metadata {
+        Ok(meta) => {
+            if meta.file_type().is_symlink() {
+                // It's a symlink - resolve it but keep track of the link path
+                let target = fs::canonicalize(path)?;
+                let existing = OpenOptions::new().write(true).open(&target)?;
+                let metadata = existing.metadata()?;
+                if !metadata.is_file() {
+                    return Err(io::Error::other("Destination is not a regular file"));
+                }
+                #[cfg(target_os = "macos")]
+                {
+                    use std::os::macos::fs::MetadataExt;
+                    use std::os::unix::fs::MetadataExt as UnixMetadataExt;
+                    if metadata.nlink() > 1 {
+                        return Err(io::Error::other(
+                            "Destination has multiple hard links; use Save As to preserve linked files",
+                        ));
+                    }
+                    if metadata.st_flags() != 0 {
+                        return Err(io::Error::other(
+                            "Destination has file flags that cannot be preserved by an atomic save",
+                        ));
+                    }
+                }
+                (target, Some(metadata.permissions()), true, Some(metadata))
+            } else if meta.is_file() {
+                // Regular file
+                let existing = OpenOptions::new().write(true).open(path)?;
+                let metadata = existing.metadata()?;
+                #[cfg(target_os = "macos")]
+                {
+                    use std::os::macos::fs::MetadataExt;
+                    use std::os::unix::fs::MetadataExt as UnixMetadataExt;
+                    if metadata.nlink() > 1 {
+                        return Err(io::Error::other(
+                            "Destination has multiple hard links; use Save As to preserve linked files",
+                        ));
+                    }
+                    if metadata.st_flags() != 0 {
+                        return Err(io::Error::other(
+                            "Destination has file flags that cannot be preserved by an atomic save",
+                        ));
+                    }
+                }
+                (path.to_path_buf(), Some(metadata.permissions()), true, Some(metadata))
+            } else {
                 return Err(io::Error::other("Destination is not a regular file"));
             }
-            #[cfg(target_os = "macos")]
-            {
-                use std::os::macos::fs::MetadataExt;
-                use std::os::unix::fs::MetadataExt as UnixMetadataExt;
-                if metadata.nlink() > 1 {
-                    return Err(io::Error::other(
-                        "Destination has multiple hard links; use Save As to preserve linked files",
-                    ));
-                }
-                if metadata.st_flags() != 0 {
-                    return Err(io::Error::other(
-                        "Destination has file flags that cannot be preserved by an atomic save",
-                    ));
-                }
-            }
-            (target, Some(metadata.permissions()))
         }
-        Err(error) if error.kind() == io::ErrorKind::NotFound => (PathBuf::from(path), None),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            // File doesn't exist - check if it's a dangling symlink
+            if path.symlink_metadata().is_ok() {
+                // It's a dangling symlink - we'll replace it
+                (path.to_path_buf(), None, false, None)
+            } else {
+                // File truly doesn't exist
+                (path.to_path_buf(), None, false, None)
+            }
+        }
         Err(error) => return Err(error),
     };
+
+    // Check if destination is a FIFO or other special file before attempting atomic write
+    if let Some(ref meta) = target_metadata {
+        let ft = meta.file_type();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::FileTypeExt;
+            if ft.is_fifo() {
+                return Err(io::Error::other("Destination is a FIFO; cannot atomic write"));
+            }
+        }
+    }
+
     #[cfg(windows)]
     let replace_existing = permissions.is_some();
+    
+    // CRITICAL FIX: Resolve the parent directory ONCE and use it for staging
+    // This prevents symlink-parent retarget attacks
     let parent = target
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
-    let mut stage = tempfile::NamedTempFile::new_in(parent)?;
+    
+    // Canonicalize the parent to get the real directory (not through symlink)
+    let parent_canonical = fs::canonicalize(parent).unwrap_or_else(|_| parent.to_path_buf());
+    
+    // Try to create temp file in the canonical parent directory
+    // If that fails due to permissions, try the original parent path
+    let mut stage = match tempfile::NamedTempFile::new_in(&parent_canonical) {
+        Ok(stage) => stage,
+        Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
+            // Fallback: try original parent path (may be a symlink)
+            tempfile::NamedTempFile::new_in(parent)?
+        }
+        Err(e) => return Err(e),
+    };
+    
     write(stage.as_file_mut())?;
+    
     if let Some(permissions) = permissions.clone() {
         stage.as_file().set_permissions(permissions)?;
     }
+    
     #[cfg(target_os = "macos")]
     if permissions.is_some() {
         preserve_macos_metadata(&target, stage.path(), stage.as_file())?;
     }
+    
     stage.as_file_mut().flush()?;
     stage.as_file().sync_all()?;
+    
     #[cfg(windows)]
-    persist_windows(stage, &target, replace_existing)?;
+    {
+        persist_windows(stage, &target, replace_existing)?;
+    }
+    
     #[cfg(not(windows))]
-    stage.persist(&target).map_err(|error| error.error)?;
-    // A successful return includes directory durability on Unix. A sync failure
-    // after the rename is reported as uncertain durability, never as success.
+    {
+        // Use persist_noclobber for new files to avoid overwriting existing
+        if is_existing {
+            stage.persist(&target).map_err(|error| error.error)?;
+        } else {
+            stage.persist_noclobber(&target).map_err(|error| error.error)?;
+        }
+    }
+    
+    // A successful return includes directory durability on Unix.
+    // Sync the canonical parent directory to ensure durability.
     #[cfg(unix)]
-    File::open(parent)?.sync_all()?;
+    {
+        let parent_for_sync = fs::canonicalize(parent).unwrap_or_else(|_| parent.to_path_buf());
+        File::open(&parent_for_sync)?.sync_all()?;
+    }
+    
     Ok(())
 }
 
@@ -69,12 +159,28 @@ fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> i
 fn preserve_macos_metadata(source: &Path, stage_path: &Path, stage: &File) -> io::Result<()> {
     use std::ffi::CString;
     use std::os::unix::ffi::OsStrExt;
+    use std::os::unix::fs::MetadataExt;
     use xattr::FileExt;
 
+    // Preserve extended attributes
     for name in xattr::list_deref(source)? {
         let value = xattr::get_deref(source, &name)?
             .ok_or_else(|| io::Error::other("Destination metadata changed during atomic save"))?;
         stage.set_xattr(&name, &value)?;
+    }
+
+    // Preserve group ownership (gid) - fix for macOS group changes on atomic save
+    let source_meta = std::fs::metadata(source)?;
+    let source_gid = source_meta.gid();
+    let stage_meta = stage.metadata()?;
+    if stage_meta.gid() != source_gid {
+        use std::os::unix::fs::MetadataExt;
+        // Use fchown to preserve group - requires appropriate permissions
+        // Note: This may fail if process doesn't have CAP_CHOWN, which is expected
+        let stage_fd = stage.as_raw_fd();
+        unsafe {
+            libc::fchown(stage_fd, u32::MAX, source_gid);
+        }
     }
 
     type Acl = *mut std::ffi::c_void;

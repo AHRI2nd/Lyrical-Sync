@@ -41,8 +41,11 @@ fn write_new_output(output_dir: &Path, name: &str, content: &str) -> Result<(), 
     }
     // The temporary file and destination share a filesystem. Dropping an unsuccessful
     // write/persist removes its temporary file; completion never replaces any path.
+    // CRITICAL FIX: Resolve the output directory ONCE to its canonical path to prevent
+    // symlink-root retarget attacks that could strand temporary files.
+    let output_dir_canonical = std::fs::canonicalize(output_dir).unwrap_or_else(|_| output_dir.to_path_buf());
     let mut temporary =
-        tempfile::NamedTempFile::new_in(output_dir).map_err(|error| error.to_string())?;
+        tempfile::NamedTempFile::new_in(&output_dir_canonical).map_err(|error| error.to_string())?;
     temporary
         .write_all(content.as_bytes())
         .map_err(|error| error.to_string())?;
@@ -51,7 +54,7 @@ fn write_new_output(output_dir: &Path, name: &str, content: &str) -> Result<(), 
         .sync_all()
         .map_err(|error| error.to_string())?;
     temporary
-        .persist_noclobber(output_dir.join(name))
+        .persist_noclobber(output_dir_canonical.join(name))
         .map_err(|error| error.to_string())?;
     Ok(())
 }
