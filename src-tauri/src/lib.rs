@@ -9,6 +9,7 @@ mod alignment_process;
 mod atomic_write;
 mod audio_resource;
 mod batch_output;
+mod bookmark;
 mod oauth_listener;
 mod service_auth;
 use service_auth::*;
@@ -25,6 +26,7 @@ mod ytdlp;
 use ytdlp::*;
 mod lrclib;
 use lrclib::*;
+use bookmark::{create_security_bookmark, resolve_security_bookmark};
 
 // ─── LRC / audio commands ────────────────────────────────────────
 
@@ -255,6 +257,8 @@ pub fn run() {
             get_now_playing,
             now_playing_toggle_play_pause,
             now_playing_seek,
+            create_security_bookmark,
+            resolve_security_bookmark,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
