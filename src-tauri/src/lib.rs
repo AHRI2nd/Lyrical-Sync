@@ -52,6 +52,20 @@ fn validate_audio_file(path: String) -> Result<audio_resource::AudioResourceInfo
     audio_resource::inspect_audio_file(std::path::Path::new(&path))
 }
 
+#[tauri::command]
+fn get_audio_file_info(path: String) -> Result<AudioFileInfo, String> {
+    let meta = std::fs::metadata(&path).map_err(|e| e.to_string())?;
+    let mtime = meta.modified().map_err(|e| e.to_string())?;
+    let mtime_secs = mtime.duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_secs();
+    Ok(AudioFileInfo { size: meta.len(), mtime: mtime_secs })
+}
+
+#[derive(serde::Serialize)]
+struct AudioFileInfo {
+    size: u64,
+    mtime: u64,
+}
+
 fn is_normal_audio_eof(error: &symphonia::core::errors::Error) -> bool {
     matches!(error, symphonia::core::errors::Error::IoError(err)
         if err.kind() == std::io::ErrorKind::UnexpectedEof)
