@@ -154,6 +154,440 @@ def main():
         progress("error", f"오디오 로드 실패: {e}")
         sys.exit(1)
 
+    # ── Validate CTC boundary conditions before heavy processing ──────────────
+    # CTC requires T >= L (emission frames >= target tokens).
+    # We can estimate minimum required audio duration from token count.
+    MIN_AUDIO_DURATION_PER_TOKEN = 0.01  # 10ms per token
+    MIN_AUDIO_DURATION = 0.5  # 500ms absolute minimum
+
+    def validate_ctc_boundary(audio_waveform, sample_rate, token_count):
+        """Validate that audio is long enough for CTC alignment.
+        Returns (is_valid, error_message)."""
+        if token_count == 0:
+            return True, ""
+        # Estimate frames: 16000 samples/sec / 320 samples per frame = 50 frames/sec
+        # Each frame is 20ms at 16kHz with 320-sample windows
+        frames = len(audio_waveform) // 320
+        required_frames = token_count  # CTC needs T >= L
+        if frames < required_frames:
+            estimated_duration = len(audio_waveform) / 16000.0
+            min_duration = max(0.5, token_count * 0.01)
+            return False, (
+                f"오디오가 너무 짧습니다 ({len(audio_waveform) / 16000.0:.2f}초). "
+                f"최소 {max(0.5, token_count * 0.01):.2f}초 필요 (토큰 {token_count}개). "
+                f"필요 프레임: {required_frames}, 현재: {frames}"
+            )
+        return True, ""
+
+    # Validate CTC boundary
+    token_count = sum(len(line["text"].split()) for line in lines)  # rough estimate
+    if args.language in {"jpn", "chi", "zho", "cmn"}:
+        token_count = sum(len(line["text"]) for line in lines)
+
+    import numpy as np
+    sample_rate = 16000  # load_audio uses 16kHz
+    is_valid, error_msg = validate_ctc_boundary(audio_waveform, sample_rate, token_count)
+    if not is_valid:
+        progress("error", error_msg)
+        sys.exit(1)
+
+    # ── Validate and sanitize input text for unsupported characters ────────────
+    def sanitize_line_text(text):
+        """Remove or replace characters that cause CTC alignment issues.
+        Returns (sanitized_text, warnings)."""
+        import re
+        warnings = []
+        # Characters that CTC tokenizer normalizes away or rejects
+        # Punctuation-only or digit-only lines cause issues
+        # Use a simpler regex that works without \p{} in Python's re
+        punct_digit_regex = re.compile(r'^[\s\W\d_]+
+
+    # ── Preprocess text (word-level) ─────────────────────────────────────────
+    #
+    # split_size="word" so that we can map word timestamps back to lyric lines.
+    # split_size="sentence" uses nltk.PunktTokenizer and doesn't split on \n.
+
+    progress("aligning", "Preprocessing text…", 0.50)
+
+    # Languages whose scripts are not in the model vocab → romanize via uroman.
+    NON_LATIN = {"jpn", "kor", "chi", "zho", "cmn", "ara", "hin", "ben", "rus",
+                 "tha", "heb", "ell", "bul", "ukr", "kat", "kan", "tel", "tam",
+                 "mal", "sin", "mya", "khm", "lao", "mon", "tib"}
+    romanize = args.language in NON_LATIN
+
+    # For CJK languages preprocess_text internally overrides split_size to "char".
+    # Join without separator and count characters so the mapping is exact.
+    # For other languages join with " " and count space-split words.
+    CHAR_SPLIT_LANGS = {"jpn", "chi", "zho", "cmn"}
+    use_char_split = args.language in CHAR_SPLIT_LANGS
+
+    if use_char_split:
+        combined_text = "".join(line["text"] for line in lines)
+        tokens_per_line = [len(line["text"]) for line in lines]
+    else:
+        combined_text = " ".join(line["text"] for line in lines)
+        tokens_per_line = [len(line["text"].split()) for line in lines]
+
+    try:
+        tokens_starred, text_starred = preprocess_text(
+            combined_text,
+            romanize=romanize,
+            language=args.language,
+            split_size="word",
+        )
+        segments, scores, blank_token = get_alignments(
+            emissions,
+            tokens_starred,
+            tokenizer,
+        )
+        spans = get_spans(tokens_starred, segments, blank_token)
+        word_timestamps = postprocess_results(text_starred, spans, stride, scores)
+    except Exception as e:
+        progress("error", f"정렬 실패: {e}")
+        sys.exit(1)
+
+    # ── Map word/char timestamps → lyric-line timestamps ─────────────────────
+
+    progress("postprocessing", "Processing results…", 0.90)
+
+    # First pass: collect per-line avg log-prob scores
+    raw_entries = []
+    tok_idx = 0
+    for i, line in enumerate(lines):
+        n = tokens_per_line[i]
+        if n == 0:
+            continue
+        line_toks = word_timestamps[tok_idx:tok_idx + n]
+        tok_idx += n
+        if not line_toks:
+            continue
+        start = line_toks[0]["start"]
+        end = line_toks[-1]["end"]
+        char_count = max(1, sum(len(w.get("text", "x")) for w in line_toks))
+        avg_log_prob = sum(w.get("score", 0) for w in line_toks) / char_count
+        raw_entries.append({
+            "index": line["index"],
+            "start": start,
+            "end": end,
+            "avg_log_prob": avg_log_prob,
+        })
+
+    # Second pass: min-max normalize so scores are relative to this batch
+    if raw_entries:
+        scores = [e["avg_log_prob"] for e in raw_entries]
+        lo, hi = min(scores), max(scores)
+        score_range = hi - lo if hi > lo else 1.0
+    else:
+        lo, score_range = 0.0, 1.0
+
+    results = []
+    for e in raw_entries:
+        confidence = (e["avg_log_prob"] - lo) / score_range
+        results.append({
+            "index": e["index"],
+            "start": round(e["start"], 3),
+            "end": round(e["end"], 3),
+            "confidence": round(max(0.0, min(1.0, confidence)), 4),
+        })
+
+    # ── Vocal activity (only meaningful on an isolated vocal stem) ────────────
+    # Used downstream to place blank-line / vocal-resume timestamps precisely.
+    vocal_segments = detect_vocal_segments(audio_waveform) if (separated and vad_enabled) else []
+
+    progress("done", "Alignment complete", 1.0)
+    print(json.dumps({
+        "lines": results,
+        "vocal_segments": vocal_segments,
+        "separated": separated,
+    }), flush=True)
+
+
+if __name__ == "__main__":
+    main()
+, text, re.UNICODE):
+            if text.strip() == "":
+                return "", ["빈 줄은 타임스탬프 없이 유지됩니다"]
+            warnings.append(f"구두점/숫자만 있는 줄은 정렬되지 않을 수 있습니다: {text[:50]}")
+        # Special characters that cause issues in CTC
+        # Music note ♪ and other special chars
+        problematic_chars = re.findall(r'[♪♫♩♬♭♯]', text)
+        if problematic_chars:
+            warnings.append(f"특수 문자(♪ 등)는 정렬 문제를 일으킬 수 있습니다: {problematic_chars[:5]}")
+        # Long sequences of punctuation
+        if re.search(r'[.!?]{3,}', text):
+            warnings.append(f"연속된 구두점은 정렬에 영향을 줄 수 있습니다: {text[:50]}")
+        return text, warnings
+
+    # Check each line for unsupported characters
+    all_warnings = []
+    for i, line in enumerate(lines):
+        sanitized, warnings = sanitize_line_text(line["text"])
+        if warnings:
+            all_warnings.extend(warnings)
+            # Log warnings but don't fail - just warn user
+            for w in warnings:
+                progress("warning", f"줄 {i+1}: {w}")
+
+    # Log overall warnings if any
+    if all_warnings:
+        progress("warning", f"입력 텍스트에 {len(all_warnings)}개 경고: " + "; ".join(all_warnings[:3]))
+
+    # ── Generate emissions ───────────────────────────────────────────────────
+
+    progress("analyzing", "Generating emissions…", 0.20)
+    try:
+        emissions, stride = generate_emissions(session, audio_waveform, batch_size=1)
+    except Exception as e:
+        progress("error", f"emissions 생성 실패: {e}")
+        sys.exit(1)
+
+    # ── Preprocess text (word-level) ─────────────────────────────────────────
+    #
+    # split_size="word" so that we can map word timestamps back to lyric lines.
+    # split_size="sentence" uses nltk.PunktTokenizer and doesn't split on \n.
+
+    progress("aligning", "Preprocessing text…", 0.50)
+
+    # Languages whose scripts are not in the model vocab → romanize via uroman.
+    NON_LATIN = {"jpn", "kor", "chi", "zho", "cmn", "ara", "hin", "ben", "rus",
+                 "tha", "heb", "ell", "bul", "ukr", "kat", "kan", "tel", "tam",
+                 "mal", "sin", "mya", "khm", "lao", "mon", "tib"}
+    romanize = args.language in NON_LATIN
+
+    # For CJK languages preprocess_text internally overrides split_size to "char".
+    # Join without separator and count characters so the mapping is exact.
+    # For other languages join with " " and count space-split words.
+    CHAR_SPLIT_LANGS = {"jpn", "chi", "zho", "cmn"}
+    use_char_split = args.language in CHAR_SPLIT_LANGS
+
+    if use_char_split:
+        combined_text = "".join(line["text"] for line in lines)
+        tokens_per_line = [len(line["text"]) for line in lines]
+    else:
+        combined_text = " ".join(line["text"] for line in lines)
+        tokens_per_line = [len(line["text"].split()) for line in lines]
+
+    try:
+        tokens_starred, text_starred = preprocess_text(
+            combined_text,
+            romanize=romanize,
+            language=args.language,
+            split_size="word",
+        )
+        segments, scores, blank_token = get_alignments(
+            emissions,
+            tokens_starred,
+            tokenizer,
+        )
+        spans = get_spans(tokens_starred, segments, blank_token)
+        word_timestamps = postprocess_results(text_starred, spans, stride, scores)
+    except Exception as e:
+        progress("error", f"정렬 실패: {e}")
+        sys.exit(1)
+
+    # ── Map word/char timestamps → lyric-line timestamps ─────────────────────
+
+    progress("postprocessing", "Processing results…", 0.90)
+
+    # First pass: collect per-line avg log-prob scores
+    raw_entries = []
+    tok_idx = 0
+    for i, line in enumerate(lines):
+        n = tokens_per_line[i]
+        if n == 0:
+            continue
+        line_toks = word_timestamps[tok_idx:tok_idx + n]
+        tok_idx += n
+        if not line_toks:
+            continue
+        start = line_toks[0]["start"]
+        end = line_toks[-1]["end"]
+        char_count = max(1, sum(len(w.get("text", "x")) for w in line_toks))
+        avg_log_prob = sum(w.get("score", 0) for w in line_toks) / char_count
+        raw_entries.append({
+            "index": line["index"],
+            "start": start,
+            "end": end,
+            "avg_log_prob": avg_log_prob,
+        })
+
+    # Second pass: min-max normalize so scores are relative to this batch
+    if raw_entries:
+        scores = [e["avg_log_prob"] for e in raw_entries]
+        lo, hi = min(scores), max(scores)
+        score_range = hi - lo if hi > lo else 1.0
+    else:
+        lo, score_range = 0.0, 1.0
+
+    results = []
+    for e in raw_entries:
+        confidence = (e["avg_log_prob"] - lo) / score_range
+        results.append({
+            "index": e["index"],
+            "start": round(e["start"], 3),
+            "end": round(e["end"], 3),
+            "confidence": round(max(0.0, min(1.0, confidence)), 4),
+        })
+
+    # ── Vocal activity (only meaningful on an isolated vocal stem) ────────────
+    # Used downstream to place blank-line / vocal-resume timestamps precisely.
+    vocal_segments = detect_vocal_segments(audio_waveform) if (separated and vad_enabled) else []
+
+    progress("done", "Alignment complete", 1.0)
+    print(json.dumps({
+        "lines": results,
+        "vocal_segments": vocal_segments,
+        "separated": separated,
+    }), flush=True)
+
+
+if __name__ == "__main__":
+    main()
+, re.UNICODE)
+        if punct_digit_regex.match(text):
+            if text.strip() == "":
+                return "", ["빈 줄은 타임스탬프 없이 유지됩니다"]
+            warnings.append(f"구두점/숫자만 있는 줄은 정렬되지 않을 수 있습니다: {text[:50]}")
+        # Special characters that cause issues in CTC
+        # Music note ♪ and other special chars
+        problematic_chars = re.findall(r'[♪♫♩♬♭♯]', text)
+        if problematic_chars:
+            warnings.append(f"특수 문자(♪ 등)는 정렬 문제를 일으킬 수 있습니다: {problematic_chars[:5]}")
+        # Long sequences of punctuation
+        if re.search(r'[.!?]{3,}', text):
+            warnings.append(f"연속된 구두점은 정렬에 영향을 줄 수 있습니다: {text[:50]}")
+        return text, warnings
+
+    # ── Preprocess text (word-level) ─────────────────────────────────────────
+    #
+    # split_size="word" so that we can map word timestamps back to lyric lines.
+    # split_size="sentence" uses nltk.PunktTokenizer and doesn't split on \n.
+
+    progress("aligning", "Preprocessing text…", 0.50)
+
+    # Languages whose scripts are not in the model vocab → romanize via uroman.
+    NON_LATIN = {"jpn", "kor", "chi", "zho", "cmn", "ara", "hin", "ben", "rus",
+                 "tha", "heb", "ell", "bul", "ukr", "kat", "kan", "tel", "tam",
+                 "mal", "sin", "mya", "khm", "lao", "mon", "tib"}
+    romanize = args.language in NON_LATIN
+
+    # For CJK languages preprocess_text internally overrides split_size to "char".
+    # Join without separator and count characters so the mapping is exact.
+    # For other languages join with " " and count space-split words.
+    CHAR_SPLIT_LANGS = {"jpn", "chi", "zho", "cmn"}
+    use_char_split = args.language in CHAR_SPLIT_LANGS
+
+    if use_char_split:
+        combined_text = "".join(line["text"] for line in lines)
+        tokens_per_line = [len(line["text"]) for line in lines]
+    else:
+        combined_text = " ".join(line["text"] for line in lines)
+        tokens_per_line = [len(line["text"].split()) for line in lines]
+
+    try:
+        tokens_starred, text_starred = preprocess_text(
+            combined_text,
+            romanize=romanize,
+            language=args.language,
+            split_size="word",
+        )
+        segments, scores, blank_token = get_alignments(
+            emissions,
+            tokens_starred,
+            tokenizer,
+        )
+        spans = get_spans(tokens_starred, segments, blank_token)
+        word_timestamps = postprocess_results(text_starred, spans, stride, scores)
+    except Exception as e:
+        progress("error", f"정렬 실패: {e}")
+        sys.exit(1)
+
+    # ── Map word/char timestamps → lyric-line timestamps ─────────────────────
+
+    progress("postprocessing", "Processing results…", 0.90)
+
+    # First pass: collect per-line avg log-prob scores
+    raw_entries = []
+    tok_idx = 0
+    for i, line in enumerate(lines):
+        n = tokens_per_line[i]
+        if n == 0:
+            continue
+        line_toks = word_timestamps[tok_idx:tok_idx + n]
+        tok_idx += n
+        if not line_toks:
+            continue
+        start = line_toks[0]["start"]
+        end = line_toks[-1]["end"]
+        char_count = max(1, sum(len(w.get("text", "x")) for w in line_toks))
+        avg_log_prob = sum(w.get("score", 0) for w in line_toks) / char_count
+        raw_entries.append({
+            "index": line["index"],
+            "start": start,
+            "end": end,
+            "avg_log_prob": avg_log_prob,
+        })
+
+    # Second pass: min-max normalize so scores are relative to this batch
+    if raw_entries:
+        scores = [e["avg_log_prob"] for e in raw_entries]
+        lo, hi = min(scores), max(scores)
+        score_range = hi - lo if hi > lo else 1.0
+    else:
+        lo, score_range = 0.0, 1.0
+
+    results = []
+    for e in raw_entries:
+        confidence = (e["avg_log_prob"] - lo) / score_range
+        results.append({
+            "index": e["index"],
+            "start": round(e["start"], 3),
+            "end": round(e["end"], 3),
+            "confidence": round(max(0.0, min(1.0, confidence)), 4),
+        })
+
+    # ── Vocal activity (only meaningful on an isolated vocal stem) ────────────
+    # Used downstream to place blank-line / vocal-resume timestamps precisely.
+    vocal_segments = detect_vocal_segments(audio_waveform) if (separated and vad_enabled) else []
+
+    progress("done", "Alignment complete", 1.0)
+    print(json.dumps({
+        "lines": results,
+        "vocal_segments": vocal_segments,
+        "separated": separated,
+    }), flush=True)
+
+
+if __name__ == "__main__":
+    main()
+, text, re.UNICODE):
+            if text.strip() == "":
+                return "", ["빈 줄은 타임스탬프 없이 유지됩니다"]
+            warnings.append(f"구두점/숫자만 있는 줄은 정렬되지 않을 수 있습니다: {text[:50]}")
+        # Special characters that cause issues in CTC
+        # Music note ♪ and other special chars
+        problematic_chars = re.findall(r'[♪♫♩♬♭♯]', text)
+        if problematic_chars:
+            warnings.append(f"특수 문자(♪ 등)는 정렬 문제를 일으킬 수 있습니다: {problematic_chars[:5]}")
+        # Long sequences of punctuation
+        if re.search(r'[.!?]{3,}', text):
+            warnings.append(f"연속된 구두점은 정렬에 영향을 줄 수 있습니다: {text[:50]}")
+        return text, warnings
+
+    # Check each line for unsupported characters
+    all_warnings = []
+    for i, line in enumerate(lines):
+        sanitized, warnings = sanitize_line_text(line["text"])
+        if warnings:
+            all_warnings.extend(warnings)
+            # Log warnings but don't fail - just warn user
+            for w in warnings:
+                progress("warning", f"줄 {i+1}: {w}")
+
+    # Log overall warnings if any
+    if all_warnings:
+        progress("warning", f"입력 텍스트에 {len(all_warnings)}개 경고: " + "; ".join(all_warnings[:3]))
+
     # ── Generate emissions ───────────────────────────────────────────────────
 
     progress("analyzing", "Generating emissions…", 0.20)
