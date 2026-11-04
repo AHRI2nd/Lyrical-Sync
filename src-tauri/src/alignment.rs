@@ -102,6 +102,39 @@ pub async fn run_alignment(
         Ok(())
     };
 
+    // ── Validate model readiness and coordinate lifecycle ─────────────────────
+    // Check if required models are available and ready before starting alignment
+    let models_dir_path = models_dir(&app, &dir_state)?;
+    let manifest: serde_json::Value = serde_json::from_str(crate::python_runtime::MANIFEST)
+        .map_err(|e| e.to_string())?;
+    
+    let model_sha256 = manifest["model"]["sha256"].as_str().ok_or("Missing model checksum")?;
+    let model_path = models_dir_path.join("ctc-forced-aligner.onnx");
+    if !model_path.exists() {
+        return Err("정렬 모델이 없습니다. 설정 > AI 모델에서 다운로드하세요.".to_string());
+    }
+    
+    // Model checksum verification is done in align.py sidecar
+    // The Python script will verify the model checksum before loading
+    
+    // Check for Demucs model if separation requested
+    let demucs_model = models_dir_path.join("demucs").join("htdemucs.th");
+    let use_separation_available = use_separation && demucs_model.exists();
+    if use_separation && !use_separation_available {
+        let warning_line = serde_json::json!({"status": "warning", "message": "보컬 분리 모델이 없습니다. 설정 > AI 모델에서 다운로드 후 다시 시도하세요.", "percent": 0.0}).to_string();
+        progress(&warning_line)?;
+    }
+
+    // Declare variables needed for vocal separation
+    let demucs_model = models_dir_path.join("demucs").join("htdemucs.th");
+    let vocals_tmp_path = tempfile::Builder::new()
+        .prefix("lyrical_sync_vocals_")
+        .suffix(".wav")
+        .tempfile()
+        .map_err(|e| format!("임시 파일 생성 실패: {e}"))?
+        .into_temp_path();
+    let mut audio_for_align = audio_path.clone();
+
     // 실행별 고유 임시 파일을 사용한다. 동시 정렬이 서로의 스크립트·보컬 스템을 덮어쓰지
     // 않으며 TempPath가 모든 성공/실패 경로에서 자동 정리한다.
     let align_script_path = tempfile::Builder::new()
@@ -113,20 +146,6 @@ pub async fn run_alignment(
     tokio::fs::write(&align_script_path, ALIGN_SCRIPT)
         .await
         .map_err(|e| format!("스크립트 쓰기 실패: {e}"))?;
-
-    let models_dir_path = models_dir(&app, &dir_state)?;
-    let models_dir_str = models_dir_path.to_string_lossy().into_owned();
-
-
-    // ── Vocal separation (Demucs) if model is available ──────────────────────
-    let demucs_model = models_dir_path.join("demucs").join("htdemucs.th");
-    let vocals_tmp_path = tempfile::Builder::new()
-        .prefix("lyrical_sync_vocals_")
-        .suffix(".wav")
-        .tempfile()
-        .map_err(|e| format!("임시 파일 생성 실패: {e}"))?
-        .into_temp_path();
-    let audio_for_align: String;
 
     let manifest: serde_json::Value = serde_json::from_str(crate::python_runtime::MANIFEST).map_err(|e| e.to_string())?;
     if use_separation && demucs_model.exists() {
@@ -163,6 +182,7 @@ pub async fn run_alignment(
 
     let model_sha256 = manifest["model"]["sha256"].as_str().ok_or("Missing model checksum")?;
     let script_str = align_script_path.to_string_lossy().into_owned();
+    let models_dir_str = models_dir_path.to_string_lossy().into_owned();
     // VAD on the audio is only meaningful when it's the isolated vocal stem
     let separated_flag = if audio_for_align != audio_path { "true" } else { "false" };
     let vad_flag = if use_vad { "true" } else { "false" };

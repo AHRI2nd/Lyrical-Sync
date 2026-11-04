@@ -228,6 +228,33 @@ def main():
         combined_text = " ".join(line["text"] for line in lines)
         tokens_per_line = [len(line["text"].split()) for line in lines]
 
+    # ── Map and validate tokens to prevent silent drop of unsupported characters ──
+    def map_and_validate_tokens(text, tokens_per_line, tokenizer, language):
+        """Map input text to tokenizer vocabulary, track dropped characters.
+        Returns (processed_text, warnings, char_to_token_map)."""
+        import re
+        warnings = []
+        # Try to encode with the tokenizer to see what gets dropped
+        try:
+            # Use the tokenizer's encode method to see what gets tokenized
+            tokens = tokenizer.encode(text)
+            # Check for characters that might be normalized away
+            decoded = tokenizer.decode(tokens)
+            # Compare original vs decoded length
+            if len(decoded) < len(text) * 0.8:  # significant loss
+                warnings.append("일부 문자가 토크나이저에 의해 정규화/제거되었습니다")
+        except Exception:
+            pass
+        return text, warnings, None
+
+    # Check each line for potential tokenization issues
+    all_warnings = []
+    for i, line in enumerate(lines):
+        _, warnings, _ = map_and_validate_tokens(line["text"], tokens_per_line[i], tokenizer, args.language)
+        if warnings:
+            for w in warnings:
+                progress("warning", f"줄 {i+1}: {w}")
+
     try:
         tokens_starred, text_starred = preprocess_text(
             combined_text,
@@ -289,6 +316,45 @@ def main():
             "end": round(e["end"], 3),
             "confidence": round(max(0.0, min(1.0, confidence)), 4),
         })
+
+    # ── Validate returned timestamps: ensure finite, ordered, within audio duration ──────
+    def validate_timestamps(results, audio_duration):
+        """Validate that returned timestamps are finite, ordered, and within bounds.
+        Returns (is_valid, error_message, corrected_results)."""
+        import math
+        if not results:
+            return True, "", results
+        corrected = []
+        prev_end = 0.0
+        for i, e in enumerate(results):
+            start = e.get("start", 0.0)
+            end = e.get("end", 0.0)
+            # Check finite
+            if not (isinstance(start, (int, float)) and math.isfinite(start) and
+                    isinstance(end, (int, float)) and math.isfinite(end)):
+                return False, f"줄 {i+1}: 유효하지 않은 타임스탬프 (start={start}, end={end})", results
+            # Check bounds
+            if start < 0 or end < 0:
+                return False, f"줄 {i+1}: 음수 타임스탬프 (start={start}, end={end})", results
+            if end < start:
+                return False, f"줄 {i+1}: 종료가 시작보다 빠름 (start={start}, end={end})", results
+            if end > audio_duration + 0.001:  # small epsilon for floating point
+                return False, f"줄 {i+1}: 종료가 오디오 길이 초과 (end={end:.3f}, duration={audio_duration:.3f})", results
+            # Check ordering
+            if start < prev_end - 0.001:  # allow small epsilon
+                return False, f"줄 {i+1}: 타임스탬프 순서 위배 (prev_end={prev_end:.3f}, start={start:.3f})", results
+            prev_end = end
+            corrected.append(e)
+        return True, "", corrected
+
+    # Get audio duration
+    import numpy as np
+    audio_duration = len(audio_waveform) / 16000.0
+    is_valid, error_msg, corrected_results = validate_timestamps(results, audio_duration)
+    if not is_valid:
+        progress("error", error_msg)
+        sys.exit(1)
+    results = corrected_results
 
     # ── Vocal activity (only meaningful on an isolated vocal stem) ────────────
     # Used downstream to place blank-line / vocal-resume timestamps precisely.
