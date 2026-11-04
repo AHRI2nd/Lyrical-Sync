@@ -75,7 +75,9 @@ const p3 = (n: number) => String(n).padStart(3, "0");
 
 // WebVTT 시간: HH:MM:SS.mmm
 function vttTime(seconds: number): string {
-  const ms = Math.max(0, Math.round(seconds * 1000));
+  // Clamp negative timestamps to 0 (VTT doesn't support negative times)
+  const clampedSeconds = Math.max(0, seconds);
+  const ms = Math.max(0, Math.round(clampedSeconds * 1000));
   return `${p2(Math.floor(ms / 3600000))}:${p2(Math.floor(ms / 60000) % 60)}:${p2(Math.floor(ms / 1000) % 60)}.${p3(ms % 1000)}`;
 }
 
@@ -88,20 +90,27 @@ function vttText(line: LrcLine, cueStart: number, cueEnd: number): string {
   if (line.text.trim() === "") return escapeVttText(line.translation ?? "");
   if (line.syllables?.some((s) => s.time !== null)) {
     const startUnit = Math.round(cueStart * 1000);
-    const endUnit = Math.round(cueEnd * 1000);
+    
     let lastUnit = startUnit;
     let sawTimed = false;
     let hasTextBeforeStart = false;
     let out = "";
     for (const syllable of line.syllables) {
       if (syllable.time !== null) {
-        const unit = Math.round(syllable.time * 1000);
-        const implicitCueStart = unit === startUnit && !sawTimed && !hasTextBeforeStart;
-        if (!Number.isFinite(syllable.time) || unit < startUnit || unit >= endUnit ||
-            (sawTimed && unit <= lastUnit) || (unit === startUnit && !implicitCueStart)) {
+        // Clamp syllable time to be within cue boundaries (WebVTT spec)
+        let syllableTime = syllable.time;
+        if (!Number.isFinite(syllableTime)) syllableTime = cueStart;
+        if (syllableTime < cueStart) syllableTime = cueStart;
+        if (syllableTime > cueEnd) syllableTime = cueEnd;
+        const unit = Math.round(syllableTime * 1000);
+        const implicitCueStart = unit === Math.round(cueStart * 1000) && !sawTimed && !hasTextBeforeStart;
+        // Validate: timestamps must be within cue boundaries (>= cueStart, < cueEnd)
+        // and strictly increasing for subsequent timestamps
+        if (unit < Math.round(cueStart * 1000) || unit >= Math.round(cueEnd * 1000) ||
+            (sawTimed && unit <= lastUnit) || (unit === Math.round(cueStart * 1000) && !implicitCueStart)) {
           throw new VttInvalidSyllableTimeError();
         }
-        if (!implicitCueStart) out += `<${vttTime(syllable.time)}>`;
+        if (!implicitCueStart) out += `<${vttTime(syllableTime)}>`;
         lastUnit = unit;
         sawTimed = true;
       } else if (syllable.text.length > 0 && !sawTimed) {
@@ -128,7 +137,9 @@ export function serializeVtt(doc: LrcDocument, lastCueEnd?: number): string {
 
 // ASS 시간: H:MM:SS.cc (센티초)
 function assTime(seconds: number): string {
-  const cs = Math.max(0, Math.round(seconds * 100));
+  // Clamp negative timestamps to 0 (ASS doesn't support negative times)
+  const clampedSeconds = Math.max(0, seconds);
+  const cs = Math.max(0, Math.round(clampedSeconds * 100));
   return `${Math.floor(cs / 360000)}:${p2(Math.floor(cs / 6000) % 60)}:${p2(Math.floor(cs / 100) % 60)}.${p2(cs % 100)}`;
 }
 

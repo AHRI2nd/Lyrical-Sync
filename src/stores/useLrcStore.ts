@@ -626,17 +626,27 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     const splitTranslation = cur.translation !== undefined && translationParts
       ? [translationParts.first, translationParts.second]
       : [cur.translation, undefined];
+    
+    // For SRT cues with srtEndTime, distribute the end time between the two halves
+    const hasSrtEndTime = Number.isFinite(cur.srtEndTime);
+    const firstSrtEndTime = hasSrtEndTime && cur.timestamp !== null 
+      ? cur.timestamp + (cur.srtEndTime as number - cur.timestamp) / 2 
+      : cur.srtEndTime;
+    const secondSrtEndTime = hasSrtEndTime ? cur.srtEndTime : undefined;
+    
     const first: LrcLine = {
       ...cur,
       text: firstText,
       translation: splitTranslation[0],
       syllables: undefined,
+      srtEndTime: firstSrtEndTime,
     };
     const second: LrcLine = {
       id: newId,
       timestamp: null,
       text: secondText,
       ...(splitTranslation[1] !== undefined ? { translation: splitTranslation[1] } : {}),
+      srtEndTime: secondSrtEndTime,
     };
     const lines = [...doc.lines];
     lines.splice(idx, 1, first, second);
