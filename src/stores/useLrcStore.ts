@@ -145,8 +145,25 @@ interface LrcStore {
   clearAiDraft: () => void;
 }
 
-let nextId = 1;
-const genId = () => String(nextId++);
+function createIdGenerator() {
+  let localCounter = 0;
+  return (sessionId: number) => `${sessionId}:${++localCounter}`;
+}
+
+let idGenerators = new Map<number, ReturnType<typeof createIdGenerator>>();
+
+function getIdGenerator(sessionId: number) {
+  let gen = idGenerators.get(sessionId);
+  if (!gen) {
+    gen = createIdGenerator();
+    idGenerators.set(sessionId, gen);
+  }
+  return gen;
+}
+
+function genId(sessionId: number): string {
+  return getIdGenerator(sessionId)(sessionId);
+}
 
 // 저장 경로의 확장자에 따라 LRC 또는 SRT로 직렬화
 function serializeForPath(path: string, doc: LrcDocument, duration: number): string {
@@ -241,9 +258,8 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   ) => {
     beginDocumentSession();
     const parsed = parseLrc(lrcText);
-    let id = 1;
-    parsed.lines = parsed.lines.map((line) => ({ ...line, id: String(id++) }));
-    nextId = id;
+    const sessionId = documentSessionId;
+    parsed.lines = parsed.lines.map((line) => ({ ...line, id: genId(sessionId) }));
     const current = get().doc.metadata;
     const metadata = meta
       ? {
@@ -476,13 +492,13 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     pushHistory("addLine");
     const { doc } = get();
     set({
-      doc: { ...doc, lines: [...doc.lines, { id: genId(), timestamp: null, text }] },
+      doc: { ...doc, lines: [...doc.lines, { id: genId(documentSessionId), timestamp: null, text }] },
       isDirty: true,
     });
   },
 
   insertLinesAfter: (afterId, texts) => {
-    const newLines = texts.map((t) => ({ id: genId(), timestamp: null as null, text: t }));
+    const newLines = texts.map((t) => ({ id: genId(documentSessionId), timestamp: null as null, text: t }));
     const lastId = newLines[newLines.length - 1].id;
     pushHistory("insertLines");
     const { doc } = get();
@@ -497,7 +513,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     const { doc } = get();
     const idx = doc.lines.findIndex((line) => line.id === id);
     if (idx < 0) return id;
-    const inserted = restTexts.map((text) => ({ id: genId(), timestamp: null as null, text }));
+    const inserted = restTexts.map((text) => ({ id: genId(documentSessionId), timestamp: null as null, text }));
     pushHistory("insertLines", inserted.length);
     const lines = [...doc.lines];
     lines.splice(idx, 1, { ...lines[idx], text: firstText, syllables: undefined }, ...inserted);
@@ -558,7 +574,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     const idx = doc.lines.findIndex((l) => l.id === id);
     if (idx < 0) return id;
     pushHistory("duplicateLine");
-    const newId = genId();
+    const newId = genId(documentSessionId);
     // 텍스트만 복제 — 타임스탬프/글자 동기화는 비워 중복 시각을 만들지 않음
     const copy: LrcLine = { id: newId, timestamp: null, text: doc.lines[idx].text, translation: doc.lines[idx].translation };
     const lines = [...doc.lines];
@@ -591,7 +607,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     if (idx < 0) return id;
     pushHistory("splitLine");
     const cur = doc.lines[idx];
-    const newId = genId();
+    const newId = genId(documentSessionId);
     // 앞부분: 타임스탬프 유지 / 뒷부분: 새 줄(타임스탬프 없음). 둘 다 글자 동기화 무효화
     const firstText = cur.text.slice(0, caretPos);
     const secondText = cur.text.slice(caretPos);
@@ -725,19 +741,16 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     pushHistory("loadDoc");
     beginDocumentSession();
     const parsed = parseLrc(raw);
-    let id = nextId;
-    parsed.lines = parsed.lines.map((l) => ({ ...l, id: String(id++) }));
-    nextId = id;
+    const sessionId = documentSessionId;
+    parsed.lines = parsed.lines.map((l) => ({ ...l, id: genId(sessionId) }));
     const firstId = parsed.lines[0]?.id ?? null;
     set({ doc: parsed, activeLineId: firstId, loopLineId: null, isDirty: true, _lastEditKey: null, ...invalidateAiRun() });
   },
 
   restoreDoc: (doc, lrcPath, audioPath) => {
     beginDocumentSession();
-    // 줄 id를 새로 부여해 nextId 카운터와 충돌 없게 함
-    let id = 1;
-    const lines = doc.lines.map((l) => ({ ...l, id: String(id++) }));
-    nextId = id;
+    const sessionId = documentSessionId;
+    const lines = doc.lines.map((l) => ({ ...l, id: genId(sessionId) }));
     set({
       doc: { ...doc, lines },
       lrcPath,
@@ -802,11 +815,10 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     }
     const isSrt = path.split(".").pop()?.toLowerCase() === "srt";
     const doc = isSrt ? parseSrt(content) : parseLrc(content);
-    let id = 1;
-    doc.lines = doc.lines.map((l) => ({ ...l, id: String(id++) }));
-    nextId = id;
-    const firstId = doc.lines[0]?.id ?? null;
     beginDocumentSession();
+    const sessionId = documentSessionId;
+    doc.lines = doc.lines.map((l) => ({ ...l, id: genId(sessionId) }));
+    const firstId = doc.lines[0]?.id ?? null;
     const audioChange = options?.audioPath !== undefined
       ? { audioPath: options.audioPath, _audioSelection: current._audioSelection + 1 } : {};
     set({ doc, lrcPath: path, ...audioChange, isDirty: false, activeLineId: firstId, loopLineId: null, _history: [], _future: [], _lastEditKey: null, ...invalidateAiRun() });

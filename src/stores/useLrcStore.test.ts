@@ -592,7 +592,9 @@ describe("recovery snapshot & restoreDoc", () => {
     expect(st.lrcPath).toBe("/p.lrc");
     expect(st.audioPath).toBe("/a.mp3");
     expect(st.isDirty).toBe(true);
-    expect(st.doc.lines[0].id).toBe("1");
+    // IDs are reassigned using session-based generator (format: "sessionId:localCounter")
+    expect(st.doc.lines[0].id).not.toBe("x");
+    expect(st.doc.lines[0].id).toMatch(/^\d+:\d+$/);
   });
 });
 
@@ -809,7 +811,8 @@ describe("useLrcStore — save completion races", () => {
     const queuedSave = useLrcStore.getState().saveLrc();
 
     await useLrcStore.getState().loadLyricsPath("/tmp/song.lrc");
-    useLrcStore.getState().updateLine("1", { text: "edited next document" });
+    const newLineId = useLrcStore.getState().doc.lines[0]?.id;
+    if (newLineId) useLrcStore.getState().updateLine(newLineId, { text: "edited next document" });
     releaseFirst();
 
     await expect(firstSave).resolves.toBe(true);
@@ -832,7 +835,8 @@ describe("useLrcStore — save completion races", () => {
     const saving = useLrcStore.getState().saveLrc();
     await Promise.resolve();
     await useLrcStore.getState().loadLyricsPath("/tmp/new-song.lrc");
-    useLrcStore.getState().updateLine("1", { text: "new text edited" });
+    const newLineId2 = useLrcStore.getState().doc.lines[0]?.id;
+    if (newLineId2) useLrcStore.getState().updateLine(newLineId2, { text: "new text edited" });
     await vi.waitFor(() => expect(resolveWrite).toBeTypeOf("function"));
     resolveWrite(undefined);
     await saving;
@@ -870,6 +874,8 @@ describe("useLrcStore — save completion races", () => {
     const saving = useLrcStore.getState().saveLrcAs("lrc");
     await Promise.resolve();
     await useLrcStore.getState().loadLyricsPath("/tmp/new-song.lrc");
+    const newLineId3 = useLrcStore.getState().doc.lines[0]?.id;
+    if (newLineId3) useLrcStore.getState().updateLine(newLineId3, { text: "new document" });
     resolveDialog("/tmp/new-song.lrc");
 
     expect(await saving).toBe(false);

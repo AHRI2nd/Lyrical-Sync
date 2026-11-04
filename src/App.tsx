@@ -252,6 +252,8 @@ function App() {
   const [pendingFetchedLyricsConfirm, setPendingFetchedLyricsConfirm] = useState(false);
   const pendingFetchedLyricsResolveRef = useRef<((choice: TransitionChoice) => void) | null>(null);
   const pendingSaveRef = useRef<(() => Promise<boolean>) | null>(null);
+  const pendingDocumentOpenSession = useRef<number | null>(null);
+  const dropConflictSession = useRef<number | null>(null);
   const [showSpotifySearch, setShowSpotifySearch] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [dropConflict, setDropConflict] = useState<
@@ -401,8 +403,10 @@ function App() {
   };
 
   const requestDocumentOpen = (entry: { lyricsPath: string; audioPath?: string | null }) => {
-    if (useLrcStore.getState().isDirty) setPendingDocumentOpen(entry);
-    else applyDocumentOpen(entry);
+    if (useLrcStore.getState().isDirty) {
+      setPendingDocumentOpen(entry);
+      pendingDocumentOpenSession.current = useLrcStore.getState()._documentSession;
+    } else applyDocumentOpen(entry);
   };
 
   const handleOpenLrc = async () => {
@@ -456,6 +460,7 @@ function App() {
         const lyricsConflict = !!lyrics && (st.lrcPath !== null || st.isDirty || st.doc.lines.length > 0);
         if (audioConflict || lyricsConflict) {
           setDropConflict({ audio, lyrics, audioConflict, lyricsConflict });
+          dropConflictSession.current = st._documentSession;
         } else {
           applyDrop({ audio, lyrics });
         }
@@ -650,8 +655,14 @@ function App() {
           message={t.drop.replaceLyrics}
           okLabel={t.drop.replaceOk}
           cancelLabel={t.drop.replaceCancel}
-          onOk={() => { applyDocumentOpen(pendingDocumentOpen); setPendingDocumentOpen(null); }}
-          onCancel={() => setPendingDocumentOpen(null)}
+          onOk={() => {
+            if (pendingDocumentOpenSession.current === appDocumentSession) {
+              applyDocumentOpen(pendingDocumentOpen);
+            }
+            setPendingDocumentOpen(null);
+            pendingDocumentOpenSession.current = null;
+          }}
+          onCancel={() => { setPendingDocumentOpen(null); pendingDocumentOpenSession.current = null; }}
         />
       )}
       {showFormatChooser && (
@@ -693,8 +704,14 @@ function App() {
           }
           okLabel={t.drop.replaceOk}
           cancelLabel={t.drop.replaceCancel}
-          onOk={() => { applyDrop(dropConflict); setDropConflict(null); }}
-          onCancel={() => setDropConflict(null)}
+          onOk={() => {
+            if (dropConflictSession.current === appDocumentSession) {
+              applyDrop(dropConflict);
+            }
+            setDropConflict(null);
+            dropConflictSession.current = null;
+          }}
+          onCancel={() => { setDropConflict(null); dropConflictSession.current = null; }}
         />
       )}
       {isDragOver && (
