@@ -281,10 +281,17 @@ async fn install_step(
         cancel.clone(),
         INSTALL_STEP_TIMEOUT,
         |line| {
+            // Limit line length to prevent unbounded progress emission (defect 1131)
+            const MAX_PROGRESS_LINE: usize = 4096;
+            let truncated = if line.len() > MAX_PROGRESS_LINE {
+                format!("{}... [truncated]", &line[..MAX_PROGRESS_LINE])
+            } else {
+                line.to_owned()
+            };
             let _ = app.emit(
                 "pip-install-progress",
                 PipInstallProgress {
-                    line: line.to_owned(),
+                    line: truncated,
                     done: false,
                     success: false,
                 },

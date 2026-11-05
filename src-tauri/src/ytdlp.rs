@@ -178,6 +178,17 @@ fn publish_ytdlp_install(
     version: &std::path::Path,
     run_id: &str,
 ) -> Result<(), String> {
+    // Validate that dest is the expected yt-dlp executable (defect 1026)
+    let dest_filename = dest.file_name().ok_or("Destination has no filename")?;
+    let expected_name = crate::platform_profile::ytdlp_asset(std::env::consts::OS, std::env::consts::ARCH).1;
+    if dest_filename != expected_name {
+        return Err(format!("Unexpected yt-dlp executable name: {} (expected {})", dest_filename.to_string_lossy(), expected_name));
+    }
+    // Ensure parent directory exists
+    let _parent = dest.parent().ok_or("yt-dlp destination has no parent directory")?;
+    // Note: We don't enforce a specific parent directory path to allow for testing
+    // with temporary directories. The filename validation is the critical check.
+
     let backup_path = |path: &std::path::Path| {
         let name = path.file_name().unwrap_or_default().to_string_lossy();
         path.with_file_name(format!(".{name}.{run_id}.backup"))

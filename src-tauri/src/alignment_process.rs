@@ -2,6 +2,10 @@ use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 
+/// Maximum bytes to accumulate from child stdout/stderr before aborting.
+/// 64 MiB provides ample headroom for normal alignment output while preventing OOM.
+const MAX_CHILD_OUTPUT_BYTES: usize = 64 * 1024 * 1024;
+
 /// Drain both pipes while checking cancellation independently of process output.
 /// Every return path reaps the child and releases the stdout reader.
 pub async fn run_child(
@@ -12,13 +16,22 @@ pub async fn run_child(
     let process_id = child.id();
     let stdout = child.stdout.take();
     let mut output = tokio::spawn(async move {
-        let mut bytes = String::new();
+        let mut bytes = Vec::new();
         if let Some(mut stdout) = stdout {
-            stdout.read_to_string(&mut bytes).await.map_err(|e| e.to_string())?;
+            let mut limited = stdout.take(MAX_CHILD_OUTPUT_BYTES as u64);
+            limited.read_to_end(&mut bytes).await.map_err(|e| e.to_string())?;
+            if bytes.len() >= MAX_CHILD_OUTPUT_BYTES {
+                return Err("Child stdout exceeded maximum allowed output size".into());
+            }
         }
-        Ok::<_, String>(bytes)
+        String::from_utf8(bytes).map_err(|e| e.to_string())
     });
-    let mut stderr = child.stderr.take().map(|pipe| BufReader::new(pipe).lines());
+    let mut stderr = child.stderr.take().map(|pipe| {
+        let reader = BufReader::new(pipe);
+        // Wrap with a byte limit
+        reader.take(MAX_CHILD_OUTPUT_BYTES as u64).lines()
+    });
+    let mut stderr_bytes = 0usize;
     let result = async {
         let status;
         loop {
@@ -27,7 +40,13 @@ pub async fn run_child(
             if let Some(lines) = stderr.as_mut() {
                 match tokio::time::timeout(Duration::from_millis(50), lines.next_line()).await {
                     Err(_) => (),
-                    Ok(Ok(Some(line))) => progress(&line)?,
+                    Ok(Ok(Some(line))) => {
+                        stderr_bytes += line.len() + 1; // +1 for newline
+                        if stderr_bytes > MAX_CHILD_OUTPUT_BYTES {
+                            return Err("Child stderr exceeded maximum allowed output size".into());
+                        }
+                        progress(&line)?;
+                    },
                     Ok(Ok(None)) => stderr = None,
                     Ok(Err(error)) => return Err(error.to_string()),
                 }
@@ -45,7 +64,13 @@ pub async fn run_child(
             let drained = tokio::time::timeout_at(
                 deadline,
                 async {
-                    while let Some(line) = lines.next_line().await.map_err(|e| e.to_string())? { progress(&line)?; }
+                    while let Some(line) = lines.next_line().await.map_err(|e| e.to_string())? {
+                        stderr_bytes += line.len() + 1;
+                        if stderr_bytes > MAX_CHILD_OUTPUT_BYTES {
+                            return Err("Child stderr exceeded maximum allowed output size".into());
+                        }
+                        progress(&line)?;
+                    }
                     Ok::<(), String>(())
                 }
             ).await;
