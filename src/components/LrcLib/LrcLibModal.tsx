@@ -34,6 +34,9 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
   const [results, setResults] = useState<LrcLibResult[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [preview, setPreview] = useState<LrcLibResult | null>(null);
+  
+  // AbortController for cancelling in-flight searches on close (defect: cancel on close)
+  const searchAbortRef = useRef<AbortController | null>(null);
   useModalFocus(dialog, onClose, true, 60);
   useModalFocus(previewDialog, () => setPreview(null), !!preview, 70);
   const [applying, setApplying] = useState(false);
@@ -61,14 +64,19 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
 
   const runSearch = async (q: LrcLibQuery) => {
     if (!q.title?.trim() && !q.artist?.trim() && !q.album?.trim()) return;
+    // Cancel any in-flight search
+    if (searchAbortRef.current) searchAbortRef.current.abort();
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
     const id = ++reqId.current;
     setStatus("loading");
     try {
-      const raw = await lrclibSearch(q);
+      const raw = await lrclibSearch(q, controller.signal);
       if (id !== reqId.current) return; // 더 최신 검색이 있으면 폐기
       setResults(sortByAccuracy(raw, q));
       setStatus("done");
-    } catch {
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") return; // 취소된 검색은 에러로 처리하지 않음
       if (id !== reqId.current) return;
       setResults([]);
       setStatus("error");
@@ -80,6 +88,10 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
     if (metadata.title.trim() || metadata.artist.trim() || metadata.album.trim()) {
       runSearch({ title: metadata.title, artist: metadata.artist, album: metadata.album });
     }
+    // Cleanup: abort any in-flight search on close
+    return () => {
+      if (searchAbortRef.current) searchAbortRef.current.abort();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -20,7 +20,7 @@ export interface LrcLibQuery {
 }
 
 // 검색: track_name이 있으면 필드 검색, 없으면 q(합성어)로 폴백.
-export async function lrclibSearch(q: LrcLibQuery): Promise<LrcLibResult[]> {
+export async function lrclibSearch(q: LrcLibQuery, signal?: AbortSignal): Promise<LrcLibResult[]> {
   const title = q.title?.trim() ?? "";
   const artist = q.artist?.trim() ?? "";
   const album = q.album?.trim() ?? "";
@@ -36,16 +36,48 @@ export async function lrclibSearch(q: LrcLibQuery): Promise<LrcLibResult[]> {
     params.set("q", query);
   }
 
-  // 네트워크 지연 시 모달이 무한 로딩에 걸리지 않도록 10초 타임아웃
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 10000);
+  // Use provided signal or create a default 10s timeout controller
+  const ctrl = signal ? { signal } : { signal: AbortSignal.timeout(10000) };
   try {
-    const res = await fetch(`${BASE}/search?${params.toString()}`, { signal: ctrl.signal });
-    if (!res.ok) throw new Error(`LRCLIB ${res.status}`);
-    const data = await res.json();
+    const res = await fetch(BASE + "/search?" + params.toString(), ctrl);
+    if (!res.ok) throw new Error("LRCLIB " + res.status);
+
+    // Response size limit: 2 MiB to prevent unbounded memory consumption (defect 545)
+    const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+    const contentLength = res.headers.get("content-length");
+    if (contentLength && parseInt(contentLength, 10) > MAX_RESPONSE_BYTES) {
+      throw new Error("LRCLIB response too large: " + contentLength + " bytes (max " + MAX_RESPONSE_BYTES + ")");
+    }
+
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error("LRCLIB response body is null");
+
+    let receivedBytes = 0;
+    const chunks: Uint8Array[] = [];
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        receivedBytes += value.length;
+        if (receivedBytes > MAX_RESPONSE_BYTES) {
+          throw new Error("LRCLIB response exceeded " + MAX_RESPONSE_BYTES + " bytes");
+        }
+        chunks.push(value);
+      }
+    }
+
+        // Concatenate all Uint8Array chunks into a single array
+    const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const concatenated = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const chunk of chunks) {
+      concatenated.set(chunk, offset);
+      offset += chunk.length;
+    }
+    const data = JSON.parse(new TextDecoder().decode(concatenated));
     return Array.isArray(data) ? (data as LrcLibResult[]) : [];
   } finally {
-    clearTimeout(timer);
+    // clearTimeout not needed when using AbortSignal.timeout
   }
 }
 
