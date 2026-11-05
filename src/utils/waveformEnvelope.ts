@@ -36,6 +36,7 @@ export async function createWaveformSource(buffer: DecodedAudio, signal?: AbortS
     checkAbort();
     const chunkEnd = Math.min(buffer.length, chunk + CHUNK);
     for (let start = chunk; start < chunkEnd; start += BLOCK) {
+      checkAbort();
       const end = Math.min(buffer.length, start + BLOCK);
       let lo = 0; let hi = 0;
       for (const channel of channels) {
@@ -55,7 +56,7 @@ export async function createWaveformSource(buffer: DecodedAudio, signal?: AbortS
   const scale = amplitude > 0 ? 1 / amplitude : 1;
   const cache = new Map<string, WaveformEnvelope>();
   const sampleEnvelope = (start: number, end: number, width: number, key: string,
-    boundary: (bin: number) => number): WaveformEnvelope => {
+    boundary: (bin: number) => number, signal?: AbortSignal): WaveformEnvelope => {
     const cached = cache.get(key);
     if (cached) return cached;
     const min = new Float32Array(width); const max = new Float32Array(width);
@@ -66,6 +67,7 @@ export async function createWaveformSource(buffer: DecodedAudio, signal?: AbortS
       const b = Math.min(buffer.length, Math.max(a + 1, Math.ceil(right)));
       let lo = 0; let hi = 0;
       while (a < b) {
+        if (signal?.aborted) throw new DOMException('Waveform preparation aborted', 'AbortError');
         if (a % BLOCK === 0 && a + BLOCK <= b) {
           const index = a / BLOCK;
           lo = Math.min(lo, lows[index]); hi = Math.max(hi, highs[index]); a += BLOCK;
@@ -86,7 +88,7 @@ export async function createWaveformSource(buffer: DecodedAudio, signal?: AbortS
     return envelope;
   };
   return {
-    getEnvelope(start, end, pixelWidth) {
+    getEnvelope(start, end, pixelWidth, signal?: AbortSignal) {
       if (![start, end, pixelWidth, buffer.duration].every(Number.isFinite) || pixelWidth <= 0 || buffer.length === 0 || channels.length === 0) return null;
       start = Math.max(0, Math.min(buffer.duration, start));
       end = Math.max(start, Math.min(buffer.duration, end));
@@ -94,9 +96,9 @@ export async function createWaveformSource(buffer: DecodedAudio, signal?: AbortS
       const width = Math.max(1, Math.min(4096, Math.round(pixelWidth)));
       const first = start * buffer.sampleRate;
       const span = (end - start) * buffer.sampleRate;
-      return sampleEnvelope(start, end, width, `range:${start}:${end}:${width}`, bin => first + span * bin / width);
+      return sampleEnvelope(start, end, width, `range:${start}:${end}:${width}`, bin => first + span * bin / width, signal);
     },
-    getTile(index, secondsPerBin) {
+    getTile(index, secondsPerBin, signal?: AbortSignal) {
       if (!Number.isSafeInteger(index) || index < 0 || !Number.isFinite(secondsPerBin) || secondsPerBin <= 0
         || !buffer.length || !channels.length) return null;
       // Guard bins overlap adjacent tiles, keeping continuous paths connected at the seam.
@@ -106,7 +108,7 @@ export async function createWaveformSource(buffer: DecodedAudio, signal?: AbortS
       const end = (firstBin + width) * secondsPerBin;
       if (!Number.isFinite(end)) return null;
       return sampleEnvelope(start, end, width, `tile:${index}:${secondsPerBin}`,
-        bin => (firstBin + bin) * secondsPerBin * buffer.sampleRate);
+        bin => (firstBin + bin) * secondsPerBin * buffer.sampleRate, signal);
     },
   };
 }

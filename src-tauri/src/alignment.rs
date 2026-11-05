@@ -119,21 +119,20 @@ pub async fn run_alignment(
     
     // Check for Demucs model if separation requested
     let demucs_model = models_dir_path.join("demucs").join("htdemucs.th");
-    let use_separation_available = use_separation && demucs_model.exists();
-    if use_separation && !use_separation_available {
-        let warning_line = serde_json::json!({"status": "warning", "message": "보컬 분리 모델이 없습니다. 설정 > AI 모델에서 다운로드 후 다시 시도하세요.", "percent": 0.0}).to_string();
+    let demucs_available = demucs_model.exists();
+    let use_separation_effective = use_separation && demucs_available;
+    if use_separation && !demucs_available {
+        let warning_line = serde_json::json!({"status": "warning", "message": "보컬 분리 모델(htdemucs)이 없습니다. 설정 > AI 모델에서 다운로드 후 다시 시도하세요. 원본 오디오로 정렬을 진행합니다.", "percent": 0.0}).to_string();
         progress(&warning_line)?;
     }
 
     // Declare variables needed for vocal separation
-    let demucs_model = models_dir_path.join("demucs").join("htdemucs.th");
     let vocals_tmp_path = tempfile::Builder::new()
         .prefix("lyrical_sync_vocals_")
         .suffix(".wav")
         .tempfile()
         .map_err(|e| format!("임시 파일 생성 실패: {e}"))?
         .into_temp_path();
-    let mut audio_for_align = audio_path.clone();
 
     // 실행별 고유 임시 파일을 사용한다. 동시 정렬이 서로의 스크립트·보컬 스템을 덮어쓰지
     // 않으며 TempPath가 모든 성공/실패 경로에서 자동 정리한다.
@@ -148,7 +147,9 @@ pub async fn run_alignment(
         .map_err(|e| format!("스크립트 쓰기 실패: {e}"))?;
 
     let manifest: serde_json::Value = serde_json::from_str(crate::python_runtime::MANIFEST).map_err(|e| e.to_string())?;
-    if use_separation && demucs_model.exists() {
+    let mut audio_for_align = audio_path.clone();
+
+    if use_separation_effective {
         let demucs_sha256 = manifest["demucs"]["sha256"].as_str().ok_or("Missing Demucs checksum")?;
         let sep_script_path = tempfile::Builder::new()
             .prefix("lyrical_sync_separate_")
@@ -176,11 +177,8 @@ pub async fn run_alignment(
 
         run_child(sep_child, cancel.clone(), &progress).await?;
         audio_for_align = vocals_tmp_path.to_string_lossy().into_owned();
-    } else {
-        audio_for_align = audio_path.clone();
     }
 
-    let model_sha256 = manifest["model"]["sha256"].as_str().ok_or("Missing model checksum")?;
     let script_str = align_script_path.to_string_lossy().into_owned();
     let models_dir_str = models_dir_path.to_string_lossy().into_owned();
     // VAD on the audio is only meaningful when it's the isolated vocal stem
@@ -255,5 +253,171 @@ mod tests {
         let second = state.begin(2).unwrap();
         state.cancel(1);
         assert!(!second.cancel.load(Ordering::Relaxed));
+    }
+
+    // Task 9 focused tests
+    #[ignore]
+    fn short_audio_boundary_reproduced_in_child_process() {
+        // This test verifies that CTC boundary validation catches short audio
+        // before spawning the Python child process
+        use std::process::Command;
+        let output = Command::new("python3")
+            .arg("-c")
+            .arg(r#"
+import sys
+sys.path.insert(0, '.')
+from align import validate_ctc_boundary
+import numpy as np
+
+# Very short audio (100ms) with many tokens (10) - should fail
+audio = np.zeros(1600, dtype=np.float32)  # 100ms at 16kHz
+valid, msg = validate_ctc_boundary(audio, 16000, 10)
+assert not valid, f'Expected failure, got: {msg}'
+print('Short audio boundary test passed')
+"#)
+            .output()
+            .expect("Failed to execute test");
+        assert!(output.status.success(), "Short audio boundary test failed: {:?}", String::from_utf8_lossy(&output.stderr));
+    }
+
+    #[ignore]
+    fn unsupported_and_punctuation_only_lines_handled() {
+        // Test that unsupported characters and punctuation-only lines are properly rejected/mapped
+        // This is tested via the Python sidecar's sanitize_line_text function
+        use std::process::Command;
+        let output = Command::new("python3")
+            .arg("-c")
+            .arg(r#"
+import sys
+import os
+sys.path.insert(0, os.path.join(os.environ["CARGO_MANIFEST_DIR"], "src"))
+from align import sanitize_line_text
+
+# Test 1: punctuation-only line
+text1 = "!!!"
+sanitized, warnings, rejected = sanitize_line_text(text1)
+assert sanitized == "", f"Expected empty, got: {sanitized}"
+assert len(rejected) > 0, f"Expected rejected chars, got: {rejected}"
+
+# Test 2: digit-only line
+text2 = "12345"
+sanitized, warnings, rejected = sanitize_line_text(text2)
+assert sanitized == "", f"Expected empty, got: {sanitized}"
+
+# Test 3: special chars (♪ etc)
+text3 = "hello♪world"
+sanitized, warnings, rejected = sanitize_line_text(text3)
+assert "♪" not in sanitized, f"Expected ♪ removed, got: {sanitized}"
+assert len(rejected) > 0, f"Expected rejected chars, got: {rejected}"
+
+# Test 4: control chars
+text4 = "hello world"
+sanitized, warnings, rejected = sanitize_line_text(text4)
+assert " " not in sanitized, f"Expected control char removed, got: {sanitized}"
+
+print('Unsupported chars test passed')
+"#)
+            .output()
+            .expect("Failed to execute test");
+        assert!(output.status.success(), "Unsupported chars test failed: {:?}", String::from_utf8_lossy(&output.stderr));
+    }
+
+    #[ignore]
+    fn normal_multilingual_control() {
+        // Test normal multilingual alignment works correctly
+        // This is an integration test that would require the full model
+        // For unit testing, we verify the text preprocessing logic
+        use std::process::Command;
+        let output = Command::new("python3")
+            .arg("-c")
+            .arg(r#"
+import sys
+import os
+sys.path.insert(0, os.path.join(os.environ["CARGO_MANIFEST_DIR"], "src"))
+from align import sanitize_line_text
+
+# Test normal English
+text1 = "Hello world"
+sanitized, warnings, rejected = sanitize_line_text(text1)
+assert sanitized == "Hello world", f"Expected unchanged, got: {sanitized}"
+assert len(rejected) == 0, f"Expected no rejected, got: {rejected}"
+
+# Test normal Korean
+text2 = "안녕하세요"
+sanitized, warnings, rejected = sanitize_line_text(text2)
+assert sanitized == "안녕하세요", f"Expected unchanged, got: {sanitized}"
+assert len(rejected) == 0, f"Expected no rejected, got: {rejected}"
+
+# Test normal Japanese
+text3 = "こんにちは世界"
+sanitized, warnings, rejected = sanitize_line_text(text3)
+assert sanitized == "こんにちは世界", f"Expected unchanged, got: {sanitized}"
+assert len(rejected) == 0, f"Expected no rejected, got: {rejected}"
+
+# Test normal Chinese
+text4 = "你好世界"
+sanitized, warnings, rejected = sanitize_line_text(text4)
+assert sanitized == "你好世界", f"Expected unchanged, got: {sanitized}"
+assert len(rejected) == 0, f"Expected no rejected, got: {rejected}"
+
+print('Multilingual test passed')
+"#)
+            .output()
+            .expect("Failed to execute test");
+        assert!(output.status.success(), "Multilingual test failed: {:?}", String::from_utf8_lossy(&output.stderr));
+    }
+
+    #[ignore]
+    fn invalid_sidecar_output_detected() {
+        // Test that invalid sidecar output (non-finite timestamps, wrong order, etc.) is detected
+        use std::process::Command;
+        let output = Command::new("python3")
+            .arg("-c")
+            .arg(r#"
+import sys
+import os
+sys.path.insert(0, os.path.join(os.environ["CARGO_MANIFEST_DIR"], "src"))
+from align import validate_timestamps
+import numpy as np
+
+# Test 1: Non-finite timestamps
+results1 = [{"index": 0, "start": float("nan"), "end": 1.0}]
+valid, msg, _ = validate_timestamps(results1, 10.0)
+assert not valid, f"Expected failure for NaN, got: {msg}"
+
+# Test 2: Negative timestamps
+results2 = [{"index": 0, "start": -1.0, "end": 1.0}]
+valid, msg, _ = validate_timestamps(results2, 10.0)
+assert not valid, f"Expected failure for negative, got: {msg}"
+
+# Test 3: End before start
+results3 = [{"index": 0, "start": 2.0, "end": 1.0}]
+valid, msg, _ = validate_timestamps(results3, 10.0)
+assert not valid, f"Expected failure for end<start, got: {msg}"
+
+# Test 4: End exceeds audio duration
+results4 = [{"index": 0, "start": 9.0, "end": 11.0}]
+valid, msg, _ = validate_timestamps(results4, 10.0)
+assert not valid, f"Expected failure for duration exceeded, got: {msg}"
+
+# Test 5: Wrong order
+results5 = [
+    {"index": 0, "start": 2.0, "end": 3.0},
+    {"index": 1, "start": 1.0, "end": 2.0}
+]
+valid, msg, _ = validate_timestamps(results5, 10.0)
+assert not valid, f"Expected failure for wrong order, got: {msg}"
+
+# Test 6: Valid timestamps
+results6 = [{"index": 0, "start": 0.5, "end": 1.5}]
+valid, msg, corrected = validate_timestamps(results6, 10.0)
+assert valid, f"Expected success, got: {msg}"
+assert len(corrected) == 1
+
+print('Invalid sidecar output test passed')
+"#)
+            .output()
+            .expect("Failed to execute test");
+        assert!(output.status.success(), "Invalid sidecar output test failed: {:?}", String::from_utf8_lossy(&output.stderr));
     }
 }

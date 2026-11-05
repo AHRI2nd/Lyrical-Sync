@@ -20,10 +20,10 @@ pub async fn run_child(
     });
     let mut stderr = child.stderr.take().map(|pipe| BufReader::new(pipe).lines());
     let result = async {
-        let status = loop {
+        let status;
+        loop {
             if cancel.load(Ordering::Relaxed) { return Err("cancelled".into()); }
-            // Child exit is independent of EOF: descendants can inherit pipes.
-            if let Some(status) = child.try_wait().map_err(|e| e.to_string())? { break status; }
+            // Try to read stderr first, then check exit status
             if let Some(lines) = stderr.as_mut() {
                 match tokio::time::timeout(Duration::from_millis(50), lines.next_line()).await {
                     Err(_) => (),
@@ -31,20 +31,34 @@ pub async fn run_child(
                     Ok(Ok(None)) => stderr = None,
                     Ok(Err(error)) => return Err(error.to_string()),
                 }
-            } else {
-                tokio::time::sleep(Duration::from_millis(50)).await;
             }
+            // Check if process has exited
+            if let Some(status_) = child.try_wait().map_err(|e| e.to_string())? {
+                status = Some(status_);
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
         };
-        if !status.success() { return Err(format!("Python exited with status {status}")); }
-        let deadline = tokio::time::Instant::now() + Duration::from_millis(500);
+        // After loop, drain any remaining stderr
         if let Some(mut lines) = stderr {
-            // Drain already emitted progress, then release inherited handles.
-            let drained = tokio::time::timeout_at(deadline, async {
-                while let Some(line) = lines.next_line().await.map_err(|e| e.to_string())? { progress(&line)?; }
-                Ok::<(), String>(())
-            }).await;
+            let deadline = tokio::time::Instant::now() + Duration::from_millis(500);
+            let drained = tokio::time::timeout_at(
+                deadline,
+                async {
+                    while let Some(line) = lines.next_line().await.map_err(|e| e.to_string())? { progress(&line)?; }
+                    Ok::<(), String>(())
+                }
+            ).await;
             if let Ok(result) = drained { result?; }
         }
+        let status = status.unwrap_or_else(|| {
+    let wait_result = tokio::task::block_in_place(|| {
+        tokio::runtime::Handle::current().block_on(child.wait())
+    });
+    wait_result.map_err(|e| e.to_string()).unwrap()
+});
+        if !status.success() { return Err(format!("Python exited with status {status}")); }
+        let deadline = tokio::time::Instant::now() + Duration::from_millis(500);
         tokio::time::timeout_at(deadline, &mut output).await
             .map_err(|_| "Python output did not close".to_string())?
             .map_err(|e| e.to_string())?
@@ -211,6 +225,34 @@ mod tests {
         tokio::runtime::Runtime::new().unwrap().block_on(async {
             let result = run_child(child("failure"), Arc::new(AtomicBool::new(false)), |_| Ok(())).await;
             assert!(result.unwrap_err().contains('7'));
+        });
+    }
+
+    #[test]
+    fn pre_exited_child_stderr_is_captured() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let mut captured_stderr = String::new();
+            let child = tokio::process::Command::new("sh")
+                .arg("-c")
+                .arg("echo stderr_output >&2; exit 7")
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .expect("spawn failed");
+            let result = run_child(
+                child,
+                Arc::new(AtomicBool::new(false)),
+                |line| {
+                    captured_stderr.push_str(line);
+                    captured_stderr.push('\n');
+                    Ok(())
+                },
+            ).await;
+            assert!(result.is_err());
+            let err = result.unwrap_err();
+            // The error format is "Python exited with status exit status: 7"
+            assert!(err.contains("exit status: 7"));
+            assert!(captured_stderr.contains("stderr_output"));
         });
     }
 }

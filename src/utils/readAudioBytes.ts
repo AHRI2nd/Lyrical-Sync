@@ -45,7 +45,7 @@ export async function readAudioBytes(audioPath: string, signal?: AbortSignal): P
   const decoded = await decodeAiffIfNeeded(audioPath, signal);
   if (decoded) return { bytes: decoded, transcoded: true };
   
-  // First validate the audio file
+  // First validate the audio file (checks file size, duration, channels, sample rate, PCM budget)
   await invoke("validate_audio_file", { path: audioPath });
   checkCancelled(signal);
   

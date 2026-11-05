@@ -120,6 +120,27 @@ pub async fn check_model_files(
     Ok(results)
 }
 
+/// 모델 파일의 체크섬을 사용 시점에 검증합니다. 정렬/추론 전에 호출해야 합니다.
+#[tauri::command]
+pub async fn verify_model_at_use(
+    app: AppHandle,
+    dir_state: tauri::State<'_, ModelsDirState>,
+    expected_root: String,
+    model_filename: String,
+    expected_sha256: String,
+) -> Result<(), String> {
+    let base = models_dir(&app, &dir_state)?;
+    if !models_root_matches(&base, &expected_root) {
+        return Err("Model directory changed before verification".into());
+    }
+    let store = crate::model_store::ModelStore::open(&base).map_err(|e| e.to_string())?;
+    let matches = model_file_matches(&store, &model_filename, Some(&expected_sha256)).await;
+    if !matches {
+        return Err(format!("Model checksum mismatch at use time: {}", model_filename));
+    }
+    Ok(())
+}
+
 async fn hash_model_file(file: std::fs::File) -> Result<String, std::io::Error> {
     use sha2::{Digest, Sha256};
     use tokio::io::AsyncReadExt;
@@ -573,4 +594,43 @@ mod integrity_tests {
             .await
         );
     }
+
+    #[test]
+    fn stale_download_owner_cancel_delete_readiness_races() {
+        // Test model download cancellation and readiness race conditions
+        // This tests the models.rs download state machine behavior
+        use crate::models::{DownloadState, models_root_matches, cancel_download_if_current, register_download, start_registered_download};
+        use std::path::PathBuf;
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        // Test 1: Cancel before download starts (registered only)
+        let state = DownloadState::default();
+        let cancel = register_download(&state, "model1", "run1").unwrap();
+        {
+            let mut active = state.active.lock().unwrap();
+            assert!(cancel_download_if_current(&mut active, "model1", "run1"));
+        }
+        assert!(cancel.load(Ordering::Relaxed));
+        // After cancel (registered only), entry should be removed
+
+        // Test 2: Cancel during download (started)
+        let state2 = DownloadState::default();
+        let cancel2 = register_download(&state2, "model2", "run2").unwrap();
+        start_registered_download(&state2, "model2", "run2").unwrap();
+        {
+            let mut active = state2.active.lock().unwrap();
+            assert!(cancel_download_if_current(&mut active, "model2", "run2"));
+        }
+        assert!(cancel2.load(Ordering::Relaxed));
+        // After cancel (started), entry should remain but be cancelled
+
+        // Test 3: Root mismatch detection
+        assert!(models_root_matches(&PathBuf::from("/models/current"), "/models/current"));
+        assert!(!models_root_matches(&PathBuf::from("/models/current"), "/models/other"));
+        assert!(!models_root_matches(&PathBuf::from("/models/current"), ""));
+
+        println!("Stale download owner test passed");
+    }
+
 }

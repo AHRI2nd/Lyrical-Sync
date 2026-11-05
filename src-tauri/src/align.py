@@ -140,6 +140,15 @@ def main():
         import onnxruntime as ort
         session = ort.InferenceSession(onnx_path)
         tokenizer = Tokenizer()
+        
+        # Verify model identity by checking input/output names and shapes
+        inputs = session.get_inputs()
+        outputs = session.get_outputs()
+        if not inputs or not outputs:
+            raise ValueError("Model has no valid inputs/outputs")
+        expected_input = "input"
+        if inputs[0].name != expected_input:
+            progress("warning", f"예상치 못한 모델 입력 이름: {inputs[0].name} (기대: {expected_input})")
     except Exception as e:
         progress("error", f"모델 로드 실패: {e}")
         sys.exit(1)
@@ -191,16 +200,46 @@ def main():
         progress("error", error_msg)
         sys.exit(1)
 
-    # ── Validate and sanitize input text for unsupported characters ────────────
     def sanitize_line_text(text):
         """Remove or replace characters that cause CTC alignment issues.
-        Returns (sanitized_text, warnings)."""
+        Returns (sanitized_text, warnings, rejected_chars)."""
         import re
         warnings = []
+        rejected_chars = []
+
         # Characters that CTC tokenizer normalizes away or rejects
         # Punctuation-only or digit-only lines cause issues
-        # Use a simpler regex that works without \p{} in Python's re
-        punct_digit_regex = re.compile(r'^[\s\W\d_]+
+        punct_digit_regex = re.compile(r'^[\s\W\d_]+$', re.UNICODE)
+        if punct_digit_regex.match(text):
+            if text.strip() == "":
+                return "", ["빈 줄은 타임스탬프 없이 유지됩니다"], []
+            # Reject: return empty to skip this line in alignment
+            warnings.append(f"구두점/숫자만 있는 줄은 정렬되지 않습니다: {text[:50]}")
+            return "", warnings, list(set(text))
+
+        # Special characters that cause issues in CTC - REJECT them
+        problematic_chars = re.findall(r"[♪♫♩♬♭♯]", text)
+        if problematic_chars:
+            unique_chars = list(set(problematic_chars))
+            warnings.append(f"특수 문자(♪ 등)는 정렬에서 제거됩니다: {unique_chars}")
+            rejected_chars.extend(unique_chars)
+            text = re.sub(r"[♪♫♩♬♭♯]", "", text)
+
+        # Long sequences of punctuation - warn but don't reject
+        if re.search(r"[.!?]{3,}", text):
+            warnings.append(f"연속된 구두점은 정렬에 영향을 줄 수 있습니다: {text[:50]}")
+
+        # Control characters and other non-printable - REJECT
+        control_chars = re.findall(r"[ --]", text)
+        if control_chars:
+            unique_chars = list(set(control_chars))
+            warnings.append(f"제어 문자는 정렬에서 제거됩니다: {[hex(ord(c)) for c in unique_chars]}")
+            rejected_chars.extend(unique_chars)
+            text = re.sub(r"[ --]", "", text)
+
+        return text, warnings, rejected_chars
+
+        punct_digit_regex = re.compile(r'^[\s\W\d_]+$', re.UNICODE)
 
     # ── Preprocess text (word-level) ─────────────────────────────────────────
     #
@@ -262,13 +301,23 @@ def main():
             language=args.language,
             split_size="word",
         )
-        segments, scores, blank_token = get_alignments(
-            emissions,
-            tokens_starred,
-            tokenizer,
-        )
-        spans = get_spans(tokens_starred, segments, blank_token)
-        word_timestamps = postprocess_results(text_starred, spans, stride, scores)
+        # Wrap C ABI calls with exception handling to catch native crashes
+        try:
+            segments, scores, blank_token = get_alignments(
+                emissions,
+                tokens_starred,
+                tokenizer,
+            )
+            spans = get_spans(tokens_starred, segments, blank_token)
+            word_timestamps = postprocess_results(text_starred, spans, stride, scores)
+        except Exception as e:
+            # Catch potential C ABI crashes (segfault, abort, etc.)
+            import traceback
+            error_msg = f"CTC 정렬 중 네이티브 오류 발생: {e}"
+            if "segfault" in str(e).lower() or "segmentation" in str(e).lower() or "abort" in str(e).lower():
+                error_msg += " (C ABI 크래시 감지 - 오디오가 너무 짧거나 토큰이 너무 많을 수 있음)"
+            progress("error", error_msg)
+            sys.exit(1)
     except Exception as e:
         progress("error", f"정렬 실패: {e}")
         sys.exit(1)
@@ -310,11 +359,13 @@ def main():
     results = []
     for e in raw_entries:
         confidence = (e["avg_log_prob"] - lo) / score_range
+        confidence_normalized = max(0.0, min(1.0, confidence))
         results.append({
             "index": e["index"],
             "start": round(e["start"], 3),
             "end": round(e["end"], 3),
-            "confidence": round(max(0.0, min(1.0, confidence)), 4),
+            "confidence": round(confidence_normalized, 4),  // normalized 0-1
+            "confidence_percent": round(confidence_normalized * 100, 1),  // percentage 0-100
         })
 
     # ── Validate returned timestamps: ensure finite, ordered, within audio duration ──────
@@ -365,6 +416,7 @@ def main():
         "lines": results,
         "vocal_segments": vocal_segments,
         "separated": separated,
+        "confidence_unit": "normalized_0_to_1_and_percent",  // documents confidence units
     }), flush=True)
 
 
@@ -387,7 +439,7 @@ if __name__ == "__main__":
     # Check each line for unsupported characters
     all_warnings = []
     for i, line in enumerate(lines):
-        sanitized, warnings = sanitize_line_text(line["text"])
+        sanitized, warnings, rejected = sanitize_line_text(line["text"])
         if warnings:
             all_warnings.extend(warnings)
             # Log warnings but don't fail - just warn user
@@ -440,13 +492,23 @@ if __name__ == "__main__":
             language=args.language,
             split_size="word",
         )
-        segments, scores, blank_token = get_alignments(
-            emissions,
-            tokens_starred,
-            tokenizer,
-        )
-        spans = get_spans(tokens_starred, segments, blank_token)
-        word_timestamps = postprocess_results(text_starred, spans, stride, scores)
+        # Wrap C ABI calls with exception handling to catch native crashes
+        try:
+            segments, scores, blank_token = get_alignments(
+                emissions,
+                tokens_starred,
+                tokenizer,
+            )
+            spans = get_spans(tokens_starred, segments, blank_token)
+            word_timestamps = postprocess_results(text_starred, spans, stride, scores)
+        except Exception as e:
+            # Catch potential C ABI crashes (segfault, abort, etc.)
+            import traceback
+            error_msg = f"CTC 정렬 중 네이티브 오류 발생: {e}"
+            if "segfault" in str(e).lower() or "segmentation" in str(e).lower() or "abort" in str(e).lower():
+                error_msg += " (C ABI 크래시 감지 - 오디오가 너무 짧거나 토큰이 너무 많을 수 있음)"
+            progress("error", error_msg)
+            sys.exit(1)
     except Exception as e:
         progress("error", f"정렬 실패: {e}")
         sys.exit(1)
@@ -557,13 +619,23 @@ if __name__ == "__main__":
             language=args.language,
             split_size="word",
         )
-        segments, scores, blank_token = get_alignments(
-            emissions,
-            tokens_starred,
-            tokenizer,
-        )
-        spans = get_spans(tokens_starred, segments, blank_token)
-        word_timestamps = postprocess_results(text_starred, spans, stride, scores)
+        # Wrap C ABI calls with exception handling to catch native crashes
+        try:
+            segments, scores, blank_token = get_alignments(
+                emissions,
+                tokens_starred,
+                tokenizer,
+            )
+            spans = get_spans(tokens_starred, segments, blank_token)
+            word_timestamps = postprocess_results(text_starred, spans, stride, scores)
+        except Exception as e:
+            # Catch potential C ABI crashes (segfault, abort, etc.)
+            import traceback
+            error_msg = f"CTC 정렬 중 네이티브 오류 발생: {e}"
+            if "segfault" in str(e).lower() or "segmentation" in str(e).lower() or "abort" in str(e).lower():
+                error_msg += " (C ABI 크래시 감지 - 오디오가 너무 짧거나 토큰이 너무 많을 수 있음)"
+            progress("error", error_msg)
+            sys.exit(1)
     except Exception as e:
         progress("error", f"정렬 실패: {e}")
         sys.exit(1)
@@ -643,7 +715,7 @@ if __name__ == "__main__":
     # Check each line for unsupported characters
     all_warnings = []
     for i, line in enumerate(lines):
-        sanitized, warnings = sanitize_line_text(line["text"])
+        sanitized, warnings, rejected = sanitize_line_text(line["text"])
         if warnings:
             all_warnings.extend(warnings)
             # Log warnings but don't fail - just warn user
@@ -696,13 +768,23 @@ if __name__ == "__main__":
             language=args.language,
             split_size="word",
         )
-        segments, scores, blank_token = get_alignments(
-            emissions,
-            tokens_starred,
-            tokenizer,
-        )
-        spans = get_spans(tokens_starred, segments, blank_token)
-        word_timestamps = postprocess_results(text_starred, spans, stride, scores)
+        # Wrap C ABI calls with exception handling to catch native crashes
+        try:
+            segments, scores, blank_token = get_alignments(
+                emissions,
+                tokens_starred,
+                tokenizer,
+            )
+            spans = get_spans(tokens_starred, segments, blank_token)
+            word_timestamps = postprocess_results(text_starred, spans, stride, scores)
+        except Exception as e:
+            # Catch potential C ABI crashes (segfault, abort, etc.)
+            import traceback
+            error_msg = f"CTC 정렬 중 네이티브 오류 발생: {e}"
+            if "segfault" in str(e).lower() or "segmentation" in str(e).lower() or "abort" in str(e).lower():
+                error_msg += " (C ABI 크래시 감지 - 오디오가 너무 짧거나 토큰이 너무 많을 수 있음)"
+            progress("error", error_msg)
+            sys.exit(1)
     except Exception as e:
         progress("error", f"정렬 실패: {e}")
         sys.exit(1)
