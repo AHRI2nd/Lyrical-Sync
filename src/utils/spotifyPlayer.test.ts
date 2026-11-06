@@ -186,8 +186,7 @@ it("ignores an in-flight Spotify response after disconnect and a newer poll resu
   vi.stubGlobal("fetch", fetchMock);
   useSettingsStore.setState({ spotifyMode: true });
   initSpotifyPlayer();
-  await Promise.resolve();
-  expect(fetchMock).toHaveBeenCalledTimes(1);
+  await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 
   disconnectSpotifyPlayer();
   initSpotifyPlayer();
@@ -207,7 +206,7 @@ it("does not let an older remote poll overwrite a newer accepted SDK playback st
   vi.stubGlobal("fetch", fetchMock);
   useSettingsStore.setState({ spotifyMode: true });
   initSpotifyPlayer();
-  await Promise.resolve();
+  await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
 
   useServiceStore.getState().onPlayerStateChanged({
     paused: false,
