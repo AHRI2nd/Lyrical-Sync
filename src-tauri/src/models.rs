@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+
+const MAX_MODEL_DOWNLOAD_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 use tauri::{AppHandle, Emitter, Manager};
 
 pub struct DownloadState {
@@ -309,6 +311,16 @@ fn cancel_download_if_current(
     }
 }
 
+fn checked_model_download_bytes(current: u64, additional: u64) -> Result<u64, String> {
+    let total = current
+        .checked_add(additional)
+        .ok_or_else(|| "MODEL_DOWNLOAD_LIMIT".to_string())?;
+    if total > MAX_MODEL_DOWNLOAD_BYTES {
+        return Err("MODEL_DOWNLOAD_LIMIT".into());
+    }
+    Ok(total)
+}
+
 async fn download_files(
     app: &AppHandle,
     base: &std::path::Path,
@@ -326,6 +338,7 @@ async fn download_files(
         .timeout(std::time::Duration::from_secs(3600))
         .build()
         .map_err(|e| e.to_string())?;
+    let mut total_downloaded = 0_u64;
     for (i, spec) in files.iter().enumerate() {
         if cancel.load(Ordering::Relaxed) {
             return Err("cancelled".into());
@@ -368,6 +381,12 @@ async fn download_files(
             .error_for_status()
             .map_err(|e| e.to_string())?;
         let total = response.content_length().unwrap_or(0);
+        if total > MAX_MODEL_DOWNLOAD_BYTES {
+            return Err("MODEL_DOWNLOAD_LIMIT".into());
+        }
+        if total > 0 {
+            checked_model_download_bytes(total_downloaded, total)?;
+        }
         let mut downloaded = 0u64;
         let mut digest = Sha256::new();
         // Unique staging remains owned by this operation and is removed on every failure.
@@ -377,9 +396,11 @@ async fn download_files(
             if cancel.load(Ordering::Relaxed) {
                 return Err("cancelled".into());
             }
+            let chunk_bytes = chunk.len() as u64;
+            downloaded = checked_model_download_bytes(downloaded, chunk_bytes)?;
+            total_downloaded = checked_model_download_bytes(total_downloaded, chunk_bytes)?;
             stage.write_all(&chunk).map_err(|e| e.to_string())?;
             digest.update(&chunk);
-            downloaded += chunk.len() as u64;
             let _ = app.emit(
                 "model-download-progress",
                 DownloadProgressEvent {
@@ -484,6 +505,16 @@ mod integrity_tests {
         assert!(models_root_matches(&expected, "/models/current"));
         assert!(!models_root_matches(&expected, "/models/other"));
         assert!(!models_root_matches(&expected, ""));
+    }
+
+    #[test]
+    fn model_download_byte_budget_accepts_exact_limit_and_rejects_overflow() {
+        assert_eq!(
+            checked_model_download_bytes(MAX_MODEL_DOWNLOAD_BYTES - 1, 1).unwrap(),
+            MAX_MODEL_DOWNLOAD_BYTES,
+        );
+        assert!(checked_model_download_bytes(MAX_MODEL_DOWNLOAD_BYTES, 1).is_err());
+        assert!(checked_model_download_bytes(u64::MAX, 1).is_err());
     }
 
     #[test]

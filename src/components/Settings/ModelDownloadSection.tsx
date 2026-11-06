@@ -358,7 +358,7 @@ function ModelRow({
 
       {status === "error" && error && (
         <p className="text-xs text-red-400 pl-4">
-          {t.modelErrorPrefix}: {error}
+          {t.modelErrorPrefix}: {error === "MODEL_DOWNLOAD_LIMIT" ? t.modelDownloadSizeLimit : error}
         </p>
       )}
     </div>

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, render, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/api/core", () => ({ invoke: (...args: unknown[]) => invoke(...args) }));
@@ -96,6 +96,22 @@ it("does not expose model deletion while that model has an active job", async ()
   expect(invoke).not.toHaveBeenCalledWith("delete_model_files", expect.anything());
   finish();
   await task;
+});
+
+it("localizes a model download rejected by the byte budget", async () => {
+  const model = MODEL_DEFS[0];
+  invoke.mockImplementation((command: string) => {
+    if (command === "get_models_dir") return Promise.resolve("/models/default");
+    if (command === "check_model_files") return Promise.resolve([false]);
+    if (command === "download_model") return Promise.reject("MODEL_DOWNLOAD_LIMIT");
+    return Promise.resolve(undefined);
+  });
+  render(<ModelDownloadSection />);
+
+  await useModelDownloadStore.getState().installModel(model);
+
+  const limitMessage = useI18nStore.getState().t.modelDownloadSizeLimit;
+  expect(screen.getByText((content) => content.includes(limitMessage))).toBeTruthy();
 });
 
 it("binds deletion to the model root shown by the completed inventory", async () => {

@@ -452,6 +452,7 @@ export interface Translations {
   modelStoragePath: string;
   modelMb: string;
   modelErrorPrefix: string;
+  modelDownloadSizeLimit: string;
   modelRequired: string;
   modelOptional: string;
   modelRequiredHint: string;
@@ -1105,6 +1106,7 @@ const ko: Translations = {
   modelStoragePath: "저장 위치",
   modelMb: "MB",
   modelErrorPrefix: "오류",
+  modelDownloadSizeLimit: "모델 다운로드가 설정된 파일 크기 제한을 초과합니다.",
   modelRequired: "필수",
   modelOptional: "선택",
   modelRequiredHint: "AI 기능 동작에 필수",
@@ -1757,6 +1759,7 @@ const en: Translations = {
   modelStoragePath: "Storage path",
   modelMb: "MB",
   modelErrorPrefix: "Error",
+  modelDownloadSizeLimit: "The model download exceeds the configured file-size limit.",
   modelRequired: "Required",
   modelOptional: "Optional",
   modelRequiredHint: "Required for AI features to work",
@@ -2408,6 +2411,7 @@ const ja: Translations = {
   modelStoragePath: "保存場所",
   modelMb: "MB",
   modelErrorPrefix: "エラー",
+  modelDownloadSizeLimit: "モデルのダウンロードが設定されたファイルサイズ上限を超えています。",
   modelRequired: "必須",
   modelOptional: "任意",
   modelRequiredHint: "AI機能の動作に必要",
