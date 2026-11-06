@@ -55,7 +55,15 @@
     },
     "windows": {
       "installMode": "passive",
-      "bundleArgs": "--bundles msix,nsis"
+      "nsis": {
+        "artifactName": "Lyrical-Sync-${version}"
+      },
+      "msix": {
+        "artifactName": "Lyrical-Sync-${version}",
+        "displayName": "Lyrical Sync",
+        "publisher": "CN=AHRI2nd",
+        "publisherDisplayName": "AHRI2nd"
+      }
     }
   },
   "plugins": {
