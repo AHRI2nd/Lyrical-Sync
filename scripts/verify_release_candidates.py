@@ -46,7 +46,9 @@ def verify(root, version, source_sha):
         if record.get('version') != version or record.get('sourceSha') != source_sha:
             raise ValueError(f'Candidate version or source commit mismatch: {target}')
         rows = record.get('installers')
-        if not isinstance(rows, list) or {row.get('kind') for row in rows} != EXPECTED[target]:
+        if (not isinstance(rows, list) or len(rows) != len(EXPECTED[target])
+                or any(not isinstance(row, dict) or not isinstance(row.get('kind'), str) for row in rows)
+                or {row['kind'] for row in rows} != EXPECTED[target]):
             raise ValueError(f'Candidate artifact set is incomplete: {target}')
         for row in rows:
             artifact = confined_candidate_file(directory, row['path'], 'artifact')

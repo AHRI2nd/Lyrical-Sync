@@ -197,6 +197,28 @@ class SignedCandidateTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'matrix is incomplete'):
                 module.verify(root,'0.7.0','a'*40)
 
+    def test_release_candidate_rejects_duplicate_installer_kinds(self):
+        module=self.release_candidate_verifier()
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            self.release_candidate_matrix(root)
+            bundle=root/'x86_64-pc-windows-msvc'
+            record_path=bundle/'candidate-record.json'
+            record=json.loads(record_path.read_text())
+            duplicate=bundle/'Lyrical Sync_0.7.0_x64_extra.msi'
+            duplicate.write_bytes(b'additional msi')
+            signature=Path(str(duplicate)+'.sig')
+            signature.write_text('fixture signature')
+            row={'kind':'msi','path':duplicate.name,'bytes':duplicate.stat().st_size,
+                 'sha256':hashlib.sha256(duplicate.read_bytes()).hexdigest(),
+                 'signaturePath':signature.name,
+                 'signatureSha256':hashlib.sha256(signature.read_bytes()).hexdigest()}
+            record['installers'].append(row)
+            record_path.write_text(json.dumps(record))
+
+            with self.assertRaisesRegex(ValueError,'artifact set is incomplete'):
+                module.verify(root,'0.7.0','a'*40)
+
     def test_release_candidate_nested_paths_remain_valid(self):
         module=self.release_candidate_verifier()
         with tempfile.TemporaryDirectory() as tmp:
