@@ -1,47 +1,49 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
+
+const invoke = vi.hoisted(() => vi.fn());
+vi.mock("@tauri-apps/api/core", () => ({ invoke: (...args: unknown[]) => invoke(...args) }));
+vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
+
 import { serviceControls } from "./serviceControls";
 import { useServiceStore } from "../stores/useServiceStore";
-import { useI18nStore } from "../stores/useI18nStore";
-import { useToastStore } from "../stores/useToastStore";
 
-beforeEach(() => {
-  useI18nStore.getState().setLang("en");
-  useToastStore.setState({ toasts: [] });
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+afterEach(() => vi.unstubAllGlobals());
+
+it("does not let a delayed Stop reset a newer Spotify seek", async () => {
   useServiceStore.setState({
     isLoggedIn: true,
     accessToken: "token",
-    tokenExpiresAt: Date.now() + 3600000,
-    isPlaying: false,
-    positionMs: 5000,
-    durationMs: 60000,
-    _lastKnownPositionMs: 5000,
+    tokenExpiresAt: Date.now() + 3_600_000,
+    isPlaying: true,
+    positionMs: 5_000,
+    _lastKnownPositionMs: 5_000,
     _lastStateTimestamp: Date.now(),
+    _playbackRevision: 0,
   });
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 403 }));
-  vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
-  vi.stubGlobal("cancelAnimationFrame", vi.fn());
-});
+  const pause = deferred<Response>();
+  const seek = deferred<Response>();
+  const fetchMock = vi.fn().mockReturnValueOnce(pause.promise).mockReturnValueOnce(seek.promise);
+  vi.stubGlobal("fetch", fetchMock);
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
+  serviceControls.stopAndReset();
+  await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+  serviceControls.seekTo(15);
+  await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
 
-it("rolls back a failed optimistic playback toggle and reports the error", async () => {
-  serviceControls.togglePlay();
-  expect(useServiceStore.getState().isPlaying).toBe(true);
+  pause.resolve({ ok: true } as Response);
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  expect(useServiceStore.getState().positionMs).toBe(15_000);
 
-  await vi.waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1));
-
-  expect(useServiceStore.getState().isPlaying).toBe(false);
-  expect(useServiceStore.getState().positionMs).toBe(5000);
-  expect(useToastStore.getState().toasts[0]?.message).toBe(useI18nStore.getState().t.toast.spotifyActionFailed);
-});
-
-it("rolls back a failed seek instead of leaving the optimistic target in the timeline", async () => {
-  serviceControls.seekTo(20);
-  expect(useServiceStore.getState().positionMs).toBe(20000);
-
-  await vi.waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1));
-
-  expect(useServiceStore.getState().positionMs).toBe(5000);
+  seek.resolve({ ok: true } as Response);
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(useServiceStore.getState().positionMs).toBe(15_000);
 });

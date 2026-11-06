@@ -96,6 +96,7 @@ async function spotifyStop(): Promise<void> {
   }
 
   const paused = useServiceStore.getState();
+  if (!isSpotifyAuthLeaseCurrent(lease) || paused._playbackRevision !== revision) return;
   const seekRevision = paused._playbackRevision + 1;
   useServiceStore.setState({
     positionMs: 0,
