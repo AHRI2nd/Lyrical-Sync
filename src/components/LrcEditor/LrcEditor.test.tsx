@@ -261,6 +261,27 @@ it("asks before an individual find-and-replace clears timed glyphs", () => {
   fireEvent.click(getByRole("button", { name: t.charSync.retokenizeOk }));
   expect(useLrcStore.getState().doc.lines[0]).toMatchObject({ text: "new lyric", syllables: undefined });
 });
+it("does not expand a pending replace-all to rows added while glyph confirmation is open", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+    { id: "a", text: "needle old", timestamp: 1, syllables: [{ text: "needle old", time: 1 }] },
+    { id: "b", text: "other row", timestamp: 2 },
+  ] } });
+  const { getByRole, getByPlaceholderText, getByText } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getByRole("button", { name: t.editorTools }));
+  fireEvent.click(getByRole("button", { name: t.findReplace }));
+  fireEvent.change(getByPlaceholderText(t.findPlaceholder), { target: { value: "needle" } });
+  fireEvent.change(getByPlaceholderText(t.replacePlaceholder), { target: { value: "changed" } });
+  fireEvent.click(getByRole("button", { name: t.replaceAll }));
+  expect(getByText(t.charSync.retokenizeTitle)).toBeTruthy();
+
+  useLrcStore.getState().updateLine("b", { text: "needle new" });
+  fireEvent.click(getByRole("button", { name: t.charSync.retokenizeOk }));
+
+  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({ text: "needle old", syllables: [{ text: "needle old", time: 1 }] });
+  expect(useLrcStore.getState().doc.lines[1].text).toBe("needle new");
+});
+
 it("asks before multiline paste replaces timed glyphs and preserves the source on cancel", () => {
   const t = useI18nStore.getState().t;
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "old lyric", timestamp: 1,

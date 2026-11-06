@@ -139,6 +139,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   } | null>(null);
   const [pendingGlyphMutation, setPendingGlyphMutation] = useState<{
     session: number;
+    revision: number;
     sources: Pick<LrcLine, "id" | "text" | "timestamp" | "syllables" | "translation">[];
     requireAdjacentSources: boolean;
     apply: () => void;
@@ -286,8 +287,10 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
       apply();
       return;
     }
+    const current = useLrcStore.getState();
     setPendingGlyphMutation({
-      session: useLrcStore.getState()._documentSession,
+      session: current._documentSession,
+      revision: current._editRevision,
       sources: sources.map(({ id, text, timestamp, syllables, translation }) => ({
         id, text, timestamp, translation, syllables: syllables?.map((syllable) => ({ ...syllable })),
       })),
@@ -309,7 +312,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
         current.doc.lines.findIndex((line) => line.id === pendingGlyphMutation.sources[1].id) ===
           current.doc.lines.findIndex((line) => line.id === pendingGlyphMutation.sources[0].id) + 1
       );
-      if (current._documentSession === pendingGlyphMutation.session && sourcesMatch && sourcesStayAdjacent) pendingGlyphMutation.apply();
+      if (current._documentSession === pendingGlyphMutation.session && current._editRevision === pendingGlyphMutation.revision && sourcesMatch && sourcesStayAdjacent) pendingGlyphMutation.apply();
     }
     setPendingGlyphMutation(null);
   };
