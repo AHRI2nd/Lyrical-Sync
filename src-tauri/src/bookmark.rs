@@ -53,18 +53,33 @@ mod windows {
     use super::*;
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
+    use winapi::um::winbase::{CreateFileW, FILE_FLAG_BACKUP_SEMANTICS, OPEN_EXISTING};
+    use winapi::um::fileapi::{GetFileAttributesW, FILE_ATTRIBUTE_DIRECTORY};
+    use winapi::um::handleapi::CloseHandle;
+    use winapi::shared::minwindef::FILE_ATTRIBUTE_NORMAL;
+    use winapi::um::winnt::{FILE_SHARE_READ, FILE_SHARE_WRITE, GENERIC_READ, HANDLE};
 
-    pub type HANDLE = *mut std::ffi::c_void;
-    pub const INVALID_HANDLE_VALUE: HANDLE = -1isize as HANDLE;
-
-    pub fn acquire_access(_path: &str) -> Result<HANDLE, String> {
-        // Windows security-scoped bookmark stub implementation
-        // Full implementation would use CreateFileW with FILE_FLAG_BACKUP_SEMANTICS
-        Err("Windows security bookmark not yet implemented".into())
+    pub fn acquire_access(path: &str) -> Result<HANDLE, String> {
+        let wide: Vec<u16> = OsStr::new(path).encode_wide().chain(Some(0)).collect();
+        let handle = unsafe {
+            CreateFileW(
+                wide.as_ptr(),
+                GENERIC_READ,
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                std::ptr::null_mut(),
+                OPEN_EXISTING,
+                FILE_FLAG_BACKUP_SEMANTICS | FILE_ATTRIBUTE_NORMAL,
+                std::ptr::null_mut(),
+            )
+        };
+        if handle == winapi::um::handleapi::INVALID_HANDLE_VALUE {
+            return Err("Failed to open file".into());
+        }
+        Ok(handle)
     }
 
-    pub fn release_access(_handle: HANDLE) {
-        // Stub: no-op
+    pub fn release_access(handle: HANDLE) {
+        unsafe { CloseHandle(handle) };
     }
 }
 
