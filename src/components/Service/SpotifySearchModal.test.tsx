@@ -101,6 +101,38 @@ it("loads Spotify playlists incrementally through validated next pages", async (
   expect(screen.getByText("Second Playlist")).toBeTruthy();
 });
 
+it("keeps playlist details loading when an older page request settles", async () => {
+  const pendingPage = deferred<Response>();
+  const pendingDetail = deferred<Response>();
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce({ ok: true, json: async () => playlistPage(["Playlist A"], "https://api.spotify.com/v1/me/playlists?limit=50&offset=50") } as Response)
+    .mockReturnValueOnce(pendingPage.promise)
+    .mockReturnValueOnce(pendingDetail.promise);
+  vi.stubGlobal("fetch", fetchMock);
+  render(<SpotifySearchModal onClose={() => {}} />);
+  fireEvent.click(screen.getByRole("button", { name: useI18nStore.getState().t.spotifyMyPlaylists }));
+  await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+  await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+  expect(screen.getByText("Playlist A")).toBeTruthy();
+
+  fireEvent.click(screen.getByRole("button", { name: useI18nStore.getState().t.spotifyLoadMore }));
+  await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  fireEvent.click(screen.getByRole("button", { name: /Playlist A/ }));
+  await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+  expect(screen.getByText("loading...")).toBeTruthy();
+
+  await act(async () => {
+    pendingPage.resolve({ ok: true, json: async () => playlistPage(["Playlist B"], null) } as Response);
+    await pendingPage.promise;
+  });
+  expect(screen.getByText("loading...")).toBeTruthy();
+
+  await act(async () => {
+    pendingDetail.resolve({ ok: true, json: async () => ({ items: [] }) } as Response);
+    await pendingDetail.promise;
+  });
+});
+
 it("loads additional track search results from the Spotify next page", async () => {
   const first = deferred<Response>();
   const second = deferred<Response>();

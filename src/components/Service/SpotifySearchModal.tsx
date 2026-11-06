@@ -69,6 +69,8 @@ export function SpotifySearchModal({ onClose }: Props) {
   const [playlistsLoaded, setPlaylistsLoaded] = useState(false);
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingPlaylistPage, setLoadingPlaylistPage] = useState(false);
+  const [loadingPlaylistTracks, setLoadingPlaylistTracks] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchGeneration = useRef(0);
@@ -87,7 +89,7 @@ export function SpotifySearchModal({ onClose }: Props) {
     playlistAbort.current = controller;
     const lease = spotifyAuthLease();
     const path = "/v1/me/playlists";
-    setLoading(true);
+    setLoadingPlaylistPage(true);
     setError(null);
     try {
       const url = nextUrl ? validateNextPage(nextUrl, path)! : `https://api.spotify.com${path}?limit=50`;
@@ -115,7 +117,7 @@ export function SpotifySearchModal({ onClose }: Props) {
           : t.spotifySearchFailed);
       }
     } finally {
-      if (mounted.current && requestId === playlistGeneration.current) setLoading(false);
+      if (mounted.current && requestId === playlistGeneration.current) setLoadingPlaylistPage(false);
     }
   }, [t.spotifyPlaylistLoadFailed, t.spotifySearchFailed]);
 
@@ -126,7 +128,7 @@ export function SpotifySearchModal({ onClose }: Props) {
     playlistDetailAbort.current = controller;
     const lease = spotifyAuthLease();
     const path = `/v1/playlists/${encodeURIComponent(playlist.id)}/tracks`;
-    setLoading(true);
+    setLoadingPlaylistTracks(true);
     setError(null);
     try {
       const url = nextUrl
@@ -150,7 +152,7 @@ export function SpotifySearchModal({ onClose }: Props) {
           : t.spotifySearchFailed);
       }
     } finally {
-      if (mounted.current && requestId === playlistDetailGeneration.current) setLoading(false);
+      if (mounted.current && requestId === playlistDetailGeneration.current) setLoadingPlaylistTracks(false);
     }
   }, [t.spotifyPlaylistLoadFailed, t.spotifySearchFailed]);
 
@@ -179,6 +181,8 @@ export function SpotifySearchModal({ onClose }: Props) {
     playlistDetailAbort.current?.abort();
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setLoading(false);
+    setLoadingPlaylistPage(false);
+    setLoadingPlaylistTracks(false);
     setError(null);
     setSearchResults([]);
     setNextSearchUrl(null);
@@ -196,14 +200,17 @@ export function SpotifySearchModal({ onClose }: Props) {
       searchAbort.current?.abort();
       searchAbort.current = null;
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      setLoading(false);
       if (!playlistsLoaded) void loadPlaylistPage(null, false);
-      else setLoading(false);
+      else setLoadingPlaylistPage(false);
     } else {
       playlistGeneration.current += 1;
       playlistDetailGeneration.current += 1;
       playlistAbort.current?.abort();
       playlistDetailAbort.current?.abort();
       setLoading(false);
+      setLoadingPlaylistPage(false);
+      setLoadingPlaylistTracks(false);
     }
   }, [tab, playlistsLoaded, loadPlaylistPage]);
 
@@ -249,6 +256,9 @@ export function SpotifySearchModal({ onClose }: Props) {
   };
 
   const openPlaylist = (pl: Playlist) => {
+    playlistGeneration.current += 1;
+    playlistAbort.current?.abort();
+    setLoadingPlaylistPage(false);
     playlistDetailAbort.current?.abort();
     setSelectedPlaylist(pl);
     setPlaylistTracks([]);
@@ -262,7 +272,7 @@ export function SpotifySearchModal({ onClose }: Props) {
     setSelectedPlaylist(null);
     setPlaylistTracks(null);
     setNextTrackUrl(null);
-    setLoading(false);
+    setLoadingPlaylistTracks(false);
     setError(null);
   };
 
@@ -352,7 +362,7 @@ export function SpotifySearchModal({ onClose }: Props) {
 
           {tab === "playlists" && !selectedPlaylist && (
             <div className="flex flex-col">
-              {loading && <LoadingRow />}
+              {loadingPlaylistPage && <LoadingRow />}
               {playlists.map((pl) => (
                 <button
                   key={pl.id}
@@ -372,7 +382,7 @@ export function SpotifySearchModal({ onClose }: Props) {
               {nextPlaylistUrl && (
                 <button
                   onClick={() => void loadPlaylistPage(nextPlaylistUrl, true)}
-                  disabled={loading}
+                  disabled={loadingPlaylistPage}
                   className="ls-button text-sm transition-colors"
                 >
                   {t.spotifyLoadMore}
@@ -389,14 +399,14 @@ export function SpotifySearchModal({ onClose }: Props) {
               >
                 ← {selectedPlaylist.name}
               </button>
-              {loading && <LoadingRow />}
+              {loadingPlaylistTracks && <LoadingRow />}
               {playlistTracks?.map((track) => (
                 <TrackRow key={track.uri} track={track} onSelect={handleSelectTrack} />
               ))}
               {nextTrackUrl && (
                 <button
                   onClick={() => selectedPlaylist && void loadPlaylistTrackPage(selectedPlaylist, nextTrackUrl, true)}
-                  disabled={loading}
+                  disabled={loadingPlaylistTracks}
                   className="ls-button text-sm transition-colors"
                 >
                   {t.spotifyLoadMore}
