@@ -4,9 +4,25 @@ use std::io::{self, Read, Write};
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
 
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 use libc;
 use sha2::{Digest, Sha256};
+
+fn open_existing_regular_file(path: &Path) -> io::Result<fs::Metadata> {
+    let mut options = OpenOptions::new();
+    options.write(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NONBLOCK);
+    }
+    let file = options.open(path)?;
+    let metadata = file.metadata()?;
+    if !metadata.is_file() {
+        return Err(io::Error::other("Destination is not a regular file"));
+    }
+    Ok(metadata)
+}
 
 pub fn write_atomic(path: &Path, content: &str) -> io::Result<()> {
     write_with(path, |file| file.write_all(content.as_bytes()))
@@ -54,11 +70,7 @@ fn write_with_expected(
             if meta.file_type().is_symlink() {
                 // It's a symlink - resolve it but keep track of the link path
                 let target = fs::canonicalize(&selected_target)?;
-                let existing = OpenOptions::new().write(true).open(&target)?;
-                let metadata = existing.metadata()?;
-                if !metadata.is_file() {
-                    return Err(io::Error::other("Destination is not a regular file"));
-                }
+                let metadata = open_existing_regular_file(&target)?;
                 #[cfg(target_os = "macos")]
                 {
                     use std::os::unix::fs::MetadataExt;
@@ -72,8 +84,7 @@ fn write_with_expected(
                 (target, Some(metadata.permissions()), true, Some(metadata), macos_flags)
             } else if meta.is_file() {
                 // Regular file
-                let existing = OpenOptions::new().write(true).open(&selected_target)?;
-                let metadata = existing.metadata()?;
+                let metadata = open_existing_regular_file(&selected_target)?;
                 #[cfg(target_os = "macos")]
                 {
                     use std::os::unix::fs::MetadataExt;
@@ -559,6 +570,26 @@ mod tests {
             acl_free(rendered_ptr.cast());
             acl_free(copied.cast());
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlink_to_fifo_is_rejected_without_blocking() {
+        use std::ffi::CString;
+        use std::os::unix::ffi::OsStrExt;
+        use std::os::unix::fs::symlink;
+
+        let dir = tempfile::tempdir().unwrap();
+        let fifo = dir.path().join("pipe.lrc");
+        let fifo_path = CString::new(fifo.as_os_str().as_bytes()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(fifo_path.as_ptr(), 0o600) }, 0);
+        let link = dir.path().join("linked.lrc");
+        symlink(&fifo, &link).unwrap();
+
+        let started = std::time::Instant::now();
+        assert!(write_atomic(&link, "lyrics").is_err());
+        assert!(started.elapsed() < std::time::Duration::from_secs(1));
+        assert!(fs::symlink_metadata(&link).unwrap().file_type().is_symlink());
     }
 
     #[cfg(target_os = "macos")]
