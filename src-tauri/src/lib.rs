@@ -181,6 +181,26 @@ fn is_normal_audio_eof(error: &symphonia::core::errors::Error) -> bool {
         if err.kind() == std::io::ErrorKind::UnexpectedEof)
 }
 
+fn validate_aiff_container_size(file: &mut std::fs::File) -> Result<(), String> {
+    use std::io::{Read, Seek, SeekFrom};
+
+    file.seek(SeekFrom::Start(0)).map_err(|error| error.to_string())?;
+    let mut header = [0_u8; 12];
+    file.read_exact(&mut header)
+        .map_err(|error| format!("Invalid or truncated AIFF header: {error}"))?;
+    if &header[..4] != b"FORM" {
+        return Ok(()); // Let Symphonia report the unsupported or mismatched format.
+    }
+    let declared_form_bytes = u32::from_be_bytes(header[4..8].try_into().unwrap()) as u64;
+    let declared_file_bytes = declared_form_bytes + 8;
+    let actual_file_bytes = file.metadata().map_err(|error| error.to_string())?.len();
+    if actual_file_bytes < declared_file_bytes {
+        return Err("Truncated AIFF container".into());
+    }
+    file.seek(SeekFrom::Start(0)).map_err(|error| error.to_string())?;
+    Ok(())
+}
+
 /// AIFF 등 WebView2 미지원 포맷을 WAV 바이트로 트랜스코딩합니다.
 #[tauri::command]
 async fn decode_audio_to_wav(path: String) -> Result<tauri::ipc::Response, String> {
@@ -191,9 +211,16 @@ async fn decode_audio_to_wav(path: String) -> Result<tauri::ipc::Response, Strin
     use symphonia::core::meta::MetadataOptions;
     use symphonia::core::probe::Hint;
 
-    let file = std::fs::File::open(&path).map_err(|e| e.to_string())?;
+    let mut file = std::fs::File::open(&path).map_err(|e| e.to_string())?;
     if file.metadata().map_err(|e| e.to_string())?.len() > audio_resource::MAX_AUDIO_FILE_BYTES {
         return Err(audio_resource::AUDIO_RESOURCE_LIMIT_ERROR.into());
+    }
+    if std::path::Path::new(&path)
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("aif") || extension.eq_ignore_ascii_case("aiff"))
+    {
+        validate_aiff_container_size(&mut file)?;
     }
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
@@ -393,8 +420,32 @@ pub fn run() {
 
 #[cfg(test)]
 mod audio_decode_tests {
-    use super::is_normal_audio_eof;
+    use super::{is_normal_audio_eof, validate_aiff_container_size};
     use symphonia::core::errors::Error;
+
+    #[test]
+    fn truncated_aiff_container_is_rejected_before_packet_eof_is_accepted() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("truncated.aiff");
+        let mut bytes = b"FORM".to_vec();
+        bytes.extend_from_slice(&16_u32.to_be_bytes()); // Declares 24 total bytes.
+        bytes.extend_from_slice(b"AIFF");
+        std::fs::write(&path, bytes).unwrap();
+        let mut file = std::fs::File::open(path).unwrap();
+        assert!(validate_aiff_container_size(&mut file).unwrap_err().contains("Truncated AIFF"));
+    }
+
+    #[test]
+    fn accepts_an_aiff_container_whose_declared_size_is_present() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("complete.aiff");
+        let mut bytes = b"FORM".to_vec();
+        bytes.extend_from_slice(&4_u32.to_be_bytes());
+        bytes.extend_from_slice(b"AIFF");
+        std::fs::write(&path, bytes).unwrap();
+        let mut file = std::fs::File::open(path).unwrap();
+        assert!(validate_aiff_container_size(&mut file).is_ok());
+    }
 
     #[test]
     fn only_unexpected_eof_is_treated_as_normal_end_of_audio() {
