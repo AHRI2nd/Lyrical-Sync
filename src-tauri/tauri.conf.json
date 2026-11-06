@@ -54,9 +54,7 @@
       }
     },
     "windows": {
-      "nsis": {
-        "artifactName": "Lyrical-Sync-${version}"
-      }
+      "nsis": {}
     }
   },
   "plugins": {
