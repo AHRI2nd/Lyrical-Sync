@@ -947,7 +947,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   },
 
   saveLrcAs: async (format, enhanced) => {
-    const { doc, duration, lrcPath: originalPath, _editRevision: revision } = get();
+    const { doc, duration, lrcPath: originalPath, _editRevision: revision, _lrcFileHash: originalFileHash } = get();
     const sessionId = documentSessionId;
     const requestId = ++saveAsGeneration;
     const FILTERS: Record<string, { name: string; extensions: string[] }> = {
@@ -974,12 +974,15 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
         : format === "vtt" ? serializeVtt(doc, end)
         : format === "ass" ? serializeAss(doc, end)
         : serializeLrc(doc, enhanced ?? true);
+      const samePathSaveAs = originalPath !== null && path === originalPath;
+      if (samePathSaveAs && !originalFileHash) throw new Error("LYRICS_FILE_CHANGED");
       const result = await writeLrcFileWithMeta(
         path,
         content,
         revision,
         doc,
         isCurrentRequest,
+        samePathSaveAs ? originalFileHash : null,
       );
       if (!result.success) return false;
       // 보조 포맷 저장 시엔 작업 파일 경로(lrcPath)·dirty 상태를 바꾸지 않음

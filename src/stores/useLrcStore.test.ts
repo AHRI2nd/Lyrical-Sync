@@ -1039,6 +1039,20 @@ describe("useLrcStore — save completion races", () => {
     expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
   });
 
+  it("uses the loaded-file revision when Save As selects the current working path", async () => {
+    vi.mocked(save).mockResolvedValue("/tmp/song.lrc");
+    vi.mocked(invoke).mockRejectedValue("LYRICS_FILE_CHANGED");
+
+    await expect(useLrcStore.getState().saveLrcAs("lrc")).rejects.toThrow("LYRICS_FILE_CHANGED");
+
+    expect(invoke).toHaveBeenCalledWith("write_lrc_file_if_unchanged", expect.objectContaining({
+      path: "/tmp/song.lrc",
+      expectedSha256: "a".repeat(64),
+    }));
+    expect(useLrcStore.getState().lrcPath).toBe("/tmp/song.lrc");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
   it("keeps SRT Save As as an export and preserves the active LRC state", async () => {
     useLrcStore.setState({ doc: { ...useLrcStore.getState().doc, metadata: { ...useLrcStore.getState().doc.metadata, title: "Rich title" }, lines: [{ id: "1", timestamp: 1, text: "lyrics", syllables: [{ text: "lyrics", time: 1 }] }] }, lrcPath: "/tmp/source.lrc", isDirty: true });
     vi.mocked(save).mockResolvedValue("/tmp/export.srt");
