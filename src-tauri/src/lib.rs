@@ -61,15 +61,29 @@ fn validate_audio_file(path: String) -> Result<audio_resource::AudioResourceInfo
 fn get_audio_file_info(path: String) -> Result<AudioFileInfo, String> {
     let path = path_validation::validate_audio_path(&path)?;
     let meta = std::fs::metadata(&path).map_err(|e| e.to_string())?;
+    if !meta.is_file() {
+        return Err("Audio path is not a regular file".into());
+    }
     let mtime = meta.modified().map_err(|e| e.to_string())?;
-    let mtime_secs = mtime.duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_secs();
-    Ok(AudioFileInfo { size: meta.len(), mtime: mtime_secs })
+    let duration = mtime.duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?;
+    // A string retains nanosecond precision when serialized to JavaScript.
+    let mtime = format!("{}.{:09}", duration.as_secs(), duration.subsec_nanos());
+    #[cfg(unix)]
+    let file_id = {
+        use std::os::unix::fs::MetadataExt;
+        Some(format!("{}:{}", meta.dev(), meta.ino()))
+    };
+    #[cfg(not(unix))]
+    let file_id: Option<String> = None;
+    Ok(AudioFileInfo { size: meta.len(), mtime, file_id })
 }
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct AudioFileInfo {
     size: u64,
-    mtime: u64,
+    mtime: String,
+    file_id: Option<String>,
 }
 
 fn is_normal_audio_eof(error: &symphonia::core::errors::Error) -> bool {
@@ -246,6 +260,7 @@ pub fn run() {
             batch_output::write_batch_output,
             read_audio_file,
             validate_audio_file,
+            get_audio_file_info,
             decode_audio_to_wav,
             read_audio_metadata,
             set_models_dir_override,
@@ -325,5 +340,27 @@ mod lyric_save_command_tests {
         assert!(write_lrc_file(invalid.to_string_lossy().into_owned(), "draft".into()).await.is_err());
         assert_eq!(fs::read_to_string(&original).unwrap(), "original content");
         assert!(!invalid.exists());
+    }
+}
+
+#[cfg(test)]
+mod audio_identity_command_tests {
+    use super::get_audio_file_info;
+    use std::fs;
+
+    #[test]
+    fn reports_precise_stable_metadata_for_the_same_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("audio.wav");
+        fs::write(&path, b"tiny-audio").unwrap();
+        let path = path.to_str().unwrap().to_owned();
+        let before = get_audio_file_info(path.clone()).unwrap();
+        let after = get_audio_file_info(path).unwrap();
+        assert_eq!(before.size, 10);
+        assert_eq!(before.mtime, after.mtime);
+        assert_eq!(before.file_id, after.file_id);
+        let json = serde_json::to_value(&before).unwrap();
+        assert!(json["mtime"].is_string());
+        assert!(json.get("fileId").is_some());
     }
 }

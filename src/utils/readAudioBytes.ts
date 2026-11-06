@@ -22,24 +22,27 @@ async function decodeAiffIfNeeded(audioPath: string, signal?: AbortSignal): Prom
 
 interface AudioFileInfo {
   size: number;
-  mtime: number;
+  // Serialized as a string because nanosecond Unix timestamps exceed JS safe integers.
+  mtime: string;
+  fileId: string | null;
 }
 
 async function getFileInfo(audioPath: string): Promise<AudioFileInfo> {
-  try {
-    const meta = await invoke<{ size: number; mtime: number }>("get_audio_file_info", { path: audioPath });
-    return { size: meta.size, mtime: meta.mtime };
-  } catch {
-    // Fallback to FS plugin
-    const bytes = await readFile(audioPath);
-    // We can't get mtime from plugin-fs easily, so we use a hash of the path as a weak substitute
-    return { size: bytes.byteLength, mtime: Date.now() };
+  const meta = await invoke<{ size: number; mtime: string; fileId: string | null }>("get_audio_file_info", { path: audioPath });
+  if (!Number.isSafeInteger(meta.size) || meta.size < 0 || typeof meta.mtime !== "string") {
+    throw new Error("Invalid audio file identity response");
   }
+  return { size: meta.size, mtime: meta.mtime, fileId: meta.fileId ?? null };
+}
+
+function sameFile(a: AudioFileInfo, b: AudioFileInfo): boolean {
+  return a.size === b.size && a.mtime === b.mtime && a.fileId === b.fileId;
 }
 
 // 오디오 파일을 바이트로 읽음. fs 스코프(미디어 디렉터리) 내 파일은 plugin readFile(빠른
 // 바이너리 채널), 스코프 밖(임시 폴더·외장 드라이브 등)은 스코프 제약 없는 Rust 커맨드로 폴백.
-// 파일 아이덴티티(크기+mtime)를 검사해 TOCTOU 레이스 방지.
+// Read identity before/after and verify the actual byte count. This detects many
+// replacements, but does not prove an atomic snapshot without a shared OS handle.
 export async function readAudioBytes(audioPath: string, signal?: AbortSignal): Promise<{ bytes: Uint8Array; transcoded: boolean }> {
   checkCancelled(signal);
   const decoded = await decodeAiffIfNeeded(audioPath, signal);
@@ -51,25 +54,27 @@ export async function readAudioBytes(audioPath: string, signal?: AbortSignal): P
   
   // Then get file identity before read
   const infoBefore = await getFileInfo(audioPath);
+  checkCancelled(signal);
   
+  let bytes: Uint8Array;
   try {
-    const bytes = await readFile(audioPath);
-    checkCancelled(signal);
-    // Verify file identity after read
-    const infoAfterRead = await getFileInfo(audioPath);
-    if (infoBefore.size !== infoAfterRead.size || infoBefore.mtime !== infoAfterRead.mtime) {
-      throw new Error("Audio file changed during read");
-    }
-    return { bytes, transcoded: false };
+    bytes = await readFile(audioPath);
   } catch {
+    // Only an actual FS read failure may take the native fallback. A file
+    // identity mismatch must never cause a second read of a different file.
     checkCancelled(signal);
-    const buf = await invoke<ArrayBuffer>("read_audio_file", { path: audioPath });
-    checkCancelled(signal);
-    // Rust command read also validates identity
-    const infoAfterRust = await getFileInfo(audioPath);
-    if (infoBefore.size !== infoAfterRust.size || infoBefore.mtime !== infoAfterRust.mtime) {
-      throw new Error("Audio file changed during read");
+    try {
+      const buf = await invoke<ArrayBuffer>("read_audio_file", { path: audioPath });
+      bytes = new Uint8Array(buf);
+    } catch (nativeError) {
+      throw new Error(`Unable to read audio file: ${String(nativeError)}`);
     }
-    return { bytes: new Uint8Array(buf), transcoded: false };
   }
+  checkCancelled(signal);
+  const infoAfter = await getFileInfo(audioPath);
+  checkCancelled(signal);
+  if (!sameFile(infoBefore, infoAfter) || bytes.byteLength !== infoAfter.size) {
+    throw new Error("Audio file changed during read");
+  }
+  return { bytes, transcoded: false };
 }

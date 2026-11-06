@@ -13,6 +13,7 @@ fn main() {
         "write_lrc_file",
         "read_audio_file",
         "validate_audio_file",
+        "get_audio_file_info",
         "decode_audio_to_wav",
         "read_audio_metadata",
         "write_batch_output",

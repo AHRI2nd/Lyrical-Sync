@@ -13,6 +13,7 @@
     "allow-write-lrc-file",
     "allow-read-audio-file",
     "allow-validate-audio-file",
+    "allow-get-audio-file-info",
     "allow-decode-audio-to-wav",
     "allow-read-audio-metadata",
     "allow-write-batch-output",
