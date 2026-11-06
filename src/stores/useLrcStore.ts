@@ -487,11 +487,16 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   },
 
   setMetadata: (meta, silent = false) => {
+    const safeMeta = { ...meta };
+    if (safeMeta.offset !== undefined && !Number.isSafeInteger(safeMeta.offset)) {
+      delete safeMeta.offset;
+      reportInvalidTime();
+    }
     // silent 갱신(서비스 자동 동기화 등)은 사용자 편집이 아니므로 undo 대상에서 제외.
     // 사용자 입력은 같은 필드 조합을 연속으로 수정하는 동안(다른 액션이 끼어들기 전까지)
     // 한 번의 undo 단위로 묶는다 — updateLine과 동일한 _lastEditKey 코얼레싱 패턴.
     const state = get();
-    const changed = (Object.entries(meta) as [keyof LrcMetadata, LrcMetadata[keyof LrcMetadata]][])
+    const changed = (Object.entries(safeMeta) as [keyof LrcMetadata, LrcMetadata[keyof LrcMetadata]][])
       .filter(([field, value]) => state.doc.metadata[field] !== value && (!silent || !state._manualMetadataFields.has(field)));
     if (!changed.length) return;
     const changedMeta = Object.fromEntries(changed) as Partial<LrcMetadata>;

@@ -10,6 +10,7 @@ import { MetaEditor } from "./MetaEditor";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { defaultDocument } from "../../types/lrc";
+import { useToastStore } from "../../stores/useToastStore";
 
 beforeEach(() => {
   useLrcStore.getState().newLrc();
@@ -17,6 +18,18 @@ beforeEach(() => {
 });
 
 afterEach(() => cleanup());
+
+it("rejects an offset too large to serialize without corrupting the document", () => {
+  const t = useI18nStore.getState().t;
+  render(<MetaEditor />);
+  const offset = screen.getByRole("textbox", { name: t.metaOffsetShort });
+  fireEvent.change(offset, { target: { value: "9".repeat(400) } });
+
+  expect(useLrcStore.getState().doc.metadata.offset).toBe(0);
+  expect(Number.isFinite(useLrcStore.getState().doc.metadata.offset)).toBe(true);
+  const toasts = useToastStore.getState().toasts;
+  expect(toasts[toasts.length - 1]?.message).toBe(t.toast.invalidTimestamp);
+});
 
 it("connects metadata labels to their inputs", () => {
   const t = useI18nStore.getState().t;
