@@ -1,5 +1,6 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
+#[cfg(unix)]
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 
