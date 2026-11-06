@@ -50,7 +50,7 @@ export function nextCueEnd(timed: readonly LrcLine[], index: number, start: numb
     if (next !== null && isLater(next)) return next;
   }
   if (lastCueEnd !== undefined && isLater(lastCueEnd)) return lastCueEnd;
-  return start + 4;
+  return Math.max(0, start) + 4;
 }
 
 function buildCues(doc: LrcDocument, lastCueEnd?: number, timeUnitsPerSecond = 1000): Cue[] {

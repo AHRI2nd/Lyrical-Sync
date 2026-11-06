@@ -179,7 +179,11 @@ it('preserves the final subtitle end without a supplied audio duration', () => {
 });
 it('shifts the final subtitle end along with the imported cue', () => {
   const parsed = parseSrt('1\n00:00:10,000 --> 00:00:12,000\nlyric\n');
-  const shifted = { ...parsed, lines: parsed.lines.map(line => ({ ...line, timestamp: line.timestamp === null ? null : line.timestamp + 2 })) };
+  const shifted = { ...parsed, lines: parsed.lines.map(line => ({
+    ...line,
+    timestamp: line.timestamp === null ? null : line.timestamp + 2,
+    srtEndTime: line.srtEndTime === undefined ? undefined : line.srtEndTime + 2,
+  })) };
   expect(serializeSrt(shifted)).toContain('00:00:12,000 --> 00:00:14,000');
 });
 
@@ -222,6 +226,11 @@ it.each([100,1000])('round-trips subtitle starts and ends at %s hours', hours =>
  const restored=parseSrt(serializeSrt(docOf([{id:'a',timestamp:start,text:'late'}]),start+4));
  expect(restored.lines.map(l=>l.timestamp)).toEqual([start,start+4]);
 });
+it("rejects an SRT cue collapsed by negative-time clamping instead of inventing a fallback end", () => {
+  const collapsed = docOf([{ id: "collapsed", timestamp: 0, srtEndTime: 0, text: "cue" }]);
+  expect(() => serializeSrt(collapsed)).toThrow("SRT timestamp");
+});
+
 it('rejects finite subtitle times that overflow integer milliseconds instead of emitting Infinity or NaN', () => {
  const huge = 1e306;
  expect(Number.isFinite(huge)).toBe(true);

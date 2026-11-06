@@ -17,7 +17,7 @@ import { cancelDocumentConfirmation, confirmDocumentReplacement, runDocumentTran
 
 const hasFiniteLineTimes = (lines: LrcLine[]): boolean => lines.every((line) =>
   (line.timestamp === null || Number.isFinite(line.timestamp)) &&
-  (line.srtEndTime === undefined || Number.isFinite(line.srtEndTime)) &&
+  (line.srtEndTime === undefined || (line.timestamp !== null && Number.isFinite(line.srtEndTime) && line.srtEndTime > line.timestamp)) &&
   (line.syllables?.every((syllable) => syllable.time === null || Number.isFinite(syllable.time)) ?? true)
 );
 

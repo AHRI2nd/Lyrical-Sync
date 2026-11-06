@@ -110,8 +110,12 @@ export function serializeSrt(doc: LrcDocument, lastCueEnd?: number): string {
     if (line.text.trim() === "" && !line.translation?.trim()) continue; // Empty rows provide boundaries only.
     const start = line.timestamp as number;
     const importedEnd = line.srtEndTime;
-    const end = Number.isFinite(importedEnd) && (importedEnd as number) > start
-      ? importedEnd as number
+    if (importedEnd !== undefined &&
+        (!Number.isFinite(importedEnd) || Math.round(importedEnd * 1000) <= Math.round(start * 1000))) {
+      throw new SrtInvalidTimestampError();
+    }
+    const end = importedEnd !== undefined
+      ? importedEnd
       : nextCueEnd(timed, i, start, lastCueEnd);
     const rawText = line.text.trim() === "" ? (line.translation ?? "") : line.translation ? `${line.text}\n${line.translation}` : line.text;
     // Escape angle brackets to prevent interpretation as markup by SRT players/FFmpeg

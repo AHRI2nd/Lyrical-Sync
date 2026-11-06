@@ -4,7 +4,7 @@ import { shiftSrtEnd } from "./lineTiming";
 import { readLyrics, type FileRef } from "./fileAccess";
 import { enqueuePathWrite } from "./pathWriteQueue";
 import { parseLrc, serializeLrc } from "./lrcParser";
-import { parseSrt, serializeSrt, SrtUnrepresentableContentError } from "./srtConverter";
+import { parseSrt, serializeSrt, SrtInvalidTimestampError, SrtUnrepresentableContentError } from "./srtConverter";
 import { AssUnrepresentableContentError, VttUnrepresentableContentError, VttInvalidSyllableTimeError, serializeVtt, serializeAss } from "./exportFormats";
 
 export interface BatchFileEntry {
@@ -115,6 +115,8 @@ export async function runBatchOperation(
         let message: string;
         if (error instanceof SrtUnrepresentableContentError) {
           message = "SRT_UNREPRESENTABLE_CONTENT"; // Will be localized by caller
+        } else if (error instanceof SrtInvalidTimestampError) {
+          message = "SRT_INVALID_TIMESTAMP";
         } else if (error instanceof VttUnrepresentableContentError) {
           message = "VTT_UNREPRESENTABLE_CONTENT";
         } else if (error instanceof AssUnrepresentableContentError) {

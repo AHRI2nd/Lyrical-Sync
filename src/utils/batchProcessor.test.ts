@@ -96,7 +96,27 @@ describe("batch output", () => {
     );
 
     expect(summary).toEqual({ done: 0, error: 1, cancelled: 0 });
-    expect(status).toHaveBeenCalledWith("huge-offset", "error", expect.stringContaining("SRT timestamp"), expect.any(Object));
+    expect(status).toHaveBeenLastCalledWith("huge-offset", "error", "SRT_INVALID_TIMESTAMP", expect.any(Object));
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it("rejects an SRT cue collapsed by a negative batch offset before writing", async () => {
+    vi.mocked(readLyrics).mockResolvedValueOnce({
+      value: "1\n00:00:01,000 --> 00:00:02,000\nline\n",
+      file: entry("/inputs/song.srt").file,
+    });
+    const status = vi.fn();
+
+    const summary = await runBatchOperation(
+      [entry("/inputs/song.srt", "collapsed")],
+      { kind: "offset", deltaSeconds: -3 },
+      output,
+      status,
+      { concurrency: 1 },
+    );
+
+    expect(summary).toEqual({ done: 0, error: 1, cancelled: 0 });
+    expect(status).toHaveBeenCalledWith("collapsed", "error", "SRT_INVALID_TIMESTAMP", expect.any(Object));
     expect(invoke).not.toHaveBeenCalled();
   });
 

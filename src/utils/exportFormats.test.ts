@@ -132,6 +132,12 @@ describe("serializeAss", () => {
 
 
 describe("shared subtitle cue boundaries", () => {
+  it("keeps a positive fallback duration when negative starts clamp to zero", () => {
+    const doc = docOf([{ id: "negative", timestamp: -5, text: "clamped" }]);
+    expect(serializeVtt(doc)).toContain("00:00:00.000 --> 00:00:04.000\nclamped");
+    expect(serializeAss(doc)).toContain("Dialogue: 0,0:00:00.00,0:00:04.00,Default,,0,0,0,,clamped");
+  });
+
   it("preserves overlapping imported SRT cue ends in VTT and ASS", () => {
     const doc = docOf([
       { id: "first", timestamp: 1, srtEndTime: 4, text: "first" },

@@ -278,6 +278,17 @@ describe("useLrcStore — offset / shift carry syllable times", () => {
     expect(lines()[1].timestamp).toBe(20);
   });
 
+  it("rejects a shift that would collapse an SRT cue at zero without changing the document", () => {
+    reset([{ id: "1", timestamp: 1, srtEndTime: 2, text: "cue" }]);
+    const original = useLrcStore.getState().doc;
+
+    useLrcStore.getState().shiftLines(["1"], -3);
+
+    expect(useLrcStore.getState().doc).toBe(original);
+    expect(useLrcStore.getState()._history).toHaveLength(0);
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
   it("shifts SRT cue ends with selected line starts", () => {
     reset([
       { id: "1", timestamp: 10, srtEndTime: 12, text: "a" },
