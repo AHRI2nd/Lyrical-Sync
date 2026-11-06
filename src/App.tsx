@@ -27,7 +27,7 @@ import { useUpdaterStore } from "./stores/useUpdaterStore";
 const UpdateModal = lazy(() => import("./components/Update/UpdateModal").then((m) => ({ default: m.UpdateModal })));
 import { useMacMenu } from "./hooks/useMacMenu";
 import { SrtInvalidTimestampError, SrtLossyDocumentError, SrtUnrepresentableContentError } from "./utils/srtConverter";
-import { AssUnrepresentableContentError, AssUnrepresentableCueEndError, VttInvalidSyllableTimeError, VttUnrepresentableContentError } from "./utils/exportFormats";
+import { AssUnrepresentableContentError, AssUnrepresentableCueEndError, SubtitleTimestampUnrepresentableError, VttInvalidSyllableTimeError, VttUnrepresentableContentError } from "./utils/exportFormats";
 import { LrcInlineEscapeTagConflictError, LrcInvalidTimestampError, LrcMetadataLineBreakError, LrcReservedTagConflictError, needsInlineTimestampEscape } from "./utils/lrcParser";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
@@ -224,7 +224,7 @@ function useAutoSave(recoveryPending: boolean) {
 
 function serializationErrorCode(error: unknown): string | null {
   if (error instanceof Error && error.message === "LYRICS_FILE_CHANGED") return "LYRICS_FILE_CHANGED";
-  if (error instanceof SrtUnrepresentableContentError || error instanceof SrtLossyDocumentError || error instanceof SrtInvalidTimestampError || error instanceof VttUnrepresentableContentError || error instanceof VttInvalidSyllableTimeError || error instanceof AssUnrepresentableContentError || error instanceof AssUnrepresentableCueEndError || error instanceof LrcInlineEscapeTagConflictError || error instanceof LrcInvalidTimestampError || error instanceof LrcMetadataLineBreakError || error instanceof LrcReservedTagConflictError) return error.code;
+  if (error instanceof SrtUnrepresentableContentError || error instanceof SrtLossyDocumentError || error instanceof SrtInvalidTimestampError || error instanceof VttUnrepresentableContentError || error instanceof VttInvalidSyllableTimeError || error instanceof AssUnrepresentableContentError || error instanceof AssUnrepresentableCueEndError || error instanceof SubtitleTimestampUnrepresentableError || error instanceof LrcInlineEscapeTagConflictError || error instanceof LrcInvalidTimestampError || error instanceof LrcMetadataLineBreakError || error instanceof LrcReservedTagConflictError) return error.code;
   return null;
 }
 
@@ -237,6 +237,7 @@ function saveErrorMessage(error: unknown, t: ReturnType<typeof useI18nStore.getS
   if (error instanceof VttInvalidSyllableTimeError) return t.toast.vttInvalidSyllableTime;
   if (error instanceof AssUnrepresentableContentError) return t.toast.assUnrepresentableContent;
   if (error instanceof AssUnrepresentableCueEndError) return t.toast.assCueEndUnsupported;
+  if (error instanceof SubtitleTimestampUnrepresentableError) return t.toast.subtitleTimestampUnsupported;
   if (error instanceof LrcInlineEscapeTagConflictError) return t.toast.lrcInlineEscapeConflict;
   if (error instanceof LrcMetadataLineBreakError) return t.toast.lrcMetadataLineBreak;
   if (error instanceof LrcReservedTagConflictError) return t.toast.lrcReservedTagConflict;

@@ -120,6 +120,26 @@ describe("batch output", () => {
     expect(invoke).not.toHaveBeenCalled();
   });
 
+  it("rejects extreme finite VTT timestamps before writing a batch output", async () => {
+    vi.mocked(readLyrics).mockResolvedValueOnce({
+      value: "[999999999999:00.00]huge",
+      file: entry("/inputs/song.lrc").file,
+    });
+    const status = vi.fn();
+
+    const summary = await runBatchOperation(
+      [entry("/inputs/song.lrc", "extreme-vtt")],
+      { kind: "convert", format: "vtt" },
+      output,
+      status,
+      { concurrency: 1 },
+    );
+
+    expect(summary).toEqual({ done: 0, error: 1, cancelled: 0 });
+    expect(status).toHaveBeenLastCalledWith("extreme-vtt", "error", "SUBTITLE_TIMESTAMP_UNREPRESENTABLE", expect.any(Object));
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
   it("rejects an SRT cue collapsed by a negative batch offset before writing", async () => {
     vi.mocked(readLyrics).mockResolvedValueOnce({
       value: "1\n00:00:01,000 --> 00:00:02,000\nline\n",

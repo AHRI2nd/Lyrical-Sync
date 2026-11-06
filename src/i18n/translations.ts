@@ -396,6 +396,7 @@ export interface Translations {
     srtLossyDocument: string;
     assUnrepresentableContent: string;
     assCueEndUnsupported: string;
+    subtitleTimestampUnsupported: string;
     lrcInlineEscapeNotice: string;
     lrcInlineEscapeConflict: string;
     lrcMetadataLineBreak: string;
@@ -1047,6 +1048,7 @@ const ko: Translations = {
     srtLossyDocument: "SRT로는 LRC 메타데이터, 미입력 줄, 번역 및 글자별 타이밍을 보존할 수 없습니다. LRC로 내보내거나 SRT 내보내기를 사용하세요.",
     assUnrepresentableContent: "ASS는 중괄호와 \\N, \\n, \\h 문자를 그대로 보존하지 못합니다. 해당 문자를 제거하거나 다른 형식으로 저장하세요.",
     assCueEndUnsupported: "ASS 센티초 정밀도로는 이 자막 cue의 짧은 종료 시각을 보존할 수 없습니다. VTT 또는 SRT로 저장하세요.",
+    subtitleTimestampUnsupported: "이 자막 시각은 출력 형식의 정밀도로 안전하게 표현할 수 없습니다. 시각을 줄이거나 다른 형식으로 저장하세요.",
     lrcInlineEscapeNotice: "문자열을 보존하기 위해 앱 전용 LRC 확장이 사용되었습니다. 일부 외부 플레이어는 이스케이프 문자를 표시할 수 있습니다.",
     lrcInlineEscapeConflict: "리터럴 타임스탬프 보존에 필요한 LRC 확장 태그가 기존 태그와 충돌합니다. 해당 태그 이름을 바꾼 뒤 저장하세요.",
     lrcMetadataLineBreak: "LRC 메타데이터에는 줄바꿈을 저장할 수 없습니다. 해당 메타데이터를 수정한 뒤 다시 저장하세요.",
@@ -1696,6 +1698,7 @@ const en: Translations = {
     srtLossyDocument: "SRT cannot preserve LRC metadata, untimed rows, translations, or timed syllables. Export as LRC or use SRT export.",
     assUnrepresentableContent: "ASS cannot preserve braces or \\N, \\n, \\h text literally. Remove those characters or save in another format.",
     assCueEndUnsupported: "ASS centisecond precision cannot preserve this short cue end. Save as VTT or SRT instead.",
+    subtitleTimestampUnsupported: "This subtitle timestamp cannot be represented safely at the output format precision. Reduce the timestamp or save in another format.",
     lrcInlineEscapeNotice: "An app-specific LRC extension preserved literal timestamp text. Some external players may display its escape sequences.",
     lrcInlineEscapeConflict: "An existing LRC tag conflicts with the extension needed to preserve literal timestamps. Rename that tag before saving.",
     lrcMetadataLineBreak: "LRC metadata cannot contain line breaks. Edit the metadata value before saving.",
@@ -2344,6 +2347,7 @@ const ja: Translations = {
     srtLossyDocument: "SRTではLRCのメタデータ、未タイム行、翻訳、文字ごとのタイミングを保持できません。LRCとして書き出すか、SRT書き出しを使用してください。",
     assUnrepresentableContent: "ASSでは中括弧や\\N、\\n、\\hを文字どおりに保持できません。該当文字を削除するか、別の形式で保存してください。",
     assCueEndUnsupported: "ASSのセンチ秒精度ではこの短いcue終了時刻を保持できません。VTTまたはSRTで保存してください。",
+    subtitleTimestampUnsupported: "この字幕時刻は出力形式の精度では安全に表現できません。時刻を小さくするか、別の形式で保存してください。",
     lrcInlineEscapeNotice: "文字列を保持するためにアプリ固有のLRC拡張を使用しました。一部の外部プレーヤーではエスケープ文字が表示される場合があります。",
     lrcInlineEscapeConflict: "リテラルのタイムスタンプを保持する拡張と既存のLRCタグが衝突しています。タグ名を変更してから保存してください。",
     lrcMetadataLineBreak: "LRCメタデータには改行を保存できません。メタデータを修正してから保存してください。",

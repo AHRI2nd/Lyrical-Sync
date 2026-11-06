@@ -3,7 +3,7 @@ import { afterEach, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { SRT_INVALID_TIMESTAMP_CODE, SRT_UNREPRESENTABLE_CONTENT_CODE } from "../../utils/srtConverter";
-import { ASS_UNREPRESENTABLE_CUE_END_CODE } from "../../utils/exportFormats";
+import { ASS_UNREPRESENTABLE_CUE_END_CODE, SUBTITLE_TIMESTAMP_UNREPRESENTABLE_CODE } from "../../utils/exportFormats";
 import { BatchFileList } from "./BatchFileList";
 
 afterEach(() => cleanup());
@@ -18,6 +18,18 @@ it("localizes the SRT paragraph export error in the batch row", () => {
   />);
 
   expect(screen.getByText(t.toast.srtBlankRowsUnsupported)).toBeTruthy();
+});
+
+it("localizes unsupported subtitle timestamp precision in the batch row", () => {
+  const t = useI18nStore.getState().t;
+  render(<BatchFileList
+    t={t}
+    entries={[{ id: "file", file: { path: "/input/song.lrc", bookmark: "" }, status: "error", error: SUBTITLE_TIMESTAMP_UNREPRESENTABLE_CODE }]}
+    onRemove={() => {}}
+    disabled={false}
+  />);
+
+  expect(screen.getByText(t.toast.subtitleTimestampUnsupported)).toBeTruthy();
 });
 
 it("localizes invalid SRT cue times in the batch row", () => {
