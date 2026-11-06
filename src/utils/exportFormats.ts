@@ -160,7 +160,7 @@ function assText(line: LrcLine, cueStart: number, cueEnd: number): string {
     let out = "";
     const firstTimed = syl.find((syllable) => syllable.time !== null);
     if (firstTimed?.time !== null && firstTimed) {
-      const delay = Math.round(((firstTimed.time as number) - cueStart) * 100);
+      const delay = Math.round((firstTimed.time as number) * 100) - Math.round(cueStart * 100);
       if (delay > 0) out += `{\\k${delay}}`;
     }
     for (let i = 0; i < syl.length; i++) {
@@ -170,7 +170,9 @@ function assText(line: LrcLine, cueStart: number, cueEnd: number): string {
       for (let j = i + 1; j < syl.length; j++) {
         if (syl[j].time !== null) { nextT = syl[j].time as number; break; }
       }
-      const durCs = Math.max(0, Math.round((nextT - (s.time as number)) * 100));
+      const startCs = Math.round((s.time as number) * 100);
+      const endCs = Math.round(nextT * 100);
+      const durCs = Math.max(0, endCs - startCs);
       out += `{\\k${durCs}}${escapeAssText(s.text)}`;
     }
     return out;

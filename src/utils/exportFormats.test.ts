@@ -121,6 +121,23 @@ describe("serializeAss", () => {
     expect(out).toContain("Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,first");
   });
 
+  it("distributes centisecond rounding across absolute karaoke boundaries", () => {
+    const doc = docOf([{
+      id: "fractional",
+      timestamp: 0,
+      text: "abc",
+      syllables: [
+        { text: "a", time: 0 },
+        { text: "b", time: 0.004 },
+        { text: "c", time: 0.008 },
+      ],
+    }]);
+    const out = serializeAss(doc, 0.012);
+    const event = out.split("\n").find((line) => line.startsWith("Dialogue:"))!;
+    const durations = [...event.matchAll(/\\k(\d+)/g)].map((match) => Number(match[1]));
+    expect(durations.reduce((sum, duration) => sum + duration, 0)).toBe(1);
+  });
+
   it("converts glyph timings into \\k karaoke durations (centiseconds)", () => {
     const out = serializeAss(docOf([
       { id: "1", timestamp: 1, text: "ab", syllables: [{ text: "a", time: 1 }, { text: "b", time: 1.5 }] },
