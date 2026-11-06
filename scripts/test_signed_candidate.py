@@ -30,7 +30,7 @@ class SignedCandidateTests(unittest.TestCase):
     def test_release_upload_waits_for_all_verified_build_artifacts(self):
         source=(ROOT/'.github/workflows/release.yml').read_text()
         self.assertIn('publish-release:',source)
-        self.assertIn('needs: release',source)
+        self.assertRegex(source,r'needs:\s*\[\s*release\s*,\s*test-gate\s*\]')
         self.assertIn('scripts/verify_release_candidates.py',source)
         self.assertIn('gh release upload',source)
         self.assertIn('actions/upload-artifact@v4',source)
@@ -102,32 +102,124 @@ class SignedCandidateTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'version'):
                 self.recorder().record(root,'aarch64-apple-darwin','c'*40,'0.7.0')
 
-    def test_release_candidate_aggregation_rechecks_files_and_requires_all_targets(self):
+    def release_candidate_verifier(self):
         path=ROOT/'scripts/verify_release_candidates.py'
         spec=importlib.util.spec_from_file_location('release_candidates',path)
         module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        return module
+
+    def release_candidate_matrix(self, root):
+        targets={
+            'aarch64-apple-darwin':[('app','Lyrical Sync_aarch64.app.tar.gz',True),('dmg','Lyrical Sync_aarch64.dmg',False)],
+            'x86_64-pc-windows-msvc':[('nsis','Lyrical Sync_0.7.0_x64-setup.exe',True),('msi','Lyrical Sync_0.7.0_x64_en-US.msi',True)],
+            'aarch64-pc-windows-msvc':[('nsis','Lyrical Sync_0.7.0_arm64-setup.exe',True)],
+        }
+        for target,items in targets.items():
+            bundle=root/target;bundle.mkdir()
+            rows=[]
+            for kind,name,has_sig in items:
+                artifact=bundle/name;artifact.write_bytes(name.encode())
+                row={'kind':kind,'path':name,'bytes':artifact.stat().st_size,
+                     'sha256':hashlib.sha256(artifact.read_bytes()).hexdigest()}
+                if has_sig:
+                    sig=Path(str(artifact)+'.sig');sig.write_text('fixture signature')
+                    row.update(signaturePath=sig.name,signatureSha256=hashlib.sha256(sig.read_bytes()).hexdigest())
+                rows.append(row)
+            (bundle/'candidate-record.json').write_text(json.dumps({'target':target,'version':'0.7.0','sourceSha':'a'*40,'installers':rows}))
+
+    def update_mac_candidate_path(self, root, field, path):
+        record_path=root/'aarch64-apple-darwin/candidate-record.json'
+        record=json.loads(record_path.read_text())
+        record['installers'][0][field]=path
+        record_path.write_text(json.dumps(record))
+
+    def test_release_candidate_aggregation_rechecks_files_and_requires_all_targets(self):
+        module=self.release_candidate_verifier()
         with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp);targets={
-                'aarch64-apple-darwin':[('app','Lyrical Sync_aarch64.app.tar.gz',True),('dmg','Lyrical Sync_aarch64.dmg',False)],
-                'x86_64-pc-windows-msvc':[('nsis','Lyrical Sync_0.7.0_x64-setup.exe',True),('msi','Lyrical Sync_0.7.0_x64_en-US.msi',True)],
-                'aarch64-pc-windows-msvc':[('nsis','Lyrical Sync_0.7.0_arm64-setup.exe',True)],
-            }
-            for target,items in targets.items():
-                bundle=root/target;bundle.mkdir()
-                rows=[]
-                for kind,name,has_sig in items:
-                    artifact=bundle/name;artifact.write_bytes(name.encode())
-                    row={'kind':kind,'path':name,'bytes':artifact.stat().st_size,
-                         'sha256':hashlib.sha256(artifact.read_bytes()).hexdigest()}
-                    if has_sig:
-                        sig=Path(str(artifact)+'.sig');sig.write_text('fixture signature')
-                        row.update(signaturePath=sig.name,signatureSha256=hashlib.sha256(sig.read_bytes()).hexdigest())
-                    rows.append(row)
-                (bundle/'candidate-record.json').write_text(json.dumps({'target':target,'version':'0.7.0','sourceSha':'a'*40,'installers':rows}))
+            root=Path(tmp)
+            self.release_candidate_matrix(root)
             self.assertEqual(len(module.verify(root,'0.7.0','a'*40)),9)
             record=root/'aarch64-pc-windows-msvc/candidate-record.json'
             record.unlink()
             with self.assertRaisesRegex(ValueError,'matrix is incomplete'):
+                module.verify(root,'0.7.0','a'*40)
+
+    def test_release_candidate_nested_paths_remain_valid(self):
+        module=self.release_candidate_verifier()
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            self.release_candidate_matrix(root)
+            bundle=root/'aarch64-apple-darwin'
+            nested=bundle/'nested';nested.mkdir()
+            archive=bundle/'Lyrical Sync_aarch64.app.tar.gz'
+            signature=Path(str(archive)+'.sig')
+            archive.rename(nested/archive.name)
+            signature.rename(nested/signature.name)
+            self.update_mac_candidate_path(root,'path','nested/'+archive.name)
+            self.update_mac_candidate_path(root,'signaturePath','nested/'+signature.name)
+
+            files=module.verify(root,'0.7.0','a'*40)
+            self.assertEqual(len(files),9)
+            self.assertIn((nested/archive.name).resolve(),files)
+            self.assertIn((nested/signature.name).resolve(),files)
+
+    def test_release_candidate_rejects_absolute_and_parent_traversal_paths(self):
+        module=self.release_candidate_verifier()
+        for field in ('path','signaturePath'):
+            for mode in ('absolute','parent','normalized_parent'):
+                with self.subTest(field=field,mode=mode), tempfile.TemporaryDirectory() as tmp:
+                    root=Path(tmp)/'release';root.mkdir()
+                    self.release_candidate_matrix(root)
+                    bundle=root/'aarch64-apple-darwin'
+                    original=bundle/('Lyrical Sync_aarch64.app.tar.gz'+('.sig' if field=='signaturePath' else ''))
+                    if mode=='normalized_parent':
+                        bad_path='nested/../'+original.name
+                    else:
+                        outside=(Path(tmp) if mode=='absolute' else root)/('outside-'+original.name)
+                        outside.write_bytes(original.read_bytes())
+                        bad_path=str(outside) if mode=='absolute' else '../'+outside.name
+                    self.update_mac_candidate_path(root,field,bad_path)
+                    with self.assertRaisesRegex(ValueError,'escapes candidate directory'):
+                        module.verify(root,'0.7.0','a'*40)
+
+    def test_release_candidate_rejects_artifact_and_signature_symlink_escape(self):
+        module=self.release_candidate_verifier()
+        for field in ('path','signaturePath'):
+            for mode in ('leaf','directory'):
+                with self.subTest(field=field,mode=mode), tempfile.TemporaryDirectory() as tmp:
+                    root=Path(tmp)/'release';root.mkdir()
+                    self.release_candidate_matrix(root)
+                    bundle=root/'aarch64-apple-darwin'
+                    original=bundle/('Lyrical Sync_aarch64.app.tar.gz'+('.sig' if field=='signaturePath' else ''))
+                    external=Path(tmp)/'external';external.mkdir()
+                    outside=external/original.name;outside.write_bytes(original.read_bytes())
+                    try:
+                        if mode=='leaf':
+                            (bundle/'escaped-file').symlink_to(outside)
+                            bad_path='escaped-file'
+                        else:
+                            (bundle/'escaped-parent').symlink_to(external,target_is_directory=True)
+                            bad_path='escaped-parent/'+outside.name
+                    except (OSError,NotImplementedError) as exc:
+                        self.skipTest(f'Symlink creation unavailable: {exc}')
+                    self.update_mac_candidate_path(root,field,bad_path)
+                    with self.assertRaisesRegex(ValueError,'escapes candidate directory'):
+                        module.verify(root,'0.7.0','a'*40)
+
+    def test_release_candidate_rejects_record_symlink_escape(self):
+        module=self.release_candidate_verifier()
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)/'release';root.mkdir()
+            self.release_candidate_matrix(root)
+            record=root/'aarch64-apple-darwin/candidate-record.json'
+            external=Path(tmp)/'outside-record.json'
+            external.write_bytes(record.read_bytes())
+            record.unlink()
+            try:
+                record.symlink_to(external)
+            except (OSError,NotImplementedError) as exc:
+                self.skipTest(f'Symlink creation unavailable: {exc}')
+            with self.assertRaisesRegex(ValueError,'Candidate record escapes release root'):
                 module.verify(root,'0.7.0','a'*40)
 
     def test_mixed_architecture_or_version_bundle_is_rejected(self):

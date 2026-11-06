@@ -12,13 +12,33 @@ EXPECTED = {
 }
 
 
+def confined_candidate_file(directory, value, label):
+    """Resolve a recorded file without allowing it outside its candidate bundle."""
+    if not isinstance(value, str) or not value:
+        raise ValueError(f'Invalid candidate {label} path')
+    relative = Path(value)
+    if relative.is_absolute() or '..' in relative.parts:
+        raise ValueError(f'Candidate {label} path escapes candidate directory: {value}')
+    try:
+        # Resolve both file and parent symlinks before hashing or uploading.
+        resolved = (directory / relative).resolve()
+    except (OSError, RuntimeError) as exc:
+        raise ValueError(f'Invalid candidate {label} path: {value}') from exc
+    if not resolved.is_relative_to(directory):
+        raise ValueError(f'Candidate {label} path escapes candidate directory: {value}')
+    return resolved
+
+
 def verify(root, version, source_sha):
-    root = Path(root)
+    root = Path(root).resolve()
     records = list(root.rglob('candidate-record.json'))
     by_target = {}
     selected_files = []
     names = set()
     for record_path in records:
+        if not record_path.resolve().is_relative_to(root):
+            raise ValueError(f'Candidate record escapes release root: {record_path}')
+        directory = record_path.parent.resolve()
         record = json.loads(record_path.read_text(encoding='utf-8'))
         target = record.get('target')
         if target not in EXPECTED or target in by_target:
@@ -29,7 +49,7 @@ def verify(root, version, source_sha):
         if not isinstance(rows, list) or {row.get('kind') for row in rows} != EXPECTED[target]:
             raise ValueError(f'Candidate artifact set is incomplete: {target}')
         for row in rows:
-            artifact = record_path.parent / row['path']
+            artifact = confined_candidate_file(directory, row['path'], 'artifact')
             if not artifact.is_file() or artifact.stat().st_size != row.get('bytes'):
                 raise ValueError(f'Missing or changed candidate artifact: {row.get("path")}')
             if hashlib.sha256(artifact.read_bytes()).hexdigest() != row.get('sha256'):
@@ -39,7 +59,7 @@ def verify(root, version, source_sha):
             names.add(artifact.name)
             selected_files.append(artifact)
             if row['kind'] != 'dmg':
-                signature = record_path.parent / row.get('signaturePath', '')
+                signature = confined_candidate_file(directory, row.get('signaturePath'), 'signature')
                 if (not signature.is_file() or not signature.read_text(encoding='utf-8').strip()
                         or hashlib.sha256(signature.read_bytes()).hexdigest() != row.get('signatureSha256')):
                     raise ValueError(f'Missing or changed updater signature sidecar: {row["path"]}')
