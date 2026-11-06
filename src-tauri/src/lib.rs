@@ -34,7 +34,14 @@ use bookmark::{create_security_bookmark, resolve_security_bookmark};
 #[tauri::command]
 async fn read_lrc_file(path: String) -> Result<String, String> {
     let path = path_validation::validate_safe_path(&path)?;
-    std::fs::read_to_string(&path).map_err(|e| e.to_string())
+    let content = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    // BOM-less UTF-16LE composed of ASCII code units is valid UTF-8 but
+    // contains NUL bytes. Passing it to the LRC/SRT parser would silently
+    // produce empty or malformed rows and could overwrite the original file.
+    if content.contains('\0') {
+        return Err("Unsupported lyric encoding: NUL bytes detected (possible UTF-16); convert a copy to UTF-8 before editing.".into());
+    }
+    Ok(content)
 }
 
 #[tauri::command]
@@ -340,6 +347,27 @@ mod lyric_save_command_tests {
         assert!(write_lrc_file(invalid.to_string_lossy().into_owned(), "draft".into()).await.is_err());
         assert_eq!(fs::read_to_string(&original).unwrap(), "original content");
         assert!(!invalid.exists());
+    }
+
+    #[tokio::test]
+    async fn read_rejects_bomless_utf16le_without_modifying_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("utf16-without-bom.srt");
+        let source = "1\n00:00:01,000 --> 00:00:02,000\nOriginal";
+        let raw: Vec<u8> = source.encode_utf16().flat_map(u16::to_le_bytes).collect();
+        fs::write(&target, &raw).unwrap();
+        let error = read_lrc_file(target.to_string_lossy().into_owned()).await.unwrap_err();
+        assert!(error.contains("Unsupported lyric encoding"), "{error}");
+        assert_eq!(fs::read(&target).unwrap(), raw);
+    }
+
+    #[tokio::test]
+    async fn read_keeps_normal_utf8_lyrics_and_literal_escape_sequences() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("normal.lrc");
+        let source = "[00:01.00]한글 日本語 \\0 text";
+        fs::write(&target, source).unwrap();
+        assert_eq!(read_lrc_file(target.to_string_lossy().into_owned()).await.unwrap(), source);
     }
 }
 
