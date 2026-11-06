@@ -22,7 +22,7 @@ jobs:
             bundleArgs: ""
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            bundleArgs: "--bundles msix,nsis"
+            bundleArgs: "--bundles nsis"
 
     runs-on: ${{ matrix.os }}
     steps:

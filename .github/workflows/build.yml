@@ -32,7 +32,7 @@ jobs:
             label: macos-arm64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            bundleArgs: "--bundles msix,nsis"
+            bundleArgs: "--bundles nsis"
             label: windows-x64
 
 
