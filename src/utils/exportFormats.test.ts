@@ -132,6 +132,17 @@ describe("serializeAss", () => {
 
 
 describe("shared subtitle cue boundaries", () => {
+  it("preserves overlapping imported SRT cue ends in VTT and ASS", () => {
+    const doc = docOf([
+      { id: "first", timestamp: 1, srtEndTime: 4, text: "first" },
+      { id: "second", timestamp: 2, srtEndTime: 5, text: "second" },
+    ]);
+    expect(serializeVtt(doc)).toContain("00:00:01.000 --> 00:00:04.000\nfirst");
+    expect(serializeVtt(doc)).toContain("00:00:02.000 --> 00:00:05.000\nsecond");
+    expect(serializeAss(doc)).toContain("Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,first");
+    expect(serializeAss(doc)).toContain("Dialogue: 0,0:00:02.00,0:00:05.00,Default,,0,0,0,,second");
+  });
+
   it("uses strictly later blank boundaries and final duration in VTT and ASS", () => {
     const doc = docOf([{ id: "a", timestamp: 1, text: "a" }, { id: "b", timestamp: 1, text: "b" },
       { id: "end", timestamp: 3, text: "" }, { id: "last", timestamp: 5, text: "last" }]);

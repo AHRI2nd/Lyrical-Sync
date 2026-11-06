@@ -64,7 +64,12 @@ function buildCues(doc: LrcDocument, lastCueEnd?: number, timeUnitsPerSecond = 1
     const line = timed[i];
     if (line.text.trim() === "" && !line.translation?.trim()) continue; // Empty rows provide boundaries only.
     const start = line.timestamp as number;
-    const end = nextCueEnd(timed, i, start, lastCueEnd, timeUnitsPerSecond);
+    const explicitEnd = line.srtEndTime;
+    const explicitEndIsRepresentable = Number.isFinite(explicitEnd) &&
+      Math.round((explicitEnd as number) * timeUnitsPerSecond) > Math.round(start * timeUnitsPerSecond);
+    const end = explicitEndIsRepresentable
+      ? explicitEnd as number
+      : nextCueEnd(timed, i, start, lastCueEnd, timeUnitsPerSecond);
     cues.push({ start, end, line });
   }
   return cues;
