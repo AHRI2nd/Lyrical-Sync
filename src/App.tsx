@@ -26,9 +26,9 @@ import { initSpotifyPlayer } from "./utils/spotifyPlayer";
 import { useUpdaterStore } from "./stores/useUpdaterStore";
 const UpdateModal = lazy(() => import("./components/Update/UpdateModal").then((m) => ({ default: m.UpdateModal })));
 import { useMacMenu } from "./hooks/useMacMenu";
-import { SrtLossyDocumentError, SrtUnrepresentableContentError } from "./utils/srtConverter";
+import { SrtInvalidTimestampError, SrtLossyDocumentError, SrtUnrepresentableContentError } from "./utils/srtConverter";
 import { AssUnrepresentableContentError, VttInvalidSyllableTimeError, VttUnrepresentableContentError } from "./utils/exportFormats";
-import { LrcInlineEscapeTagConflictError, LrcMetadataLineBreakError, LrcReservedTagConflictError, needsInlineTimestampEscape } from "./utils/lrcParser";
+import { LrcInlineEscapeTagConflictError, LrcInvalidTimestampError, LrcMetadataLineBreakError, LrcReservedTagConflictError, needsInlineTimestampEscape } from "./utils/lrcParser";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -48,6 +48,7 @@ import { setDocumentConfirmation, type TransitionChoice } from "./utils/document
 
 const AUDIO_EXTS = ["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff", "aif"];
 const LYRICS_EXTS = ["lrc", "srt"];
+const AUTOSAVE_RETRY_DELAYS_MS = [3000, 6000, 12000] as const;
 const fileExt = (p: string) => p.split(".").pop()?.toLowerCase() ?? "";
 
 function useGlobalKeys() {
@@ -145,32 +146,54 @@ function useAutoSave(recoveryPending: boolean) {
   useEffect(() => {
     if (!isDirty) serializationErrorShown.current = null;
     if (recoveryPending || !autoSave || !lrcPath || !isDirty) return;
-    const id = setTimeout(() => {
-      // 자동저장: 성공은 조용히, 실패만 토스트로 알림
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    let retryIndex = 0;
+    let genericErrorShown = false;
+    const ownsDocument = () => {
+      const current = useLrcStore.getState();
+      return !cancelled && current._documentSession === documentSession &&
+        current.lrcPath === lrcPath && current._editRevision === editRevision;
+    };
+    const scheduleRetry = () => {
+      if (!ownsDocument() || !useLrcStore.getState().isDirty || retryIndex >= AUTOSAVE_RETRY_DELAYS_MS.length) return;
+      timer = setTimeout(() => { void attemptSave(); }, AUTOSAVE_RETRY_DELAYS_MS[retryIndex++]);
+    };
+    const reportTransientFailure = () => {
+      serializationErrorShown.current = null;
+      if (!genericErrorShown) {
+        toast.error(useI18nStore.getState().t.toast.saveFailed);
+        genericErrorShown = true;
+      }
+      scheduleRetry();
+    };
+    const attemptSave = async () => {
+      if (!ownsDocument() || !useLrcStore.getState().isDirty) return;
       const current = useLrcStore.getState();
       const needsLrcNotice = lrcPath.toLowerCase().endsWith(".lrc") && needsInlineTimestampEscape(current.doc);
-      useLrcStore.getState().saveLrc()
-        .then((written) => {
-          if (!written) return;
-          serializationErrorShown.current = null;
-          if (needsLrcNotice && !lrcExtensionNoticeShown.current) {
-            toast.info(useI18nStore.getState().t.toast.lrcInlineEscapeNotice);
-            lrcExtensionNoticeShown.current = true;
-          }
-        })
-        .catch((error: unknown) => {
-          const t = useI18nStore.getState().t;
-          const code = serializationErrorCode(error);
-          if (code) {
-            if (serializationErrorShown.current !== code) toast.error(saveErrorMessage(error, t));
-            serializationErrorShown.current = code;
-          } else {
-            serializationErrorShown.current = null;
-            toast.error(t.toast.saveFailed);
-          }
-        });
-    }, 1500);
-    return () => clearTimeout(id);
+      try {
+        const written = await current.saveLrc();
+        if (!ownsDocument()) return;
+        if (!written) { reportTransientFailure(); return; }
+        serializationErrorShown.current = null;
+        if (needsLrcNotice && !lrcExtensionNoticeShown.current) {
+          toast.info(useI18nStore.getState().t.toast.lrcInlineEscapeNotice);
+          lrcExtensionNoticeShown.current = true;
+        }
+      } catch (error: unknown) {
+        if (!ownsDocument()) return;
+        const code = serializationErrorCode(error);
+        if (code) {
+          // A deterministic format validation error cannot be fixed by retrying.
+          if (serializationErrorShown.current !== code) toast.error(saveErrorMessage(error, useI18nStore.getState().t));
+          serializationErrorShown.current = code;
+          return;
+        }
+        reportTransientFailure();
+      }
+    };
+    timer = setTimeout(() => { void attemptSave(); }, 1500);
+    return () => { cancelled = true; clearTimeout(timer); };
     // Reset the debounce timer for user edits, not automatic metadata refreshes.
   }, [autoSave, lrcPath, isDirty, editRevision, recoveryPending, documentSession]);
 
@@ -200,11 +223,12 @@ function useAutoSave(recoveryPending: boolean) {
 }
 
 function serializationErrorCode(error: unknown): string | null {
-  if (error instanceof SrtUnrepresentableContentError || error instanceof SrtLossyDocumentError || error instanceof VttUnrepresentableContentError || error instanceof VttInvalidSyllableTimeError || error instanceof AssUnrepresentableContentError || error instanceof LrcInlineEscapeTagConflictError || error instanceof LrcMetadataLineBreakError || error instanceof LrcReservedTagConflictError) return error.code;
+  if (error instanceof SrtUnrepresentableContentError || error instanceof SrtLossyDocumentError || error instanceof SrtInvalidTimestampError || error instanceof VttUnrepresentableContentError || error instanceof VttInvalidSyllableTimeError || error instanceof AssUnrepresentableContentError || error instanceof LrcInlineEscapeTagConflictError || error instanceof LrcInvalidTimestampError || error instanceof LrcMetadataLineBreakError || error instanceof LrcReservedTagConflictError) return error.code;
   return null;
 }
 
 function saveErrorMessage(error: unknown, t: ReturnType<typeof useI18nStore.getState>["t"]): string {
+  if (error instanceof SrtInvalidTimestampError || error instanceof LrcInvalidTimestampError) return t.toast.invalidTimestamp;
   if (error instanceof SrtUnrepresentableContentError) return t.toast.srtBlankRowsUnsupported;
   if (error instanceof SrtLossyDocumentError) return t.toast.srtLossyDocument;
   if (error instanceof VttUnrepresentableContentError) return t.toast.vttBlankRowsUnsupported;
