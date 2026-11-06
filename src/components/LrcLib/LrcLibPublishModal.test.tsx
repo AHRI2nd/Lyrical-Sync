@@ -42,6 +42,15 @@ it('requires renewed confirmation if the document becomes invalid while confirma
  expect(screen.getByRole('alert').textContent).toBe(t.changed);
 });
 
+it('blocks unsafe timestamps without crashing the publish modal',async()=>{
+ useLrcStore.setState({doc:{...useLrcStore.getState().doc,lines:[{id:'audit',text:'Huge timestamp',timestamp:1e306}]}});
+ render(<LrcLibPublishModal onClose={vi.fn()}/>);
+ const t=useI18nStore.getState().t.lrclibPublish;
+ expect(screen.getByText(t.invalidTimestamp)).toBeTruthy();
+ expect(screen.getByRole('button',{name:t.publish}).hasAttribute('disabled')).toBe(true);
+ expect(invoke).not.toHaveBeenCalledWith('lrclib_publish',expect.anything());
+});
+
 it('blocks LRCLIB upload when literal inline timestamps would be ambiguous to external parsers',async()=>{
  useLrcStore.setState({doc:{...useLrcStore.getState().doc,lines:[{id:'audit',text:'Literal <00:02.00> text',timestamp:0}]}});
  render(<LrcLibPublishModal onClose={vi.fn()}/>);

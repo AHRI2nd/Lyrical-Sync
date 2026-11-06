@@ -36,21 +36,24 @@ export function LrcLibPublishModal({ onClose }: { onClose: () => void }) {
   const title = doc.metadata.title.trim();
   const artist = doc.metadata.artist.trim();
   const album = doc.metadata.album.trim();
+  const hasInvalidTimestamp = doc.lines.some((line) => line.timestamp !== null &&
+    (!Number.isFinite(line.timestamp) || !Number.isSafeInteger(Math.round(line.timestamp * 1000))));
 
   const { plainLyrics, syncedLyrics, hasSync } = useMemo(() => {
-    const synced = doc.lines
+    const synced = hasInvalidTimestamp ? "" : doc.lines
       .filter((l) => l.timestamp !== null)
       .map((l) => `[${formatLrcTimestamp(l.timestamp as number)}]${l.text}`)
       .join("\n");
     const plain = doc.lines.map((l) => l.text).join("\n").trim();
     return { plainLyrics: plain, syncedLyrics: synced, hasSync: synced.length > 0 };
-  }, [doc.lines]);
+  }, [doc.lines, hasInvalidTimestamp]);
 
   // 누락 요건
   const missing: string[] = [];
   if (!title) missing.push(t.lrclibPublish.needTitle);
   if (!artist) missing.push(t.lrclibPublish.needArtist);
-  if (duration <= 0) missing.push(t.lrclibPublish.needDuration);
+  if (!Number.isFinite(duration) || duration <= 0) missing.push(t.lrclibPublish.needDuration);
+  if (hasInvalidTimestamp) missing.push(t.lrclibPublish.invalidTimestamp);
   if (!hasSync) missing.push(t.lrclibPublish.needSync);
   if (doc.lines.some((line) => INLINE_TIMESTAMP_TEXT_RE.test(line.text))) missing.push(t.lrclibPublish.unsupportedTimestampText);
   if (doc.lines.some((line) => line.timestamp !== null && /[\r\n]/.test(line.text))) missing.push(t.lrclibPublish.unsupportedMultiline);

@@ -173,6 +173,7 @@ export interface Translations {
     needArtist: string;
     needDuration: string;
     needSync: string;
+    invalidTimestamp: string;
     unsupportedTimestampText: string;
     unsupportedMultiline: string;
     changed: string;
@@ -814,6 +815,7 @@ const ko: Translations = {
     needArtist: "아티스트",
     needDuration: "오디오 길이(오디오를 열어주세요)",
     needSync: "타임스탬프가 있는 동기화 가사",
+    invalidTimestamp: "유효한 타임스탬프를 사용할 수 없는 줄이 있습니다. 타임스탬프를 수정한 뒤 다시 시도하세요.",
     unsupportedTimestampText: "가사에 타임스탬프 형식의 리터럴 문자가 있어 안전하게 업로드할 수 없습니다. 해당 텍스트를 수정한 뒤 다시 시도하세요.",
     unsupportedMultiline: "한 타임스탬프 줄 안에 여러 줄이 있어 LRCLIB 동기화 형식으로 안전하게 표현할 수 없습니다. 줄을 나누어 다시 시도하세요.",
     changed: "확인 이후 가사나 오디오 길이가 변경되었습니다. 최신 미리보기를 확인하고 다시 확인하세요.",
@@ -1461,6 +1463,7 @@ const en: Translations = {
     needArtist: "Artist",
     needDuration: "Audio duration (open an audio file)",
     needSync: "Synced lyrics with timestamps",
+    invalidTimestamp: "A lyric row has a timestamp that cannot be represented safely. Correct it before publishing.",
     unsupportedTimestampText: "The lyrics contain literal timestamp-shaped text that external parsers may misread. Edit the text before publishing.",
     unsupportedMultiline: "A timestamped lyric row contains multiple lines and cannot be represented safely in LRCLIB synced lyrics. Split the row before publishing.",
     changed: "Lyrics or audio duration changed after confirmation. Review the latest preview and confirm again.",
@@ -2109,6 +2112,7 @@ const ja: Translations = {
     needArtist: "アーティスト",
     needDuration: "音声の長さ（音声を開いてください）",
     needSync: "タイムスタンプ付きの同期歌詞",
+    invalidTimestamp: "安全に表現できないタイムスタンプがあります。修正してから公開してください。",
     unsupportedTimestampText: "歌詞に外部パーサーが誤読する可能性のあるタイムスタンプ形式の文字があります。テキストを修正してから公開してください。",
     unsupportedMultiline: "1つのタイムスタンプ行に複数行があり、LRCLIBの同期形式で安全に表現できません。行を分割してから公開してください。",
     changed: "確認後に歌詞または音声の長さが変更されました。最新のプレビューを確認して、もう一度確認してください。",
