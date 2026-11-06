@@ -426,6 +426,15 @@ describe("validateTimestamps", () => {
     expect(w.get("a")).toBe("duplicate");
     expect(w.get("b")).toBe("duplicate");
   });
+  it("does not flag distinct millisecond timestamps as centisecond duplicates", () => {
+    const warnings = validateTimestamps([
+      { id: "a", timestamp: 1.001, text: "first" },
+      { id: "b", timestamp: 1.002, text: "second" },
+    ]);
+    expect(warnings.has("a")).toBe(false);
+    expect(warnings.has("b")).toBe(false);
+  });
+
   it("flags out-of-order timestamps", () => {
     const w = validateTimestamps([
       { id: "a", timestamp: 5, text: "x" },

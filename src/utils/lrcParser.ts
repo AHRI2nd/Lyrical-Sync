@@ -136,14 +136,14 @@ export type LineWarning = "outOfOrder" | "duplicate";
 export function validateTimestamps(lines: LrcLine[]): Map<string, LineWarning> {
   const warnings = new Map<string, LineWarning>();
 
-  // 중복 검사 (센티초 단위 = LRC 정밀도)
+  // Duplicate detection follows the serializer's maximum millisecond precision.
   const seen = new Map<number, string[]>();
   for (const l of lines) {
     if (l.timestamp === null) continue;
-    const cs = Math.round(l.timestamp * 100);
-    const ids = seen.get(cs) ?? [];
+    const milliseconds = Math.round(l.timestamp * 1000);
+    const ids = seen.get(milliseconds) ?? [];
     ids.push(l.id);
-    seen.set(cs, ids);
+    seen.set(milliseconds, ids);
   }
   for (const ids of seen.values()) {
     if (ids.length > 1) ids.forEach((id) => warnings.set(id, "duplicate"));
