@@ -5,7 +5,7 @@ import { readLyrics, type FileRef } from "./fileAccess";
 import { enqueuePathWrite } from "./pathWriteQueue";
 import { parseLrc, serializeLrc } from "./lrcParser";
 import { parseSrt, serializeSrt, SrtUnrepresentableContentError } from "./srtConverter";
-import { AssUnrepresentableContentError, VttUnrepresentableContentError, serializeVtt, serializeAss } from "./exportFormats";
+import { AssUnrepresentableContentError, VttUnrepresentableContentError, VttInvalidSyllableTimeError, serializeVtt, serializeAss } from "./exportFormats";
 
 export interface BatchFileEntry {
   id: string;
@@ -44,7 +44,7 @@ export function preflightBatch(entries: BatchFileEntry[], operation: BatchOperat
     const name = batchOutputName(entry.file.path, operation);
     if (operation.kind === "tag" && entry.file.path.toLowerCase().endsWith(".srt")) throw new Error("Metadata tags require LRC input.");
     const key = name.normalize("NFC").toLowerCase();
-    if (names.has(key)) throw new Error(`Duplicate output: ${name}`);
+    if (names.has(key)) throw new Error(`DUPLICATE_OUTPUT:${name}`);
     if (ids.has(entry.id)) throw new Error("Duplicate batch entry ID.");
     names.add(key);
     ids.add(entry.id);
@@ -112,9 +112,18 @@ export async function runBatchOperation(
         onStatus(task.entry.id, "done", undefined, refreshed);
       } catch (error) {
         summary.error++;
-        const message = error instanceof SrtUnrepresentableContentError || error instanceof VttUnrepresentableContentError || error instanceof AssUnrepresentableContentError
-          ? error.code
-          : error instanceof Error ? error.message : String(error);
+        let message: string;
+        if (error instanceof SrtUnrepresentableContentError) {
+          message = "SRT_UNREPRESENTABLE_CONTENT"; // Will be localized by caller
+        } else if (error instanceof VttUnrepresentableContentError) {
+          message = "VTT_UNREPRESENTABLE_CONTENT";
+        } else if (error instanceof AssUnrepresentableContentError) {
+          message = "ASS_UNREPRESENTABLE_CONTENT";
+        } else if (error instanceof VttInvalidSyllableTimeError) {
+          message = "VTT_INVALID_SYLLABLE_TIME";
+        } else {
+          message = error instanceof Error ? error.message : String(error);
+        }
         onStatus(task.entry.id, "error", message, refreshed);
       }
     }

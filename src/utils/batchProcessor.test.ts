@@ -18,7 +18,7 @@ beforeEach(() => {
 
 describe("batch preflight", () => {
   it("rejects same-stem and case-folded output collisions before any I/O", async () => {
-    await expect(runBatchOperation([entry("/a/song.lrc"), entry("/b/SONG.srt")], convert, output, vi.fn())).rejects.toThrow("Duplicate output");
+    await expect(runBatchOperation([entry("/a/song.lrc"), entry("/b/SONG.srt")], convert, output, vi.fn())).rejects.toThrow("DUPLICATE_OUTPUT:");
     expect(readLyrics).not.toHaveBeenCalled();
     expect(invoke).not.toHaveBeenCalled();
   });

@@ -140,9 +140,9 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
         {/* 검색 필드 */}
         <div className="px-5 py-3 border-b border-[var(--ls-border-subtle)] shrink-0 flex flex-col gap-2">
           <div className="grid grid-cols-3 gap-2">
-            <Field label={t.lrclib.fieldTitle} value={title} onChange={setTitle} onEnter={() => runSearch({ title, artist, album })} />
-            <Field label={t.lrclib.fieldArtist} value={artist} onChange={setArtist} onEnter={() => runSearch({ title, artist, album })} />
-            <Field label={t.lrclib.fieldAlbum} value={album} onChange={setAlbum} onEnter={() => runSearch({ title, artist, album })} />
+            <Field label={t.lrclib.fieldTitle} value={title} onChange={setTitle} onEnter={() => runSearch({ title, artist, album })} disabled={status === "loading"} />
+            <Field label={t.lrclib.fieldArtist} value={artist} onChange={setArtist} onEnter={() => runSearch({ title, artist, album })} disabled={status === "loading"} />
+            <Field label={t.lrclib.fieldAlbum} value={album} onChange={setAlbum} onEnter={() => runSearch({ title, artist, album })} disabled={status === "loading"} />
           </div>
           <div className="flex items-center justify-between gap-2">
             <span className="text-[11px] text-[var(--ls-text-secondary)] truncate">{t.lrclib.hint}</span>
@@ -249,12 +249,13 @@ function Check({
 }
 
 function Field({
-  label, value, onChange, onEnter,
+  label, value, onChange, onEnter, disabled,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   onEnter: () => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-1">
@@ -264,7 +265,8 @@ function Field({
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !isComposingKeyEvent(e.nativeEvent)) onEnter(); }}
+          onKeyDown={(e) => { if (e.key === "Enter" && !isComposingKeyEvent(e.nativeEvent) && !disabled) onEnter(); }}
+          disabled={disabled}
           className="ls-field text-sm"
         />
       </label>

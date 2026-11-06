@@ -276,6 +276,10 @@ export interface Translations {
   batchStop: string;
   batchSummaryDone: string;
   batchSummaryError: string;
+  batchErrorAssUnrepresentable: string;
+  batchErrorVttUnrepresentable: string;
+  batchErrorVttInvalidSyllable: string;
+  batchErrorDuplicateOutput: string;
   timeShiftTooltip: string;
   timeShiftFrom: string;
   timeShiftTo: string;
@@ -922,6 +926,10 @@ const ko: Translations = {
   batchStop: "중지",
   batchSummaryDone: "개 완료",
   batchSummaryError: "개 실패",
+  batchErrorAssUnrepresentable: "ASS는 이 텍스트를 그대로 유지할 수 없습니다.",
+  batchErrorVttUnrepresentable: "VTT는 빈 단락 행을 큐에 유지할 수 없습니다.",
+  batchErrorVttInvalidSyllable: "VTT는 이 음절 타임스탬프를 큐 내에서 표현할 수 없습니다.",
+  batchErrorDuplicateOutput: "중복된 출력 파일명: {name}",
   timeShiftTooltip: "선택한 줄 범위의 타임스탬프를 일괄로 앞뒤로 이동합니다",
   timeShiftFrom: "시작",
   timeShiftTo: "끝",
@@ -1562,6 +1570,10 @@ const en: Translations = {
   batchStop: "Stop",
   batchSummaryDone: "done",
   batchSummaryError: "failed",
+  batchErrorAssUnrepresentable: "ASS cannot preserve this text literally.",
+  batchErrorVttUnrepresentable: "VTT cannot preserve blank paragraph rows in a cue.",
+  batchErrorVttInvalidSyllable: "VTT cannot represent these syllable timestamps within the cue.",
+  batchErrorDuplicateOutput: "Duplicate output filename: {name}",
   timeShiftTooltip: "Shift timestamps of a selected line range forward or backward",
   timeShiftFrom: "From",
   timeShiftTo: "To",
@@ -2201,6 +2213,10 @@ const ja: Translations = {
   batchStop: "停止",
   batchSummaryDone: "件完了",
   batchSummaryError: "件失敗",
+  batchErrorAssUnrepresentable: "ASSではこのテキストをそのまま保持できません。",
+  batchErrorVttUnrepresentable: "VTTでは空の段落行をキューに保持できません。",
+  batchErrorVttInvalidSyllable: "VTTではこれらの音節タイムスタンプをキュー内で表現できません。",
+  batchErrorDuplicateOutput: "重複した出力ファイル名: {name}",
   timeShiftTooltip: "選択した行範囲のタイムスタンプを前後に一括移動します",
   timeShiftFrom: "開始",
   timeShiftTo: "終了",

@@ -107,6 +107,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   const [showBpmSnap, setShowBpmSnap] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
   // 줄 다중선택(일괄 작업)
+  const editorRef = useRef<HTMLDivElement>(null);
   const [selection, setSelection] = useState<{ session: number; ids: Set<string> }>({ session: documentSession, ids: new Set() });
   const selectedIds = selection.session === documentSession ? selection.ids : new Set<string>();
   const changeSelection = (update: (ids: Set<string>) => Set<string>) => {
@@ -172,6 +173,17 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     setPendingAiSync(null);
     setPendingTranslationSplit(null);
   }, [documentSession]);
+
+  // Reset _lastEditKey when editor loses focus to start new undo group
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const onBlur = () => {
+      useLrcStore.setState({ _lastEditKey: null });
+    };
+    editor.addEventListener("focusout", onBlur);
+    return () => editor.removeEventListener("focusout", onBlur);
+  }, []);
   const applyTranslationSplit = () => {
     const pending = pendingTranslationSplit;
     if (!pending) return;
@@ -710,7 +722,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
 
   return (
-    <div className="ls-panel flex flex-col gap-2 p-4 border border-transparent flex-1 min-h-0 min-w-0">
+    <div ref={editorRef} className="ls-panel flex flex-col gap-2 p-4 border border-transparent flex-1 min-h-0 min-w-0">
       <div className="flex flex-wrap gap-2 items-center justify-between">
         <div className="flex items-center gap-2 shrink-0">
           <h2 className="text-sm font-semibold text-[var(--ls-text-secondary)]">{t.lyricsEditor}</h2>

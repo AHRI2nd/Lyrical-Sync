@@ -34,8 +34,23 @@ export function ToastContainer() {
   const toasts = useToastStore((s) => s.toasts);
   const dismiss = useToastStore((s) => s.dismiss);
 
+  // Keyboard dismissal handler
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape" && toasts.length > 0) {
+      dismiss(toasts[0].id);
+    }
+  };
+
   return (
-    <div className="fixed bottom-4 right-4 z-[60] flex flex-col gap-2 pointer-events-none">
+    <div 
+      className="fixed bottom-4 right-4 z-[60] flex flex-col gap-2 pointer-events-none"
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+      role="region"
+      aria-label="Notifications"
+      aria-live="polite"
+      aria-atomic="true"
+    >
       {toasts.map((t) => (
         <div
           key={t.id}
@@ -43,6 +58,8 @@ export function ToastContainer() {
           aria-live={t.type === "error" ? "assertive" : "polite"}
           aria-atomic="true"
           onClick={() => dismiss(t.id)}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") dismiss(t.id); }}
+          tabIndex={0}
           className={`pointer-events-auto cursor-pointer flex items-start gap-2 px-3.5 py-2.5 rounded-lg shadow-xl border text-sm max-w-xs animate-[toastIn_.18s_ease-out] backdrop-blur-sm ${STYLE[t.type]}`}
         >
           <span className="shrink-0 mt-0.5"><Icon type={t.type} /></span>

@@ -3,6 +3,27 @@ import { open } from "@tauri-apps/plugin-dialog";
 import type { Translations } from "../../i18n/translations";
 import type { FileRef } from "../../utils/fileAccess";
 import { runBatchOperation, type BatchFileEntry, type BatchOperation, type BatchSummary } from "../../utils/batchProcessor";
+
+// Localized batch error codes
+function localizeBatchError(t: Translations, code: string): string {
+  if (code.startsWith("DUPLICATE_OUTPUT:")) {
+    const name = code.slice("DUPLICATE_OUTPUT:".length);
+    return t.batchErrorDuplicateOutput.replace("{name}", name);
+  }
+  switch (code) {
+    case "SRT_UNREPRESENTABLE_CONTENT":
+      return "SRT cannot represent this content.";
+    case "VTT_UNREPRESENTABLE_CONTENT":
+      return t.batchErrorVttUnrepresentable;
+    case "ASS_UNREPRESENTABLE_CONTENT":
+      return t.batchErrorAssUnrepresentable;
+    case "VTT_INVALID_SYLLABLE_TIME":
+      return t.batchErrorVttInvalidSyllable;
+    default:
+      return code;
+  }
+}
+
 import { BatchFileList } from "./BatchFileList";
 import { BatchOperationPicker } from "./BatchOperationPicker";
 import { useModalFocus } from "../../hooks/useModalFocus";
@@ -100,7 +121,7 @@ export function BatchToolModal({ t, onClose }: { t: Translations; onClose: () =>
             <p className="mt-1 break-all text-xs text-[var(--ls-text-secondary)]">{output?.path ?? t.batchOutputFolderEmpty}</p>
           </div>
           <BatchOperationPicker t={t} operation={operation} disabled={busy} onChange={(next) => { if (!abortRef.current && !selectingRef.current) { setOperation(next); setSummary(null); } }} />
-          {error && <p role="alert" className="break-words text-xs text-red-400">{error}</p>}
+          {error && <p role="alert" className="break-words text-xs text-red-400">{localizeBatchError(t, error)}</p>}
           {summary && <p role="status" className="text-xs text-[var(--ls-text-secondary)]">{summary.done} {t.batchSummaryDone} · {summary.error} {t.batchSummaryError} · {summary.cancelled} {t.batchSummaryCancelled}</p>}
           <div className="flex justify-end gap-2">
             <button type="button" disabled={busy} className={`ls-button ${buttonClass}`} onClick={close}>{t.confirmNewCancel}</button>
