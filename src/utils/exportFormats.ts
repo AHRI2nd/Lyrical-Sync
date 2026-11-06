@@ -6,6 +6,7 @@ interface Cue { start: number; end: number; line: LrcLine; }
 
 export const ASS_UNREPRESENTABLE_CONTENT_CODE = "ASS_UNREPRESENTABLE_CONTENT";
 export const ASS_UNREPRESENTABLE_CUE_END_CODE = "ASS_UNREPRESENTABLE_CUE_END";
+export const SUBTITLE_TIMESTAMP_UNREPRESENTABLE_CODE = "SUBTITLE_TIMESTAMP_UNREPRESENTABLE";
 export const VTT_UNREPRESENTABLE_CONTENT_CODE = "VTT_UNREPRESENTABLE_CONTENT";
 export const VTT_INVALID_SYLLABLE_TIME_CODE = "VTT_INVALID_SYLLABLE_TIME";
 
@@ -51,15 +52,45 @@ export class AssUnrepresentableCueEndError extends Error {
   }
 }
 
+export class SubtitleTimestampUnrepresentableError extends Error {
+  readonly code = SUBTITLE_TIMESTAMP_UNREPRESENTABLE_CODE;
+
+  constructor() {
+    super("Subtitle timestamp cannot be represented at the output format precision.");
+    this.name = "SubtitleTimestampUnrepresentableError";
+  }
+}
+
+// Precompute the next strictly later boundary per output-precision group in O(n).
+export function nextCueEnds(timed: readonly LrcLine[], lastCueEnd?: number, timeUnitsPerSecond = 1000): number[] {
+  const startUnits = timed.map((line) => Math.max(0, Math.round((line.timestamp ?? 0) * timeUnitsPerSecond)));
+  const nextBoundaries: (number | undefined)[] = new Array(timed.length);
+  let groupStart = 0;
+  for (let index = 1; index < timed.length; index++) {
+    if (startUnits[index] === startUnits[groupStart]) continue;
+    const boundary = timed[index].timestamp ?? undefined;
+    for (let grouped = groupStart; grouped < index; grouped++) nextBoundaries[grouped] = boundary;
+    groupStart = index;
+  }
+
+  return timed.map((line, index) => {
+    const start = line.timestamp ?? 0;
+    const startUnit = startUnits[index];
+    const next = nextBoundaries[index];
+    if (next !== undefined && Math.round(next * timeUnitsPerSecond) > startUnit) return next;
+    if (lastCueEnd !== undefined && Number.isFinite(lastCueEnd) &&
+        Math.round(lastCueEnd * timeUnitsPerSecond) > startUnit) return lastCueEnd;
+    return Math.max(0, start) + 4;
+  });
+}
+
 // Compare boundaries at the output format precision so rounding cannot create an empty cue.
 export function nextCueEnd(timed: readonly LrcLine[], index: number, start: number, lastCueEnd?: number, timeUnitsPerSecond = 1000): number {
-  const startUnit = Math.max(0, Math.round(start * timeUnitsPerSecond));
-  const isLater = (time: number) => Number.isFinite(time) && Math.round(time * timeUnitsPerSecond) > startUnit;
-  for (let i = index + 1; i < timed.length; i++) {
-    const next = timed[i].timestamp;
-    if (next !== null && isLater(next)) return next;
+  if (index >= 0 && index < timed.length && timed[index].timestamp === start) {
+    return nextCueEnds(timed, lastCueEnd, timeUnitsPerSecond)[index];
   }
-  if (lastCueEnd !== undefined && isLater(lastCueEnd)) return lastCueEnd;
+  const startUnit = Math.max(0, Math.round(start * timeUnitsPerSecond));
+  if (lastCueEnd !== undefined && Number.isFinite(lastCueEnd) && Math.round(lastCueEnd * timeUnitsPerSecond) > startUnit) return lastCueEnd;
   return Math.max(0, start) + 4;
 }
 
@@ -68,6 +99,7 @@ function buildCues(doc: LrcDocument, lastCueEnd?: number, timeUnitsPerSecond = 1
     .filter((l) => l.timestamp !== null)
     .slice()
     .sort((a, b) => (a.timestamp as number) - (b.timestamp as number));
+  const fallbackEnds = nextCueEnds(timed, lastCueEnd, timeUnitsPerSecond);
 
   const cues: Cue[] = [];
   for (let i = 0; i < timed.length; i++) {
@@ -83,7 +115,7 @@ function buildCues(doc: LrcDocument, lastCueEnd?: number, timeUnitsPerSecond = 1
     }
     const end = explicitEndIsRepresentable
       ? explicitEnd as number
-      : nextCueEnd(timed, i, start, lastCueEnd, timeUnitsPerSecond);
+      : fallbackEnds[i];
     cues.push({ start, end, line });
   }
   return cues;
@@ -97,6 +129,7 @@ function vttTime(seconds: number): string {
   // Clamp negative timestamps to 0 (VTT doesn't support negative times)
   const clampedSeconds = Math.max(0, seconds);
   const ms = Math.max(0, Math.round(clampedSeconds * 1000));
+  if (!Number.isSafeInteger(ms)) throw new SubtitleTimestampUnrepresentableError();
   return `${p2(Math.floor(ms / 3600000))}:${p2(Math.floor(ms / 60000) % 60)}:${p2(Math.floor(ms / 1000) % 60)}.${p3(ms % 1000)}`;
 }
 
@@ -158,6 +191,7 @@ function assTime(seconds: number): string {
   // Clamp negative timestamps to 0 (ASS doesn't support negative times)
   const clampedSeconds = Math.max(0, seconds);
   const cs = Math.max(0, Math.round(clampedSeconds * 100));
+  if (!Number.isSafeInteger(cs)) throw new SubtitleTimestampUnrepresentableError();
   return `${Math.floor(cs / 360000)}:${p2(Math.floor(cs / 6000) % 60)}:${p2(Math.floor(cs / 100) % 60)}.${p2(cs % 100)}`;
 }
 

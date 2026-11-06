@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { escapeVttText, serializeVtt, serializeAss } from "./exportFormats";
+import { escapeVttText, nextCueEnds, serializeVtt, serializeAss } from "./exportFormats";
 import { parseLrc } from "./lrcParser";
 import type { LrcDocument } from "../types/lrc";
 
@@ -148,7 +148,20 @@ describe("serializeAss", () => {
 });
 
 
+it.each([NaN, Infinity, 1e300])("rejects VTT and ASS timestamps outside safe output precision: %s", (timestamp) => {
+  const doc = docOf([{ id: "unsafe", timestamp, text: "unsafe" }]);
+  expect(() => serializeVtt(doc)).toThrow("Subtitle timestamp cannot be represented");
+  expect(() => serializeAss(doc)).toThrow("Subtitle timestamp cannot be represented");
+});
+
 describe("shared subtitle cue boundaries", () => {
+  it("precomputes equal-start fallback boundaries without rescanning later cues", () => {
+    const lines = Array.from({ length: 5000 }, (_, index) => ({ id: String(index), timestamp: 5, text: "line" }));
+    const ends = nextCueEnds(lines);
+    expect(ends).toHaveLength(lines.length);
+    expect(ends.every((end) => end === 9)).toBe(true);
+  });
+
   it("keeps a positive fallback duration when negative starts clamp to zero", () => {
     const doc = docOf([{ id: "negative", timestamp: -5, text: "clamped" }]);
     expect(serializeVtt(doc)).toContain("00:00:00.000 --> 00:00:04.000\nclamped");

@@ -1,5 +1,5 @@
 import { LrcDocument, defaultDocument } from "../types/lrc";
-import { nextCueEnd } from "./exportFormats";
+import { nextCueEnds } from "./exportFormats";
 
 export const SRT_UNREPRESENTABLE_CONTENT_CODE = "SRT_UNREPRESENTABLE_CONTENT";
 export const SRT_INVALID_TIMESTAMP_CODE = "SRT_INVALID_TIMESTAMP";
@@ -104,6 +104,7 @@ export function serializeSrt(doc: LrcDocument, lastCueEnd?: number): string {
     .slice()
     .sort((a, b) => (a.timestamp as number) - (b.timestamp as number));
 
+  const fallbackEnds = nextCueEnds(timed, lastCueEnd);
   const cues: { start: number; end: number; text: string }[] = [];
   for (let i = 0; i < timed.length; i++) {
     const line = timed[i];
@@ -116,7 +117,7 @@ export function serializeSrt(doc: LrcDocument, lastCueEnd?: number): string {
     }
     const end = importedEnd !== undefined
       ? importedEnd
-      : nextCueEnd(timed, i, start, lastCueEnd);
+      : fallbackEnds[i];
     const rawText = line.text.trim() === "" ? (line.translation ?? "") : line.translation ? `${line.text}\n${line.translation}` : line.text;
     // Escape angle brackets to prevent interpretation as markup by SRT players/FFmpeg
     const text = rawText.replace(/</g, "<").replace(/>/g, ">");
