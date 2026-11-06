@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { escapeVttText, serializeVtt, serializeAss } from "./exportFormats";
+import { parseLrc } from "./lrcParser";
 import type { LrcDocument } from "../types/lrc";
 
 const emptyMeta = { title: "Song", artist: "", album: "", by: "", offset: 0 };
@@ -36,6 +37,44 @@ describe("serializeVtt", () => {
       { id: "1", timestamp: 1, text: "ab", syllables: [{ text: "a", time: 1 }, { text: "b", time: 1.5 }] },
     ]), 3);
     expect(out).toContain("a<00:00:01.500>b");
+  });
+
+  it("exports a marked enhanced-LRC untimed prefix when the first timed glyph starts at the cue start", () => {
+    const parsed = parseLrc("[x-lyrical-translations:1]\n[00:01.00] <00:01.00>a<00:01.50>b");
+    expect(parsed.lines[0]).toMatchObject({
+      timestamp: 1, text: " ab",
+      syllables: [{ text: " ", time: null }, { text: "a", time: 1 }, { text: "b", time: 1.5 }],
+    });
+    expect(serializeVtt(parsed, 3)).toContain("00:00:01.000 --> 00:00:03.000\n a<00:00:01.500>b");
+  });
+
+  it("preserves untimed prefix text, escaping, and later timestamp order", () => {
+    const out = serializeVtt(docOf([{
+      id: "1", timestamp: 1, text: "♪&<a>b",
+      syllables: [
+        { text: "♪&", time: null },
+        { text: "<a>", time: 1 },
+        { text: "b", time: 1.5 },
+      ],
+    }]), 3);
+    expect(out).toContain("00:00:01.000 --> 00:00:03.000\n♪&amp;&lt;a&gt;<00:00:01.500>b");
+    expect(out).not.toContain("<00:00:01.000>");
+  });
+
+  it.each([
+    ["second start-equal timestamp", [
+      { text: "prefix", time: null }, { text: "a", time: 1 }, { text: "b", time: 1 },
+    ]],
+    ["later reversed timestamp", [
+      { text: "prefix", time: null }, { text: "a", time: 1.5 }, { text: "b", time: 1.25 },
+    ]],
+    ["cue-end timestamp", [
+      { text: "prefix", time: null }, { text: "a", time: 1 }, { text: "b", time: 3 },
+    ]],
+  ])("still rejects genuinely invalid timed glyphs after untimed prefix: %s", (_case, syllables) => {
+    const text = syllables.map((s) => s.text).join("");
+    expect(() => serializeVtt(docOf([{ id: "1", timestamp: 1, text, syllables }]), 3))
+      .toThrow(/VTT cannot represent these syllable timestamps/);
   });
 
   it.each([

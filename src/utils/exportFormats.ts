@@ -93,7 +93,6 @@ function vttText(line: LrcLine, cueStart: number, cueEnd: number): string {
     
     let lastUnit = startUnit;
     let sawTimed = false;
-    let hasTextBeforeStart = false;
     let out = "";
     for (const syllable of line.syllables) {
       if (syllable.time !== null) {
@@ -103,7 +102,9 @@ function vttText(line: LrcLine, cueStart: number, cueEnd: number): string {
         if (syllableTime < cueStart) syllableTime = cueStart;
         if (syllableTime > cueEnd) syllableTime = cueEnd;
         const unit = Math.round(syllableTime * 1000);
-        const implicitCueStart = unit === Math.round(cueStart * 1000) && !sawTimed && !hasTextBeforeStart;
+        // WebVTT cannot contain an inline timestamp equal to the cue start.
+        // Its timing is already implicit, even when untimed text precedes it.
+        const implicitCueStart = unit === startUnit && !sawTimed;
         // Validate: timestamps must be within cue boundaries (>= cueStart, < cueEnd)
         // and strictly increasing for subsequent timestamps
         if (unit < Math.round(cueStart * 1000) || unit >= Math.round(cueEnd * 1000) ||
@@ -113,8 +114,6 @@ function vttText(line: LrcLine, cueStart: number, cueEnd: number): string {
         if (!implicitCueStart) out += `<${vttTime(syllableTime)}>`;
         lastUnit = unit;
         sawTimed = true;
-      } else if (syllable.text.length > 0 && !sawTimed) {
-        hasTextBeforeStart = true;
       }
       out += escapeVttText(syllable.text);
     }
