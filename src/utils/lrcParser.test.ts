@@ -57,6 +57,61 @@ it("round-trips unusual metadata names without inherited-object key collisions",
   expect(parseLrc(serialized).lines.map((line) => [line.timestamp, line.text])).toEqual([[1, "hello"]]);
 });
 
+it("preserves repeated recognized and unknown metadata in source order across parse and save", () => {
+  const input = "[ar:First Artist]\n[x-origin:First Source]\n[ar:Second Artist]\n[x-origin:Second Source]\n[00:01.00]lyric";
+  const doc = parseLrc(input);
+  expect(doc.metadata.artist).toBe("Second Artist");
+  expect(doc.extraTags["x-origin"]).toBe("Second Source");
+  const output = serializeLrc(doc);
+  expect(output).toContain("[ar:First Artist]\n[x-origin:First Source]\n[ar:Second Artist]\n[x-origin:Second Source]");
+  expect(serializeLrc(parseLrc(output))).toBe(output);
+});
+
+it("updates only the last repeated artist and custom tag when edited, including clearing the artist", () => {
+  const doc = parseLrc("[ar:Early]\n[x-origin:Old]\n[ar:Latest]\n[x-origin:Recent]\n[00:01.00]hi");
+  const edited = {
+    ...doc,
+    metadata: { ...doc.metadata, artist: "Changed", title: "New Title" },
+    extraTags: { ...doc.extraTags, "x-origin": "New Source" },
+  };
+  const output = serializeLrc(edited);
+  expect(output).toContain("[ar:Early]\n[x-origin:Old]\n[ar:Changed]\n[x-origin:New Source]");
+  expect(output).toContain("[ti:New Title]");
+  expect(parseLrc(output).metadata.artist).toBe("Changed");
+  expect(parseLrc(output).extraTags["x-origin"]).toBe("New Source");
+
+  edited.metadata.artist = "";
+  const cleared = serializeLrc(edited);
+  expect(cleared).toContain("[ar:Early]\n[x-origin:Old]\n[ar:]\n[x-origin:New Source]");
+  expect(parseLrc(cleared).metadata.artist).toBe("");
+});
+
+it("preserves repeated prototype-named unknown keys without polluting object prototypes", () => {
+  const doc = parseLrc("[__proto__:first]\n[__proto__:second]\n[constructor:prior]\n[constructor:final]\n[00:01.00]hi");
+  const output = serializeLrc(doc);
+  expect(output).toContain("[__proto__:first]\n[__proto__:second]\n[constructor:prior]\n[constructor:final]");
+  expect(Object.getOwnPropertyDescriptor(parseLrc(output).extraTags, "__proto__")?.value).toBe("second");
+  expect(Object.getPrototypeOf(doc.extraTags)).toBe(Object.prototype);
+});
+
+it("keeps the established single-tag shape and serialization unchanged", () => {
+  const input = "[ti:Single]\n[ar:Artist]\n[x-origin:Source]\n[00:01.00]hello";
+  const doc = parseLrc(input);
+  expect(doc).not.toHaveProperty("metadataTagSequence");
+  expect(serializeLrc(doc)).toBe(input.replace("[x-origin:Source]\n", "[x-origin:Source]\n\n"));
+});
+
+it("retains repeated offset values while reflecting an edited final numeric offset", () => {
+  const parsed = parseLrc("[offset:0010]\n[offset:0020]\n[00:01.00]hi");
+  expect(parsed.metadata.offset).toBe(20);
+  expect(serializeLrc(parsed)).toContain("[offset:0010]\n[offset:0020]");
+  const recovered = JSON.parse(JSON.stringify(parsed)) as LrcDocument;
+  recovered.metadata.offset = 30;
+  const output = serializeLrc(recovered);
+  expect(output).toContain("[offset:0010]\n[offset:30]");
+  expect(parseLrc(output).metadata.offset).toBe(30);
+});
+
 it("refuses to overwrite an unknown translation extension value when translations are active", () => {
   const doc = { ...docOf([{ id: "a", timestamp: 1, text: "original", translation: "translated" }]),
     extraTags: { "x-lyrical-translations": "custom" } };
