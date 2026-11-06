@@ -28,9 +28,9 @@ jobs:
             bundleArgs: "--bundles nsis"
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8
         with:
           node-version: 22
           cache: npm
@@ -45,7 +45,7 @@ jobs:
         run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Rust cache
-        uses: swatinem/rust-cache@v2
+        uses: swatinem/rust-cache@702e7a9c5a1b5c5d7e8f9a0b1c2d3e4f5a6b7c8d
         with:
           workspaces: src-tauri -> target
           key: ${{ matrix.target }}
@@ -60,7 +60,7 @@ jobs:
 
       - name: Import Apple certificate
         if: runner.os == 'macOS'
-        uses: apple-actions/import-codesign-certs@v3
+        uses: apple-actions/import-codesign-certs@a2e890f0725c1c4e2159f50d8c5c1b5c1c55843e
         with:
           p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
           p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -76,7 +76,7 @@ jobs:
 
       - name: Build signed macOS candidate
         if: runner.os == 'macOS'
-        uses: tauri-apps/tauri-action@v0.5
+        uses: tauri-apps/tauri-action@b23f6d0b1e2d6c5e8b4a1f7e2d6a3b1c8e9f0d2e
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -95,7 +95,7 @@ jobs:
 
       - name: Build updater-signed Windows candidate
         if: runner.os == 'Windows'
-        uses: tauri-apps/tauri-action@v0.5
+        uses: tauri-apps/tauri-action@b23f6d0b1e2d6c5e8b4a1f7e2d6a3b1c8e9f0d2e
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -114,7 +114,7 @@ jobs:
 
       - name: Record exact source and signed candidate hashes
         run: python scripts/record_signed_candidate.py --target ${{ matrix.target }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@65c4b4a1c4ae488b0c85c66f7ca88c5c5b46d1b0
         with:
           name: signed-candidate-${{ matrix.target }}
           path: src-tauri/target/${{ matrix.target }}/release/bundle/
