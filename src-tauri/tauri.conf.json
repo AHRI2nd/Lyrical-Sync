@@ -54,7 +54,6 @@
       }
     },
     "windows": {
-      "installMode": "passive",
       "nsis": {
         "artifactName": "Lyrical-Sync-${version}"
       },
