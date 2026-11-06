@@ -49,6 +49,35 @@ class SignedCandidateTests(unittest.TestCase):
         self.assertLess(source.index('Verify Windows artifact architecture'),source.index('actions/upload-artifact@v4'))
         self.assertLess(source.index('Record exact source and signed candidate hashes'),source.index('actions/upload-artifact@v4'))
 
+    def test_signing_depends_on_tests_and_never_interpolates_untrusted_ref_into_shell(self):
+        source=(ROOT/'.github/workflows/release.yml').read_text()
+        self.assertRegex(source,r'(?m)^  release:\n(?:    #[^\n]*\n)*    needs: test-gate[ \t]*$')
+        self.assertIn('python scripts/test_ai_sidecars.py',source)
+        self.assertIn('python scripts/test_signed_candidate.py',source)
+        self.assertIn('RELEASE_REF_NAME: ${{ github.ref_name }}',source)
+        self.assertIn('GITHUB_REF_TYPE',source)
+        self.assertIn('$(git rev-parse HEAD)',source)
+        self.assertNotIn('TAG_NAME="${{ github.ref_name }}"',source)
+        self.assertNotIn('REF_NAME="${{ github.ref_name }}"',source)
+        self.assertNotIn('TAG_NAME="${{ github.event.inputs.tag }}"',source)
+        self.assertIn('existing_target=$(gh api',source)
+        self.assertIn('git fetch --depth=1 origin "refs/tags/$TAG"',source)
+        for workflow in ('release.yml','candidate.yml'):
+            signed=(ROOT/'.github/workflows'/workflow).read_text()
+            self.assertNotIn('run: echo "${{ secrets.APPLE_API_KEY }}"',signed)
+            self.assertNotIn('codesign --force --sign "${{ secrets.APPLE_SIGNING_IDENTITY }}"',signed)
+            self.assertIn('APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY }}',signed)
+            self.assertIn('printf \'%s\' "$APPLE_API_KEY_P8"',signed)
+
+    def test_signed_workflow_targets_match_verified_candidate_contract(self):
+        for workflow in ('release.yml','candidate.yml'):
+            source=(ROOT/'.github/workflows'/workflow).read_text()
+            for target in ('aarch64-apple-darwin','x86_64-pc-windows-msvc',
+                           'aarch64-pc-windows-msvc'):
+                self.assertIn('target: '+target,source)
+            self.assertIn('bundleArgs: "--bundles nsis,msi"',source)
+            self.assertIn('os: windows-11-arm',source)
+
     def test_registered_build_can_dispatch_candidate_without_changing_main(self):
         source=(ROOT/'.github/workflows/build.yml').read_text()
         self.assertIn('signed_candidate:',source)

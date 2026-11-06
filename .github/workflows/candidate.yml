@@ -22,6 +22,9 @@ jobs:
             bundleArgs: ""
           - os: windows-latest
             target: x86_64-pc-windows-msvc
+            bundleArgs: "--bundles nsis,msi"
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
             bundleArgs: "--bundles nsis"
 
     runs-on: ${{ matrix.os }}
@@ -54,7 +57,11 @@ jobs:
       - name: Write Apple API key file
         if: runner.os == 'macOS'
         shell: bash
-        run: echo "${{ secrets.APPLE_API_KEY }}" > "${{ runner.temp }}/apple_api_key.p8"
+        env:
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY }}
+        run: |
+          umask 077
+          printf '%s' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/apple_api_key.p8"
 
       - name: Import Apple certificate
         if: runner.os == 'macOS'
@@ -66,10 +73,12 @@ jobs:
       - name: Sign bundled mediaremote-adapter binary
         if: runner.os == 'macOS'
         shell: bash
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: |
           set -e
           BIN="src-tauri/resources/mediaremote-adapter/MediaRemoteAdapter.framework/MediaRemoteAdapter"
-          codesign --force --sign "${{ secrets.APPLE_SIGNING_IDENTITY }}" --options runtime --timestamp "$BIN"
+          codesign --force --sign "$APPLE_SIGNING_IDENTITY" --options runtime --timestamp "$BIN"
           codesign --verify --strict --verbose=2 "$BIN"
 
       - name: Build signed macOS candidate

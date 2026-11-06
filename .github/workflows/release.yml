@@ -22,6 +22,8 @@ permissions:
 
 jobs:
   release:
+    # Never expose signing credentials before verifying the exact checkout.
+    needs: test-gate
     strategy:
       fail-fast: false
       matrix:
@@ -31,6 +33,9 @@ jobs:
             bundleArgs: ""
           - os: windows-latest
             target: x86_64-pc-windows-msvc
+            bundleArgs: "--bundles nsis,msi"
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
             bundleArgs: "--bundles nsis"
 
 
@@ -47,12 +52,15 @@ jobs:
           RELEASE_REF_NAME: ${{ github.ref_name }}
           RELEASE_INPUT_TAG: ${{ github.event.inputs.tag }}
         run: |
-          set -e
+          set -euo pipefail
           VERSION=$(jq -r .version src-tauri/tauri.conf.json)
           TAG_NAME="$RELEASE_REF_NAME"
-          # workflow_dispatch의 경우 입력된 tag 사용
-          if [ -n "$RELEASE_INPUT_TAG" ]; then
-            TAG_NAME="$RELEASE_INPUT_TAG"
+          # A manually supplied tag must be the ref actually checked out.
+          # Never sign the selected branch while labeling it with another tag.
+          if [ "$GITHUB_REF_TYPE" != "tag" ] ||
+             { [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ "$RELEASE_INPUT_TAG" != "$TAG_NAME" ]; }; then
+            echo "::error::Signed releases require a matching tag ref"
+            exit 1
           fi
           # 태그 형식이어야 함 (v로 시작, 숫자.숫자.숫자)
           if ! echo "$TAG_NAME" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
@@ -61,6 +69,10 @@ jobs:
           fi
           if [ "v${VERSION}" != "$TAG_NAME" ]; then
             echo "::error::Tag $TAG_NAME does not match tauri.conf.json version (v${VERSION}). Refusing to build a mislabeled release."
+            exit 1
+          fi
+          if [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]; then
+            echo "::error::Checkout does not match the source commit being signed"
             exit 1
           fi
           echo "Tag version verified: $TAG_NAME"
@@ -124,7 +136,11 @@ jobs:
       - name: Write Apple API key file
         if: runner.os == 'macOS'
         shell: bash
-        run: echo "${{ secrets.APPLE_API_KEY }}" > "${{ runner.temp }}/apple_api_key.p8"
+        env:
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY }}
+        run: |
+          umask 077
+          printf '%s' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/apple_api_key.p8"
 
       # 동봉된 mediaremote-adapter 바이너리 서명
       - name: Import Apple certificate
@@ -137,10 +153,12 @@ jobs:
       - name: Sign bundled mediaremote-adapter binary
         if: runner.os == 'macOS'
         shell: bash
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: |
           set -e
           BIN="src-tauri/resources/mediaremote-adapter/MediaRemoteAdapter.framework/MediaRemoteAdapter"
-          codesign --force --sign "${{ secrets.APPLE_SIGNING_IDENTITY }}" --options runtime --timestamp "$BIN"
+          codesign --force --sign "$APPLE_SIGNING_IDENTITY" --options runtime --timestamp "$BIN"
           codesign --verify --strict --verbose=2 "$BIN"
 
       # Build signed macOS bundle
@@ -209,13 +227,24 @@ jobs:
           cache: npm
       - name: Install deps
         run: npm ci
+      - name: Install Linux Tauri test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev
       - name: Run frontend tests
         run: npm test
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Run Rust tests
         working-directory: src-tauri
-        run: cargo test
+        run: cargo test --locked
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify Python AI sidecars and signed candidate checks
+        run: |
+          python scripts/test_ai_sidecars.py
+          python scripts/test_signed_candidate.py
 
   publish-release:
     needs: [release, test-gate]
@@ -249,6 +278,22 @@ jobs:
           published_count=$(printf '%s\n' "$published_ids" | awk 'NF { count++ } END { print count+0 }')
           if [ "$draft_count" -gt 1 ] || [ "$published_count" -gt 0 ]; then
             echo "::error::Release tag $TAG is ambiguous or already published; refusing to upload candidate artifacts."
+            exit 1
+          fi
+          # A pre-existing draft must be bound to this exact tested commit.
+          # Do not replace another source's assets with --clobber.
+          if [ "$draft_count" -eq 1 ]; then
+            existing_target=$(gh api "repos/${RELEASE_REPO}/releases/${draft_ids}" --jq '.target_commitish')
+            if [ "$existing_target" != "$SOURCE_SHA" ]; then
+              echo "::error::Existing draft targets $existing_target, expected $SOURCE_SHA"
+              exit 1
+            fi
+          fi
+
+          git fetch --depth=1 origin "refs/tags/$TAG"
+          resolved_tag_sha=$(git rev-parse "FETCH_HEAD^{commit}")
+          if [ "$resolved_tag_sha" != "$SOURCE_SHA" ]; then
+            echo "::error::Current remote tag points to $resolved_tag_sha, expected $SOURCE_SHA"
             exit 1
           fi
           if [ "$draft_count" -eq 0 ]; then
