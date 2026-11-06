@@ -22,12 +22,12 @@ jobs:
         os: [macos-latest, windows-latest, windows-11-arm]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - uses: actions/setup-python@0b5c6ec7ed474529a8edf1a33a0e91c0e26ef039
+      - uses: actions/setup-python@v5
         if: matrix.os != 'windows-11-arm'
         with:
           python-version: '3.13'
@@ -35,7 +35,7 @@ jobs:
         if: matrix.os == 'windows-11-arm'
         run: python -c "import sysconfig; assert sysconfig.get_platform() == 'win-arm64', sysconfig.get_platform()"
       - uses: dtolnay/rust-toolchain@stable
-      - uses: swatinem/rust-cache@702e7a9c5a1b5c5d7e8f9a0b1c2d3e4f5a6b7c8d
+      - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
       - run: npm ci
