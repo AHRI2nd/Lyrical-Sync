@@ -19,6 +19,7 @@ export function SpotifySection({
   const [saved, setSaved] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const draftMatchesSavedId = draft.trim() === clientId;
 
   const handleSave = () => {
     onSaveClientId(draft.trim());
@@ -121,9 +122,12 @@ export function SpotifySection({
             {!clientId && (
               <p className="text-xs text-[var(--ls-playhead)]">{t.spotifyNoClientIdDesc}</p>
             )}
+            {!draftMatchesSavedId && (
+              <p className="text-xs text-[var(--ls-playhead)]">{t.spotifyClientIdNeedsSave}</p>
+            )}
             <button
               onClick={handleConnect}
-              disabled={connecting || !clientId}
+              disabled={connecting || !clientId || !draftMatchesSavedId}
               className="ls-button self-start text-sm bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium transition-colors"
             >
               {connecting ? t.spotifyConnecting : t.spotifyConnect}

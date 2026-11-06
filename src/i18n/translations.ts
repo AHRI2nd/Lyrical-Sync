@@ -511,6 +511,7 @@ export interface Translations {
   spotifyModeLocal: string;
   spotifyConnectFirst: string;
   spotifyClientIdDesc: string;
+  spotifyClientIdNeedsSave: string;
   spotifyClientIdPlaceholder: string;
   spotifyClientIdSave: string;
   spotifyClientIdSaved: string;
@@ -1155,6 +1156,7 @@ const ko: Translations = {
   spotifyModeLocal: "일반 오디오 파일 모드",
   spotifyConnectFirst: "먼저 Spotify에 연결하세요",
   spotifyClientIdDesc: "Spotify Developer 대시보드에서 앱을 만들고 Client ID를 입력하세요. Redirect URI에 http://127.0.0.1:8888/callback 을 추가해야 합니다.",
+  spotifyClientIdNeedsSave: "표시된 Client ID를 사용하려면 먼저 저장하세요.",
   spotifyClientIdPlaceholder: "Spotify Client ID를 입력하세요",
   spotifyClientIdSave: "저장",
   spotifyClientIdSaved: "저장됨",
@@ -1800,6 +1802,7 @@ const en: Translations = {
   spotifyModeLocal: "Local audio file mode",
   spotifyConnectFirst: "Connect to Spotify first",
   spotifyClientIdDesc: "Create an app on the Spotify Developer Dashboard and enter your Client ID. Add http://127.0.0.1:8888/callback as a Redirect URI.",
+  spotifyClientIdNeedsSave: "Save the displayed Client ID before connecting.",
   spotifyClientIdPlaceholder: "Enter your Spotify Client ID",
   spotifyClientIdSave: "Save",
   spotifyClientIdSaved: "Saved",
@@ -2444,6 +2447,7 @@ const ja: Translations = {
   spotifyModeLocal: "ローカル音声ファイルモード",
   spotifyConnectFirst: "先にSpotifyに接続してください",
   spotifyClientIdDesc: "Spotify Developerダッシュボードでアプリを作成し、クライアントIDを入力してください。リダイレクトURIにhttp://127.0.0.1:8888/callbackを追加する必要があります。",
+  spotifyClientIdNeedsSave: "接続する前に、表示されているClient IDを保存してください。",
   spotifyClientIdPlaceholder: "Spotify クライアントIDを入力",
   spotifyClientIdSave: "保存",
   spotifyClientIdSaved: "保存済み",
