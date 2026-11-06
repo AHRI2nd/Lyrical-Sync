@@ -270,6 +270,7 @@ function App() {
   const [settingsInitialTab, setSettingsInitialTab] = useState<"general" | "preview" | "models" | "spotify" | "youtube" | "shortcuts">("general");
   const [showNewConfirm, setShowNewConfirm] = useState(false);
   const [newConfirmSession, setNewConfirmSession] = useState<number | null>(null);
+  const [newConfirmRevision, setNewConfirmRevision] = useState<number | null>(null);
   const [showFormatChooser, setShowFormatChooser] = useState(false);
   const [showElrcNotice, setShowElrcNotice] = useState(false);
   const [pendingDocumentOpen, setPendingDocumentOpen] = useState<{ lyricsPath: string; audioPath?: string | null } | null>(null);
@@ -381,8 +382,10 @@ function App() {
   useEffect(() => { document.documentElement.style.zoom = ""; }, []);
 
   const handleNewLrc = () => {
-    if (isDirty) {
-      setNewConfirmSession(useLrcStore.getState()._documentSession);
+    const current = useLrcStore.getState();
+    if (current.isDirty) {
+      setNewConfirmSession(current._documentSession);
+      setNewConfirmRevision(current._editRevision);
       setShowNewConfirm(true);
     } else {
       newLrc();
@@ -666,8 +669,14 @@ function App() {
           okLabel={t.confirmNewOk}
           cancelLabel={t.confirmNewCancel}
           onOk={() => {
+            const current = useLrcStore.getState();
+            if (current._documentSession !== newConfirmSession) return;
+            if (current._editRevision !== newConfirmRevision) {
+              setNewConfirmRevision(current._editRevision);
+              return;
+            }
             setShowNewConfirm(false);
-            if (useLrcStore.getState()._documentSession === newConfirmSession) newLrc();
+            newLrc();
           }}
           onCancel={() => setShowNewConfirm(false)}
         />

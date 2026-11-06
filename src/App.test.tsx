@@ -159,6 +159,29 @@ describe("App — drag-and-drop conflict resolution", () => {
     expect(screen.queryByRole("dialog", { name: t.confirmNewTitle })).toBeNull();
   });
 
+  it("reconfirms New after edits arrive while its confirmation is open", async () => {
+    const first = defaultDocument();
+    first.lines = [{ id: "old", timestamp: 1, text: "unsaved" }];
+    resetLrc({ doc: first, isDirty: true, lrcPath: "/music/old.lrc" });
+    const user = userEvent.setup();
+    render(<App />);
+
+    const t = useI18nStore.getState().t;
+    await user.click(screen.getByRole("button", { name: t.newFileBtn }));
+    expect(await screen.findByText(t.confirmNewMessage)).toBeTruthy();
+    act(() => useLrcStore.getState().setMetadata({ title: "edited while confirming" }));
+
+    const confirmButtons = screen.getAllByText(t.confirmNewOk);
+    await user.click(confirmButtons[confirmButtons.length - 1]);
+    expect(useLrcStore.getState().doc.metadata.title).toBe("edited while confirming");
+    expect(useLrcStore.getState().doc.lines[0]?.text).toBe("unsaved");
+    expect(screen.getByText(t.confirmNewMessage)).toBeTruthy();
+
+    const finalConfirmButtons = screen.getAllByText(t.confirmNewOk);
+    await user.click(finalConfirmButtons[finalConfirmButtons.length - 1]);
+    expect(useLrcStore.getState().doc.lines).toEqual([]);
+  });
+
   it("ignores dropped files with unsupported extensions", async () => {
     const setAudioPathSpy = vi.spyOn(useLrcStore.getState(), "setAudioPath").mockImplementation(() => {});
     render(<App />);
