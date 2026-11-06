@@ -2,7 +2,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 #[cfg(unix)]
 use std::os::unix::io::AsRawFd;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[cfg(target_os = "macos")]
 use libc;
@@ -12,16 +12,26 @@ pub fn write_atomic(path: &Path, content: &str) -> io::Result<()> {
 }
 
 fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> io::Result<()> {
+    // Resolve the selected parent before inspecting the destination. Every
+    // subsequent read, stage, publication and directory sync must use this
+    // resolved location, even if a symlink in the caller's path is retargeted.
+    let parent = path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
+    let parent = fs::canonicalize(parent)?;
+    let name = path.file_name().ok_or_else(|| {
+        io::Error::new(io::ErrorKind::InvalidInput, "Destination has no file name")
+    })?;
+    let selected_target = parent.join(name);
+
     // Follow an existing symlink, as the previous direct write did, but never
     // replace a dangling link or bypass a read-only destination by renaming.
     // Use symlink_metadata to NOT follow symlinks, so we can detect dangling links.
-    let metadata = fs::symlink_metadata(path);
+    let metadata = fs::symlink_metadata(&selected_target);
     
     let (target, permissions, is_existing, target_metadata) = match metadata {
         Ok(meta) => {
             if meta.file_type().is_symlink() {
                 // It's a symlink - resolve it but keep track of the link path
-                let target = fs::canonicalize(path)?;
+                let target = fs::canonicalize(&selected_target)?;
                 let existing = OpenOptions::new().write(true).open(&target)?;
                 let metadata = existing.metadata()?;
                 if !metadata.is_file() {
@@ -45,7 +55,7 @@ fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> i
                 (target, Some(metadata.permissions()), true, Some(metadata))
             } else if meta.is_file() {
                 // Regular file
-                let existing = OpenOptions::new().write(true).open(path)?;
+                let existing = OpenOptions::new().write(true).open(&selected_target)?;
                 let metadata = existing.metadata()?;
                 #[cfg(target_os = "macos")]
                 {
@@ -62,19 +72,19 @@ fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> i
                         ));
                     }
                 }
-                (path.to_path_buf(), Some(metadata.permissions()), true, Some(metadata))
+                (selected_target.clone(), Some(metadata.permissions()), true, Some(metadata))
             } else {
                 return Err(io::Error::other("Destination is not a regular file"));
             }
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             // File doesn't exist - check if it's a dangling symlink
-            if path.symlink_metadata().is_ok() {
+            if selected_target.symlink_metadata().is_ok() {
                 // It's a dangling symlink - we'll replace it
-                (path.to_path_buf(), None, false, None)
+                (selected_target.clone(), None, false, None)
             } else {
                 // File truly doesn't exist
-                (path.to_path_buf(), None, false, None)
+                (selected_target.clone(), None, false, None)
             }
         }
         Err(error) => return Err(error),
@@ -95,26 +105,13 @@ fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> i
     #[cfg(windows)]
     let replace_existing = permissions.is_some();
     
-    // CRITICAL FIX: Resolve the parent directory ONCE and use it for staging
-    // This prevents symlink-parent retarget attacks
-    let parent = target
+    // The target is either inside the resolved selected parent or the resolved
+    // destination of a leaf symlink. Keep staging and commit in that directory.
+    let target_parent = target
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
-    
-    // Canonicalize the parent to get the real directory (not through symlink)
-    let parent_canonical = fs::canonicalize(parent).unwrap_or_else(|_| parent.to_path_buf());
-    
-    // Try to create temp file in the canonical parent directory
-    // If that fails due to permissions, try the original parent path
-    let mut stage = match tempfile::NamedTempFile::new_in(&parent_canonical) {
-        Ok(stage) => stage,
-        Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
-            // Fallback: try original parent path (may be a symlink)
-            tempfile::NamedTempFile::new_in(parent)?
-        }
-        Err(e) => return Err(e),
-    };
+    let mut stage = tempfile::NamedTempFile::new_in(target_parent)?;
     
     write(stage.as_file_mut())?;
     
@@ -146,11 +143,10 @@ fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> i
     }
     
     // A successful return includes directory durability on Unix.
-    // Sync the canonical parent directory to ensure durability.
+    // Sync the same anchored directory that received the publication.
     #[cfg(unix)]
     {
-        let parent_for_sync = fs::canonicalize(parent).unwrap_or_else(|_| parent.to_path_buf());
-        File::open(&parent_for_sync)?.sync_all()?;
+        File::open(target_parent)?.sync_all()?;
     }
     
     Ok(())
@@ -292,6 +288,84 @@ mod tests {
         write_atomic(&path, "second").unwrap();
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "second");
         assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn stable_symlinked_parent_publishes_new_file_and_cleans_stage() {
+        use std::os::unix::fs::symlink;
+        let dir = tempfile::tempdir().unwrap();
+        let selected = dir.path().join("selected");
+        let approved = dir.path().join("approved");
+        fs::create_dir(&approved).unwrap();
+        symlink(&approved, &selected).unwrap();
+
+        write_with(&selected.join("new.lrc"), |stage| {
+            stage.write_all(b"intended lyrics")?;
+            assert_eq!(fs::read_dir(&approved)?.count(), 1);
+            Ok(())
+        }).unwrap();
+
+        assert_eq!(fs::read_to_string(approved.join("new.lrc")).unwrap(), "intended lyrics");
+        assert_eq!(fs::read_dir(&approved).unwrap().count(), 1);
+        assert!(fs::symlink_metadata(&selected).unwrap().file_type().is_symlink());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn retargeting_parent_during_new_save_cannot_redirect_publication() {
+        use std::os::unix::fs::symlink;
+        let dir = tempfile::tempdir().unwrap();
+        let selected = dir.path().join("selected");
+        let approved = dir.path().join("approved");
+        let alternate = dir.path().join("alternate");
+        fs::create_dir(&approved).unwrap();
+        fs::create_dir(&alternate).unwrap();
+        symlink(&approved, &selected).unwrap();
+
+        write_with(&selected.join("new.lrc"), |stage| {
+            stage.write_all(b"intended lyrics")?;
+            // The actual stage filename is private but discoverable through the
+            // selected directory, as in the original source-exact repro.
+            let staged = fs::read_dir(&approved)?.next().unwrap()?.file_name();
+            fs::write(alternate.join(&staged), b"decoy stage bytes")?;
+            fs::remove_file(&selected)?;
+            symlink(&alternate, &selected)?;
+            Ok(())
+        }).unwrap();
+
+        assert_eq!(fs::read_to_string(approved.join("new.lrc")).unwrap(), "intended lyrics");
+        assert!(!alternate.join("new.lrc").exists());
+        assert_eq!(fs::read_dir(&approved).unwrap().count(), 1);
+        let decoys: Vec<_> = fs::read_dir(&alternate).unwrap().collect();
+        assert_eq!(decoys.len(), 1);
+        assert_eq!(fs::read(decoys[0].as_ref().unwrap().path()).unwrap(), b"decoy stage bytes");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn retargeting_parent_during_replace_preserves_other_directory_bytes() {
+        use std::os::unix::fs::symlink;
+        let dir = tempfile::tempdir().unwrap();
+        let selected = dir.path().join("selected");
+        let approved = dir.path().join("approved");
+        let alternate = dir.path().join("alternate");
+        fs::create_dir(&approved).unwrap();
+        fs::create_dir(&alternate).unwrap();
+        fs::write(approved.join("song.lrc"), b"previous lyrics").unwrap();
+        fs::write(alternate.join("song.lrc"), b"other lyrics").unwrap();
+        symlink(&approved, &selected).unwrap();
+
+        write_with(&selected.join("song.lrc"), |stage| {
+            stage.write_all(b"updated lyrics")?;
+            fs::remove_file(&selected)?;
+            symlink(&alternate, &selected)?;
+            Ok(())
+        }).unwrap();
+
+        assert_eq!(fs::read_to_string(approved.join("song.lrc")).unwrap(), "updated lyrics");
+        assert_eq!(fs::read_to_string(alternate.join("song.lrc")).unwrap(), "other lyrics");
+        assert_eq!(fs::read_dir(&approved).unwrap().count(), 1);
     }
 
     #[test]
