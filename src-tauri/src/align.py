@@ -267,13 +267,6 @@ def main():
     CHAR_SPLIT_LANGS = {"jpn", "chi", "zho", "cmn"}
     use_char_split = args.language in CHAR_SPLIT_LANGS
 
-    if use_char_split:
-        combined_text = "".join(line["text"] for line in lines)
-        tokens_per_line = [len(line["text"]) for line in lines]
-    else:
-        combined_text = " ".join(line["text"] for line in lines)
-        tokens_per_line = [len(line["text"].split()) for line in lines]
-
     # ── Map and validate tokens to prevent silent drop of unsupported characters ──
     def map_and_validate_tokens(text, tokens_per_line, tokenizer, language):
         """Map input text to tokenizer vocabulary, track dropped characters.
@@ -293,38 +286,51 @@ def main():
             pass
         return text, warnings, None
 
-    # Check each line for potential tokenization issues
-    all_warnings = []
+    # Sanitize unalignable rows before concatenating text. Keeping their original
+    # token counts would shift later alignment spans onto the wrong lyric lines.
+    alignment_texts = []
+    tokens_per_line = []
     for i, line in enumerate(lines):
-        _, warnings, _ = map_and_validate_tokens(line["text"], tokens_per_line[i], tokenizer, args.language)
-        if warnings:
-            for w in warnings:
-                progress("warning", f"줄 {i+1}: {w}")
+        alignment_text, warnings, _ = sanitize_line_text(line["text"])
+        alignment_texts.append(alignment_text)
+        tokens_per_line.append(len(alignment_text) if use_char_split else len(alignment_text.split()))
+        for warning in warnings:
+            progress("warning", f"줄 {i+1}: {warning}")
+        if alignment_text:
+            _, token_warnings, _ = map_and_validate_tokens(alignment_text, tokens_per_line[-1], tokenizer, args.language)
+            for warning in token_warnings:
+                progress("warning", f"줄 {i+1}: {warning}")
+
+    combined_text = "".join(alignment_texts) if use_char_split else " ".join(text for text in alignment_texts if text)
 
     try:
-        tokens_starred, text_starred = preprocess_text(
-            combined_text,
-            romanize=romanize,
-            language=args.language,
-            split_size="word",
-        )
-        # Wrap C ABI calls with exception handling to catch native crashes
-        try:
-            segments, scores, blank_token = get_alignments(
-                emissions,
-                tokens_starred,
-                tokenizer,
+        if not any(tokens_per_line):
+            word_timestamps = []
+        else:
+            tokens_starred, text_starred = preprocess_text(
+                combined_text,
+                romanize=romanize,
+                language=args.language,
+                split_size="word",
             )
-            spans = get_spans(tokens_starred, segments, blank_token)
-            word_timestamps = postprocess_results(text_starred, spans, stride, scores)
-        except Exception as e:
-            # Catch potential C ABI crashes (segfault, abort, etc.)
-            import traceback
-            error_msg = f"CTC 정렬 중 네이티브 오류 발생: {e}"
-            if "segfault" in str(e).lower() or "segmentation" in str(e).lower() or "abort" in str(e).lower():
-                error_msg += " (C ABI 크래시 감지 - 오디오가 너무 짧거나 토큰이 너무 많을 수 있음)"
-            progress("error", error_msg)
-            sys.exit(1)
+            if not use_char_split and len(tokens_starred) != sum(tokens_per_line):
+                raise ValueError("가사 일부가 정렬 모델에서 정규화되어 원문 줄과 대응하지 않습니다")
+            # Wrap C ABI calls with exception handling to catch native crashes
+            try:
+                segments, scores, blank_token = get_alignments(
+                    emissions,
+                    tokens_starred,
+                    tokenizer,
+                )
+                spans = get_spans(tokens_starred, segments, blank_token)
+                word_timestamps = postprocess_results(text_starred, spans, stride, scores)
+            except Exception as e:
+                # Catch potential C ABI crashes (segfault, abort, etc.)
+                error_msg = f"CTC 정렬 중 네이티브 오류 발생: {e}"
+                if "segfault" in str(e).lower() or "segmentation" in str(e).lower() or "abort" in str(e).lower():
+                    error_msg += " (C ABI 크래시 감지 - 오디오가 너무 짧거나 토큰이 너무 많을 수 있음)"
+                progress("error", error_msg)
+                sys.exit(1)
     except Exception as e:
         progress("error", f"정렬 실패: {e}")
         sys.exit(1)

@@ -41,7 +41,7 @@ class ModelIntegrityTests(unittest.TestCase):
 class AlignmentExecutionTests(unittest.TestCase):
     """Run the shipped sidecar with deterministic small substitutes for ML packages."""
 
-    def run_alignment(self, *, short_audio=False, bad_timestamps=False):
+    def run_alignment(self, *, short_audio=False, bad_timestamps=False, lyric_lines=None):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             model = root / "ctc-forced-aligner.onnx"
@@ -76,12 +76,13 @@ def postprocess_results(text, spans, stride, scores):
             for i, token in enumerate(text)]
 ''', encoding="utf-8")
             lyric = "bad" if bad_timestamps else "hello world"
+            payload = lyric_lines if lyric_lines is not None else [{"index": 3, "text": lyric}]
             return subprocess.run(
                 [sys.executable, "-S", str(ROOT / "src-tauri/src/align.py"),
                  "--models-dir", str(root), "--model-sha256", hashlib.sha256(b"fixture-model").hexdigest(),
                  "--audio", "short.wav" if short_audio else "normal.wav",
                  "--lines-stdin", "--language", "eng", "--vad", "false"],
-                input=json.dumps([{"index": 3, "text": lyric}]), text=True,
+                input=json.dumps(payload), text=True,
                 capture_output=True, timeout=10, env={**os.environ, "PYTHONPATH": str(root)},
             )
 
@@ -92,6 +93,22 @@ def postprocess_results(text, spans, stride, scores):
         self.assertEqual([line["index"] for line in output["lines"]], [3])
         self.assertEqual([output["lines"][0]["start"], output["lines"][0]["end"]], [0.2, 1.8])
         self.assertEqual(output["confidence_unit"], "normalized_0_to_1_and_percent")
+
+    def test_unalignable_lyric_rows_do_not_shift_following_timestamps(self):
+        result = self.run_alignment(lyric_lines=[
+            {"index": 0, "text": "hello"},
+            {"index": 1, "text": "123"},
+            {"index": 2, "text": "world"},
+        ])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        output = json.loads(result.stdout)
+        self.assertEqual([line["index"] for line in output["lines"]], [0, 2])
+        self.assertEqual([line["start"] for line in output["lines"]], [0.2, 1.2])
+
+    def test_all_unalignable_lines_return_an_empty_draft_without_native_ctc(self):
+        result = self.run_alignment(lyric_lines=[{"index": 1, "text": "..."}])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["lines"], [])
 
     def test_short_audio_rejected_before_emission_alignment(self):
         result = self.run_alignment(short_audio=True)
