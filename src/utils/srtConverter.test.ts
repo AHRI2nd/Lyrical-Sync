@@ -179,6 +179,15 @@ it.each([100,1000])('round-trips subtitle starts and ends at %s hours', hours =>
  const restored=parseSrt(serializeSrt(docOf([{id:'a',timestamp:start,text:'late'}]),start+4));
  expect(restored.lines.map(l=>l.timestamp)).toEqual([start,start+4]);
 });
+it('rejects finite subtitle times that overflow integer milliseconds instead of emitting Infinity or NaN', () => {
+ const huge = 1e306;
+ expect(Number.isFinite(huge)).toBe(true);
+ expect(() => serializeSrt(docOf([{id:'a',timestamp:huge,text:'unsafe'}]))).toThrow('SRT timestamp');
+ const malformed = `1\n${'9'.repeat(304)}:00:00,000 --> ${'9'.repeat(304)}:00:01,000\nunsafe`;
+ const parsed = parseSrt(malformed);
+ expect(parsed.lines.length).toBeGreaterThan(0);
+ expect(() => serializeSrt(parsed)).toThrow('SRT timestamp');
+});
 it.each(['junk00:00:01,000','00:61:01,000','00:00:61,000','00:00:01,0000',`${'9'.repeat(400)}:00:01,000`])('rejects malformed or non-finite SRT start: %s', start => {
  expect(parseSrt(`1\n${start} --> 00:00:05,000\ninvalid`).lines).toEqual([]);
 });

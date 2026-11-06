@@ -2,6 +2,16 @@ import { LrcDocument, defaultDocument } from "../types/lrc";
 import { nextCueEnd } from "./exportFormats";
 
 export const SRT_UNREPRESENTABLE_CONTENT_CODE = "SRT_UNREPRESENTABLE_CONTENT";
+export const SRT_INVALID_TIMESTAMP_CODE = "SRT_INVALID_TIMESTAMP";
+
+export class SrtInvalidTimestampError extends Error {
+  readonly code = SRT_INVALID_TIMESTAMP_CODE;
+
+  constructor() {
+    super("SRT timestamp cannot be represented as safe integer milliseconds.");
+    this.name = "SrtInvalidTimestampError";
+  }
+}
 
 export const SRT_LOSSY_DOCUMENT_CODE = "SRT_LOSSY_DOCUMENT";
 
@@ -41,6 +51,7 @@ function assertSrtBodyRepresentable(value: string | undefined): void {
 // SubRip 시간 형식: HH:MM:SS,mmm
 function formatSrtTime(seconds: number): string {
   const totalMs = Math.max(0, Math.round(seconds * 1000));
+  if (!Number.isSafeInteger(totalMs)) throw new SrtInvalidTimestampError();
   const ms = totalMs % 1000;
   const totalSecs = Math.floor(totalMs / 1000);
   const s = totalSecs % 60;
