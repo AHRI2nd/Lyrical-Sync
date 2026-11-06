@@ -39,7 +39,6 @@ dirs = "7.0.0"
 
 [target."cfg(windows)".dependencies]
 windows = { version = "0.62.2", features = ["Media_Control", "Foundation", "Foundation_Collections", "Win32_System_Com"] }
-winapi = { version = "0.3", features = ["winbase", "fileapi", "handleapi", "minwindef", "winnt"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 xattr = "=1.6.1"

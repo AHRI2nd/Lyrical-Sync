@@ -53,11 +53,11 @@ mod windows {
     use super::*;
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
-    use winapi::um::winbase::{CreateFileW, FILE_FLAG_BACKUP_SEMANTICS, OPEN_EXISTING};
-    use winapi::um::fileapi::{GetFileAttributesW, FILE_ATTRIBUTE_DIRECTORY};
-    use winapi::um::handleapi::CloseHandle;
-    use winapi::shared::minwindef::FILE_ATTRIBUTE_NORMAL;
-    use winapi::um::winnt::{FILE_SHARE_READ, FILE_SHARE_WRITE, GENERIC_READ, HANDLE};
+    use windows::Win32::Storage::FileSystem::{
+        CreateFileW, FILE_FLAG_BACKUP_SEMANTICS, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
+        FILE_SHARE_READ, FILE_SHARE_WRITE, GENERIC_READ,
+    };
+    use windows::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE};
 
     pub fn acquire_access(path: &str) -> Result<HANDLE, String> {
         let wide: Vec<u16> = OsStr::new(path).encode_wide().chain(Some(0)).collect();
@@ -66,13 +66,13 @@ mod windows {
                 wide.as_ptr(),
                 GENERIC_READ,
                 FILE_SHARE_READ | FILE_SHARE_WRITE,
-                std::ptr::null_mut(),
+                None,
                 OPEN_EXISTING,
                 FILE_FLAG_BACKUP_SEMANTICS | FILE_ATTRIBUTE_NORMAL,
-                std::ptr::null_mut(),
+                None,
             )
         };
-        if handle == winapi::um::handleapi::INVALID_HANDLE_VALUE {
+        if handle == INVALID_HANDLE_VALUE {
             return Err("Failed to open file".into());
         }
         Ok(handle)
