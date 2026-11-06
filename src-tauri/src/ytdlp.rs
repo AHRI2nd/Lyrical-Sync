@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager};
+use crate::path_validation;
 
 pub struct YtdlpState {
     active_cancel: Mutex<Option<Arc<AtomicBool>>>,

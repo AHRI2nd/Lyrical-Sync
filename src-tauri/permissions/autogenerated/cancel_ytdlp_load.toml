@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-cancel-ytdlp-load"
+description = "Enables the cancel_ytdlp_load command without any pre-configured scope."
+commands.allow = ["cancel_ytdlp_load"]
+
+[[permission]]
+identifier = "deny-cancel-ytdlp-load"
+description = "Denies the cancel_ytdlp_load command without any pre-configured scope."
+commands.deny = ["cancel_ytdlp_load"]

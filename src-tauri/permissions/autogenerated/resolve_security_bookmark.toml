@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-resolve-security-bookmark"
+description = "Enables the resolve_security_bookmark command without any pre-configured scope."
+commands.allow = ["resolve_security_bookmark"]
+
+[[permission]]
+identifier = "deny-resolve-security-bookmark"
+description = "Denies the resolve_security_bookmark command without any pre-configured scope."
+commands.deny = ["resolve_security_bookmark"]

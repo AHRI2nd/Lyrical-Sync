@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-ytdlp-load-audio"
+description = "Enables the ytdlp_load_audio command without any pre-configured scope."
+commands.allow = ["ytdlp_load_audio"]
+
+[[permission]]
+identifier = "deny-ytdlp-load-audio"
+description = "Denies the ytdlp_load_audio command without any pre-configured scope."
+commands.deny = ["ytdlp_load_audio"]

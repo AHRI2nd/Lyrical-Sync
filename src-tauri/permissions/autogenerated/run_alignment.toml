@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-run-alignment"
+description = "Enables the run_alignment command without any pre-configured scope."
+commands.allow = ["run_alignment"]
+
+[[permission]]
+identifier = "deny-run-alignment"
+description = "Denies the run_alignment command without any pre-configured scope."
+commands.deny = ["run_alignment"]

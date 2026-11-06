@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-check-ytdlp"
+description = "Enables the check_ytdlp command without any pre-configured scope."
+commands.allow = ["check_ytdlp"]
+
+[[permission]]
+identifier = "deny-check-ytdlp"
+description = "Denies the check_ytdlp command without any pre-configured scope."
+commands.deny = ["check_ytdlp"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-now-playing-toggle-play-pause"
+description = "Enables the now_playing_toggle_play_pause command without any pre-configured scope."
+commands.allow = ["now_playing_toggle_play_pause"]
+
+[[permission]]
+identifier = "deny-now-playing-toggle-play-pause"
+description = "Denies the now_playing_toggle_play_pause command without any pre-configured scope."
+commands.deny = ["now_playing_toggle_play_pause"]

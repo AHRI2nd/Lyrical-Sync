@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-models-dir-override"
+description = "Enables the set_models_dir_override command without any pre-configured scope."
+commands.allow = ["set_models_dir_override"]
+
+[[permission]]
+identifier = "deny-set-models-dir-override"
+description = "Denies the set_models_dir_override command without any pre-configured scope."
+commands.deny = ["set_models_dir_override"]

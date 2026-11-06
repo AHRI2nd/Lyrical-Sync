@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-create-security-bookmark"
+description = "Enables the create_security_bookmark command without any pre-configured scope."
+commands.allow = ["create_security_bookmark"]
+
+[[permission]]
+identifier = "deny-create-security-bookmark"
+description = "Denies the create_security_bookmark command without any pre-configured scope."
+commands.deny = ["create_security_bookmark"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-models-dir"
+description = "Enables the get_models_dir command without any pre-configured scope."
+commands.allow = ["get_models_dir"]
+
+[[permission]]
+identifier = "deny-get-models-dir"
+description = "Denies the get_models_dir command without any pre-configured scope."
+commands.deny = ["get_models_dir"]

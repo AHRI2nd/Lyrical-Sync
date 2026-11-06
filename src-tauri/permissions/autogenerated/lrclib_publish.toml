@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-lrclib-publish"
+description = "Enables the lrclib_publish command without any pre-configured scope."
+commands.allow = ["lrclib_publish"]
+
+[[permission]]
+identifier = "deny-lrclib-publish"
+description = "Denies the lrclib_publish command without any pre-configured scope."
+commands.deny = ["lrclib_publish"]

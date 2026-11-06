@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-exchange-spotify-token"
+description = "Enables the exchange_spotify_token command without any pre-configured scope."
+commands.allow = ["exchange_spotify_token"]
+
+[[permission]]
+identifier = "deny-exchange-spotify-token"
+description = "Denies the exchange_spotify_token command without any pre-configured scope."
+commands.deny = ["exchange_spotify_token"]

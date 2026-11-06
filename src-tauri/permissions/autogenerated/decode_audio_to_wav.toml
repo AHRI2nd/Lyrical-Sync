@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-decode-audio-to-wav"
+description = "Enables the decode_audio_to_wav command without any pre-configured scope."
+commands.allow = ["decode_audio_to_wav"]
+
+[[permission]]
+identifier = "deny-decode-audio-to-wav"
+description = "Denies the decode_audio_to_wav command without any pre-configured scope."
+commands.deny = ["decode_audio_to_wav"]

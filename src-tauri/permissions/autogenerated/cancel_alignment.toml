@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-cancel-alignment"
+description = "Enables the cancel_alignment command without any pre-configured scope."
+commands.allow = ["cancel_alignment"]
+
+[[permission]]
+identifier = "deny-cancel-alignment"
+description = "Denies the cancel_alignment command without any pre-configured scope."
+commands.deny = ["cancel_alignment"]

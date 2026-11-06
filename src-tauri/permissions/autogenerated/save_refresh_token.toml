@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-save-refresh-token"
+description = "Enables the save_refresh_token command without any pre-configured scope."
+commands.allow = ["save_refresh_token"]
+
+[[permission]]
+identifier = "deny-save-refresh-token"
+description = "Denies the save_refresh_token command without any pre-configured scope."
+commands.deny = ["save_refresh_token"]

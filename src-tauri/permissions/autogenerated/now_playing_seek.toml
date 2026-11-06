@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-now-playing-seek"
+description = "Enables the now_playing_seek command without any pre-configured scope."
+commands.allow = ["now_playing_seek"]
+
+[[permission]]
+identifier = "deny-now-playing-seek"
+description = "Denies the now_playing_seek command without any pre-configured scope."
+commands.deny = ["now_playing_seek"]

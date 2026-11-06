@@ -39,9 +39,18 @@
     "macOS": {
       "dmg": {
         "background": "dmg/dmg-background.png",
-        "windowSize": { "width": 700, "height": 520 },
-        "appPosition": { "x": 190, "y": 220 },
-        "applicationFolderPosition": { "x": 510, "y": 220 }
+        "windowSize": {
+          "width": 700,
+          "height": 520
+        },
+        "appPosition": {
+          "x": 190,
+          "y": 220
+        },
+        "applicationFolderPosition": {
+          "x": 510,
+          "y": 220
+        }
       }
     }
   },
