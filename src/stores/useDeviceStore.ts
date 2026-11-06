@@ -135,6 +135,7 @@ async function pollOnce(generation: number): Promise<void> {
     const store = useDeviceStore.getState();
     if (!info) {
       if (store.hasSession) {
+        markDeviceCommand();
         useDeviceStore.setState({
           hasSession: false,
           isPlaying: false,
@@ -162,6 +163,7 @@ async function pollOnce(generation: number): Promise<void> {
     const rawPositionMs = Math.max(0, info.position_ms) + elapsedSinceUpdate;
     const positionMs = info.duration_ms > 0 ? Math.min(rawPositionMs, info.duration_ms) : rawPositionMs;
 
+    markDeviceCommand();
     useDeviceStore.setState({
       hasSession: true,
       isPlaying: info.is_playing,

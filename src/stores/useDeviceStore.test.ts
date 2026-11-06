@@ -174,6 +174,29 @@ describe("useDeviceStore — failure notification", () => {
     expect(useDeviceStore.getState().positionMs).toBe(5000);
   });
 
+  it("does not roll back a newer polled track position when an old seek fails", async () => {
+    useSettingsStore.getState().setDeviceMode(true);
+    useDeviceStore.setState({
+      hasSession: true, trackName: "Old track", sourceApp: "Old player", positionMs: 1000,
+      durationMs: 30000, _lastKnownPositionMs: 1000, _lastStateTimestamp: Date.now(),
+    });
+    let rejectSeek!: (error: Error) => void;
+    const pendingSeek = new Promise<void>((_resolve, reject) => { rejectSeek = reject; });
+    invoke.mockImplementation((command: string) => command === "now_playing_seek"
+      ? pendingSeek
+      : Promise.resolve({ title: "New track", artist: "Artist", album: "Album", position_ms: 9000,
+        duration_ms: 30000, is_playing: false, source_app: "New player", last_updated_unix_ms: Date.now() }));
+
+    deviceControls.seekTo(5);
+    useDeviceStore.getState().startPolling();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useDeviceStore.getState()).toMatchObject({ trackName: "New track", positionMs: 9000 });
+
+    rejectSeek(new Error("stale seek failed"));
+    await vi.waitFor(() => expect(pushErrorToast).toHaveBeenCalledOnce());
+    expect(useDeviceStore.getState()).toMatchObject({ trackName: "New track", positionMs: 9000 });
+  });
+
   it("reports a failed seek and lets the next poll restore the authoritative position", async () => {
     useSettingsStore.getState().setDeviceMode(true);
     useDeviceStore.setState({ hasSession: true });
