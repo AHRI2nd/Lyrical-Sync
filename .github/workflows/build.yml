@@ -32,12 +32,9 @@ jobs:
             label: macos-arm64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            bundleArgs: ""
+            bundleArgs: "--bundles msix,nsis"
             label: windows-x64
-          - os: windows-11-arm
-            target: aarch64-pc-windows-msvc
-            bundleArgs: "--bundles nsis"
-            label: windows-arm64
+
 
     runs-on: ${{ matrix.os }}
 

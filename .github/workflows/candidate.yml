@@ -22,10 +22,8 @@ jobs:
             bundleArgs: ""
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            bundleArgs: ""
-          - os: windows-11-arm
-            target: aarch64-pc-windows-msvc
-            bundleArgs: "--bundles nsis"
+            bundleArgs: "--bundles msix,nsis"
+
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
