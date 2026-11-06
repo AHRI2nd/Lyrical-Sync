@@ -3,6 +3,17 @@ import { nextCueEnd } from "./exportFormats";
 
 export const SRT_UNREPRESENTABLE_CONTENT_CODE = "SRT_UNREPRESENTABLE_CONTENT";
 export const SRT_INVALID_TIMESTAMP_CODE = "SRT_INVALID_TIMESTAMP";
+export const SRT_MALFORMED_CUE_CODE = "SRT_MALFORMED_CUE";
+
+/** A cue-like SRT block could not be imported without dropping or changing data. */
+export class SrtMalformedCueError extends Error {
+  readonly code = SRT_MALFORMED_CUE_CODE;
+
+  constructor(blockNumber: number) {
+    super(`Malformed SRT cue timestamp in block ${blockNumber}; import was cancelled to prevent data loss.`);
+    this.name = "SrtMalformedCueError";
+  }
+}
 
 export class SrtInvalidTimestampError extends Error {
   readonly code = SRT_INVALID_TIMESTAMP_CODE;
@@ -67,9 +78,13 @@ function formatSrtTime(seconds: number): string {
 // HH:MM:SS,mmm 또는 H:MM:SS.mmm 등 허용 (콤마/마침표 모두)
 const SRT_TIME_RE = /^(\d+):([0-5]\d):([0-5]\d)[.,](\d{1,3})(?=\s|$)/;
 
-function parseSrtTime(str: string): number | null {
-  const m = SRT_TIME_RE.exec(str.trim());
+function parseSrtTime(str: string, allowSettings = false): number | null {
+  const trimmed = str.trim();
+  const m = SRT_TIME_RE.exec(trimmed);
   if (!m) return null;
+  // SRT cue settings such as X1:10/X2:20 follow the *end* timestamp.
+  // Anything after a start timestamp is malformed, not a second timestamp.
+  if (!allowSettings && m[0].length !== trimmed.length) return null;
   const h = parseInt(m[1], 10);
   const min = parseInt(m[2], 10);
   const s = parseInt(m[3], 10);
@@ -127,22 +142,40 @@ export function parseSrt(raw: string): LrcDocument {
 
   // 1) cue(start, end, text) 수집
   const cues: { start: number; end: number; text: string }[] = [];
-  for (const block of blocks) {
+  for (const [blockIndex, block] of blocks.entries()) {
     const rows = block.split("\n");
     while (rows.length && rows[rows.length - 1] === "") rows.pop();
     if (rows.length === 0) continue;
 
-    // 시간 줄(--> 포함)을 찾음. 그 앞은 인덱스 번호(있으면), 그 뒤는 본문.
-    const arrowIdx = rows.findIndex((r) => r.includes("-->"));
+    // Arbitrary preamble text may contain "-->". Recognize a cue by its
+    // numeric index or a timestamp-shaped field on either side of the arrow.
+    // Once recognized, invalid timestamps MUST fail the entire import rather
+    // than silently dropping just that cue before a later save.
+    const hasIndex = /^\d+$/.test(rows[0].trim());
+    const arrowIdx = rows.findIndex((row, index) => {
+      const arrow = row.indexOf("-->");
+      if (arrow < 0) return false;
+      const left = row.slice(0, arrow);
+      const right = row.slice(arrow + 3);
+      const shapedStart = /^\s*\d+:[^\s:]*:[^\s:]*/.test(left);
+      const shapedEnd = /^\s*\d+:[^\s:]*:[^\s:]*/.test(right);
+      const indexedMalformedStart = hasIndex && /\d+:[^\s:]*:[^\s:]*/.test(left);
+      // A numbered non-cue note in a preamble is not automatically a cue.
+      // After real cues start, a numbered block with an arrow must not be
+      // silently dropped even if both timestamp fields are badly malformed.
+      return shapedStart || shapedEnd || indexedMalformedStart || (hasIndex && cues.length > 0 && index === 1);
+    });
     if (arrowIdx === -1) continue;
 
-    const [startStr, endStr] = rows[arrowIdx].split("-->");
+    const pieces = rows[arrowIdx].split("-->");
+    if (pieces.length !== 2) throw new SrtMalformedCueError(blockIndex + 1);
+    const [startStr, endStr] = pieces;
     const start = parseSrtTime(startStr);
-    if (start === null) continue;
-    const end = parseSrtTime(endStr ?? "");
+    const end = parseSrtTime(endStr, true);
+    if (start === null || end === null) throw new SrtMalformedCueError(blockIndex + 1);
 
     const text = rows.slice(arrowIdx + 1).join("\n");
-    cues.push({ start, end: end ?? start, text });
+    cues.push({ start, end, text });
   }
 
   cues.sort((a, b) => a.start - b.start);

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseLrc, serializeLrc } from "./lrcParser";
-import { parseSrt, serializeSrt } from "./srtConverter";
+import { parseSrt, serializeSrt, SrtMalformedCueError, SRT_MALFORMED_CUE_CODE } from "./srtConverter";
 import type { LrcDocument } from "../types/lrc";
 
 const emptyMeta = { title: "", artist: "", album: "", by: "", offset: 0 };
@@ -11,6 +11,43 @@ const docOf = (lines: LrcDocument["lines"]): LrcDocument => ({
 });
 
 describe("parseSrt", () => {
+  it.each([
+    ["start", "00:00:XX,000 --> 00:00:05,000"],
+    ["end", "00:00:04,000 --> 00:00:XX,000"],
+  ])("rejects a malformed %s cue instead of silently saving the remaining document", (_field, timing) => {
+    const input = "1\n00:00:01,000 --> 00:00:02,000\nkeep\n\n" +
+      `2\n${timing}\nMUST NOT LOSE THIS TEXT\n`;
+    expect(() => parseSrt(input)).toThrow(SrtMalformedCueError);
+    try {
+      parseSrt(input);
+    } catch (error) {
+      expect((error as SrtMalformedCueError).code).toBe(SRT_MALFORMED_CUE_CODE);
+    }
+  });
+
+  it("rejects a malformed unnumbered cue rather than importing only its valid neighbor", () => {
+    const input = "00:00:01,000 --> 00:00:02,000\nkeep\n\n" +
+      "00:00:XX,000 --> 00:00:04,000\nmissing\n";
+    expect(() => parseSrt(input)).toThrow(SrtMalformedCueError);
+  });
+
+  it("ignores unrelated preamble text containing arrows and keeps valid cue settings", () => {
+    const input = "Arbitrary header --> not a time\nSome notes\n\n" +
+      "index description --> unrelated\n\n" +
+      "42\nUnrelated numbered note --> still not a timestamp\n\n" +
+      "Example: 00:00:01,000 --> not a standalone timing row\n\n" +
+      "1\n00:00:01,250 --> 00:00:03,500 X1:10 X2:20 Y1:25 Y2:50\nsubtitle\n";
+    const parsed = parseSrt(input);
+    expect(parsed.lines.map((line) => [line.timestamp, line.text])).toEqual([
+      [1.25, "subtitle"], [3.5, ""],
+    ]);
+  });
+
+  it("returns an empty document for empty or unrelated non-cue input", () => {
+    for (const input of ["", "  \n", "free text\nwithout any cues", "other --> explanatory text"]) {
+      expect(parseSrt(input).lines).toEqual([]);
+    }
+  });
   it("preserves an overlapping cue end when reopening and saving SRT", () => {
     const input =
       "1\n00:00:01,000 --> 00:00:04,000\nfirst\n\n" +
@@ -189,7 +226,7 @@ it('rejects finite subtitle times that overflow integer milliseconds instead of 
  expect(() => serializeSrt(parsed)).toThrow('SRT timestamp');
 });
 it.each(['junk00:00:01,000','00:61:01,000','00:00:61,000','00:00:01,0000',`${'9'.repeat(400)}:00:01,000`])('rejects malformed or non-finite SRT start: %s', start => {
- expect(parseSrt(`1\n${start} --> 00:00:05,000\ninvalid`).lines).toEqual([]);
+ expect(() => parseSrt(`1\n${start} --> 00:00:05,000\ninvalid`)).toThrow(SrtMalformedCueError);
 });
 it('retains compatibility with whitespace-separated cue position settings', () => {
  expect(parseSrt('1\n00:00:01,250 --> 00:00:03,500 X1:10 X2:20\ntext').lines.map(l=>l.timestamp)).toEqual([1.25,3.5]);
