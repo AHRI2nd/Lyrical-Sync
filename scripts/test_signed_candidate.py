@@ -12,6 +12,16 @@ import unittest
 ROOT=Path(__file__).resolve().parents[1]
 
 class SignedCandidateTests(unittest.TestCase):
+    def test_release_tag_inputs_are_data_not_shell_source(self):
+        source = (ROOT / '.github/workflows/release.yml').read_text(encoding='utf-8')
+        self.assertEqual(source.count('RELEASE_REF_NAME: ${{ github.ref_name }}'), 2)
+        self.assertEqual(source.count('RELEASE_INPUT_TAG: ${{ github.event.inputs.tag }}'), 2)
+        self.assertIn('TAG_NAME="$RELEASE_REF_NAME"', source)
+        self.assertIn('REF_NAME="$RELEASE_REF_NAME"', source)
+        # GitHub expressions must not be spliced into the shell's quoted strings.
+        self.assertNotRegex(source, r'(?m)^\s*(TAG_NAME|REF_NAME)="\$\{\{')
+        self.assertNotRegex(source, r'(?m)^\s*if \[ -n "\$\{\{')
+
     def test_workflow_is_manual_read_only_and_does_not_publish(self):
         path=ROOT/'.github/workflows/candidate.yml'
         self.assertTrue(path.is_file(), 'A non-publishing signed candidate workflow is required')

@@ -43,13 +43,16 @@ jobs:
       # workflow_dispatch 실행 시에도 tag 입력이 반드시 태그 형식이어야 함.
       - name: Verify tag matches app version
         shell: bash
+        env:
+          RELEASE_REF_NAME: ${{ github.ref_name }}
+          RELEASE_INPUT_TAG: ${{ github.event.inputs.tag }}
         run: |
           set -e
           VERSION=$(jq -r .version src-tauri/tauri.conf.json)
-          TAG_NAME="${{ github.ref_name }}"
+          TAG_NAME="$RELEASE_REF_NAME"
           # workflow_dispatch의 경우 입력된 tag 사용
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
-            TAG_NAME="${{ github.event.inputs.tag }}"
+          if [ -n "$RELEASE_INPUT_TAG" ]; then
+            TAG_NAME="$RELEASE_INPUT_TAG"
           fi
           # 태그 형식이어야 함 (v로 시작, 숫자.숫자.숫자)
           if ! echo "$TAG_NAME" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
@@ -65,12 +68,15 @@ jobs:
       # Security: reject malicious ref text (command injection, path traversal)
       - name: Validate ref name for malicious patterns
         shell: bash
+        env:
+          RELEASE_REF_NAME: ${{ github.ref_name }}
+          RELEASE_INPUT_TAG: ${{ github.event.inputs.tag }}
         run: |
           set -e
-          REF_NAME="${{ github.ref_name }}"
+          REF_NAME="$RELEASE_REF_NAME"
           # workflow_dispatch의 경우 입력된 tag 사용
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
-            REF_NAME="${{ github.event.inputs.tag }}"
+          if [ -n "$RELEASE_INPUT_TAG" ]; then
+            REF_NAME="$RELEASE_INPUT_TAG"
           fi
           # Reject shell metacharacters: $, `, ;, |, &, >, <, (, ), {, }
           case "$REF_NAME" in
