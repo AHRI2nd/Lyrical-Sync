@@ -261,7 +261,11 @@ function parseMarkedInlineSyllables(raw: string): { text: string; syllables: Lrc
         if (parts.length === 0 ? buffer.length > 0 : parts[parts.length - 1].kind === "time" || buffer.length > 0) {
           parts.push({ kind: "text", text: buffer });
         }
-        parts.push({ kind: "time", time: parseInt(match[1], 10) * 60 + parseInt(match[2], 10) + fracToSeconds(match[3]) });
+        const time = parseInt(match[1], 10) * 60 + parseInt(match[2], 10) + fracToSeconds(match[3]);
+        if (!Number.isFinite(time) || !Number.isSafeInteger(Math.round(time * 1000))) {
+          throw new LrcInvalidTimestampError();
+        }
+        parts.push({ kind: "time", time });
         buffer = "";
         hasTimestamp = true;
         i += match[0].length;

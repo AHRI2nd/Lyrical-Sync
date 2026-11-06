@@ -310,6 +310,11 @@ describe("Enhanced LRC (A2) — char/word sync", () => {
     ]);
   });
 
+  it("rejects marked inline timestamps that overflow safe milliseconds", () => {
+    const raw = "[x-lyrical-inline-escape:1]\n[00:01.00]<999999999999999999999999999999999999:00>word";
+    expect(() => parseLrc(raw)).toThrow("LRC timestamps and offsets must be finite numbers");
+  });
+
   it("serializes syllables to A2 inline form", () => {
     const out = serializeLrc(
       docOf([
