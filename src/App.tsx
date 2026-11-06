@@ -228,6 +228,10 @@ function serializationErrorCode(error: unknown): string | null {
   return null;
 }
 
+function openErrorMessage(error: unknown, t: ReturnType<typeof useI18nStore.getState>["t"]): string {
+  return String(error).includes("LYRIC_RESOURCE_LIMIT") ? t.toast.lyricResourceLimit : t.toast.openFailed;
+}
+
 function saveErrorMessage(error: unknown, t: ReturnType<typeof useI18nStore.getState>["t"]): string {
   if (error instanceof Error && error.message === "LYRICS_FILE_CHANGED") return t.toast.fileChanged;
   if (error instanceof SrtInvalidTimestampError || error instanceof LrcInvalidTimestampError) return t.toast.invalidTimestamp;
@@ -430,7 +434,7 @@ function App() {
 
   const applyDocumentOpen = ({ lyricsPath, audioPath }: { lyricsPath: string; audioPath?: string | null }) => {
     const st = useLrcStore.getState();
-    st.loadLyricsPath(lyricsPath, audioPath ? { audioPath } : undefined).catch(() => toast.error(t.toast.openFailed));
+    st.loadLyricsPath(lyricsPath, audioPath ? { audioPath } : undefined).catch((error) => toast.error(openErrorMessage(error, t)));
   };
 
   const requestDocumentOpen = (entry: { lyricsPath: string; audioPath?: string | null }) => {
@@ -460,7 +464,7 @@ function App() {
   // 드롭된 파일을 실제로 연다 (오디오 → 오디오 경로, lrc/srt → 가사)
   const applyDrop = (d: { audio?: string; lyrics?: string }) => {
     const st = useLrcStore.getState();
-    if (d.lyrics) st.loadLyricsPath(d.lyrics, d.audio ? { audioPath: d.audio } : undefined).catch(() => toast.error(t.toast.openFailed));
+    if (d.lyrics) st.loadLyricsPath(d.lyrics, d.audio ? { audioPath: d.audio } : undefined).catch((error) => toast.error(openErrorMessage(error, t)));
     else if (d.audio) st.setAudioPath(d.audio);
   };
 

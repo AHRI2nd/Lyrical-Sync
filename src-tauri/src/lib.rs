@@ -31,10 +31,40 @@ use bookmark::{create_security_bookmark, resolve_security_bookmark};
 
 // ─── LRC / audio commands ────────────────────────────────────────
 
+const MAX_LYRIC_FILE_BYTES: u64 = 64 * 1024 * 1024;
+
+fn read_lyric_file(path: &std::path::Path) -> Result<String, String> {
+    use std::io::Read;
+
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NONBLOCK);
+    }
+    let file = options.open(path).map_err(|error| error.to_string())?;
+    let metadata = file.metadata().map_err(|error| error.to_string())?;
+    if !metadata.is_file() {
+        return Err("Lyrics path is not a regular file".into());
+    }
+    if metadata.len() > MAX_LYRIC_FILE_BYTES {
+        return Err("LYRIC_RESOURCE_LIMIT".into());
+    }
+    let mut content = String::new();
+    file.take(MAX_LYRIC_FILE_BYTES + 1)
+        .read_to_string(&mut content)
+        .map_err(|error| error.to_string())?;
+    if content.len() as u64 > MAX_LYRIC_FILE_BYTES {
+        return Err("LYRIC_RESOURCE_LIMIT".into());
+    }
+    Ok(content)
+}
+
 #[tauri::command]
 async fn read_lrc_file(path: String) -> Result<String, String> {
     let path = path_validation::validate_safe_path(&path)?;
-    let content = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let content = read_lyric_file(&path)?;
     // BOM-less UTF-16LE composed of ASCII code units is valid UTF-8 but
     // contains NUL bytes. Passing it to the LRC/SRT parser would silently
     // produce empty or malformed rows and could overwrite the original file.
@@ -381,6 +411,7 @@ mod audio_decode_tests {
 mod lyric_save_command_tests {
     use super::{
         read_lrc_file, read_lrc_file_with_hash, write_lrc_file, write_lrc_file_if_unchanged,
+        MAX_LYRIC_FILE_BYTES,
     };
     use std::fs;
 
@@ -503,6 +534,39 @@ mod lyric_save_command_tests {
         assert!(write_lrc_file(invalid.to_string_lossy().into_owned(), "draft".into(), None, None).await.is_err());
         assert_eq!(fs::read_to_string(&original).unwrap(), "original content");
         assert!(!invalid.exists());
+    }
+
+    #[tokio::test]
+    async fn read_rejects_sparse_lyrics_above_the_byte_budget() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("oversized.lrc");
+        let file = fs::File::create(&target).unwrap();
+        file.set_len(MAX_LYRIC_FILE_BYTES + 1).unwrap();
+
+        let error = read_lrc_file(target.to_string_lossy().into_owned()).await.unwrap_err();
+        assert!(error.contains("LYRIC_RESOURCE_LIMIT"));
+        assert_eq!(fs::metadata(&target).unwrap().len(), MAX_LYRIC_FILE_BYTES + 1);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn read_rejects_a_fifo_without_blocking() {
+        use std::ffi::CString;
+        use std::os::unix::ffi::OsStrExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("lyrics.pipe");
+        let path = CString::new(target.as_os_str().as_bytes()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(path.as_ptr(), 0o600) }, 0);
+
+        let error = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            read_lrc_file(target.to_string_lossy().into_owned()),
+        )
+        .await
+        .expect("FIFO read must not block")
+        .unwrap_err();
+        assert!(error.contains("regular file"));
     }
 
     #[tokio::test]

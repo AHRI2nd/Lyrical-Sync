@@ -364,6 +364,17 @@ describe("App — paired drop transactions", () => {
     useSettingsStore.setState({ autoCheckUpdate: false, spotifyMode: false, deviceMode: false });
   });
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+  it("shows a dedicated message when a lyric file exceeds the safe read limit", async () => {
+    vi.mocked(invoke).mockImplementation((command) => command === "read_lrc_file_with_hash"
+      ? Promise.reject("LYRIC_RESOURCE_LIMIT") : Promise.resolve(undefined));
+    render(<App />);
+    act(() => dragDropHandler.current?.({ payload: { type: "drop", paths: ["/large.lrc"] } }));
+    fireEvent.click(screen.getByText(useI18nStore.getState().t.drop.replaceOk));
+
+    expect(await screen.findByText(useI18nStore.getState().t.toast.lyricResourceLimit)).toBeTruthy();
+    expect(useLrcStore.getState().lrcPath).toBe("/old.lrc");
+  });
+
   it("retains the old audio if the confirmed replacement lyrics fail to read", async () => {
     vi.mocked(invoke).mockImplementation(command => command === "read_lrc_file_with_hash"
       ? Promise.reject(new Error("unreadable")) : Promise.resolve(undefined));
