@@ -47,13 +47,14 @@ export class SrtUnrepresentableContentError extends Error {
   readonly code = SRT_UNREPRESENTABLE_CONTENT_CODE;
 
   constructor() {
-    super("SRT cannot preserve blank paragraph rows in a cue.");
+    super("SRT cannot preserve blank paragraph rows or a terminal line break in a cue.");
     this.name = "SrtUnrepresentableContentError";
   }
 }
 
 function assertSrtBodyRepresentable(value: string | undefined): void {
   if (value === undefined || value.trim() === "") return;
+  if (value.endsWith("\n") || value.endsWith("\r")) throw new SrtUnrepresentableContentError();
   const rows = value.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
   while (rows.length && rows[rows.length - 1].trim() === "") rows.pop();
   if (rows.some((row) => row.trim() === "")) throw new SrtUnrepresentableContentError();

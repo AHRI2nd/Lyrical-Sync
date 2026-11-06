@@ -92,6 +92,12 @@ describe("parseSrt", () => {
 });
 
 describe("serializeSrt", () => {
+  it("rejects terminal newlines that SRT parsing would remove from a cue body", () => {
+    expect(() => serializeSrt(docOf([{ id: "1", timestamp: 1, text: "first\n" }]))).toThrow(
+      "SRT cannot preserve blank paragraph rows",
+    );
+  });
+
   it("rejects a blank paragraph formed where original text meets translation", () => {
     expect(() => serializeSrt(docOf([{ id: "1", timestamp: 1, text: "original\r\n", translation: "translated" }]))).
       toThrow("SRT cannot preserve blank paragraph rows");
