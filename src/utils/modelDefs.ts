@@ -15,7 +15,7 @@ export interface ModelDef {
   name: string;
   description: { ko: string; en: string; ja: string };
   files: ModelFile[];
-  totalSizeMb: number;
+  totalSizeMib: number;
   required: boolean;
 }
 
@@ -31,7 +31,7 @@ export const MODEL_DEFS: ModelDef[] = [
       ja: "文字起こし前にボーカルを分離して精度を向上させます",
     },
     files: [{ ...aiManifest.demucs }],
-    totalSizeMb: 83,
+    totalSizeMib: 83,
     required: false,
   },
 
@@ -46,7 +46,7 @@ export const MODEL_DEFS: ModelDef[] = [
       ja: "1130言語対応の多言語強制アライメントモデル — 日本語・英語・韓国語含む",
     },
     files: [{ ...aiManifest.model }],
-    totalSizeMb: 1204,
+    totalSizeMib: 1204,
     required: true,
   },
 
@@ -54,7 +54,7 @@ export const MODEL_DEFS: ModelDef[] = [
 
 export const CATEGORY_ORDER: ModelCategory[] = ["demucs", "ctc"];
 
-export function formatSize(mb: number): string {
-  if (mb >= 1000) return `${(mb / 1000).toFixed(2)} GB`;
-  return `${mb.toFixed(1)} MB`;
+export function formatSize(mib: number): string {
+  if (mib >= 1024) return `${(mib / 1024).toFixed(2)} GiB`;
+  return `${mib.toFixed(1)} MiB`;
 }

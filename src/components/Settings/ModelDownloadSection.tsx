@@ -293,9 +293,9 @@ function ModelRow({
   const { status, progress, error } = state;
 
   // Prefer actual measured size over static estimate
-  const displaySizeMb = state._actualTotalBytes
+  const displaySizeMib = state._actualTotalBytes
     ? state._actualTotalBytes / (1024 * 1024)
-    : model.totalSizeMb;
+    : model.totalSizeMib;
 
   const statusIcon =
     status === "installed" ? "✓"
@@ -328,7 +328,7 @@ function ModelRow({
           className={`text-xs tabular-nums shrink-0 ${state._actualTotalBytes ? "text-[var(--ls-text-secondary)]" : "text-[var(--ls-text-secondary)]"}`}
           title={state._actualTotalBytes ? undefined : "Estimated size"}
         >
-          {state._actualTotalBytes ? formatSize(displaySizeMb) : `~${formatSize(displaySizeMb)}`}
+          {state._actualTotalBytes ? formatSize(displaySizeMib) : `~${formatSize(displaySizeMib)}`}
         </span>
         <ActionButton
           status={status}

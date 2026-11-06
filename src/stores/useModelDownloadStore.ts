@@ -84,7 +84,7 @@ function ensureProgressListener(): Promise<UnlistenFn> {
       }
       const model = MODEL_DEFS.find((item) => item.id === payload.modelId);
       if (!model) return;
-      const estimate = model.totalSizeMb * 1024 * 1024;
+      const estimate = model.totalSizeMib * 1024 * 1024;
       const denominator = estimate > 0 ? estimate : Math.max(completedBytes + (payload.total || payload.downloaded), 1);
       const progress = Math.min((completedBytes + payload.downloaded) / denominator * 100, 99);
       updateOperation(operation, { progress }, {
