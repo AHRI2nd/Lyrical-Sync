@@ -679,6 +679,21 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
       syllables: l.syllables?.map((s) => ({ ...s, time: sc(s.time) })),
     }));
     if (!hasFiniteLineTimes(lines)) { reportInvalidTime(); return; }
+    // SRT can represent only whole milliseconds. A positive imported cue that
+    // becomes sub-millisecond (or whose rounded endpoints collide) must not be
+    // persisted as an apparent zero-length cue: serializeSrt would replace its
+    // original end with an unrelated four-second fallback. Reject atomically.
+    const unrepresentableSrtCue = doc.lines.some((original, index) => {
+      if (original.timestamp === null || original.srtEndTime === undefined ||
+          original.srtEndTime <= original.timestamp) return false;
+      const scaled = lines[index];
+      // Imported SRT endpoints are millisecond-precision values. Compare their
+      // integer millisecond units to avoid 1.001 - 1 rounding below 0.001.
+      const originalDurationMs = Math.round(original.srtEndTime * 1000) - Math.round(original.timestamp * 1000);
+      return originalDurationMs * factor < 1 ||
+        scaled.timestamp === null || scaled.srtEndTime === undefined || scaled.srtEndTime <= scaled.timestamp;
+    });
+    if (unrepresentableSrtCue) { reportInvalidTime(); return; }
     pushHistory("scaleTimestamps");
     set({ doc: { ...doc, lines }, isDirty: true });
   },
