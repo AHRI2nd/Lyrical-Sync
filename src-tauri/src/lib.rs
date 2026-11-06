@@ -429,6 +429,35 @@ mod lyric_save_command_tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    async fn conditional_saves_through_aliases_reject_stale_revisions() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("song.lrc");
+        let alias = dir.path().join("alias.lrc");
+        fs::write(&target, "original").unwrap();
+        symlink(&target, &alias).unwrap();
+        let target_path = target.to_string_lossy().into_owned();
+        let alias_path = alias.to_string_lossy().into_owned();
+        let opened = read_lrc_file_with_hash(target_path.clone()).await.unwrap();
+
+        write_lrc_file_if_unchanged(
+            target_path,
+            "first save".into(),
+            opened.sha256.clone(),
+        )
+        .await
+        .unwrap();
+        let stale = write_lrc_file_if_unchanged(alias_path, "stale save".into(), opened.sha256)
+            .await
+            .unwrap_err();
+
+        assert!(stale.contains("LYRICS_FILE_CHANGED"));
+        assert_eq!(fs::read_to_string(&target).unwrap(), "first save");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
     async fn save_as_alias_of_current_file_checks_the_loaded_revision() {
         use std::os::unix::fs::symlink;
 
