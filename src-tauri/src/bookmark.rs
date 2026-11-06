@@ -53,11 +53,11 @@ mod windows {
     use super::*;
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
-    use windows::Win32::Storage::FileSystem::{
+    use ::windows::Win32::Storage::FileSystem::{
         CreateFileW, FILE_FLAG_BACKUP_SEMANTICS, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
         FILE_SHARE_READ, FILE_SHARE_WRITE, GENERIC_READ,
     };
-    use windows::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE};
+    use ::windows::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE};
 
     pub fn acquire_access(path: &str) -> Result<HANDLE, String> {
         let wide: Vec<u16> = OsStr::new(path).encode_wide().chain(Some(0)).collect();
