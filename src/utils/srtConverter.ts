@@ -60,6 +60,14 @@ function assertSrtBodyRepresentable(value: string | undefined): void {
   if (rows.some((row) => row.trim() === "")) throw new SrtUnrepresentableContentError();
 }
 
+function decodeSrtEntities(value: string): string {
+  return value.replace(/&(amp|lt|gt);/g, (entity) => {
+    if (entity === "&amp;") return "&";
+    if (entity === "&lt;") return "<";
+    return ">";
+  });
+}
+
 // SubRip 시간 형식: HH:MM:SS,mmm
 function formatSrtTime(seconds: number): string {
   const totalMs = Math.max(0, Math.round(seconds * 1000));
@@ -119,8 +127,8 @@ export function serializeSrt(doc: LrcDocument, lastCueEnd?: number): string {
       ? importedEnd
       : fallbackEnds[i];
     const rawText = line.text.trim() === "" ? (line.translation ?? "") : line.translation ? `${line.text}\n${line.translation}` : line.text;
-    // Escape angle brackets to prevent interpretation as markup by SRT players/FFmpeg
-    const text = rawText.replace(/</g, "<").replace(/>/g, ">");
+    // Encode literal text so SRT players do not interpret LRC-like text as markup.
+    const text = rawText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     assertSrtBodyRepresentable(text);
     cues.push({ start, end, text });
   }
@@ -180,7 +188,7 @@ export function parseSrt(raw: string): LrcDocument {
     const end = parseSrtTime(endStr, true);
     if (start === null || end === null) throw new SrtMalformedCueError(blockIndex + 1);
 
-    const text = rows.slice(arrowIdx + 1).join("\n");
+    const text = decodeSrtEntities(rows.slice(arrowIdx + 1).join("\n"));
     cues.push({ start, end, text });
   }
 

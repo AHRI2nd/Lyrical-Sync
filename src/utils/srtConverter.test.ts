@@ -98,6 +98,13 @@ describe("serializeSrt", () => {
     );
   });
 
+  it("escapes SRT markup while preserving literal text on reopen", () => {
+    const text = "A <b>bold</b> &amp; B";
+    const serialized = serializeSrt(docOf([{ id: "1", timestamp: 1, text }]));
+    expect(serialized).toContain("A &lt;b&gt;bold&lt;/b&gt; &amp;amp; B");
+    expect(parseSrt(serialized).lines[0].text).toBe(text);
+  });
+
   it("rejects a blank paragraph formed where original text meets translation", () => {
     expect(() => serializeSrt(docOf([{ id: "1", timestamp: 1, text: "original\r\n", translation: "translated" }]))).
       toThrow("SRT cannot preserve blank paragraph rows");
