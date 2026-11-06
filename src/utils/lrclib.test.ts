@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { lrclibSearch, scoreResult, sortByAccuracy, type LrcLibResult } from "./lrclib";
 
 const result = (overrides: Partial<LrcLibResult> = {}): LrcLibResult => ({
@@ -77,17 +77,37 @@ describe("lrclibSearch", () => {
     fetchMock.mockReset();
     vi.stubGlobal("fetch", fetchMock);
   });
-
-  it.skip("searches by track_name (+artist/album) when a title is given", async () => {
-    // TODO: vitest fetch mock doesn't properly handle Response objects with stream bodies
-    // The core functionality is tested by other tests
-    expect(true).toBe(true);
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
-  it.skip("falls back to a combined q= query when there is no title", async () => {
-    // TODO: vitest fetch mock doesn't properly handle Response objects with stream bodies
-    // The core functionality is tested by other tests
-    expect(true).toBe(true);
+  function jsonResponse(data: unknown, contentLength?: string) {
+    const value = new TextEncoder().encode(JSON.stringify(data));
+    let read = false;
+    return {
+      ok: true,
+      headers: { get: (key: string) => key === "content-length" ? (contentLength ?? null) : null },
+      body: { getReader: () => ({ read: async () => {
+        if (read) return { done: true, value: undefined };
+        read = true;
+        return { done: false, value };
+      } }) },
+    };
+  }
+
+  it("searches by track_name (+artist/album) when a title is given", async () => {
+    fetchMock.mockResolvedValue(jsonResponse([result()]));
+    expect(await lrclibSearch({ title: " Song ", artist: "Artist", album: "Album" })).toEqual([result()]);
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(new URL(url).searchParams.toString()).toBe("track_name=Song&artist_name=Artist&album_name=Album");
+    expect(options.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("falls back to a combined q= query when there is no title", async () => {
+    fetchMock.mockResolvedValue(jsonResponse([]));
+    expect(await lrclibSearch({ artist: "Artist", album: "Album" })).toEqual([]);
+    expect(new URL(fetchMock.mock.calls[0][0]).searchParams.get("q")).toBe("Artist Album");
   });
 
   it("returns [] without calling fetch when every field is blank", async () => {
@@ -101,9 +121,113 @@ describe("lrclibSearch", () => {
     await expect(lrclibSearch({ title: "Song" })).rejects.toThrow("503");
   });
 
-  it.skip("returns [] when the response body is not an array", async () => {
-    // TODO: vitest fetch mock doesn't properly handle Response objects with stream bodies
-    // The core functionality is tested by other tests
-    expect(true).toBe(true);
+  it("returns [] when the response body is not an array", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ invalid: true }));
+    expect(await lrclibSearch({ title: "Song" })).toEqual([]);
+  });
+
+  it("cancels a pending fetch using the caller's AbortSignal", async () => {
+    const caller = new AbortController();
+    let requestSignal: AbortSignal | undefined;
+    fetchMock.mockImplementation((_url: string, options: RequestInit) => {
+      requestSignal = options.signal as AbortSignal;
+      return new Promise((_resolve, reject) => {
+        requestSignal!.addEventListener("abort", () => reject(requestSignal!.reason), { once: true });
+      });
+    });
+    const pending = lrclibSearch({ title: "Song" }, caller.signal);
+    caller.abort();
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    expect(requestSignal?.aborted).toBe(true);
+  });
+
+  it("cancels an in-progress response body read using the caller's signal", async () => {
+    const caller = new AbortController();
+    let startedReading!: () => void;
+    const reading = new Promise<void>((resolve) => { startedReading = resolve; });
+    fetchMock.mockImplementation((_url: string, options: RequestInit) => {
+      const requestSignal = options.signal as AbortSignal;
+      return Promise.resolve({
+        ok: true,
+        headers: { get: () => null },
+        body: { getReader: () => ({ read: () => new Promise((_resolve, reject) => {
+          requestSignal.addEventListener("abort", () => reject(requestSignal.reason), { once: true });
+          startedReading();
+        }) }) },
+      });
+    });
+    const pending = lrclibSearch({ title: "Song" }, caller.signal);
+    await reading;
+    caller.abort();
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("does not fetch if the caller signal is already aborted", async () => {
+    const caller = new AbortController();
+    caller.abort();
+    await expect(lrclibSearch({ title: "Song" }, caller.signal)).rejects.toMatchObject({ name: "AbortError" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("enforces the 10-second deadline even with a caller signal", async () => {
+    vi.useFakeTimers();
+    const caller = new AbortController();
+    let requestSignal: AbortSignal | undefined;
+    fetchMock.mockImplementation((_url: string, options: RequestInit) => {
+      requestSignal = options.signal as AbortSignal;
+      return new Promise((_resolve, reject) => {
+        requestSignal!.addEventListener("abort", () => reject(requestSignal!.reason), { once: true });
+      });
+    });
+    const pending = lrclibSearch({ title: "Song" }, caller.signal);
+    const rejection = expect(pending).rejects.toMatchObject({ name: "TimeoutError" });
+    await vi.advanceTimersByTimeAsync(10_000);
+    await rejection;
+    expect(requestSignal?.aborted).toBe(true);
+    expect(caller.signal.aborted).toBe(false);
+  });
+
+  it("enforces the same deadline without a caller signal", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementation((_url: string, options: RequestInit) => {
+      const signal = options.signal as AbortSignal;
+      return new Promise((_resolve, reject) => {
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+      });
+    });
+    const pending = lrclibSearch({ title: "Song" });
+    const rejection = expect(pending).rejects.toMatchObject({ name: "TimeoutError" });
+    await vi.advanceTimersByTimeAsync(10_000);
+    await rejection;
+  });
+
+  it("clears the timeout and caller listener after a successful response", async () => {
+    vi.useFakeTimers();
+    const caller = new AbortController();
+    fetchMock.mockResolvedValue(jsonResponse([result()]));
+    await expect(lrclibSearch({ title: "Song" }, caller.signal)).resolves.toEqual([result()]);
+    const requestSignal = fetchMock.mock.calls[0][1].signal as AbortSignal;
+    expect(vi.getTimerCount()).toBe(0);
+    caller.abort();
+    expect(requestSignal.aborted).toBe(false);
+  });
+
+  it("retains the 2 MiB response cap for a Content-Length header", async () => {
+    fetchMock.mockResolvedValue(jsonResponse([], String(2 * 1024 * 1024 + 1)));
+    await expect(lrclibSearch({ title: "Song" })).rejects.toThrow("response too large");
+  });
+
+  it("retains the 2 MiB streamed response cap without Content-Length", async () => {
+    let reads = 0;
+    fetchMock.mockResolvedValue({
+      ok: true,
+      headers: { get: () => null },
+      body: { getReader: () => ({ read: async () => {
+        reads++;
+        return { done: false, value: new Uint8Array(1024 * 1024 + 1) };
+      } }) },
+    });
+    await expect(lrclibSearch({ title: "Song" })).rejects.toThrow("response exceeded");
+    expect(reads).toBe(2);
   });
 });

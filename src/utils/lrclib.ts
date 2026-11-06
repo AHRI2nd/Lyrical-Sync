@@ -1,6 +1,8 @@
 // LRCLIB (lrclib.net) 가사 검색 — 무료·무인증·CORS 지원, 프론트 fetch 직접 호출.
 
 const BASE = "https://lrclib.net/api";
+const SEARCH_TIMEOUT_MS = 10_000;
+const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 
 export interface LrcLibResult {
   id: number;
@@ -36,14 +38,21 @@ export async function lrclibSearch(q: LrcLibQuery, signal?: AbortSignal): Promis
     params.set("q", query);
   }
 
-  // Use provided signal or create a default 10s timeout controller
-  const ctrl = signal ? { signal } : { signal: AbortSignal.timeout(10000) };
+  // A caller's cancellation must not disable the search deadline.
+  const controller = new AbortController();
+  const abortFromCaller = () => controller.abort(signal?.reason ?? new DOMException("Search cancelled", "AbortError"));
+  if (signal?.aborted) abortFromCaller();
+  else signal?.addEventListener("abort", abortFromCaller, { once: true });
+  const timeout = setTimeout(() => {
+    controller.abort(new DOMException("LRCLIB search timed out", "TimeoutError"));
+  }, SEARCH_TIMEOUT_MS);
   try {
-    const res = await fetch(BASE + "/search?" + params.toString(), ctrl);
+    if (controller.signal.aborted) throw controller.signal.reason;
+    const res = await fetch(BASE + "/search?" + params.toString(), { signal: controller.signal });
+    if (controller.signal.aborted) throw controller.signal.reason;
     if (!res.ok) throw new Error("LRCLIB " + res.status);
 
-    // Response size limit: 2 MiB to prevent unbounded memory consumption (defect 545)
-    const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+    // Bound streamed responses even when the server omits Content-Length.
     const contentLength = res.headers.get("content-length");
     if (contentLength && parseInt(contentLength, 10) > MAX_RESPONSE_BYTES) {
       throw new Error("LRCLIB response too large: " + contentLength + " bytes (max " + MAX_RESPONSE_BYTES + ")");
@@ -56,6 +65,7 @@ export async function lrclibSearch(q: LrcLibQuery, signal?: AbortSignal): Promis
     const chunks: Uint8Array[] = [];
     while (true) {
       const { done, value } = await reader.read();
+      if (controller.signal.aborted) throw controller.signal.reason;
       if (done) break;
       if (value) {
         receivedBytes += value.length;
@@ -66,7 +76,7 @@ export async function lrclibSearch(q: LrcLibQuery, signal?: AbortSignal): Promis
       }
     }
 
-        // Concatenate all Uint8Array chunks into a single array
+    // Concatenate all Uint8Array chunks into a single array.
     const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
     const concatenated = new Uint8Array(totalLength);
     let offset = 0;
@@ -76,8 +86,13 @@ export async function lrclibSearch(q: LrcLibQuery, signal?: AbortSignal): Promis
     }
     const data = JSON.parse(new TextDecoder().decode(concatenated));
     return Array.isArray(data) ? (data as LrcLibResult[]) : [];
+  } catch (error) {
+    // Stop streaming a response after a parse, status or size error as well.
+    controller.abort();
+    throw error;
   } finally {
-    // clearTimeout not needed when using AbortSignal.timeout
+    clearTimeout(timeout);
+    signal?.removeEventListener("abort", abortFromCaller);
   }
 }
 
