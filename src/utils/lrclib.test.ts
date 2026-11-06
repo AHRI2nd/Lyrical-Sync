@@ -121,6 +121,15 @@ describe("lrclibSearch", () => {
     await expect(lrclibSearch({ title: "Song" })).rejects.toThrow("503");
   });
 
+  it("filters malformed results before UI sorting and normalizes a missing album", async () => {
+    fetchMock.mockResolvedValue(jsonResponse([
+      null,
+      { ...result(), trackName: { unexpected: true } },
+      { ...result({ id: 2 }), albumName: null },
+    ]));
+    expect(await lrclibSearch({ title: "Song" })).toEqual([result({ id: 2, albumName: "" })]);
+  });
+
   it("returns [] when the response body is not an array", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ invalid: true }));
     expect(await lrclibSearch({ title: "Song" })).toEqual([]);

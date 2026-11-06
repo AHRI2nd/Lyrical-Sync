@@ -21,6 +21,30 @@ export interface LrcLibQuery {
   album?: string;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseLrcLibResult(value: unknown): LrcLibResult | null {
+  if (!isRecord(value) || !Number.isSafeInteger(value.id) ||
+      typeof value.trackName !== "string" || typeof value.artistName !== "string" ||
+      (typeof value.albumName !== "string" && value.albumName !== null) ||
+      typeof value.duration !== "number" || !Number.isFinite(value.duration) || value.duration < 0 ||
+      typeof value.instrumental !== "boolean" ||
+      (value.plainLyrics !== null && typeof value.plainLyrics !== "string") ||
+      (value.syncedLyrics !== null && typeof value.syncedLyrics !== "string")) return null;
+  return {
+    id: value.id as number,
+    trackName: value.trackName,
+    artistName: value.artistName,
+    albumName: typeof value.albumName === "string" ? value.albumName : "",
+    duration: value.duration,
+    instrumental: value.instrumental,
+    plainLyrics: value.plainLyrics as string | null,
+    syncedLyrics: value.syncedLyrics as string | null,
+  };
+}
+
 // 검색: track_name이 있으면 필드 검색, 없으면 q(합성어)로 폴백.
 export async function lrclibSearch(q: LrcLibQuery, signal?: AbortSignal): Promise<LrcLibResult[]> {
   const title = q.title?.trim() ?? "";
@@ -84,8 +108,9 @@ export async function lrclibSearch(q: LrcLibQuery, signal?: AbortSignal): Promis
       concatenated.set(chunk, offset);
       offset += chunk.length;
     }
-    const data = JSON.parse(new TextDecoder().decode(concatenated));
-    return Array.isArray(data) ? (data as LrcLibResult[]) : [];
+    const data: unknown = JSON.parse(new TextDecoder().decode(concatenated));
+    if (!Array.isArray(data)) return [];
+    return data.map(parseLrcLibResult).filter((result): result is LrcLibResult => result !== null);
   } catch (error) {
     // Stop streaming a response after a parse, status or size error as well.
     controller.abort();
