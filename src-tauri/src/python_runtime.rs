@@ -35,7 +35,13 @@ fn publish_with(
         .ok_or_else(|| io::Error::other("Missing runtime parent"))?;
     let backup = tempfile::tempdir_in(parent)?;
     let previous = backup.path().join("previous");
-    let had_previous = destination.exists();
+    // Path::exists() follows symlinks. A dangling link still occupies the
+    // destination entry and must be backed up before publishing the runtime.
+    let had_previous = match std::fs::symlink_metadata(destination) {
+        Ok(_) => true,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => false,
+        Err(error) => return Err(error),
+    };
     if had_previous {
         rename(destination, &previous)?;
     }
@@ -118,6 +124,53 @@ mod tests {
             std::fs::read_to_string(live.join("original")).unwrap(),
             "keep"
         );
+        assert!(runtime_complete(&stage));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_dangling_runtime_symlink_is_replaced_without_touching_its_external_target() {
+        use std::os::unix::fs::symlink;
+
+        let root = tempfile::tempdir().unwrap();
+        let live = root.path().join("live");
+        let missing = root.path().join("missing-runtime");
+        symlink(&missing, &live).unwrap();
+        let stage = root.path().join("stage");
+        ready_stage(&stage);
+
+        publish_runtime(&stage, &live).unwrap();
+
+        assert!(runtime_complete(&live));
+        assert!(!std::fs::symlink_metadata(&live).unwrap().file_type().is_symlink());
+        assert!(!missing.exists());
+        assert!(!stage.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn failed_publish_restores_a_dangling_runtime_symlink() {
+        use std::os::unix::fs::symlink;
+
+        let root = tempfile::tempdir().unwrap();
+        let live = root.path().join("live");
+        let missing = root.path().join("missing-runtime");
+        symlink(&missing, &live).unwrap();
+        let stage = root.path().join("stage");
+        ready_stage(&stage);
+        let mut calls = 0;
+
+        let error = publish_with(&stage, &live, |from, to| {
+            calls += 1;
+            if calls == 2 {
+                Err(io::Error::other("injected publication failure"))
+            } else {
+                std::fs::rename(from, to)
+            }
+        }).unwrap_err();
+
+        assert!(error.to_string().contains("publication failure"));
+        assert_eq!(std::fs::read_link(&live).unwrap(), missing);
         assert!(runtime_complete(&stage));
     }
 }
