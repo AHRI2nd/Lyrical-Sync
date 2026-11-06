@@ -651,7 +651,13 @@ function App() {
             setRecovery(null);
             // Keep recovery snapshot until restored document is explicitly saved
           }}
-          onCancel={() => { clearRecoverySnapshot(recovery); setRecovery(null); }}
+          onCancel={() => {
+            if (!clearRecoverySnapshot(recovery)) {
+              toast.error(t.recovery.discardFailed);
+              return;
+            }
+            setRecovery(null);
+          }}
         />
       )}
       {pendingFetchedLyricsConfirm && (

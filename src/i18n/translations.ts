@@ -384,6 +384,7 @@ export interface Translations {
     message: string;
     restore: string;
     discard: string;
+    discardFailed: string;
     lines: string;
   };
   toast: {
@@ -1036,6 +1037,7 @@ const ko: Translations = {
     message: "이전에 저장하지 않은 작업이 남아 있습니다. 복구하시겠습니까?",
     restore: "복구",
     discard: "버리기",
+    discardFailed: "복구 사본을 삭제할 수 없습니다. 작업은 복구를 위해 유지되었습니다.",
     lines: "줄",
   },
   toast: {
@@ -1686,6 +1688,7 @@ const en: Translations = {
     message: "Unsaved work from a previous session was found. Restore it?",
     restore: "Restore",
     discard: "Discard",
+    discardFailed: "Could not remove the recovery copy. It has been kept so you can restore it later.",
     lines: " lines",
   },
   toast: {
@@ -2335,6 +2338,7 @@ const ja: Translations = {
     message: "前回保存されていない作業が残っています。復元しますか？",
     restore: "復元",
     discard: "破棄",
+    discardFailed: "復元データを削除できませんでした。後で復元できるよう保持しています。",
     lines: "行",
   },
   toast: {

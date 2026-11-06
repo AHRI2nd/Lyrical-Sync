@@ -296,6 +296,26 @@ describe("App — recovery lifecycle", () => {
     fireEvent.click(screen.getByText(useI18nStore.getState().t.recovery.discard));
     expect(loadRecoverySnapshot()).toBeNull();
   });
+  it("keeps the recovery prompt and snapshot when discard storage removal fails", () => {
+    const { storage, restore } = installMemoryLocalStorage();
+    const doc = snapshot();
+    const removeItem = storage.removeItem.bind(storage);
+    vi.spyOn(storage, "removeItem").mockImplementation((key) => {
+      if (key === "lyrical-sync-recovery") throw new Error("storage unavailable");
+      removeItem(key);
+    });
+    try {
+      render(<App />);
+      const t = useI18nStore.getState().t;
+      fireEvent.click(screen.getByText(t.recovery.discard));
+      expect(screen.getByRole("dialog", { name: t.recovery.title })).toBeTruthy();
+      expect(loadRecoverySnapshot()?.doc).toEqual(doc);
+      expect(screen.getByText(t.recovery.discardFailed)).toBeTruthy();
+    } finally {
+      restore();
+    }
+  });
+
   it("keeps a recovery checkpoint during continuous edits", () => {
     vi.useFakeTimers();
     render(<App />);
