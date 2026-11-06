@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 import { type Lang, translations, type Translations } from "../i18n/translations";
 
 interface I18nState {
@@ -11,6 +11,18 @@ interface I18nState {
 export function normalizeLang(value: unknown): Lang {
   return value === "en" || value === "ja" ? value : "ko";
 }
+
+const safeLanguageStorage = createJSONStorage(() => ({
+  getItem: (name: string) => {
+    try { return localStorage.getItem(name); } catch { return null; }
+  },
+  setItem: (name: string, value: string) => {
+    try { localStorage.setItem(name, value); } catch { /* Keep the in-memory language usable. */ }
+  },
+  removeItem: (name: string) => {
+    try { localStorage.removeItem(name); } catch { /* Storage may be unavailable. */ }
+  },
+}));
 
 export const useI18nStore = create<I18nState>()(
   persist(
@@ -24,6 +36,7 @@ export const useI18nStore = create<I18nState>()(
     }),
     {
       name: "lyrical-sync-lang",
+      storage: safeLanguageStorage,
       partialize: (state) => ({ lang: state.lang }),
       onRehydrateStorage: () => (state) => {
         if (state) {
