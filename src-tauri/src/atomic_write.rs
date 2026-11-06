@@ -27,7 +27,7 @@ fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> i
     // Use symlink_metadata to NOT follow symlinks, so we can detect dangling links.
     let metadata = fs::symlink_metadata(&selected_target);
     
-    let (target, permissions, is_existing, target_metadata) = match metadata {
+    let (target, permissions, is_existing, target_metadata, macos_flags) = match metadata {
         Ok(meta) => {
             if meta.file_type().is_symlink() {
                 // It's a symlink - resolve it but keep track of the link path
@@ -39,40 +39,36 @@ fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> i
                 }
                 #[cfg(target_os = "macos")]
                 {
-                    use std::os::macos::fs::MetadataExt;
-                    use std::os::unix::fs::MetadataExt as UnixMetadataExt;
+                    use std::os::unix::fs::MetadataExt;
                     if metadata.nlink() > 1 {
                         return Err(io::Error::other(
                             "Destination has multiple hard links; use Save As to preserve linked files",
                         ));
                     }
-                    if metadata.st_flags() != 0 {
-                        return Err(io::Error::other(
-                            "Destination has file flags that cannot be preserved by an atomic save",
-                        ));
-                    }
                 }
-                (target, Some(metadata.permissions()), true, Some(metadata))
+                let macos_flags = preservable_macos_flags(&metadata)?;
+                (target, Some(metadata.permissions()), true, Some(metadata), macos_flags)
             } else if meta.is_file() {
                 // Regular file
                 let existing = OpenOptions::new().write(true).open(&selected_target)?;
                 let metadata = existing.metadata()?;
                 #[cfg(target_os = "macos")]
                 {
-                    use std::os::macos::fs::MetadataExt;
-                    use std::os::unix::fs::MetadataExt as UnixMetadataExt;
+                    use std::os::unix::fs::MetadataExt;
                     if metadata.nlink() > 1 {
                         return Err(io::Error::other(
                             "Destination has multiple hard links; use Save As to preserve linked files",
                         ));
                     }
-                    if metadata.st_flags() != 0 {
-                        return Err(io::Error::other(
-                            "Destination has file flags that cannot be preserved by an atomic save",
-                        ));
-                    }
                 }
-                (selected_target.clone(), Some(metadata.permissions()), true, Some(metadata))
+                let macos_flags = preservable_macos_flags(&metadata)?;
+                (
+                    selected_target.clone(),
+                    Some(metadata.permissions()),
+                    true,
+                    Some(metadata),
+                    macos_flags,
+                )
             } else {
                 return Err(io::Error::other("Destination is not a regular file"));
             }
@@ -81,10 +77,10 @@ fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> i
             // File doesn't exist - check if it's a dangling symlink
             if selected_target.symlink_metadata().is_ok() {
                 // It's a dangling symlink - we'll replace it
-                (selected_target.clone(), None, false, None)
+                (selected_target.clone(), None, false, None, None)
             } else {
                 // File truly doesn't exist
-                (selected_target.clone(), None, false, None)
+                (selected_target.clone(), None, false, None, None)
             }
         }
         Err(error) => return Err(error),
@@ -122,6 +118,7 @@ fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> i
     #[cfg(target_os = "macos")]
     if permissions.is_some() {
         preserve_macos_metadata(&target, stage.path(), stage.as_file())?;
+        preserve_macos_file_flags(stage.as_file(), macos_flags)?;
     }
     
     stage.as_file_mut().flush()?;
@@ -153,6 +150,37 @@ fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> i
 }
 
 #[cfg(target_os = "macos")]
+fn preservable_macos_flags(metadata: &fs::Metadata) -> io::Result<Option<u32>> {
+    use std::os::macos::fs::MetadataExt;
+
+    const UF_HIDDEN: u32 = 0x0000_8000;
+    let flags = metadata.st_flags();
+    if flags & !UF_HIDDEN != 0 {
+        return Err(io::Error::other(
+            "Destination has file flags that cannot be preserved by an atomic save",
+        ));
+    }
+    Ok(Some(flags))
+}
+
+#[cfg(not(target_os = "macos"))]
+fn preservable_macos_flags(_metadata: &fs::Metadata) -> io::Result<Option<u32>> {
+    Ok(None)
+}
+
+#[cfg(target_os = "macos")]
+fn preserve_macos_file_flags(stage: &File, flags: Option<u32>) -> io::Result<()> {
+    use std::os::unix::io::AsRawFd;
+
+    if let Some(flags) = flags {
+        if unsafe { libc::fchflags(stage.as_raw_fd(), flags) } != 0 {
+            return Err(io::Error::last_os_error());
+        }
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
 fn preserve_macos_metadata(source: &Path, stage_path: &Path, stage: &File) -> io::Result<()> {
     use std::ffi::CString;
     use std::os::unix::ffi::OsStrExt;
@@ -171,7 +199,6 @@ fn preserve_macos_metadata(source: &Path, stage_path: &Path, stage: &File) -> io
     let source_gid = source_meta.gid();
     let stage_meta = stage.metadata()?;
     if stage_meta.gid() != source_gid {
-        use std::os::unix::fs::MetadataExt;
         // Use fchown to preserve group - requires appropriate permissions
         // Note: This may fail if process doesn't have CAP_CHOWN, which is expected
         let stage_fd = stage.as_raw_fd();
@@ -474,6 +501,28 @@ mod tests {
             acl_free(rendered_ptr.cast());
             acl_free(copied.cast());
         }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn preserves_hidden_flag_during_atomic_save() {
+        use std::os::macos::fs::MetadataExt;
+
+        const UF_HIDDEN: u32 = 0x0000_8000;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("hidden.lrc");
+        std::fs::write(&path, "old").unwrap();
+        let status = std::process::Command::new("chflags")
+            .args(["hidden"])
+            .arg(&path)
+            .status()
+            .unwrap();
+        assert!(status.success());
+
+        write_atomic(&path, "new").unwrap();
+
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "new");
+        assert_ne!(std::fs::metadata(&path).unwrap().st_flags() & UF_HIDDEN, 0);
     }
 
     #[cfg(target_os = "macos")]
