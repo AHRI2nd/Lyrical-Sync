@@ -878,16 +878,25 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     if (!lrcPath) return get().saveLrcAs("lrc");
     const sessionId = documentSessionId;
     if (lrcPath.toLowerCase().endsWith(".srt")) assertSrtDocumentLossless(doc);
+    const sameOwnerAndRevision = () =>
+      documentSessionId === sessionId && get().lrcPath === lrcPath && get()._editRevision === revision;
     const result = await writeLrcFileWithMeta(
       lrcPath,
       serializeForPath(lrcPath, doc, duration),
       revision,
       doc,
-      () => documentSessionId === sessionId && get().lrcPath === lrcPath && get()._editRevision === revision,
+      // Silent metadata synchronization changes doc without advancing editRevision.
+      // Do not dispatch a queued snapshot once its content is no longer current.
+      () => sameOwnerAndRevision() && get().doc === doc,
     );
-    if (!result.success) return false;
     const current = get();
-    if (documentSessionId === sessionId && current.lrcPath === lrcPath && current._editRevision === revision) {
+    if (sameOwnerAndRevision() && current.doc !== doc && current.isDirty) {
+      // Keep the newer snapshot dirty and re-arm App's revision-based autosave
+      // even though a silent metadata update intentionally has no undo entry.
+      set({ _editRevision: revision + 1 });
+    }
+    if (!result.success) return false;
+    if (sameOwnerAndRevision() && current.doc === doc) {
       set({ isDirty: false, _lastEditKey: null });
       // Clear recovery snapshot if this save completes the restored document
       // (recovery is cleared only when the restored document is explicitly saved)

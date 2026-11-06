@@ -710,6 +710,65 @@ describe("useLrcStore — save completion races", () => {
     expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
   });
 
+  it("keeps a silent metadata update dirty after an older in-flight save and allows the latest snapshot to save", async () => {
+    let finishFirstWrite!: () => void;
+    const dispatched: string[] = [];
+    vi.mocked(invoke).mockImplementation((command: unknown, args?: unknown) => {
+      if (command !== "write_lrc_file") return Promise.resolve(undefined);
+      dispatched.push((args as { content: string }).content);
+      if (dispatched.length === 1) {
+        return new Promise<void>((resolve) => { finishFirstWrite = resolve; });
+      }
+      return Promise.resolve(undefined);
+    });
+
+    const revision = useLrcStore.getState()._editRevision;
+    const pending = useLrcStore.getState().saveLrc();
+    await vi.waitFor(() => expect(dispatched).toHaveLength(1));
+
+    // Device/Spotify metadata sync does not create an undo entry or a user edit revision.
+    useLrcStore.getState().setMetadata({ artist: "Automatic artist" }, true);
+    expect(useLrcStore.getState()._editRevision).toBe(revision);
+    expect(useLrcStore.getState().doc.metadata.artist).toBe("Automatic artist");
+
+    finishFirstWrite();
+    await expect(pending).resolves.toBe(true);
+    expect(dispatched[0]).not.toContain("Automatic artist");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+    expect(useLrcStore.getState()._editRevision).toBeGreaterThan(revision);
+
+    await expect(useLrcStore.getState().saveLrc()).resolves.toBe(true);
+    expect(dispatched).toHaveLength(2);
+    expect(dispatched[1]).toContain("Automatic artist");
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
+  it("leaves a changed document dirty if a stale save fails, while a normal save still clears dirty", async () => {
+    let rejectFirstWrite!: (error: Error) => void;
+    const dispatched: string[] = [];
+    vi.mocked(invoke).mockImplementation((command: unknown, args?: unknown) => {
+      if (command !== "write_lrc_file") return Promise.resolve(undefined);
+      dispatched.push((args as { content: string }).content);
+      if (dispatched.length === 1) {
+        return new Promise<void>((_resolve, reject) => { rejectFirstWrite = reject; });
+      }
+      return Promise.resolve(undefined);
+    });
+
+    const revision = useLrcStore.getState()._editRevision;
+    const pending = useLrcStore.getState().saveLrc();
+    await vi.waitFor(() => expect(dispatched).toHaveLength(1));
+    useLrcStore.getState().setMetadata({ album: "New album" }, true);
+    rejectFirstWrite(new Error("temporary unavailable drive"));
+    await expect(pending).resolves.toBe(false);
+    expect(useLrcStore.getState().isDirty).toBe(true);
+    expect(useLrcStore.getState()._editRevision).toBeGreaterThan(revision);
+
+    await expect(useLrcStore.getState().saveLrc()).resolves.toBe(true);
+    expect(dispatched[1]).toContain("New album");
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
   it("starts a new undo group after a successful save of the same edit revision", async () => {
     vi.mocked(invoke).mockResolvedValue(undefined);
     useLrcStore.getState().updateLine("1", { text: "saved revision" });
