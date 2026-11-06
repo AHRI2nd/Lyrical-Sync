@@ -617,7 +617,13 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     // 이전 줄 타임스탬프 유지, 텍스트 결합, 글자 동기화는 무효화(텍스트 변경)
     const translations = [prev.translation, cur.translation].filter((value): value is string => value !== undefined);
     const translation = translations.length ? translations.join("\n") : undefined;
-    const merged: LrcLine = { ...prev, text: prev.text + sep + cur.text, translation, syllables: undefined };
+    const merged: LrcLine = {
+      ...prev,
+      text: prev.text + sep + cur.text,
+      translation,
+      srtEndTime: cur.srtEndTime ?? prev.srtEndTime,
+      syllables: undefined,
+    };
     const lines = [...doc.lines];
     lines.splice(idx - 1, 2, merged);
     set({ doc: { ...doc, lines }, activeLineId: prev.id, isDirty: true });

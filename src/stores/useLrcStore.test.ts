@@ -461,6 +461,18 @@ describe("useLrcStore — line manipulation", () => {
     expect(pid).toBe("1");
   });
 
+  it("mergeLineUp keeps the later SRT cue end when combining overlapping rows", () => {
+    reset([
+      { id: "1", timestamp: 1, srtEndTime: 4, text: "first" },
+      { id: "2", timestamp: 2, srtEndTime: 5, text: "second" },
+    ]);
+
+    useLrcStore.getState().mergeLineUp("2");
+
+    expect(lines()).toHaveLength(1);
+    expect(lines()[0]).toMatchObject({ timestamp: 1, srtEndTime: 5, text: "first second" });
+  });
+
   it("mergeLineUp combines translations instead of discarding the lower line", () => {
     reset([
       { ...mk("1", "hello", 1), translation: "안녕" },
