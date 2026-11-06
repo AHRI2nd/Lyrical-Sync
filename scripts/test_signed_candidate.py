@@ -49,6 +49,20 @@ class SignedCandidateTests(unittest.TestCase):
         self.assertLess(source.index('Verify Windows artifact architecture'),source.index('actions/upload-artifact@v4'))
         self.assertLess(source.index('Record exact source and signed candidate hashes'),source.index('actions/upload-artifact@v4'))
 
+    def test_signed_candidate_rejects_untrusted_refs_before_running_build_code(self):
+        source=(ROOT/'.github/workflows/candidate.yml').read_text()
+        guard=source.index('Verify signed candidate source')
+        self.assertIn('CANDIDATE_REF: ${{ github.ref }}',source)
+        self.assertIn('CANDIDATE_REF_TYPE: ${{ github.ref_type }}',source)
+        self.assertIn('CANDIDATE_SHA: ${{ github.sha }}',source)
+        self.assertIn('refs/heads/main',source)
+        self.assertIn(r"'^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'",source)
+        self.assertIn('git rev-parse HEAD',source)
+        self.assertLess(guard,source.index('Setup Node.js'))
+        self.assertLess(guard,source.index('Install frontend deps'))
+        self.assertLess(guard,source.index('Import Apple certificate'))
+        self.assertLess(guard,source.index('Build signed macOS candidate'))
+
     def test_signing_depends_on_tests_and_never_interpolates_untrusted_ref_into_shell(self):
         source=(ROOT/'.github/workflows/release.yml').read_text()
         self.assertRegex(source,r'(?m)^  release:\n(?:    #[^\n]*\n)*    needs: test-gate[ \t]*$')

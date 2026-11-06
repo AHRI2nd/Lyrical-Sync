@@ -30,6 +30,38 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - name: Verify signed candidate source
+        shell: bash
+        env:
+          CANDIDATE_REF: ${{ github.ref }}
+          CANDIDATE_REF_NAME: ${{ github.ref_name }}
+          CANDIDATE_REF_TYPE: ${{ github.ref_type }}
+          CANDIDATE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$CANDIDATE_REF_TYPE" = "branch" ]; then
+            if [ "$CANDIDATE_REF" != "refs/heads/main" ]; then
+              echo "::error::Signed candidates may only be built from main or a version tag"
+              exit 1
+            fi
+          elif [ "$CANDIDATE_REF_TYPE" = "tag" ]; then
+            if ! printf '%s\n' "$CANDIDATE_REF_NAME" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+              echo "::error::Invalid signed candidate tag"
+              exit 1
+            fi
+            VERSION=$(jq -r .version src-tauri/tauri.conf.json)
+            if [ "$CANDIDATE_REF_NAME" != "v${VERSION}" ]; then
+              echo "::error::Candidate tag does not match the app version"
+              exit 1
+            fi
+          else
+            echo "::error::Signed candidates require an approved branch or version tag"
+            exit 1
+          fi
+          if [ "$(git rev-parse HEAD)" != "$CANDIDATE_SHA" ]; then
+            echo "::error::Checkout does not match the source commit being signed"
+            exit 1
+          fi
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
