@@ -463,6 +463,22 @@ it("keeps legacy external LRC timestamp sorting without the app preservation mar
   expect(parseLrc('[00:03.00]late\n[00:01.00]early').lines.map((line) => line.text)).toEqual(['early', 'late']);
 });
 
+it("recognizes CR-only legacy LRC line endings as separate timed rows", () => {
+  const parsed = parseLrc("[ti:CR only]\r[00:01.00]one\r[00:02.00]two\r");
+  expect(parsed.metadata.title).toBe("CR only");
+  expect(parsed.lines.map(({ timestamp, text }) => [timestamp, text])).toEqual([
+    [1, "one"], [2, "two"],
+  ]);
+  expect(parseLrc(serializeLrc(parsed)).lines.map((line) => line.text)).toEqual(["one", "two"]);
+});
+
+it("preserves explicitly escaped carriage returns in marked translation text", () => {
+  const parsed = parseLrc("[x-lyrical-translations:1]\r[00:01.00]original\r[00:01.00]/line\\rbreak");
+  expect(parsed.lines).toHaveLength(1);
+  expect(parsed.lines[0].translation).toBe("line\rbreak");
+  expect(parseLrc(serializeLrc(parsed)).lines[0].translation).toBe("line\rbreak");
+});
+
 it("parses the millisecond timestamp displayed by hour-aware inline editors", () => {
   expect(parseTimestampInput("1:00:02.369")).toBe(3602.369);
   expect(parseTimestampInput("0:00:02.369")).toBe(2.369);

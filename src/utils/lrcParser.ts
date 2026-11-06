@@ -304,7 +304,9 @@ export function parseLrc(raw: string): LrcDocument {
   let preserveWhitespace = false;
   let previous: LrcLine[] = [];
 
-  for (const rawLine of raw.split("\n")) {
+  // Legacy LRC may use bare CR separators. Normalize separators, not literal
+  // escaped \\r text used by the app's marked translation extension.
+  for (const rawLine of raw.replace(/\r\n?/g, "\n").split("\n")) {
     const line = translationMode ? rawLine.replace(/\r$/, "") : rawLine.trim();
     if (line === "" || (!translationMode && !line.trim())) {
       if (translationMode && line === "" && doc.lines.length > 0) {
