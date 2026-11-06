@@ -80,6 +80,26 @@ describe("batch output", () => {
     expect(invoke).toHaveBeenCalledWith("write_batch_output", expect.objectContaining({ name: "good.srt" }));
   });
 
+  it("rejects a huge finite offset before writing an invalid SRT output", async () => {
+    vi.mocked(readLyrics).mockResolvedValueOnce({
+      value: "1\n00:00:01,000 --> 00:00:02,000\nline\n",
+      file: entry("/inputs/song.srt").file,
+    });
+    const status = vi.fn();
+
+    const summary = await runBatchOperation(
+      [entry("/inputs/song.srt", "huge-offset")],
+      { kind: "offset", deltaSeconds: Number.MAX_VALUE },
+      output,
+      status,
+      { concurrency: 1 },
+    );
+
+    expect(summary).toEqual({ done: 0, error: 1, cancelled: 0 });
+    expect(status).toHaveBeenCalledWith("huge-offset", "error", expect.stringContaining("SRT timestamp"), expect.any(Object));
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
   it("updates nonempty LRC tags while preserving existing metadata and lyric content", async () => {
     vi.mocked(readLyrics).mockResolvedValueOnce({ value: "[ti:Old]\n[ar:Existing]\n[00:02.00]Hello", file: entry("/inputs/song.lrc").file });
     await runBatchOperation([entry("/inputs/song.lrc")], { kind: "tag", title: " New ", artist: " " }, output, vi.fn());
