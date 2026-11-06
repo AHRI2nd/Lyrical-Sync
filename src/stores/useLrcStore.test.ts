@@ -769,6 +769,35 @@ describe("useLrcStore — save completion races", () => {
     expect(useLrcStore.getState().isDirty).toBe(false);
   });
 
+  it("skips a queued write of a snapshot invalidated by silent metadata sync", async () => {
+    let finishFirstWrite!: () => void;
+    const dispatched: string[] = [];
+    vi.mocked(invoke).mockImplementation((command: unknown, args?: unknown) => {
+      if (command !== "write_lrc_file") return Promise.resolve(undefined);
+      dispatched.push((args as { content: string }).content);
+      if (dispatched.length === 1) {
+        return new Promise<void>((resolve) => { finishFirstWrite = resolve; });
+      }
+      return Promise.resolve(undefined);
+    });
+
+    const originalSave = useLrcStore.getState().saveLrc();
+    await vi.waitFor(() => expect(dispatched).toHaveLength(1));
+    useLrcStore.getState().setMetadata({ artist: "Latest artist" }, true);
+    const queuedSave = useLrcStore.getState().saveLrc();
+    finishFirstWrite();
+
+    await expect(originalSave).resolves.toBe(true);
+    await expect(queuedSave).resolves.toBe(false);
+    expect(dispatched).toHaveLength(1);
+    expect(useLrcStore.getState().isDirty).toBe(true);
+
+    await expect(useLrcStore.getState().saveLrc()).resolves.toBe(true);
+    expect(dispatched).toHaveLength(2);
+    expect(dispatched[1]).toContain("Latest artist");
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
   it("starts a new undo group after a successful save of the same edit revision", async () => {
     vi.mocked(invoke).mockResolvedValue(undefined);
     useLrcStore.getState().updateLine("1", { text: "saved revision" });
