@@ -61,11 +61,29 @@ async fn read_lrc_file_with_hash(path: String) -> Result<LrcFileSnapshot, String
 }
 
 #[tauri::command]
-async fn write_lrc_file(path: String, content: String) -> Result<String, String> {
+async fn write_lrc_file(
+    path: String,
+    content: String,
+    source_path: Option<String>,
+    expected_sha256: Option<String>,
+) -> Result<String, String> {
     use sha2::{Digest, Sha256};
 
-    let path = path_validation::validate_write_path(&path)?;
-    atomic_write::write_atomic(std::path::Path::new(&path), &content)
+    let target = path_validation::validate_write_path(&path)?;
+    let same_source = source_path.as_ref().is_some_and(|source| {
+        source == &path || path_validation::validate_safe_path(source)
+            .is_ok_and(|canonical_source| canonical_source == target)
+    });
+    if same_source {
+        let expected_sha256 = expected_sha256.ok_or("LYRICS_FILE_CHANGED")?;
+        return atomic_write::write_atomic_if_unchanged(
+            std::path::Path::new(&target),
+            &content,
+            &expected_sha256,
+        )
+        .map_err(|e| e.to_string());
+    }
+    atomic_write::write_atomic(std::path::Path::new(&target), &content)
         .map_err(|e| e.to_string())?;
     Ok(format!("{:x}", Sha256::digest(content.as_bytes())))
 }
@@ -371,9 +389,9 @@ mod lyric_save_command_tests {
         let dir = tempfile::tempdir().unwrap();
         let target = dir.path().join("new-lyrics.lrc");
         let path = target.to_str().unwrap().to_string();
-        write_lrc_file(path.clone(), "[00:01.00]First".into()).await.unwrap();
+        write_lrc_file(path.clone(), "[00:01.00]First".into(), None, None).await.unwrap();
         assert_eq!(fs::read_to_string(&target).unwrap(), "[00:01.00]First");
-        write_lrc_file(path.clone(), "[00:02.00]Second".into()).await.unwrap();
+        write_lrc_file(path.clone(), "[00:02.00]Second".into(), None, None).await.unwrap();
         assert_eq!(read_lrc_file(path).await.unwrap(), "[00:02.00]Second");
     }
 
@@ -409,13 +427,51 @@ mod lyric_save_command_tests {
         assert_eq!(saved_hash.len(), 64);
     }
 
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn save_as_alias_of_current_file_checks_the_loaded_revision() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("song.lrc");
+        let alias = dir.path().join("alias.lrc");
+        fs::write(&target, "original").unwrap();
+        symlink(&target, &alias).unwrap();
+        let source_path = target.to_string_lossy().into_owned();
+        let alias_path = alias.to_string_lossy().into_owned();
+        let opened = read_lrc_file_with_hash(source_path.clone()).await.unwrap();
+        fs::write(&target, "external edit").unwrap();
+
+        let error = write_lrc_file(
+            alias_path.clone(),
+            "app edit".into(),
+            Some(source_path.clone()),
+            Some(opened.sha256),
+        )
+        .await
+        .unwrap_err();
+        assert!(error.contains("LYRICS_FILE_CHANGED"));
+        assert_eq!(fs::read_to_string(&target).unwrap(), "external edit");
+
+        let latest = read_lrc_file_with_hash(source_path.clone()).await.unwrap();
+        write_lrc_file(
+            alias_path,
+            "app edit".into(),
+            Some(source_path),
+            Some(latest.sha256),
+        )
+        .await
+        .unwrap();
+        assert_eq!(fs::read_to_string(&target).unwrap(), "app edit");
+    }
+
     #[tokio::test]
     async fn invalid_new_target_never_changes_original_bytes() {
         let dir = tempfile::tempdir().unwrap();
         let original = dir.path().join("original.lrc");
         fs::write(&original, "original content").unwrap();
         let invalid = dir.path().join("missing-dir").join("draft.lrc");
-        assert!(write_lrc_file(invalid.to_string_lossy().into_owned(), "draft".into()).await.is_err());
+        assert!(write_lrc_file(invalid.to_string_lossy().into_owned(), "draft".into(), None, None).await.is_err());
         assert_eq!(fs::read_to_string(&original).unwrap(), "original content");
         assert!(!invalid.exists());
     }

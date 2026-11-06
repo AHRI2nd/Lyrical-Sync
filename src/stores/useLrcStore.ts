@@ -232,6 +232,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     doc: LrcDocument,
     isCurrent: () => boolean,
     expectedSha256: string | null = null,
+    sourcePath: string | null = null,
   ): Promise<SaveResult> => {
     if (!isCurrent()) return { success: false, path, revision, docRef: doc, fileHash: null };
     let fileHash: string | null = null;
@@ -239,10 +240,13 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     try {
       await enqueuePathWrite(path, async () => {
         if (!isCurrent()) return;
-        fileHash = await invoke<string>(
-          expectedSha256 ? "write_lrc_file_if_unchanged" : "write_lrc_file",
-          expectedSha256 ? { path, content, expectedSha256 } : { path, content },
-        );
+        const command = sourcePath
+          ? "write_lrc_file"
+          : expectedSha256 ? "write_lrc_file_if_unchanged" : "write_lrc_file";
+        const args = sourcePath
+          ? { path, content, sourcePath, expectedSha256 }
+          : expectedSha256 ? { path, content, expectedSha256 } : { path, content };
+        fileHash = await invoke<string>(command, args);
         wrote = true;
       });
       return { success: wrote, path, revision, docRef: doc, fileHash };
@@ -974,15 +978,14 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
         : format === "vtt" ? serializeVtt(doc, end)
         : format === "ass" ? serializeAss(doc, end)
         : serializeLrc(doc, enhanced ?? true);
-      const samePathSaveAs = originalPath !== null && path === originalPath;
-      if (samePathSaveAs && !originalFileHash) throw new Error("LYRICS_FILE_CHANGED");
       const result = await writeLrcFileWithMeta(
         path,
         content,
         revision,
         doc,
         isCurrentRequest,
-        samePathSaveAs ? originalFileHash : null,
+        originalFileHash,
+        originalPath,
       );
       if (!result.success) return false;
       // 보조 포맷 저장 시엔 작업 파일 경로(lrcPath)·dirty 상태를 바꾸지 않음

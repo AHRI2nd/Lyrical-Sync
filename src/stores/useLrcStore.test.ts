@@ -1045,8 +1045,9 @@ describe("useLrcStore — save completion races", () => {
 
     await expect(useLrcStore.getState().saveLrcAs("lrc")).rejects.toThrow("LYRICS_FILE_CHANGED");
 
-    expect(invoke).toHaveBeenCalledWith("write_lrc_file_if_unchanged", expect.objectContaining({
+    expect(invoke).toHaveBeenCalledWith("write_lrc_file", expect.objectContaining({
       path: "/tmp/song.lrc",
+      sourcePath: "/tmp/song.lrc",
       expectedSha256: "a".repeat(64),
     }));
     expect(useLrcStore.getState().lrcPath).toBe("/tmp/song.lrc");
