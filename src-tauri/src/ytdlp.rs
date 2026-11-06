@@ -11,6 +11,8 @@ pub struct YtdlpState {
 }
 
 static YTDLP_RUN_COUNTER: AtomicU64 = AtomicU64::new(0);
+const MAX_YTDLP_DOWNLOAD_BYTES: u64 = 100 * 1024 * 1024;
+const MAX_YTDLP_METADATA_BYTES: u64 = 1024 * 1024;
 
 fn next_ytdlp_run_id() -> String {
     let millis = std::time::SystemTime::now()
@@ -284,6 +286,36 @@ fn publish_ytdlp_install(
     Ok(())
 }
 
+fn checked_limited_bytes(current: u64, additional: u64, limit: u64) -> Result<u64, String> {
+    let total = current
+        .checked_add(additional)
+        .ok_or_else(|| "yt-dlp response size overflow".to_string())?;
+    if total > limit {
+        return Err(format!("yt-dlp response exceeds the {limit}-byte size limit"));
+    }
+    Ok(total)
+}
+
+async fn read_response_limited(
+    mut response: reqwest::Response,
+    limit: u64,
+    cancel: &AtomicBool,
+) -> Result<Vec<u8>, String> {
+    if response.content_length().is_some_and(|length| length > limit) {
+        return Err(format!("yt-dlp response exceeds the {limit}-byte size limit"));
+    }
+    let mut body = Vec::new();
+    loop {
+        match wait_for_ytdlp_io(response.chunk(), cancel).await? {
+            Some(chunk) => {
+                checked_limited_bytes(body.len() as u64, chunk.len() as u64, limit)?;
+                body.extend_from_slice(&chunk);
+            }
+            None => return Ok(body),
+        }
+    }
+}
+
 async fn wait_for_ytdlp_io<T, E>(
     future: impl std::future::Future<Output = Result<T, E>>,
     cancel: &AtomicBool,
@@ -376,8 +408,10 @@ async fn download_ytdlp_inner(app: AppHandle, cancel: Arc<AtomicBool>) -> Result
         if !release_response.status().is_success() {
             return Err(format!("릴리스 정보 HTTP {}", release_response.status()));
         }
-        let release: serde_json::Value = wait_for_ytdlp_io(release_response.json(), &cancel)
+        let release_bytes = read_response_limited(release_response, MAX_YTDLP_METADATA_BYTES, &cancel)
             .await
+            .map_err(|e| format!("릴리스 정보 읽기 실패: {e}"))?;
+        let release: serde_json::Value = serde_json::from_slice(&release_bytes)
             .map_err(|e| format!("릴리스 정보 파싱 실패: {e}"))?;
         let version_tag = release["tag_name"]
             .as_str()
@@ -405,6 +439,9 @@ async fn download_ytdlp_inner(app: AppHandle, cancel: Arc<AtomicBool>) -> Result
         }
 
         let total = resp.content_length().unwrap_or(0);
+        if total > MAX_YTDLP_DOWNLOAD_BYTES {
+            return Err(format!("yt-dlp download exceeds the {MAX_YTDLP_DOWNLOAD_BYTES}-byte size limit"));
+        }
         let mut downloaded: u64 = 0;
         let part = dir.join(format!("{local_name}.{}.part", next_ytdlp_run_id()));
         pending_files.push(part.clone());
@@ -419,11 +456,16 @@ async fn download_ytdlp_inner(app: AppHandle, cancel: Arc<AtomicBool>) -> Result
             loop {
                 match wait_for_ytdlp_io(resp.chunk(), &cancel).await {
                     Ok(Some(chunk)) => {
+                        let next_downloaded = checked_limited_bytes(
+                            downloaded,
+                            chunk.len() as u64,
+                            MAX_YTDLP_DOWNLOAD_BYTES,
+                        )?;
                         file.write_all(&chunk)
                             .await
                             .map_err(|e| format!("yt-dlp 임시 파일 쓰기 실패: {e}"))?;
                         hasher.update(&chunk);
-                        downloaded += chunk.len() as u64;
+                        downloaded = next_downloaded;
                         let _ = app.emit(
                             "ytdlp-install-progress",
                             YtdlpInstallProgress {
@@ -468,9 +510,11 @@ async fn download_ytdlp_inner(app: AppHandle, cancel: Arc<AtomicBool>) -> Result
             let _ = tokio::fs::remove_file(&part).await;
             return Err(format!("yt-dlp 체크섬 HTTP {}", sums_response.status()));
         }
-        let sums_text = wait_for_ytdlp_io(sums_response.text(), &cancel)
+        let sums_bytes = read_response_limited(sums_response, MAX_YTDLP_METADATA_BYTES, &cancel)
             .await
             .map_err(|e| format!("yt-dlp 체크섬 읽기 실패: {e}"))?;
+        let sums_text = String::from_utf8(sums_bytes)
+            .map_err(|e| format!("yt-dlp 체크섬 인코딩 오류: {e}"))?;
         let expected = checksum_for_asset(&sums_text, remote_name)
             .ok_or("yt-dlp 릴리스 체크섬에서 실행 파일을 찾을 수 없습니다")?;
         let actual = format!("{:x}", hasher.finalize());
@@ -792,6 +836,42 @@ pub fn cancel_ytdlp_load(ytdlp_state: tauri::State<'_, YtdlpState>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bounded_response_byte_count_rejects_limit_plus_one_and_overflow() {
+        assert_eq!(checked_limited_bytes(4, 6, 10).unwrap(), 10);
+        assert!(checked_limited_bytes(4, 7, 10).is_err());
+        assert!(checked_limited_bytes(u64::MAX, 1, u64::MAX).is_err());
+    }
+
+    #[tokio::test]
+    async fn streamed_response_without_content_length_is_capped() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = [0_u8; 1024];
+            let _ = socket.read(&mut request).await.unwrap();
+            socket.write_all(
+                b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n5\r\n12345\r\n0\r\n\r\n",
+            ).await.unwrap();
+        });
+        let response = reqwest::Client::new()
+            .get(format!("http://{address}/payload"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.content_length(), None);
+
+        let error = read_response_limited(response, 4, &AtomicBool::new(false))
+            .await
+            .unwrap_err();
+        assert!(error.contains("size limit"));
+        server.await.unwrap();
+    }
 
     #[test]
     fn parse_ytdlp_progress_extracts_fields() {
