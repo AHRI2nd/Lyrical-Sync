@@ -15,6 +15,18 @@ describe("waveform timeline", () => {
     expect(getTimeTicks(11.2, 14.2, 280).map(t => t.time)).toEqual([12, 13]);
     expect(getTimeTicks(0, 0, 600)).toEqual([]);
   });
+  it("bounds tick generation for a finite but pathologically wide viewport", () => {
+    const ticks = getTimeTicks(0, 10, 1_000_000);
+    expect(ticks.length).toBeGreaterThan(0);
+    expect(ticks.length).toBeLessThanOrEqual(512);
+    expect(ticks.every(({ time, percent }) => Number.isFinite(time) && Number.isFinite(percent) && percent >= 0 && percent <= 100)).toBe(true);
+    expect(ticks[ticks.length - 1]?.percent).toBeGreaterThan(95); // bounded ticks still cover the view
+    expect(ticks.every((tick, index) => index === 0 || tick.time > ticks[index - 1].time)).toBe(true);
+  });
+  it("returns promptly for finite tick indices beyond exact integer precision", () => {
+    expect(getTimeTicks(1e16, 1e16 + 2, 4096)).toEqual([]);
+    expect(getTimeTicks(-1e16, -1e16 + 2, 4096)).toEqual([]);
+  });
   it("packs markers into two reserved rows and groups dense times without losing glyphs", () => {
     const syllables: LrcSyllable[] = Array.from({ length: 10 }, (_, i) => ({ text: String(i), time: 1 + i * .015 }));
     syllables.push({ text: "untimed", time: null });

@@ -9,14 +9,34 @@ export function getCenteredView(time: number, span: number, duration: number) {
 
 export function getTimeTicks(start: number, end: number, width: number) {
   if (![start, end, width].every(Number.isFinite) || end <= start || width <= 0) return [];
-  const target = (end - start) / Math.max(1, width / 80);
+  const span = end - start;
+  if (!Number.isFinite(span)) return [];
+  const target = span / Math.max(1, width / 80);
+  if (!Number.isFinite(target) || target <= 0) return [];
   const base = 10 ** Math.floor(Math.log10(target));
   const step = ([1, 2, 5, 10].find(x => x * base >= target) ?? 10) * base;
+  if (!Number.isFinite(step) || step <= 0) return [];
+  // Integer indices outside the safe range may stop advancing with i++.
+  const first = Math.ceil(start / step);
+  const last = Math.ceil(end / step);
+  if (!Number.isSafeInteger(first) || !Number.isSafeInteger(last) || last <= first) return [];
+
   const ticks: { time: number; percent: number }[] = [];
-  for (let i = Math.ceil(start / step); i * step < end; i++) {
-    const time = Number((i * step).toPrecision(12));
-    const px = (time - start) / (end - start) * width;
-    if (px >= 32 && px <= width - 32) ticks.push({ time, percent: px / width * 100 });
+  const count = last - first;
+  // A typical viewport uses tens of ticks. For enormous finite widths, sample
+  // evenly across the full view rather than allocating one element per tick.
+  const limit = Math.min(512, count);
+  for (let n = 0; n < limit; n++) {
+    const offset = count <= limit ? n : Math.floor(n * (count - 1) / (limit - 1));
+    const index = first + offset;
+    if (!Number.isSafeInteger(index)) continue;
+    const rawTime = index * step;
+    if (!Number.isFinite(rawTime) || rawTime >= end) continue;
+    const time = Number(rawTime.toPrecision(12));
+    const px = (time - start) / span * width;
+    if (Number.isFinite(px) && px >= 32 && px <= width - 32 && ticks[ticks.length - 1]?.time !== time) {
+      ticks.push({ time, percent: px / width * 100 });
+    }
   }
   return ticks;
 }

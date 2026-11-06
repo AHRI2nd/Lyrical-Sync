@@ -87,4 +87,13 @@ describe('waveform envelope', () => {
     expect(getWaveformTiles(source, 0, 0, 512)).toEqual([]);
     expect(getWaveformTiles(source, 0, 1, NaN)).toEqual([]);
   });
+  it('rejects unsafe finite tile indices without repeatedly requesting an unchanging index', () => {
+    let requested = 0;
+    const source = { getTile: () => {
+      if (++requested > 32) throw new Error('unbounded tile loop');
+      return null;
+    }, getEnvelope: () => null };
+    expect(getWaveformTiles(source, 1e16, 1e16 + 2, 4096)).toEqual([]);
+    expect(requested).toBe(0);
+  });
 });
