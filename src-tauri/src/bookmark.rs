@@ -175,7 +175,6 @@ pub fn create_security_bookmark(path: String) -> Result<String, String> {
 
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
-        let _ = bookmark;
         Err("Security bookmarks not supported on this platform".into())
     }
 }
