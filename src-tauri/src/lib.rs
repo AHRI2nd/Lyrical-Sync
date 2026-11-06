@@ -39,7 +39,7 @@ async fn read_lrc_file(path: String) -> Result<String, String> {
 
 #[tauri::command]
 async fn write_lrc_file(path: String, content: String) -> Result<(), String> {
-    let path = path_validation::validate_safe_path(&path)?;
+    let path = path_validation::validate_write_path(&path)?;
     atomic_write::write_atomic(std::path::Path::new(&path), &content).map_err(|e| e.to_string())
 }
 
@@ -297,5 +297,33 @@ mod audio_decode_tests {
         assert!(is_normal_audio_eof(&eof));
         assert!(!is_normal_audio_eof(&permission_error));
         assert!(!is_normal_audio_eof(&Error::DecodeError("bad packet")));
+    }
+}
+
+#[cfg(test)]
+mod lyric_save_command_tests {
+    use super::{read_lrc_file, write_lrc_file};
+    use std::fs;
+
+    #[tokio::test]
+    async fn command_creates_new_file_then_replaces_existing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("new-lyrics.lrc");
+        let path = target.to_str().unwrap().to_string();
+        write_lrc_file(path.clone(), "[00:01.00]First".into()).await.unwrap();
+        assert_eq!(fs::read_to_string(&target).unwrap(), "[00:01.00]First");
+        write_lrc_file(path.clone(), "[00:02.00]Second".into()).await.unwrap();
+        assert_eq!(read_lrc_file(path).await.unwrap(), "[00:02.00]Second");
+    }
+
+    #[tokio::test]
+    async fn invalid_new_target_never_changes_original_bytes() {
+        let dir = tempfile::tempdir().unwrap();
+        let original = dir.path().join("original.lrc");
+        fs::write(&original, "original content").unwrap();
+        let invalid = dir.path().join("missing-dir").join("draft.lrc");
+        assert!(write_lrc_file(invalid.to_string_lossy().into_owned(), "draft".into()).await.is_err());
+        assert_eq!(fs::read_to_string(&original).unwrap(), "original content");
+        assert!(!invalid.exists());
     }
 }
