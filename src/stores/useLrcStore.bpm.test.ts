@@ -16,6 +16,16 @@ it('snaps selected lines in one undo while retaining relative glyph timings', ()
   expect(useLrcStore.getState()._history).toHaveLength(1);
   useLrcStore.getState().undo(); expect(useLrcStore.getState().doc).toBe(original);
 });
+it('shifts SRT cue ends by the same amount as snapped starts', () => {
+  const line = { id: 'srt', text: 'cue', timestamp: 1.34, srtEndTime: 1.4 };
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [line] } });
+
+  useLrcStore.getState().snapLinesToBeatGrid(['srt'], 120, 0);
+
+  expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(1.5);
+  expect(useLrcStore.getState().doc.lines[0].srtEndTime).toBeCloseTo(1.56, 6);
+});
+
 it.each([[Infinity,0],[0,0],[120,NaN],[5e-324,0]])('ignores unusable grids bpm=%s offset=%s', (bpm,offset) => {
   const original=useLrcStore.getState().doc;
   useLrcStore.getState().snapLinesToBeatGrid([],bpm,offset);

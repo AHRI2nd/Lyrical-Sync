@@ -758,8 +758,8 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
       if (timestamp === line.timestamp) return line;
       changed = true;
       const delta = timestamp - line.timestamp;
-      // Keep glyph offsets relative to their line instead of discarding timed text.
-      return { ...line, timestamp, syllables: line.syllables?.map(s => ({ ...s,
+      // Keep subtitle cue duration and glyph offsets aligned with the snapped onset.
+      return { ...line, timestamp, srtEndTime: shiftSrtEnd(line, delta, timestamp), syllables: line.syllables?.map(s => ({ ...s,
         time: s.time === null ? null : Math.round(Math.max(0, s.time + delta) * 1000) / 1000 })) };
     });
     if (changed) { pushHistory("snapBeatGrid"); set({ doc: { ...doc, lines }, isDirty: true }); }
