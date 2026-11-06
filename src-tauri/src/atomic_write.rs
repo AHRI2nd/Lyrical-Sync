@@ -150,6 +150,14 @@ fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> i
 }
 
 #[cfg(target_os = "macos")]
+fn preserve_macos_group(stage: &File, gid: u32) -> io::Result<()> {
+    if unsafe { libc::fchown(stage.as_raw_fd(), u32::MAX, gid) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
 fn preservable_macos_flags(metadata: &fs::Metadata) -> io::Result<Option<u32>> {
     use std::os::macos::fs::MetadataExt;
 
@@ -199,12 +207,7 @@ fn preserve_macos_metadata(source: &Path, stage_path: &Path, stage: &File) -> io
     let source_gid = source_meta.gid();
     let stage_meta = stage.metadata()?;
     if stage_meta.gid() != source_gid {
-        // Use fchown to preserve group - requires appropriate permissions
-        // Note: This may fail if process doesn't have CAP_CHOWN, which is expected
-        let stage_fd = stage.as_raw_fd();
-        unsafe {
-            libc::fchown(stage_fd, u32::MAX, source_gid);
-        }
+        preserve_macos_group(stage, source_gid)?;
     }
 
     type Acl = *mut std::ffi::c_void;
@@ -292,6 +295,8 @@ fn persist_windows(
 mod tests {
     use super::*;
     use std::io::Write;
+    #[cfg(target_os = "macos")]
+    use std::os::unix::fs::MetadataExt;
 
     #[test]
     fn interrupted_write_preserves_original_and_removes_stage() {
@@ -501,6 +506,18 @@ mod tests {
             acl_free(rendered_ptr.cast());
             acl_free(copied.cast());
         }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn reports_failure_to_preserve_destination_group() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("stage.lrc");
+        let stage = File::create(&path).unwrap();
+        let original_gid = stage.metadata().unwrap().gid();
+
+        assert!(preserve_macos_group(&stage, u32::MAX - 1).is_err());
+        assert_eq!(stage.metadata().unwrap().gid(), original_gid);
     }
 
     #[cfg(target_os = "macos")]
