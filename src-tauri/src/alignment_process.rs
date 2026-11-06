@@ -82,7 +82,19 @@ pub async fn run_child(
     });
     wait_result.map_err(|e| e.to_string()).unwrap()
 });
-        if !status.success() { return Err(format!("Python exited with status {status}")); }
+        if !status.success() {
+            let stdout_diagnostic = match tokio::time::timeout(Duration::from_millis(500), &mut output).await {
+                Ok(Ok(Ok(stdout))) => {
+                    let diagnostic: String = stdout.trim().chars().take(4096).collect();
+                    (!diagnostic.is_empty()).then_some(diagnostic)
+                }
+                _ => None,
+            };
+            return Err(match stdout_diagnostic {
+                Some(diagnostic) => format!("Python exited with status {status}: {diagnostic}"),
+                None => format!("Python exited with status {status}"),
+            });
+        }
         let deadline = tokio::time::Instant::now() + Duration::from_millis(500);
         tokio::time::timeout_at(deadline, &mut output).await
             .map_err(|_| "Python output did not close".to_string())?
@@ -176,6 +188,10 @@ mod tests {
             }
             Ok("inherited_hold") => std::thread::sleep(Duration::from_secs(2)),
             Ok("failure") => std::process::exit(7),
+            Ok("failure_stdout") => {
+                println!("dependency conflict details");
+                std::process::exit(7);
+            },
             _ => (),
         }
     }
@@ -250,6 +266,16 @@ mod tests {
         tokio::runtime::Runtime::new().unwrap().block_on(async {
             let result = run_child(child("failure"), Arc::new(AtomicBool::new(false)), |_| Ok(())).await;
             assert!(result.unwrap_err().contains('7'));
+        });
+    }
+
+    #[test]
+    fn includes_bounded_stdout_diagnostics_for_nonzero_exit() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let result = run_child(child("failure_stdout"), Arc::new(AtomicBool::new(false)), |_| Ok(())).await;
+            let error = result.unwrap_err();
+            assert!(error.contains("exit status: 7"));
+            assert!(error.contains("dependency conflict details"));
         });
     }
 
