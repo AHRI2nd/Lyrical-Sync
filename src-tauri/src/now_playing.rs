@@ -4,6 +4,16 @@
 // 그 외 플랫폼에서는 항상 빈 결과를 반환하는 스텁으로 컴파일된다.
 
 use serde::Serialize;
+use std::future::Future;
+use std::time::Duration;
+
+const DEVICE_COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
+
+async fn with_device_timeout<T>(future: impl Future<Output = Result<T, String>>, timeout: Duration) -> Result<T, String> {
+    tokio::time::timeout(timeout, future)
+        .await
+        .map_err(|_| "device_command_timeout".to_string())?
+}
 
 #[derive(Serialize, Clone)]
 pub struct NowPlayingInfo {
@@ -21,13 +31,24 @@ pub struct NowPlayingInfo {
 
 #[cfg(test)]
 mod tests {
-    use super::valid_unix_timestamp;
+    use super::{valid_unix_timestamp, with_device_timeout};
+    use std::time::Duration;
 
     #[test]
     fn invalid_native_timestamps_are_unknown() {
         assert_eq!(valid_unix_timestamp(0), None);
         assert_eq!(valid_unix_timestamp(-1), None);
         assert_eq!(valid_unix_timestamp(1_700_000_000_000), Some(1_700_000_000_000));
+    }
+
+    #[tokio::test]
+    async fn native_device_operation_has_a_bounded_wait() {
+        let result = with_device_timeout(
+            std::future::pending::<Result<(), String>>(),
+            Duration::from_millis(10),
+        )
+        .await;
+        assert_eq!(result.unwrap_err(), "device_command_timeout");
     }
 }
 
@@ -227,6 +248,7 @@ mod platform {
     async fn run_adapter(app: &AppHandle, args: &[&str]) -> Result<String, String> {
         let (script, framework) = adapter_paths(app)?;
         let output = Command::new("/usr/bin/perl")
+            .kill_on_drop(true)
             .arg(&script)
             .arg(&framework)
             .args(args)
@@ -340,15 +362,15 @@ mod platform {
 
 #[tauri::command]
 pub async fn get_now_playing(app: tauri::AppHandle) -> Result<Option<NowPlayingInfo>, String> {
-    platform::get_now_playing(&app).await
+    with_device_timeout(platform::get_now_playing(&app), DEVICE_COMMAND_TIMEOUT).await
 }
 
 #[tauri::command]
 pub async fn now_playing_toggle_play_pause(app: tauri::AppHandle) -> Result<(), String> {
-    platform::toggle_play_pause(&app).await
+    with_device_timeout(platform::toggle_play_pause(&app), DEVICE_COMMAND_TIMEOUT).await
 }
 
 #[tauri::command]
 pub async fn now_playing_seek(position_ms: i64, app: tauri::AppHandle) -> Result<(), String> {
-    platform::seek(&app, position_ms).await
+    with_device_timeout(platform::seek(&app, position_ms), DEVICE_COMMAND_TIMEOUT).await
 }
