@@ -182,7 +182,7 @@ pub fn create_security_bookmark(path: String) -> Result<String, String> {
 
 /// Resolve a security bookmark to a file path
 #[tauri::command]
-pub fn resolve_security_bookmark(_bookmark: String) -> Result<String, String> {
+pub fn resolve_security_bookmark(bookmark: String) -> Result<String, String> {
     #[cfg(target_os = "macos")]
     {
         Err("Not implemented".into())
