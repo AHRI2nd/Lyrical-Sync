@@ -44,6 +44,19 @@ it("preserves non-active reserved tag values and serializes them when no feature
   expect(serializeLrc(parsed)).toContain("[x-lyrical-inline-escape:custom]");
 });
 
+it("round-trips unusual metadata names without inherited-object key collisions", () => {
+  const raw = "[constructor:Credit]\n[toString:Source]\n[__proto__:Literal]\n[00:01.00]hello";
+  const parsed = parseLrc(raw);
+  expect(Object.getOwnPropertyDescriptor(parsed.extraTags, "constructor")?.value).toBe("Credit");
+  expect(Object.getOwnPropertyDescriptor(parsed.extraTags, "tostring")?.value).toBe("Source");
+  expect(Object.getOwnPropertyDescriptor(parsed.extraTags, "__proto__")?.value).toBe("Literal");
+  const serialized = serializeLrc(parsed);
+  expect(serialized).toContain("[constructor:Credit]");
+  expect(serialized).toContain("[tostring:Source]");
+  expect(serialized).toContain("[__proto__:Literal]");
+  expect(parseLrc(serialized).lines.map((line) => [line.timestamp, line.text])).toEqual([[1, "hello"]]);
+});
+
 it("refuses to overwrite an unknown translation extension value when translations are active", () => {
   const doc = { ...docOf([{ id: "a", timestamp: 1, text: "original", translation: "translated" }]),
     extraTags: { "x-lyrical-translations": "custom" } };

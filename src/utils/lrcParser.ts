@@ -337,7 +337,7 @@ export function parseLrc(raw: string): LrcDocument {
       if (metaMatch) {
         const key = metaMatch[1].toLowerCase();
         const value = metaMatch[2].trim();
-        const field = META_TAGS[key];
+        const field = Object.prototype.hasOwnProperty.call(META_TAGS, key) ? META_TAGS[key] : undefined;
         if (key === TRANSLATION_TAG) {
           if (value === "1") translationMode = true;
           else doc.extraTags[key] = value;
@@ -360,7 +360,13 @@ export function parseLrc(raw: string): LrcDocument {
           else doc.extraTags[key] = value;
         }
         else if (field) (doc.metadata as unknown as Record<string, string>)[field] = value;
-        else doc.extraTags[key] = value;
+        else {
+          // __proto__ has an inherited setter on ordinary objects. Define
+          // literal unknown tags as own data properties instead of losing them.
+          Object.defineProperty(doc.extraTags, key, {
+            value, configurable: true, enumerable: true, writable: true,
+          });
+        }
         previous = [];
         continue;
       }
