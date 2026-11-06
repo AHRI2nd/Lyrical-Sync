@@ -646,6 +646,7 @@ function App() {
           cancelLabel={t.recovery.discard}
           onOk={() => {
             useLrcStore.getState().restoreDoc(recovery.doc, recovery.lrcPath, recovery.audioPath, recovery.lrcFileHash);
+            setRecovery(null);
             // Keep recovery snapshot until restored document is explicitly saved
           }}
           onCancel={() => { clearRecoverySnapshot(recovery); setRecovery(null); }}

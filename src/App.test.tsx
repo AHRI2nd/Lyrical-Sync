@@ -287,6 +287,7 @@ describe("App — recovery lifecycle", () => {
     fireEvent.click(screen.getByText(useI18nStore.getState().t.recovery.restore));
     expect(useLrcStore.getState().doc.metadata.title).toBe(doc.metadata.title);
     expect(useLrcStore.getState().isDirty).toBe(true);
+    expect(screen.queryByRole("dialog", { name: useI18nStore.getState().t.recovery.title })).toBeNull();
     expect(loadRecoverySnapshot()?.doc.metadata.title).toBe(doc.metadata.title);
   });
   it("removes the expected snapshot on explicit discard", () => {
