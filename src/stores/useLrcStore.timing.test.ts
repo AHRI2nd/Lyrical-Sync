@@ -64,8 +64,8 @@ const loadSrtFixture = async (start: string, end: string) => {
   const original = `1\n${start} --> ${end}\nQuick\n`;
   const writes: string[] = [];
   vi.mocked(invoke).mockReset().mockImplementation((command, args) => {
-    if (command === 'read_lrc_file') return Promise.resolve(original);
-    if (command === 'write_lrc_file') {
+    if (command === 'read_lrc_file_with_hash') return Promise.resolve({ content: original, sha256: 'a'.repeat(64) });
+    if (command === 'write_lrc_file_if_unchanged') {
       writes.push((args as { content: string }).content);
       return Promise.resolve(undefined);
     }

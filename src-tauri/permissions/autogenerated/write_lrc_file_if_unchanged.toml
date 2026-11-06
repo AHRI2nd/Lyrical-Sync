@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-write-lrc-file-if-unchanged"
+description = "Enables the write_lrc_file_if_unchanged command without any pre-configured scope."
+commands.allow = ["write_lrc_file_if_unchanged"]
+
+[[permission]]
+identifier = "deny-write-lrc-file-if-unchanged"
+description = "Denies the write_lrc_file_if_unchanged command without any pre-configured scope."
+commands.deny = ["write_lrc_file_if_unchanged"]

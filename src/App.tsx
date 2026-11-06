@@ -133,7 +133,7 @@ function useAutoSave(recoveryPending: boolean) {
   const persistRecovery = () => {
     const st = useLrcStore.getState();
     if (!st.isDirty || recoveryPending) return;
-    const saved = saveRecoverySnapshot(st.doc, st.lrcPath, st.audioPath, null, null, undefined, st._documentSession, st._editRevision);
+    const saved = saveRecoverySnapshot(st.doc, st.lrcPath, st.audioPath, null, null, undefined, st._documentSession, st._editRevision, st._lrcFileHash);
     if (!saved && !recoveryFailed.current) toast.error(useI18nStore.getState().t.toast.recoveryFailed);
     recoveryFailed.current = !saved;
   };
@@ -223,11 +223,13 @@ function useAutoSave(recoveryPending: boolean) {
 }
 
 function serializationErrorCode(error: unknown): string | null {
+  if (error instanceof Error && error.message === "LYRICS_FILE_CHANGED") return "LYRICS_FILE_CHANGED";
   if (error instanceof SrtUnrepresentableContentError || error instanceof SrtLossyDocumentError || error instanceof SrtInvalidTimestampError || error instanceof VttUnrepresentableContentError || error instanceof VttInvalidSyllableTimeError || error instanceof AssUnrepresentableContentError || error instanceof LrcInlineEscapeTagConflictError || error instanceof LrcInvalidTimestampError || error instanceof LrcMetadataLineBreakError || error instanceof LrcReservedTagConflictError) return error.code;
   return null;
 }
 
 function saveErrorMessage(error: unknown, t: ReturnType<typeof useI18nStore.getState>["t"]): string {
+  if (error instanceof Error && error.message === "LYRICS_FILE_CHANGED") return t.toast.fileChanged;
   if (error instanceof SrtInvalidTimestampError || error instanceof LrcInvalidTimestampError) return t.toast.invalidTimestamp;
   if (error instanceof SrtUnrepresentableContentError) return t.toast.srtBlankRowsUnsupported;
   if (error instanceof SrtLossyDocumentError) return t.toast.srtLossyDocument;
@@ -643,7 +645,7 @@ function App() {
           okLabel={t.recovery.restore}
           cancelLabel={t.recovery.discard}
           onOk={() => {
-            useLrcStore.getState().restoreDoc(recovery.doc, recovery.lrcPath, recovery.audioPath);
+            useLrcStore.getState().restoreDoc(recovery.doc, recovery.lrcPath, recovery.audioPath, recovery.lrcFileHash);
             // Keep recovery snapshot until restored document is explicitly saved
           }}
           onCancel={() => { clearRecoverySnapshot(recovery); setRecovery(null); }}

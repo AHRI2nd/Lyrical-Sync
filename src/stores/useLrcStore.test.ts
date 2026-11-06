@@ -30,6 +30,7 @@ import { setDocumentConfirmation } from "../utils/documentTransition";
 const reset = (lines: LrcLine[], offset = 0) =>
   useLrcStore.setState({
     doc: { metadata: { title: "", artist: "", album: "", by: "", offset }, lines, extraTags: {} },
+    _lrcFileHash: "a".repeat(64),
     _history: [],
     _future: [],
     _manualMetadataFields: new Set(),
@@ -40,6 +41,7 @@ const reset = (lines: LrcLine[], offset = 0) =>
   });
 
 const lines = () => useLrcStore.getState().doc.lines;
+const lrcSnapshot = (content: string) => ({ content, sha256: "b".repeat(64) });
 
 describe("useLrcStore — line actions", () => {
   beforeEach(() => reset([]));
@@ -695,6 +697,28 @@ describe("useLrcStore — save completion races", () => {
     useLrcStore.setState({ lrcPath: "/tmp/song.lrc", isDirty: true });
   });
 
+  it("keeps the document dirty when the source file changed outside the app", async () => {
+    vi.mocked(invoke).mockRejectedValue("LYRICS_FILE_CHANGED");
+
+    await expect(useLrcStore.getState().saveLrc()).rejects.toThrow("LYRICS_FILE_CHANGED");
+
+    expect(invoke).toHaveBeenCalledWith("write_lrc_file_if_unchanged", expect.objectContaining({
+      path: "/tmp/song.lrc",
+      expectedSha256: "a".repeat(64),
+    }));
+    expect(useLrcStore.getState().isDirty).toBe(true);
+    expect(useLrcStore.getState().lrcPath).toBe("/tmp/song.lrc");
+    expect(useLrcStore.getState()._lrcFileHash).toBe("a".repeat(64));
+  });
+
+  it("refuses an in-place recovery save when no original file revision is available", async () => {
+    useLrcStore.setState({ _lrcFileHash: null });
+
+    await expect(useLrcStore.getState().saveLrc()).rejects.toThrow("LYRICS_FILE_CHANGED");
+    expect(invoke).not.toHaveBeenCalled();
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
   it("keeps edits made during a pending save dirty", async () => {
     vi.mocked(invoke).mockResolvedValue(undefined);
 
@@ -714,7 +738,7 @@ describe("useLrcStore — save completion races", () => {
     let finishFirstWrite!: () => void;
     const dispatched: string[] = [];
     vi.mocked(invoke).mockImplementation((command: unknown, args?: unknown) => {
-      if (command !== "write_lrc_file") return Promise.resolve(undefined);
+      if (command !== "write_lrc_file_if_unchanged") return Promise.resolve(undefined);
       dispatched.push((args as { content: string }).content);
       if (dispatched.length === 1) {
         return new Promise<void>((resolve) => { finishFirstWrite = resolve; });
@@ -747,7 +771,7 @@ describe("useLrcStore — save completion races", () => {
     let rejectFirstWrite!: (error: Error) => void;
     const dispatched: string[] = [];
     vi.mocked(invoke).mockImplementation((command: unknown, args?: unknown) => {
-      if (command !== "write_lrc_file") return Promise.resolve(undefined);
+      if (command !== "write_lrc_file_if_unchanged") return Promise.resolve(undefined);
       dispatched.push((args as { content: string }).content);
       if (dispatched.length === 1) {
         return new Promise<void>((_resolve, reject) => { rejectFirstWrite = reject; });
@@ -773,7 +797,7 @@ describe("useLrcStore — save completion races", () => {
     let finishFirstWrite!: () => void;
     const dispatched: string[] = [];
     vi.mocked(invoke).mockImplementation((command: unknown, args?: unknown) => {
-      if (command !== "write_lrc_file") return Promise.resolve(undefined);
+      if (command !== "write_lrc_file_if_unchanged") return Promise.resolve(undefined);
       dispatched.push((args as { content: string }).content);
       if (dispatched.length === 1) {
         return new Promise<void>((resolve) => { finishFirstWrite = resolve; });
@@ -883,12 +907,12 @@ describe("useLrcStore — save completion races", () => {
     const firstWritePending = new Promise<void>((resolve) => { releaseFirst = resolve; });
     const writtenContents: string[] = [];
     vi.mocked(invoke).mockImplementation(async (command: unknown, args?: unknown) => {
-      if (command === "write_lrc_file") {
+      if (command === "write_lrc_file_if_unchanged") {
         writtenContents.push((args as { content: string }).content);
         if (writtenContents.length === 1) await firstWritePending;
         return undefined;
       }
-      if (command === "read_lrc_file") return "[ti:next song]\n[00:03.00]next document";
+      if (command === "read_lrc_file_with_hash") return { content: "[ti:next song]\n[00:03.00]next document", sha256: "b".repeat(64) };
       return undefined;
     });
 
@@ -912,10 +936,10 @@ describe("useLrcStore — save completion races", () => {
   it("does not let an old save clear the dirty state of a newly loaded document", async () => {
     let resolveWrite!: (value: undefined) => void;
     vi.mocked(invoke).mockImplementation((command: unknown) => {
-      if (command === "write_lrc_file") {
+      if (command === "write_lrc_file_if_unchanged") {
         return new Promise<undefined>((resolve) => { resolveWrite = resolve; });
       }
-      if (command === "read_lrc_file") return Promise.resolve("[ti:new song]\n[00:03.00]new text");
+      if (command === "read_lrc_file_with_hash") return Promise.resolve({ content: "[ti:new song]\n[00:03.00]new text", sha256: "b".repeat(64) });
       return Promise.resolve(undefined);
     });
 
@@ -956,7 +980,7 @@ describe("useLrcStore — save completion races", () => {
     let resolveDialog!: (path: string | null) => void;
     vi.mocked(save).mockImplementation(() => new Promise((resolve) => { resolveDialog = resolve; }));
     vi.mocked(invoke).mockImplementation((command: unknown) => {
-      if (command === "read_lrc_file") return Promise.resolve("[00:03.00]new document");
+      if (command === "read_lrc_file_with_hash") return Promise.resolve({ content: "[00:03.00]new document", sha256: "b".repeat(64) });
       return Promise.resolve(undefined);
     });
 
@@ -1127,11 +1151,11 @@ describe("useLrcStore — concurrent lyric loads", () => {
   });
 
   it("keeps the latest selected file when reads resolve out of order", async () => {
-    let resolveOld!: (value: string) => void;
-    let resolveNew!: (value: string) => void;
+    let resolveOld!: (value: ReturnType<typeof lrcSnapshot>) => void;
+    let resolveNew!: (value: ReturnType<typeof lrcSnapshot>) => void;
     vi.mocked(invoke).mockImplementation((_command: unknown, args?: unknown) => {
       const path = (args as { path: string }).path;
-      return new Promise<string>((resolve) => {
+      return new Promise<ReturnType<typeof lrcSnapshot>>((resolve) => {
         if (path === "/tmp/old.lrc") resolveOld = resolve;
         else resolveNew = resolve;
       });
@@ -1139,9 +1163,9 @@ describe("useLrcStore — concurrent lyric loads", () => {
 
     const oldLoad = useLrcStore.getState().loadLyricsPath("/tmp/old.lrc");
     const newLoad = useLrcStore.getState().loadLyricsPath("/tmp/new.lrc");
-    resolveNew("[00:02.00]new selection");
+    resolveNew(lrcSnapshot("[00:02.00]new selection"));
     await newLoad;
-    resolveOld("[00:01.00]old selection");
+    resolveOld(lrcSnapshot("[00:01.00]old selection"));
     await oldLoad;
 
     expect(useLrcStore.getState().lrcPath).toBe("/tmp/new.lrc");
@@ -1149,16 +1173,16 @@ describe("useLrcStore — concurrent lyric loads", () => {
   });
 
   it("does not apply an older pending file after the newest selected file fails", async () => {
-    let resolveOld!: (value: string) => void;
+    let resolveOld!: (value: ReturnType<typeof lrcSnapshot>) => void;
     vi.mocked(invoke).mockImplementation((_command: unknown, args?: unknown) => {
       const path = (args as { path: string }).path;
-      if (path === "/tmp/old.lrc") return new Promise<string>((resolve) => { resolveOld = resolve; });
+      if (path === "/tmp/old.lrc") return new Promise<ReturnType<typeof lrcSnapshot>>((resolve) => { resolveOld = resolve; });
       return Promise.reject(new Error("read failed"));
     });
 
     const oldLoad = useLrcStore.getState().loadLyricsPath("/tmp/old.lrc");
     await expect(useLrcStore.getState().loadLyricsPath("/tmp/newest.lrc")).rejects.toThrow("read failed");
-    resolveOld("[00:01.00]stale selection");
+    resolveOld(lrcSnapshot("[00:01.00]stale selection"));
     await oldLoad;
 
     expect(useLrcStore.getState().lrcPath).toBeNull();
@@ -1208,12 +1232,12 @@ describe("useLrcStore — document load transactions", () => {
     vi.mocked(invoke).mockReset();
   });
   it("preserves edits and undo history made while the read is pending", async () => {
-    let finish!: (value: string) => void;
-    vi.mocked(invoke).mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    let finish!: (value: ReturnType<typeof lrcSnapshot>) => void;
+    vi.mocked(invoke).mockImplementation(() => new Promise<ReturnType<typeof lrcSnapshot>>(resolve => { finish = resolve; }));
     const loading = useLrcStore.getState().loadLyricsPath("/new.lrc");
     useLrcStore.getState().updateLine("1", { text: "new edit" });
     const history = useLrcStore.getState()._history;
-    finish("[00:02.00]incoming");
+    finish(lrcSnapshot("[00:02.00]incoming"));
     await expect(loading).rejects.toThrow("document_changed_during_load");
     expect(lines()[0].text).toBe("new edit");
     expect(useLrcStore.getState()._history).toBe(history);
@@ -1228,7 +1252,7 @@ describe("useLrcStore — document load transactions", () => {
     expect(useLrcStore.getState().lrcPath).toBe("/old.lrc");
   });
   it("publishes the new lyrics and audio in one store transition", async () => {
-    vi.mocked(invoke).mockResolvedValue("[00:02.00]incoming");
+    vi.mocked(invoke).mockResolvedValue(lrcSnapshot("[00:02.00]incoming"));
     const observed: string[] = [];
     const unsubscribe = useLrcStore.subscribe(s => {
       if (s.audioPath === "/new.mp3") observed.push(s.doc.lines[0]?.text);
@@ -1240,12 +1264,12 @@ describe("useLrcStore — document load transactions", () => {
     expect(observed.every(text => text === "incoming")).toBe(true);
   });
   it("does not overwrite an audio selection made after a paired load starts", async () => {
-    let finish!: (value: string) => void;
-    vi.mocked(invoke).mockImplementation(command => command === "read_lrc_file"
+    let finish!: (value: { content: string; sha256: string }) => void;
+    vi.mocked(invoke).mockImplementation(command => command === "read_lrc_file_with_hash"
       ? new Promise(resolve => { finish = resolve; }) : Promise.resolve(undefined));
     const loading = useLrcStore.getState().loadLyricsPath("/new.lrc", { audioPath: "/new.mp3" });
     useLrcStore.getState().setAudioPath("/chosen.mp3");
-    finish("[00:02.00]incoming");
+    finish({ content: "[00:02.00]incoming", sha256: "b".repeat(64) });
     await expect(loading).rejects.toThrow("document_changed_during_load");
     expect(useLrcStore.getState().audioPath).toBe("/chosen.mp3");
     expect(lines()[0].text).toBe("original");

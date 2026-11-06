@@ -61,6 +61,7 @@ const resetLrc = (overrides: Partial<ReturnType<typeof useLrcStore.getState>> = 
     loadLyricsPath: initialLoadLyricsPath,
     audioPath: null,
     lrcPath: null,
+    _lrcFileHash: "a".repeat(64),
     isDirty: false,
     syncMode: "line",
     _history: [],
@@ -343,12 +344,12 @@ describe("App — paired drop transactions", () => {
   });
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });
   it("retains the old audio if the confirmed replacement lyrics fail to read", async () => {
-    vi.mocked(invoke).mockImplementation(command => command === "read_lrc_file"
+    vi.mocked(invoke).mockImplementation(command => command === "read_lrc_file_with_hash"
       ? Promise.reject(new Error("unreadable")) : Promise.resolve(undefined));
     render(<App />);
     act(() => dragDropHandler.current?.({ payload: { type: "drop", paths: ["/new.mp3", "/new.lrc"] } }));
     await userEvent.setup().click(screen.getByText(useI18nStore.getState().t.drop.replaceOk));
-    expect(invoke).toHaveBeenCalledWith("read_lrc_file", { path: "/new.lrc" });
+    expect(invoke).toHaveBeenCalledWith("read_lrc_file_with_hash", { path: "/new.lrc" });
     expect(await screen.findByText(useI18nStore.getState().t.toast.openFailed)).toBeTruthy();
     expect(useLrcStore.getState().audioPath).toBe("/old.mp3");
     expect(useLrcStore.getState().lrcPath).toBe("/old.lrc");

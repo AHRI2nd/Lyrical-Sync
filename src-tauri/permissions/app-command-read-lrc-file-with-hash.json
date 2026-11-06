@@ -1,0 +1,8 @@
+{
+  "$schema": "../../gen/schemas/desktop-schema.json",
+  "identifier": "app-command:read-lrc-file-with-hash",
+  "description": "Read LRC file content and its SHA-256 revision",
+  "allow": [
+    { "command": "read_lrc_file_with_hash" }
+  ]
+}

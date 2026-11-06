@@ -57,6 +57,7 @@ function resetDocument(overrides: Partial<ReturnType<typeof useLrcStore.getState
     doc: { ...defaultDocument(), lines: [{ id: "old", timestamp: 1, text: "Original unsaved lyric" }] },
     activeLineId: "old",
     lrcPath: null,
+    _lrcFileHash: "a".repeat(64),
     isDirty: true,
     _history: [],
     _future: [],
@@ -121,7 +122,7 @@ it.skip("saves an existing dirty file before replacing it and keeps the new file
   await searchAndSelect(getByRole);
   const t = useI18nStore.getState().t;
   fireEvent.click(within(getByRole("dialog", { name: t.confirmNewTitle })).getByRole("button", { name: t.save }));
-  await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("write_lrc_file", expect.objectContaining({ path: "/tmp/current.lrc" })));
+  await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("write_lrc_file_if_unchanged", expect.objectContaining({ path: "/tmp/current.lrc" })));
   await waitFor(() => expect(useLrcStore.getState().doc.lines[0].text).toBe("Fetched lyric"));
   expect(useLrcStore.getState().isDirty).toBe(true);
 });

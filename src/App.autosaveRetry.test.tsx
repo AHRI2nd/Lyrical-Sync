@@ -29,7 +29,7 @@ import { defaultDocument } from "./types/lrc";
 import { clearRecoverySnapshot, loadRecoverySnapshot } from "./utils/recovery";
 
 const path = "/tmp/autosave-retry.lrc";
-const writes = () => invokeMock.mock.calls.filter(([command]) => command === "write_lrc_file");
+const writes = () => invokeMock.mock.calls.filter(([command]) => command === "write_lrc_file_if_unchanged");
 const advance = async (ms: number) => {
   await act(async () => { await vi.advanceTimersByTimeAsync(ms); });
 };
@@ -42,6 +42,7 @@ beforeEach(() => {
   useLrcStore.setState({
     doc: { ...defaultDocument(), lines: [{ id: "retry-line", timestamp: 1, text: "Persist this edit" }] },
     lrcPath: path,
+    _lrcFileHash: "a".repeat(64),
     audioPath: null,
     isDirty: true,
     _history: [],
@@ -61,7 +62,7 @@ afterEach(() => {
 
 it("retries unchanged dirty lyrics after one transient native write failure, then stops after success", async () => {
   invokeMock.mockImplementation((command: string) =>
-    command === "write_lrc_file" && writes().length === 1
+    command === "write_lrc_file_if_unchanged" && writes().length === 1
       ? Promise.reject(new Error("temporary destination unavailable"))
       : Promise.resolve(undefined));
   render(<App />);
@@ -80,6 +81,18 @@ it("retries unchanged dirty lyrics after one transient native write failure, the
   expect(writes()).toHaveLength(2);
 });
 
+it("does not overwrite an externally changed file or retry the conflict", async () => {
+  invokeMock.mockRejectedValue("LYRICS_FILE_CHANGED");
+  render(<App />);
+
+  await advance(1_500);
+  expect(writes()).toHaveLength(1);
+  expect(useLrcStore.getState().isDirty).toBe(true);
+  expect(useToastStore.getState().toasts.some(toast => toast.message === useI18nStore.getState().t.toast.fileChanged)).toBe(true);
+  await advance(60_000);
+  expect(writes()).toHaveLength(1);
+});
+
 it("never retries a successful first autosave", async () => {
   render(<App />);
   await advance(1500);
@@ -90,7 +103,7 @@ it("never retries a successful first autosave", async () => {
 });
 
 it("caps permanent native failures and keeps dirty data available for later manual saving", async () => {
-  invokeMock.mockImplementation((command: string) => command === "write_lrc_file"
+  invokeMock.mockImplementation((command: string) => command === "write_lrc_file_if_unchanged"
     ? Promise.reject(new Error("drive remains unavailable")) : Promise.resolve(undefined));
   const noticeSpy = vi.spyOn(useToastStore.getState(), "push");
   render(<App />);
@@ -136,7 +149,7 @@ it("does not retry timestamps that cannot be serialized into SRT milliseconds", 
 
 it("does not let an old request retry after the same path is owned by another document session", async () => {
   let rejectOld!: (error: Error) => void;
-  invokeMock.mockImplementation((command: string) => command === "write_lrc_file" && writes().length === 1
+  invokeMock.mockImplementation((command: string) => command === "write_lrc_file_if_unchanged" && writes().length === 1
     ? new Promise<undefined>((_resolve, reject) => { rejectOld = reject; })
     : Promise.resolve(undefined));
   render(<App />);
@@ -144,7 +157,7 @@ it("does not let an old request retry after the same path is owned by another do
   expect(writes()).toHaveLength(1);
 
   const nextDoc = { ...defaultDocument(), lines: [{ id: "next", timestamp: 2, text: "Next document" }] };
-  act(() => { useLrcStore.getState().restoreDoc(nextDoc, path, null); });
+  act(() => { useLrcStore.getState().restoreDoc(nextDoc, path, null, "a".repeat(64)); });
   rejectOld(new Error("old session write failed"));
   await advance(1500);
   expect(writes()).toHaveLength(2);
@@ -155,7 +168,7 @@ it("does not let an old request retry after the same path is owned by another do
 });
 
 it("cancels old-document retry timers when the document session changes", async () => {
-  invokeMock.mockImplementation((command: string) => command === "write_lrc_file"
+  invokeMock.mockImplementation((command: string) => command === "write_lrc_file_if_unchanged"
     ? Promise.reject(new Error("drive unavailable")) : Promise.resolve(undefined));
   render(<App />);
   await advance(1500);
@@ -167,7 +180,7 @@ it("cancels old-document retry timers when the document session changes", async 
 });
 
 it("cancels pending retries on unmount and when autosave is disabled", async () => {
-  invokeMock.mockImplementation((command: string) => command === "write_lrc_file"
+  invokeMock.mockImplementation((command: string) => command === "write_lrc_file_if_unchanged"
     ? Promise.reject(new Error("drive unavailable")) : Promise.resolve(undefined));
   const view = render(<App />);
   await advance(1500);

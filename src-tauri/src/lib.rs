@@ -44,10 +44,45 @@ async fn read_lrc_file(path: String) -> Result<String, String> {
     Ok(content)
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LrcFileSnapshot {
+    content: String,
+    sha256: String,
+}
+
 #[tauri::command]
-async fn write_lrc_file(path: String, content: String) -> Result<(), String> {
+async fn read_lrc_file_with_hash(path: String) -> Result<LrcFileSnapshot, String> {
+    use sha2::{Digest, Sha256};
+
+    let content = read_lrc_file(path).await?;
+    let sha256 = format!("{:x}", Sha256::digest(content.as_bytes()));
+    Ok(LrcFileSnapshot { content, sha256 })
+}
+
+#[tauri::command]
+async fn write_lrc_file(path: String, content: String) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
+
     let path = path_validation::validate_write_path(&path)?;
-    atomic_write::write_atomic(std::path::Path::new(&path), &content).map_err(|e| e.to_string())
+    atomic_write::write_atomic(std::path::Path::new(&path), &content)
+        .map_err(|e| e.to_string())?;
+    Ok(format!("{:x}", Sha256::digest(content.as_bytes())))
+}
+
+#[tauri::command]
+async fn write_lrc_file_if_unchanged(
+    path: String,
+    content: String,
+    expected_sha256: String,
+) -> Result<String, String> {
+    let path = path_validation::validate_write_path(&path)?;
+    atomic_write::write_atomic_if_unchanged(
+        std::path::Path::new(&path),
+        &content,
+        &expected_sha256,
+    )
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -263,7 +298,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             read_lrc_file,
+            read_lrc_file_with_hash,
             write_lrc_file,
+            write_lrc_file_if_unchanged,
             batch_output::write_batch_output,
             read_audio_file,
             validate_audio_file,
@@ -324,7 +361,9 @@ mod audio_decode_tests {
 
 #[cfg(test)]
 mod lyric_save_command_tests {
-    use super::{read_lrc_file, write_lrc_file};
+    use super::{
+        read_lrc_file, read_lrc_file_with_hash, write_lrc_file, write_lrc_file_if_unchanged,
+    };
     use std::fs;
 
     #[tokio::test]
@@ -336,6 +375,38 @@ mod lyric_save_command_tests {
         assert_eq!(fs::read_to_string(&target).unwrap(), "[00:01.00]First");
         write_lrc_file(path.clone(), "[00:02.00]Second".into()).await.unwrap();
         assert_eq!(read_lrc_file(path).await.unwrap(), "[00:02.00]Second");
+    }
+
+    #[tokio::test]
+    async fn conditional_save_refuses_external_edits_and_accepts_the_known_version() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("shared.lrc");
+        fs::write(&target, "original").unwrap();
+        let path = target.to_string_lossy().into_owned();
+        let opened = read_lrc_file_with_hash(path.clone()).await.unwrap();
+        assert_eq!(opened.content, "original");
+
+        fs::write(&target, "external edit").unwrap();
+        let stale = write_lrc_file_if_unchanged(
+            path.clone(),
+            "app edit".into(),
+            opened.sha256,
+        )
+        .await
+        .unwrap_err();
+        assert!(stale.contains("LYRICS_FILE_CHANGED"));
+        assert_eq!(fs::read_to_string(&target).unwrap(), "external edit");
+
+        let current = read_lrc_file_with_hash(path.clone()).await.unwrap();
+        let saved_hash = write_lrc_file_if_unchanged(
+            path.clone(),
+            "app edit".into(),
+            current.sha256,
+        )
+        .await
+        .unwrap();
+        assert_eq!(read_lrc_file(path).await.unwrap(), "app edit");
+        assert_eq!(saved_hash.len(), 64);
     }
 
     #[tokio::test]

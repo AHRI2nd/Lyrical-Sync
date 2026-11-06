@@ -11,6 +11,7 @@ export interface RecoverySnapshot {
   sessionId?: string;
   documentSession?: number;
   editRevision?: number;
+  lrcFileHash?: string | null;
 }
 
 function validDocument(value: unknown): value is LrcDocument {
@@ -27,10 +28,11 @@ function validDocument(value: unknown): value is LrcDocument {
 
 export function saveRecoverySnapshot(doc: LrcDocument, lrcPath: string | null, audioPath: string | null,
   lrcBookmark: string | null = null, audioBookmark: string | null = null, sessionId?: string,
-  documentSession?: number, editRevision?: number): boolean {
+  documentSession?: number, editRevision?: number, lrcFileHash: string | null = null): boolean {
   try {
-    if (!validDocument(doc)) return false;
-    localStorage.setItem(KEY, JSON.stringify({ doc, lrcPath, audioPath, lrcBookmark, audioBookmark, savedAt: Date.now(), sessionId, documentSession, editRevision }));
+    if (!validDocument(doc) ||
+        (lrcFileHash !== null && !/^[0-9a-f]{64}$/.test(lrcFileHash))) return false;
+    localStorage.setItem(KEY, JSON.stringify({ doc, lrcPath, audioPath, lrcBookmark, audioBookmark, lrcFileHash, savedAt: Date.now(), sessionId, documentSession, editRevision }));
     return true;
   } catch { return false; }
 }
@@ -42,11 +44,14 @@ function parseSnapshot(raw: string): RecoverySnapshot | null {
         !isNullableString(value.lrcPath) || !isNullableString(value.audioPath) ||
         (value.lrcBookmark !== undefined && !isNullableString(value.lrcBookmark)) ||
         (value.audioBookmark !== undefined && !isNullableString(value.audioBookmark)) ||
+        (value.lrcFileHash !== undefined && value.lrcFileHash !== null &&
+          (typeof value.lrcFileHash !== "string" || !/^[0-9a-f]{64}$/.test(value.lrcFileHash))) ||
         (value.sessionId !== undefined && typeof value.sessionId !== "string") ||
         (value.documentSession !== undefined && !isFiniteNumber(value.documentSession)) ||
         (value.editRevision !== undefined && !isFiniteNumber(value.editRevision))) return null;
     return { doc: value.doc, lrcPath: value.lrcPath as string | null, audioPath: value.audioPath as string | null,
       lrcBookmark: (value.lrcBookmark ?? null) as string | null, audioBookmark: (value.audioBookmark ?? null) as string | null,
+      lrcFileHash: (value.lrcFileHash ?? null) as string | null,
       savedAt: value.savedAt, ...(value.sessionId !== undefined ? { sessionId: value.sessionId as string } : {}),
       ...(value.documentSession !== undefined ? { documentSession: value.documentSession as number } : {}),
       ...(value.editRevision !== undefined ? { editRevision: value.editRevision as number } : {}) };

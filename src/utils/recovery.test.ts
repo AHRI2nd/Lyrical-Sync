@@ -36,6 +36,12 @@ describe("recovery snapshot round-trip", () => {
     expect(typeof loaded!.savedAt).toBe("number");
   });
 
+  it("persists the loaded lyric file hash for conflict-safe recovery saves", () => {
+    const hash = "a".repeat(64);
+    saveRecoverySnapshot(doc(), "/tmp/song.lrc", null, null, null, undefined, 3, 7, hash);
+    expect(loadRecoverySnapshot()?.lrcFileHash).toBe(hash);
+  });
+
   it("supports null paths (unsaved new document)", () => {
     saveRecoverySnapshot(doc(), null, null);
     const loaded = loadRecoverySnapshot();

@@ -1,17 +1,39 @@
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 #[cfg(unix)]
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
 
 #[cfg(target_os = "macos")]
 use libc;
+use sha2::{Digest, Sha256};
 
 pub fn write_atomic(path: &Path, content: &str) -> io::Result<()> {
     write_with(path, |file| file.write_all(content.as_bytes()))
 }
 
+pub fn write_atomic_if_unchanged(
+    path: &Path,
+    content: &str,
+    expected_sha256: &str,
+) -> io::Result<String> {
+    write_with_expected(
+        path,
+        |file| file.write_all(content.as_bytes()),
+        Some(expected_sha256),
+    )?;
+    Ok(sha256_hex(content.as_bytes()))
+}
+
 fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> io::Result<()> {
+    write_with_expected(path, write, None)
+}
+
+fn write_with_expected(
+    path: &Path,
+    write: impl FnOnce(&mut File) -> io::Result<()>,
+    expected_sha256: Option<&str>,
+) -> io::Result<()> {
     // Resolve the selected parent before inspecting the destination. Every
     // subsequent read, stage, publication and directory sync must use this
     // resolved location, even if a symlink in the caller's path is retargeted.
@@ -123,6 +145,19 @@ fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> i
     
     stage.as_file_mut().flush()?;
     stage.as_file().sync_all()?;
+
+    if let Some(expected_sha256) = expected_sha256 {
+        let current_sha256 = match hash_file(&target) {
+            Ok(hash) => hash,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                return Err(io::Error::other("LYRICS_FILE_CHANGED"));
+            }
+            Err(error) => return Err(error),
+        };
+        if current_sha256 != expected_sha256 {
+            return Err(io::Error::other("LYRICS_FILE_CHANGED"));
+        }
+    }
     
     #[cfg(windows)]
     {
@@ -147,6 +182,24 @@ fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> i
     }
     
     Ok(())
+}
+
+fn hash_file(path: &Path) -> io::Result<String> {
+    let mut file = File::open(path)?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 16 * 1024];
+    loop {
+        let bytes_read = file.read(&mut buffer)?;
+        if bytes_read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..bytes_read]);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(bytes))
 }
 
 #[cfg(target_os = "macos")]

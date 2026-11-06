@@ -45,7 +45,10 @@ async function preserveBefore(action: () => Promise<void>): Promise<void> {
     try { await lrc.saveLrc(); } catch { /* Fall back to a durable recovery copy. */ }
   }
   const after = useLrcStore.getState();
-  if (after.isDirty && !saveRecoverySnapshot(after.doc, after.lrcPath, after.audioPath)) {
+  if (after.isDirty && !saveRecoverySnapshot(
+    after.doc, after.lrcPath, after.audioPath, null, null, undefined,
+    after._documentSession, after._editRevision, after._lrcFileHash,
+  )) {
     throw new Error(useI18nStore.getState().t.toast.recoveryFailed);
   }
   return action();

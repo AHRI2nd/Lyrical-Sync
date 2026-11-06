@@ -81,7 +81,7 @@ describe("useUpdaterStore — downloadAndInstall", () => {
   beforeEach(() => {
     reset(); relaunch.mockReset(); invoke.mockReset(); invoke.mockResolvedValue(undefined);
     saveRecoverySnapshot.mockReset(); saveRecoverySnapshot.mockReturnValue(true);
-    useLrcStore.setState({ isDirty: false, lrcPath: null, audioPath: null });
+    useLrcStore.setState({ isDirty: false, lrcPath: null, audioPath: null, _lrcFileHash: "a".repeat(64) });
   });
 
   it("is a no-op when there is no pending update", async () => {
@@ -129,6 +129,7 @@ describe("useUpdaterStore — restart", () => {
       doc: { metadata: { title: "", artist: "", album: "", by: "", offset: 0 }, lines: [], extraTags: {} },
       lrcPath: null,
       audioPath: null,
+      _lrcFileHash: null,
       isDirty: false,
     });
   });
@@ -141,9 +142,9 @@ describe("useUpdaterStore — restart", () => {
   });
 
   it("force-saves via saveLrc when dirty with a known lrcPath, skipping the snapshot on success", async () => {
-    useLrcStore.setState({ isDirty: true, lrcPath: "/song.lrc" });
+    useLrcStore.setState({ isDirty: true, lrcPath: "/song.lrc", _lrcFileHash: "a".repeat(64) });
     await useUpdaterStore.getState().restart();
-    expect(invoke).toHaveBeenCalledWith("write_lrc_file", expect.objectContaining({ path: "/song.lrc" }));
+    expect(invoke).toHaveBeenCalledWith("write_lrc_file_if_unchanged", expect.objectContaining({ path: "/song.lrc" }));
     expect(useLrcStore.getState().isDirty).toBe(false);
     expect(saveRecoverySnapshot).not.toHaveBeenCalled();
     expect(relaunch).toHaveBeenCalledOnce();
@@ -151,7 +152,7 @@ describe("useUpdaterStore — restart", () => {
 
   it("falls back to a recovery snapshot when the forced save fails", async () => {
     invoke.mockRejectedValue(new Error("write failed"));
-    useLrcStore.setState({ isDirty: true, lrcPath: "/song.lrc" });
+    useLrcStore.setState({ isDirty: true, lrcPath: "/song.lrc", _lrcFileHash: "a".repeat(64) });
     await useUpdaterStore.getState().restart();
     expect(saveRecoverySnapshot).toHaveBeenCalledOnce();
     expect(relaunch).toHaveBeenCalledOnce();
@@ -180,7 +181,7 @@ describe("useUpdaterStore — dismiss", () => {
 describe("useUpdaterStore — restart durability failures", () => {
   beforeEach(() => {
     reset(); relaunch.mockReset(); invoke.mockReset(); saveRecoverySnapshot.mockReset();
-    useLrcStore.setState({ isDirty: true, lrcPath: "/song.lrc", audioPath: null });
+    useLrcStore.setState({ isDirty: true, lrcPath: "/song.lrc", audioPath: null, _lrcFileHash: "a".repeat(64) });
   });
   it("does not relaunch if neither file save nor snapshot succeeds", async () => {
     invoke.mockRejectedValue(new Error("disk full"));
@@ -207,7 +208,10 @@ describe("useUpdaterStore — restart durability failures", () => {
     useLrcStore.getState().setMetadata({ title: "edited during save" });
     finish();
     await restarting;
-    expect(saveRecoverySnapshot).toHaveBeenCalledWith(expect.objectContaining({ metadata: expect.objectContaining({ title: "edited during save" }) }), "/song.lrc", null);
+    expect(saveRecoverySnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: expect.objectContaining({ title: "edited during save" }) }),
+      "/song.lrc", null, null, null, undefined, expect.any(Number), expect.any(Number), "a".repeat(64),
+    );
     expect(relaunch).toHaveBeenCalledOnce();
   });
   it("reports a relaunch error without leaving an unhandled rejection", async () => {
@@ -223,7 +227,7 @@ describe("useUpdaterStore — installation durability", () => {
   beforeEach(() => {
     reset(); relaunch.mockReset(); invoke.mockReset(); invoke.mockResolvedValue(undefined);
     saveRecoverySnapshot.mockReset(); saveRecoverySnapshot.mockReturnValue(true);
-    useLrcStore.setState({ isDirty: true, lrcPath: null, audioPath: null });
+    useLrcStore.setState({ isDirty: true, lrcPath: null, audioPath: null, _lrcFileHash: null });
   });
   function update(download = vi.fn(async () => {}), install = vi.fn(async () => {})) {
     const close = vi.fn(async () => {});
@@ -232,7 +236,10 @@ describe("useUpdaterStore — installation durability", () => {
   }
   it("preserves the latest edits after download before entering the installer", async () => {
     const u = update(vi.fn(async () => { useLrcStore.getState().setMetadata({ title: "edited while downloading" }); }), vi.fn(async () => {
-      expect(saveRecoverySnapshot).toHaveBeenCalledWith(expect.objectContaining({ metadata: expect.objectContaining({ title: "edited while downloading" }) }), null, null);
+      expect(saveRecoverySnapshot).toHaveBeenCalledWith(
+        expect.objectContaining({ metadata: expect.objectContaining({ title: "edited while downloading" }) }),
+        null, null, null, null, undefined, expect.any(Number), expect.any(Number), null,
+      );
     }));
     await useUpdaterStore.getState().downloadAndInstall();
     expect(u.download).toHaveBeenCalledOnce(); expect(u.install).toHaveBeenCalledOnce();
@@ -244,26 +251,29 @@ describe("useUpdaterStore — installation durability", () => {
     expect(u.install).not.toHaveBeenCalled(); expect(useUpdaterStore.getState().status).toBe("error");
   });
   it("blocks installation when both file save and recovery fail", async () => {
-    useLrcStore.setState({ lrcPath: "/song.lrc" });
+    useLrcStore.setState({ lrcPath: "/song.lrc", _lrcFileHash: "a".repeat(64) });
     invoke.mockRejectedValue(new Error("disk full")); saveRecoverySnapshot.mockReturnValue(false);
     const u = update(); await useUpdaterStore.getState().downloadAndInstall();
     expect(invoke).toHaveBeenCalled(); expect(u.install).not.toHaveBeenCalled();
     expect(useUpdaterStore.getState().status).toBe("error");
   });
   it("saves known files before installing without requiring recovery storage", async () => {
-    useLrcStore.setState({ lrcPath: "/song.lrc" }); saveRecoverySnapshot.mockReturnValue(false);
+    useLrcStore.setState({ lrcPath: "/song.lrc", _lrcFileHash: "a".repeat(64) }); saveRecoverySnapshot.mockReturnValue(false);
     const u = update(); await useUpdaterStore.getState().downloadAndInstall();
-    expect(invoke).toHaveBeenCalledWith("write_lrc_file", expect.objectContaining({ path: "/song.lrc" }));
+    expect(invoke).toHaveBeenCalledWith("write_lrc_file_if_unchanged", expect.objectContaining({ path: "/song.lrc" }));
     expect(saveRecoverySnapshot).not.toHaveBeenCalled(); expect(u.install).toHaveBeenCalledOnce();
   });
   it("protects edits made while the file save is pending", async () => {
-    useLrcStore.setState({ lrcPath: "/song.lrc" });
+    useLrcStore.setState({ lrcPath: "/song.lrc", _lrcFileHash: "a".repeat(64) });
     let finish!: () => void;
     invoke.mockImplementation(() => new Promise<void>(resolve => { finish = resolve; }));
     const u = update(); const task = useUpdaterStore.getState().downloadAndInstall();
     await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
     useLrcStore.getState().setMetadata({ title: "edited during update save" }); finish(); await task;
-    expect(saveRecoverySnapshot).toHaveBeenCalledWith(expect.objectContaining({ metadata: expect.objectContaining({ title: "edited during update save" }) }), "/song.lrc", null);
+    expect(saveRecoverySnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: expect.objectContaining({ title: "edited during update save" }) }),
+      "/song.lrc", null, null, null, undefined, expect.any(Number), expect.any(Number), "a".repeat(64),
+    );
     expect(u.install).toHaveBeenCalledOnce();
   });
   it("closes a failed update and retries with a fresh checked resource", async () => {

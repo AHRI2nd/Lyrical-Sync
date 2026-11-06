@@ -387,6 +387,7 @@ export interface Translations {
   toast: {
     saved: string;
     saveFailed: string;
+    fileChanged: string;
     srtBlankRowsUnsupported: string;
     vttBlankRowsUnsupported: string;
     vttInvalidSyllableTime: string;
@@ -1033,6 +1034,7 @@ const ko: Translations = {
   toast: {
     saved: "저장되었습니다",
     saveFailed: "저장에 실패했습니다",
+    fileChanged: "이 가사 파일이 앱 밖에서 변경되었거나 원본 상태를 확인할 수 없습니다. 변경 내용을 보존하려면 다른 파일로 저장하세요.",
     srtBlankRowsUnsupported: "SRT는 빈 문단을 보존할 수 없습니다. 빈 줄을 제거하거나 다른 형식으로 저장하세요.",
     vttBlankRowsUnsupported: "VTT는 빈 문단을 보존할 수 없습니다. 빈 줄을 제거하거나 다른 형식으로 저장하세요.",
     vttInvalidSyllableTime: "VTT에서 cue 내부 타이밍을 표현할 수 없습니다. 음절 시각을 cue 시작 뒤, 종료 전의 증가 순서로 조정하세요.",
@@ -1677,6 +1679,7 @@ const en: Translations = {
   toast: {
     saved: "Saved",
     saveFailed: "Failed to save",
+    fileChanged: "This lyric file changed outside Lyrical Sync, or its original revision is unavailable. Save to a different file to preserve your edits.",
     srtBlankRowsUnsupported: "SRT cannot preserve blank paragraph rows. Remove the blank rows or save in another format.",
     vttBlankRowsUnsupported: "VTT cannot preserve blank paragraph rows. Remove the blank rows or save in another format.",
     vttInvalidSyllableTime: "VTT cannot represent the syllable times within this cue. Adjust them to increase after the cue start and before its end.",
@@ -2320,6 +2323,7 @@ const ja: Translations = {
   toast: {
     saved: "保存しました",
     saveFailed: "保存に失敗しました",
+    fileChanged: "この歌詞ファイルはアプリ外で変更されたか、元の状態を確認できません。編集内容を保護するには別のファイルに保存してください。",
     srtBlankRowsUnsupported: "SRTでは空の段落を保持できません。空行を削除するか、別の形式で保存してください。",
     vttBlankRowsUnsupported: "VTTでは空の段落を保持できません。空行を削除するか、別の形式で保存してください。",
     vttInvalidSyllableTime: "VTTではcue内の音節時刻を表現できません。cue開始後から終了前までの昇順に調整してください。",

@@ -1,0 +1,8 @@
+{
+  "$schema": "../../gen/schemas/desktop-schema.json",
+  "identifier": "app-command:write-lrc-file-if-unchanged",
+  "description": "Write LRC content only when the disk revision matches",
+  "allow": [
+    { "command": "write_lrc_file_if_unchanged" }
+  ]
+}

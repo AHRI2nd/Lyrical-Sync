@@ -43,6 +43,7 @@ interface LrcStore {
   doc: LrcDocument;
   _documentSession: number;
   _editRevision: number;
+  _lrcFileHash: string | null;
   _manualMetadataFields: Set<keyof LrcMetadata>;
   _audioSelection: number;
   _history: HistoryEntry[];
@@ -118,7 +119,7 @@ interface LrcStore {
   applyOffset: () => void;
   loadFromRawText: (raw: string) => void;
   /** 자동 복구: 스냅샷 문서·경로를 통째로 복원(미저장 상태로) */
-  restoreDoc: (doc: LrcDocument, lrcPath: string | null, audioPath: string | null) => void;
+  restoreDoc: (doc: LrcDocument, lrcPath: string | null, audioPath: string | null, lrcFileHash?: string | null) => void;
 
   setAudioPath: (path: string | null) => void;
   openAudio: () => Promise<void>;
@@ -223,22 +224,31 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   let lyricLoadGeneration = 0;
   let saveAsGeneration = 0;
   let fetchedLyricsRequestId = 0;
-  // Save result with metadata for phase 3/4 contract
-  type SaveResult = { success: boolean; path: string; revision: number; docRef: LrcDocument };
+  type SaveResult = { success: boolean; path: string; revision: number; docRef: LrcDocument; fileHash: string | null };
   const writeLrcFileWithMeta = async (
-    path: string, content: string, revision: number, doc: LrcDocument, isCurrent: () => boolean
+    path: string,
+    content: string,
+    revision: number,
+    doc: LrcDocument,
+    isCurrent: () => boolean,
+    expectedSha256: string | null = null,
   ): Promise<SaveResult> => {
-    if (!isCurrent()) return { success: false, path, revision, docRef: doc };
+    if (!isCurrent()) return { success: false, path, revision, docRef: doc, fileHash: null };
+    let fileHash: string | null = null;
     let wrote = false;
     try {
       await enqueuePathWrite(path, async () => {
         if (!isCurrent()) return;
-        await invoke<void>("write_lrc_file", { path, content });
+        fileHash = await invoke<string>(
+          expectedSha256 ? "write_lrc_file_if_unchanged" : "write_lrc_file",
+          expectedSha256 ? { path, content, expectedSha256 } : { path, content },
+        );
         wrote = true;
       });
-      return { success: wrote, path, revision, docRef: doc };
-    } catch {
-      return { success: false, path, revision, docRef: doc };
+      return { success: wrote, path, revision, docRef: doc, fileHash };
+    } catch (error) {
+      if (String(error).includes("LYRICS_FILE_CHANGED")) throw new Error("LYRICS_FILE_CHANGED");
+      return { success: false, path, revision, docRef: doc, fileHash: null };
     }
   };
 
@@ -285,6 +295,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     set({
       doc: { ...parsed, metadata },
       lrcPath: null,
+      _lrcFileHash: null,
       isDirty: true,
       activeLineId: firstId,
       loopLineId: null,
@@ -310,7 +321,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
 
   return {
   doc: defaultDocument(),
-  _documentSession: 0, _editRevision: 0, _manualMetadataFields: new Set(), _audioSelection: 0,
+  _documentSession: 0, _editRevision: 0, _lrcFileHash: null, _manualMetadataFields: new Set(), _audioSelection: 0,
   _history: [],
   _future: [],
   _lastEditKey: null,
@@ -784,13 +795,14 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     set({ doc: parsed, activeLineId: firstId, loopLineId: null, isDirty: true, _lastEditKey: null, ...invalidateAiRun() });
   },
 
-  restoreDoc: (doc, lrcPath, audioPath) => {
+  restoreDoc: (doc, lrcPath, audioPath, lrcFileHash = null) => {
     beginDocumentSession();
     const sessionId = documentSessionId;
     const lines = doc.lines.map((l) => ({ ...l, id: genId(sessionId) }));
     set({
       doc: { ...doc, lines },
       lrcPath,
+      _lrcFileHash: lrcFileHash,
       audioPath,
       _audioSelection: get()._audioSelection + 1,
       activeLineId: lines[0]?.id ?? null,
@@ -843,7 +855,11 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   loadLyricsPath: async (path, options) => {
     const initial = get();
     const requestId = ++lyricLoadGeneration;
-    const content: string = await invoke("read_lrc_file", { path });
+    const snapshot = await invoke<{ content: string; sha256: string }>("read_lrc_file_with_hash", { path });
+    if (!snapshot || typeof snapshot.content !== "string" || !/^[0-9a-f]{64}$/.test(snapshot.sha256)) {
+      throw new Error("invalid_lyric_file_revision");
+    }
+    const content = snapshot.content;
     if (requestId !== lyricLoadGeneration) return;
     const current = get();
     if (current.doc !== initial.doc || current._history !== initial._history ||
@@ -858,7 +874,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     const firstId = doc.lines[0]?.id ?? null;
     const audioChange = options?.audioPath !== undefined
       ? { audioPath: options.audioPath, _audioSelection: current._audioSelection + 1 } : {};
-    set({ doc, lrcPath: path, ...audioChange, isDirty: false, activeLineId: firstId, loopLineId: null, _history: [], _future: [], _lastEditKey: null, ...invalidateAiRun() });
+    set({ doc, lrcPath: path, _lrcFileHash: snapshot.sha256, ...audioChange, isDirty: false, activeLineId: firstId, loopLineId: null, _history: [], _future: [], _lastEditKey: null, ...invalidateAiRun() });
     useSettingsStore.getState().addRecentFile({ lrcPath: path, audioPath: get().audioPath });
   },
 
@@ -889,8 +905,9 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   },
 
   saveLrc: async () => {
-    const { lrcPath, doc, duration, _editRevision: revision } = get();
+    const { lrcPath, doc, duration, _editRevision: revision, _lrcFileHash: expectedSha256 } = get();
     if (!lrcPath) return get().saveLrcAs("lrc");
+    if (!expectedSha256) throw new Error("LYRICS_FILE_CHANGED");
     const sessionId = documentSessionId;
     if (lrcPath.toLowerCase().endsWith(".srt")) assertSrtDocumentLossless(doc);
     const sameOwnerAndRevision = () =>
@@ -903,7 +920,11 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
       // Silent metadata synchronization changes doc without advancing editRevision.
       // Do not dispatch a queued snapshot once its content is no longer current.
       () => sameOwnerAndRevision() && get().doc === doc,
+      expectedSha256,
     );
+    if (result.success && result.fileHash && documentSessionId === sessionId && get().lrcPath === lrcPath) {
+      set({ _lrcFileHash: result.fileHash });
+    }
     const current = get();
     if (sameOwnerAndRevision() && current.doc !== doc && current.isDirty) {
       // Keep the newer snapshot dirty and re-arm App's revision-based autosave
@@ -963,6 +984,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
       ) {
         set({
           lrcPath: path,
+          _lrcFileHash: result.fileHash,
           ...(current.doc === doc && current._editRevision === revision ? { isDirty: false, _lastEditKey: null } : {}),
         });
       }
@@ -973,7 +995,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
 
   newLrc: () => {
     beginDocumentSession();
-    set({ doc: defaultDocument(), lrcPath: null, isDirty: false, activeLineId: null, loopLineId: null, _history: [], _future: [], _lastEditKey: null, ...invalidateAiRun() });
+    set({ doc: defaultDocument(), lrcPath: null, _lrcFileHash: null, isDirty: false, activeLineId: null, loopLineId: null, _history: [], _future: [], _lastEditKey: null, ...invalidateAiRun() });
   },
 
   shiftTimeRange: (fromIdx, toIdx, deltaSeconds) => {
