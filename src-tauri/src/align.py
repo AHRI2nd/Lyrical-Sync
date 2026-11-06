@@ -82,6 +82,27 @@ def read_lines_input(lines_json, from_stdin):
     return json.load(sys.stdin) if from_stdin else json.loads(lines_json)
 
 
+CTC_NATIVE_FRAME_SLACK = 6
+
+
+def validate_ctc_native_boundary(emissions, tokens):
+    """Fail closed around the pinned native aligner's observed near-boundary OOB range."""
+    try:
+        shape = getattr(emissions, "shape", None)
+        frames = int(shape[-2]) if shape is not None and len(shape) >= 2 else len(emissions)
+        token_count = len(tokens)
+        repeated_labels = sum(tokens[index] == tokens[index - 1] for index in range(1, token_count))
+    except (TypeError, ValueError, IndexError):
+        return False, "CTC emission/token dimensions are unavailable"
+    required = token_count + repeated_labels + CTC_NATIVE_FRAME_SLACK
+    if frames < required:
+        return False, (
+            f"오디오가 CTC 정렬에 너무 짧습니다 (프레임 {frames}, 토큰 {token_count}). "
+            f"안전한 정렬을 위해 최소 {required} 프레임이 필요합니다."
+        )
+    return True, ""
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--models-dir", required=True)
@@ -315,6 +336,10 @@ def main():
             )
             if not use_char_split and len(tokens_starred) != sum(tokens_per_line):
                 raise ValueError("가사 일부가 정렬 모델에서 정규화되어 원문 줄과 대응하지 않습니다")
+            safe_shape, shape_error = validate_ctc_native_boundary(emissions, tokens_starred)
+            if not safe_shape:
+                progress("error", shape_error)
+                sys.exit(1)
             # Wrap C ABI calls with exception handling to catch native crashes
             try:
                 segments, scores, blank_token = get_alignments(

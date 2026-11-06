@@ -38,6 +38,19 @@ class ModelIntegrityTests(unittest.TestCase):
             self.assertEqual(list(Path(folder).iterdir()), [])
 
 
+class CtcBoundaryTests(unittest.TestCase):
+    def test_rejects_the_pinned_native_near_boundary_frame_window(self):
+        tokens = list(range(60))
+        safe, message = align.validate_ctc_native_boundary([[0] * 32 for _ in range(65)], tokens)
+        self.assertFalse(safe)
+        self.assertIn("66", message)
+        self.assertTrue(align.validate_ctc_native_boundary([[0] * 32 for _ in range(66)], tokens)[0])
+
+    def test_includes_required_repeat_frames(self):
+        self.assertFalse(align.validate_ctc_native_boundary([[0] * 32 for _ in range(8)], [1, 1])[0])
+        self.assertTrue(align.validate_ctc_native_boundary([[0] * 32 for _ in range(9)], [1, 1])[0])
+
+
 class AlignmentExecutionTests(unittest.TestCase):
     """Run the shipped sidecar with deterministic small substitutes for ML packages."""
 
@@ -62,12 +75,12 @@ class Tokenizer:
 def load_audio(path, ret_type=None):
     return range(16 if "short" in path else 32000)
 def generate_emissions(session, waveform, batch_size=1):
-    return [1, 2, 3], 0.02
+    return list(range(16)), 0.02
 def preprocess_text(text, **kwargs):
     tokens = text.split()
     return tokens, tokens
 def get_alignments(emissions, tokens, tokenizer):
-    assert emissions == [1, 2, 3], "emissions must precede alignment"
+    assert len(emissions) == 16, "emissions must precede alignment"
     return tokens, [0.0] * len(tokens), 0
 def get_spans(tokens, segments, blank_token): return segments
 def postprocess_results(text, spans, stride, scores):
@@ -173,11 +186,11 @@ class EmbeddedAlignmentExecutionTests(unittest.TestCase):
                 "class FakeAudio:\n"
                 " def __len__(self): return 32000\n"
                 "def load_audio(*args, **kwargs): return FakeAudio()\n"
-                "def generate_emissions(session, audio, batch_size): return ('emissions', 0.02)\n"
+                "def generate_emissions(session, audio, batch_size): return (list(range(16)), 0.02)\n"
                 "def preprocess_text(text, **kwargs):\n"
                 " return text.split(), text.split()\n"
                 "def get_alignments(emissions, tokens, tokenizer):\n"
-                " assert emissions == 'emissions'\n"
+                " assert len(emissions) == 16\n"
                 " return ('segments', 'scores', 'blank')\n"
                 "def get_spans(tokens, segments, blank): return tokens\n"
                 "def postprocess_results(text, spans, stride, scores):\n"
