@@ -31,6 +31,17 @@ it('Escape releases a pending publish without waiting for the native response',a
  invoke.mockImplementation((command)=>command==='lrclib_publish'?new Promise(()=>{}):Promise.resolve());
  const close=vi.fn();const {user}=await start(close);await user.keyboard('{Escape}');expect(close).toHaveBeenCalledOnce();
 });
+it('requires renewed confirmation if the document becomes invalid while confirmation is open',async()=>{
+ const user=userEvent.setup();
+ render(<LrcLibPublishModal onClose={vi.fn()}/>);
+ const t=useI18nStore.getState().t.lrclibPublish;
+ await user.click(screen.getByRole('button',{name:t.publish}));
+ useLrcStore.setState({doc:{...useLrcStore.getState().doc,lines:[{id:'audit',text:'first\nsecond',timestamp:0}]}});
+ await user.click(screen.getByRole('button',{name:t.confirm}));
+ expect(invoke).not.toHaveBeenCalledWith('lrclib_publish',expect.anything());
+ expect(screen.getByRole('alert').textContent).toBe(t.changed);
+});
+
 it('blocks LRCLIB upload when literal inline timestamps would be ambiguous to external parsers',async()=>{
  useLrcStore.setState({doc:{...useLrcStore.getState().doc,lines:[{id:'audit',text:'Literal <00:02.00> text',timestamp:0}]}});
  render(<LrcLibPublishModal onClose={vi.fn()}/>);

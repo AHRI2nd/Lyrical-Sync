@@ -15,10 +15,12 @@ export function LrcLibPublishModal({ onClose }: { onClose: () => void }) {
 
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const confirmationOwner = useRef<{ doc: typeof doc; duration: number; session: number; revision: number } | null>(null);
   const activeRun = useRef<string | null>(null);
   const dialog = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const cancel = () => {
+    confirmationOwner.current = null;
     const runId = activeRun.current;
     activeRun.current = null;
     if (runId) void invoke("cancel_lrclib_publish", { runId }).catch(() => {});
@@ -54,8 +56,31 @@ export function LrcLibPublishModal({ onClose }: { onClose: () => void }) {
   if (doc.lines.some((line) => line.timestamp !== null && /[\r\n]/.test(line.text))) missing.push(t.lrclibPublish.unsupportedMultiline);
   const canPublish = missing.length === 0 && status !== "publishing";
 
+  const requestConfirmation = () => {
+    const current = useLrcStore.getState();
+    if (!canPublish || current.doc !== doc || current.duration !== duration) return;
+    confirmationOwner.current = {
+      doc: current.doc,
+      duration: current.duration,
+      session: current._documentSession,
+      revision: current._editRevision,
+    };
+    setErrorMsg("");
+    setStatus("confirm");
+  };
+
   const publish = async () => {
     if (activeRun.current) return;
+    const owner = confirmationOwner.current;
+    const current = useLrcStore.getState();
+    if (!owner || current.doc !== owner.doc || current.duration !== owner.duration ||
+        current._documentSession !== owner.session || current._editRevision !== owner.revision) {
+      confirmationOwner.current = null;
+      setStatus("idle");
+      setErrorMsg(t.lrclibPublish.changed);
+      return;
+    }
+    confirmationOwner.current = null;
     const runId = crypto.randomUUID();
     activeRun.current = runId;
     setStatus("publishing");
@@ -113,6 +138,8 @@ export function LrcLibPublishModal({ onClose }: { onClose: () => void }) {
               <span className="text-[var(--ls-playhead)] shrink-0 mt-0.5"><WarnIcon /></span>
               <p className="text-sm text-[var(--ls-playhead)] leading-relaxed">{t.lrclibPublish.warning}</p>
             </div>
+          ) : status === "idle" && errorMsg ? (
+            <p role="alert" className="text-sm text-[var(--ls-playhead)] break-words">{errorMsg}</p>
           ) : missing.length > 0 ? (
             <div className="text-xs text-[var(--ls-playhead)]">
               <p className="mb-1">{t.lrclibPublish.missing}</p>
@@ -146,7 +173,7 @@ export function LrcLibPublishModal({ onClose }: { onClose: () => void }) {
               </button>
             ) : (
               <button
-                onClick={() => setStatus("confirm")}
+                onClick={requestConfirmation}
                 disabled={!canPublish}
                 className="ls-button text-sm text-white bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed ls-button--primary"
               >
