@@ -3,6 +3,7 @@ import { afterEach, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { SRT_INVALID_TIMESTAMP_CODE, SRT_UNREPRESENTABLE_CONTENT_CODE } from "../../utils/srtConverter";
+import { ASS_UNREPRESENTABLE_CUE_END_CODE } from "../../utils/exportFormats";
 import { BatchFileList } from "./BatchFileList";
 
 afterEach(() => cleanup());
@@ -29,6 +30,18 @@ it("localizes invalid SRT cue times in the batch row", () => {
   />);
 
   expect(screen.getByText(t.toast.invalidTimestamp)).toBeTruthy();
+});
+
+it("localizes ASS cues whose end cannot be represented in centiseconds", () => {
+  const t = useI18nStore.getState().t;
+  render(<BatchFileList
+    t={t}
+    entries={[{ id: "file", file: { path: "/input/song.srt", bookmark: "" }, status: "error", error: ASS_UNREPRESENTABLE_CUE_END_CODE }]}
+    onRemove={() => {}}
+    disabled={false}
+  />);
+
+  expect(screen.getByText(t.toast.assCueEndUnsupported)).toBeTruthy();
 });
 
 it("localizes unrepresentable ASS text in the batch row", () => {

@@ -5,6 +5,7 @@ import { LrcDocument, LrcLine } from "../types/lrc";
 interface Cue { start: number; end: number; line: LrcLine; }
 
 export const ASS_UNREPRESENTABLE_CONTENT_CODE = "ASS_UNREPRESENTABLE_CONTENT";
+export const ASS_UNREPRESENTABLE_CUE_END_CODE = "ASS_UNREPRESENTABLE_CUE_END";
 export const VTT_UNREPRESENTABLE_CONTENT_CODE = "VTT_UNREPRESENTABLE_CONTENT";
 export const VTT_INVALID_SYLLABLE_TIME_CODE = "VTT_INVALID_SYLLABLE_TIME";
 
@@ -41,6 +42,15 @@ export class AssUnrepresentableContentError extends Error {
   }
 }
 
+export class AssUnrepresentableCueEndError extends Error {
+  readonly code = ASS_UNREPRESENTABLE_CUE_END_CODE;
+
+  constructor() {
+    super("ASS centisecond precision cannot preserve this subtitle cue duration.");
+    this.name = "AssUnrepresentableCueEndError";
+  }
+}
+
 // Compare boundaries at the output format precision so rounding cannot create an empty cue.
 export function nextCueEnd(timed: readonly LrcLine[], index: number, start: number, lastCueEnd?: number, timeUnitsPerSecond = 1000): number {
   const startUnit = Math.max(0, Math.round(start * timeUnitsPerSecond));
@@ -67,6 +77,10 @@ function buildCues(doc: LrcDocument, lastCueEnd?: number, timeUnitsPerSecond = 1
     const explicitEnd = line.srtEndTime;
     const explicitEndIsRepresentable = Number.isFinite(explicitEnd) &&
       Math.round((explicitEnd as number) * timeUnitsPerSecond) > Math.round(start * timeUnitsPerSecond);
+    if (timeUnitsPerSecond === 100 && Number.isFinite(explicitEnd) &&
+        (explicitEnd as number) > start && !explicitEndIsRepresentable) {
+      throw new AssUnrepresentableCueEndError();
+    }
     const end = explicitEndIsRepresentable
       ? explicitEnd as number
       : nextCueEnd(timed, i, start, lastCueEnd, timeUnitsPerSecond);

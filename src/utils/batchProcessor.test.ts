@@ -100,6 +100,26 @@ describe("batch output", () => {
     expect(invoke).not.toHaveBeenCalled();
   });
 
+  it("rejects a short SRT cue that ASS cannot represent at centisecond precision", async () => {
+    vi.mocked(readLyrics).mockResolvedValueOnce({
+      value: "1\n00:00:01,001 --> 00:00:01,004\nshort\n",
+      file: entry("/inputs/song.srt").file,
+    });
+    const status = vi.fn();
+
+    const summary = await runBatchOperation(
+      [entry("/inputs/song.srt", "short-ass")],
+      { kind: "convert", format: "ass" },
+      output,
+      status,
+      { concurrency: 1 },
+    );
+
+    expect(summary).toEqual({ done: 0, error: 1, cancelled: 0 });
+    expect(status).toHaveBeenLastCalledWith("short-ass", "error", "ASS_UNREPRESENTABLE_CUE_END", expect.any(Object));
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
   it("rejects an SRT cue collapsed by a negative batch offset before writing", async () => {
     vi.mocked(readLyrics).mockResolvedValueOnce({
       value: "1\n00:00:01,000 --> 00:00:02,000\nline\n",

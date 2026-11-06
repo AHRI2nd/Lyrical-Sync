@@ -5,7 +5,7 @@ import { readLyrics, type FileRef } from "./fileAccess";
 import { enqueuePathWrite } from "./pathWriteQueue";
 import { parseLrc, serializeLrc } from "./lrcParser";
 import { parseSrt, serializeSrt, SrtInvalidTimestampError, SrtUnrepresentableContentError } from "./srtConverter";
-import { AssUnrepresentableContentError, VttUnrepresentableContentError, VttInvalidSyllableTimeError, serializeVtt, serializeAss } from "./exportFormats";
+import { AssUnrepresentableContentError, AssUnrepresentableCueEndError, VttUnrepresentableContentError, VttInvalidSyllableTimeError, serializeVtt, serializeAss } from "./exportFormats";
 
 export interface BatchFileEntry {
   id: string;
@@ -121,6 +121,8 @@ export async function runBatchOperation(
           message = "VTT_UNREPRESENTABLE_CONTENT";
         } else if (error instanceof AssUnrepresentableContentError) {
           message = "ASS_UNREPRESENTABLE_CONTENT";
+        } else if (error instanceof AssUnrepresentableCueEndError) {
+          message = "ASS_UNREPRESENTABLE_CUE_END";
         } else if (error instanceof VttInvalidSyllableTimeError) {
           message = "VTT_INVALID_SYLLABLE_TIME";
         } else {

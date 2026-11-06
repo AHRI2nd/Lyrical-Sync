@@ -155,6 +155,12 @@ describe("shared subtitle cue boundaries", () => {
     expect(serializeAss(doc)).toContain("Dialogue: 0,0:00:00.00,0:00:04.00,Default,,0,0,0,,clamped");
   });
 
+  it("rejects SRT cue ends that collapse at ASS centisecond precision", () => {
+    const shortCue = docOf([{ id: "short", timestamp: 1.001, srtEndTime: 1.004, text: "short" }]);
+    expect(serializeVtt(shortCue)).toContain("00:00:01.001 --> 00:00:01.004");
+    expect(() => serializeAss(shortCue)).toThrow("ASS centisecond precision cannot preserve");
+  });
+
   it("preserves overlapping imported SRT cue ends in VTT and ASS", () => {
     const doc = docOf([
       { id: "first", timestamp: 1, srtEndTime: 4, text: "first" },
