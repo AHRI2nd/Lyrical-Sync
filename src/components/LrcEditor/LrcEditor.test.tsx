@@ -220,6 +220,28 @@ it("routes line seeking to the device controller when device mode is selected", 
   expect(invoke).not.toHaveBeenCalledWith("seek_audio", expect.anything());
   expect(document.body.textContent).toContain("현재: 0:00:01.000");
 });
+it("continues to the next matching row after replacing the current row", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+    { id: "a", text: "needle one", timestamp: null },
+    { id: "b", text: "needle two", timestamp: null },
+    { id: "c", text: "needle three", timestamp: null },
+  ] } });
+  const { getByRole, getByPlaceholderText, getByText } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getByRole("button", { name: t.editorTools }));
+  fireEvent.click(getByRole("button", { name: t.findReplace }));
+  fireEvent.change(getByPlaceholderText(t.findPlaceholder), { target: { value: "needle" } });
+  fireEvent.change(getByPlaceholderText(t.replacePlaceholder), { target: { value: "changed" } });
+  expect(getByText("1 / 3")).toBeTruthy();
+
+  fireEvent.click(getByRole("button", { name: t.replaceBtn }));
+
+  expect(useLrcStore.getState().doc.lines.map((line) => line.text)).toEqual([
+    "changed one", "needle two", "needle three",
+  ]);
+  expect(getByText("1 / 2")).toBeTruthy();
+});
+
 it("asks before an individual find-and-replace clears timed glyphs", () => {
   const t = useI18nStore.getState().t;
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "old lyric", timestamp: 1,

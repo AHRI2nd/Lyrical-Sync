@@ -596,13 +596,24 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   // (매 키 입력마다 lines가 바뀌어 matchIds도 매번 새 배열이 되므로, 그대로 의존성에 넣으면
   // handleRowClick도 매번 바뀌어 모든 줄이 다시 렌더되는 원래 문제가 되풀이됨)
   const matchIdsRef = useRef<string[]>(matchIds);
+  const previousMatchIdsRef = useRef<string[]>(matchIds);
+  const pendingReplaceNextMatchRef = useRef<string | null>(null);
   useEffect(() => { matchIdsRef.current = matchIds; }, [matchIds]);
 
-  // matchPos 범위 보정
+  // Preserve the next match by row identity when replacing the current row changes the result list.
   useEffect(() => {
-    if (matchIds.length === 0) return;
+    const previous = previousMatchIdsRef.current;
+    previousMatchIdsRef.current = matchIds;
+    if (pendingReplaceNextMatchRef.current && previous !== matchIds) {
+      const nextId = pendingReplaceNextMatchRef.current;
+      pendingReplaceNextMatchRef.current = null;
+      const nextIndex = matchIds.indexOf(nextId);
+      setMatchPos(nextIndex >= 0 ? nextIndex : 0);
+      return;
+    }
+    if (matchIds.length === 0) { setMatchPos(0); return; }
     setMatchPos((p) => Math.min(p, matchIds.length - 1));
-  }, [matchIds.length]);
+  }, [matchIds]);
 
   // 현재 매치로 스크롤 (포커스는 찾기 입력창에 유지)
   useEffect(() => {
@@ -635,6 +646,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   }, [addLine, setActiveLineId]);
 
   const handleFRClose = useCallback(() => {
+    pendingReplaceNextMatchRef.current = null;
     setShowFR(false);
     setMatchPos(0);
   }, []);
@@ -655,9 +667,14 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     const escaped = findText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const re = new RegExp(escaped, caseSensitive ? "" : "i");
     const newText = line.text.replace(re, () => replaceText);
-    if (newText !== line.text) handleTextChange(id, newText);
-    // 다음 매치로 이동 (matchIds는 갱신되므로 다음 렌더 후 자동 이동)
-    setMatchPos((p) => (p < matchIds.length - 1 ? p + 1 : 0));
+    const nextId = matchIds[(matchPos + 1) % matchIds.length];
+    if (newText !== line.text) {
+      pendingReplaceNextMatchRef.current = nextId;
+      handleTextChange(id, newText);
+    } else {
+      const nextIndex = matchIds.indexOf(nextId);
+      setMatchPos(nextIndex >= 0 ? nextIndex : 0);
+    }
   }, [matchIds, matchPos, findText, replaceText, caseSensitive, lines, handleTextChange]);
 
   const handleReplaceAll = useCallback(() => {
@@ -888,7 +905,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
           caseSensitive={caseSensitive}
           matchCount={matchIds.length}
           matchPos={matchPos}
-          onFindChange={(v) => { setFindText(v); setMatchPos(0); }}
+          onFindChange={(v) => { pendingReplaceNextMatchRef.current = null; setFindText(v); setMatchPos(0); }}
           onReplaceChange={setReplaceText}
           onCaseSensitiveToggle={() => setCaseSensitive((v) => !v)}
           onPrev={handleFRPrev}
@@ -1004,7 +1021,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
           okLabel={t.charSync.retokenizeOk}
           cancelLabel={t.charSync.retokenizeCancel}
           onOk={confirmTextEdit}
-          onCancel={() => setPendingTextEdit(null)}
+          onCancel={() => { pendingReplaceNextMatchRef.current = null; setPendingTextEdit(null); }}
         />
       )}
       {pendingGlyphMutation && (
