@@ -1,0 +1,8 @@
+{
+  "$schema": "../../gen/schemas/desktop-schema.json",
+  "identifier": "app-command:set-models-dir-override",
+  "description": "Set models directory override",
+  "allow": [
+    { "command": "set_models_dir_override" }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "$schema": "../../gen/schemas/desktop-schema.json",
+  "identifier": "app-command:clear-refresh-token",
+  "description": "Clear refresh token",
+  "allow": [
+    { "command": "clear_refresh_token" }
+  ]
+}

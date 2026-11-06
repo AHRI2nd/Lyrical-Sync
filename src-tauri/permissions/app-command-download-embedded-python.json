@@ -1,0 +1,8 @@
+{
+  "$schema": "../../gen/schemas/desktop-schema.json",
+  "identifier": "app-command:download-embedded-python",
+  "description": "Download embedded Python",
+  "allow": [
+    { "command": "download_embedded_python" }
+  ]
+}

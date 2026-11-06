@@ -562,6 +562,7 @@ pub async fn ytdlp_load_audio(
     app: AppHandle,
     ytdlp_state: tauri::State<'_, YtdlpState>,
 ) -> Result<String, String> {
+    path_validation::validate_ytdlp_url(&url)?;
     let exe = ytdlp_exe(&app)?;
     if !exe.exists() {
         return Err("yt-dlp가 설치되지 않았습니다".into());

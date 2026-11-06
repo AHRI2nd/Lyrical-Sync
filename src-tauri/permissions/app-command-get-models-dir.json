@@ -1,0 +1,8 @@
+{
+  "$schema": "../../gen/schemas/desktop-schema.json",
+  "identifier": "app-command:get-models-dir",
+  "description": "Get models directory",
+  "allow": [
+    { "command": "get_models_dir" }
+  ]
+}

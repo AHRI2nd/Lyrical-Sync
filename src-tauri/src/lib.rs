@@ -11,6 +11,7 @@ mod audio_resource;
 mod batch_output;
 mod bookmark;
 mod oauth_listener;
+mod path_validation;
 mod service_auth;
 use service_auth::*;
 mod now_playing;
@@ -32,16 +33,19 @@ use bookmark::{create_security_bookmark, resolve_security_bookmark};
 
 #[tauri::command]
 async fn read_lrc_file(path: String) -> Result<String, String> {
+    let path = path_validation::validate_safe_path(&path)?;
     std::fs::read_to_string(&path).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 async fn write_lrc_file(path: String, content: String) -> Result<(), String> {
+    let path = path_validation::validate_safe_path(&path)?;
     atomic_write::write_atomic(std::path::Path::new(&path), &content).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 async fn read_audio_file(path: String) -> Result<tauri::ipc::Response, String> {
+    let path = path_validation::validate_audio_path(&path)?;
     // Return raw bytes through IPC after applying the compressed and decoded-memory limits.
     audio_resource::read_bounded_audio_file(std::path::Path::new(&path))
         .map(|(bytes, _)| tauri::ipc::Response::new(bytes))
@@ -49,11 +53,13 @@ async fn read_audio_file(path: String) -> Result<tauri::ipc::Response, String> {
 
 #[tauri::command]
 fn validate_audio_file(path: String) -> Result<audio_resource::AudioResourceInfo, String> {
+    let path = path_validation::validate_audio_path(&path)?;
     audio_resource::inspect_audio_file(std::path::Path::new(&path))
 }
 
 #[tauri::command]
 fn get_audio_file_info(path: String) -> Result<AudioFileInfo, String> {
+    let path = path_validation::validate_audio_path(&path)?;
     let meta = std::fs::metadata(&path).map_err(|e| e.to_string())?;
     let mtime = meta.modified().map_err(|e| e.to_string())?;
     let mtime_secs = mtime.duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_secs();

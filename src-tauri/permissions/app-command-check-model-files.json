@@ -1,0 +1,8 @@
+{
+  "$schema": "../../gen/schemas/desktop-schema.json",
+  "identifier": "app-command:check-model-files",
+  "description": "Check model files",
+  "allow": [
+    { "command": "check_model_files" }
+  ]
+}

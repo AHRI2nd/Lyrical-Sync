@@ -1,0 +1,8 @@
+{
+  "$schema": "../../gen/schemas/desktop-schema.json",
+  "identifier": "app-command:read-audio-metadata",
+  "description": "Read audio metadata",
+  "allow": [
+    { "command": "read_audio_metadata" }
+  ]
+}

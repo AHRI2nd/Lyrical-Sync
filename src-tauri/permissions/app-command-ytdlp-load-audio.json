@@ -1,0 +1,8 @@
+{
+  "$schema": "../../gen/schemas/desktop-schema.json",
+  "identifier": "app-command:ytdlp-load-audio",
+  "description": "Load audio with yt-dlp",
+  "allow": [
+    { "command": "ytdlp_load_audio" }
+  ]
+}

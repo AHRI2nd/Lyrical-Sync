@@ -1,0 +1,8 @@
+{
+  "$schema": "../../gen/schemas/desktop-schema.json",
+  "identifier": "app-command:cancel-model-download",
+  "description": "Cancel model download",
+  "allow": [
+    { "command": "cancel_model_download" }
+  ]
+}

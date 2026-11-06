@@ -1,0 +1,8 @@
+{
+  "$schema": "../../gen/schemas/desktop-schema.json",
+  "identifier": "app-command:refresh-spotify-token",
+  "description": "Refresh Spotify token",
+  "allow": [
+    { "command": "refresh_spotify_token" }
+  ]
+}

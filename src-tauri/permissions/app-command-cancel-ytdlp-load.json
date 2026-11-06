@@ -1,0 +1,8 @@
+{
+  "$schema": "../../gen/schemas/desktop-schema.json",
+  "identifier": "app-command:cancel-ytdlp-load",
+  "description": "Cancel yt-dlp load",
+  "allow": [
+    { "command": "cancel_ytdlp_load" }
+  ]
+}

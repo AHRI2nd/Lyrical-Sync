@@ -1,0 +1,8 @@
+{
+  "$schema": "../../gen/schemas/desktop-schema.json",
+  "identifier": "app-command:download-model",
+  "description": "Download model",
+  "allow": [
+    { "command": "download_model" }
+  ]
+}

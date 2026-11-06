@@ -1,0 +1,8 @@
+{
+  "$schema": "../../gen/schemas/desktop-schema.json",
+  "identifier": "app-command:cancel-lrclib-publish",
+  "description": "Cancel LRCLIB publish",
+  "allow": [
+    { "command": "cancel_lrclib_publish" }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "$schema": "../../gen/schemas/desktop-schema.json",
+  "identifier": "app-command:save-refresh-token",
+  "description": "Save refresh token",
+  "allow": [
+    { "command": "save_refresh_token" }
+  ]
+}

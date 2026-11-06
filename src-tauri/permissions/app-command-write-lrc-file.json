@@ -1,0 +1,8 @@
+{
+  "$schema": "../../gen/schemas/desktop-schema.json",
+  "identifier": "app-command:write-lrc-file",
+  "description": "Write LRC file content",
+  "allow": [
+    { "command": "write_lrc_file" }
+  ]
+}

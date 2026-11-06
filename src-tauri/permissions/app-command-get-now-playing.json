@@ -1,0 +1,8 @@
+{
+  "$schema": "../../gen/schemas/desktop-schema.json",
+  "identifier": "app-command:get-now-playing",
+  "description": "Get now playing",
+  "allow": [
+    { "command": "get_now_playing" }
+  ]
+}
