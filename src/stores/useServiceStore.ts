@@ -66,8 +66,6 @@ export async function spotifyApiRequest<T>(
   const url = new URL(input);
   if (url.origin !== "https://api.spotify.com") throw new Error("invalid_spotify_origin");
   if (!isCurrentLease(lease)) throw new Error("auth_changed");
-  const token = await useServiceStore.getState().ensureToken();
-  if (!isCurrentLease(lease)) throw new Error("auth_changed");
 
   const controller = new AbortController();
   const callerSignal = init.signal;
@@ -76,19 +74,36 @@ export async function spotifyApiRequest<T>(
   callerSignal?.addEventListener("abort", abortFromCaller, { once: true });
   activeSpotifyRequests.add(controller);
   let timedOut = false;
-  const timeout = setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, SPOTIFY_REQUEST_TIMEOUT_MS);
+  let timeout: ReturnType<typeof setTimeout>;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+      reject(new Error("spotify_timeout"));
+    }, SPOTIFY_REQUEST_TIMEOUT_MS);
+  });
+  const abortPromise = new Promise<never>((_, reject) => {
+    controller.signal.addEventListener("abort", () => {
+      reject(new DOMException("Aborted", "AbortError"));
+    }, { once: true });
+  });
   try {
+    const token = await Promise.race([
+      useServiceStore.getState().ensureToken(),
+      timeoutPromise,
+      abortPromise,
+    ]);
+    if (!isCurrentLease(lease)) throw new Error("auth_changed");
     const headers = new Headers(init.headers);
     headers.set("Authorization", `Bearer ${token}`);
-    const response = await fetch(input, { ...init, headers, signal: controller.signal });
-    if (timedOut) throw new Error("spotify_timeout");
+    const response = await Promise.race([
+      fetch(input, { ...init, headers, signal: controller.signal }),
+      timeoutPromise,
+      abortPromise,
+    ]);
     if (!isCurrentLease(lease)) throw new Error("auth_changed");
     if (!response.ok) throw new SpotifyHttpError(response.status);
-    const result = await readResponse(response);
-    if (timedOut) throw new Error("spotify_timeout");
+    const result = await Promise.race([readResponse(response), timeoutPromise, abortPromise]);
     if (!isCurrentLease(lease)) throw new Error("auth_changed");
     return result;
   } catch (error) {
@@ -96,7 +111,7 @@ export async function spotifyApiRequest<T>(
     if (!isCurrentLease(lease)) throw new Error("auth_changed");
     throw error;
   } finally {
-    clearTimeout(timeout);
+    clearTimeout(timeout!);
     callerSignal?.removeEventListener("abort", abortFromCaller);
     activeSpotifyRequests.delete(controller);
   }

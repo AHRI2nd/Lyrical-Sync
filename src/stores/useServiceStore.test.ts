@@ -316,6 +316,28 @@ describe("Spotify API request failures", () => {
     expect(observedSignal?.aborted).toBe(true);
   });
 
+  it("includes token refresh in the Spotify request deadline", async () => {
+    vi.useFakeTimers();
+    useServiceStore.setState({ accessToken: null, tokenExpiresAt: 0 });
+    const refresh = deferred<{ accessToken: string; expiresIn: number }>();
+    invoke.mockImplementation((command: string) => {
+      if (command === "load_refresh_token") return Promise.resolve("refresh-token");
+      if (command === "refresh_spotify_token") return refresh.promise;
+      return Promise.resolve(undefined);
+    });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const pending = spotifyApiRequest("https://api.spotify.com/v1/me/player/devices", {}, async (response) => response.json());
+    const outcome = expect(pending).rejects.toThrow("spotify_timeout");
+    await vi.advanceTimersByTimeAsync(15_000);
+    await outcome;
+    refresh.resolve({ accessToken: "late-token", expiresIn: 3600 });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("times out a stalled Spotify API request", async () => {
     vi.useFakeTimers();
     let observedSignal: AbortSignal | undefined;
