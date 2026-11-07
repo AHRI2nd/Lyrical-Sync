@@ -28,6 +28,22 @@ it("does not rerender for unrelated store changes but reflects document, time an
   expect(container.querySelector('path[d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"]')).not.toBeNull();
 });
 
+it("selects playback rows by timestamp and ends karaoke at the next chronological row", () => {
+  useLrcStore.setState({ currentTime: 8, duration: 30, doc: { ...defaultDocument(), lines: [
+    { id: "late", text: "late", timestamp: 10 },
+    { id: "early", text: "early", timestamp: 2, syllables: [{ text: "A", time: 2 }, { text: "B", time: 6 }] },
+  ] } });
+  const { getByRole, getByText } = render(<PreviewModal onOpenStyleSettings={() => {}} onClose={() => {}} />);
+  const earlyRow = getByRole("button", { name: "0:00:02.000" }).parentElement?.parentElement;
+  const lateRow = getByRole("button", { name: "0:00:10.000" }).parentElement?.parentElement;
+  expect(earlyRow?.querySelector("span.relative")).not.toBeNull();
+  expect(lateRow?.querySelector("span.relative")).toBeNull();
+  expect(getByText("B").style.background).toContain("50%");
+  act(() => useLrcStore.setState({ currentTime: 11 }));
+  expect(lateRow?.querySelector("span.relative")).not.toBeNull();
+  expect(earlyRow?.querySelector("span.relative")).toBeNull();
+});
+
 it("exposes the lyric preview as a named modal dialog", () => {
   const { getByRole } = render(<PreviewModal onOpenStyleSettings={() => {}} onClose={() => {}} />);
   expect(getByRole("dialog", { name: "song" })).toBeTruthy();
