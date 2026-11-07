@@ -343,6 +343,16 @@ class SignedCandidateTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError,'escapes candidate directory'):
                         module.verify(root,'0.7.0','a'*40)
 
+    def test_release_candidate_rejects_windows_path_separators(self):
+        module=self.release_candidate_verifier()
+        for field in ('path','signaturePath'):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp)/'release';root.mkdir()
+                self.release_candidate_matrix(root)
+                self.update_mac_candidate_path(root,field,'..\\outside.exe')
+                with self.assertRaisesRegex(ValueError,'path separator'):
+                    module.verify(root,'0.7.0','a'*40)
+
     def test_release_candidate_rejects_artifact_and_signature_symlink_escape(self):
         module=self.release_candidate_verifier()
         for field in ('path','signaturePath'):

@@ -17,6 +17,8 @@ def confined_candidate_file(directory, value, label):
     """Resolve a recorded file without allowing it outside its candidate bundle."""
     if not isinstance(value, str) or not value:
         raise ValueError(f'Invalid candidate {label} path')
+    if "\\" in value:
+        raise ValueError(f'Invalid candidate {label} path separator: {value}')
     relative = Path(value)
     if relative.is_absolute() or '..' in relative.parts:
         raise ValueError(f'Candidate {label} path escapes candidate directory: {value}')
@@ -27,6 +29,10 @@ def confined_candidate_file(directory, value, label):
         raise ValueError(f'Invalid candidate {label} path: {value}') from exc
     if not resolved.is_relative_to(directory):
         raise ValueError(f'Candidate {label} path escapes candidate directory: {value}')
+    try:
+        resolved.relative_to(directory).as_posix().encode("utf-8", "strict")
+    except (ValueError, UnicodeError) as exc:
+        raise ValueError(f'Invalid candidate {label} path: {value}') from exc
     return resolved
 
 
