@@ -364,6 +364,14 @@ describe("App — recovery lifecycle", () => {
     fireEvent(window, new Event("pagehide"));
     expect(loadRecoverySnapshot()?.doc.lines[0].text).toBe("latest edit");
   });
+  it("flushes dirty work when App unmounts before the recovery debounce", () => {
+    const app = render(<App />);
+    act(() => useLrcStore.getState().loadFromRawText("[00:01.00]unmounted draft"));
+
+    app.unmount();
+
+    expect(loadRecoverySnapshot()?.doc.lines[0].text).toBe("unmounted draft");
+  });
 });
 
 

@@ -137,6 +137,9 @@ function useAutoSave(recoveryPending: boolean) {
     if (!saved && !recoveryFailed.current) toast.error(useI18nStore.getState().t.toast.recoveryFailed);
     recoveryFailed.current = !saved;
   };
+  const persistRecoveryRef = useRef(persistRecovery);
+  persistRecoveryRef.current = persistRecovery;
+  useEffect(() => () => persistRecoveryRef.current(), []);
   const isDirty = useLrcStore((s) => s.isDirty);
   const lrcPath = useLrcStore((s) => s.lrcPath);
   const doc = useLrcStore((s) => s.doc);
