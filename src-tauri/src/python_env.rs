@@ -124,19 +124,33 @@ pub async fn packages_ready(python: &Path) -> bool {
 }
 
 async fn probe(python: &Path, source: &str) -> bool {
-    tokio::time::timeout(
-        Duration::from_secs(90),
-        python_cmd(python)
-            .args(["-c", source])
-            .kill_on_drop(true)
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status(),
-    )
-    .await
-    .map(|result| result.map(|status| status.success()).unwrap_or(false))
-    .unwrap_or(false)
+    let mut command = python_cmd(python);
+    command
+        .args(["-c", source])
+        .kill_on_drop(true)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    let child = match command.spawn() {
+        Ok(child) => child,
+        Err(_) => return false,
+    };
+    wait_probe_child(child, Duration::from_secs(90)).await
+}
+
+async fn wait_probe_child(mut child: tokio::process::Child, timeout: Duration) -> bool {
+    let pid = child.id();
+    match tokio::time::timeout(timeout, child.wait()).await {
+        Ok(Ok(status)) => status.success(),
+        Ok(Err(_)) | Err(_) => {
+            if let Some(pid) = pid {
+                crate::alignment_process::terminate_process_tree(pid).await;
+            }
+            let _ = child.kill().await;
+            let _ = child.wait().await;
+            false
+        }
+    }
 }
 
 #[tauri::command]
@@ -435,5 +449,74 @@ mod progress_line_tests {
     #[test]
     fn progress_line_under_limit_is_unchanged() {
         assert_eq!(bounded_progress_line("ready"), "ready");
+    }
+}
+
+#[cfg(all(test, unix))]
+mod readiness_probe_process_tests {
+    use super::{python_cmd, wait_probe_child};
+    use std::time::Duration;
+
+    #[test]
+    fn readiness_child_fixture() {
+        match std::env::var("LYRICAL_PROBE_FIXTURE").as_deref() {
+            Ok("grandchild") => std::thread::sleep(Duration::from_secs(60)),
+            Ok("parent") => {
+                let marker = std::env::var("LYRICAL_PROBE_PID_FILE").unwrap();
+                let child = std::process::Command::new(std::env::current_exe().unwrap())
+                    .args(["--exact", "python_env::readiness_probe_process_tests::readiness_child_fixture", "--nocapture"])
+                    .env("LYRICAL_PROBE_FIXTURE", "grandchild")
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .spawn()
+                    .unwrap();
+                std::fs::write(marker, child.id().to_string()).unwrap();
+                std::thread::sleep(Duration::from_secs(60));
+            }
+            _ => {}
+        }
+    }
+
+    #[tokio::test]
+    async fn readiness_timeout_terminates_descendants() {
+        let temp = tempfile::tempdir().unwrap();
+        let marker = temp.path().join("grandchild.pid");
+        let mut command = python_cmd(std::env::current_exe().unwrap());
+        command
+            .args(["--exact", "python_env::readiness_probe_process_tests::readiness_child_fixture", "--nocapture"])
+            .env("LYRICAL_PROBE_FIXTURE", "parent")
+            .env("LYRICAL_PROBE_PID_FILE", &marker)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+        let child = command.spawn().unwrap();
+        tokio::time::timeout(Duration::from_secs(3), async {
+            while !marker.exists() {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("fixture should publish its descendant PID");
+        let grandchild: i32 = std::fs::read_to_string(marker).unwrap().parse().unwrap();
+        assert_eq!(unsafe { libc::kill(grandchild, 0) }, 0);
+
+        assert!(!wait_probe_child(child, Duration::from_millis(50)).await);
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while unsafe { libc::kill(grandchild, 0) } == 0 {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("timed-out readiness descendant should be gone");
+    }
+
+    #[tokio::test]
+    async fn readiness_probe_accepts_a_clean_child_exit() {
+        let mut command = python_cmd(std::env::current_exe().unwrap());
+        command
+            .args(["--exact", "python_env::readiness_probe_process_tests::readiness_child_fixture", "--nocapture"])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+        let child = command.spawn().unwrap();
+        assert!(wait_probe_child(child, Duration::from_secs(2)).await);
     }
 }

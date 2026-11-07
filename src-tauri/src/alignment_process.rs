@@ -111,7 +111,7 @@ pub async fn run_child(
     result
 }
 
-async fn terminate_process_tree(pid: u32) {
+pub(crate) async fn terminate_process_tree(pid: u32) {
     #[cfg(unix)]
     unsafe {
         // Production Python commands start in their own process group.
