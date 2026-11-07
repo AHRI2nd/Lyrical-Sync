@@ -113,17 +113,8 @@ export function MetaEditor() {
 
       {rawEditorSnapshot && (
         <RawEditorModal
+          key={rawEditorSnapshot.documentSession}
           initialValue={rawEditorSnapshot.text}
-          sourceHasReservedTagConflict={
-            Object.entries(doc.extraTags).some(([key, value]) =>
-              [
-                "x-lyrical-inline-escape",
-                "x-lyrical-translations",
-                "x-lyrical-line-order",
-                "x-lyrical-whitespace",
-              ].includes(key.toLowerCase()) && value !== "1"
-            )
-          }
           onApply={(raw) => {
             const current = useLrcStore.getState();
             if (
@@ -210,19 +201,17 @@ function hasUnsupportedReservedTag(text: string): boolean {
 
 function RawEditorModal({
   initialValue,
-  sourceHasReservedTagConflict,
   onApply,
   onClose,
 }: {
   initialValue: string;
-  sourceHasReservedTagConflict: boolean;
   onApply: (raw: string) => boolean;
   onClose: () => void;
 }) {
   const { t } = useI18nStore();
   const [value, setValue] = useState(initialValue);
   const [isStale, setIsStale] = useState(false);
-  const [hasReservedTagConflict, setHasReservedTagConflict] = useState(sourceHasReservedTagConflict);
+  const [hasReservedTagConflict, setHasReservedTagConflict] = useState(() => hasUnsupportedReservedTag(initialValue));
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const dialog = useRef<HTMLDivElement>(null);
   const titleId = useId();
