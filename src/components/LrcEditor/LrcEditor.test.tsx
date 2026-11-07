@@ -48,6 +48,19 @@ it("resets the time shift range and delta when the document is replaced", () => 
   expect(numberInputs[1].value).toBe("2");
   expect(numberInputs[2].value).toBe("0");
 });
+it("starts a new undo group when editing resumes after focus leaves the editor", () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "a", timestamp: null }] } });
+  const { getByDisplayValue } = render(<LrcEditor onPreview={() => {}} />);
+  const input = getByDisplayValue("a");
+
+  fireEvent.change(input, { target: { value: "ab" } });
+  fireEvent.focusOut(input);
+  fireEvent.change(input, { target: { value: "abc" } });
+
+  expect(useLrcStore.getState()._history).toHaveLength(2);
+  act(() => useLrcStore.getState().undo());
+  expect(useLrcStore.getState().doc.lines[0].text).toBe("ab");
+});
 it("removes an individually deleted row from bulk selection", () => {
   const t = useI18nStore.getState().t;
   const { container, queryByText } = render(<LrcEditor onPreview={() => {}} />);
