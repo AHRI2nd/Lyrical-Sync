@@ -977,6 +977,9 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
         get().lrcPath === originalPath &&
         get()._editRevision === revision;
       if (!isCurrentRequest()) return false;
+      const fileName = path.split(/[\\/]/).pop() ?? "";
+      const extension = fileName.includes(".") ? fileName.slice(fileName.lastIndexOf(".") + 1).toLowerCase() : "";
+      if (extension !== FILTERS[format].extensions[0]) throw new Error("SAVE_FORMAT_EXTENSION_MISMATCH");
 
       const end = duration > 0 ? duration : undefined;
       const content =

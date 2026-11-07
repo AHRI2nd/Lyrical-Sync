@@ -1066,6 +1066,18 @@ describe("useLrcStore — save completion races", () => {
     expect(useLrcStore.getState().isDirty).toBe(true);
   });
 
+  it("rejects a Save As path whose extension does not match the selected format", async () => {
+    vi.mocked(save).mockResolvedValue("/tmp/song.srt");
+    vi.mocked(invoke).mockResolvedValue(undefined);
+    useLrcStore.setState({ lrcPath: null, isDirty: true });
+
+    await expect(useLrcStore.getState().saveLrcAs("lrc")).rejects.toThrow("SAVE_FORMAT_EXTENSION_MISMATCH");
+
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState().lrcPath).toBeNull();
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
   it("refuses to overwrite an SRT source when the document has LRC-only content", async () => {
     const state = useLrcStore.getState();
     useLrcStore.setState({
