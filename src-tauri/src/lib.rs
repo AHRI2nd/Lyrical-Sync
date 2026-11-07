@@ -358,24 +358,33 @@ fn read_audio_metadata(path: String) -> Result<AudioMetadata, String> {
     Ok(match primary {
         Some(primary) => {
             AudioMetadata {
-                title: first_nonempty_tag_value(
+                title: preferred_tag_value(
                     primary.title(),
-                    tags.iter()
-                        .filter(|candidate| candidate.tag_type() != primary.tag_type())
-                        .map(lofty::tag::Tag::title),
-                ).map(|value| value.trim().to_string()).unwrap_or_default(),
-                artist: first_nonempty_tag_value(
+                    first_nonempty_tag_value(
+                        None,
+                        tags.iter()
+                            .filter(|candidate| candidate.tag_type() != primary.tag_type())
+                            .map(lofty::tag::Tag::title),
+                    ),
+                ),
+                artist: preferred_tag_value(
                     primary.artist(),
-                    tags.iter()
-                        .filter(|candidate| candidate.tag_type() != primary.tag_type())
-                        .map(lofty::tag::Tag::artist),
-                ).map(|value| value.trim().to_string()).unwrap_or_default(),
-                album: first_nonempty_tag_value(
+                    first_nonempty_tag_value(
+                        None,
+                        tags.iter()
+                            .filter(|candidate| candidate.tag_type() != primary.tag_type())
+                            .map(lofty::tag::Tag::artist),
+                    ),
+                ),
+                album: preferred_tag_value(
                     primary.album(),
-                    tags.iter()
-                        .filter(|candidate| candidate.tag_type() != primary.tag_type())
-                        .map(lofty::tag::Tag::album),
-                ).map(|value| value.trim().to_string()).unwrap_or_default(),
+                    first_nonempty_tag_value(
+                        None,
+                        tags.iter()
+                            .filter(|candidate| candidate.tag_type() != primary.tag_type())
+                            .map(lofty::tag::Tag::album),
+                    ),
+                ),
             }
         },
         None => AudioMetadata {
