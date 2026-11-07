@@ -854,9 +854,10 @@ describe("useLrcStore — save completion races", () => {
     useLrcStore.getState().undo();
 
     expect(lines()[0].text).toBe("saved revision");
-    expect(useLrcStore.getState().isDirty).toBe(true);
+    expect(useLrcStore.getState().isDirty).toBe(false);
     useLrcStore.getState().redo();
     expect(lines()[0].text).toBe("later revision");
+    expect(useLrcStore.getState().isDirty).toBe(true);
   });
 
   it("does not close the undo group after a failed save", async () => {
@@ -953,6 +954,20 @@ describe("useLrcStore — save completion races", () => {
     await expect(queuedSave).resolves.toBe(false);
     expect(writtenContents).toHaveLength(1);
     expect(lines()[0].text).toBe("edited next document");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
+  it("returns to clean when undo restores the last saved document", () => {
+    const savedDoc = { ...useLrcStore.getState().doc, lines: [{ id: "1", timestamp: 1, text: "saved" }] };
+    useLrcStore.setState({ doc: savedDoc, _savedDocument: savedDoc, isDirty: false, lrcPath: "/tmp/song.lrc" });
+
+    useLrcStore.getState().updateLine("1", { text: "edited" });
+    expect(useLrcStore.getState().isDirty).toBe(true);
+    useLrcStore.getState().undo();
+
+    expect(useLrcStore.getState().doc).toBe(savedDoc);
+    expect(useLrcStore.getState().isDirty).toBe(false);
+    useLrcStore.getState().redo();
     expect(useLrcStore.getState().isDirty).toBe(true);
   });
 

@@ -41,6 +41,7 @@ interface AlignmentProgressEvent {
 
 interface LrcStore {
   doc: LrcDocument;
+  _savedDocument: LrcDocument | null;
   _documentSession: number;
   _editRevision: number;
   _lrcFileHash: string | null;
@@ -207,6 +208,7 @@ function playbackSourceModeKey(): string {
 }
 
 export const useLrcStore = create<LrcStore>((rawSet, get) => {
+  const initialDocument = defaultDocument();
   const set: typeof rawSet = (partial) => {
     rawSet((state) => {
       const patch = typeof partial === "function" ? partial(state) : partial;
@@ -324,7 +326,8 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   };
 
   return {
-  doc: defaultDocument(),
+  doc: initialDocument,
+  _savedDocument: initialDocument,
   _documentSession: 0, _editRevision: 0, _lrcFileHash: null, _manualMetadataFields: new Set(), _audioSelection: 0,
   _history: [],
   _future: [],
@@ -401,7 +404,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
       ...invalidateAiRun(),
       _history: _history.slice(0, -1),
       _future: [futureEntry, ..._future].slice(0, MAX_HISTORY),
-      isDirty: true,
+      isDirty: prevEntry.doc !== get()._savedDocument,
       _lastEditKey: null,
     });
   },
@@ -418,7 +421,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
       ...invalidateAiRun(),
       _history: [..._history, historyEntry].slice(-MAX_HISTORY),
       _future: _future.slice(1),
-      isDirty: true,
+      isDirty: nextEntry.doc !== get()._savedDocument,
       _lastEditKey: null,
     });
   },
@@ -817,6 +820,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     const lines = doc.lines.map((l) => ({ ...l, id: genId(sessionId) }));
     set({
       doc: { ...doc, lines },
+      _savedDocument: null,
       lrcPath,
       _lrcFileHash: lrcFileHash,
       audioPath,
@@ -890,7 +894,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     const firstId = doc.lines[0]?.id ?? null;
     const audioChange = options?.audioPath !== undefined
       ? { audioPath: options.audioPath, _audioSelection: current._audioSelection + 1 } : {};
-    set({ doc, lrcPath: path, _lrcFileHash: snapshot.sha256, ...audioChange, isDirty: false, activeLineId: firstId, loopLineId: null, _history: [], _future: [], _lastEditKey: null, ...invalidateAiRun() });
+    set({ doc, _savedDocument: doc, lrcPath: path, _lrcFileHash: snapshot.sha256, ...audioChange, isDirty: false, activeLineId: firstId, loopLineId: null, _history: [], _future: [], _lastEditKey: null, ...invalidateAiRun() });
     useSettingsStore.getState().addRecentFile({ lrcPath: path, audioPath: get().audioPath });
   },
 
@@ -939,7 +943,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
       expectedSha256,
     );
     if (result.success && result.fileHash && documentSessionId === sessionId && get().lrcPath === lrcPath) {
-      set({ _lrcFileHash: result.fileHash });
+      set({ _lrcFileHash: result.fileHash, _savedDocument: doc });
     }
     const current = get();
     if (sameOwnerAndRevision() && current.doc !== doc && current.isDirty) {
@@ -948,7 +952,8 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
       set({ _editRevision: revision + 1 });
     }
     if (!result.success) return false;
-    if (sameOwnerAndRevision() && current.doc === doc) {
+    if (documentSessionId === sessionId && get().lrcPath === lrcPath) set({ _savedDocument: doc });
+    if (documentSessionId === sessionId && get().lrcPath === lrcPath && current.doc === doc) {
       set({ isDirty: false, _lastEditKey: null });
       // Clear recovery snapshot if this save completes the restored document
       // (recovery is cleared only when the restored document is explicitly saved)
@@ -1006,6 +1011,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
         set({
           lrcPath: path,
           _lrcFileHash: result.fileHash,
+          _savedDocument: doc,
           ...(current.doc === doc && current._editRevision === revision ? { isDirty: false, _lastEditKey: null } : {}),
         });
       }
@@ -1016,7 +1022,8 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
 
   newLrc: () => {
     beginDocumentSession();
-    set({ doc: defaultDocument(), lrcPath: null, _lrcFileHash: null, isDirty: false, activeLineId: null, loopLineId: null, _history: [], _future: [], _lastEditKey: null, ...invalidateAiRun() });
+    const doc = defaultDocument();
+    set({ doc, _savedDocument: doc, lrcPath: null, _lrcFileHash: null, isDirty: false, activeLineId: null, loopLineId: null, _history: [], _future: [], _lastEditKey: null, ...invalidateAiRun() });
   },
 
   shiftTimeRange: (fromIdx, toIdx, deltaSeconds) => {
