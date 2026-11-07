@@ -12,7 +12,19 @@ export async function decodeAudioSamples(audioPath: string, signal?: AbortSignal
   checkCancelled();
   const ctx = new AudioContext();
   try {
-    const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+    // decodeAudioData consumes its ArrayBuffer. The file reader returns a fresh byte
+    // view, and nothing reads it after this call, so reuse complete ArrayBuffers
+    // rather than making another potentially 1 GiB encoded-audio allocation.
+    // Partial and SharedArrayBuffer-backed views still need an exact owned copy.
+    const backing = bytes.buffer;
+    let arrayBuffer: ArrayBuffer;
+    if (backing instanceof ArrayBuffer && bytes.byteOffset === 0 && bytes.byteLength === backing.byteLength) {
+      arrayBuffer = backing;
+    } else {
+      const exact = new Uint8Array(bytes.byteLength);
+      exact.set(bytes);
+      arrayBuffer = exact.buffer;
+    }
     const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
     checkCancelled();
     const channels = audioBuffer.numberOfChannels;

@@ -5,6 +5,44 @@ import { decodeAudioSamples } from "./decodeAudioSamples";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); vi.clearAllMocks(); });
 
+it("passes a complete owned byte buffer to Web Audio without copying it", async () => {
+  const bytes = new Uint8Array([1, 2, 3, 4]);
+  vi.mocked(readAudioBytes).mockResolvedValue({ bytes, transcoded: false });
+  const decodeAudioData = vi.fn(async (_buffer: ArrayBuffer) => ({
+    numberOfChannels: 1, length: 1, sampleRate: 48000,
+    getChannelData: () => new Float32Array([0.5]),
+  }));
+  vi.stubGlobal("AudioContext", class {
+    close = vi.fn();
+    decodeAudioData = decodeAudioData;
+  });
+
+  const result = await decodeAudioSamples("/song.mp3");
+  expect(result.samples).toEqual(new Float32Array([0.5]));
+  expect(decodeAudioData).toHaveBeenCalledWith(bytes.buffer);
+  expect(decodeAudioData.mock.calls[0][0]).toBe(bytes.buffer);
+});
+
+it("copies only the selected bytes when the file reader returns a partial view", async () => {
+  const backing = new Uint8Array([99, 1, 2, 3, 88]);
+  const bytes = backing.subarray(1, 4);
+  vi.mocked(readAudioBytes).mockResolvedValue({ bytes, transcoded: false });
+  const decodeAudioData = vi.fn(async (_buffer: ArrayBuffer) => ({
+    numberOfChannels: 1, length: 1, sampleRate: 48000,
+    getChannelData: () => new Float32Array([0.5]),
+  }));
+  vi.stubGlobal("AudioContext", class {
+    close = vi.fn();
+    decodeAudioData = decodeAudioData;
+  });
+
+  await decodeAudioSamples("/song.mp3");
+  const submitted = decodeAudioData.mock.calls[0][0];
+  expect(submitted).not.toBe(backing.buffer);
+  expect(new Uint8Array(submitted)).toEqual(new Uint8Array([1, 2, 3]));
+  expect(backing).toEqual(new Uint8Array([99, 1, 2, 3, 88]));
+});
+
 it("uses the original direct-file reader for a separate audio analysis read", async () => {
   vi.mocked(readAudioBytes).mockResolvedValue({ bytes: new Uint8Array([1]), transcoded: false });
   const close = vi.fn();
