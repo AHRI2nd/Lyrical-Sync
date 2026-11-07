@@ -1,0 +1,8 @@
+{
+  "$schema": "../../gen/schemas/desktop-schema.json",
+  "identifier": "app-command:persist-pending-refresh-token",
+  "description": "Persist a one-time native Spotify login credential",
+  "allow": [
+    { "command": "persist_pending_refresh_token" }
+  ]
+}

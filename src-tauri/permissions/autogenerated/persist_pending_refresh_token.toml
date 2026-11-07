@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-persist-pending-refresh-token"
+description = "Enables the persist_pending_refresh_token command without any pre-configured scope."
+commands.allow = ["persist_pending_refresh_token"]
+
+[[permission]]
+identifier = "deny-persist-pending-refresh-token"
+description = "Denies the persist_pending_refresh_token command without any pre-configured scope."
+commands.deny = ["persist_pending_refresh_token"]

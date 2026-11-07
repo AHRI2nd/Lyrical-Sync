@@ -3,10 +3,16 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::Write;
 use std::path::Path;
+use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
-use tauri::{AppHandle, Manager, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 static OAUTH_SERVER: crate::oauth_listener::OAuthServer = crate::oauth_listener::OAuthServer::new();
+static PENDING_REFRESH_TOKENS: OnceLock<Mutex<HashMap<String, (String, std::time::Instant)>>> =
+    OnceLock::new();
+static ACTIVE_OAUTH_STATE: OnceLock<Mutex<Option<String>>> = OnceLock::new();
+const PENDING_REFRESH_TOKEN_TTL: Duration = Duration::from_secs(120);
+const MAX_PENDING_REFRESH_TOKENS: usize = 8;
 
 fn token_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     app.path().app_data_dir()
@@ -40,7 +46,8 @@ fn keyring_entry() -> Result<keyring::Entry, keyring::Error> {
 #[serde(rename_all = "camelCase")]
 pub struct TokenResponse {
     pub access_token: String,
-    pub refresh_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_token_handle: Option<String>,
     pub expires_in: u64,
 }
 
@@ -52,14 +59,34 @@ struct SpotifyApiToken {
     expires_in: u64,
 }
 
-impl From<SpotifyApiToken> for TokenResponse {
-    fn from(t: SpotifyApiToken) -> Self {
-        TokenResponse {
-            access_token: t.access_token,
-            refresh_token: t.refresh_token,
-            expires_in: t.expires_in,
-        }
+fn register_pending_refresh_token(token: String) -> Result<String, String> {
+    let now = std::time::Instant::now();
+    use base64::Engine;
+    let mut random = [0u8; 32];
+    getrandom::fill(&mut random).map_err(|error| format!("Could not create a secure credential handle: {error}"))?;
+    let handle = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(random);
+    let pending = PENDING_REFRESH_TOKENS.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut pending = pending.lock().unwrap_or_else(|error| error.into_inner());
+    pending.retain(|_, (_, expires_at)| *expires_at > now);
+    if pending.len() >= MAX_PENDING_REFRESH_TOKENS {
+        return Err("Too many pending Spotify login credentials".into());
     }
+    pending.insert(handle.clone(), (token, now + PENDING_REFRESH_TOKEN_TTL));
+    Ok(handle)
+}
+
+fn set_active_oauth_state(state: String) {
+    let active = ACTIVE_OAUTH_STATE.get_or_init(|| Mutex::new(None));
+    *active.lock().unwrap_or_else(|error| error.into_inner()) = Some(state);
+}
+
+fn active_oauth_state_matches(state: &str) -> bool {
+    ACTIVE_OAUTH_STATE
+        .get_or_init(|| Mutex::new(None))
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .as_deref()
+        == Some(state)
 }
 
 #[tauri::command]
@@ -68,7 +95,11 @@ pub async fn exchange_spotify_token(
     code_verifier: String,
     client_id: String,
     redirect_uri: String,
+    state: String,
 ) -> Result<TokenResponse, String> {
+    if !active_oauth_state_matches(&state) {
+        return Err("oauth_state_expired".into());
+    }
     let client = token_client()?;
     let mut params = HashMap::new();
     params.insert("grant_type", "authorization_code");
@@ -88,17 +119,33 @@ pub async fn exchange_spotify_token(
         return Err(format!("Spotify token exchange failed ({})", resp.status()));
     }
 
-    resp.json::<SpotifyApiToken>()
+    let token = resp
+        .json::<SpotifyApiToken>()
         .await
-        .map(TokenResponse::from)
-        .map_err(|e| format!("응답 파싱 실패: {e}"))
+        .map_err(|e| format!("응답 파싱 실패: {e}"))?;
+    let active = ACTIVE_OAUTH_STATE.get_or_init(|| Mutex::new(None));
+    let mut active = active.lock().unwrap_or_else(|error| error.into_inner());
+    if active.as_deref() != Some(state.as_str()) {
+        return Err("oauth_state_expired".into());
+    }
+    let refresh_token_handle = token
+        .refresh_token
+        .map(register_pending_refresh_token)
+        .transpose()?;
+    *active = None;
+    Ok(TokenResponse {
+        access_token: token.access_token,
+        refresh_token_handle,
+        expires_in: token.expires_in,
+    })
 }
 
 #[tauri::command]
 pub async fn refresh_spotify_token(
-    refresh_token: String,
     client_id: String,
+    app: AppHandle,
 ) -> Result<TokenResponse, String> {
+    let refresh_token = load_refresh_token_value(&app)?.ok_or("no_refresh_token")?;
     let client = token_client()?;
     let mut params = HashMap::new();
     params.insert("grant_type", "refresh_token");
@@ -116,10 +163,18 @@ pub async fn refresh_spotify_token(
         return Err(format!("Spotify token refresh failed ({})", resp.status()));
     }
 
-    resp.json::<SpotifyApiToken>()
+    let token = resp
+        .json::<SpotifyApiToken>()
         .await
-        .map(TokenResponse::from)
-        .map_err(|e| format!("응답 파싱 실패: {e}"))
+        .map_err(|e| format!("응답 파싱 실패: {e}"))?;
+    if let Some(rotated) = token.refresh_token.as_deref() {
+        save_refresh_token_value(&app, rotated)?;
+    }
+    Ok(TokenResponse {
+        access_token: token.access_token,
+        refresh_token_handle: None,
+        expires_in: token.expires_in,
+    })
 }
 
 // 평문 파일 저장 (OS 키체인 사용 불가 시 폴백). unix는 0600, windows는 icacls로
@@ -169,8 +224,7 @@ fn write_restricted_token_file(path: &Path, token: &str) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
-pub fn save_refresh_token(token: String, app: AppHandle) -> Result<(), String> {
+fn save_refresh_token_value(app: &AppHandle, token: &str) -> Result<(), String> {
     // 1순위: OS 키체인(암호화 저장). 성공 후 기존 평문 파일 제거도 확인한다.
     let entry = match keyring_entry() {
         Ok(entry) => Some(entry),
@@ -179,9 +233,9 @@ pub fn save_refresh_token(token: String, app: AppHandle) -> Result<(), String> {
     };
     if let Some(entry) = entry {
         entry
-            .set_password(&token)
+            .set_password(token)
             .map_err(|e| format!("Spotify keyring save failed: {e}"))?;
-        let path = token_path(&app)?;
+        let path = token_path(app)?;
         match std::fs::remove_file(path) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
@@ -190,11 +244,10 @@ pub fn save_refresh_token(token: String, app: AppHandle) -> Result<(), String> {
         return Ok(());
     }
     // 폴백: 0600 평문 파일
-    save_token_file(&app, &token)
+    save_token_file(app, token)
 }
 
-#[tauri::command]
-pub fn load_refresh_token(app: AppHandle) -> Result<Option<String>, String> {
+fn load_refresh_token_value(app: &AppHandle) -> Result<Option<String>, String> {
     // 1순위: 키체인
     if let Ok(entry) = keyring_entry() {
         match entry.get_password() {
@@ -207,7 +260,7 @@ pub fn load_refresh_token(app: AppHandle) -> Result<Option<String>, String> {
         }
     }
     // 폴백/레거시: 평문 파일
-    let path = token_path(&app)?;
+    let path = token_path(app)?;
     if !path.exists() {
         return Ok(None);
     }
@@ -216,21 +269,63 @@ pub fn load_refresh_token(app: AppHandle) -> Result<Option<String>, String> {
     Ok(if trimmed.is_empty() { None } else { Some(trimmed) })
 }
 
+#[tauri::command]
+pub fn has_refresh_token(app: AppHandle) -> Result<bool, String> {
+    load_refresh_token_value(&app).map(|token| token.is_some())
+}
+
+#[tauri::command]
+pub fn persist_pending_refresh_token(handle: String, app: AppHandle) -> Result<(), String> {
+    let pending = PENDING_REFRESH_TOKENS.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut pending = pending.lock().unwrap_or_else(|error| error.into_inner());
+    let now = std::time::Instant::now();
+    pending.retain(|_, (_, expires_at)| *expires_at > now);
+    let Some((token, _)) = pending.get(&handle) else {
+        return Err("Pending Spotify credential is missing or expired".into());
+    };
+    save_refresh_token_value(&app, token)?;
+    pending.remove(&handle);
+    Ok(())
+}
+
 /// Replace any pending login with a bounded listener authenticated by its random state.
 #[tauri::command]
 pub async fn start_oauth_listener(app: AppHandle, state: String) -> Result<(), String> {
-    OAUTH_SERVER.start("127.0.0.1:8888", state, move |url| {
-        let _ = app.emit("spotify-callback", url);
-    }).await.map(|_| ()).map_err(|e| format!("OAuth listener failed: {e}"))
+    clear_pending_refresh_tokens();
+    set_active_oauth_state(state.clone());
+    let result = OAUTH_SERVER
+        .start("127.0.0.1:8888", state, move |url| {
+            let _ = app.emit("spotify-callback", url);
+        })
+        .await;
+    if let Err(error) = result {
+        clear_pending_refresh_tokens();
+        return Err(format!("OAuth listener failed: {error}"));
+    }
+    Ok(())
 }
 
 #[tauri::command]
 pub async fn cancel_oauth_listener() {
     OAUTH_SERVER.cancel().await;
+    clear_pending_refresh_tokens();
+}
+
+fn clear_pending_refresh_tokens() {
+    if let Some(active) = ACTIVE_OAUTH_STATE.get() {
+        *active.lock().unwrap_or_else(|error| error.into_inner()) = None;
+    }
+    if let Some(pending) = PENDING_REFRESH_TOKENS.get() {
+        pending
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+    }
 }
 
 #[tauri::command]
 pub fn clear_refresh_token(app: AppHandle) -> Result<(), String> {
+    clear_pending_refresh_tokens();
     // 키체인 + 레거시 파일 모두 제거
     let keyring_result = match keyring_entry() {
         Ok(entry) => match entry.delete_credential() {
@@ -258,7 +353,44 @@ pub fn clear_refresh_token(app: AppHandle) -> Result<(), String> {
 
 #[cfg(test)]
 mod token_file_tests {
-    use super::write_restricted_token_file;
+    use super::{
+        active_oauth_state_matches, clear_pending_refresh_tokens, register_pending_refresh_token,
+        set_active_oauth_state, write_restricted_token_file, TokenResponse,
+    };
+
+    #[test]
+    fn superseded_oauth_state_cannot_authorize_token_exchange() {
+        clear_pending_refresh_tokens();
+        set_active_oauth_state("current-state".into());
+
+        assert!(active_oauth_state_matches("current-state"));
+        assert!(!active_oauth_state_matches("previous-state"));
+        let first = register_pending_refresh_token("secret-refresh-token".into()).unwrap();
+        let second = register_pending_refresh_token("another-refresh-token".into()).unwrap();
+        assert_eq!(first.len(), 43);
+        assert_ne!(first, second);
+        assert!(!first.contains("secret-refresh-token"));
+        clear_pending_refresh_tokens();
+        assert!(!active_oauth_state_matches("current-state"));
+    }
+
+    #[test]
+    fn renderer_token_response_never_serializes_a_refresh_token() {
+        let response = TokenResponse {
+            access_token: "short-lived-access".into(),
+            refresh_token_handle: None,
+            expires_in: 3600,
+        };
+
+        let serialized = serde_json::to_value(response).unwrap();
+        assert_eq!(
+            serialized,
+            serde_json::json!({
+                "accessToken": "short-lived-access",
+                "expiresIn": 3600,
+            })
+        );
+    }
 
     #[cfg(unix)]
     #[test]

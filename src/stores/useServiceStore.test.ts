@@ -65,9 +65,8 @@ describe("useServiceStore — token refresh", () => {
   it("ensureToken refreshes when the token is within 60s of expiry", async () => {
     useServiceStore.setState({ accessToken: "stale-token", tokenExpiresAt: Date.now() + 1000 });
     invoke.mockImplementation((cmd: string) => {
-      if (cmd === "load_refresh_token") return Promise.resolve("stored-refresh-token");
       if (cmd === "refresh_spotify_token") {
-        return Promise.resolve({ accessToken: "new-token", refreshToken: undefined, expiresIn: 3600 });
+        return Promise.resolve({ accessToken: "new-token", expiresIn: 3600 });
       }
       return Promise.resolve(undefined);
     });
@@ -81,7 +80,6 @@ describe("useServiceStore — token refresh", () => {
     useServiceStore.setState({ accessToken: null, tokenExpiresAt: 0 });
     let refreshCalls = 0;
     invoke.mockImplementation((cmd: string) => {
-      if (cmd === "load_refresh_token") return Promise.resolve("stored-refresh-token");
       if (cmd === "refresh_spotify_token") {
         refreshCalls++;
         return new Promise((resolve) =>
@@ -97,25 +95,27 @@ describe("useServiceStore — token refresh", () => {
     ]);
     expect(a).toBe(b);
     expect(refreshCalls).toBe(1);
+    expect(invoke).not.toHaveBeenCalledWith("load_refresh_token", expect.anything());
+    expect(invoke).toHaveBeenCalledWith("refresh_spotify_token", { clientId: "" });
   });
 
-  it("refreshAccessToken re-persists a rotated refresh token", async () => {
+  it("keeps refresh token rotation inside the native command", async () => {
     invoke.mockImplementation((cmd: string) => {
-      if (cmd === "load_refresh_token") return Promise.resolve("old-refresh-token");
       if (cmd === "refresh_spotify_token") {
-        return Promise.resolve({ accessToken: "new-token", refreshToken: "rotated-refresh-token", expiresIn: 3600 });
+        return Promise.resolve({ accessToken: "new-token", expiresIn: 3600 });
       }
       return Promise.resolve(undefined);
     });
 
     await useServiceStore.getState().refreshAccessToken();
-    expect(invoke).toHaveBeenCalledWith("save_refresh_token", { token: "rotated-refresh-token" });
+    expect(invoke).toHaveBeenCalledWith("refresh_spotify_token", { clientId: "" });
+    expect(invoke).not.toHaveBeenCalledWith("load_refresh_token", expect.anything());
+    expect(invoke).not.toHaveBeenCalledWith("save_refresh_token", expect.anything());
   });
 
   it("refreshAccessToken logs out on invalid_grant instead of retrying", async () => {
     useServiceStore.setState({ isLoggedIn: true, accessToken: "old-token", tokenExpiresAt: 0 });
     invoke.mockImplementation((cmd: string) => {
-      if (cmd === "load_refresh_token") return Promise.resolve("stored-refresh-token");
       if (cmd === "refresh_spotify_token") return Promise.reject(new Error("invalid_grant"));
       if (cmd === "clear_refresh_token") return Promise.resolve(undefined);
       return Promise.resolve(undefined);
@@ -130,7 +130,6 @@ describe("useServiceStore — token refresh", () => {
   it("refreshAccessToken does not log out on a transient (non invalid_grant) failure", async () => {
     useServiceStore.setState({ isLoggedIn: true, accessToken: "old-token", tokenExpiresAt: 0 });
     invoke.mockImplementation((cmd: string) => {
-      if (cmd === "load_refresh_token") return Promise.resolve("stored-refresh-token");
       if (cmd === "refresh_spotify_token") return Promise.reject(new Error("network error"));
       return Promise.resolve(undefined);
     });
@@ -141,7 +140,7 @@ describe("useServiceStore — token refresh", () => {
 
   it("refreshAccessToken throws when there is no stored refresh token", async () => {
     invoke.mockImplementation((cmd: string) => {
-      if (cmd === "load_refresh_token") return Promise.resolve(null);
+      if (cmd === "refresh_spotify_token") return Promise.reject(new Error("no_refresh_token"));
       return Promise.resolve(undefined);
     });
 
@@ -199,7 +198,7 @@ describe("useServiceStore — session restore & logout", () => {
 
   it("tryRestoreSession logs in with a near-expired token when a stored token exists", async () => {
     invoke.mockImplementation((cmd: string) =>
-      cmd === "load_refresh_token" ? Promise.resolve("stored-refresh-token") : Promise.resolve(undefined)
+      cmd === "has_refresh_token" ? Promise.resolve(true) : Promise.resolve(undefined)
     );
     await useServiceStore.getState().tryRestoreSession();
     expect(useServiceStore.getState().isLoggedIn).toBe(true);
@@ -208,7 +207,7 @@ describe("useServiceStore — session restore & logout", () => {
 
   it("tryRestoreSession is a no-op when there is no stored token", async () => {
     invoke.mockImplementation((cmd: string) =>
-      cmd === "load_refresh_token" ? Promise.resolve(null) : Promise.resolve(undefined)
+      cmd === "has_refresh_token" ? Promise.resolve(false) : Promise.resolve(undefined)
     );
     await useServiceStore.getState().tryRestoreSession();
     expect(useServiceStore.getState().isLoggedIn).toBe(false);
@@ -321,7 +320,6 @@ describe("Spotify API request failures", () => {
     useServiceStore.setState({ accessToken: null, tokenExpiresAt: 0 });
     const refresh = deferred<{ accessToken: string; expiresIn: number }>();
     invoke.mockImplementation((command: string) => {
-      if (command === "load_refresh_token") return Promise.resolve("refresh-token");
       if (command === "refresh_spotify_token") return refresh.promise;
       return Promise.resolve(undefined);
     });
@@ -383,7 +381,7 @@ describe("auth generation ownership", () => {
   });
 
   it("discards a refresh response that arrives after logout and never saves its rotated token", async () => {
-    const exchange = deferred<{ accessToken: string; refreshToken: string; expiresIn: number }>();
+    const exchange = deferred<{ accessToken: string; refreshTokenHandle?: string; expiresIn: number }>();
     useServiceStore.setState({
       isLoggedIn: true, _pendingCodeVerifier: "verifier", _pendingOAuthState: "state",
     });
@@ -394,10 +392,10 @@ describe("auth generation ownership", () => {
     const callback = useServiceStore.getState().handleCallback("http://localhost/callback?code=c&state=state");
     await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("exchange_spotify_token", expect.any(Object)));
     useServiceStore.getState().logout();
-    exchange.resolve({ accessToken: "stale-access", refreshToken: "stale-refresh", expiresIn: 3600 });
+    exchange.resolve({ accessToken: "stale-access", refreshTokenHandle: "stale-handle", expiresIn: 3600 });
     await expect(callback).rejects.toThrow("auth_changed");
     await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("clear_refresh_token"));
-    expect(invoke).not.toHaveBeenCalledWith("save_refresh_token", expect.anything());
+    expect(invoke).not.toHaveBeenCalledWith("persist_pending_refresh_token", expect.anything());
     expect(useServiceStore.getState().isLoggedIn).toBe(false);
     expect(useServiceStore.getState().accessToken).toBeNull();
   });
@@ -405,10 +403,12 @@ describe("auth generation ownership", () => {
   it("consumes an OAuth callback only once", async () => {
     useServiceStore.setState({ _pendingCodeVerifier: "verifier", _pendingOAuthState: "state" });
     invoke.mockImplementation((command: string) => command === "exchange_spotify_token"
-      ? Promise.resolve({ accessToken: "access", refreshToken: "refresh", expiresIn: 3600 })
+      ? Promise.resolve({ accessToken: "access", refreshTokenHandle: "pending-handle", expiresIn: 3600 })
       : Promise.resolve(undefined));
 
     await useServiceStore.getState().handleCallback("http://localhost/callback?code=c&state=state");
+    expect(invoke).toHaveBeenCalledWith("exchange_spotify_token", expect.objectContaining({ state: "state" }));
+    expect(invoke).toHaveBeenCalledWith("persist_pending_refresh_token", { handle: "pending-handle" });
 
     await expect(useServiceStore.getState().handleCallback("http://localhost/callback?code=c&state=state"))
       .rejects.toThrow("invalid_callback");
@@ -420,7 +420,6 @@ describe("auth generation ownership", () => {
     const newRefresh = deferred<{ accessToken: string; expiresIn: number }>();
     let refreshCount = 0;
     invoke.mockImplementation((command: string) => {
-      if (command === "load_refresh_token") return Promise.resolve(refreshCount === 0 ? "old-refresh" : "new-refresh");
       if (command === "refresh_spotify_token") return ++refreshCount === 1 ? oldRefresh.promise : newRefresh.promise;
       return Promise.resolve(undefined);
     });
@@ -442,12 +441,12 @@ describe("auth generation ownership", () => {
   });
 
   it("does not restore a stored token after logout while keychain loading is pending", async () => {
-    const load = deferred<string | null>();
-    invoke.mockImplementation((command: string) => command === "load_refresh_token" ? load.promise : Promise.resolve(undefined));
+    const load = deferred<boolean>();
+    invoke.mockImplementation((command: string) => command === "has_refresh_token" ? load.promise : Promise.resolve(undefined));
     const restore = useServiceStore.getState().tryRestoreSession();
-    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("load_refresh_token"));
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("has_refresh_token"));
     useServiceStore.getState().logout();
-    load.resolve("stale-refresh");
+    load.resolve(true);
     await restore;
     expect(useServiceStore.getState().isLoggedIn).toBe(false);
   });
@@ -470,18 +469,18 @@ describe("auth generation ownership", () => {
     expect(invoke).not.toHaveBeenCalled();
   });
 
-  it("serializes an already-started token save before logout clear so the durable token ends empty", async () => {
+  it("serializes a pending native credential save before logout clear", async () => {
     const save = deferred<void>();
     let storedToken: string | null = "old-refresh";
     useServiceStore.setState({ isLoggedIn: true, _pendingCodeVerifier: "verifier", _pendingOAuthState: "state" });
-    invoke.mockImplementation((command: string, args?: { token?: string }) => {
-      if (command === "exchange_spotify_token") return Promise.resolve({ accessToken: "new-access", refreshToken: "new-refresh", expiresIn: 3600 });
-      if (command === "save_refresh_token") return save.promise.then(() => { storedToken = args?.token ?? null; });
+    invoke.mockImplementation((command: string) => {
+      if (command === "exchange_spotify_token") return Promise.resolve({ accessToken: "new-access", refreshTokenHandle: "pending-handle", expiresIn: 3600 });
+      if (command === "persist_pending_refresh_token") return save.promise.then(() => { storedToken = "persisted"; });
       if (command === "clear_refresh_token") { storedToken = null; return Promise.resolve(undefined); }
       return Promise.resolve(undefined);
     });
     const callback = useServiceStore.getState().handleCallback("http://localhost/callback?code=c&state=state");
-    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("save_refresh_token", { token: "new-refresh" }));
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("persist_pending_refresh_token", { handle: "pending-handle" }));
     useServiceStore.getState().logout();
     save.resolve();
     await expect(callback).rejects.toThrow("auth_changed");
@@ -504,8 +503,8 @@ describe("auth generation ownership", () => {
   it("does not mark OAuth login complete when the refresh token cannot be stored", async () => {
     useServiceStore.setState({ _pendingCodeVerifier: "verifier", _pendingOAuthState: "state" });
     invoke.mockImplementation((command: string) => command === "exchange_spotify_token"
-      ? Promise.resolve({ accessToken: "access", refreshToken: "refresh", expiresIn: 3600 })
-      : command === "save_refresh_token"
+      ? Promise.resolve({ accessToken: "access", refreshTokenHandle: "pending-handle", expiresIn: 3600 })
+      : command === "persist_pending_refresh_token"
         ? Promise.reject(new Error("credential store failed"))
         : Promise.resolve(undefined));
 

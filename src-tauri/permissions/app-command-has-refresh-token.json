@@ -1,0 +1,8 @@
+{
+  "$schema": "../../gen/schemas/desktop-schema.json",
+  "identifier": "app-command:has-refresh-token",
+  "description": "Check whether a Spotify refresh token is stored",
+  "allow": [
+    { "command": "has_refresh_token" }
+  ]
+}

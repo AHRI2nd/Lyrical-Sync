@@ -112,7 +112,6 @@ it("returns an empty OAuth token instead of a captured old access token when ref
   const refresh = deferred<{ accessToken: string; expiresIn: number }>();
   useServiceStore.setState({ tokenExpiresAt: 0 });
   invoke.mockImplementation((command: string) => {
-    if (command === "load_refresh_token") return Promise.resolve("refresh-token");
     if (command === "refresh_spotify_token") return refresh.promise;
     return Promise.resolve(undefined);
   });

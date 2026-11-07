@@ -26,7 +26,7 @@ export interface SpotifyDevice {
 
 interface TokenResponse {
   accessToken: string;
-  refreshToken?: string;
+  refreshTokenHandle?: string;
   expiresIn: number;
 }
 
@@ -145,17 +145,10 @@ export function isSpotifyAuthLeaseCurrent(lease: AuthLease): boolean {
   return isCurrentLease(lease);
 }
 
-function loadRefreshToken(lease: AuthLease): Promise<string | null> {
-  return enqueueTokenTask(async () => {
-    if (!isCurrentLease(lease)) return null;
-    return await invoke<string | null>("load_refresh_token");
-  });
-}
-
-function saveRefreshToken(lease: AuthLease, token: string): Promise<boolean> {
+function persistPendingRefreshToken(lease: AuthLease, handle: string): Promise<boolean> {
   return enqueueTokenTask(async () => {
     if (!isCurrentLease(lease)) return false;
-    await invoke("save_refresh_token", { token });
+    await invoke("persist_pending_refresh_token", { handle });
     return true;
   });
 }
@@ -323,11 +316,12 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
       codeVerifier: _pendingCodeVerifier,
       clientId: lease.clientId,
       redirectUri: SPOTIFY_REDIRECT_URI,
+      state: returnedState,
     });
     if (!isCurrentLease(lease)) throw new Error("auth_changed");
 
-    if (resp.refreshToken) {
-      const saved = await saveRefreshToken(lease, resp.refreshToken);
+    if (resp.refreshTokenHandle) {
+      const saved = await persistPendingRefreshToken(lease, resp.refreshTokenHandle);
       if (!saved) throw new Error("refresh_token_save_failed");
     }
     if (!isCurrentLease(lease)) throw new Error("auth_changed");
@@ -345,8 +339,8 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
     if (get().isLoggedIn) return;
     const lease = authLease();
     try {
-      const storedToken = await loadRefreshToken(lease);
-      if (!isCurrentLease(lease) || !storedToken) return;
+      const hasStoredToken = await invoke<boolean>("has_refresh_token");
+      if (!isCurrentLease(lease) || !hasStoredToken) return;
       // Mark as logged in with a near-expired token to trigger refresh on first use
       set({ isLoggedIn: true, accessToken: null, tokenExpiresAt: 0 });
     } catch {
@@ -360,14 +354,11 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
     const existing = refreshPromises.get(lease.generation);
     if (existing) return existing;
     const promise = (async () => {
-      const storedToken = await loadRefreshToken(lease);
       if (!isCurrentLease(lease)) throw new Error("auth_changed");
-      if (!storedToken) throw new Error("no_refresh_token");
 
       let resp: TokenResponse;
       try {
         resp = await invoke("refresh_spotify_token", {
-          refreshToken: storedToken,
           clientId: lease.clientId,
         });
       } catch (e) {
@@ -379,10 +370,6 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
       }
       if (!isCurrentLease(lease)) throw new Error("auth_changed");
 
-      if (resp.refreshToken) {
-        const saved = await saveRefreshToken(lease, resp.refreshToken);
-        if (!saved) throw new Error("refresh_token_save_failed");
-      }
       if (!isCurrentLease(lease)) throw new Error("auth_changed");
 
       set({
