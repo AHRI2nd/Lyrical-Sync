@@ -10,12 +10,13 @@ if (typeof globalThis.localStorage === "undefined") {
     setItem: (k: string, v: string) => void m.set(k, String(v)),
     removeItem: (k: string) => void m.delete(k),
     clear: () => m.clear(),
-    key: () => null,
-    length: 0,
+    key: (index: number) => [...m.keys()][index] ?? null,
+    get length() { return m.size; },
   } as Storage;
 }
 
 const KEY = "lyrical-sync-recovery";
+const KEY_PREFIX = `${KEY}:`;
 
 const doc = (): LrcDocument => ({
   metadata: { title: "Song", artist: "Artist", album: "", by: "", offset: 0 },
@@ -23,8 +24,9 @@ const doc = (): LrcDocument => ({
   extraTags: {},
 });
 
+beforeEach(() => localStorage.clear());
+
 describe("recovery snapshot round-trip", () => {
-  beforeEach(() => localStorage.clear());
 
   it("saves and loads back an equivalent snapshot", () => {
     saveRecoverySnapshot(doc(), "/tmp/song.lrc", "/tmp/song.mp3");
@@ -126,6 +128,26 @@ it("cannot discard a newer session with an old snapshot", () => {
   clearRecoverySnapshot(old);
   expect(loadRecoverySnapshot()?.sessionId).toBe("new");
 });
+it("isolates recovery writes and clears across app instances", () => {
+  saveRecoverySnapshot(doc(), "/a.lrc", null, null, null, "instance-a");
+  const first = loadRecoverySnapshot()!;
+  saveRecoverySnapshot({ ...doc(), metadata: { ...doc().metadata, title: "B" } }, "/b.lrc", null, null, null, "instance-b");
+  const second = loadRecoverySnapshot()!;
+
+  expect(first.storageKey).not.toBe(second.storageKey);
+  expect(first.doc.metadata.title).toBe("Song");
+  expect(second.doc.metadata.title).toBe("B");
+  expect(clearRecoverySnapshot(second)).toBe(true);
+  expect(loadRecoverySnapshot()?.doc.metadata.title).toBe("Song");
+});
+it("clearing the current instance does not delete another instance recovery", () => {
+  saveRecoverySnapshot(doc(), null, null, null, null, "other-instance");
+  saveRecoverySnapshot({ ...doc(), metadata: { ...doc().metadata, title: "Current" } }, null, null);
+
+  clearRecoverySnapshot();
+
+  expect(loadRecoverySnapshot()?.doc.metadata.title).toBe("Song");
+});
 
 it("persists unsupported reserved control tags so recovery can preserve a raw draft", () => {
   const conflicted = { ...doc(), invalidControlTags: [{ key: "x-lyrical-inline-escape", value: "external-value" }] };
@@ -138,7 +160,7 @@ it("restores rich document data from stored bytes after recreating the module", 
   rich.extraTags = { language: "ko" };
   rich.lines[0].syllables = [{ text: "hello", time: 1.5 }, { text: " ", time: null }];
   expect(saveRecoverySnapshot(rich, "/a.lrc", null, "grant", null, "restart")).toBe(true);
-  expect(JSON.parse(localStorage.getItem(KEY)!).doc).toEqual(rich);
+  expect(JSON.parse(localStorage.getItem(`${KEY_PREFIX}restart`)!).doc).toEqual(rich);
   vi.resetModules();
   const recreated = await import("./recovery");
   expect(recreated.loadRecoverySnapshot()?.doc).toEqual(rich);

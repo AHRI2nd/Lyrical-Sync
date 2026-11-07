@@ -299,9 +299,11 @@ describe("App — recovery lifecycle", () => {
   it("keeps the recovery prompt and snapshot when discard storage removal fails", () => {
     const { storage, restore } = installMemoryLocalStorage();
     const doc = snapshot();
+    const recoveryKey = loadRecoverySnapshot()?.storageKey;
+    expect(recoveryKey).toMatch(/^lyrical-sync-recovery:/);
     const removeItem = storage.removeItem.bind(storage);
     vi.spyOn(storage, "removeItem").mockImplementation((key) => {
-      if (key === "lyrical-sync-recovery") throw new Error("storage unavailable");
+      if (key === recoveryKey) throw new Error("storage unavailable");
       removeItem(key);
     });
     try {
@@ -330,14 +332,14 @@ describe("App — recovery lifecycle", () => {
     const { storage, restore } = installMemoryLocalStorage();
     const originalSetItem = storage.setItem.bind(storage);
     const setItemSpy = vi.spyOn(storage, "setItem").mockImplementation((key, value) => {
-      if (key === "lyrical-sync-recovery") throw new Error("quota exceeded");
+      if (key.startsWith("lyrical-sync-recovery:")) throw new Error("quota exceeded");
       originalSetItem(key, value);
     });
     try {
       render(<App />);
       act(() => useLrcStore.getState().loadFromRawText("[00:01.00]not saved"));
       fireEvent(window, new Event("pagehide"));
-      expect(setItemSpy).toHaveBeenCalledWith("lyrical-sync-recovery", expect.any(String));
+      expect(setItemSpy).toHaveBeenCalledWith(expect.stringMatching(/^lyrical-sync-recovery:/), expect.any(String));
       expect(screen.getByText(useI18nStore.getState().t.toast.recoveryFailed)).toBeTruthy();
       expect(useLrcStore.getState().doc.lines[0].text).toBe("not saved");
     } finally {

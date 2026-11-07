@@ -1,6 +1,8 @@
 import type { LrcDocument } from "../types/lrc";
 import { isRecord, isFiniteNumber, isNullableString } from "./storage";
 const KEY = "lyrical-sync-recovery";
+const KEY_PREFIX = `${KEY}:`;
+const RECOVERY_INSTANCE_ID = createRecoveryInstanceId();
 export interface RecoverySnapshot {
   doc: LrcDocument;
   lrcPath: string | null;
@@ -12,6 +14,18 @@ export interface RecoverySnapshot {
   documentSession?: number;
   editRevision?: number;
   lrcFileHash?: string | null;
+  storageKey?: string;
+}
+
+function createRecoveryInstanceId(): string {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  } catch { /* Use the fallback when Web Crypto is unavailable. */ }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function keyForSession(sessionId: string): string {
+  return `${KEY_PREFIX}${encodeURIComponent(sessionId)}`;
 }
 
 function validDocument(value: unknown): value is LrcDocument {
@@ -33,12 +47,14 @@ function validDocument(value: unknown): value is LrcDocument {
 }
 
 export function saveRecoverySnapshot(doc: LrcDocument, lrcPath: string | null, audioPath: string | null,
-  lrcBookmark: string | null = null, audioBookmark: string | null = null, sessionId?: string,
+  lrcBookmark: string | null = null, audioBookmark: string | null = null, sessionId = RECOVERY_INSTANCE_ID,
   documentSession?: number, editRevision?: number, lrcFileHash: string | null = null): boolean {
   try {
     if (!validDocument(doc) ||
         (lrcFileHash !== null && !/^[0-9a-f]{64}$/.test(lrcFileHash))) return false;
-    localStorage.setItem(KEY, JSON.stringify({ doc, lrcPath, audioPath, lrcBookmark, audioBookmark, lrcFileHash, savedAt: Date.now(), sessionId, documentSession, editRevision }));
+    const owner = sessionId || RECOVERY_INSTANCE_ID;
+    const key = keyForSession(owner);
+    localStorage.setItem(key, JSON.stringify({ doc, lrcPath, audioPath, lrcBookmark, audioBookmark, lrcFileHash, savedAt: Date.now(), sessionId: owner, documentSession, editRevision }));
     return true;
   } catch { return false; }
 }
@@ -65,17 +81,31 @@ function parseSnapshot(raw: string): RecoverySnapshot | null {
 }
 
 export function loadRecoverySnapshot(): RecoverySnapshot | null {
-  try { const raw = localStorage.getItem(KEY); return raw ? parseSnapshot(raw) : null; }
+  try {
+    const candidates: RecoverySnapshot[] = [];
+    for (let index = 0; index < localStorage.length; index++) {
+      const key = localStorage.key(index);
+      if (!key || (key !== KEY && !key.startsWith(KEY_PREFIX))) continue;
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const snapshot = parseSnapshot(raw);
+      if (snapshot) candidates.push({ ...snapshot, storageKey: key });
+    }
+    return candidates.reduce<RecoverySnapshot | null>((latest, candidate) =>
+      !latest || candidate.savedAt >= latest.savedAt ? candidate : latest, null);
+  }
   catch { return null; }
 }
 
 export function clearRecoverySnapshot(expected?: RecoverySnapshot): boolean {
   try {
+    const key = expected?.storageKey ?? keyForSession(RECOVERY_INSTANCE_ID);
     if (expected) {
-      const raw = localStorage.getItem(KEY);
-      if (!raw || JSON.stringify(parseSnapshot(raw)) !== JSON.stringify(expected)) return true;
+      const raw = localStorage.getItem(key);
+      const current = raw ? parseSnapshot(raw) : null;
+      if (!current || JSON.stringify({ ...current, storageKey: key }) !== JSON.stringify(expected)) return true;
     }
-    localStorage.removeItem(KEY);
+    localStorage.removeItem(key);
     return true;
   } catch { return false; }
 }
