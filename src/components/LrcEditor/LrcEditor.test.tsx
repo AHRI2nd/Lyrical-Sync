@@ -16,7 +16,7 @@ beforeEach(() => {
   vi.stubGlobal("DragEvent", class extends MouseEvent {});
   Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: ["a", "b", "c", "d"].map((id) => ({ id, text: id, timestamp: null })) },
-    syncMode: "line", activeLineId: "a", isDirty: false, _history: [], _future: [] });
+    syncMode: "line", activeLineId: "a", isDirty: false, _history: [], _future: [], _lastEditKey: null });
 });
 afterEach(() => { cleanup(); delete (HTMLElement.prototype as unknown as { scrollIntoView?: unknown }).scrollIntoView; vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 it("keeps AI alignment language independent from the UI language when explicitly selected", () => {
@@ -324,6 +324,7 @@ it("does not apply replace-all after undo changes the affected rows", () => {
     { id: "b", text: "old second", timestamp: 2, syllables: [{ text: "old second", time: 2 }] },
   ] } });
   useLrcStore.getState().updateLine("b", { text: "different" });
+  const revisionBeforeUndo = useLrcStore.getState()._editRevision;
   const { getByRole, getByPlaceholderText, getByText } = render(<LrcEditor onPreview={() => {}} />);
   fireEvent.click(getByRole("button", { name: t.editorTools }));
   fireEvent.click(getByRole("button", { name: t.findReplace }));
@@ -333,6 +334,8 @@ it("does not apply replace-all after undo changes the affected rows", () => {
   expect(getByText(t.charSync.retokenizeTitle)).toBeTruthy();
 
   act(() => useLrcStore.getState().undo());
+  expect(useLrcStore.getState()._editRevision).toBeGreaterThan(revisionBeforeUndo);
+  expect(useLrcStore.getState().doc.lines.map((line) => line.text)).toEqual(["old first", "old second"]);
   fireEvent.click(getByRole("button", { name: t.charSync.retokenizeOk }));
 
   expect(useLrcStore.getState().doc.lines.map((line) => line.text)).toEqual(["old first", "old second"]);
