@@ -79,8 +79,10 @@ class SignedCandidateTests(unittest.TestCase):
     def test_signing_depends_on_tests_and_never_interpolates_untrusted_ref_into_shell(self):
         source=(ROOT/'.github/workflows/release.yml').read_text()
         self.assertRegex(source,r'(?m)^  release:\n(?:    #[^\n]*\n)*    needs: test-gate[ \t]*$')
-        self.assertIn('python scripts/test_ai_sidecars.py',source)
-        self.assertIn('python scripts/test_signed_candidate.py',source)
+        self.assertRegex(source,r'(?m)^  test-gate:\n    uses: \./\.github/workflows/test\.yml$')
+        tests=(ROOT/'.github/workflows/test.yml').read_text(encoding='utf-8')
+        self.assertIn('python scripts/test_ai_sidecars.py',tests)
+        self.assertIn('python scripts/test_signed_candidate.py',tests)
         self.assertIn('RELEASE_REF_NAME: ${{ github.ref_name }}',source)
         self.assertIn('GITHUB_REF_TYPE',source)
         self.assertIn('$(git rev-parse HEAD)',source)
