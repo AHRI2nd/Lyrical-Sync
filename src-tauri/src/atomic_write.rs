@@ -529,6 +529,22 @@ mod tests {
         assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
     }
 
+    #[test]
+    fn new_destination_created_during_staging_is_never_overwritten() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("song.lrc");
+
+        let result = write_with(&target, |stage| {
+            stage.write_all(b"staged lyrics")?;
+            fs::write(&target, b"concurrent lyrics")?;
+            Ok(())
+        });
+
+        assert!(result.is_err());
+        assert_eq!(fs::read(&target).unwrap(), b"concurrent lyrics");
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
+
     #[cfg(unix)]
     #[test]
     fn follows_symlink_without_replacing_link_and_preserves_permissions() {
