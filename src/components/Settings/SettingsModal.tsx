@@ -3,6 +3,8 @@ import { useModalFocus } from "../../hooks/useModalFocus";
 import { useId, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { useServiceStore } from "../../stores/useServiceStore";
+import { toast } from "../../stores/useToastStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useUpdaterStore } from "../../stores/useUpdaterStore";
 import { KeybindingsSection } from "./KeybindingsSection";
@@ -124,7 +126,15 @@ export function SettingsModal({
                 clientId={spotifyClientId}
                 onSaveClientId={setSpotifyClientId}
                 spotifyMode={spotifyMode}
-                onToggleMode={setSpotifyMode}
+                onToggleMode={(enabled) => {
+                  const current = useServiceStore.getState();
+                  if (!enabled && current.isLoggedIn && current.isPlaying) {
+                    void current.pausePlayback().catch(() => {
+                      toast.error(useI18nStore.getState().t.toast.spotifyActionFailed);
+                    });
+                  }
+                  setSpotifyMode(enabled);
+                }}
               />
             </>
           )}
