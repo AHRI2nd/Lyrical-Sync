@@ -6,9 +6,39 @@ import os
 from pathlib import Path
 import plistlib
 import re
+import subprocess
+import sys
 import tarfile
+import tempfile
 
 
+def dmg_app_version(path):
+    """Read the single app's version from a read-only mounted DMG on macOS."""
+    if sys.platform != 'darwin':
+        raise ValueError('DMG application version inspection requires macOS')
+    with tempfile.TemporaryDirectory(prefix='lyrical-sync-dmg-') as mountpoint:
+        mounted = False
+        try:
+            subprocess.run(
+                ['hdiutil', 'attach', '-readonly', '-nobrowse', '-noautoopen', '-mountpoint', mountpoint, str(path)],
+                check=True, capture_output=True, text=True, timeout=120,
+            )
+            mounted = True
+            metadata = [
+                item for item in Path(mountpoint).rglob('Info.plist')
+                if item.parent.name == 'Contents' and item.parent.parent.suffix == '.app' and item.is_file()
+            ]
+            if len(metadata) != 1:
+                raise ValueError('Expected exactly one app Info.plist in DMG')
+            with metadata[0].open('rb') as stream:
+                version = plistlib.load(stream).get('CFBundleShortVersionString')
+            if not isinstance(version, str) or not version:
+                raise ValueError('DMG app has no valid CFBundleShortVersionString')
+            return version
+        finally:
+            if mounted:
+                subprocess.run(['hdiutil', 'detach', '-quiet', mountpoint], check=True,
+                               capture_output=True, text=True, timeout=120)
 def record(root, target, source_sha, version):
     root=Path(root)
     if not re.fullmatch(r'[0-9a-f]{40}',source_sha):
@@ -53,6 +83,8 @@ def record(root, target, source_sha, version):
                 raise ValueError('Mac updater archive project LICENSE does not match source')
         if app_version!=version:
             raise ValueError('Mac updater archive app version does not match candidate version')
+        if dmg_app_version(dmgs[0]) != version:
+            raise ValueError('Mac DMG app version does not match candidate version')
         add(archives[0],'app');add(dmgs[0],'dmg',False)
     elif target in ('x86_64-pc-windows-msvc','aarch64-pc-windows-msvc'):
         arch='x64' if target.startswith('x86_64') else 'arm64'

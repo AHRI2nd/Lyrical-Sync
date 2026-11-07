@@ -199,10 +199,15 @@ class SignedCandidateTests(unittest.TestCase):
         (root/(archive.name+'.sig')).write_text('fixture updater signature')
         (root/'Lyrical Sync_aarch64.dmg').write_bytes(b'dmg')
 
+    def record_mac_candidate(self, root, dm_version):
+        module=self.recorder()
+        with patch.object(module, 'dmg_app_version', return_value=dm_version):
+            return module.record(root,'aarch64-apple-darwin','c'*40,'0.7.0')
+
     def test_mac_updater_archive_version_is_read_from_app_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);self.mac_candidate(root,'0.7.0', (ROOT/'LICENSE').read_bytes())
-            row=self.recorder().record(root,'aarch64-apple-darwin','c'*40,'0.7.0')
+            row=self.record_mac_candidate(root,'0.7.0')
             app=next(item for item in row['installers'] if item['kind']=='app')
             self.assertEqual(app['signatureVerification'],'Presence and hash only; cryptographic verification is not performed here')
             self.assertIn('no cryptographic',row['qualification'])
@@ -212,10 +217,10 @@ class SignedCandidateTests(unittest.TestCase):
             root=Path(tmp)
             self.mac_candidate(root,'0.7.0')
             with self.assertRaisesRegex(ValueError,'project LICENSE'):
-                self.recorder().record(root,'aarch64-apple-darwin','c'*40,'0.7.0')
+                self.record_mac_candidate(root,'0.7.0')
             self.mac_candidate(root,'0.7.0',b'not the project license')
             with self.assertRaisesRegex(ValueError,'project LICENSE'):
-                self.recorder().record(root,'aarch64-apple-darwin','c'*40,'0.7.0')
+                self.record_mac_candidate(root,'0.7.0')
 
     def test_bundle_declares_project_license_resource(self):
         config=json.loads((ROOT/'src-tauri/tauri.conf.json').read_text(encoding='utf-8'))
@@ -227,7 +232,30 @@ class SignedCandidateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);self.mac_candidate(root,'0.6.3',(ROOT/'LICENSE').read_bytes())
             with self.assertRaisesRegex(ValueError,'version'):
-                self.recorder().record(root,'aarch64-apple-darwin','c'*40,'0.7.0')
+                self.record_mac_candidate(root,'0.7.0')
+
+    def test_mac_dmg_version_is_read_from_read_only_mounted_app(self):
+        module=self.recorder()
+        with tempfile.TemporaryDirectory() as tmp:
+            image=Path(tmp)/'candidate.dmg';image.write_bytes(b'fixture')
+            calls=[]
+            def run(command, **kwargs):
+                calls.append(command)
+                if command[1]=='attach':
+                    mountpoint=Path(command[command.index('-mountpoint')+1])
+                    app=mountpoint/'Lyrical Sync.app'/'Contents'
+                    app.mkdir(parents=True)
+                    (app/'Info.plist').write_bytes(plistlib.dumps({'CFBundleShortVersionString':'0.7.0'}))
+            with patch.object(module.sys,'platform','darwin'), patch.object(module.subprocess,'run',side_effect=run):
+                self.assertEqual(module.dmg_app_version(image),'0.7.0')
+            self.assertIn('-readonly',calls[0])
+            self.assertEqual(calls[1][1:3],['detach','-quiet'])
+
+    def test_mac_dmg_with_stale_embedded_app_version_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);self.mac_candidate(root,'0.7.0',(ROOT/'LICENSE').read_bytes())
+            with self.assertRaisesRegex(ValueError,'DMG app version'):
+                self.record_mac_candidate(root,'0.6.3')
 
     def release_candidate_verifier(self):
         path=ROOT/'scripts/verify_release_candidates.py'
