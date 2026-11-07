@@ -25,6 +25,29 @@ it("keeps AI alignment language independent from the UI language when explicitly
   expect(resolveAlignmentLanguage("eng", "ko")).toBe("eng");
   expect(resolveAlignmentLanguage("kor", "en")).toBe("kor");
 });
+it("resets the time shift range and delta when the document is replaced", () => {
+  const t = useI18nStore.getState().t;
+  const { getByRole, getAllByRole } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getByRole("button", { name: t.editorTools }));
+  fireEvent.click(getByRole("button", { name: t.timeShift }));
+  let numberInputs = getAllByRole("spinbutton") as HTMLInputElement[];
+  fireEvent.change(numberInputs[0], { target: { value: "3" } });
+  fireEvent.change(numberInputs[2], { target: { value: "1.5" } });
+
+  act(() => useLrcStore.setState({
+    doc: { ...defaultDocument(), lines: [
+      { id: "new-a", text: "new a", timestamp: null },
+      { id: "new-b", text: "new b", timestamp: null },
+    ] },
+    activeLineId: "new-b",
+    _documentSession: useLrcStore.getState()._documentSession + 1,
+  }));
+
+  numberInputs = getAllByRole("spinbutton") as HTMLInputElement[];
+  expect(numberInputs[0].value).toBe("2");
+  expect(numberInputs[1].value).toBe("2");
+  expect(numberInputs[2].value).toBe("0");
+});
 it("lets the user choose the AI language separately from the interface language", () => {
   const { getByLabelText } = render(<LrcEditor onPreview={() => {}} />);
   fireEvent.change(getByLabelText(useI18nStore.getState().t.aiLanguageLabel), { target: { value: "jpn" } });
