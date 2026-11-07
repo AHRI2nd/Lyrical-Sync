@@ -11,6 +11,16 @@ EXPECTED = {
     'x86_64-pc-windows-msvc': {'nsis', 'msi'},
     'aarch64-pc-windows-msvc': {'nsis'},
 }
+HASH_CHUNK_SIZE = 1024 * 1024
+
+
+def sha256_file(path):
+    """Hash a release file with bounded memory use."""
+    digest = hashlib.sha256()
+    with path.open('rb') as stream:
+        while chunk := stream.read(HASH_CHUNK_SIZE):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def confined_candidate_file(directory, value, label):
@@ -71,7 +81,7 @@ def verify(root, version, source_sha):
                 raise ValueError(f'Missing or changed candidate artifact: {row.get("path")}')
             if (not isinstance(row.get('sha256'), str)
                     or not re.fullmatch(r'[0-9a-f]{64}', row['sha256'])
-                    or hashlib.sha256(artifact.read_bytes()).hexdigest() != row['sha256']):
+                    or sha256_file(artifact) != row['sha256']):
                 raise ValueError(f'Candidate artifact hash mismatch: {row.get("path")}')
             if artifact.name in names:
                 raise ValueError(f'Duplicate release artifact filename: {artifact.name}')
@@ -82,8 +92,8 @@ def verify(root, version, source_sha):
                 if (not signature.is_file()
                         or not isinstance(row.get('signatureSha256'), str)
                         or not re.fullmatch(r'[0-9a-f]{64}', row['signatureSha256'])
-                        or not signature.read_text(encoding='utf-8').strip()
-                        or hashlib.sha256(signature.read_bytes()).hexdigest() != row['signatureSha256']):
+                        or signature.stat().st_size == 0
+                        or sha256_file(signature) != row['signatureSha256']):
                     raise ValueError(f'Missing or changed updater signature sidecar: {row.get("path")}')
                 if signature.name in names:
                     raise ValueError(f'Duplicate release artifact filename: {signature.name}')

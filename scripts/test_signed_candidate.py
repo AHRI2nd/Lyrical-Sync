@@ -9,6 +9,7 @@ import plistlib
 import re
 import tarfile
 import unittest
+from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -269,6 +270,23 @@ class SignedCandidateTests(unittest.TestCase):
             record.unlink()
             with self.assertRaisesRegex(ValueError,'matrix is incomplete'):
                 module.verify(root,'0.7.0','a'*40)
+
+    def test_release_candidate_hashing_streams_without_reading_whole_artifacts(self):
+        module=self.release_candidate_verifier()
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            self.release_candidate_matrix(root)
+            bundle=root/'aarch64-apple-darwin'
+            artifact=bundle/'Lyrical Sync_aarch64.app.tar.gz'
+            payload=b'candidate data'*160000
+            artifact.write_bytes(payload)
+            record_path=bundle/'candidate-record.json'
+            record=json.loads(record_path.read_text())
+            record['installers'][0]['bytes']=len(payload)
+            record['installers'][0]['sha256']=hashlib.sha256(payload).hexdigest()
+            record_path.write_text(json.dumps(record))
+            with patch.object(Path,'read_bytes',side_effect=AssertionError('whole-file read')):
+                self.assertEqual(len(module.verify(root,'0.7.0','a'*40)),9)
 
     def test_release_candidate_rejects_malformed_hashes_and_source_inputs(self):
         module=self.release_candidate_verifier()
