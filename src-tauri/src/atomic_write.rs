@@ -21,7 +21,54 @@ fn open_existing_regular_file(path: &Path) -> io::Result<fs::Metadata> {
     if !metadata.is_file() {
         return Err(io::Error::other("Destination is not a regular file"));
     }
+    #[cfg(windows)]
+    reject_windows_hard_links(&file)?;
     Ok(metadata)
+}
+
+#[cfg(windows)]
+fn reject_windows_hard_links(file: &File) -> io::Result<()> {
+    use std::ffi::c_void;
+    use std::os::windows::io::AsRawHandle;
+
+    // std::os::windows::fs::MetadataExt::number_of_links is unstable. Query
+    // the already-open file handle so this check follows the resolved target.
+    #[repr(C)]
+    struct FileTime {
+        low: u32,
+        high: u32,
+    }
+    #[repr(C)]
+    struct ByHandleFileInformation {
+        attributes: u32,
+        created: FileTime,
+        accessed: FileTime,
+        modified: FileTime,
+        volume_serial: u32,
+        size_high: u32,
+        size_low: u32,
+        link_count: u32,
+        index_high: u32,
+        index_low: u32,
+    }
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetFileInformationByHandle(
+            handle: *mut c_void,
+            information: *mut ByHandleFileInformation,
+        ) -> i32;
+    }
+
+    let mut information = std::mem::MaybeUninit::<ByHandleFileInformation>::uninit();
+    if unsafe { GetFileInformationByHandle(file.as_raw_handle(), information.as_mut_ptr()) } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    if unsafe { information.assume_init() }.link_count > 1 {
+        return Err(io::Error::other(
+            "Destination has multiple hard links; use Save As to preserve linked files",
+        ));
+    }
+    Ok(())
 }
 
 pub fn write_atomic(path: &Path, content: &str) -> io::Result<()> {
@@ -168,6 +215,14 @@ fn write_with_expected(
         if current_sha256 != expected_sha256 {
             return Err(io::Error::other("LYRICS_FILE_CHANGED"));
         }
+    }
+
+    // Recheck the hard-link policy close to publication. This narrows the
+    // window for a newly created alias, but does not make the SHA check and
+    // replacement an atomic compare-and-swap against other processes.
+    #[cfg(windows)]
+    if is_existing {
+        open_existing_regular_file(&target)?;
     }
     
     #[cfg(windows)]
@@ -756,6 +811,21 @@ mod windows_metadata_tests {
         drop(lock);
         write_atomic(&target, "updated").unwrap();
         assert_eq!(fs::read_to_string(&target).unwrap(), "updated");
+    }
+
+    #[test]
+    fn replacing_a_hard_link_name_does_not_detach_its_alias() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("lyrics.lrc");
+        let alias = dir.path().join("alias.lrc");
+        fs::write(&target, "original").unwrap();
+        fs::hard_link(&target, &alias).unwrap();
+
+        let error = write_atomic(&target, "updated").unwrap_err();
+        assert!(error.to_string().contains("hard links"), "{error}");
+        assert_eq!(fs::read_to_string(&target).unwrap(), "original");
+        assert_eq!(fs::read_to_string(&alias).unwrap(), "original");
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 2);
     }
 
     #[test]
