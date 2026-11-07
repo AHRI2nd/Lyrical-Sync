@@ -4,9 +4,14 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import userEvent from "@testing-library/user-event";
 
 // Native APIs and audio rendering are outside this shell-level DOM test.
+type NativeDropEvent = { payload: { type: "drop"; paths: string[] } };
+let nativeDrop: ((event: NativeDropEvent) => void) | null = null;
 vi.mock("@tauri-apps/api/webview", () => ({
   getCurrentWebview: () => ({
-    onDragDropEvent: () => Promise.resolve(() => {}),
+    onDragDropEvent: (handler: (event: NativeDropEvent) => void) => {
+      nativeDrop = handler;
+      return Promise.resolve(() => {});
+    },
   }),
 }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn().mockResolvedValue(null) }));
@@ -26,6 +31,7 @@ import { defaultDocument } from "./types/lrc";
 
 describe("App document confirmation and keyboard boundaries", () => {
   beforeEach(() => {
+    nativeDrop = null;
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
     localStorage.clear();
     vi.mocked(invoke).mockReset().mockResolvedValue(null);
@@ -50,8 +56,117 @@ describe("App document confirmation and keyboard boundaries", () => {
 
   afterEach(() => {
     cleanup(); document.querySelectorAll("[data-test-control]").forEach((node) => node.remove()); vi.restoreAllMocks();
+    nativeDrop = null;
     delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
     localStorage.clear();
+  });
+
+  const existingPair = (dirty: boolean) => {
+    useLrcStore.setState({
+      doc: { ...defaultDocument(), lines: [{ id: "original", timestamp: 1, text: "Original lyric" }] },
+      lrcPath: "/old.lrc", audioPath: "/old.mp3", isDirty: dirty,
+      lrcBookmark: null, audioBookmark: null, _history: [], _future: [],
+    });
+    vi.mocked(invoke).mockImplementation((command) => command === "read_lrc_file"
+      ? Promise.resolve("[00:03.00]Incoming lyric") : Promise.resolve(null));
+  };
+  const drop = (paths: string[]) => {
+    expect(nativeDrop).not.toBeNull();
+    act(() => nativeDrop?.({ payload: { type: "drop", paths } }));
+  };
+  const incoming = {
+    audio: ["/new.mp3"], lyrics: ["/new.lrc"], both: ["/new.mp3", "/new.lrc"],
+  } as const;
+
+  it.each(["audio", "lyrics", "both"] as const)("confirms a clean existing %s replacement and keeps both resources on Cancel", async (kind) => {
+    existingPair(false);
+    render(<App />);
+    drop([...incoming[kind]]);
+    const t = useI18nStore.getState().t;
+    const modal = await screen.findByRole("dialog", { name: t.drop.replaceTitle });
+    const expectedMessage = kind === "both" ? t.drop.replaceBoth : kind === "audio" ? t.drop.replaceAudio : t.drop.replaceLyrics;
+    expect(within(modal).getByText(expectedMessage)).toBeTruthy();
+    expect(screen.queryByRole("dialog", { name: t.replaceDocumentTitle })).toBeNull();
+    expect(useLrcStore.getState().lrcPath).toBe("/old.lrc");
+    expect(useLrcStore.getState().audioPath).toBe("/old.mp3");
+    fireEvent.click(within(modal).getByRole("button", { name: t.drop.replaceCancel }));
+    expect(useLrcStore.getState().doc.lines[0].text).toBe("Original lyric");
+    expect(useLrcStore.getState().isDirty).toBe(false);
+    expect(useLrcStore.getState().lrcPath).toBe("/old.lrc");
+    expect(useLrcStore.getState().audioPath).toBe("/old.mp3");
+  });
+
+  it.each(["audio", "lyrics", "both"] as const)("applies a confirmed clean %s replacement without a second prompt", async (kind) => {
+    existingPair(false);
+    render(<App />);
+    drop([...incoming[kind]]);
+    const t = useI18nStore.getState().t;
+    const modal = await screen.findByRole("dialog", { name: t.drop.replaceTitle });
+    fireEvent.click(within(modal).getByRole("button", { name: t.drop.replaceOk }));
+    await waitFor(() => {
+      expect(useLrcStore.getState().audioPath).toBe(kind === "lyrics" ? "/old.mp3" : "/new.mp3");
+      expect(useLrcStore.getState().lrcPath).toBe(kind === "audio" ? "/old.lrc" : "/new.lrc");
+    });
+    expect(useLrcStore.getState().doc.lines[0].text).toBe(kind === "audio" ? "Original lyric" : "Incoming lyric");
+    expect(screen.queryByRole("dialog", { name: t.replaceDocumentTitle })).toBeNull();
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
+  it.each(["lyrics", "both"] as const)("uses only the unsaved-document guard for dirty %s drop and preserves Cancel", async (kind) => {
+    existingPair(true);
+    render(<App />);
+    drop([...incoming[kind]]);
+    const t = useI18nStore.getState().t;
+    const modal = await screen.findByRole("dialog", { name: t.replaceDocumentTitle });
+    expect(screen.queryByRole("dialog", { name: t.drop.replaceTitle })).toBeNull();
+    fireEvent.click(within(modal).getByRole("button", { name: t.confirmNewCancel }));
+    expect(useLrcStore.getState().doc.lines[0].text).toBe("Original lyric");
+    expect(useLrcStore.getState().lrcPath).toBe("/old.lrc");
+    expect(useLrcStore.getState().audioPath).toBe("/old.mp3");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
+  it.each(["lyrics", "both"] as const)("applies a dirty %s drop only after explicitly discarding unsaved lyrics", async (kind) => {
+    existingPair(true);
+    render(<App />);
+    drop([...incoming[kind]]);
+    const t = useI18nStore.getState().t;
+    const modal = await screen.findByRole("dialog", { name: t.replaceDocumentTitle });
+    fireEvent.click(within(modal).getByRole("button", { name: t.discardChanges }));
+    await waitFor(() => expect(useLrcStore.getState().lrcPath).toBe("/new.lrc"));
+    expect(useLrcStore.getState().audioPath).toBe(kind === "both" ? "/new.mp3" : "/old.mp3");
+    expect(useLrcStore.getState().doc.lines[0].text).toBe("Incoming lyric");
+    expect(useLrcStore.getState().isDirty).toBe(false);
+    expect(screen.queryByRole("dialog", { name: t.drop.replaceTitle })).toBeNull();
+  });
+
+  it("audio-only replacement preserves a dirty lyric draft after confirmation", async () => {
+    existingPair(true);
+    const originalDoc = useLrcStore.getState().doc;
+    render(<App />);
+    drop([...incoming.audio]);
+    const t = useI18nStore.getState().t;
+    const modal = await screen.findByRole("dialog", { name: t.drop.replaceTitle });
+    fireEvent.click(within(modal).getByRole("button", { name: t.drop.replaceOk }));
+    await waitFor(() => expect(useLrcStore.getState().audioPath).toBe("/new.mp3"));
+    expect(useLrcStore.getState().doc).toBe(originalDoc);
+    expect(useLrcStore.getState().lrcPath).toBe("/old.lrc");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+    expect(screen.queryByRole("dialog", { name: t.replaceDocumentTitle })).toBeNull();
+  });
+
+  it("audio-only replacement cancellation keeps the dirty lyric and original audio", async () => {
+    existingPair(true);
+    const originalDoc = useLrcStore.getState().doc;
+    render(<App />);
+    drop([...incoming.audio]);
+    const t = useI18nStore.getState().t;
+    const modal = await screen.findByRole("dialog", { name: t.drop.replaceTitle });
+    fireEvent.click(within(modal).getByRole("button", { name: t.drop.replaceCancel }));
+    expect(useLrcStore.getState().doc).toBe(originalDoc);
+    expect(useLrcStore.getState().isDirty).toBe(true);
+    expect(useLrcStore.getState().audioPath).toBe("/old.mp3");
+    expect(useLrcStore.getState().lrcPath).toBe("/old.lrc");
   });
 
   // Scope confirmation actions to the modal when toolbar labels overlap.

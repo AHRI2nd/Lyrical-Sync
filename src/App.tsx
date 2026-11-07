@@ -299,7 +299,10 @@ function App() {
         const st = useLrcStore.getState();
         const audioConflict = !!audio && st.audioPath !== null;
         const lyricsConflict = !!lyrics && (st.lrcPath !== null || st.isDirty || st.doc.lines.length > 0);
-        if (audioConflict && !lyrics) {
+        // A clean document still needs consent before replacing either selected
+        // resource. Dirty lyric replacements already go through the document
+        // transition's Save/Discard/Cancel prompt; do not ask twice up front.
+        if ((audioConflict || lyricsConflict) && !(lyrics && st.isDirty)) {
           setDropConflict({ audio, lyrics, audioConflict, lyricsConflict });
         } else {
           applyDrop({ audio, lyrics });
