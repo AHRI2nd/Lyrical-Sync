@@ -249,7 +249,8 @@ describe("App — drag-and-drop conflict resolution", () => {
 
 
 import { saveRecoverySnapshot, loadRecoverySnapshot } from "./utils/recovery";
-import { useSettingsStore } from "./stores/useSettingsStore";
+import { useSettingsPersistenceStore, useSettingsStore } from "./stores/useSettingsStore";
+import { useToastStore } from "./stores/useToastStore";
 
 // These exercise the actual startup effects and persisted bytes, not a mocked recovery hook.
 describe("App — recovery lifecycle", () => {
@@ -371,6 +372,14 @@ describe("App — recovery lifecycle", () => {
     app.unmount();
 
     expect(loadRecoverySnapshot()?.doc.lines[0].text).toBe("unmounted draft");
+  });
+  it("announces settings persistence failures to the user", () => {
+    useToastStore.setState({ toasts: [] });
+    render(<App />);
+
+    act(() => useSettingsPersistenceStore.getState().reportFailure());
+
+    expect(screen.getByText(useI18nStore.getState().t.toast.settingsSaveFailed)).toBeTruthy();
   });
 });
 

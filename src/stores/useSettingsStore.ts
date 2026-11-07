@@ -2,6 +2,16 @@ import { create } from "zustand";
 import { persist, createJSONStorage, type StateStorage } from "zustand/middleware";
 import { type KeyAction, DEFAULT_KEYBINDINGS, normalizeKeybindings } from "../utils/keybindings";
 
+interface SettingsPersistenceState {
+  failureCount: number;
+  reportFailure: () => void;
+}
+
+export const useSettingsPersistenceStore = create<SettingsPersistenceState>((set) => ({
+  failureCount: 0,
+  reportFailure: () => set((state) => ({ failureCount: state.failureCount + 1 })),
+}));
+
 // 슬라이더 드래그처럼 짧은 시간에 set()이 연속 호출될 때마다 전체 설정 blob을
 // 매번 동기적으로 localStorage에 직렬화·쓰기하지 않도록, 실제 디스크 쓰기만 디바운스.
 // (인메모리 zustand 상태는 매 tick 그대로 갱신되므로 UI 반응성엔 영향 없음.)
@@ -14,7 +24,7 @@ function debouncedLocalStorage(delayMs: number): StateStorage {
     const next = pending;
     pending = null;
     if (next) {
-      try { localStorage.setItem(next.key, next.value); } catch { /* Keep in-memory settings usable. */ }
+      try { localStorage.setItem(next.key, next.value); } catch { useSettingsPersistenceStore.getState().reportFailure(); }
     }
   };
   if (typeof window !== "undefined") window.addEventListener("pagehide", flush);
@@ -28,7 +38,7 @@ function debouncedLocalStorage(delayMs: number): StateStorage {
     removeItem: (key) => {
       if (timer) { clearTimeout(timer); timer = null; }
       pending = null;
-      try { localStorage.removeItem(key); } catch { /* Storage can be unavailable. */ }
+      try { localStorage.removeItem(key); } catch { useSettingsPersistenceStore.getState().reportFailure(); }
     },
   };
 }

@@ -15,3 +15,12 @@ it('ignores invalid preview setters and survives blocked delayed storage', async
   expect(useSettingsStore.getState().previewFontScale).toBe(1); expect(useSettingsStore.getState().showSpellCheck).toBe(false);
   s.setPreviewAccentColor('#aabbcc'); expect(()=>vi.runAllTimers()).not.toThrow(); expect(useSettingsStore.getState().previewAccentColor).toBe('#aabbcc');
 });
+it('reports delayed persistence failures without reverting the in-memory preference', async () => {
+  vi.resetModules(); vi.useFakeTimers();
+  vi.stubGlobal('localStorage',{getItem:()=>null,setItem:()=>{throw Error('quota exceeded');},removeItem:()=>{}});
+  const {useSettingsStore,useSettingsPersistenceStore}=await import('./useSettingsStore');
+  useSettingsStore.getState().setAutoSave(false);
+  vi.runAllTimers();
+  expect(useSettingsStore.getState().autoSave).toBe(false);
+  expect(useSettingsPersistenceStore.getState().failureCount).toBe(1);
+});

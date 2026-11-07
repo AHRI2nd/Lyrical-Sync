@@ -391,6 +391,7 @@ export interface Translations {
   toast: {
     saved: string;
     saveFailed: string;
+    settingsSaveFailed: string;
     fileChanged: string;
     srtBlankRowsUnsupported: string;
     vttBlankRowsUnsupported: string;
@@ -1047,6 +1048,7 @@ const ko: Translations = {
   toast: {
     saved: "저장되었습니다",
     saveFailed: "저장에 실패했습니다",
+    settingsSaveFailed: "설정을 저장하지 못했습니다. 앱을 다시 시작하면 이전 설정으로 되돌아갈 수 있습니다.",
     fileChanged: "이 가사 파일이 앱 밖에서 변경되었거나 원본 상태를 확인할 수 없습니다. 변경 내용을 보존하려면 다른 파일로 저장하세요.",
     srtBlankRowsUnsupported: "SRT는 빈 문단이나 문단 끝 줄바꿈을 보존할 수 없습니다. 빈 줄 또는 끝 줄바꿈을 제거하거나 다른 형식으로 저장하세요.",
     vttBlankRowsUnsupported: "VTT는 빈 문단을 보존할 수 없습니다. 빈 줄을 제거하거나 다른 형식으로 저장하세요.",
@@ -1701,6 +1703,7 @@ const en: Translations = {
   toast: {
     saved: "Saved",
     saveFailed: "Failed to save",
+    settingsSaveFailed: "Settings could not be saved. They may revert when the app restarts.",
     fileChanged: "This lyric file changed outside Lyrical Sync, or its original revision is unavailable. Save to a different file to preserve your edits.",
     srtBlankRowsUnsupported: "SRT cannot preserve blank paragraph rows or a terminal line break. Remove them or save in another format.",
     vttBlankRowsUnsupported: "VTT cannot preserve blank paragraph rows. Remove the blank rows or save in another format.",
@@ -2354,6 +2357,7 @@ const ja: Translations = {
   toast: {
     saved: "保存しました",
     saveFailed: "保存に失敗しました",
+    settingsSaveFailed: "設定を保存できませんでした。アプリを再起動すると以前の設定に戻る場合があります。",
     fileChanged: "この歌詞ファイルはアプリ外で変更されたか、元の状態を確認できません。編集内容を保護するには別のファイルに保存してください。",
     srtBlankRowsUnsupported: "SRTでは空の段落や段落末尾の改行を保持できません。空行または末尾の改行を削除するか、別の形式で保存してください。",
     vttBlankRowsUnsupported: "VTTでは空の段落を保持できません。空行を削除するか、別の形式で保存してください。",

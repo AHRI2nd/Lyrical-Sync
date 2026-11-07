@@ -10,7 +10,7 @@ const SpotifySearchModal = lazy(() => import("./components/Service/SpotifySearch
 import { useLrcStore } from "./stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "./stores/useI18nStore";
-import { useSettingsStore } from "./stores/useSettingsStore";
+import { useSettingsPersistenceStore, useSettingsStore } from "./stores/useSettingsStore";
 import { useServiceStore } from "./stores/useServiceStore";
 import { audioControls } from "./utils/audioControls";
 import { serviceControls } from "./utils/serviceControls";
@@ -311,6 +311,13 @@ function App() {
     lrcExtensionNoticeShown.current = { session: appDocumentSession, shown: false };
   }
   const { autoCheckUpdate, uiScale, spotifyMode, youtubeMode, deviceMode, setPlaybackMode, showElrcSaveNotice, setShowElrcSaveNotice } = useSettingsStore();
+  const settingsPersistenceFailureCount = useSettingsPersistenceStore((s) => s.failureCount);
+  const lastReportedSettingsFailure = useRef(0);
+  useEffect(() => {
+    if (settingsPersistenceFailureCount <= lastReportedSettingsFailure.current) return;
+    lastReportedSettingsFailure.current = settingsPersistenceFailureCount;
+    toast.error(t.toast.settingsSaveFailed);
+  }, [settingsPersistenceFailureCount, t.toast.settingsSaveFailed]);
   const { isLoggedIn, handleCallback, tryRestoreSession, pausePlayback } = useServiceStore();
   const [ytdlpInstalled, setYtdlpInstalled] = useState(false);
 
