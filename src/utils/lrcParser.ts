@@ -483,16 +483,16 @@ export function serializeLrc(doc: LrcDocument, enhanced = true, allowInvalidCont
   const lineOrderTagValue = Object.entries(extraTags).find(([key]) => key.toLowerCase() === LINE_ORDER_TAG)?.[1];
   const whitespaceTagValue = Object.entries(extraTags).find(([key]) => key.toLowerCase() === WHITESPACE_TAG)?.[1];
   const hasEdgeWhitespace = lines.some(line => line.text.startsWith(" ") || line.text.endsWith(" ") || line.text.startsWith("\t") || line.text.endsWith("\t"));
-  if (inlineEscapeMode && inlineEscapeValue !== undefined && inlineEscapeValue !== "1") {
-    throw new LrcInlineEscapeTagConflictError();
-  }
   if (!allowInvalidControlTags) {
+    if (inlineEscapeMode && inlineEscapeValue !== undefined && inlineEscapeValue !== "1") {
+      throw new LrcInlineEscapeTagConflictError();
+    }
     if (doc.invalidControlTags?.some(({ key }) => key.toLowerCase() === INLINE_ESCAPE_TAG)) throw new LrcInlineEscapeTagConflictError();
     if (doc.invalidControlTags?.length) throw new LrcReservedTagConflictError();
     if (translationMode && translationTagValue !== undefined && translationTagValue !== "1") throw new LrcReservedTagConflictError();
+    if (orderNeedsMarker && lineOrderTagValue !== undefined && lineOrderTagValue !== "1") throw new LrcReservedTagConflictError();
+    if (hasEdgeWhitespace && whitespaceTagValue !== undefined && whitespaceTagValue !== "1") throw new LrcReservedTagConflictError();
   }
-  if (orderNeedsMarker && lineOrderTagValue !== undefined && lineOrderTagValue !== "1") throw new LrcReservedTagConflictError();
-  if (hasEdgeWhitespace && whitespaceTagValue !== undefined && whitespaceTagValue !== "1") throw new LrcReservedTagConflictError();
   const encode = (text: string) => {
     const translated = translationMode ? escapeTranslationText(text) : text;
     return inlineEscapeMode ? escapeInlineTimestampText(translated) : translated;
