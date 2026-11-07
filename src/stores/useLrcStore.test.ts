@@ -19,6 +19,7 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(() => Promise.resolve(()
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 
 import { useLrcStore } from "./useLrcStore";
+import { useSettingsStore } from "./useSettingsStore";
 import type { LrcLine, LrcDocument } from "../types/lrc";
 import { saveRecoverySnapshot, loadRecoverySnapshot, clearRecoverySnapshot } from "../utils/recovery";
 import { invoke } from "@tauri-apps/api/core";
@@ -1091,6 +1092,16 @@ describe("useLrcStore — save completion races", () => {
     expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
     expect(useLrcStore.getState().lrcPath).toBeNull();
     expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
+  it("adds a new LRC Save As destination to recent files", async () => {
+    useSettingsStore.setState({ recentFiles: [] });
+    vi.mocked(save).mockResolvedValue("/tmp/new-song.lrc");
+    vi.mocked(invoke).mockResolvedValue(undefined);
+
+    await expect(useLrcStore.getState().saveLrcAs("lrc")).resolves.toBe(true);
+
+    expect(useSettingsStore.getState().recentFiles[0]).toMatchObject({ lrcPath: "/tmp/new-song.lrc" });
   });
 
   it("refuses to overwrite an SRT source when the document has LRC-only content", async () => {

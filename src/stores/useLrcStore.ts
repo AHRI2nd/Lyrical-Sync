@@ -1014,6 +1014,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
           _savedDocument: doc,
           ...(current.doc === doc && current._editRevision === revision ? { isDirty: false, _lastEditKey: null } : {}),
         });
+        useSettingsStore.getState().addRecentFile({ lrcPath: path, audioPath: current.audioPath });
       }
       return true;
     }
