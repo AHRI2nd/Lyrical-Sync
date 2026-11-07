@@ -70,6 +70,8 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
 
   startPolling: () => {
     if (isPolling || !useSettingsStore.getState().deviceMode) return;
+    resetDeviceSession();
+    useLrcStore.getState().setCurrentTime(0);
     isPolling = true;
     const generation = ++pollingGeneration;
     hasNotifiedFailure = false;
@@ -84,6 +86,7 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
       pollingTimer = null;
     }
     get()._stopInterpolation();
+    resetDeviceSession();
   },
 
   _startInterpolation: () => {
@@ -114,6 +117,22 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
     }
   },
 }));
+
+function resetDeviceSession(): void {
+  markDeviceCommand();
+  useDeviceStore.setState({
+    hasSession: false,
+    isPlaying: false,
+    positionMs: 0,
+    durationMs: 0,
+    trackName: "",
+    artistName: "",
+    albumName: "",
+    sourceApp: "",
+    _lastKnownPositionMs: 0,
+    _lastStateTimestamp: Date.now(),
+  });
+}
 
 function isCurrentPoll(generation: number): boolean {
   return isPolling && pollingGeneration === generation;

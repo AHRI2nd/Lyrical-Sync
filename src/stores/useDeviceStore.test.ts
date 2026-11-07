@@ -102,6 +102,20 @@ describe("useDeviceStore — failure notification", () => {
     expect(pushErrorToast).toHaveBeenCalledTimes(2);
   });
 
+  it("does not expose or control the previous session while a restarted poll is pending", async () => {
+    useSettingsStore.getState().setDeviceMode(true);
+    const pending = deferred<any>();
+    invoke.mockReturnValue(pending.promise);
+    useDeviceStore.setState({ hasSession: true, isPlaying: false, trackName: "Previous track", positionMs: 12000 });
+
+    useDeviceStore.getState().startPolling();
+    expect(useDeviceStore.getState()).toMatchObject({ hasSession: false, trackName: "", positionMs: 0 });
+    deviceControls.togglePlay();
+    await Promise.resolve();
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke).toHaveBeenCalledWith("get_now_playing");
+  });
+
   it("does not overlap slow polls and schedules the next poll after the previous one settles", async () => {
     useSettingsStore.getState().setDeviceMode(true);
     const first = deferred<null>();
@@ -164,6 +178,7 @@ describe("useDeviceStore — failure notification", () => {
     const poll = deferred<any>();
     invoke.mockImplementation((command: string) => command === "get_now_playing" ? poll.promise : Promise.resolve());
     useDeviceStore.getState().startPolling();
+    useDeviceStore.setState({ hasSession: true });
     deviceControls.seekTo(5);
     expect(useDeviceStore.getState().positionMs).toBe(5000);
 
