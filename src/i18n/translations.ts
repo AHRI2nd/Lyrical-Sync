@@ -30,6 +30,7 @@ export interface Translations {
   redo: string;
   historyPanelTitle: string;
   historyCurrent: string;
+  historyStart: string;
   historyLabels: Record<
     | "commitSyllables" | "clearSyllables" | "stampLine" | "setLines" | "addLine"
     | "insertLines" | "deleteLine" | "duplicateLine" | "mergeLine"
@@ -629,6 +630,7 @@ const ko: Translations = {
   redo: "다시 실행",
   historyPanelTitle: "편집 히스토리",
   historyCurrent: "현재",
+  historyStart: "시작",
   historyLabels: {
       commitSyllables: "글자 동기화 입력",
       clearSyllables: "글자 동기화 해제",
@@ -1286,6 +1288,7 @@ const en: Translations = {
   redo: "Redo",
   historyPanelTitle: "Edit history",
   historyCurrent: "Current",
+  historyStart: "Start",
   historyLabels: {
       commitSyllables: "Sync glyphs",
       clearSyllables: "Clear glyph sync",
@@ -1944,6 +1947,7 @@ const ja: Translations = {
   redo: "やり直す",
   historyPanelTitle: "編集履歴",
   historyCurrent: "現在",
+  historyStart: "開始",
   historyLabels: {
       commitSyllables: "文字同期入力",
       clearSyllables: "文字同期解除",

@@ -27,3 +27,19 @@ it("exposes expanded state and closes on Escape while restoring trigger focus", 
   expect(trigger.getAttribute("aria-expanded")).toBe("false");
   expect(document.activeElement).toBe(trigger);
 });
+
+it("labels history states with the action that produced each state", () => {
+  useLrcStore.setState({
+    doc: { ...defaultDocument(), lines: [{ id: "a", text: "before", timestamp: null }] },
+    _history: [], _future: [], _lastEditKey: null,
+  });
+  useLrcStore.getState().updateLine("a", { text: "after" });
+  useLrcStore.getState().addLine("new row");
+  const t = useI18nStore.getState().t;
+  const { getByRole } = render(<HistoryPanel />);
+  fireEvent.click(getByRole("button", { name: t.historyPanelTitle }));
+
+  fireEvent.click(getByRole("button", { name: new RegExp(t.historyLabels.editText) }));
+
+  expect(useLrcStore.getState().doc.lines.map((line) => line.text)).toEqual(["after"]);
+});

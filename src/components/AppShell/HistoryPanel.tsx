@@ -32,12 +32,15 @@ export function HistoryPanel() {
   // 과거(오래된 순) → 현재(가상 엔트리) → 미래(가까운 순) 하나의 타임라인.
   // jumpToHistory의 index 규약과 정확히 일치: index === currentIndex면 현재.
   const rows: { index: number; label: string; timestamp: number; isCurrent: boolean }[] = [
-    ..._history.map((e, i) => ({
-      index: i,
-      label: formatLabel(t, e.label, e.count),
-      timestamp: e.timestamp,
-      isCurrent: false,
-    })),
+    ..._history.map((entry, i) => {
+      const action = _history[i - 1];
+      return {
+        index: i,
+        label: action ? formatLabel(t, action.label, action.count) : t.historyStart,
+        timestamp: action?.timestamp ?? entry.timestamp,
+        isCurrent: false,
+      };
+    }),
     { index: currentIndex, label: t.historyCurrent, timestamp: Date.now(), isCurrent: true },
     ..._future.map((e, i) => ({
       index: currentIndex + 1 + i,
