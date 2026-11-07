@@ -1,6 +1,6 @@
 use lofty::file::AudioFile;
 use serde::Serialize;
-use std::io::Read;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use std::time::Duration;
 
@@ -87,14 +87,18 @@ pub fn validate_pcm_frames(sample_rate: u32, channels: u8, frames: u64) -> Resul
 }
 
 pub fn inspect_audio_file(path: &Path) -> Result<AudioResourceInfo, String> {
-    let file_bytes = std::fs::metadata(path)
-        .map_err(|error| error.to_string())?
-        .len();
+    let mut file = std::fs::File::open(path).map_err(|error| error.to_string())?;
+    inspect_audio_file_handle(&mut file)
+}
+
+fn inspect_audio_file_handle(file: &mut std::fs::File) -> Result<AudioResourceInfo, String> {
+    let file_bytes = file.metadata().map_err(|error| error.to_string())?.len();
     if file_bytes > MAX_AUDIO_FILE_BYTES {
         return Err(AUDIO_RESOURCE_LIMIT_ERROR.into());
     }
 
-    let tagged = lofty::read_from_path(path).map_err(|error| error.to_string())?;
+    file.seek(SeekFrom::Start(0)).map_err(|error| error.to_string())?;
+    let tagged = lofty::read_from(file).map_err(|error| error.to_string())?;
     let properties = tagged.properties();
     let sample_rate = properties
         .sample_rate()
@@ -106,11 +110,20 @@ pub fn inspect_audio_file(path: &Path) -> Result<AudioResourceInfo, String> {
 }
 
 pub fn read_bounded_audio_file(path: &Path) -> Result<(Vec<u8>, AudioResourceInfo), String> {
-    let info = inspect_audio_file(path)?;
+    read_bounded_audio_file_with_hook(path, || {})
+}
+
+fn read_bounded_audio_file_with_hook(
+    path: &Path,
+    after_inspect: impl FnOnce(),
+) -> Result<(Vec<u8>, AudioResourceInfo), String> {
     let mut file = std::fs::File::open(path).map_err(|error| error.to_string())?;
+    let info = inspect_audio_file_handle(&mut file)?;
+    after_inspect();
     if file.metadata().map_err(|error| error.to_string())?.len() > MAX_AUDIO_FILE_BYTES {
         return Err(AUDIO_RESOURCE_LIMIT_ERROR.into());
     }
+    file.seek(SeekFrom::Start(0)).map_err(|error| error.to_string())?;
     let mut bytes = Vec::new();
     file.by_ref()
         .take(MAX_AUDIO_FILE_BYTES + 1)
@@ -202,6 +215,39 @@ mod tests {
         assert_eq!(info.sample_rate, 48_000);
         assert_eq!(info.channels, 2);
         assert!(info.estimated_pcm_bytes <= MAX_AUDIO_PCM_BYTES);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn audio_replacement_after_inspection_cannot_change_the_read_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("audio.wav");
+        let replacement = dir.path().join("replacement.wav");
+        let spec = hound::WavSpec {
+            channels: 2,
+            sample_rate: 48_000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        for (target, sample) in [(&path, 1_i16), (&replacement, 2_i16)] {
+            let mut writer = hound::WavWriter::create(target, spec).unwrap();
+            for _ in 0..480 {
+                writer.write_sample(sample).unwrap();
+                writer.write_sample(sample).unwrap();
+            }
+            writer.finalize().unwrap();
+        }
+        let original_bytes = std::fs::read(&path).unwrap();
+        let replacement_bytes = std::fs::read(&replacement).unwrap();
+        assert_eq!(original_bytes.len(), replacement_bytes.len());
+        assert_ne!(original_bytes, replacement_bytes);
+
+        let (bytes, _) = read_bounded_audio_file_with_hook(&path, || {
+            std::fs::rename(&replacement, &path).unwrap();
+        })
+        .unwrap();
+
+        assert_eq!(bytes, original_bytes);
     }
 
     #[test]
