@@ -282,6 +282,28 @@ it("does not expand a pending replace-all to rows added while glyph confirmation
   expect(useLrcStore.getState().doc.lines[1].text).toBe("needle new");
 });
 
+it("does not apply replace-all after undo changes the affected rows", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+    { id: "a", text: "old first", timestamp: 1, syllables: [{ text: "old first", time: 1 }] },
+    { id: "b", text: "old second", timestamp: 2, syllables: [{ text: "old second", time: 2 }] },
+  ] } });
+  useLrcStore.getState().updateLine("b", { text: "different" });
+  const { getByRole, getByPlaceholderText, getByText } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getByRole("button", { name: t.editorTools }));
+  fireEvent.click(getByRole("button", { name: t.findReplace }));
+  fireEvent.change(getByPlaceholderText(t.findPlaceholder), { target: { value: "old" } });
+  fireEvent.change(getByPlaceholderText(t.replacePlaceholder), { target: { value: "new" } });
+  fireEvent.click(getByRole("button", { name: t.replaceAll }));
+  expect(getByText(t.charSync.retokenizeTitle)).toBeTruthy();
+
+  act(() => useLrcStore.getState().undo());
+  fireEvent.click(getByRole("button", { name: t.charSync.retokenizeOk }));
+
+  expect(useLrcStore.getState().doc.lines.map((line) => line.text)).toEqual(["old first", "old second"]);
+  expect(useLrcStore.getState().doc.lines[1].syllables).toEqual([{ text: "old second", time: 2 }]);
+});
+
 it("asks before multiline paste replaces timed glyphs and preserves the source on cancel", () => {
   const t = useI18nStore.getState().t;
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "old lyric", timestamp: 1,
