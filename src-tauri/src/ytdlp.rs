@@ -104,6 +104,70 @@ impl YtdlpState {
     }
 }
 
+struct ActiveYtdlpRun<'a> {
+    state: &'a YtdlpState,
+    cancel_flag: Arc<AtomicBool>,
+}
+
+impl<'a> ActiveYtdlpRun<'a> {
+    fn new(state: &'a YtdlpState, cancel_flag: Arc<AtomicBool>) -> Self {
+        Self { state, cancel_flag }
+    }
+}
+
+impl Drop for ActiveYtdlpRun<'_> {
+    fn drop(&mut self) {
+        self.cancel_flag.store(true, Ordering::Relaxed);
+        self.state.finish_run(&self.cancel_flag);
+    }
+}
+
+struct YtdlpProcessTreeGuard {
+    pid: Option<u32>,
+    armed: bool,
+}
+
+impl YtdlpProcessTreeGuard {
+    fn new(pid: Option<u32>) -> Self {
+        Self { pid, armed: true }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+
+    async fn terminate(&mut self) {
+        if let Some(pid) = self.pid {
+            crate::alignment_process::terminate_process_tree(pid).await;
+        }
+        self.armed = false;
+    }
+}
+
+impl Drop for YtdlpProcessTreeGuard {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+        let Some(pid) = self.pid else { return };
+        #[cfg(unix)]
+        unsafe {
+            libc::kill(-(pid as i32), libc::SIGKILL);
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            let pid = pid.to_string();
+            let _ = std::process::Command::new("taskkill")
+                .args(["/PID", &pid, "/T", "/F"])
+                .creation_flags(0x08000000)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn();
+        }
+    }
+}
+
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct YtdlpInstallProgress {
@@ -615,7 +679,8 @@ pub async fn ytdlp_load_audio(
     }
 
     let cancel_flag = ytdlp_state.start_run()?;
-    let result = ytdlp_load_audio_inner(
+    let _run_guard = ActiveYtdlpRun::new(&ytdlp_state, cancel_flag.clone());
+    let path = ytdlp_load_audio_inner(
         url,
         quality,
         cookies_file,
@@ -624,9 +689,7 @@ pub async fn ytdlp_load_audio(
         exe,
         cancel_flag.clone(),
     )
-    .await;
-    ytdlp_state.finish_run(&cancel_flag);
-    let path = result?;
+    .await?;
     let path = PathBuf::from(path).canonicalize().map_err(|error| error.to_string())?;
     let cache_root = app
         .path()
@@ -715,7 +778,10 @@ async fn ytdlp_run_child(
         .arg("-o")
         .arg(&output_tpl)
         .arg("--newline")
-        .arg("--no-part");
+        .arg("--no-part")
+        .kill_on_drop(true);
+    #[cfg(unix)]
+    cmd.process_group(0);
 
     if let Some(ref c) = cookies_file {
         if !c.is_empty() {
@@ -737,6 +803,7 @@ async fn ytdlp_run_child(
     cmd.creation_flags(0x08000000);
 
     let mut child = cmd.spawn().map_err(|e| format!("yt-dlp 실행 실패: {e}"))?;
+    let mut process_tree = YtdlpProcessTreeGuard::new(child.id());
     let stdout = child
         .stdout
         .take()
@@ -769,6 +836,7 @@ async fn ytdlp_run_child(
     let mut dest_path: Option<String> = None;
     loop {
         if cancel_flag.load(Ordering::Relaxed) {
+            process_tree.terminate().await;
             let _ = child.kill().await;
             let _ = child.wait().await;
             let _ = stderr_task.await;
@@ -789,6 +857,7 @@ async fn ytdlp_run_child(
             }
             Ok(Ok(None)) => break,
             Ok(Err(e)) => {
+                process_tree.terminate().await;
                 let _ = child.kill().await;
                 let _ = child.wait().await;
                 let _ = stderr_task.await;
@@ -799,6 +868,7 @@ async fn ytdlp_run_child(
 
     let status = loop {
         if cancel_flag.load(Ordering::Relaxed) {
+            process_tree.terminate().await;
             let _ = child.kill().await;
             let _ = child.wait().await;
             let _ = stderr_task.await;
@@ -837,6 +907,8 @@ async fn ytdlp_run_child(
         find_ytdlp_output(&cache_dir, &ts).await?
     };
 
+    process_tree.disarm();
+
     let _ = app.emit(
         "ytdlp-audio-progress",
         YtdlpAudioProgress {
@@ -858,6 +930,76 @@ pub fn cancel_ytdlp_load(ytdlp_state: tauri::State<'_, YtdlpState>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ytdlp_process_tree_fixture() {
+        match std::env::var("LYRICAL_YTDLP_FIXTURE").as_deref() {
+            Ok("grandchild") => std::thread::sleep(std::time::Duration::from_secs(60)),
+            Ok("parent") => {
+                let marker = std::env::var("LYRICAL_YTDLP_PID_FILE").unwrap();
+                let child = std::process::Command::new(std::env::current_exe().unwrap())
+                    .args(["--exact", "ytdlp::tests::ytdlp_process_tree_fixture", "--nocapture"])
+                    .env("LYRICAL_YTDLP_FIXTURE", "grandchild")
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .spawn()
+                    .unwrap();
+                std::fs::write(marker, child.id().to_string()).unwrap();
+                std::thread::sleep(std::time::Duration::from_secs(60));
+            }
+            _ => {}
+        }
+    }
+
+    #[test]
+    fn dropping_active_run_releases_the_single_run_slot() {
+        let state = YtdlpState::default();
+        let cancel = state.start_run().unwrap();
+        {
+            let _guard = ActiveYtdlpRun::new(&state, cancel.clone());
+            assert!(state.start_run().is_err());
+        }
+        assert!(cancel.load(Ordering::Relaxed));
+        assert!(state.start_run().is_ok());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn dropping_process_tree_guard_terminates_yt_dlp_descendants() {
+        let temp = tempfile::tempdir().unwrap();
+        let marker = temp.path().join("grandchild.pid");
+        let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+        command
+            .args(["--exact", "ytdlp::tests::ytdlp_process_tree_fixture", "--nocapture"])
+            .env("LYRICAL_YTDLP_FIXTURE", "parent")
+            .env("LYRICAL_YTDLP_PID_FILE", &marker)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .kill_on_drop(true)
+            .process_group(0);
+        let child = command.spawn().unwrap();
+        let pid = child.id().unwrap();
+        let guard = YtdlpProcessTreeGuard::new(Some(pid));
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            while !marker.exists() {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("fixture should publish its descendant PID");
+        let grandchild: i32 = std::fs::read_to_string(marker).unwrap().parse().unwrap();
+        assert_eq!(unsafe { libc::kill(grandchild, 0) }, 0);
+
+        drop(guard);
+        drop(child);
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            while unsafe { libc::kill(grandchild, 0) } == 0 {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("dropped yt-dlp operation should terminate its descendant");
+    }
 
     #[test]
     fn bounded_response_byte_count_rejects_limit_plus_one_and_overflow() {
