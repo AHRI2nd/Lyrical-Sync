@@ -1,4 +1,3 @@
-import { readFile } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
 
 // AIFF 트랜스코딩은 Windows WebView2 전용(미지원 포맷) — macOS는 AIFF 네이티브 지원.
@@ -20,61 +19,16 @@ async function decodeAiffIfNeeded(audioPath: string, signal?: AbortSignal): Prom
   return null;
 }
 
-interface AudioFileInfo {
-  size: number;
-  // Serialized as a string because nanosecond Unix timestamps exceed JS safe integers.
-  mtime: string;
-  fileId: string | null;
-}
-
-async function getFileInfo(audioPath: string): Promise<AudioFileInfo> {
-  const meta = await invoke<{ size: number; mtime: string; fileId: string | null }>("get_audio_file_info", { path: audioPath });
-  if (!Number.isSafeInteger(meta.size) || meta.size < 0 || typeof meta.mtime !== "string") {
-    throw new Error("Invalid audio file identity response");
-  }
-  return { size: meta.size, mtime: meta.mtime, fileId: meta.fileId ?? null };
-}
-
-function sameFile(a: AudioFileInfo, b: AudioFileInfo): boolean {
-  return a.size === b.size && a.mtime === b.mtime && a.fileId === b.fileId;
-}
-
-// 오디오 파일을 바이트로 읽음. fs 스코프(미디어 디렉터리) 내 파일은 plugin readFile(빠른
-// 바이너리 채널), 스코프 밖(임시 폴더·외장 드라이브 등)은 스코프 제약 없는 Rust 커맨드로 폴백.
-// Read identity before/after and verify the actual byte count. This detects many
-// replacements, but does not prove an atomic snapshot without a shared OS handle.
+// Native code validates audio metadata and reads the bytes from the same open
+// file handle. Splitting validation, filesystem reads, and identity checks across
+// separate calls can decode a replacement that was never checked against the
+// decoded-memory budget.
 export async function readAudioBytes(audioPath: string, signal?: AbortSignal): Promise<{ bytes: Uint8Array; transcoded: boolean }> {
   checkCancelled(signal);
   const decoded = await decodeAiffIfNeeded(audioPath, signal);
   if (decoded) return { bytes: decoded, transcoded: true };
   
-  // First validate the audio file (checks file size, duration, channels, sample rate, PCM budget)
-  await invoke("validate_audio_file", { path: audioPath });
+  const buf = await invoke<ArrayBuffer>("read_audio_file", { path: audioPath });
   checkCancelled(signal);
-  
-  // Then get file identity before read
-  const infoBefore = await getFileInfo(audioPath);
-  checkCancelled(signal);
-  
-  let bytes: Uint8Array;
-  try {
-    bytes = await readFile(audioPath);
-  } catch {
-    // Only an actual FS read failure may take the native fallback. A file
-    // identity mismatch must never cause a second read of a different file.
-    checkCancelled(signal);
-    try {
-      const buf = await invoke<ArrayBuffer>("read_audio_file", { path: audioPath });
-      bytes = new Uint8Array(buf);
-    } catch (nativeError) {
-      throw new Error(`Unable to read audio file: ${String(nativeError)}`);
-    }
-  }
-  checkCancelled(signal);
-  const infoAfter = await getFileInfo(audioPath);
-  checkCancelled(signal);
-  if (!sameFile(infoBefore, infoAfter) || bytes.byteLength !== infoAfter.size) {
-    throw new Error("Audio file changed during read");
-  }
-  return { bytes, transcoded: false };
+  return { bytes: new Uint8Array(buf), transcoded: false };
 }
