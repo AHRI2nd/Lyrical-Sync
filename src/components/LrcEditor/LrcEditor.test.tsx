@@ -48,6 +48,18 @@ it("resets the time shift range and delta when the document is replaced", () => 
   expect(numberInputs[1].value).toBe("2");
   expect(numberInputs[2].value).toBe("0");
 });
+it("removes an individually deleted row from bulk selection", () => {
+  const t = useI18nStore.getState().t;
+  const { container, queryByText } = render(<LrcEditor onPreview={() => {}} />);
+  const row = container.querySelector('[data-line-id="a"]');
+  expect(row).not.toBeNull();
+  fireEvent.click(row!, { ctrlKey: true });
+  expect(queryByText(`1 ${t.bulkSelected}`)).toBeTruthy();
+
+  fireEvent.click(row!.querySelector(`button[aria-label="${t.deleteLine}"]`)!);
+  expect(useLrcStore.getState().doc.lines.map((line) => line.id)).toEqual(["b", "c", "d"]);
+  expect(queryByText(`1 ${t.bulkSelected}`)).toBeNull();
+});
 it("lets the user choose the AI language separately from the interface language", () => {
   const { getByLabelText } = render(<LrcEditor onPreview={() => {}} />);
   fireEvent.change(getByLabelText(useI18nStore.getState().t.aiLanguageLabel), { target: { value: "jpn" } });
