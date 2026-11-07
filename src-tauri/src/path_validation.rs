@@ -93,15 +93,21 @@ pub fn validate_ytdlp_url(url: &str) -> Result<(), String> {
         return Err("Only HTTP/HTTPS URLs allowed".into());
     }
     
-    // Block private IP ranges to prevent SSRF
+    // Reject special-use numeric hosts and local naming suffixes.
     if let Some(host) = parsed.host_str() {
         if is_private_ip(host) {
-            return Err("Private IP addresses not allowed".into());
+            return Err("Restricted IP addresses are not allowed".into());
         }
-        
-        // Block localhost
-        if host == "localhost" || host == "127.0.0.1" || host == "::1" {
-            return Err("Localhost not allowed".into());
+
+        let normalized_host = host.trim_end_matches('.').to_ascii_lowercase();
+        if normalized_host == "localhost"
+            || normalized_host.ends_with(".localhost")
+            || normalized_host.ends_with(".local")
+            || normalized_host.ends_with(".internal")
+            || normalized_host == "home.arpa"
+            || normalized_host.ends_with(".home.arpa")
+        {
+            return Err("Local host names are not allowed".into());
         }
     }
     
@@ -109,30 +115,38 @@ pub fn validate_ytdlp_url(url: &str) -> Result<(), String> {
 }
 
 fn is_private_ip(host: &str) -> bool {
-    // Check for private IP ranges
+    let host = host.trim_start_matches('[').trim_end_matches(']');
     if let Ok(ip) = host.parse::<std::net::IpAddr>() {
         match ip {
             std::net::IpAddr::V4(ipv4) => {
                 let octets = ipv4.octets();
-                // 10.0.0.0/8
-                if octets[0] == 10 { return true; }
-                // 172.16.0.0/12
-                if octets[0] == 172 && octets[1] >= 16 && octets[1] <= 31 { return true; }
-                // 192.168.0.0/16
-                if octets[0] == 192 && octets[1] == 168 { return true; }
-                // 127.0.0.0/8 (loopback)
-                if octets[0] == 127 { return true; }
-                // 169.254.0.0/16 (link-local)
-                if octets[0] == 169 && octets[1] == 254 { return true; }
+                return octets[0] == 0
+                    || octets[0] == 10
+                    || (octets[0] == 100 && (64..=127).contains(&octets[1]))
+                    || octets[0] == 127
+                    || (octets[0] == 169 && octets[1] == 254)
+                    || (octets[0] == 172 && (16..=31).contains(&octets[1]))
+                    || (octets[0] == 192 && octets[1] == 0 && octets[2] <= 2)
+                    || (octets[0] == 192 && octets[1] == 88 && octets[2] == 99)
+                    || (octets[0] == 192 && octets[1] == 168)
+                    || (octets[0] == 198 && (18..=19).contains(&octets[1]))
+                    || (octets[0] == 198 && octets[1] == 51 && octets[2] == 100)
+                    || (octets[0] == 203 && octets[1] == 0 && octets[2] == 113)
+                    || octets[0] >= 224;
             }
             std::net::IpAddr::V6(ipv6) => {
                 let segments = ipv6.segments();
-                // ::1 (loopback)
-                if ipv6.is_loopback() { return true; }
-                // fe80::/10 (link-local)
-                if segments[0] & 0xffc0 == 0xfe80 { return true; }
-                // fc00::/7 (unique local)
-                if segments[0] & 0xfe00 == 0xfc00 { return true; }
+                return ipv6.is_unspecified()
+                    || ipv6.is_loopback()
+                    || ipv6.is_multicast()
+                    || ipv6.is_unique_local()
+                    || ipv6.is_unicast_link_local()
+                    || ipv6.to_ipv4().is_some()
+                    || segments[0] & 0xe000 != 0x2000
+                    || (segments[0] == 0x2001 && segments[1] == 0x0db8)
+                    || (segments[0] == 0x3fff && segments[1] & 0xf000 == 0)
+                    || segments[0] == 0x2002
+                    || (segments[0] == 0x2001 && segments[1] == 0);
             }
         }
     }
@@ -218,5 +232,40 @@ mod write_path_tests {
         assert!(validate_write_path(dangling.to_str().unwrap()).is_err());
         assert!(fs::symlink_metadata(&dangling).unwrap().file_type().is_symlink());
         assert!(!actual.join("missing-target.lrc").exists());
+    }
+}
+
+#[cfg(test)]
+mod ytdlp_url_tests {
+    use super::validate_ytdlp_url;
+
+    #[test]
+    fn rejects_non_global_ip_literals_and_local_host_names() {
+        let denied = [
+            "http://0.1.2.3/video",
+            "http://100.64.0.1/video",
+            "http://192.0.2.1/video",
+            "http://198.18.0.1/video",
+            "http://224.0.0.1/video",
+            "http://255.255.255.255/video",
+            "http://[::]/video",
+            "http://[::ffff:127.0.0.1]/video",
+            "http://[2001:db8::1]/video",
+            "http://[3fff::1]/video",
+            "http://[2002:7f00:1::]/video",
+            "http://localhost./video",
+            "http://printer.local/video",
+            "http://service.internal/video",
+        ];
+
+        for url in denied {
+            assert!(validate_ytdlp_url(url).is_err(), "accepted {url}");
+        }
+    }
+
+    #[test]
+    fn accepts_http_and_https_urls_with_public_hosts() {
+        assert!(validate_ytdlp_url("https://www.youtube.com/watch?v=abc").is_ok());
+        assert!(validate_ytdlp_url("http://203.0.114.1/video").is_ok());
     }
 }
