@@ -18,6 +18,8 @@ export interface LrcLine {
   timestamp: number | null; // seconds
   /** Original SRT cue end, retained so overlapping cue intervals survive import/export. */
   srtEndTime?: number;
+  /** Bounded single-line SubRip cue settings, retained for same-format SRT saves. */
+  srtCueSettings?: string;
   text: string;
   // 존재하면 Enhanced LRC(글자/단어 동기화) 줄. 없으면 일반 줄 단위.
   syllables?: LrcSyllable[];

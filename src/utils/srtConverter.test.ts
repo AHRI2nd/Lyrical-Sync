@@ -43,6 +43,39 @@ describe("parseSrt", () => {
     ]);
   });
 
+  it("preserves cue coordinates through text edits, JSON recovery, and SRT autosave", () => {
+    const input = "1\n00:00:01,250 --> 00:00:03,500 X1:10 X2:20 Y1:25 Y2:50\nsubtitle\n";
+    const parsed = parseSrt(input);
+    expect(parsed.lines[0].srtCueSettings).toBe("X1:10 X2:20 Y1:25 Y2:50");
+    expect(serializeSrt(parsed)).toBe(input);
+
+    const recovered: LrcDocument = JSON.parse(JSON.stringify(parsed));
+    const edited = {
+      ...recovered,
+      lines: recovered.lines.map((line) => line.text ? { ...line, text: "edited subtitle" } : line),
+    };
+    expect(serializeSrt(edited)).toBe(input.replace("subtitle", "edited subtitle"));
+  });
+
+  it("retains independent position settings when SRT cues overlap", () => {
+    const input = "1\n00:00:01,000 --> 00:00:04,000 Y2:210 X1:040\nfirst\n\n" +
+      "2\n00:00:02,000 --> 00:00:05,000 X2:310 Y1:100\nsecond\n";
+    expect(serializeSrt(parseSrt(input))).toBe(input);
+  });
+
+  it("keeps bounded unknown single-line settings to avoid dropping accepted SRT extensions", () => {
+    for (const settings of ["position:50%", "X1:10 Y3:20", "X1:10;X2:20", "X1:10\tY1:20"]) {
+      const input = `1\n00:00:01,000 --> 00:00:03,000 ${settings}\ntext\n`;
+      expect(serializeSrt(parseSrt(input))).toBe(input);
+    }
+  });
+
+  it("rejects malformed or unsafe timing-line suffixes", () => {
+    for (const settings of ["X1:10 --> bad", "X1:10\u0001BAD", "X1:10\u2028", "X1:10" + "x".repeat(256)]) {
+      expect(() => parseSrt(`1\n00:00:01,000 --> 00:00:03,000 ${settings}\ntext\n`)).toThrow(SrtMalformedCueError);
+    }
+  });
+
   it("returns an empty document for empty or unrelated non-cue input", () => {
     for (const input of ["", "  \n", "free text\nwithout any cues", "other --> explanatory text"]) {
       expect(parseSrt(input).lines).toEqual([]);
@@ -92,6 +125,11 @@ describe("parseSrt", () => {
 });
 
 describe("serializeSrt", () => {
+  it("rejects tampered recovery cue settings before output could acquire another cue", () => {
+    for (const settings of ["X1:10\n2\n00:00:02,000 --> 00:00:04,000", "X1:10 --> fake", "X1:10\u2028hidden"]) {
+      expect(() => serializeSrt(docOf([{ id: "cue", timestamp: 1, srtEndTime: 3, text: "safe", srtCueSettings: settings }]))).toThrow();
+    }
+  });
   it("rejects terminal newlines that SRT parsing would remove from a cue body", () => {
     expect(() => serializeSrt(docOf([{ id: "1", timestamp: 1, text: "first\n" }]))).toThrow(
       "SRT cannot preserve blank paragraph rows",
