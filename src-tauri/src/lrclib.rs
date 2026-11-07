@@ -145,6 +145,34 @@ async fn bounded_request<T>(
     }
 }
 
+async fn publish_after_confirmation<T, F, Fut>(confirmed: bool, publish: F) -> Result<T, String>
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = Result<T, String>>,
+{
+    if !confirmed {
+        return Err("LRCLIB publishing was not confirmed".into());
+    }
+    publish().await
+}
+
+async fn ask_publish_confirmation(window: &tauri::WebviewWindow) -> bool {
+    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    window
+        .dialog()
+        .message("This sends the displayed lyrics and track details to lrclib.net. Continue?")
+        .title("Publish lyrics to LRCLIB")
+        .parent(window)
+        .kind(MessageDialogKind::Warning)
+        .buttons(MessageDialogButtons::YesNo)
+        .show(move |confirmed| {
+            let _ = sender.send(confirmed);
+        });
+    receiver.await.unwrap_or(false)
+}
+
 #[tauri::command]
 pub fn cancel_lrclib_publish(state: tauri::State<'_, PublishState>, run_id: String) {
     state.cancel(&run_id);
@@ -153,6 +181,7 @@ pub fn cancel_lrclib_publish(state: tauri::State<'_, PublishState>, run_id: Stri
 #[tauri::command]
 pub async fn lrclib_publish(
     state: tauri::State<'_, PublishState>,
+    window: tauri::WebviewWindow,
     run_id: String,
     track_name: String,
     artist_name: String,
@@ -162,73 +191,77 @@ pub async fn lrclib_publish(
     synced_lyrics: String,
 ) -> Result<(), String> {
     let run = state.begin(run_id)?;
-    let client = reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(5))
-        .timeout(Duration::from_secs(30))
-        .build()
-        .map_err(|e| e.to_string())?;
-    let ch: LrclibChallenge = bounded_request(
-        async {
-            let response = client
-                .post("https://lrclib.net/api/request-challenge")
-                .header("User-Agent", "lyrical-sync")
-                .send()
-                .await
-                .map_err(|e| e.to_string())?
-                .error_for_status()
-                .map_err(|e| e.to_string())?;
-            if response.content_length().is_some_and(|n| n > 8192) {
-                return Err("LRCLIB challenge is too large".into());
-            }
-            let mut response = response;
-            let mut bytes = Vec::new();
-            while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
-                if bytes.len() + chunk.len() > 8192 {
+    let confirmed = ask_publish_confirmation(&window).await;
+    publish_after_confirmation(confirmed, || async {
+        let client = reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(30))
+            .build()
+            .map_err(|e| e.to_string())?;
+        let ch: LrclibChallenge = bounded_request(
+            async {
+                let response = client
+                    .post("https://lrclib.net/api/request-challenge")
+                    .header("User-Agent", "lyrical-sync")
+                    .send()
+                    .await
+                    .map_err(|e| e.to_string())?
+                    .error_for_status()
+                    .map_err(|e| e.to_string())?;
+                if response.content_length().is_some_and(|n| n > 8192) {
                     return Err("LRCLIB challenge is too large".into());
                 }
-                bytes.extend_from_slice(&chunk);
-            }
-            serde_json::from_slice(&bytes).map_err(|e| e.to_string())
-        },
-        &run.cancel,
-        Duration::from_secs(30),
-    )
-    .await?;
-    if ch.prefix.len() > 1024 {
-        return Err("LRCLIB challenge prefix is too large".into());
-    }
-    let target = parse_target(&ch.target)?;
-    let cancel = run.cancel.clone();
-    let token = tokio::task::spawn_blocking(move || {
-        solve_challenge(
-            &ch.prefix,
-            &target,
-            &cancel,
+                let mut response = response;
+                let mut bytes = Vec::new();
+                while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
+                    if bytes.len() + chunk.len() > 8192 {
+                        return Err("LRCLIB challenge is too large".into());
+                    }
+                    bytes.extend_from_slice(&chunk);
+                }
+                serde_json::from_slice(&bytes).map_err(|e| e.to_string())
+            },
+            &run.cancel,
             Duration::from_secs(30),
-            100_000_000,
         )
+        .await?;
+        if ch.prefix.len() > 1024 {
+            return Err("LRCLIB challenge prefix is too large".into());
+        }
+        let target = parse_target(&ch.target)?;
+        let cancel = run.cancel.clone();
+        let token = tokio::task::spawn_blocking(move || {
+            solve_challenge(
+                &ch.prefix,
+                &target,
+                &cancel,
+                Duration::from_secs(30),
+                100_000_000,
+            )
+        })
+        .await
+        .map_err(|e| e.to_string())??;
+        let body = serde_json::json!({"trackName":track_name,"artistName":artist_name,"albumName":album_name,"duration":duration,"plainLyrics":plain_lyrics,"syncedLyrics":synced_lyrics});
+        bounded_request(
+            async {
+                let response = client
+                    .post("https://lrclib.net/api/publish")
+                    .header("User-Agent", "lyrical-sync")
+                    .header("X-Publish-Token", token)
+                    .json(&body)
+                    .send()
+                    .await
+                    .map_err(|e| e.to_string())?;
+                if !response.status().is_success() {
+                    return Err(format!("LRCLIB publish failed ({})", response.status()));
+                }
+                Ok(())
+            },
+            &run.cancel,
+            Duration::from_secs(30),
+        )
+        .await
     })
-    .await
-    .map_err(|e| e.to_string())??;
-    let body = serde_json::json!({"trackName":track_name,"artistName":artist_name,"albumName":album_name,"duration":duration,"plainLyrics":plain_lyrics,"syncedLyrics":synced_lyrics});
-    bounded_request(
-        async {
-            let response = client
-                .post("https://lrclib.net/api/publish")
-                .header("User-Agent", "lyrical-sync")
-                .header("X-Publish-Token", token)
-                .json(&body)
-                .send()
-                .await
-                .map_err(|e| e.to_string())?;
-            if !response.status().is_success() {
-                return Err(format!("LRCLIB publish failed ({})", response.status()));
-            }
-            Ok(())
-        },
-        &run.cancel,
-        Duration::from_secs(30),
-    )
     .await
 }
 
@@ -252,6 +285,41 @@ mod tests {
 #[cfg(test)]
 mod publish_safety_tests {
     use super::*;
+
+    #[tokio::test]
+    async fn cancelled_native_confirmation_never_starts_the_publish_request() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        let requested = Arc::new(AtomicBool::new(false));
+        let request_flag = requested.clone();
+        let result = publish_after_confirmation(false, || async move {
+            request_flag.store(true, Ordering::SeqCst);
+            Ok(())
+        })
+        .await;
+
+        assert_eq!(result.unwrap_err(), "LRCLIB publishing was not confirmed");
+        assert!(!requested.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn accepted_native_confirmation_starts_the_publish_request() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        let requested = Arc::new(AtomicBool::new(false));
+        let request_flag = requested.clone();
+        publish_after_confirmation(true, || async move {
+            request_flag.store(true, Ordering::SeqCst);
+            Ok(())
+        })
+        .await
+        .unwrap();
+
+        assert!(requested.load(Ordering::SeqCst));
+    }
+
     #[test]
     fn malformed_targets_are_not_silently_shortened() {
         for value in ["", "00zzff", "0", &"00".repeat(31), &"00".repeat(33)] {
