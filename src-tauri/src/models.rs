@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
+use crate::atomic_write;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -36,6 +37,47 @@ impl Default for ModelsDirState {
             custom_path: Mutex::new(None),
         }
     }
+}
+
+fn authorize_custom_models_root(
+    path: Option<&str>,
+    scope_is_allowed: bool,
+    previously_authorized: Option<&Path>,
+) -> Result<Option<PathBuf>, String> {
+    let Some(path) = path.filter(|path| !path.is_empty()) else {
+        return Ok(None);
+    };
+    if !Path::new(path).is_absolute() {
+        return Err("Model directory must be an absolute path".into());
+    }
+    let requested = PathBuf::from(path).canonicalize().map_err(|error| error.to_string())?;
+    if !requested.is_dir() {
+        return Err("Model directory is not a directory".into());
+    }
+    if !scope_is_allowed && previously_authorized != Some(requested.as_path()) {
+        return Err("Model directory has not been authorized".into());
+    }
+    Ok(Some(requested))
+}
+
+fn authorized_models_root_file(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_config_dir()
+        .map(|dir| dir.join("authorized-model-directory.json"))
+        .map_err(|error| error.to_string())
+}
+
+fn read_authorized_models_root(app: &AppHandle) -> Result<Option<PathBuf>, String> {
+    let path = authorized_models_root_file(app)?;
+    let content = match std::fs::read_to_string(path) {
+        Ok(content) => content,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.to_string()),
+    };
+    serde_json::from_str::<String>(&content)
+        .map(PathBuf::from)
+        .map(Some)
+        .map_err(|error| error.to_string())
 }
 
 #[derive(Deserialize)]
@@ -77,14 +119,48 @@ pub fn models_dir(app: &AppHandle, dir_state: &ModelsDirState) -> Result<PathBuf
 /// 커스텀 모델 저장 경로를 설정합니다. None이면 앱 기본 경로로 초기화합니다.
 #[tauri::command]
 pub fn set_models_dir_override(
+    app: AppHandle,
+    window: tauri::WebviewWindow,
     dir_state: tauri::State<'_, ModelsDirState>,
     path: Option<String>,
 ) -> Result<(), String> {
+    use tauri_plugin_fs::FsExt;
+
     let mut custom = dir_state
         .custom_path
         .lock()
         .unwrap_or_else(|e| e.into_inner());
-    *custom = path.filter(|p| !p.is_empty()).map(PathBuf::from);
+    let selected_path = path.filter(|path| !path.is_empty());
+    let previously_authorized = read_authorized_models_root(&app)?;
+    let scope = window.fs_scope();
+    let scope_is_allowed = selected_path
+        .as_deref()
+        .is_some_and(|path| scope.is_allowed(Path::new(path)));
+    let authorized = authorize_custom_models_root(
+        selected_path.as_deref(),
+        scope_is_allowed,
+        previously_authorized.as_deref(),
+    )?;
+
+    if let Some(root) = &authorized {
+        if scope_is_allowed {
+            let auth_file = authorized_models_root_file(&app)?;
+            let parent = auth_file.parent().ok_or("Missing app configuration directory")?;
+            std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+            let content = serde_json::to_string(&root.to_string_lossy().into_owned())
+                .map_err(|error| error.to_string())?;
+            atomic_write::write_atomic(&auth_file, &content).map_err(|error| error.to_string())?;
+        }
+    } else if selected_path.is_none() {
+        let auth_file = authorized_models_root_file(&app)?;
+        match std::fs::remove_file(auth_file) {
+            Ok(()) => {},
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {},
+            Err(error) => return Err(error.to_string()),
+        }
+    }
+
+    *custom = authorized;
     Ok(())
 }
 
@@ -477,6 +553,77 @@ pub async fn delete_model_files(
 #[cfg(test)]
 mod integrity_tests {
     use super::*;
+
+    #[test]
+    fn rejects_custom_model_roots_without_a_picker_grant_or_saved_approval() {
+        let selected = tempfile::tempdir().unwrap();
+        let error = authorize_custom_models_root(
+            Some(selected.path().to_str().unwrap()),
+            false,
+            None,
+        )
+        .unwrap_err();
+
+        assert_eq!(error, "Model directory has not been authorized");
+    }
+
+    #[test]
+    fn accepts_a_picked_or_previously_approved_model_root() {
+        let selected = tempfile::tempdir().unwrap();
+        let selected_path = selected.path().canonicalize().unwrap();
+        let picked = authorize_custom_models_root(
+            Some(selected.path().to_str().unwrap()),
+            true,
+            None,
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(picked, selected_path);
+
+        let restored = authorize_custom_models_root(
+            Some(selected.path().to_str().unwrap()),
+            false,
+            Some(&selected_path),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(restored, selected_path);
+    }
+
+    #[test]
+    fn rejects_relative_model_roots_even_when_picker_scope_matches() {
+        let error = authorize_custom_models_root(Some("relative/models"), true, None)
+            .unwrap_err();
+
+        assert_eq!(error, "Model directory must be an absolute path");
+    }
+
+    #[test]
+    fn rejects_a_different_previously_approved_model_root() {
+        let selected = tempfile::tempdir().unwrap();
+        let other = tempfile::tempdir().unwrap();
+        let other_path = other.path().canonicalize().unwrap();
+
+        let error = authorize_custom_models_root(
+            Some(selected.path().to_str().unwrap()),
+            false,
+            Some(&other_path),
+        )
+        .unwrap_err();
+
+        assert_eq!(error, "Model directory has not been authorized");
+    }
+
+    #[test]
+    fn rejects_nonexistent_model_roots_even_when_picker_scope_matches() {
+        let parent = tempfile::tempdir().unwrap();
+        let missing = parent.path().join("missing");
+
+        let error = authorize_custom_models_root(Some(missing.to_str().unwrap()), true, None)
+            .unwrap_err();
+
+        assert!(!error.is_empty());
+    }
 
     #[test]
     fn only_the_current_run_can_be_removed_or_cancelled() {
