@@ -323,6 +323,15 @@ struct AudioMetadata {
 
 /// 오디오 파일 태그(ID3/Vorbis/MP4 등)에서 제목·아티스트·앨범을 읽습니다.
 /// 태그가 없거나 읽기 실패 시 빈 문자열을 돌려줍니다(프런트에서 빈 필드만 채움).
+fn first_nonempty_tag_value<'a>(
+    preferred: Option<std::borrow::Cow<'a, str>>,
+    remaining: impl IntoIterator<Item = Option<std::borrow::Cow<'a, str>>>,
+) -> Option<std::borrow::Cow<'a, str>> {
+    preferred
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| remaining.into_iter().flatten().find(|value| !value.trim().is_empty()))
+}
+
 fn preferred_tag_value(
     primary: Option<std::borrow::Cow<'_, str>>,
     fallback: Option<std::borrow::Cow<'_, str>>,
@@ -346,16 +355,27 @@ fn read_audio_metadata(path: String) -> Result<AudioMetadata, String> {
     let tagged = lofty::read_from_path(&path).map_err(|e| e.to_string())?;
     let tags = tagged.tags();
     let primary = tagged.primary_tag().or_else(|| tags.first());
-    let fallback = primary.and_then(|primary| {
-        tags.iter().find(|candidate| candidate.tag_type() != primary.tag_type())
-    });
     Ok(match primary {
         Some(primary) => {
-            let fallback = fallback.filter(|candidate| candidate.tag_type() != primary.tag_type());
             AudioMetadata {
-                title: preferred_tag_value(primary.title(), fallback.and_then(|tag| tag.title())),
-                artist: preferred_tag_value(primary.artist(), fallback.and_then(|tag| tag.artist())),
-                album: preferred_tag_value(primary.album(), fallback.and_then(|tag| tag.album())),
+                title: first_nonempty_tag_value(
+                    primary.title(),
+                    tags.iter()
+                        .filter(|candidate| candidate.tag_type() != primary.tag_type())
+                        .map(lofty::tag::Tag::title),
+                ).map(|value| value.trim().to_string()).unwrap_or_default(),
+                artist: first_nonempty_tag_value(
+                    primary.artist(),
+                    tags.iter()
+                        .filter(|candidate| candidate.tag_type() != primary.tag_type())
+                        .map(lofty::tag::Tag::artist),
+                ).map(|value| value.trim().to_string()).unwrap_or_default(),
+                album: first_nonempty_tag_value(
+                    primary.album(),
+                    tags.iter()
+                        .filter(|candidate| candidate.tag_type() != primary.tag_type())
+                        .map(lofty::tag::Tag::album),
+                ).map(|value| value.trim().to_string()).unwrap_or_default(),
             }
         },
         None => AudioMetadata {
@@ -437,7 +457,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod audio_metadata_fallback_tests {
-    use super::preferred_tag_value;
+    use super::{first_nonempty_tag_value, preferred_tag_value};
     use std::borrow::Cow;
 
     #[test]
@@ -455,6 +475,10 @@ mod audio_metadata_fallback_tests {
             "Secondary",
         );
         assert_eq!(preferred_tag_value(None, None), "");
+        assert_eq!(
+            first_nonempty_tag_value(None, [Some(Cow::Borrowed(" ")), Some(Cow::Borrowed("Third"))]),
+            Some(Cow::Borrowed("Third")),
+        );
     }
 }
 
