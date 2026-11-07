@@ -28,6 +28,7 @@ let checkGeneration = 0;
 const updateClosePromises = new WeakMap<Update, Promise<void>>();
 const UPDATE_CHECK_TIMEOUT_MS = 15_000;
 const UPDATE_DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1000;
+const UPDATE_DOWNLOAD_STALL_TIMEOUT_MS = 60_000;
 
 function closeUpdateOnce(update: Update | null | undefined): Promise<void> {
   if (!update) return Promise.resolve();
@@ -111,20 +112,40 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
     try {
       let total = 0;
       let downloaded = 0;
-      await _update.download((event) => {
-        switch (event.event) {
-          case "Started":
-            total = event.data.contentLength ?? 0;
-            break;
-          case "Progress":
-            downloaded += event.data.chunkLength;
-            if (total > 0) set({ progress: Math.min(100, Math.round((downloaded / total) * 100)) });
-            break;
-          case "Finished":
-            set({ progress: 100 });
-            break;
-        }
-      }, { timeout: UPDATE_DOWNLOAD_TIMEOUT_MS });
+      let stallTimer: ReturnType<typeof setTimeout> | null = null;
+      let rejectStalledDownload: ((error: Error) => void) | null = null;
+      const stalledDownload = new Promise<never>((_, reject) => {
+        rejectStalledDownload = reject;
+      });
+      const refreshStallTimer = () => {
+        if (stallTimer) clearTimeout(stallTimer);
+        stallTimer = setTimeout(() => {
+          rejectStalledDownload?.(new Error("Updater download stalled"));
+        }, UPDATE_DOWNLOAD_STALL_TIMEOUT_MS);
+      };
+      refreshStallTimer();
+      try {
+        await Promise.race([
+          _update.download((event) => {
+            refreshStallTimer();
+            switch (event.event) {
+              case "Started":
+                total = event.data.contentLength ?? 0;
+                break;
+              case "Progress":
+                downloaded += event.data.chunkLength;
+                if (total > 0) set({ progress: Math.min(100, Math.round((downloaded / total) * 100)) });
+                break;
+              case "Finished":
+                set({ progress: 100 });
+                break;
+            }
+          }, { timeout: UPDATE_DOWNLOAD_TIMEOUT_MS }),
+          stalledDownload,
+        ]);
+      } finally {
+        if (stallTimer) clearTimeout(stallTimer);
+      }
       await preserveBefore(() => _update.install());
       if (get()._update === _update) set({ status: "ready", progress: 100, error: null });
     } catch (e) {
