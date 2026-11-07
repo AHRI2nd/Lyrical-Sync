@@ -14,12 +14,16 @@ try {
       problems.push(`${section}: package.json and package-lock.json disagree`);
     }
     for (const name of Object.keys(declared)) {
-      const expected = lock.packages?.[`node_modules/${name}`]?.version;
-      if (!expected) { problems.push(`${name}: missing package-lock.json entry`); continue; }
-      try {
-        const actual = readJson(join('node_modules', name, 'package.json')).version;
-        if (actual !== expected) problems.push(`${name}: installed ${actual}, expected ${expected}`);
-      } catch { problems.push(`${name}: missing or unreadable installed package`); }
+      if (!lock.packages?.[`node_modules/${name}`]?.version) problems.push(`${name}: missing package-lock.json entry`);
+    }
+  }
+  for (const [packagePath, packageInfo] of Object.entries(lock.packages ?? {})) {
+    if (!packagePath.includes('node_modules/') || !packageInfo?.version) continue;
+    try {
+      const actual = readJson(join(packagePath, 'package.json')).version;
+      if (actual !== packageInfo.version) problems.push(`${packagePath}: installed ${actual}, expected ${packageInfo.version}`);
+    } catch {
+      if (!packageInfo.optional) problems.push(`${packagePath}: missing or unreadable installed package`);
     }
   }
   if (problems.length) {

@@ -6,17 +6,22 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 const script = fileURLToPath(new URL('./check-dependencies.mjs', import.meta.url));
-function run(installed, locked = '2.5.4', declared = '^2', lockDeclared = '^2') {
+function run(installed, locked = '2.5.4', declared = '^2', lockDeclared = '^2', nestedInstalled = '1.0.0') {
   const cwd = mkdtempSync(join(tmpdir(), 'lyrical-deps-'));
   try {
     writeFileSync(join(cwd, 'package.json'), JSON.stringify({ dependencies: { '@tauri-apps/plugin-opener': declared } }));
     writeFileSync(join(cwd, 'package-lock.json'), JSON.stringify({ packages: {
       '': { dependencies: { '@tauri-apps/plugin-opener': lockDeclared } },
       'node_modules/@tauri-apps/plugin-opener': { version: locked },
+      'node_modules/@tauri-apps/plugin-opener/node_modules/nested-dep': { version: '1.0.0' },
     } }));
     if (installed) {
       const dir = join(cwd, 'node_modules/@tauri-apps/plugin-opener'); mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, 'package.json'), JSON.stringify({ version: installed }));
+    }
+    if (nestedInstalled) {
+      const dir = join(cwd, 'node_modules/@tauri-apps/plugin-opener/node_modules/nested-dep'); mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({ version: nestedInstalled }));
     }
     return spawnSync(process.execPath, [script], { cwd, encoding: 'utf8' });
   } finally { rmSync(cwd, { recursive: true, force: true }); }
@@ -31,4 +36,8 @@ test('rejects an installed version from a different lockfile', () => {
 });
 test('rejects manifest and lockfile disagreement even when installed version matches', () => {
   const result = run('2.5.4', '2.5.4', '^3'); assert.equal(result.status, 1); assert.match(result.stderr, /package-lock/);
+});
+test('rejects a transitive package version from another branch lockfile', () => {
+  const result = run('2.5.4', '2.5.4', '^2', '^2', '0.9.0');
+  assert.equal(result.status, 1); assert.match(result.stderr, /nested-dep.*0\.9\.0.*1\.0\.0/);
 });
