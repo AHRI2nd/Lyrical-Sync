@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, WebviewWindow};
 use serde::Serialize;
 
 use crate::alignment_process::run_child;
@@ -65,6 +65,7 @@ async fn wait_for_package_probe(
 #[tauri::command]
 pub async fn run_alignment(
     app: AppHandle,
+    window: WebviewWindow,
     run_id: u64,
     dir_state: tauri::State<'_, ModelsDirState>,
     al_state: tauri::State<'_, AlignmentState>,
@@ -74,6 +75,9 @@ pub async fn run_alignment(
     use_separation: bool,
     use_vad: bool,
 ) -> Result<String, String> {
+    let audio_path = crate::path_validation::validate_safe_path(&audio_path)?;
+    crate::authorize_window_path(&window, &audio_path)?;
+    let audio_path = audio_path.to_string_lossy().into_owned();
     let run = al_state.begin(run_id)?;
     let cancel = run.cancel.clone();
     let _environment = crate::python_runtime::ENV_LOCK.try_lock().map_err(|_| "AI environment is busy")?;

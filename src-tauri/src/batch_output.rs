@@ -120,8 +120,13 @@ pub async fn write_batch_output(
     output_dir: String,
     name: String,
     content: String,
+    window: tauri::WebviewWindow,
 ) -> Result<(), String> {
-    write_new_output(Path::new(&output_dir), &name, &content)
+    let output_dir = crate::path_validation::validate_safe_path(&output_dir)?;
+    use tauri_plugin_fs::FsExt;
+    let scope = window.fs_scope();
+    crate::path_validation::require_filesystem_scope(&output_dir, |path| scope.is_allowed(path))?;
+    write_new_output(&output_dir, &name, &content)
 }
 
 fn write_new_output(output_dir: &Path, name: &str, content: &str) -> Result<(), String> {

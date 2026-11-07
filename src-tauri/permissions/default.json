@@ -45,8 +45,6 @@
     "app-command:get-now-playing",
     "app-command:now-playing-toggle-play-pause",
     "app-command:now-playing-seek",
-    "app-command:create-security-bookmark",
-    "app-command:resolve-security-bookmark",
     "app-command:ytdlp-load-audio-url",
     "deep-link:default",
     "updater:default",

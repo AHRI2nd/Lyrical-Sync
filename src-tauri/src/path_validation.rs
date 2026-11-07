@@ -50,40 +50,6 @@ pub fn validate_write_path(path: &str) -> Result<PathBuf, String> {
     }
 }
 
-/// Validates that a path is within the allowed audio directories
-pub fn validate_audio_path(path: &str) -> Result<PathBuf, String> {
-    let path = validate_safe_path(path)?;
-    
-    // Check if path is within common audio directories
-    let allowed_dirs = [
-        dirs::audio_dir(),
-        dirs::download_dir(),
-        dirs::document_dir(),
-        dirs::desktop_dir(),
-    ];
-    
-    let mut is_allowed = false;
-    for dir in allowed_dirs.iter().flatten() {
-        if path.starts_with(dir) {
-            is_allowed = true;
-            break;
-        }
-    }
-    
-    // Also allow temp directory for processing
-    if let Some(temp_dir) = std::env::temp_dir().canonicalize().ok() {
-        if path.starts_with(&temp_dir) {
-            is_allowed = true;
-        }
-    }
-    
-    if !is_allowed {
-        return Err("Path not in allowed directory".into());
-    }
-    
-    Ok(path)
-}
-
 /// Validates a URL for yt-dlp to prevent SSRF attacks
 pub fn validate_ytdlp_url(url: &str) -> Result<(), String> {
     let parsed = url::Url::parse(url).map_err(|_| "Invalid URL")?;
@@ -112,6 +78,17 @@ pub fn validate_ytdlp_url(url: &str) -> Result<(), String> {
     }
     
     Ok(())
+}
+
+pub fn require_filesystem_scope(
+    path: &Path,
+    is_allowed: impl FnOnce(&Path) -> bool,
+) -> Result<(), String> {
+    if is_allowed(path) {
+        Ok(())
+    } else {
+        Err("Path is outside the granted filesystem scope".into())
+    }
 }
 
 fn is_private_ip(host: &str) -> bool {
@@ -267,5 +244,21 @@ mod ytdlp_url_tests {
     fn accepts_http_and_https_urls_with_public_hosts() {
         assert!(validate_ytdlp_url("https://www.youtube.com/watch?v=abc").is_ok());
         assert!(validate_ytdlp_url("http://203.0.114.1/video").is_ok());
+    }
+}
+
+#[cfg(test)]
+mod filesystem_scope_tests {
+    use super::require_filesystem_scope;
+    use std::path::Path;
+
+    #[test]
+    fn requires_an_explicit_native_filesystem_grant() {
+        let selected = Path::new("/picked/audio.wav");
+        assert!(require_filesystem_scope(selected, |path| path == selected).is_ok());
+        assert_eq!(
+            require_filesystem_scope(selected, |_| false).unwrap_err(),
+            "Path is outside the granted filesystem scope"
+        );
     }
 }

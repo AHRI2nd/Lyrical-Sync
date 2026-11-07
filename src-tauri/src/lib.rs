@@ -9,7 +9,6 @@ mod alignment_process;
 mod atomic_write;
 mod audio_resource;
 mod batch_output;
-mod bookmark;
 mod oauth_listener;
 mod path_validation;
 mod service_auth;
@@ -27,11 +26,19 @@ mod ytdlp;
 use ytdlp::*;
 mod lrclib;
 use lrclib::*;
-use bookmark::{create_security_bookmark, resolve_security_bookmark};
 
 // ─── LRC / audio commands ────────────────────────────────────────
 
 const MAX_LYRIC_FILE_BYTES: u64 = 64 * 1024 * 1024;
+
+pub(crate) fn authorize_window_path<R: tauri::Runtime>(
+    window: &tauri::WebviewWindow<R>,
+    path: &std::path::Path,
+) -> Result<(), String> {
+    use tauri_plugin_fs::FsExt;
+    let scope = window.fs_scope();
+    path_validation::require_filesystem_scope(path, |candidate| scope.is_allowed(candidate))
+}
 
 fn read_lyric_file(path: &std::path::Path) -> Result<String, String> {
     use std::io::Read;
@@ -62,7 +69,13 @@ fn read_lyric_file(path: &std::path::Path) -> Result<String, String> {
 }
 
 #[tauri::command]
-async fn read_lrc_file(path: String) -> Result<String, String> {
+async fn read_lrc_file(path: String, window: tauri::WebviewWindow) -> Result<String, String> {
+    let path = path_validation::validate_safe_path(&path)?;
+    authorize_window_path(&window, &path)?;
+    read_lrc_file_impl(path.to_string_lossy().into_owned()).await
+}
+
+async fn read_lrc_file_impl(path: String) -> Result<String, String> {
     let path = path_validation::validate_safe_path(&path)?;
     let content = read_lyric_file(&path)?;
     // BOM-less UTF-16LE composed of ASCII code units is valid UTF-8 but
@@ -82,10 +95,19 @@ struct LrcFileSnapshot {
 }
 
 #[tauri::command]
-async fn read_lrc_file_with_hash(path: String) -> Result<LrcFileSnapshot, String> {
+async fn read_lrc_file_with_hash(
+    path: String,
+    window: tauri::WebviewWindow,
+) -> Result<LrcFileSnapshot, String> {
+    let canonical = path_validation::validate_safe_path(&path)?;
+    authorize_window_path(&window, &canonical)?;
+    read_lrc_file_with_hash_impl(canonical.to_string_lossy().into_owned()).await
+}
+
+async fn read_lrc_file_with_hash_impl(path: String) -> Result<LrcFileSnapshot, String> {
     use sha2::{Digest, Sha256};
 
-    let content = read_lrc_file(path).await?;
+    let content = read_lrc_file_impl(path).await?;
     let sha256 = format!("{:x}", Sha256::digest(content.as_bytes()));
     Ok(LrcFileSnapshot { content, sha256 })
 }
@@ -96,13 +118,32 @@ async fn write_lrc_file(
     content: String,
     source_path: Option<String>,
     expected_sha256: Option<String>,
+    window: tauri::WebviewWindow,
+) -> Result<String, String> {
+    let target = path_validation::validate_write_path(&path)?;
+    authorize_window_path(&window, &target)?;
+    write_lrc_file_impl(
+        target.to_string_lossy().into_owned(),
+        content,
+        source_path,
+        expected_sha256,
+    )
+    .await
+}
+
+async fn write_lrc_file_impl(
+    path: String,
+    content: String,
+    source_path: Option<String>,
+    expected_sha256: Option<String>,
 ) -> Result<String, String> {
     use sha2::{Digest, Sha256};
 
     let target = path_validation::validate_write_path(&path)?;
     let same_source = source_path.as_ref().is_some_and(|source| {
-        source == &path || path_validation::validate_safe_path(source)
-            .is_ok_and(|canonical_source| canonical_source == target)
+        source == &path
+            || path_validation::validate_safe_path(source)
+                .is_ok_and(|canonical_source| canonical_source == target)
     });
     if same_source {
         let expected_sha256 = expected_sha256.ok_or("LYRICS_FILE_CHANGED")?;
@@ -123,8 +164,23 @@ async fn write_lrc_file_if_unchanged(
     path: String,
     content: String,
     expected_sha256: String,
+    window: tauri::WebviewWindow,
 ) -> Result<String, String> {
     let path = path_validation::validate_write_path(&path)?;
+    authorize_window_path(&window, &path)?;
+    write_lrc_file_if_unchanged_impl(
+        path.to_string_lossy().into_owned(),
+        content,
+        expected_sha256,
+    )
+    .await
+}
+
+async fn write_lrc_file_if_unchanged_impl(
+    path: String,
+    content: String,
+    expected_sha256: String,
+) -> Result<String, String> {
     atomic_write::write_atomic_if_unchanged(
         std::path::Path::new(&path),
         &content,
@@ -134,22 +190,38 @@ async fn write_lrc_file_if_unchanged(
 }
 
 #[tauri::command]
-async fn read_audio_file(path: String) -> Result<tauri::ipc::Response, String> {
-    let path = path_validation::validate_audio_path(&path)?;
+async fn read_audio_file(
+    path: String,
+    window: tauri::WebviewWindow,
+) -> Result<tauri::ipc::Response, String> {
+    let path = path_validation::validate_safe_path(&path)?;
+    authorize_window_path(&window, &path)?;
     // Return raw bytes through IPC after applying the compressed and decoded-memory limits.
     audio_resource::read_bounded_audio_file(std::path::Path::new(&path))
         .map(|(bytes, _)| tauri::ipc::Response::new(bytes))
 }
 
 #[tauri::command]
-fn validate_audio_file(path: String) -> Result<audio_resource::AudioResourceInfo, String> {
-    let path = path_validation::validate_audio_path(&path)?;
+fn validate_audio_file(
+    path: String,
+    window: tauri::WebviewWindow,
+) -> Result<audio_resource::AudioResourceInfo, String> {
+    let path = path_validation::validate_safe_path(&path)?;
+    authorize_window_path(&window, &path)?;
     audio_resource::inspect_audio_file(std::path::Path::new(&path))
 }
 
 #[tauri::command]
-fn get_audio_file_info(path: String) -> Result<AudioFileInfo, String> {
-    let path = path_validation::validate_audio_path(&path)?;
+fn get_audio_file_info(
+    path: String,
+    window: tauri::WebviewWindow,
+) -> Result<AudioFileInfo, String> {
+    let path = path_validation::validate_safe_path(&path)?;
+    authorize_window_path(&window, &path)?;
+    get_audio_file_info_impl(path)
+}
+
+fn get_audio_file_info_impl(path: std::path::PathBuf) -> Result<AudioFileInfo, String> {
     let meta = std::fs::metadata(&path).map_err(|e| e.to_string())?;
     if !meta.is_file() {
         return Err("Audio path is not a regular file".into());
@@ -203,7 +275,10 @@ fn validate_aiff_container_size(file: &mut std::fs::File) -> Result<(), String> 
 
 /// AIFF 등 WebView2 미지원 포맷을 WAV 바이트로 트랜스코딩합니다.
 #[tauri::command]
-async fn decode_audio_to_wav(path: String) -> Result<tauri::ipc::Response, String> {
+async fn decode_audio_to_wav(
+    path: String,
+    window: tauri::WebviewWindow,
+) -> Result<tauri::ipc::Response, String> {
     use symphonia::core::audio::SampleBuffer;
     use symphonia::core::codecs::DecoderOptions;
     use symphonia::core::formats::FormatOptions;
@@ -211,11 +286,13 @@ async fn decode_audio_to_wav(path: String) -> Result<tauri::ipc::Response, Strin
     use symphonia::core::meta::MetadataOptions;
     use symphonia::core::probe::Hint;
 
+    let path = path_validation::validate_safe_path(&path)?;
+    authorize_window_path(&window, &path)?;
     let mut file = std::fs::File::open(&path).map_err(|e| e.to_string())?;
     if file.metadata().map_err(|e| e.to_string())?.len() > audio_resource::MAX_AUDIO_FILE_BYTES {
         return Err(audio_resource::AUDIO_RESOURCE_LIMIT_ERROR.into());
     }
-    if std::path::Path::new(&path)
+    if path
         .extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| extension.eq_ignore_ascii_case("aif") || extension.eq_ignore_ascii_case("aiff"))
@@ -225,7 +302,7 @@ async fn decode_audio_to_wav(path: String) -> Result<tauri::ipc::Response, Strin
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
     let mut hint = Hint::new();
-    if let Some(ext) = std::path::Path::new(&path)
+    if let Some(ext) = path
         .extension()
         .and_then(|e| e.to_str())
     {
@@ -344,9 +421,11 @@ fn preferred_tag_value(
 }
 
 #[tauri::command]
-fn read_audio_metadata(path: String) -> Result<AudioMetadata, String> {
+fn read_audio_metadata(path: String, window: tauri::WebviewWindow) -> Result<AudioMetadata, String> {
     use lofty::file::TaggedFileExt;
     use lofty::tag::Accessor;
+    let path = path_validation::validate_safe_path(&path)?;
+    authorize_window_path(&window, &path)?;
     if std::fs::metadata(&path).map_err(|e| e.to_string())?.len()
         > audio_resource::MAX_AUDIO_FILE_BYTES
     {
@@ -457,8 +536,6 @@ pub fn run() {
             get_now_playing,
             now_playing_toggle_play_pause,
             now_playing_seek,
-            create_security_bookmark,
-            resolve_security_bookmark,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -541,7 +618,8 @@ mod audio_decode_tests {
 #[cfg(test)]
 mod lyric_save_command_tests {
     use super::{
-        read_lrc_file, read_lrc_file_with_hash, write_lrc_file, write_lrc_file_if_unchanged,
+        read_lrc_file_impl, read_lrc_file_with_hash_impl, write_lrc_file_impl,
+        write_lrc_file_if_unchanged_impl,
         MAX_LYRIC_FILE_BYTES,
     };
     use std::fs;
@@ -551,10 +629,10 @@ mod lyric_save_command_tests {
         let dir = tempfile::tempdir().unwrap();
         let target = dir.path().join("new-lyrics.lrc");
         let path = target.to_str().unwrap().to_string();
-        write_lrc_file(path.clone(), "[00:01.00]First".into(), None, None).await.unwrap();
+        write_lrc_file_impl(path.clone(), "[00:01.00]First".into(), None, None).await.unwrap();
         assert_eq!(fs::read_to_string(&target).unwrap(), "[00:01.00]First");
-        write_lrc_file(path.clone(), "[00:02.00]Second".into(), None, None).await.unwrap();
-        assert_eq!(read_lrc_file(path).await.unwrap(), "[00:02.00]Second");
+        write_lrc_file_impl(path.clone(), "[00:02.00]Second".into(), None, None).await.unwrap();
+        assert_eq!(read_lrc_file_impl(path).await.unwrap(), "[00:02.00]Second");
     }
 
     #[tokio::test]
@@ -563,11 +641,11 @@ mod lyric_save_command_tests {
         let target = dir.path().join("shared.lrc");
         fs::write(&target, "original").unwrap();
         let path = target.to_string_lossy().into_owned();
-        let opened = read_lrc_file_with_hash(path.clone()).await.unwrap();
+        let opened = read_lrc_file_with_hash_impl(path.clone()).await.unwrap();
         assert_eq!(opened.content, "original");
 
         fs::write(&target, "external edit").unwrap();
-        let stale = write_lrc_file_if_unchanged(
+        let stale = write_lrc_file_if_unchanged_impl(
             path.clone(),
             "app edit".into(),
             opened.sha256,
@@ -577,15 +655,15 @@ mod lyric_save_command_tests {
         assert!(stale.contains("LYRICS_FILE_CHANGED"));
         assert_eq!(fs::read_to_string(&target).unwrap(), "external edit");
 
-        let current = read_lrc_file_with_hash(path.clone()).await.unwrap();
-        let saved_hash = write_lrc_file_if_unchanged(
+        let current = read_lrc_file_with_hash_impl(path.clone()).await.unwrap();
+        let saved_hash = write_lrc_file_if_unchanged_impl(
             path.clone(),
             "app edit".into(),
             current.sha256,
         )
         .await
         .unwrap();
-        assert_eq!(read_lrc_file(path).await.unwrap(), "app edit");
+        assert_eq!(read_lrc_file_impl(path).await.unwrap(), "app edit");
         assert_eq!(saved_hash.len(), 64);
     }
 
@@ -601,16 +679,16 @@ mod lyric_save_command_tests {
         symlink(&target, &alias).unwrap();
         let target_path = target.to_string_lossy().into_owned();
         let alias_path = alias.to_string_lossy().into_owned();
-        let opened = read_lrc_file_with_hash(target_path.clone()).await.unwrap();
+        let opened = read_lrc_file_with_hash_impl(target_path.clone()).await.unwrap();
 
-        write_lrc_file_if_unchanged(
+        write_lrc_file_if_unchanged_impl(
             target_path,
             "first save".into(),
             opened.sha256.clone(),
         )
         .await
         .unwrap();
-        let stale = write_lrc_file_if_unchanged(alias_path, "stale save".into(), opened.sha256)
+        let stale = write_lrc_file_if_unchanged_impl(alias_path, "stale save".into(), opened.sha256)
             .await
             .unwrap_err();
 
@@ -630,10 +708,10 @@ mod lyric_save_command_tests {
         symlink(&target, &alias).unwrap();
         let source_path = target.to_string_lossy().into_owned();
         let alias_path = alias.to_string_lossy().into_owned();
-        let opened = read_lrc_file_with_hash(source_path.clone()).await.unwrap();
+        let opened = read_lrc_file_with_hash_impl(source_path.clone()).await.unwrap();
         fs::write(&target, "external edit").unwrap();
 
-        let error = write_lrc_file(
+        let error = write_lrc_file_impl(
             alias_path.clone(),
             "app edit".into(),
             Some(source_path.clone()),
@@ -644,8 +722,8 @@ mod lyric_save_command_tests {
         assert!(error.contains("LYRICS_FILE_CHANGED"));
         assert_eq!(fs::read_to_string(&target).unwrap(), "external edit");
 
-        let latest = read_lrc_file_with_hash(source_path.clone()).await.unwrap();
-        write_lrc_file(
+        let latest = read_lrc_file_with_hash_impl(source_path.clone()).await.unwrap();
+        write_lrc_file_impl(
             alias_path,
             "app edit".into(),
             Some(source_path),
@@ -662,7 +740,7 @@ mod lyric_save_command_tests {
         let original = dir.path().join("original.lrc");
         fs::write(&original, "original content").unwrap();
         let invalid = dir.path().join("missing-dir").join("draft.lrc");
-        assert!(write_lrc_file(invalid.to_string_lossy().into_owned(), "draft".into(), None, None).await.is_err());
+        assert!(write_lrc_file_impl(invalid.to_string_lossy().into_owned(), "draft".into(), None, None).await.is_err());
         assert_eq!(fs::read_to_string(&original).unwrap(), "original content");
         assert!(!invalid.exists());
     }
@@ -674,7 +752,7 @@ mod lyric_save_command_tests {
         let file = fs::File::create(&target).unwrap();
         file.set_len(MAX_LYRIC_FILE_BYTES + 1).unwrap();
 
-        let error = read_lrc_file(target.to_string_lossy().into_owned()).await.unwrap_err();
+        let error = read_lrc_file_impl(target.to_string_lossy().into_owned()).await.unwrap_err();
         assert!(error.contains("LYRIC_RESOURCE_LIMIT"));
         assert_eq!(fs::metadata(&target).unwrap().len(), MAX_LYRIC_FILE_BYTES + 1);
     }
@@ -692,7 +770,7 @@ mod lyric_save_command_tests {
 
         let error = tokio::time::timeout(
             std::time::Duration::from_secs(1),
-            read_lrc_file(target.to_string_lossy().into_owned()),
+            read_lrc_file_impl(target.to_string_lossy().into_owned()),
         )
         .await
         .expect("FIFO read must not block")
@@ -707,7 +785,7 @@ mod lyric_save_command_tests {
         let source = "1\n00:00:01,000 --> 00:00:02,000\nOriginal";
         let raw: Vec<u8> = source.encode_utf16().flat_map(u16::to_le_bytes).collect();
         fs::write(&target, &raw).unwrap();
-        let error = read_lrc_file(target.to_string_lossy().into_owned()).await.unwrap_err();
+        let error = read_lrc_file_impl(target.to_string_lossy().into_owned()).await.unwrap_err();
         assert!(error.contains("Unsupported lyric encoding"), "{error}");
         assert_eq!(fs::read(&target).unwrap(), raw);
     }
@@ -718,13 +796,13 @@ mod lyric_save_command_tests {
         let target = dir.path().join("normal.lrc");
         let source = "[00:01.00]한글 日本語 \\0 text";
         fs::write(&target, source).unwrap();
-        assert_eq!(read_lrc_file(target.to_string_lossy().into_owned()).await.unwrap(), source);
+        assert_eq!(read_lrc_file_impl(target.to_string_lossy().into_owned()).await.unwrap(), source);
     }
 }
 
 #[cfg(test)]
 mod audio_identity_command_tests {
-    use super::get_audio_file_info;
+    use super::get_audio_file_info_impl;
     use std::fs;
 
     #[test]
@@ -733,13 +811,39 @@ mod audio_identity_command_tests {
         let path = dir.path().join("audio.wav");
         fs::write(&path, b"tiny-audio").unwrap();
         let path = path.to_str().unwrap().to_owned();
-        let before = get_audio_file_info(path.clone()).unwrap();
-        let after = get_audio_file_info(path).unwrap();
+        let before = get_audio_file_info_impl(std::path::PathBuf::from(path.clone())).unwrap();
+        let after = get_audio_file_info_impl(std::path::PathBuf::from(path)).unwrap();
         assert_eq!(before.size, 10);
         assert_eq!(before.mtime, after.mtime);
         assert_eq!(before.file_id, after.file_id);
         let json = serde_json::to_value(&before).unwrap();
         assert!(json["mtime"].is_string());
         assert!(json.get("fileId").is_some());
+    }
+}
+
+#[cfg(test)]
+mod window_scope_tests {
+    use super::authorize_window_path;
+    use tauri_plugin_fs::FsExt;
+
+    #[test]
+    fn native_file_commands_require_a_window_grant_and_accept_a_selected_file() {
+        let app = tauri::test::mock_builder()
+            .plugin(tauri_plugin_fs::init())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let selected = dir.path().join("selected.lrc");
+        std::fs::write(&selected, "lyrics").unwrap();
+        let selected = selected.canonicalize().unwrap();
+
+        assert!(authorize_window_path(&window, &selected).is_err());
+        window.fs_scope().allow_file(&selected).unwrap();
+        assert!(authorize_window_path(&window, &selected).is_ok());
+
     }
 }

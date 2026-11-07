@@ -48,8 +48,6 @@ fn main() {
         "get_now_playing",
         "now_playing_toggle_play_pause",
         "now_playing_seek",
-        "create_security_bookmark",
-        "resolve_security_bookmark",
         "ytdlp_load_audio_url",
     ];
     

@@ -606,6 +606,7 @@ pub async fn ytdlp_load_audio(
     proxy: Option<String>,
     app: AppHandle,
     ytdlp_state: tauri::State<'_, YtdlpState>,
+    window: tauri::WebviewWindow,
 ) -> Result<String, String> {
     path_validation::validate_ytdlp_url(&url)?;
     let exe = ytdlp_exe(&app)?;
@@ -625,7 +626,28 @@ pub async fn ytdlp_load_audio(
     )
     .await;
     ytdlp_state.finish_run(&cancel_flag);
-    result
+    let path = result?;
+    let path = PathBuf::from(path).canonicalize().map_err(|error| error.to_string())?;
+    let cache_root = app
+        .path()
+        .app_cache_dir()
+        .map_err(|error| error.to_string())?
+        .join("ytdlp-audio")
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
+    if !path.starts_with(&cache_root)
+        || !std::fs::metadata(&path)
+            .map_err(|error| error.to_string())?
+            .is_file()
+    {
+        return Err("yt-dlp output is outside the application cache".into());
+    }
+    use tauri_plugin_fs::FsExt;
+    window
+        .fs_scope()
+        .allow_file(&path)
+        .map_err(|error| error.to_string())?;
+    Ok(path.to_string_lossy().into_owned())
 }
 
 async fn ytdlp_load_audio_inner(
