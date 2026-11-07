@@ -224,6 +224,13 @@ it("waits from the cue start until the first timed ASS syllable", () => {
   ] }]);
   expect(serializeAss(doc, 4)).toContain("Default,,0,0,0,,{\\k100}{\\k50}a{\\k150}b");
 });
+it("rejects ASS glyph timing after the cue ends", () => {
+  const doc = docOf([{ id: "a", timestamp: 1, srtEndTime: 2, text: "ab", syllables: [
+    { text: "a", time: 1 }, { text: "b", time: 10 },
+  ] }]);
+
+  expect(() => serializeAss(doc)).toThrow("ASS cannot preserve this text");
+});
 it.each([
   { id: "a", timestamp: 2, text: "a", syllables: [{ text: "a", time: 1 }] },
   { id: "a", timestamp: 1, text: "ab", syllables: [{ text: "a", time: 2 }, { text: "b", time: 1.5 }] },

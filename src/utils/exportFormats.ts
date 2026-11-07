@@ -234,9 +234,12 @@ export function serializeAss(doc: LrcDocument, lastCueEnd?: number): string {
   const cues = buildCues(doc, lastCueEnd, 100);
   for (const cue of cues) {
     let previous = cue.start;
+    const cueEndCentiseconds = Math.round(cue.end * 100);
     for (const syllable of cue.line.syllables ?? []) {
       if (syllable.time === null) continue;
-      if (!Number.isFinite(syllable.time) || Math.round(syllable.time * 100) < Math.round(previous * 100)) {
+      const syllableCentiseconds = Math.round(syllable.time * 100);
+      if (!Number.isFinite(syllable.time) || syllableCentiseconds < Math.round(previous * 100) ||
+          syllableCentiseconds > cueEndCentiseconds) {
         throw new AssUnrepresentableContentError();
       }
       previous = syllable.time;
