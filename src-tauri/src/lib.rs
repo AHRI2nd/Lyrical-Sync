@@ -323,6 +323,17 @@ struct AudioMetadata {
 
 /// 오디오 파일 태그(ID3/Vorbis/MP4 등)에서 제목·아티스트·앨범을 읽습니다.
 /// 태그가 없거나 읽기 실패 시 빈 문자열을 돌려줍니다(프런트에서 빈 필드만 채움).
+fn preferred_tag_value(
+    primary: Option<std::borrow::Cow<'_, str>>,
+    fallback: Option<std::borrow::Cow<'_, str>>,
+) -> String {
+    primary
+        .filter(|value| !value.trim().is_empty())
+        .or(fallback)
+        .map(|value| value.trim().to_string())
+        .unwrap_or_default()
+}
+
 #[tauri::command]
 fn read_audio_metadata(path: String) -> Result<AudioMetadata, String> {
     use lofty::file::TaggedFileExt;
@@ -335,16 +346,13 @@ fn read_audio_metadata(path: String) -> Result<AudioMetadata, String> {
     let tagged = lofty::read_from_path(&path).map_err(|e| e.to_string())?;
     let primary = tagged.primary_tag();
     let fallback = tagged.first_tag();
-    let field = |primary: Option<std::borrow::Cow<str>>, fallback: Option<std::borrow::Cow<str>>| {
-        primary.or(fallback).map(|value| value.trim().to_string()).unwrap_or_default()
-    };
     Ok(match primary {
         Some(primary) => {
             let fallback = fallback.filter(|candidate| candidate.tag_type() != primary.tag_type());
             AudioMetadata {
-                title: field(primary.title(), fallback.and_then(|tag| tag.title())),
-                artist: field(primary.artist(), fallback.and_then(|tag| tag.artist())),
-                album: field(primary.album(), fallback.and_then(|tag| tag.album())),
+                title: preferred_tag_value(primary.title(), fallback.and_then(|tag| tag.title())),
+                artist: preferred_tag_value(primary.artist(), fallback.and_then(|tag| tag.artist())),
+                album: preferred_tag_value(primary.album(), fallback.and_then(|tag| tag.album())),
             }
         },
         None => AudioMetadata {
@@ -422,6 +430,29 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod audio_metadata_fallback_tests {
+    use super::preferred_tag_value;
+    use std::borrow::Cow;
+
+    #[test]
+    fn fills_missing_or_blank_primary_fields_from_the_secondary_tag() {
+        assert_eq!(
+            preferred_tag_value(Some(Cow::Borrowed("Primary")), Some(Cow::Borrowed("Secondary"))),
+            "Primary",
+        );
+        assert_eq!(
+            preferred_tag_value(None, Some(Cow::Borrowed(" Secondary "))),
+            "Secondary",
+        );
+        assert_eq!(
+            preferred_tag_value(Some(Cow::Borrowed("  ")), Some(Cow::Borrowed("Secondary"))),
+            "Secondary",
+        );
+        assert_eq!(preferred_tag_value(None, None), "");
+    }
 }
 
 #[cfg(test)]
