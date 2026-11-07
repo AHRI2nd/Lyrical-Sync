@@ -480,6 +480,13 @@ mod audio_metadata_fallback_tests {
             "Secondary",
         );
         assert_eq!(
+            preferred_tag_value(
+                Some(Cow::Borrowed("  ")),
+                first_nonempty_tag_value(None, [Some(Cow::Borrowed(" ")), Some(Cow::Borrowed("Third"))]),
+            ),
+            "Third",
+        );
+        assert_eq!(
             preferred_tag_value(Some(Cow::Borrowed("  ")), Some(Cow::Borrowed("Secondary"))),
             "Secondary",
         );
