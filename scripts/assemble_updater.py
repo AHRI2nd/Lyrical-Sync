@@ -9,6 +9,22 @@ import subprocess
 from urllib.parse import quote
 
 
+def has_minisign_signature_structure(signature):
+    lines = signature.splitlines()
+    if (len(lines) != 4
+            or not lines[0].startswith('untrusted comment: ')
+            or not lines[2].startswith('trusted comment: ')):
+        return False
+    try:
+        signature_bytes = base64.b64decode(lines[1], validate=True)
+        global_signature = base64.b64decode(lines[3], validate=True)
+    except (ValueError, TypeError):
+        return False
+    return (len(signature_bytes) == 74
+            and signature_bytes[:2] in (b'Ed', b'ED')
+            and len(global_signature) == 64)
+
+
 def assemble_manifest(version, repo, assets, signatures, published_at):
     if not re.fullmatch(r'\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?', version):
         raise ValueError('Invalid application version')
@@ -36,14 +52,11 @@ def assemble_manifest(version, repo, assets, signatures, published_at):
             continue
         if key in platforms:
             raise ValueError(f'Duplicate updater target: {key}')
-        signature = signatures.get(name + '.sig', '').strip()
+        raw_signature = signatures.get(name + '.sig', '')
+        signature = raw_signature.strip() if isinstance(raw_signature, str) else ''
         if name + '.sig' not in names:
             raise ValueError(f'Missing signature asset: {name}')
-        try:
-            decoded = base64.b64decode(signature, validate=True)
-        except (ValueError, TypeError) as error:
-            raise ValueError(f'Invalid signature: {name}') from error
-        if not decoded.startswith(b'untrusted comment:'):
+        if not has_minisign_signature_structure(signature):
             raise ValueError(f'Invalid signature: {name}')
         platforms[key] = {
             'url': f'https://github.com/{repo}/releases/download/v{version}/{quote(name, safe="")}',

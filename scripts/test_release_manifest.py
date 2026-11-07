@@ -10,6 +10,15 @@ from unittest.mock import patch
 SCRIPT = Path(__file__).with_name('assemble_updater.py')
 
 
+def fake_signature_file():
+    return '\n'.join((
+        'untrusted comment: fixture',
+        base64.b64encode(b'Ed' + bytes(72)).decode(),
+        'trusted comment: timestamp:0',
+        base64.b64encode(bytes(64)).decode(),
+    )).encode()
+
+
 class ReleaseManifestTests(unittest.TestCase):
     def setUp(self):
         self.names = [
@@ -19,9 +28,14 @@ class ReleaseManifestTests(unittest.TestCase):
             'Lyrical.Sync_aarch64.app.tar.gz',
         ]
         self.assets = [{'name': n} for name in self.names for n in (name, name + '.sig')]
-        self.signatures = {n + '.sig': base64.b64encode(
-            b'untrusted comment: fixture\n' + n.encode()
-        ).decode() for n in self.names}
+        self.signatures = {
+            n + '.sig': '\n'.join((
+                'untrusted comment: fixture',
+                base64.b64encode(b'Ed' + bytes(72)).decode(),
+                'trusted comment: timestamp:0',
+                base64.b64encode(bytes(64)).decode(),
+            )) for n in self.names
+        }
 
     def assemble(self, assets=None, signatures=None):
         self.assertTrue(SCRIPT.is_file(), 'Architecture-safe release assembly is missing')
@@ -75,7 +89,7 @@ class ReleaseManifestTests(unittest.TestCase):
                 return '{}'
             asset_id=int(args[1].split('/')[-1])
             name=next(a for a in assets if a['id']==asset_id)['name']
-            return base64.b64encode(b'untrusted comment: fixture\n' + name.encode())
+            return fake_signature_file()
         with tempfile.TemporaryDirectory() as directory, patch.object(self.module,'gh',fake_gh):
             self.module.publish('AHRI2nd/Lyrical-Sync','0.7.0',Path(directory)/'latest.json')
         self.assertEqual(len(uploaded),1)
@@ -110,7 +124,7 @@ class ReleaseManifestTests(unittest.TestCase):
                 return '{}'
             asset_id=int(args[1].split('/')[-1])
             name=next(a for a in assets if a['id']==asset_id)['name']
-            return base64.b64encode(b'untrusted comment: fixture\n' + name.encode())
+            return fake_signature_file()
         with tempfile.TemporaryDirectory() as directory, patch.object(self.module,'gh',fake_gh):
             self.module.publish('AHRI2nd/Lyrical-Sync','0.7.0',Path(directory)/'latest.json')
         self.assertEqual(len(uploaded),1)
@@ -139,7 +153,7 @@ class ReleaseManifestTests(unittest.TestCase):
                 return '{}'
             asset_id=int(args[1].split('/')[-1])
             name=next(a for a in assets if a['id']==asset_id)['name']
-            return base64.b64encode(b'untrusted comment: fixture\n' + name.encode())
+            return fake_signature_file()
         with tempfile.TemporaryDirectory() as directory, patch.object(self.module,'gh',fake_gh):
             with self.assertRaisesRegex(ValueError, 'Ambiguous duplicate MSI asset pair'):
                 self.module.publish('AHRI2nd/Lyrical-Sync','0.7.0',Path(directory)/'latest.json')
@@ -173,7 +187,7 @@ class ReleaseManifestTests(unittest.TestCase):
                 return '{}'
             asset_id = int(args[1].split('/')[-1])
             name = next(asset for asset in assets if asset['id'] == asset_id)['name']
-            return base64.b64encode(b'untrusted comment: fixture\n' + name.encode())
+            return fake_signature_file()
 
         with tempfile.TemporaryDirectory() as directory, patch.object(self.module, 'gh', fake_gh):
             output = Path(directory) / 'latest.json'
@@ -207,7 +221,7 @@ class ReleaseManifestTests(unittest.TestCase):
                 return '{}'
             asset_id = int(args[1].split('/')[-1])
             name = next(asset for asset in assets if asset['id'] == asset_id)['name']
-            return base64.b64encode(b'untrusted comment: fixture\n' + name.encode())
+            return fake_signature_file()
 
         with tempfile.TemporaryDirectory() as directory, patch.object(self.module, 'gh', fake_gh):
             self.module.publish('AHRI2nd/Lyrical-Sync', '0.7.0', Path(directory) / 'latest.json')
@@ -235,6 +249,25 @@ class ReleaseManifestTests(unittest.TestCase):
                 sigs[self.names[0] + '.sig'] = signature
             with self.subTest(signature=signature), self.assertRaises(ValueError):
                 self.assemble(signatures=sigs)
+
+    def test_prefix_only_signature_is_rejected(self):
+        signatures = self.signatures.copy()
+        signatures[self.names[0] + '.sig'] = base64.b64encode(
+            b'untrusted comment: fake'
+        ).decode()
+        with self.assertRaisesRegex(ValueError, 'Invalid signature'):
+            self.assemble(signatures=signatures)
+
+    def test_minisign_signature_with_truncated_binary_payload_is_rejected(self):
+        signatures = self.signatures.copy()
+        signatures[self.names[0] + '.sig'] = '\n'.join((
+            'untrusted comment: fixture',
+            base64.b64encode(b'Ed' + bytes(8)).decode(),
+            'trusted comment: timestamp:0',
+            base64.b64encode(bytes(64)).decode(),
+        ))
+        with self.assertRaisesRegex(ValueError, 'Invalid signature'):
+            self.assemble(signatures=signatures)
 
     def test_foreign_version_does_not_satisfy_release(self):
         assets = [{'name':a['name'].replace('0.7.0', '0.6.3')} for a in self.assets]
