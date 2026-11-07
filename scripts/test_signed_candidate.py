@@ -6,6 +6,7 @@ import io
 import hashlib
 import json
 import plistlib
+import re
 import tarfile
 import unittest
 
@@ -50,7 +51,7 @@ class SignedCandidateTests(unittest.TestCase):
         for target in ['aarch64-apple-darwin','x86_64-pc-windows-msvc','aarch64-pc-windows-msvc']:
             self.assertIn(target,source)
         self.assertIn('TAURI_SIGNING_PRIVATE_KEY:',source)
-        self.assertIn('actions/upload-artifact@v4',source)
+        self.assertIn('actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',source)
         self.assertIn('scripts/record_signed_candidate.py',source)
 
     def test_candidate_signing_waits_for_full_platform_regressions(self):
@@ -76,11 +77,20 @@ class SignedCandidateTests(unittest.TestCase):
         self.assertIn('existing_asset_count=$(gh api',source)
         self.assertIn('Existing draft already contains assets',source)
         self.assertLess(source.index('existing_asset_count='),source.index('gh release upload'))
-        self.assertIn('actions/upload-artifact@v4',source)
+        self.assertIn('actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',source)
         self.assertNotRegex(source,r'(?m)^\s*tagName:')
         self.assertNotRegex(source,r'(?m)^\s*releaseName:')
-        self.assertLess(source.index('Verify Windows artifact architecture'),source.index('actions/upload-artifact@v4'))
-        self.assertLess(source.index('Record exact source and signed candidate hashes'),source.index('actions/upload-artifact@v4'))
+        self.assertLess(source.index('Verify Windows artifact architecture'),source.index('actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02'))
+        self.assertLess(source.index('Record exact source and signed candidate hashes'),source.index('actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02'))
+
+    def test_external_workflow_actions_are_pinned_to_full_commit_shas(self):
+        workflows = ROOT / '.github/workflows'
+        uses = re.compile(r'(?m)^\s*uses:\s*([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@([0-9a-f]{40})(?:\s+#.*)?$')
+        for path in workflows.glob('*.yml'):
+            source = path.read_text(encoding='utf-8')
+            for line in source.splitlines():
+                if re.search(r'(?m)^\s*uses:\s*[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@', line):
+                    self.assertRegex(line, uses, f'{path}: mutable or malformed action reference: {line}')
 
     def test_signed_candidate_rejects_untrusted_refs_before_running_build_code(self):
         source=(ROOT/'.github/workflows/candidate.yml').read_text()
