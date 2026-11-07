@@ -56,6 +56,10 @@ class SignedCandidateTests(unittest.TestCase):
         self.assertRegex(source,r'needs:\s*\[\s*release\s*,\s*test-gate\s*\]')
         self.assertIn('scripts/verify_release_candidates.py',source)
         self.assertIn('gh release upload',source)
+        self.assertNotRegex(source,r'(?m)^\s*gh release upload .*--clobber')
+        self.assertIn('existing_asset_count=$(gh api',source)
+        self.assertIn('Existing draft already contains assets',source)
+        self.assertLess(source.index('existing_asset_count='),source.index('gh release upload'))
         self.assertIn('actions/upload-artifact@v4',source)
         self.assertNotRegex(source,r'(?m)^\s*tagName:')
         self.assertNotRegex(source,r'(?m)^\s*releaseName:')
@@ -230,6 +234,25 @@ class SignedCandidateTests(unittest.TestCase):
             record=root/'aarch64-pc-windows-msvc/candidate-record.json'
             record.unlink()
             with self.assertRaisesRegex(ValueError,'matrix is incomplete'):
+                module.verify(root,'0.7.0','a'*40)
+
+    def test_release_candidate_rejects_malformed_hashes_and_source_inputs(self):
+        module=self.release_candidate_verifier()
+        for value,label in [('short','source'),('A'*40,'source'),('0.7','version')]:
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp)
+                self.release_candidate_matrix(root)
+                with self.assertRaises(ValueError):
+                    if label=='source': module.verify(root,'0.7.0',value)
+                    else: module.verify(root,value,'a'*40)
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            self.release_candidate_matrix(root)
+            record_path=root/'x86_64-pc-windows-msvc/candidate-record.json'
+            record=json.loads(record_path.read_text())
+            record['installers'][0]['sha256']='not-a-digest'
+            record_path.write_text(json.dumps(record))
+            with self.assertRaisesRegex(ValueError,'artifact hash mismatch'):
                 module.verify(root,'0.7.0','a'*40)
 
     def test_release_candidate_rejects_duplicate_installer_kinds(self):

@@ -261,6 +261,11 @@ jobs:
               echo "::error::Existing draft targets $existing_target, expected $SOURCE_SHA"
               exit 1
             fi
+            existing_asset_count=$(gh api "repos/${RELEASE_REPO}/releases/${draft_ids}/assets" --paginate --jq 'length' | awk '{ total += $1 } END { print total+0 }')
+            if [ "$existing_asset_count" -ne 0 ]; then
+              echo "::error::Existing draft already contains assets; refusing to replace or overwrite them. Review the draft manually."
+              exit 1
+            fi
           fi
 
           git fetch --depth=1 origin "refs/tags/$TAG"
@@ -278,7 +283,7 @@ jobs:
             echo "::error::No verified release files were produced."
             exit 1
           fi
-          gh release upload "$TAG" "${files[@]}" --repo "$RELEASE_REPO" --clobber
+          gh release upload "$TAG" "${files[@]}" --repo "$RELEASE_REPO"
 
   updater-manifest:
     needs: publish-release

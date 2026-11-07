@@ -3,6 +3,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 
 
 EXPECTED = {
@@ -31,14 +32,22 @@ def confined_candidate_file(directory, value, label):
 
 def verify(root, version, source_sha):
     root = Path(root).resolve()
+    if not isinstance(version, str) or not re.fullmatch(r'\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?', version):
+        raise ValueError('Invalid candidate version')
+    if not isinstance(source_sha, str) or not re.fullmatch(r'[0-9a-f]{40}', source_sha):
+        raise ValueError('Candidate source must be an exact commit SHA')
     records = list(root.rglob('candidate-record.json'))
     by_target = {}
     selected_files = []
     names = set()
     for record_path in records:
-        if not record_path.resolve().is_relative_to(root):
+        try:
+            resolved_record = record_path.resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise ValueError(f'Invalid candidate record path: {record_path}') from exc
+        if not resolved_record.is_relative_to(root) or not resolved_record.is_file():
             raise ValueError(f'Candidate record escapes release root: {record_path}')
-        directory = record_path.parent.resolve()
+        directory = resolved_record.parent
         record = json.loads(record_path.read_text(encoding='utf-8'))
         target = record.get('target')
         if target not in EXPECTED or target in by_target:
@@ -51,20 +60,25 @@ def verify(root, version, source_sha):
                 or {row['kind'] for row in rows} != EXPECTED[target]):
             raise ValueError(f'Candidate artifact set is incomplete: {target}')
         for row in rows:
-            artifact = confined_candidate_file(directory, row['path'], 'artifact')
-            if not artifact.is_file() or artifact.stat().st_size != row.get('bytes'):
+            artifact = confined_candidate_file(directory, row.get('path'), 'artifact')
+            if not artifact.is_file() or not isinstance(row.get('bytes'), int) or artifact.stat().st_size != row['bytes']:
                 raise ValueError(f'Missing or changed candidate artifact: {row.get("path")}')
-            if hashlib.sha256(artifact.read_bytes()).hexdigest() != row.get('sha256'):
-                raise ValueError(f'Candidate artifact hash mismatch: {row["path"]}')
+            if (not isinstance(row.get('sha256'), str)
+                    or not re.fullmatch(r'[0-9a-f]{64}', row['sha256'])
+                    or hashlib.sha256(artifact.read_bytes()).hexdigest() != row['sha256']):
+                raise ValueError(f'Candidate artifact hash mismatch: {row.get("path")}')
             if artifact.name in names:
                 raise ValueError(f'Duplicate release artifact filename: {artifact.name}')
             names.add(artifact.name)
             selected_files.append(artifact)
             if row['kind'] != 'dmg':
                 signature = confined_candidate_file(directory, row.get('signaturePath'), 'signature')
-                if (not signature.is_file() or not signature.read_text(encoding='utf-8').strip()
-                        or hashlib.sha256(signature.read_bytes()).hexdigest() != row.get('signatureSha256')):
-                    raise ValueError(f'Missing or changed updater signature sidecar: {row["path"]}')
+                if (not signature.is_file()
+                        or not isinstance(row.get('signatureSha256'), str)
+                        or not re.fullmatch(r'[0-9a-f]{64}', row['signatureSha256'])
+                        or not signature.read_text(encoding='utf-8').strip()
+                        or hashlib.sha256(signature.read_bytes()).hexdigest() != row['signatureSha256']):
+                    raise ValueError(f'Missing or changed updater signature sidecar: {row.get("path")}')
                 if signature.name in names:
                     raise ValueError(f'Duplicate release artifact filename: {signature.name}')
                 names.add(signature.name)
