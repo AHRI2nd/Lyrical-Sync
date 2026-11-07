@@ -137,9 +137,6 @@ fn write_restricted_token_file(path: &Path, token: &str) -> Result<(), String> {
     let parent = path.parent().ok_or("토큰 경로에 부모 디렉터리가 없습니다")?;
     let mut temp = tempfile::NamedTempFile::new_in(parent)
         .map_err(|e| format!("토큰 임시 파일 생성 실패: {e}"))?;
-    temp.write_all(token.as_bytes())
-        .map_err(|e| format!("토큰 저장 실패: {e}"))?;
-    temp.as_file().sync_all().map_err(|e| format!("토큰 저장 실패: {e}"))?;
 
     #[cfg(unix)]
     {
@@ -162,6 +159,11 @@ fn write_restricted_token_file(path: &Path, token: &str) -> Result<(), String> {
             return Err(format!("토큰 파일 ACL 설정 실패: {}", String::from_utf8_lossy(&output.stderr).trim()));
         }
     }
+
+    // Do not place secret bytes in the staging file until its access policy is set.
+    temp.write_all(token.as_bytes())
+        .map_err(|e| format!("토큰 저장 실패: {e}"))?;
+    temp.as_file().sync_all().map_err(|e| format!("토큰 저장 실패: {e}"))?;
 
     temp.persist(path).map_err(|e| format!("토큰 파일 확정 실패: {}", e.error))?;
     Ok(())
