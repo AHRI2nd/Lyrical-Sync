@@ -123,6 +123,35 @@ it("keeps independent models busy when one operation completes", async () => {
   expect(useBusyStore.getState().reasons.size).toBe(0);
 });
 
+it("does not let an earlier inventory overwrite the selected model directory", async () => {
+  const oldCheck = deferred<boolean[]>();
+  let selectedRoot = "/models/old";
+  const model = MODEL_DEFS[0];
+  invoke.mockImplementation((command: string, args?: { path?: string; expectedRoot?: string; filenames?: string[] }) => {
+    if (command === "set_models_dir_override") {
+      selectedRoot = args?.path || "/models/default";
+      return Promise.resolve(undefined);
+    }
+    if (command === "get_models_dir") return Promise.resolve(selectedRoot);
+    if (command === "check_model_files" && args?.expectedRoot === "/models/old" && args.filenames?.[0] === model.files[0].filename) return oldCheck.promise;
+    if (command === "check_model_files") return Promise.resolve(args?.expectedRoot === "/models/new" && args.filenames?.[0] === model.files[0].filename ? [true] : [false]);
+    return Promise.resolve(undefined);
+  });
+  useSettingsStore.setState({ modelsDir: "/models/old" });
+  const oldRefresh = useModelDownloadStore.getState().refreshInstalled();
+  await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("check_model_files", expect.objectContaining({ expectedRoot: "/models/old" })));
+
+  useSettingsStore.setState({ modelsDir: "/models/new" });
+  await useModelDownloadStore.getState().refreshInstalled();
+  expect(useModelDownloadStore.getState().modelsPath).toBe("/models/new");
+  expect(useModelDownloadStore.getState().models[model.id].status).toBe("installed");
+
+  oldCheck.resolve([false]);
+  await oldRefresh;
+  expect(useModelDownloadStore.getState().modelsPath).toBe("/models/new");
+  expect(useModelDownloadStore.getState().models[model.id].status).toBe("installed");
+});
+
 it("does not let an old run progress event mutate a replacement run", async () => {
   const pending = deferred<void>();
   invoke.mockImplementation((command: string) => {
