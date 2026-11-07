@@ -42,6 +42,15 @@ def record(root, target, source_sha, version):
             if stream is None:
                 raise ValueError('Unable to read app metadata from updater archive')
             app_version=plistlib.load(stream).get('CFBundleShortVersionString')
+            project_license=(Path(__file__).resolve().parents[1]/'LICENSE').read_bytes()
+            app_prefix=metadata[0].name.removesuffix('Contents/Info.plist')
+            licenses=[member for member in archive.getmembers()
+                      if member.name==app_prefix+'Contents/Resources/LICENSE' and member.isfile()]
+            if len(licenses)!=1 or licenses[0].size!=len(project_license):
+                raise ValueError('Mac updater archive does not contain the project LICENSE')
+            license_stream=archive.extractfile(licenses[0])
+            if license_stream is None or license_stream.read()!=project_license:
+                raise ValueError('Mac updater archive project LICENSE does not match source')
         if app_version!=version:
             raise ValueError('Mac updater archive app version does not match candidate version')
         add(archives[0],'app');add(dmgs[0],'dmg',False)

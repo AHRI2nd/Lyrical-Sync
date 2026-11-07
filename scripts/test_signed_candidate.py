@@ -131,27 +131,47 @@ class SignedCandidateTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'MSI'):
                 self.recorder().record(root,'x86_64-pc-windows-msvc','b'*40,'0.7.0')
 
-    def mac_candidate(self, root, version):
+    def mac_candidate(self, root, version, license_content=None):
         archive=root/'Lyrical Sync_aarch64.app.tar.gz'
         plist=plistlib.dumps({'CFBundleShortVersionString':version})
         with tarfile.open(archive,'w:gz') as output:
             member=tarfile.TarInfo('Lyrical Sync.app/Contents/Info.plist')
             member.size=len(plist)
             output.addfile(member,io.BytesIO(plist))
+            if license_content is not None:
+                license_member=tarfile.TarInfo('Lyrical Sync.app/Contents/Resources/LICENSE')
+                license_member.size=len(license_content)
+                output.addfile(license_member,io.BytesIO(license_content))
         (root/(archive.name+'.sig')).write_text('fixture updater signature')
         (root/'Lyrical Sync_aarch64.dmg').write_bytes(b'dmg')
 
     def test_mac_updater_archive_version_is_read_from_app_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp);self.mac_candidate(root,'0.7.0')
+            root=Path(tmp);self.mac_candidate(root,'0.7.0', (ROOT/'LICENSE').read_bytes())
             row=self.recorder().record(root,'aarch64-apple-darwin','c'*40,'0.7.0')
             app=next(item for item in row['installers'] if item['kind']=='app')
             self.assertEqual(app['signatureVerification'],'Presence and hash only; cryptographic verification is not performed here')
             self.assertIn('no cryptographic',row['qualification'])
 
+    def test_mac_updater_archive_requires_matching_project_license(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            self.mac_candidate(root,'0.7.0')
+            with self.assertRaisesRegex(ValueError,'project LICENSE'):
+                self.recorder().record(root,'aarch64-apple-darwin','c'*40,'0.7.0')
+            self.mac_candidate(root,'0.7.0',b'not the project license')
+            with self.assertRaisesRegex(ValueError,'project LICENSE'):
+                self.recorder().record(root,'aarch64-apple-darwin','c'*40,'0.7.0')
+
+    def test_bundle_declares_project_license_resource(self):
+        config=json.loads((ROOT/'src-tauri/tauri.conf.json').read_text(encoding='utf-8'))
+        resources=config['bundle']['resources']
+        self.assertEqual(resources.get('../LICENSE'),'LICENSE')
+        self.assertTrue((ROOT/'LICENSE').is_file())
+
     def test_mac_updater_archive_with_stale_app_version_is_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp);self.mac_candidate(root,'0.6.3')
+            root=Path(tmp);self.mac_candidate(root,'0.6.3',(ROOT/'LICENSE').read_bytes())
             with self.assertRaisesRegex(ValueError,'version'):
                 self.recorder().record(root,'aarch64-apple-darwin','c'*40,'0.7.0')
 
