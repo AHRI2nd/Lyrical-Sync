@@ -42,6 +42,13 @@ function closeUpdateOnce(update: Update | null | undefined): Promise<void> {
 function isCurrentCheck(generation: number): boolean {
   return checkGeneration === generation;
 }
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
 async function preserveBefore(action: () => Promise<void>): Promise<void> {
   const lrc = useLrcStore.getState();
   if (lrc.isDirty && lrc.lrcPath) {
@@ -69,10 +76,27 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
     if (updateOperationActive || get().status === "downloading" || get().status === "ready") return;
     const generation = ++checkGeneration;
     set({ status: "checking", version: null, body: null, progress: 0, error: null });
+    let checkPromise: Promise<Update | null> | null = null;
+    let timedOut = false;
+    let timeoutTimer: ReturnType<typeof setTimeout> | null = null;
     try {
-      const { check } = await import("@tauri-apps/plugin-updater");
-      if (!isCurrentCheck(generation)) return;
-      const update = await check({ timeout: UPDATE_CHECK_TIMEOUT_MS });
+      checkPromise = (async () => {
+        const { check } = await import("@tauri-apps/plugin-updater");
+        return check({ timeout: UPDATE_CHECK_TIMEOUT_MS });
+      })();
+      const checkResult = checkPromise.then((update) => {
+        if ((timedOut || !isCurrentCheck(generation)) && get()._update !== update) {
+          void closeUpdateOnce(update);
+        }
+        return update;
+      });
+      const update = await new Promise<Update | null>((resolve, reject) => {
+        timeoutTimer = setTimeout(() => {
+          timedOut = true;
+          reject(new Error("Updater check timed out"));
+        }, UPDATE_CHECK_TIMEOUT_MS);
+        checkResult.then(resolve, reject);
+      });
       if (!isCurrentCheck(generation)) {
         if (get()._update !== update) await closeUpdateOnce(update);
         return;
@@ -101,6 +125,8 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
         error: silent ? null : String(e),
         _update: null,
       });
+    } finally {
+      if (timeoutTimer) clearTimeout(timeoutTimer);
     }
   },
 

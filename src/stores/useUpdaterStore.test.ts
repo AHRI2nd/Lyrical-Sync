@@ -54,6 +54,37 @@ describe("useUpdaterStore — checkForUpdate", () => {
     expect(check).toHaveBeenCalledWith({ timeout: 15_000 });
   });
 
+  it("recovers from an updater check that never settles", async () => {
+    vi.useFakeTimers();
+    try {
+      check.mockImplementation(() => new Promise<Update | null>(() => {}));
+      const task = useUpdaterStore.getState().checkForUpdate(false);
+      await vi.advanceTimersByTimeAsync(15_000);
+      await task;
+      expect(useUpdaterStore.getState().status).toBe("error");
+      expect(useUpdaterStore.getState().error).toContain("timed out");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("closes an update handle returned after the check deadline", async () => {
+    vi.useFakeTimers();
+    try {
+      let finish!: (update: Update) => void;
+      check.mockImplementation(() => new Promise<Update>((resolve) => { finish = resolve; }));
+      const task = useUpdaterStore.getState().checkForUpdate(false);
+      await vi.advanceTimersByTimeAsync(15_000);
+      await task;
+      const late = { version: "1.2.3", close: vi.fn(async () => {}) } as unknown as Update;
+      finish(late);
+      await vi.waitFor(() => expect(late.close).toHaveBeenCalledOnce());
+      expect(useUpdaterStore.getState().status).toBe("error");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("sets status=up-to-date when no update and not silent", async () => {
     check.mockResolvedValue(null);
     await useUpdaterStore.getState().checkForUpdate();
