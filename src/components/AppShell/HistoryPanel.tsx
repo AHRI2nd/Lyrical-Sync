@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
@@ -9,6 +9,8 @@ import { ChevronDownIcon } from "./icons";
 export function HistoryPanel() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const historyId = useId();
   const { t } = useI18nStore();
   const { _history, _future, jumpToHistory } = useLrcStore(
     useShallow((s) => ({
@@ -48,18 +50,28 @@ export function HistoryPanel() {
   rows.reverse();
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative" onKeyDown={(event) => {
+      if (event.key === "Escape" && open && !event.nativeEvent.isComposing) {
+        event.preventDefault();
+        event.stopPropagation();
+        setOpen(false);
+        trigger.current?.focus();
+      }
+    }}>
       <button
+        ref={trigger}
         onClick={() => setOpen((v) => !v)}
         disabled={disabled}
         title={t.historyPanelTitle}
         aria-label={t.historyPanelTitle}
+        aria-expanded={open}
+        aria-controls={historyId}
         className="ls-button w-6 h-8 flex items-center justify-center rounded-lg text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
       >
         <ChevronDownIcon />
       </button>
       {open && (
-        <div className="absolute left-0 top-full mt-1 bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] rounded-lg shadow-xl z-50 overflow-hidden py-1 min-w-[220px] max-h-80 overflow-y-auto">
+        <div id={historyId} role="group" aria-label={t.historyPanelTitle} className="absolute left-0 top-full mt-1 bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] rounded-lg shadow-xl z-50 overflow-hidden py-1 min-w-[220px] max-h-80 overflow-y-auto">
           <div className="px-3 py-1.5 text-[11px] font-semibold text-[var(--ls-text-secondary)] border-b border-[var(--ls-border-subtle)]">
             {t.historyPanelTitle}
           </div>
