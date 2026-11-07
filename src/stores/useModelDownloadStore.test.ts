@@ -105,6 +105,45 @@ it("keeps one model operation and one busy lease across duplicate requests", asy
   expect(useModelDownloadStore.getState().models[model.id].status).toBe("installed");
 });
 
+it("cancels native registration when download dispatch fails and allows retry", async () => {
+  let nativeRegistered = false;
+  let failFirstDispatch = true;
+  invoke.mockImplementation((command: string) => {
+    if (command === "get_models_dir") return Promise.resolve("/models/default");
+    if (command === "begin_model_download") {
+      nativeRegistered = true;
+      return Promise.resolve(undefined);
+    }
+    if (command === "download_model") {
+      if (failFirstDispatch) {
+        failFirstDispatch = false;
+        return Promise.reject(new Error("native dispatch unavailable"));
+      }
+      nativeRegistered = false;
+      return Promise.resolve(undefined);
+    }
+    if (command === "cancel_model_download") {
+      nativeRegistered = false;
+      return Promise.resolve(undefined);
+    }
+    return Promise.resolve(undefined);
+  });
+  const model = MODEL_DEFS[0];
+
+  await useModelDownloadStore.getState().installModel(model);
+
+  expect(invoke).toHaveBeenCalledWith("cancel_model_download", {
+    modelId: model.id,
+    runId: expect.any(String),
+  });
+  expect(nativeRegistered).toBe(false);
+  expect(useBusyStore.getState().reasons.size).toBe(0);
+
+  await useModelDownloadStore.getState().installModel(model);
+  expect(failFirstDispatch).toBe(false);
+  expect(nativeRegistered).toBe(false);
+});
+
 it("keeps independent models busy when one operation completes", async () => {
   const downloads = new Map<string, ReturnType<typeof deferred<void>>>();
   invoke.mockImplementation((command: string, args?: { modelId?: string }) => {
