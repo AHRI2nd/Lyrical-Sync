@@ -24,6 +24,7 @@ export function ClearGlyphTimings({ lineId }: { lineId: string }) {
   const dialog = useRef<HTMLDivElement>(null);
   const undoButton = useRef<HTMLButtonElement>(null);
   const restoreAfterUndo = useRef(false);
+  const restoreAfterExpiry = useRef(false);
   const titleId = useId();
   const messageId = useId();
   const count = context.doc.lines.find(line => line.id === lineId)?.syllables?.filter(s => s.time !== null).length ?? 0;
@@ -37,7 +38,10 @@ export function ClearGlyphTimings({ lineId }: { lineId: string }) {
   }, [context, pending, cleared]);
   useEffect(() => {
     if (!cleared) return;
-    const timer = window.setTimeout(() => setCleared(null), 7000);
+    const timer = window.setTimeout(() => {
+      restoreAfterExpiry.current = document.activeElement === undoButton.current;
+      setCleared(null);
+    }, 7000);
     return () => window.clearTimeout(timer);
   }, [cleared]);
   useLayoutEffect(() => {
@@ -49,9 +53,10 @@ export function ClearGlyphTimings({ lineId }: { lineId: string }) {
 
   useLayoutEffect(() => {
     if (cleared && isCurrent(cleared)) undoButton.current?.focus({ preventScroll: true });
-    else if (restoreAfterUndo.current) {
+    else if (restoreAfterUndo.current || restoreAfterExpiry.current) {
       trigger.current?.focus({ preventScroll: true });
       restoreAfterUndo.current = false;
+      restoreAfterExpiry.current = false;
     }
   }, [cleared]);
 
@@ -63,7 +68,9 @@ export function ClearGlyphTimings({ lineId }: { lineId: string }) {
     setPending(null);
   };
   return <div className="flex flex-wrap items-center gap-2 min-w-0">
-    <button ref={trigger} type="button" disabled={!count} onClick={() => setPending({ doc: context.doc, session: context.session, audio: context.audio, lineId })}
+    <button ref={trigger} type="button" aria-disabled={!count} onClick={() => {
+      if (count) setPending({ doc: context.doc, session: context.session, audio: context.audio, lineId });
+    }}
       className="ls-button ls-button--compact text-xs disabled:opacity-40 disabled:cursor-default">
       {t.charSync.clearTimingButton}
     </button>

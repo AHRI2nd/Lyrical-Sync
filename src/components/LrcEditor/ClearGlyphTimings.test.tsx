@@ -27,7 +27,10 @@ it("confirms the count, preserves lyrics and line time, and undoes as one edit",
 it("disables clearing when no timestamps exist", () => {
   useLrcStore.setState({doc:{...defaultDocument(),lines:[{id:"line",text:"ab",timestamp:10}]}});
   render(<ClearGlyphTimings lineId="line" />);
-  expect((screen.getByRole("button") as HTMLButtonElement).disabled).toBe(true);
+  const button = screen.getByRole("button");
+  expect(button.getAttribute("aria-disabled")).toBe("true");
+  fireEvent.click(button);
+  expect(screen.queryByRole("dialog")).toBeNull();
 });
 it("invalidates a pending confirmation when the document is replaced using the same line id", () => {
   render(<ClearGlyphTimings lineId="line" />); open();
@@ -43,10 +46,25 @@ it("removes Undo after another edit so that it cannot revert unrelated work", ()
 });
 it("keeps Undo during playback but expires it after seven seconds", () => {
   vi.useFakeTimers(); render(<ClearGlyphTimings lineId="line" />); open(); confirm();
+  const undo = screen.getByRole("button",{name:labels().undoClear});
+  const trigger = screen.getByRole("button",{name:labels().clearTimingButton});
+  expect(document.activeElement).toBe(undo);
   act(() => useLrcStore.setState({currentTime:20}));
   expect(screen.getByRole("status")).toBeTruthy();
   act(() => vi.advanceTimersByTime(7000));
   expect(screen.queryByRole("status")).toBeNull();
+  expect(document.activeElement).toBe(trigger);
+  expect(trigger.getAttribute("aria-disabled")).toBe("true");
+});
+it("does not steal focus when Undo expires after focus moved elsewhere", () => {
+  vi.useFakeTimers();
+  render(<><ClearGlyphTimings lineId="line" /><button type="button">Other control</button></>);
+  open(); confirm();
+  const other = screen.getByRole("button", { name: "Other control" });
+  other.focus();
+  act(() => vi.advanceTimersByTime(7000));
+  expect(screen.queryByRole("status")).toBeNull();
+  expect(document.activeElement).toBe(other);
 });
 it("cancels safely and ignores an IME Escape", () => {
   render(<ClearGlyphTimings lineId="line" />); open();
