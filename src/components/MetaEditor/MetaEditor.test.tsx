@@ -86,19 +86,20 @@ it("applies an unchanged-session raw draft and keeps the operation undoable", ()
   expect(useLrcStore.getState().doc.lines.map((line) => line.text)).toEqual(["A original"]);
 });
 
-it("keeps the raw editor available when an inactive reserved tag has an unknown value", () => {
+it("opens the raw editor with unsupported reserved control metadata preserved for correction", () => {
   const t = useI18nStore.getState().t;
-  useLrcStore.setState({ doc: { ...defaultDocument(), extraTags: { "x-lyrical-inline-escape": "external-value" },
+  useLrcStore.setState({ doc: { ...defaultDocument(), invalidControlTags: [{ key: "x-lyrical-inline-escape", value: "external-value" }],
     lines: [{ id: "a", timestamp: 1, text: "A original" }] } });
   render(<MetaEditor />);
   fireEvent.click(screen.getByRole("button", { name: t.viewAll }));
   const editor = screen.getAllByRole("textbox").find((element) => element.tagName === "TEXTAREA") as HTMLTextAreaElement;
   expect(editor.value).toContain("[x-lyrical-inline-escape:external-value]");
+  expect(screen.getByRole("alert").textContent).toBe(t.rawEditorReservedTagConflict);
 });
 
 it("keeps a raw editor with a reserved-tag conflict open and explains how to recover", () => {
   const t = useI18nStore.getState().t;
-  useLrcStore.setState({ doc: { ...defaultDocument(), extraTags: { "x-lyrical-inline-escape": "external-value" },
+  useLrcStore.setState({ doc: { ...defaultDocument(), invalidControlTags: [{ key: "x-lyrical-inline-escape", value: "external-value" }],
     lines: [{ id: "a", timestamp: 1, text: "A original" }] } });
   render(<MetaEditor />);
   fireEvent.click(screen.getByRole("button", { name: t.viewAll }));
@@ -111,7 +112,7 @@ it("keeps a raw editor with a reserved-tag conflict open and explains how to rec
 
   fireEvent.change(textarea, { target: { value: textarea.value.replace("[x-lyrical-inline-escape:external-value]", "[x-lyrical-inline-escape:1]") } });
   fireEvent.click(apply);
-  expect(useLrcStore.getState().doc.extraTags["x-lyrical-inline-escape"]).toBeUndefined();
+  expect(useLrcStore.getState().doc.invalidControlTags).toBeUndefined();
   expect(screen.queryAllByRole("textbox").some((element) => element.tagName === "TEXTAREA")).toBe(false);
 });
 

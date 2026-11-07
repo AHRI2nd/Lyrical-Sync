@@ -302,6 +302,7 @@ function unescapeTranslationText(text: string): string {
 export function parseLrc(raw: string): LrcDocument {
   const doc = defaultDocument();
   const metadataEntries: { key: string; value: string }[] = [];
+  const invalidControlTags: { key: string; value: string }[] = [];
   const metadataKeys = new Set<string>();
   let repeatedMetadata = false;
   let lineId = 0;
@@ -348,26 +349,26 @@ export function parseLrc(raw: string): LrcDocument {
         // Keep repeated ordinary metadata entries, not just their final map
         // values. Managed x-lyrical-* control tags retain their existing mode
         // handling rather than being replayed as ordinary metadata.
-        if (![TRANSLATION_TAG, INLINE_ESCAPE_TAG, LINE_ORDER_TAG, WHITESPACE_TAG].includes(key)) {
+        const isControlTag = [TRANSLATION_TAG, INLINE_ESCAPE_TAG, LINE_ORDER_TAG, WHITESPACE_TAG].includes(key);
+        if (isControlTag) {
+          if (value === "1") metadataEntries.push({ key, value });
+          else invalidControlTags.push({ key, value });
+        } else {
           if (metadataKeys.has(key)) repeatedMetadata = true;
           metadataKeys.add(key);
           metadataEntries.push({ key, value });
         }
         if (key === TRANSLATION_TAG) {
           if (value === "1") translationMode = true;
-          else doc.extraTags[key] = value;
         }
         else if (key === INLINE_ESCAPE_TAG) {
           if (value === "1") inlineEscapeMode = true;
-          else doc.extraTags[key] = value;
         }
         else if (key === LINE_ORDER_TAG) {
           if (value === "1") preserveLineOrder = true;
-          else doc.extraTags[key] = value;
         }
-        else if (key.toLowerCase() === WHITESPACE_TAG) {
+        else if (key === WHITESPACE_TAG) {
           if (value === "1") preserveWhitespace = true;
-          else doc.extraTags[key] = value;
         }
         else if (field === "offset") {
           const offset = Number(value);
@@ -432,12 +433,19 @@ export function parseLrc(raw: string): LrcDocument {
     });
   }
   if (repeatedMetadata) doc.metadataTagSequence = metadataEntries;
+  if (invalidControlTags.length > 0) doc.invalidControlTags = invalidControlTags;
   return doc;
 }
 
 // enhanced=false면 글자/단어 동기화 태그를 제거하고 일반 LRC로 출력
-export function serializeLrc(doc: LrcDocument, enhanced = true): string {
+export function serializeLrc(doc: LrcDocument, enhanced = true, allowInvalidControlTags = false): string {
   const { metadata, lines, extraTags } = doc;
+  if (doc.invalidControlTags?.length && !allowInvalidControlTags) {
+    if (doc.invalidControlTags.some(({ key }) => key.toLowerCase() === INLINE_ESCAPE_TAG)) {
+      throw new LrcInlineEscapeTagConflictError();
+    }
+    throw new LrcReservedTagConflictError();
+  }
   const sequence = doc.metadataTagSequence;
   if (sequence !== undefined && (!Array.isArray(sequence) || sequence.some((entry) =>
     !entry || typeof entry.key !== "string" || typeof entry.value !== "string" ||
@@ -451,10 +459,14 @@ export function serializeLrc(doc: LrcDocument, enhanced = true): string {
     throw new LrcInvalidTimestampError();
   }
   const metadataValues = [metadata.title, metadata.artist, metadata.album, metadata.by,
+    ...(doc.invalidControlTags?.flatMap(({ key, value }) => [key, value]) ?? []),
     ...Object.entries(extraTags).flatMap(([key, value]) => [key, value]),
     ...(sequence?.flatMap(({ key, value }) => [key, value]) ?? [])];
   if (metadataValues.some((value) => /[\r\n]/.test(value))) throw new LrcMetadataLineBreakError();
   const parts: string[] = [];
+  if (allowInvalidControlTags) {
+    for (const { key, value } of doc.invalidControlTags ?? []) parts.push(`[${key}:${value}]`);
+  }
   const sortedLines = [...lines].sort((a, b) => {
     if (a.timestamp === null && b.timestamp === null) return 0;
     if (a.timestamp === null) return 1;
@@ -474,7 +486,11 @@ export function serializeLrc(doc: LrcDocument, enhanced = true): string {
   if (inlineEscapeMode && inlineEscapeValue !== undefined && inlineEscapeValue !== "1") {
     throw new LrcInlineEscapeTagConflictError();
   }
-  if (translationMode && translationTagValue !== undefined && translationTagValue !== "1") throw new LrcReservedTagConflictError();
+  if (!allowInvalidControlTags) {
+    if (doc.invalidControlTags?.some(({ key }) => key.toLowerCase() === INLINE_ESCAPE_TAG)) throw new LrcInlineEscapeTagConflictError();
+    if (doc.invalidControlTags?.length) throw new LrcReservedTagConflictError();
+    if (translationMode && translationTagValue !== undefined && translationTagValue !== "1") throw new LrcReservedTagConflictError();
+  }
   if (orderNeedsMarker && lineOrderTagValue !== undefined && lineOrderTagValue !== "1") throw new LrcReservedTagConflictError();
   if (hasEdgeWhitespace && whitespaceTagValue !== undefined && whitespaceTagValue !== "1") throw new LrcReservedTagConflictError();
   const encode = (text: string) => {
@@ -482,9 +498,20 @@ export function serializeLrc(doc: LrcDocument, enhanced = true): string {
     return inlineEscapeMode ? escapeInlineTimestampText(translated) : translated;
   };
 
+  const reservedModeValues = new Set<string>([TRANSLATION_TAG, INLINE_ESCAPE_TAG, LINE_ORDER_TAG, WHITESPACE_TAG]);
+  if (!allowInvalidControlTags) {
+    for (const key of reservedModeValues) {
+      if (Object.prototype.hasOwnProperty.call(extraTags, key) && extraTags[key] !== "1") {
+        throw new LrcReservedTagConflictError();
+      }
+    }
+  }
   const lastEntry = new Map<string, number>();
-  sequence?.forEach(({ key }, index) => lastEntry.set(key, index));
+  sequence?.forEach(({ key }, index) => {
+    if (!reservedModeValues.has(key)) lastEntry.set(key, index);
+  });
   sequence?.forEach(({ key, value: original }, index) => {
+    if (reservedModeValues.has(key)) return;
     const field = Object.prototype.hasOwnProperty.call(META_TAGS, key) ? META_TAGS[key] : undefined;
     if (!field && !Object.prototype.hasOwnProperty.call(extraTags, key)) return;
     let value = original;

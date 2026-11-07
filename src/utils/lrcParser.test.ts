@@ -33,15 +33,17 @@ it("rejects line breaks in extra metadata keys and values", () => {
   expect(() => serializeLrc({ ...docOf([]), extraTags: { "x-safe": "value\r\n[00:02.00]" } })).toThrow("LRC metadata cannot contain line breaks");
 });
 
-it("preserves non-active reserved tag values and serializes them when no feature uses the tag", () => {
+it("retains unsupported reserved controls as inactive recovery data and refuses to serialize them", () => {
   const raw = "[x-lyrical-translations:custom]\n[x-lyrical-inline-escape:custom]\n[00:01.00]safe";
   const parsed = parseLrc(raw);
-  expect(parsed.extraTags).toMatchObject({
-    "x-lyrical-translations": "custom",
-    "x-lyrical-inline-escape": "custom",
-  });
-  expect(serializeLrc(parsed)).toContain("[x-lyrical-translations:custom]");
-  expect(serializeLrc(parsed)).toContain("[x-lyrical-inline-escape:custom]");
+  expect(parsed.invalidControlTags).toEqual([
+    { key: "x-lyrical-translations", value: "custom" },
+    { key: "x-lyrical-inline-escape", value: "custom" },
+  ]);
+  expect(parsed.extraTags).toEqual({});
+  expect(() => serializeLrc(parsed)).toThrow("reserved");
+  expect(serializeLrc(parsed, true, true)).toContain("[x-lyrical-translations:custom]");
+  expect(serializeLrc(parsed, true, true)).toContain("[x-lyrical-inline-escape:custom]");
 });
 
 it("round-trips unusual metadata names without inherited-object key collisions", () => {
@@ -118,9 +120,11 @@ it("refuses to overwrite an unknown translation extension value when translation
   expect(() => serializeLrc(doc)).toThrow("reserved LRC tag has an unknown value");
 });
 
-it("preserves and protects unknown line-order extension values", () => {
+it("retains unsupported line-order values but refuses normal serialization", () => {
   const parsed = parseLrc("[x-lyrical-line-order:external]\n[00:01.00]a");
-  expect(serializeLrc(parsed)).toContain("[x-lyrical-line-order:external]");
+  expect(parsed.invalidControlTags).toEqual([{ key: "x-lyrical-line-order", value: "external" }]);
+  expect(() => serializeLrc(parsed)).toThrow("reserved LRC tag");
+  expect(serializeLrc(parsed, true, true)).toContain("[x-lyrical-line-order:external]");
   const conflict = { ...docOf([{ id: "late", timestamp: 2, text: "late" }, { id: "early", timestamp: 1, text: "early" }]),
     extraTags: { "x-lyrical-line-order": "external" } };
   expect(() => serializeLrc(conflict)).toThrow("reserved LRC tag has an unknown value");

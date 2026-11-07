@@ -35,6 +35,8 @@ export interface LrcDocument {
   /** Original ordinary metadata entries, only retained for repeated keys.
    * The last entry for a key reflects the editable metadata/extraTags value. */
   metadataTagSequence?: { key: string; value: string }[];
+  /** Unsupported reserved control tags retained for display, not emitted as active controls. */
+  invalidControlTags?: { key: string; value: string }[];
 }
 
 export const defaultMetadata = (): LrcMetadata => ({

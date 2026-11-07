@@ -127,6 +127,12 @@ it("cannot discard a newer session with an old snapshot", () => {
   expect(loadRecoverySnapshot()?.sessionId).toBe("new");
 });
 
+it("persists unsupported reserved control tags so recovery can preserve a raw draft", () => {
+  const conflicted = { ...doc(), invalidControlTags: [{ key: "x-lyrical-inline-escape", value: "external-value" }] };
+  expect(saveRecoverySnapshot(conflicted, "/a.lrc", null)).toBe(true);
+  expect(loadRecoverySnapshot()?.doc.invalidControlTags).toEqual(conflicted.invalidControlTags);
+});
+
 it("restores rich document data from stored bytes after recreating the module", async () => {
   const rich = doc();
   rich.extraTags = { language: "ko" };

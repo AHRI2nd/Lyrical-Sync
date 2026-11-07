@@ -801,9 +801,10 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   },
 
   loadFromRawText: (raw) => {
+    const parsed = parseLrc(raw);
+    if (parsed.invalidControlTags?.length) throw new Error("LRC_RESERVED_CONTROL_TAG_CONFLICT");
     pushHistory("loadDoc");
     beginDocumentSession();
-    const parsed = parseLrc(raw);
     const sessionId = documentSessionId;
     parsed.lines = parsed.lines.map((l) => ({ ...l, id: genId(sessionId) }));
     const firstId = parsed.lines[0]?.id ?? null;

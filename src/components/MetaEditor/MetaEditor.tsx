@@ -59,7 +59,7 @@ export function MetaEditor() {
           </button>
           <button
             onClick={() => setRawEditorSnapshot({
-              text: serializeLrc(doc),
+              text: serializeLrc(doc, true, true),
               documentSession,
               editRevision,
             })}

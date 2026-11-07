@@ -19,6 +19,12 @@ function validDocument(value: unknown): value is LrcDocument {
   const metadata = value.metadata;
   if (!["title", "artist", "album", "by"].every((key) => typeof metadata[key] === "string") || !isFiniteNumber(metadata.offset)) return false;
   if (!Object.values(value.extraTags).every((tag) => typeof tag === "string")) return false;
+  if (value.invalidControlTags !== undefined && (!Array.isArray(value.invalidControlTags) || value.invalidControlTags.some((tag: unknown) =>
+    !isRecord(tag) || typeof tag.key !== "string" || typeof tag.value !== "string"
+  ))) return false;
+  if (value.metadataTagSequence !== undefined && (!Array.isArray(value.metadataTagSequence) || value.metadataTagSequence.some((tag: unknown) =>
+    !isRecord(tag) || typeof tag.key !== "string" || typeof tag.value !== "string"
+  ))) return false;
   return value.lines.every((line: unknown) => isRecord(line) && typeof line.id === "string" && typeof line.text === "string" &&
     (line.timestamp === null || isFiniteNumber(line.timestamp)) &&
     (line.translation === undefined || typeof line.translation === "string") &&
