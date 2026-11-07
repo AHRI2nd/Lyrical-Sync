@@ -87,4 +87,31 @@ describe('waveform envelope', () => {
     expect(getWaveformTiles(source, 0, 0, 512)).toEqual([]);
     expect(getWaveformTiles(source, 0, 1, NaN)).toEqual([]);
   });
+  it.each([
+    { name: 'unsafe finite tile index', start: 1e16, end: 1e16 + 2, pixelWidth: 4096 },
+    { name: 'subnormal span rounding to a zero tile duration', start: 0, end: Number.MIN_VALUE, pixelWidth: 4096 },
+    { name: 'finite span overflowing the tile duration', start: 0, end: 1e308, pixelWidth: 1 },
+  ])('does not request tiles for $name', ({ start, end, pixelWidth }) => {
+    let requested = 0;
+    const source = {
+      getTile: () => {
+        if (++requested > 32) throw new Error('unbounded tile loop');
+        return null;
+      }, getEnvelope: () => null,
+    };
+    expect(getWaveformTiles(source, start, end, pixelWidth)).toEqual([]);
+    expect(requested).toBe(0);
+  });
+  it('keeps ordinary viewport tiles ordered and bounded at the maximum pixel width', () => {
+    const requested: number[] = [];
+    const source = {
+      getTile: (index: number) => { requested.push(index); return null; },
+      getEnvelope: () => null,
+    };
+    expect(getWaveformTiles(source, 1, 2, 4096)).toEqual([]);
+    expect(requested).toEqual([...requested].sort((a, b) => a - b));
+    expect(requested.length).toBeGreaterThan(0);
+    expect(requested.length).toBeLessThanOrEqual(16);
+    expect(getWaveformTiles(source, 0, 1, NaN)).toEqual([]);
+  });
 });

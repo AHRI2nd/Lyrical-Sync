@@ -20,6 +20,8 @@ const BLOCK = 256;
 const CHUNK = 262144;
 const CACHE_LIMIT = 16;
 export const WAVEFORM_TILE_BINS = 512;
+// A 4096px viewport intersects at most ~10 tiles, including edge overlap.
+const MAX_VIEWPORT_TILES = 16;
 
 /** Keep decoded PCM by reference; build compact summaries while yielding between chunks. */
 export async function createWaveformSource(buffer: DecodedAudio, signal?: AbortSignal): Promise<WaveformSource> {
@@ -117,8 +119,12 @@ export function getWaveformTiles(source: WaveformSource, start: number, end: num
   const width = Math.max(1, Math.min(4096, Math.round(pixelWidth)));
   const secondsPerBin = Number(((end - start) / width).toPrecision(12));
   const tileSpan = secondsPerBin * WAVEFORM_TILE_BINS;
+  if (!Number.isFinite(tileSpan) || tileSpan <= 0) return [];
   const first = Math.max(0, Math.floor(start / tileSpan));
   const last = Math.max(first, Math.floor(end / tileSpan));
+  // Unsafe indices cannot reliably advance via index++; reject malformed
+  // intervals before attempting any synchronous tile iteration.
+  if (!Number.isSafeInteger(first) || !Number.isSafeInteger(last) || last - first >= MAX_VIEWPORT_TILES) return [];
   const tiles: WaveformEnvelope[] = [];
   for (let index = first; index <= last; index++) {
     const tile = source.getTile(index, secondsPerBin);
