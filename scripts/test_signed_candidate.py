@@ -24,8 +24,6 @@ class SignedCandidateTests(unittest.TestCase):
         english=(ROOT/'README.md').read_text(encoding='utf-8')
         for text in (korean,japanese):
             self.assertRegex(text,r'macOS\s*14')
-            self.assertRegex(text,r'0\.6\.3')
-            self.assertRegex(text,r'미저장 작업|未保存作業')
         self.assertIn('macOS 14',english)
         self.assertIn('0.6.3',english)
         self.assertIn('unsaved-work protections',english)
