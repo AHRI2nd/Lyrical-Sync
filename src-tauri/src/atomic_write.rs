@@ -187,7 +187,7 @@ fn write_with_expected(
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
-    let mut stage = tempfile::NamedTempFile::new_in(target_parent)?;
+    let mut stage = tempfile::NamedTempFile::new_in(target_parent).map_err(staging_creation_error)?;
     
     write(stage.as_file_mut())?;
     
@@ -248,6 +248,18 @@ fn write_with_expected(
     }
     
     Ok(())
+}
+
+fn staging_creation_error(error: io::Error) -> io::Error {
+    if error.kind() == io::ErrorKind::PermissionDenied {
+        return io::Error::new(
+            error.kind(),
+            format!(
+                "Cannot save atomically because the containing folder does not allow creating a temporary file. Grant write access to the folder or use Save As to a writable location. ({error})"
+            ),
+        );
+    }
+    error
 }
 
 fn hash_file(path: &Path) -> io::Result<String> {
@@ -416,6 +428,18 @@ mod tests {
     use std::io::Write;
     #[cfg(target_os = "macos")]
     use std::os::unix::fs::MetadataExt;
+
+    #[test]
+    fn reports_actionable_error_when_parent_cannot_create_atomic_stage() {
+        let error = staging_creation_error(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "permission denied",
+        ));
+
+        assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
+        assert!(error.to_string().contains("does not allow creating a temporary file"));
+        assert!(error.to_string().contains("Save As"));
+    }
 
     #[test]
     fn interrupted_write_preserves_original_and_removes_stage() {
