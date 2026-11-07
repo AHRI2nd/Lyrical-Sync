@@ -8,7 +8,6 @@
     "dialog:allow-open",
     "dialog:allow-save",
     "fs:allow-read-file",
-    "fs:scope-audio-recursive",
     "allow-read-lrc-file",
     "allow-read-lrc-file-with-hash",
     "allow-write-lrc-file",

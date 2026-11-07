@@ -333,13 +333,19 @@ fn read_audio_metadata(path: String) -> Result<AudioMetadata, String> {
         return Err(audio_resource::AUDIO_RESOURCE_LIMIT_ERROR.into());
     }
     let tagged = lofty::read_from_path(&path).map_err(|e| e.to_string())?;
-    let tag = tagged.primary_tag().or_else(|| tagged.first_tag());
-    let s = |o: Option<std::borrow::Cow<str>>| o.map(|c| c.trim().to_string()).unwrap_or_default();
-    Ok(match tag {
-        Some(t) => AudioMetadata {
-            title: s(t.title()),
-            artist: s(t.artist()),
-            album: s(t.album()),
+    let primary = tagged.primary_tag();
+    let fallback = tagged.first_tag();
+    let field = |primary: Option<std::borrow::Cow<str>>, fallback: Option<std::borrow::Cow<str>>| {
+        primary.or(fallback).map(|value| value.trim().to_string()).unwrap_or_default()
+    };
+    Ok(match primary {
+        Some(primary) => {
+            let fallback = fallback.filter(|candidate| candidate.tag_type() != primary.tag_type());
+            AudioMetadata {
+                title: field(primary.title(), fallback.and_then(|tag| tag.title())),
+                artist: field(primary.artist(), fallback.and_then(|tag| tag.artist())),
+                album: field(primary.album(), fallback.and_then(|tag| tag.album())),
+            }
         },
         None => AudioMetadata {
             title: String::new(),

@@ -12,6 +12,23 @@ import unittest
 ROOT=Path(__file__).resolve().parents[1]
 
 class SignedCandidateTests(unittest.TestCase):
+    def test_default_capability_does_not_grant_recursive_audio_enumeration(self):
+        config=json.loads((ROOT/'src-tauri/capabilities/default.json').read_text(encoding='utf-8'))
+        self.assertIn('fs:allow-read-file',config['permissions'])
+        self.assertNotIn('fs:allow-read-dir',config['permissions'])
+        self.assertNotIn('fs:scope-audio-recursive',config['permissions'])
+
+    def test_localized_install_guides_match_macos_ai_and_update_warnings(self):
+        korean=(ROOT/'README.ko.md').read_text(encoding='utf-8')
+        japanese=(ROOT/'README.ja.md').read_text(encoding='utf-8')
+        english=(ROOT/'README.md').read_text(encoding='utf-8')
+        for text in (korean,japanese):
+            self.assertRegex(text,r'macOS\s*14')
+            self.assertRegex(text,r'0\.6\.3')
+            self.assertRegex(text,r'미저장|未保存')
+        self.assertIn('macOS 14',english)
+        self.assertIn('0.6.3',english)
+
     def test_release_tag_inputs_are_data_not_shell_source(self):
         source = (ROOT / '.github/workflows/release.yml').read_text(encoding='utf-8')
         self.assertEqual(source.count('RELEASE_REF_NAME: ${{ github.ref_name }}'), 2)

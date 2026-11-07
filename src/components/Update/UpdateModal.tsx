@@ -58,8 +58,16 @@ export function UpdateModal() {
           {status === "downloading" && (
             <div className="flex flex-col gap-2">
               <p className="text-sm text-[var(--ls-text-secondary)]">{t.updater.downloading}</p>
-              <div className="w-full h-2 bg-[var(--ls-control)] rounded-full overflow-hidden">
+              <div
+                className="w-full h-2 bg-[var(--ls-control)] rounded-full overflow-hidden"
+                role="progressbar"
+                aria-label={t.updater.downloading}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={progress}
+              >
                 <div
+                  aria-hidden="true"
                   className="h-full bg-[var(--ls-accent)] transition-all duration-200"
                   style={{ width: `${progress}%` }}
                 />

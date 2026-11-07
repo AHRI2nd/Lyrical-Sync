@@ -72,6 +72,12 @@ Choose the installer for your architecture from [Releases](../../releases): **x6
 
 Updates retain the installed app architecture, including an x64 app running on Windows ARM. Switch architectures through a deliberate reinstall. ARM64 Python and yt-dlp caches are separate from existing x64 caches.
 
+## Important Notes When Updating from 0.6.3 or Earlier
+
+Save all open work before updating, especially when upgrading from 0.6.3: the old application's updater cannot gain the new unsaved-work protections retroactively. Keep your normal document backups.
+
+The embedded AI runtime is Python 3.13.17 on supported systems. Existing AI environments may require an update from Settings → AI Models. The replacement is installed and validated before the previous environment is replaced; a failed installation retains the previous files. AI model downloads are separate from the runtime update.
+
 > **SmartScreen warning**
 >
 > If Windows Defender SmartScreen shows an "Unknown publisher" warning, click **More info** → **Run anyway**.
