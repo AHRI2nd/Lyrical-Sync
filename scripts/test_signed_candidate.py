@@ -37,6 +37,19 @@ class SignedCandidateTests(unittest.TestCase):
         self.assertIn('actions/upload-artifact@v4',source)
         self.assertIn('scripts/record_signed_candidate.py',source)
 
+    def test_candidate_signing_waits_for_full_platform_regressions(self):
+        candidate=(ROOT/'.github/workflows/candidate.yml').read_text(encoding='utf-8')
+        tests=(ROOT/'.github/workflows/test.yml').read_text(encoding='utf-8')
+        self.assertIn('  workflow_call:',tests)
+        self.assertRegex(candidate,r'(?m)^  test-gate:\n    uses: \./\.github/workflows/test\.yml$')
+        self.assertRegex(candidate,r'(?m)^  candidate:\n    needs: test-gate$')
+        self.assertLess(candidate.index('test-gate:'),candidate.index('  candidate:'))
+        for platform in ('macos-latest','windows-latest','windows-11-arm'):
+            self.assertIn(platform,tests)
+        for command in ('npm test','cargo test --manifest-path src-tauri/Cargo.toml --locked',
+                        'python scripts/test_ai_sidecars.py','python scripts/test_signed_candidate.py'):
+            self.assertIn(command,tests)
+
     def test_release_upload_waits_for_all_verified_build_artifacts(self):
         source=(ROOT/'.github/workflows/release.yml').read_text()
         self.assertIn('publish-release:',source)

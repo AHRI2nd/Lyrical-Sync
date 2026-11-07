@@ -12,7 +12,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Test the exact candidate commit on every supported development target
+  # before any matrix job receives signing credentials.
+  test-gate:
+    uses: ./.github/workflows/test.yml
+
   candidate:
+    needs: test-gate
     strategy:
       fail-fast: false
       matrix:
