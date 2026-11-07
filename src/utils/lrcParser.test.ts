@@ -33,7 +33,7 @@ it("rejects line breaks in extra metadata keys and values", () => {
   expect(() => serializeLrc({ ...docOf([]), extraTags: { "x-safe": "value\r\n[00:02.00]" } })).toThrow("LRC metadata cannot contain line breaks");
 });
 
-it("retains unsupported reserved controls as inactive recovery data and refuses to serialize them", () => {
+it("retains unsupported reserved controls as inactive recovery data and refuses normal serialization", () => {
   const raw = "[x-lyrical-translations:custom]\n[x-lyrical-inline-escape:custom]\n[00:01.00]safe";
   const parsed = parseLrc(raw);
   expect(parsed.invalidControlTags).toEqual([

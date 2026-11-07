@@ -113,6 +113,7 @@ export function MetaEditor() {
 
       {rawEditorSnapshot && (
         <RawEditorModal
+          sourceHasReservedTagConflict={Boolean(doc.invalidControlTags?.length)}
           key={rawEditorSnapshot.documentSession}
           initialValue={rawEditorSnapshot.text}
           onApply={(raw) => {
@@ -201,17 +202,21 @@ function hasUnsupportedReservedTag(text: string): boolean {
 
 function RawEditorModal({
   initialValue,
+  sourceHasReservedTagConflict,
   onApply,
   onClose,
 }: {
   initialValue: string;
+  sourceHasReservedTagConflict: boolean;
   onApply: (raw: string) => boolean;
   onClose: () => void;
 }) {
   const { t } = useI18nStore();
   const [value, setValue] = useState(initialValue);
   const [isStale, setIsStale] = useState(false);
-  const [hasReservedTagConflict, setHasReservedTagConflict] = useState(() => hasUnsupportedReservedTag(initialValue));
+  const [hasReservedTagConflict, setHasReservedTagConflict] = useState(
+    () => sourceHasReservedTagConflict || hasUnsupportedReservedTag(initialValue),
+  );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const dialog = useRef<HTMLDivElement>(null);
   const titleId = useId();
