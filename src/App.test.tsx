@@ -281,6 +281,16 @@ describe("App — recovery lifecycle", () => {
     expect(screen.getByText(useI18nStore.getState().t.recovery.title)).toBeTruthy();
     expect(loadRecoverySnapshot()?.doc).toEqual(doc);
   });
+  it("does not delete an invalid legacy recovery record on a clean startup", () => {
+    const key = "lyrical-sync-recovery";
+    const raw = JSON.stringify({ doc: defaultDocument(), lrcPath: null, audioPath: null });
+    localStorage.setItem(key, raw);
+
+    render(<App />);
+
+    expect(loadRecoverySnapshot()).toBeNull();
+    expect(localStorage.getItem(key)).toBe(raw);
+  });
   it("retains a durable copy immediately after restoring", () => {
     const doc = snapshot();
     render(<App />);
