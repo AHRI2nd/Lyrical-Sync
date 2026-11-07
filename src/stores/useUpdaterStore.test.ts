@@ -117,7 +117,10 @@ describe("useUpdaterStore — downloadAndInstall", () => {
     const mockUpdate = {
       version: "1.2.3",
       install: vi.fn(async () => {}),
-      download: vi.fn(async () => {}),
+      download: vi.fn(async (callback: (event: { event: string; data?: { contentLength: number } }) => void) => {
+        callback({ event: "Started", data: { contentLength: 10 } });
+        callback({ event: "Finished" });
+      }),
     };
     useUpdaterStore.setState({ status: "available", _update: mockUpdate as unknown as Update });
     await useUpdaterStore.getState().downloadAndInstall();

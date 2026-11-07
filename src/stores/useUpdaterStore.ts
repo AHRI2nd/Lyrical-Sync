@@ -114,7 +114,9 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
       let downloaded = 0;
       let stallTimer: ReturnType<typeof setTimeout> | null = null;
       let rejectStalledDownload: ((error: Error) => void) | null = null;
-      const stalledDownload = new Promise<never>((_, reject) => {
+      let resolveDownloadFinished: (() => void) | null = null;
+      const stalledDownload = new Promise<void>((resolve, reject) => {
+        resolveDownloadFinished = resolve;
         rejectStalledDownload = reject;
       });
       const refreshStallTimer = () => {
@@ -138,6 +140,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
                 break;
               case "Finished":
                 set({ progress: 100 });
+                resolveDownloadFinished?.();
                 break;
             }
           }, { timeout: UPDATE_DOWNLOAD_TIMEOUT_MS }),
