@@ -701,6 +701,33 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     #[test]
+    fn preserves_existing_file_group_during_atomic_save() {
+        use std::os::unix::fs::MetadataExt;
+        use std::os::unix::io::AsRawFd;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("shared.lrc");
+        std::fs::write(&path, "before").unwrap();
+        let directory_gid = std::fs::metadata(dir.path()).unwrap().gid();
+        let mut groups = vec![0; 32];
+        let count = unsafe { libc::getgroups(groups.len() as i32, groups.as_mut_ptr()) };
+        assert!(count >= 0, "getgroups failed: {}", io::Error::last_os_error());
+        groups.truncate(count as usize);
+        let shared_gid = groups.into_iter().map(|gid| gid as u32)
+            .find(|gid| *gid != directory_gid)
+            .expect("test account needs a supplementary group different from the temp directory");
+        let source = File::open(&path).unwrap();
+        assert_eq!(unsafe { libc::fchown(source.as_raw_fd(), u32::MAX, shared_gid) }, 0);
+        assert_eq!(std::fs::metadata(&path).unwrap().gid(), shared_gid);
+
+        write_atomic(&path, "after").unwrap();
+
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "after");
+        assert_eq!(std::fs::metadata(&path).unwrap().gid(), shared_gid);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
     fn preserves_hidden_flag_during_atomic_save() {
         use std::os::macos::fs::MetadataExt;
 
