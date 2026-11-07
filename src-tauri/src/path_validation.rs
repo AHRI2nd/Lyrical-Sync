@@ -54,27 +54,32 @@ pub fn validate_write_path(path: &str) -> Result<PathBuf, String> {
 pub fn validate_ytdlp_url(url: &str) -> Result<(), String> {
     let parsed = url::Url::parse(url).map_err(|_| "Invalid URL")?;
     
-    // Only allow http/https schemes
-    if !matches!(parsed.scheme(), "http" | "https") {
-        return Err("Only HTTP/HTTPS URLs allowed".into());
+    if parsed.scheme() != "https" {
+        return Err("Only HTTPS YouTube URLs are allowed".into());
     }
     
-    // Reject special-use numeric hosts and local naming suffixes.
-    if let Some(host) = parsed.host_str() {
-        if is_private_ip(host) {
-            return Err("Restricted IP addresses are not allowed".into());
-        }
+    let host = parsed.host_str().ok_or("URL host is required")?;
+    if is_private_ip(host) {
+        return Err("Restricted IP addresses are not allowed".into());
+    }
 
-        let normalized_host = host.trim_end_matches('.').to_ascii_lowercase();
-        if normalized_host == "localhost"
-            || normalized_host.ends_with(".localhost")
-            || normalized_host.ends_with(".local")
-            || normalized_host.ends_with(".internal")
-            || normalized_host == "home.arpa"
-            || normalized_host.ends_with(".home.arpa")
-        {
-            return Err("Local host names are not allowed".into());
-        }
+    let normalized_host = host.trim_end_matches('.').to_ascii_lowercase();
+    if normalized_host == "localhost"
+        || normalized_host.ends_with(".localhost")
+        || normalized_host.ends_with(".local")
+        || normalized_host.ends_with(".internal")
+        || normalized_host == "home.arpa"
+        || normalized_host.ends_with(".home.arpa")
+    {
+        return Err("Local host names are not allowed".into());
+    }
+    let is_youtube_host = normalized_host == "youtube.com"
+        || normalized_host
+            .strip_suffix(".youtube.com")
+            .is_some_and(|prefix| !prefix.is_empty() && !prefix.ends_with('.'))
+        || normalized_host == "youtu.be";
+    if !is_youtube_host {
+        return Err("Only YouTube video URLs are supported".into());
     }
     
     Ok(())
@@ -241,9 +246,22 @@ mod ytdlp_url_tests {
     }
 
     #[test]
-    fn accepts_http_and_https_urls_with_public_hosts() {
+    fn accepts_https_youtube_urls_and_rejects_public_non_youtube_hosts() {
         assert!(validate_ytdlp_url("https://www.youtube.com/watch?v=abc").is_ok());
-        assert!(validate_ytdlp_url("http://203.0.114.1/video").is_ok());
+        assert!(validate_ytdlp_url("https://youtu.be/abc").is_ok());
+        assert!(validate_ytdlp_url("http://www.youtube.com/watch?v=abc").is_err());
+        assert!(validate_ytdlp_url("https://203.0.114.1/video").is_err());
+    }
+
+    #[test]
+    fn only_accepts_secure_youtube_video_hosts() {
+        assert!(validate_ytdlp_url("https://youtube.com/watch?v=abc").is_ok());
+        assert!(validate_ytdlp_url("https://music.youtube.com/watch?v=abc").is_ok());
+        assert!(validate_ytdlp_url("https://youtu.be/abc").is_ok());
+        assert!(validate_ytdlp_url("https://example.com/video").is_err());
+        assert!(validate_ytdlp_url("https://youtube.com.example.org/watch?v=abc").is_err());
+        assert!(validate_ytdlp_url("https://.youtube.com/watch?v=abc").is_err());
+        assert!(validate_ytdlp_url("http://www.youtube.com/watch?v=abc").is_err());
     }
 }
 
