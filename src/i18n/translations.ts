@@ -338,6 +338,9 @@ export interface Translations {
   confirmNewMessage: string;
   confirmNewOk: string;
   confirmNewCancel: string;
+  closeUnsavedTitle: string;
+  closeUnsavedMessage: string;
+  closeWithoutSaving: string;
   // In-app updater
   updater: {
     title: string;
@@ -997,6 +1000,9 @@ const ko: Translations = {
   confirmNewMessage: "저장되지 않은 변경 사항이 있습니다. 계속하면 현재 내용이 삭제됩니다.",
   confirmNewOk: "새로 만들기",
   confirmNewCancel: "취소",
+  closeUnsavedTitle: "저장되지 않은 변경 사항",
+  closeUnsavedMessage: "닫기 전에 변경 사항을 저장하시겠습니까?",
+  closeWithoutSaving: "저장하지 않고 닫기",
   updater: {
     title: "업데이트 알림",
     readyTitle: "업데이트 준비 완료",
@@ -1652,6 +1658,9 @@ const en: Translations = {
   confirmNewMessage: "You have unsaved changes. Continuing will discard the current content.",
   confirmNewOk: "New File",
   confirmNewCancel: "Cancel",
+  closeUnsavedTitle: "Unsaved changes",
+  closeUnsavedMessage: "Would you like to save your changes before closing?",
+  closeWithoutSaving: "Close without saving",
   updater: {
     title: "Update Available",
     readyTitle: "Update Ready",
@@ -2306,6 +2315,9 @@ const ja: Translations = {
   confirmNewMessage: "保存されていない変更があります。続行すると現在の内容が削除されます。",
   confirmNewOk: "新規作成",
   confirmNewCancel: "キャンセル",
+  closeUnsavedTitle: "未保存の変更",
+  closeUnsavedMessage: "閉じる前に変更を保存しますか？",
+  closeWithoutSaving: "保存せずに閉じる",
   updater: {
     title: "アップデート通知",
     readyTitle: "アップデート準備完了",

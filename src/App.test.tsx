@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, act, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 // zustand persist(useSettingsStore/useI18nStore/useLrcStore 등)용 최소 localStorage 폴리필
@@ -18,9 +18,11 @@ if (typeof globalThis.localStorage === "undefined") {
 
 // App.tsx가 마운트 시 건드리는 Tauri API 전부 스텁 — 이 테스트는 드래그앤드롭 충돌
 // 해소 로직(App.tsx 자체)만 검증하므로, 실제 IPC/OS 연동은 필요 없음.
-const { dragDropHandler, dialogOpen } = vi.hoisted(() => ({
+const { dragDropHandler, dialogOpen, closeRequestedHandler, closeWindow } = vi.hoisted(() => ({
   dragDropHandler: { current: null as ((e: unknown) => void) | null },
   dialogOpen: vi.fn(),
+  closeRequestedHandler: { current: null as ((event: { preventDefault: () => void }) => void) | null },
+  closeWindow: vi.fn(() => Promise.resolve()),
 }));
 vi.mock("@tauri-apps/api/webview", () => ({
   getCurrentWebview: () => ({
@@ -34,6 +36,15 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(() => Promise.resolve(()
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(() => Promise.resolve(undefined)) }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: dialogOpen, save: vi.fn() }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
+vi.mock("@tauri-apps/api/window", () => ({
+  getCurrentWindow: () => ({
+    onCloseRequested: async (handler: typeof closeRequestedHandler.current) => {
+      closeRequestedHandler.current = handler;
+      return () => { closeRequestedHandler.current = null; };
+    },
+    close: closeWindow,
+  }),
+}));
 
 // 이 테스트가 검증하는 건 App 자신의 드롭 충돌 판단/모달 로직뿐이므로, 나머지 화면을
 // 채우는 무거운 자식 컴포넌트(wavesurfer 등 자체 의존성이 큰)는 전부 스텁으로 대체.
@@ -72,8 +83,11 @@ const resetLrc = (overrides: Partial<ReturnType<typeof useLrcStore.getState>> = 
 
 describe("App — drag-and-drop conflict resolution", () => {
   beforeEach(() => {
+    localStorage.clear();
     resetLrc();
     dragDropHandler.current = null;
+    closeRequestedHandler.current = null;
+    closeWindow.mockClear();
     dialogOpen.mockReset();
   });
 
@@ -244,6 +258,36 @@ describe("App — drag-and-drop conflict resolution", () => {
     fireEvent.keyDown(surface, { code: "Space", key: " " });
 
     expect(stampSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks before closing a dirty document and closes when the user discards it", async () => {
+    resetLrc({ isDirty: true, doc: { ...defaultDocument(), lines: [{ id: "1", text: "Unsaved", timestamp: 1 }] } });
+    render(<App />);
+    await waitFor(() => expect(closeRequestedHandler.current).toBeTypeOf("function"));
+    const preventDefault = vi.fn();
+    act(() => closeRequestedHandler.current?.({ preventDefault }));
+
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(await screen.findByRole("dialog", { name: useI18nStore.getState().t.closeUnsavedTitle })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: useI18nStore.getState().t.closeWithoutSaving }));
+    await waitFor(() => expect(closeWindow).toHaveBeenCalledOnce());
+    expect(useLrcStore.getState().doc.lines[0].text).toBe("Unsaved");
+  });
+
+  it("saves a dirty document before closing when requested", async () => {
+    resetLrc({
+      isDirty: true,
+      lrcPath: "/tmp/current.lrc",
+      doc: { ...defaultDocument(), lines: [{ id: "1", text: "Unsaved", timestamp: 1 }] },
+    });
+    render(<App />);
+    await waitFor(() => expect(closeRequestedHandler.current).toBeTypeOf("function"));
+    act(() => closeRequestedHandler.current?.({ preventDefault: vi.fn() }));
+    const dialog = await screen.findByRole("dialog", { name: useI18nStore.getState().t.closeUnsavedTitle });
+    fireEvent.click(within(dialog).getByRole("button", { name: useI18nStore.getState().t.save }));
+
+    await waitFor(() => expect(closeWindow).toHaveBeenCalledOnce());
+    expect(useLrcStore.getState().isDirty).toBe(false);
   });
 });
 

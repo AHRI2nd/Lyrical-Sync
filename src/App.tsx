@@ -32,6 +32,7 @@ import { LrcInlineEscapeTagConflictError, LrcInvalidTimestampError, LrcMetadataL
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 const HelpModal = lazy(() => import("./components/AppShell/HelpModal").then((m) => ({ default: m.HelpModal })));
 const BatchToolModal = lazy(() => import("./components/BatchTools/BatchToolModal").then((m) => ({ default: m.BatchToolModal })));
@@ -45,6 +46,7 @@ import { RecentFilesMenu } from "./components/AppShell/RecentFilesMenu";
 import { HistoryPanel } from "./components/AppShell/HistoryPanel";
 import type { RecentFileEntry } from "./stores/useSettingsStore";
 import { setDocumentConfirmation, type TransitionChoice } from "./utils/documentTransition";
+import { useUnsavedCloseGuard } from "./hooks/useUnsavedCloseGuard";
 
 const AUDIO_EXTS = ["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff", "aif"];
 const LYRICS_EXTS = ["lrc", "srt"];
@@ -280,6 +282,8 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<"general" | "preview" | "models" | "spotify" | "youtube" | "shortcuts">("general");
   const [showNewConfirm, setShowNewConfirm] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const allowCloseRef = useRef(false);
   const [newConfirmSession, setNewConfirmSession] = useState<number | null>(null);
   const [newConfirmRevision, setNewConfirmRevision] = useState<number | null>(null);
   const [showFormatChooser, setShowFormatChooser] = useState(false);
@@ -288,6 +292,7 @@ function App() {
   const [pendingFetchedLyricsConfirm, setPendingFetchedLyricsConfirm] = useState(false);
   const pendingFetchedLyricsResolveRef = useRef<((choice: TransitionChoice) => void) | null>(null);
   const pendingSaveRef = useRef<(() => Promise<boolean>) | null>(null);
+  const pendingSaveSuccessRef = useRef<(() => void | Promise<void>) | null>(null);
   const pendingDocumentOpenSession = useRef<number | null>(null);
   const dropConflictSession = useRef<number | null>(null);
   const [showSpotifySearch, setShowSpotifySearch] = useState(false);
@@ -318,6 +323,7 @@ function App() {
     lastReportedSettingsFailure.current = settingsPersistenceFailureCount;
     toast.error(t.toast.settingsSaveFailed);
   }, [settingsPersistenceFailureCount, t.toast.settingsSaveFailed]);
+  useUnsavedCloseGuard(() => useLrcStore.getState().isDirty && !allowCloseRef.current, () => setShowCloseConfirm(true));
   const { isLoggedIn, handleCallback, tryRestoreSession, pausePlayback } = useServiceStore();
   const [ytdlpInstalled, setYtdlpInstalled] = useState(false);
 
@@ -411,7 +417,7 @@ function App() {
   };
 
   // 저장 결과를 토스트로 알림(취소 시 무알림, 실패 시 에러)
-  const runSave = (p: Promise<boolean>, isLrcExport = false) => {
+  const runSave = (p: Promise<boolean>, isLrcExport = false, onSuccess?: () => void | Promise<void>) => {
     const needsExtensionNotice = isLrcExport && needsInlineTimestampEscape(useLrcStore.getState().doc);
     p.then((written) => {
       if (!written) return;
@@ -420,16 +426,44 @@ function App() {
         toast.info(t.toast.lrcInlineEscapeNotice);
         lrcExtensionNoticeShown.current.shown = true;
       }
+      void onSuccess?.();
     }).catch((error: unknown) => toast.error(saveErrorMessage(error, t)));
   };
 
   // 글자/단어 동기화가 있어 E-LRC로 저장될 LRC 저장은 알림 팝업을 거쳐 실행
-  const requestSaveLrc = (fn: () => Promise<boolean>) => {
+  const requestSaveLrc = (fn: () => Promise<boolean>, onSuccess?: () => void | Promise<void>) => {
     if (hasGlyphSync && showElrcSaveNotice) {
       pendingSaveRef.current = fn;
+      pendingSaveSuccessRef.current = onSuccess ?? null;
       setShowElrcNotice(true);
     } else {
-      runSave(fn(), true);
+      runSave(fn(), true, onSuccess);
+    }
+  };
+
+  const closeWindow = async () => {
+    allowCloseRef.current = true;
+    try {
+      await getCurrentWindow().close();
+    } catch {
+      allowCloseRef.current = false;
+      toast.error(t.toast.runtimeFailed);
+    }
+  };
+
+  const finishCloseAfterSave = async () => {
+    if (useLrcStore.getState().isDirty) return;
+    setShowCloseConfirm(false);
+    await closeWindow();
+  };
+
+  const saveBeforeClose = () => {
+    if (lrcPath?.toLowerCase().endsWith(".lrc")) {
+      requestSaveLrc(() => saveLrc(), finishCloseAfterSave);
+    } else if (lrcPath) {
+      runSave(saveLrc(), false, finishCloseAfterSave);
+    } else {
+      requestSaveLrc(() => saveLrcAs("lrc"), finishCloseAfterSave);
     }
   };
 
@@ -674,6 +708,19 @@ function App() {
           }}
         />
       )}
+      {showCloseConfirm && (
+        <ConfirmModal
+          title={t.closeUnsavedTitle}
+          message={t.closeUnsavedMessage}
+          leftLabel={t.save}
+          onLeft={saveBeforeClose}
+          cancelLabel={t.confirmNewCancel}
+          onCancel={() => setShowCloseConfirm(false)}
+          okLabel={t.closeWithoutSaving}
+          onOk={() => { setShowCloseConfirm(false); void closeWindow(); }}
+          priority
+        />
+      )}
       {pendingFetchedLyricsConfirm && (
         <ConfirmModal
           title={t.confirmNewTitle}
@@ -739,9 +786,15 @@ function App() {
             setShowElrcNotice(false);
             const fn = pendingSaveRef.current;
             pendingSaveRef.current = null;
-            if (fn) runSave(fn(), true);
+            const onSuccess = pendingSaveSuccessRef.current;
+            pendingSaveSuccessRef.current = null;
+            if (fn) runSave(fn(), true, onSuccess ?? undefined);
           }}
-          onCancel={() => { setShowElrcNotice(false); pendingSaveRef.current = null; }}
+          onCancel={() => {
+            setShowElrcNotice(false);
+            pendingSaveRef.current = null;
+            pendingSaveSuccessRef.current = null;
+          }}
         />
       )}
       {showSpotifySearch && (
