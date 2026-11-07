@@ -86,6 +86,15 @@ it("applies an unchanged-session raw draft and keeps the operation undoable", ()
   expect(useLrcStore.getState().doc.lines.map((line) => line.text)).toEqual(["A original"]);
 });
 
+it("opens the raw editor from non-reserved parse errors instead of hiding the repair path", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), metadata: { ...defaultDocument().metadata, title: "Bad\\nTitle" },
+    lines: [{ id: "a", timestamp: 1, text: "A original" }] } });
+  render(<MetaEditor />);
+  fireEvent.click(screen.getByRole("button", { name: t.viewAll }));
+  expect(screen.getByRole("textbox", { name: t.rawEditorTitle })).toBeTruthy();
+});
+
 it("opens the raw editor with unsupported reserved control metadata preserved for correction", () => {
   const t = useI18nStore.getState().t;
   useLrcStore.setState({ doc: { ...defaultDocument(), invalidControlTags: [{ key: "x-lyrical-inline-escape", value: "external-value" }],

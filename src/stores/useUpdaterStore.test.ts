@@ -48,6 +48,12 @@ describe("useUpdaterStore — checkForUpdate", () => {
     expect(s._update).not.toBeNull();
   });
 
+  it("applies a finite deadline to updater checks", async () => {
+    check.mockResolvedValue(null);
+    await useUpdaterStore.getState().checkForUpdate();
+    expect(check).toHaveBeenCalledWith({ timeout: 15_000 });
+  });
+
   it("sets status=up-to-date when no update and not silent", async () => {
     check.mockResolvedValue(null);
     await useUpdaterStore.getState().checkForUpdate();
@@ -116,6 +122,18 @@ describe("useUpdaterStore — downloadAndInstall", () => {
     useUpdaterStore.setState({ status: "available", _update: mockUpdate as unknown as Update });
     await useUpdaterStore.getState().downloadAndInstall();
     expect(mockUpdate.download).toHaveBeenCalledWith(expect.any(Function), { timeout: 15 * 60 * 1000 });
+  });
+
+  it("leaves downloading state and releases its handle after a download deadline", async () => {
+    const close = vi.fn(async () => {});
+    const mockUpdate = {
+      version: "1.2.3", close, install: vi.fn(),
+      download: vi.fn().mockRejectedValue(new Error("request timed out")),
+    };
+    useUpdaterStore.setState({ status: "available", _update: mockUpdate as unknown as Update });
+    await useUpdaterStore.getState().downloadAndInstall();
+    expect(useUpdaterStore.getState()).toMatchObject({ status: "error", error: "Error: request timed out", _update: null });
+    expect(close).toHaveBeenCalledOnce();
   });
 
   it("sets status=error when downloadAndInstall() rejects", async () => {

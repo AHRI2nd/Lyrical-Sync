@@ -26,8 +26,10 @@ class SignedCandidateTests(unittest.TestCase):
         self.assertIn('macOS 14',english)
         self.assertIn('0.6.3',english)
         self.assertIn('unsaved-work protections',english)
-        self.assertIn('업데이트 전에 열려 있는 가사 작업을 저장하고 백업을 유지하세요',korean)
-        self.assertIn('更新前に開いている歌詞作業を保存し、バックアップを維持してください',japanese)
+        self.assertIn('0.6.3 이하에서 업데이트하는 경우',korean)
+        self.assertIn('0.6.3 以前から更新する場合',japanese)
+        self.assertIn('새 미저장 작업 보호 기능이 소급 적용되지 않습니다',korean)
+        self.assertIn('未保存作業の保護機能は遡及適用されません',japanese)
 
     def test_release_tag_inputs_are_data_not_shell_source(self):
         source = (ROOT / '.github/workflows/release.yml').read_text(encoding='utf-8')
