@@ -327,6 +327,7 @@ export interface Translations {
   rawEditorApply: string;
   rawEditorCancel: string;
   rawEditorStale: string;
+  rawEditorReservedTagConflict: string;
   previewBtn: string;
   previewClose: string;
   previewUntitled: string;
@@ -985,6 +986,7 @@ const ko: Translations = {
   rawEditorApply: "적용",
   rawEditorCancel: "취소",
   rawEditorStale: "문서가 변경되어 적용할 수 없습니다. 초안은 이 창에 남아 있으니 복사하거나 취소하세요.",
+  rawEditorReservedTagConflict: "예약된 LRC 태그 값이 지원되지 않습니다. 해당 태그를 제거하거나 수정한 뒤 다시 적용하세요.",
   previewBtn: "미리보기",
   previewClose: "닫기",
   previewUntitled: "제목 없음",
@@ -1638,6 +1640,7 @@ const en: Translations = {
   rawEditorApply: "Apply Changes",
   rawEditorCancel: "Discard",
   rawEditorStale: "The document changed, so this draft cannot be applied. Your draft remains here to copy or discard.",
+  rawEditorReservedTagConflict: "A reserved LRC tag has an unsupported value. Remove or correct the tag, then try applying again.",
   previewBtn: "Preview",
   previewClose: "Close",
   previewUntitled: "Untitled",
@@ -2290,6 +2293,7 @@ const ja: Translations = {
   rawEditorApply: "適用",
   rawEditorCancel: "キャンセル",
   rawEditorStale: "編集中にドキュメントが変更されたため、この下書きは適用できません。下書きはここに残っているので、コピーするか破棄してください。",
+  rawEditorReservedTagConflict: "予約済みLRCタグに未対応の値があります。タグを削除または修正してから、もう一度適用してください。",
   previewBtn: "プレビュー",
   previewClose: "閉じる",
   previewUntitled: "タイトルなし",

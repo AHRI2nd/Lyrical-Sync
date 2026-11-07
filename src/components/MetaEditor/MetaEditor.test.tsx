@@ -96,6 +96,25 @@ it("keeps the raw editor available when an inactive reserved tag has an unknown 
   expect(editor.value).toContain("[x-lyrical-inline-escape:external-value]");
 });
 
+it("keeps a raw editor with a reserved-tag conflict open and explains how to recover", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), extraTags: { "x-lyrical-inline-escape": "external-value" },
+    lines: [{ id: "a", timestamp: 1, text: "A original" }] } });
+  render(<MetaEditor />);
+  fireEvent.click(screen.getByRole("button", { name: t.viewAll }));
+
+  const textarea = screen.getAllByRole("textbox").find((element) => element.tagName === "TEXTAREA") as HTMLTextAreaElement;
+  const apply = screen.getAllByRole("button", { name: t.rawEditorApply }).slice(-1)[0] as HTMLButtonElement;
+  expect(textarea.value).toContain("[x-lyrical-inline-escape:external-value]");
+  expect(apply.disabled).toBe(true);
+  expect(screen.getByRole("alert").textContent).toBe(t.rawEditorReservedTagConflict);
+
+  fireEvent.change(textarea, { target: { value: textarea.value.replace("[x-lyrical-inline-escape:external-value]", "[x-lyrical-inline-escape:1]") } });
+  fireEvent.click(apply);
+  expect(useLrcStore.getState().doc.extraTags["x-lyrical-inline-escape"]).toBeUndefined();
+  expect(screen.queryAllByRole("textbox").some((element) => element.tagName === "TEXTAREA")).toBe(false);
+});
+
 it("does not close the raw editor when Escape is composing an IME character", () => {
   const t = useI18nStore.getState().t;
   render(<MetaEditor />);

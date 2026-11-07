@@ -114,6 +114,16 @@ export function MetaEditor() {
       {rawEditorSnapshot && (
         <RawEditorModal
           initialValue={rawEditorSnapshot.text}
+          sourceHasReservedTagConflict={
+            Object.entries(doc.extraTags).some(([key, value]) =>
+              [
+                "x-lyrical-inline-escape",
+                "x-lyrical-translations",
+                "x-lyrical-line-order",
+                "x-lyrical-whitespace",
+              ].includes(key.toLowerCase()) && value !== "1"
+            )
+          }
           onApply={(raw) => {
             const current = useLrcStore.getState();
             if (
@@ -189,18 +199,30 @@ function CodeIcon() {
   );
 }
 
+const RESERVED_CONTROL_TAG = /^\s*\[(x-lyrical-inline-escape|x-lyrical-translations|x-lyrical-line-order|x-lyrical-whitespace):([^\]\r\n]*)\]\s*$/i;
+
+function hasUnsupportedReservedTag(text: string): boolean {
+  return text.split(/\r?\n/).some((line) => {
+    const match = RESERVED_CONTROL_TAG.exec(line);
+    return Boolean(match && match[2].trim() !== "1");
+  });
+}
+
 function RawEditorModal({
   initialValue,
+  sourceHasReservedTagConflict,
   onApply,
   onClose,
 }: {
   initialValue: string;
+  sourceHasReservedTagConflict: boolean;
   onApply: (raw: string) => boolean;
   onClose: () => void;
 }) {
   const { t } = useI18nStore();
   const [value, setValue] = useState(initialValue);
   const [isStale, setIsStale] = useState(false);
+  const [hasReservedTagConflict, setHasReservedTagConflict] = useState(sourceHasReservedTagConflict);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const dialog = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -239,11 +261,16 @@ function RawEditorModal({
           ref={textareaRef}
           aria-label={t.rawEditorTitle}
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            const next = e.target.value;
+            setValue(next);
+            setHasReservedTagConflict(hasUnsupportedReservedTag(next));
+          }}
           spellCheck={false}
           className="ls-field flex-1 min-h-0 text-sm font-mono resize-none"
         />
 
+        {hasReservedTagConflict && <p role="alert" className="px-5 py-2 text-sm text-amber-300">{t.rawEditorReservedTagConflict}</p>}
         {isStale && <p role="alert" className="px-5 py-2 text-sm text-amber-300">{t.rawEditorStale}</p>}
 
         <div className="flex justify-end gap-2 px-5 py-3 border-t border-[var(--ls-border-subtle)] shrink-0">
@@ -255,8 +282,15 @@ function RawEditorModal({
           </button>
           <button
             onClick={() => {
-              if (!onApply(value)) setIsStale(true);
+              if (hasReservedTagConflict) return;
+              try {
+                if (!onApply(value)) setIsStale(true);
+              } catch {
+                setHasReservedTagConflict(true);
+              }
             }}
+            disabled={hasReservedTagConflict}
+            title={hasReservedTagConflict ? t.rawEditorReservedTagConflict : undefined}
             className="ls-button text-sm bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] text-white transition-colors ls-button--primary"
           >
             {t.rawEditorApply}
