@@ -190,6 +190,11 @@ fn write_with_expected(
     let mut stage = tempfile::NamedTempFile::new_in(target_parent).map_err(staging_creation_error)?;
     
     write(stage.as_file_mut())?;
+
+    #[cfg(unix)]
+    if let Some(original_metadata) = target_metadata.as_ref() {
+        ensure_target_identity(&target, original_metadata)?;
+    }
     
     if let Some(permissions) = permissions.clone() {
         stage.as_file().set_permissions(permissions)?;
@@ -215,6 +220,11 @@ fn write_with_expected(
         if current_sha256 != expected_sha256 {
             return Err(io::Error::other("LYRICS_FILE_CHANGED"));
         }
+    }
+
+    #[cfg(unix)]
+    if let Some(original_metadata) = target_metadata.as_ref() {
+        ensure_target_identity(&target, original_metadata)?;
     }
 
     // Recheck the hard-link policy close to publication. This narrows the
@@ -274,6 +284,18 @@ fn hash_file(path: &Path) -> io::Result<String> {
         hasher.update(&buffer[..bytes_read]);
     }
     Ok(format!("{:x}", hasher.finalize()))
+}
+
+#[cfg(unix)]
+fn ensure_target_identity(target: &Path, expected: &fs::Metadata) -> io::Result<()> {
+    use std::os::unix::fs::MetadataExt;
+
+    let current = fs::metadata(target)
+        .map_err(|_| io::Error::other("Destination changed while staging"))?;
+    if !current.is_file() || current.dev() != expected.dev() || current.ino() != expected.ino() {
+        return Err(io::Error::other("Destination changed while staging"));
+    }
+    Ok(())
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {
@@ -453,6 +475,25 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "original");
         assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_to_publish_when_existing_target_is_replaced_during_staging() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("song.lrc");
+        let original = dir.path().join("song.original.lrc");
+        std::fs::write(&path, "original target").unwrap();
+
+        let error = write_with(&path, |_| {
+            std::fs::rename(&path, &original)?;
+            std::fs::write(&path, "replacement target")?;
+            Ok(())
+        }).unwrap_err();
+
+        assert!(error.to_string().contains("Destination changed while staging"));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "replacement target");
+        assert_eq!(std::fs::read_to_string(&original).unwrap(), "original target");
     }
 
     #[test]
