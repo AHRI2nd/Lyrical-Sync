@@ -481,3 +481,14 @@ it("does not commit a timestamp draft into a replacement document with a reused 
   fireEvent.blur(input);
   expect(useLrcStore.getState().doc.lines[0]).toMatchObject({ text: "replacement", timestamp: 2 });
 });
+it("does not restore a stale timestamp draft over a newer same-document value", () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "lyric", timestamp: 1 }] } });
+  const { getByRole, getByPlaceholderText } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getByRole("button", { name: "0:00:01.000" }));
+  const input = getByPlaceholderText("H:MM:SS.mmm");
+
+  act(() => useLrcStore.getState().updateLine("a", { timestamp: 3 }));
+  fireEvent.blur(input);
+
+  expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(3);
+});

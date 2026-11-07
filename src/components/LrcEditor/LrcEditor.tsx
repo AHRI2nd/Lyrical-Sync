@@ -131,7 +131,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
   // Esc 취소 시 input 언마운트로 onBlur가 commit을 유발하지 않도록 가드
   const tsEditCancel = useRef(false);
-  const tsEditSession = useRef<number | null>(null);
+  const tsEditSession = useRef<{ session: number; lineId: string; timestamp: number | null } | null>(null);
 
   // 글자 동기화된 줄의 텍스트 수정 경고 / 단위 변경 경고
   const [pendingTextEdit, setPendingTextEdit] = useState<{
@@ -349,7 +349,8 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
   const startTsEdit = (id: string, timestamp: number | null) => {
     tsEditCancel.current = false;
-    tsEditSession.current = useLrcStore.getState()._documentSession;
+    const store = useLrcStore.getState();
+    tsEditSession.current = { session: store._documentSession, lineId: id, timestamp };
     setActiveLineId(id);
     setEditTsValue(timestamp !== null ? formatDisplayTime(timestamp) : "");
     setEditingTsId(id);
@@ -357,13 +358,15 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   const commitTsEdit = (id: string) => {
     if (tsEditCancel.current) { tsEditCancel.current = false; return; }
     const store = useLrcStore.getState();
-    if (tsEditSession.current === null || store._documentSession !== tsEditSession.current) {
+    const edit = tsEditSession.current;
+    const line = store.doc.lines.find((item) => item.id === id);
+    if (!edit || edit.lineId !== id || store._documentSession !== edit.session || !line || line.timestamp !== edit.timestamp) {
       tsEditSession.current = null;
       setEditingTsId(null);
       return;
     }
     const parsed = parseTimestampInput(editTsValue.trim());
-    const current = store.doc.lines.find((line) => line.id === id)?.timestamp;
+    const current = line.timestamp;
     if (parsed !== null && current !== undefined && parsed !== current && (current == null || editTsValue.trim() !== formatDisplayTime(current))) {
       updateLine(id, { timestamp: parsed });
     }
