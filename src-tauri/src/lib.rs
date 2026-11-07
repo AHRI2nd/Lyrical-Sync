@@ -344,10 +344,10 @@ fn read_audio_metadata(path: String) -> Result<AudioMetadata, String> {
         return Err(audio_resource::AUDIO_RESOURCE_LIMIT_ERROR.into());
     }
     let tagged = lofty::read_from_path(&path).map_err(|e| e.to_string())?;
-    let first = tagged.first_tag();
-    let primary = tagged.primary_tag().or(first);
+    let tags = tagged.tags();
+    let primary = tagged.primary_tag().or_else(|| tags.first());
     let fallback = primary.and_then(|primary| {
-        first.filter(|candidate| candidate.tag_type() != primary.tag_type())
+        tags.iter().find(|candidate| candidate.tag_type() != primary.tag_type())
     });
     Ok(match primary {
         Some(primary) => {
