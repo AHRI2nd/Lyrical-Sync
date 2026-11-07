@@ -136,8 +136,7 @@ async function refreshInventory(): Promise<void> {
       try {
         const files = await invoke<boolean[]>("check_model_files", {
           expectedRoot: root,
-          filenames: model.files.map((file) => file.filename),
-          sha256: model.files.map((file) => file.sha256 ?? null),
+          modelId: model.id,
         });
         return { model, installed: files.length === model.files.length && files.every(Boolean) };
       } catch {
@@ -220,7 +219,6 @@ export const useModelDownloadStore = create<ModelDownloadState>((set, get) => ({
           modelId: model.id,
           runId,
           expectedRoot: root,
-          files: model.files.map((file) => ({ url: file.url, filename: file.filename, sha256: file.sha256 ?? null })),
         });
         if (activeOperations.get(model.id)?.runId !== runId) return;
 

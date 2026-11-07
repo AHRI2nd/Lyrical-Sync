@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::atomic_write;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -50,7 +50,9 @@ fn authorize_custom_models_root(
     if !Path::new(path).is_absolute() {
         return Err("Model directory must be an absolute path".into());
     }
-    let requested = PathBuf::from(path).canonicalize().map_err(|error| error.to_string())?;
+    let requested = PathBuf::from(path)
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
     if !requested.is_dir() {
         return Err("Model directory is not a directory".into());
     }
@@ -80,13 +82,31 @@ fn read_authorized_models_root(app: &AppHandle) -> Result<Option<PathBuf>, Strin
         .map_err(|error| error.to_string())
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct FileSpec {
     url: String,
     filename: String,
     /// 선택적 SHA-256 (소문자 hex). 지정 시 다운로드 후 무결성 검증, 불일치하면 파일 삭제·실패.
     #[serde(default)]
     sha256: Option<String>,
+}
+
+fn registered_model_files(model_id: &str) -> Result<Vec<FileSpec>, String> {
+    let key = match model_id {
+        "demucs-htdemucs" => "demucs",
+        "ctc-mms-300m" => "model",
+        _ => return Err("Unknown model identifier".into()),
+    };
+    let manifest: serde_json::Value = serde_json::from_str(include_str!("../ai-manifest.json"))
+        .map_err(|error| format!("Invalid embedded AI manifest: {error}"))?;
+    let spec: FileSpec = serde_json::from_value(
+        manifest
+            .get(key)
+            .cloned()
+            .ok_or_else(|| format!("Missing model entry in embedded AI manifest: {key}"))?,
+    )
+    .map_err(|error| format!("Invalid model entry in embedded AI manifest: {error}"))?;
+    Ok(vec![spec])
 }
 
 #[derive(Serialize, Clone)]
@@ -145,7 +165,9 @@ pub fn set_models_dir_override(
     if let Some(root) = &authorized {
         if scope_is_allowed {
             let auth_file = authorized_models_root_file(&app)?;
-            let parent = auth_file.parent().ok_or("Missing app configuration directory")?;
+            let parent = auth_file
+                .parent()
+                .ok_or("Missing app configuration directory")?;
             std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
             let content = serde_json::to_string(&root.to_string_lossy().into_owned())
                 .map_err(|error| error.to_string())?;
@@ -154,8 +176,8 @@ pub fn set_models_dir_override(
     } else if selected_path.is_none() {
         let auth_file = authorized_models_root_file(&app)?;
         match std::fs::remove_file(auth_file) {
-            Ok(()) => {},
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {},
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(error.to_string()),
         }
     }
@@ -180,20 +202,17 @@ pub async fn check_model_files(
     app: AppHandle,
     dir_state: tauri::State<'_, ModelsDirState>,
     expected_root: String,
-    filenames: Vec<String>,
-    sha256: Vec<Option<String>>,
+    model_id: String,
 ) -> Result<Vec<bool>, String> {
-    if filenames.len() != sha256.len() {
-        return Err("Model inventory checksum list does not match filenames".into());
-    }
+    let files = registered_model_files(&model_id)?;
     let base = models_dir(&app, &dir_state)?;
     if !models_root_matches(&base, &expected_root) {
         return Err("Model directory changed before inventory check".into());
     }
     let store = crate::model_store::ModelStore::open(&base).map_err(|e| e.to_string())?;
-    let mut results = Vec::with_capacity(filenames.len());
-    for (name, expected_checksum) in filenames.iter().zip(sha256) {
-        results.push(model_file_matches(&store, name, expected_checksum.as_deref()).await);
+    let mut results = Vec::with_capacity(files.len());
+    for spec in files {
+        results.push(model_file_matches(&store, &spec.filename, spec.sha256.as_deref()).await);
     }
     Ok(results)
 }
@@ -204,17 +223,21 @@ pub async fn verify_model_at_use(
     app: AppHandle,
     dir_state: tauri::State<'_, ModelsDirState>,
     expected_root: String,
-    model_filename: String,
-    expected_sha256: String,
+    model_id: String,
 ) -> Result<(), String> {
+    let files = registered_model_files(&model_id)?;
     let base = models_dir(&app, &dir_state)?;
     if !models_root_matches(&base, &expected_root) {
         return Err("Model directory changed before verification".into());
     }
     let store = crate::model_store::ModelStore::open(&base).map_err(|e| e.to_string())?;
-    let matches = model_file_matches(&store, &model_filename, Some(&expected_sha256)).await;
-    if !matches {
-        return Err(format!("Model checksum mismatch at use time: {}", model_filename));
+    for spec in files {
+        if !model_file_matches(&store, &spec.filename, spec.sha256.as_deref()).await {
+            return Err(format!(
+                "Model checksum mismatch at use time: {}",
+                spec.filename
+            ));
+        }
     }
     Ok(())
 }
@@ -286,6 +309,7 @@ pub fn begin_model_download(
     run_id: String,
     expected_root: String,
 ) -> Result<(), String> {
+    registered_model_files(&model_id)?;
     let base = models_dir(&app, &dir_state)?;
     if !models_root_matches(&base, &expected_root) {
         return Err("Model directory changed before download started".into());
@@ -322,7 +346,10 @@ fn start_registered_download(
     run_id: &str,
 ) -> Result<Arc<AtomicBool>, String> {
     let mut active = dl_state.active.lock().unwrap_or_else(|e| e.into_inner());
-    let Some(download) = active.get_mut(model_id).filter(|download| download.run_id == run_id) else {
+    let Some(download) = active
+        .get_mut(model_id)
+        .filter(|download| download.run_id == run_id)
+    else {
         return Err("Model download was not registered".into());
     };
     download.started = true;
@@ -337,9 +364,9 @@ pub async fn download_model(
     model_id: String,
     run_id: String,
     expected_root: String,
-    files: Vec<FileSpec>,
 ) -> Result<(), String> {
     let result = async {
+        let files = registered_model_files(&model_id)?;
         let base = models_dir(&app, &dir_state)?;
         if !models_root_matches(&base, &expected_root) {
             return Err("Model directory changed before download started".into());
@@ -375,7 +402,10 @@ fn cancel_download_if_current(
     model_id: &str,
     run_id: &str,
 ) -> bool {
-    if let Some(download) = active.get_mut(model_id).filter(|download| download.run_id == run_id) {
+    if let Some(download) = active
+        .get_mut(model_id)
+        .filter(|download| download.run_id == run_id)
+    {
         download.cancel.store(true, Ordering::Relaxed);
         let registered_only = !download.started;
         if registered_only {
@@ -537,15 +567,16 @@ pub async fn delete_model_files(
     app: AppHandle,
     dir_state: tauri::State<'_, ModelsDirState>,
     expected_root: String,
-    filenames: Vec<String>,
+    model_id: String,
 ) -> Result<(), String> {
+    let files = registered_model_files(&model_id)?;
     let base = models_dir(&app, &dir_state)?;
     if !models_root_matches(&base, &expected_root) {
         return Err("Model directory changed before deletion".into());
     }
     let store = crate::model_store::ModelStore::open(&base).map_err(|e| e.to_string())?;
-    for name in filenames {
-        store.remove(&name).map_err(|e| e.to_string())?;
+    for spec in files {
+        store.remove(&spec.filename).map_err(|e| e.to_string())?;
     }
     Ok(())
 }
@@ -555,14 +586,32 @@ mod integrity_tests {
     use super::*;
 
     #[test]
+    fn model_ids_resolve_only_to_the_embedded_manifest_artifacts() {
+        let demucs = registered_model_files("demucs-htdemucs").unwrap();
+        assert_eq!(demucs.len(), 1);
+        assert_eq!(demucs[0].filename, "demucs/htdemucs.th");
+        assert_eq!(
+            demucs[0].sha256.as_deref(),
+            Some("8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4")
+        );
+
+        let files = registered_model_files("ctc-mms-300m").unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].filename, "ctc-forced-aligner.onnx");
+        assert_eq!(files[0].url, "https://huggingface.co/deskpai/ctc_forced_aligner/resolve/77d85f9ffaa8cd367699ecff985c70e9064ca41c/04ac86b67129634da93aea76e0147ef3.onnx");
+        assert_eq!(
+            files[0].sha256.as_deref(),
+            Some("e8bad67fd3533b3d3c145b0ca31bb15383945c13384dd8975baaa7b73f7b61ac")
+        );
+        assert!(registered_model_files("untrusted-model").is_err());
+    }
+
+    #[test]
     fn rejects_custom_model_roots_without_a_picker_grant_or_saved_approval() {
         let selected = tempfile::tempdir().unwrap();
-        let error = authorize_custom_models_root(
-            Some(selected.path().to_str().unwrap()),
-            false,
-            None,
-        )
-        .unwrap_err();
+        let error =
+            authorize_custom_models_root(Some(selected.path().to_str().unwrap()), false, None)
+                .unwrap_err();
 
         assert_eq!(error, "Model directory has not been authorized");
     }
@@ -571,13 +620,10 @@ mod integrity_tests {
     fn accepts_a_picked_or_previously_approved_model_root() {
         let selected = tempfile::tempdir().unwrap();
         let selected_path = selected.path().canonicalize().unwrap();
-        let picked = authorize_custom_models_root(
-            Some(selected.path().to_str().unwrap()),
-            true,
-            None,
-        )
-        .unwrap()
-        .unwrap();
+        let picked =
+            authorize_custom_models_root(Some(selected.path().to_str().unwrap()), true, None)
+                .unwrap()
+                .unwrap();
         assert_eq!(picked, selected_path);
 
         let restored = authorize_custom_models_root(
@@ -592,8 +638,7 @@ mod integrity_tests {
 
     #[test]
     fn rejects_relative_model_roots_even_when_picker_scope_matches() {
-        let error = authorize_custom_models_root(Some("relative/models"), true, None)
-            .unwrap_err();
+        let error = authorize_custom_models_root(Some("relative/models"), true, None).unwrap_err();
 
         assert_eq!(error, "Model directory must be an absolute path");
     }
@@ -619,8 +664,8 @@ mod integrity_tests {
         let parent = tempfile::tempdir().unwrap();
         let missing = parent.path().join("missing");
 
-        let error = authorize_custom_models_root(Some(missing.to_str().unwrap()), true, None)
-            .unwrap_err();
+        let error =
+            authorize_custom_models_root(Some(missing.to_str().unwrap()), true, None).unwrap_err();
 
         assert!(!error.is_empty());
     }
@@ -702,7 +747,10 @@ mod integrity_tests {
         });
         let result = tokio::time::timeout(
             std::time::Duration::from_secs(1),
-            wait_for_download_io(std::future::pending::<Result<(), std::io::Error>>(), &cancel),
+            wait_for_download_io(
+                std::future::pending::<Result<(), std::io::Error>>(),
+                &cancel,
+            ),
         )
         .await
         .unwrap();
@@ -777,10 +825,13 @@ mod integrity_tests {
     fn stale_download_owner_cancel_delete_readiness_races() {
         // Test model download cancellation and readiness race conditions
         // This tests the models.rs download state machine behavior
-        use crate::models::{DownloadState, models_root_matches, cancel_download_if_current, register_download, start_registered_download};
+        use crate::models::{
+            cancel_download_if_current, models_root_matches, register_download,
+            start_registered_download, DownloadState,
+        };
         use std::path::PathBuf;
-        use std::sync::Arc;
         use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
 
         // Test 1: Cancel before download starts (registered only)
         let state = DownloadState::default();
@@ -804,11 +855,16 @@ mod integrity_tests {
         // After cancel (started), entry should remain but be cancelled
 
         // Test 3: Root mismatch detection
-        assert!(models_root_matches(&PathBuf::from("/models/current"), "/models/current"));
-        assert!(!models_root_matches(&PathBuf::from("/models/current"), "/models/other"));
+        assert!(models_root_matches(
+            &PathBuf::from("/models/current"),
+            "/models/current"
+        ));
+        assert!(!models_root_matches(
+            &PathBuf::from("/models/current"),
+            "/models/other"
+        ));
         assert!(!models_root_matches(&PathBuf::from("/models/current"), ""));
 
         println!("Stale download owner test passed");
     }
-
 }

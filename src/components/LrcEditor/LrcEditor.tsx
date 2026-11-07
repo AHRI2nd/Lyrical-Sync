@@ -409,8 +409,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
       try {
         const results = await invoke<boolean[]>("check_model_files", {
           expectedRoot,
-          filenames: model.files.map((f) => f.filename),
-          sha256: model.files.map((f) => f.sha256 ?? null),
+          modelId: model.id,
         });
         if (!isCurrent()) return;
         if (!results.every(Boolean)) missing.push(model.name);

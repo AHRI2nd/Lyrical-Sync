@@ -112,7 +112,7 @@ export function ModelDownloadSection() {
       models: { ...state.models, [model.id]: { status: "checking", progress: 0 } },
     }));
     try {
-      await invoke("delete_model_files", { filenames: model.files.map((f) => f.filename), expectedRoot });
+      await invoke("delete_model_files", { modelId: model.id, expectedRoot });
       await refreshInstalled();
     } catch (e) {
       useModelDownloadStore.setState((state) => ({

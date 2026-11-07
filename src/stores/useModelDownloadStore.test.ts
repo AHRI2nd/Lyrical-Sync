@@ -91,6 +91,12 @@ it("keeps one model operation and one busy lease across duplicate requests", asy
   const duplicate = useModelDownloadStore.getState().installModel(model);
   expect(duplicate).toBe(first);
   await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("download_model", expect.objectContaining({ expectedRoot: "/models/default", runId: expect.any(String) })));
+  const downloadCall = invoke.mock.calls.find(([command]) => command === "download_model");
+  expect(downloadCall?.[1]).toEqual({
+    modelId: model.id,
+    runId: expect.any(String),
+    expectedRoot: "/models/default",
+  });
   expect(useBusyStore.getState().reasons.size).toBe(1);
   expect(invoke.mock.calls.filter(([command]) => command === "download_model")).toHaveLength(1);
   pending.resolve();
@@ -127,14 +133,14 @@ it("does not let an earlier inventory overwrite the selected model directory", a
   const oldCheck = deferred<boolean[]>();
   let selectedRoot = "/models/old";
   const model = MODEL_DEFS[0];
-  invoke.mockImplementation((command: string, args?: { path?: string; expectedRoot?: string; filenames?: string[] }) => {
+  invoke.mockImplementation((command: string, args?: { path?: string; expectedRoot?: string; modelId?: string }) => {
     if (command === "set_models_dir_override") {
       selectedRoot = args?.path || "/models/default";
       return Promise.resolve(undefined);
     }
     if (command === "get_models_dir") return Promise.resolve(selectedRoot);
-    if (command === "check_model_files" && args?.expectedRoot === "/models/old" && args.filenames?.[0] === model.files[0].filename) return oldCheck.promise;
-    if (command === "check_model_files") return Promise.resolve(args?.expectedRoot === "/models/new" && args.filenames?.[0] === model.files[0].filename ? [true] : [false]);
+    if (command === "check_model_files" && args?.expectedRoot === "/models/old" && args.modelId === model.id) return oldCheck.promise;
+    if (command === "check_model_files") return Promise.resolve(args?.expectedRoot === "/models/new" && args.modelId === model.id ? [true] : [false]);
     return Promise.resolve(undefined);
   });
   useSettingsStore.setState({ modelsDir: "/models/old" });
@@ -230,7 +236,7 @@ it("hides stale inventory while resolving the current model root", async () => {
 
   expect(invoke).toHaveBeenCalledWith("check_model_files", expect.objectContaining({
     expectedRoot: "/models/current",
-    sha256: [MODEL_DEFS[0].files[0].sha256],
+    modelId: MODEL_DEFS[0].id,
   }));
   expect(useModelDownloadStore.getState().modelsPath).toBe("/models/current");
 });

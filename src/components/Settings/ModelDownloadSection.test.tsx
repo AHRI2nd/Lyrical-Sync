@@ -128,6 +128,6 @@ it("binds deletion to the model root shown by the completed inventory", async ()
 
   await waitFor(() => expect(invoke).toHaveBeenCalledWith("delete_model_files", {
     expectedRoot: "/models/default",
-    filenames: model.files.map((file) => file.filename),
+    modelId: model.id,
   }));
 });
