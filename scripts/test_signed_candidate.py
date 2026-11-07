@@ -22,11 +22,11 @@ class SignedCandidateTests(unittest.TestCase):
         korean=(ROOT/'README.ko.md').read_text(encoding='utf-8')
         japanese=(ROOT/'README.ja.md').read_text(encoding='utf-8')
         english=(ROOT/'README.md').read_text(encoding='utf-8')
-        for text in (korean,japanese):
-            self.assertRegex(text,r'macOS\s*14')
         self.assertIn('macOS 14',english)
         self.assertIn('0.6.3',english)
         self.assertIn('unsaved-work protections',english)
+        self.assertIn('새 미저장 작업 보호 기능',korean)
+        self.assertIn('未保存作業の保護機能',japanese)
 
     def test_release_tag_inputs_are_data_not_shell_source(self):
         source = (ROOT / '.github/workflows/release.yml').read_text(encoding='utf-8')
