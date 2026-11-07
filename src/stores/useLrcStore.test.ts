@@ -27,6 +27,8 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { serializeLrc } from "../utils/lrcParser";
 import { setDocumentConfirmation } from "../utils/documentTransition";
+import { useToastStore } from "./useToastStore";
+import { useI18nStore } from "./useI18nStore";
 
 const reset = (lines: LrcLine[], offset = 0) =>
   useLrcStore.setState({
@@ -172,6 +174,26 @@ describe("useLrcStore — line actions", () => {
     expect(useLrcStore.getState().doc).toBe(before.doc);
     expect(useLrcStore.getState()._history).toBe(before._history);
     expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
+  it("reports a failed save before declining fetched-lyrics replacement", async () => {
+    reset([{ id: "1", timestamp: 1, text: "Unsaved lyric" }]);
+    useLrcStore.setState({ isDirty: true, lrcPath: "/tmp/current.lrc" });
+    useToastStore.setState({ toasts: [] });
+    vi.mocked(invoke).mockRejectedValueOnce(new Error("disk write failed"));
+    const ownerSession = useLrcStore.getState()._documentSession;
+    const unregister = setDocumentConfirmation(async () => "save");
+
+    const result = await useLrcStore.getState().requestApplyFetchedLyrics(
+      "[00:02.00]Fetched lyric", undefined, ownerSession,
+    );
+    unregister();
+
+    expect(result).toBe("cancelled");
+    expect(useLrcStore.getState().doc.lines[0].text).toBe("Unsaved lyric");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+    const toasts = useToastStore.getState().toasts;
+    expect(toasts[toasts.length - 1]?.message).toBe(useI18nStore.getState().t.toast.saveFailed);
   });
 
   it("applies fetched lyrics only after discard and keeps the existing metadata policy", async () => {

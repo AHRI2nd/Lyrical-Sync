@@ -909,7 +909,16 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
       }),
       isCurrent: () => fetchedLyricsRequestId === requestId && get()._documentSession === ownerSession,
       confirm: confirmDocumentReplacement,
-      save: () => get().saveLrc(),
+      save: async () => {
+        try {
+          const saved = await get().saveLrc();
+          if (!saved) toast.error(useI18nStore.getState().t.toast.saveFailed);
+          return saved;
+        } catch {
+          toast.error(useI18nStore.getState().t.toast.saveFailed);
+          return false;
+        }
+      },
       prepare: async () => ({ lrcText, meta }),
       apply: (prepared) => applyFetchedLyrics(prepared.lrcText, prepared.meta),
     });
