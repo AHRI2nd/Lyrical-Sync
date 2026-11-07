@@ -42,13 +42,6 @@ function closeUpdateOnce(update: Update | null | undefined): Promise<void> {
 function isCurrentCheck(generation: number): boolean {
   return checkGeneration === generation;
 }
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout>;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(message)), timeoutMs);
-  });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-}
 async function preserveBefore(action: () => Promise<void>): Promise<void> {
   const lrc = useLrcStore.getState();
   if (lrc.isDirty && lrc.lrcPath) {
