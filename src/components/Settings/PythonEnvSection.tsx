@@ -5,6 +5,16 @@ import { useI18nStore } from "../../stores/useI18nStore";
 import { listenSafely } from "../../utils/safeListen";
 import { useBusyStore } from "../../stores/useBusyStore";
 
+const MAX_INSTALL_LOG_LINES = 200;
+const MAX_INSTALL_LOG_LINE_CHARS = 2048;
+
+function boundedInstallLogLine(line: string): string {
+  const characters = Array.from(line);
+  return characters.length <= MAX_INSTALL_LOG_LINE_CHARS
+    ? line
+    : `${characters.slice(0, MAX_INSTALL_LOG_LINE_CHARS).join("")}…`;
+}
+
 interface PythonEnvInfo {
   pythonReady: boolean;
   packagesReady: boolean;
@@ -66,7 +76,8 @@ export function PythonEnvSection() {
     return listenSafely((isActive) => listen<{ line: string; done: boolean; success: boolean }>("pip-install-progress", (e) => {
       if (!isActive() || !mounted.current) return;
       if (!e.payload.done && e.payload.line) {
-        setInstallLog((prev) => [...prev, e.payload.line]);
+        const line = boundedInstallLogLine(e.payload.line);
+        setInstallLog((prev) => [...prev.slice(-(MAX_INSTALL_LOG_LINES - 1)), line]);
       }
     }));
   // eslint-disable-next-line react-hooks/exhaustive-deps

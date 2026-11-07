@@ -6,11 +6,15 @@ import { useBusyStore } from '../../stores/useBusyStore';
 import { useUpdaterStore } from '../../stores/useUpdaterStore';
 import { useI18nStore } from '../../stores/useI18nStore';
 import { UpdateModal } from '../Update/UpdateModal';
-const ipc = vi.hoisted(() => ({ invoke: vi.fn() }));
+const ipc = vi.hoisted(() => ({ invoke: vi.fn(), failListeners: false, pipHandler: null as null | ((event: { payload: { line: string; done: boolean; success: boolean } }) => void) }));
 vi.mock('@tauri-apps/api/core', () => ipc);
-vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async () => () => {}) }));
+vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async (event: string, handler: (event: { payload: { line: string; done: boolean; success: boolean } }) => void) => {
+  if (ipc.failListeners) throw new Error('progress listener unavailable');
+  if (event === 'pip-install-progress') ipc.pipHandler = handler;
+  return () => {};
+}) }));
 afterEach(cleanup);
-beforeEach(() => { ipc.invoke.mockReset(); useBusyStore.setState({ reasons: new Set() }); });
+beforeEach(() => { ipc.invoke.mockReset(); ipc.failListeners = false; ipc.pipHandler = null; useBusyStore.setState({ reasons: new Set() }); });
 it('shows upgrade failures and allows retry while the old interpreter is incompatible', async () => {
   ipc.invoke.mockImplementation(async (command: string) => {
     if (command === 'get_python_env_info') return { pythonReady: false, packagesReady: false };
@@ -23,7 +27,8 @@ it('shows upgrade failures and allows retry while the old interpreter is incompa
   expect(screen.getByRole('button', { name: /Python|AI/ }).hasAttribute('disabled')).toBe(false);
 });
 
-it('refreshes completed installation even without progress events', async () => {
+it('refreshes completed installation and settles busy state when progress listeners fail', async () => {
+  ipc.failListeners = true;
   let ready = false;
   ipc.invoke.mockImplementation(async (command: string) => {
     if (command === 'get_python_env_info') return { pythonReady: ready, packagesReady: ready };
@@ -84,4 +89,24 @@ it('keeps download state visible after the settings section remounts', async () 
   await vi.waitFor(() => expect(ipc.invoke).toHaveBeenCalledTimes(3));
   const retryButton = await screen.findByRole('button', { name: useI18nStore.getState().t.settingsVenvCreate });
   expect(retryButton.hasAttribute('disabled')).toBe(false);
+});
+
+it('bounds retained package-install log lines while preserving the newest output', async () => {
+  ipc.invoke.mockImplementation(async (command: string) => {
+    if (command === 'get_python_env_info') return { pythonReady: true, packagesReady: false };
+    return new Promise<void>(() => {});
+  });
+  render(<PythonEnvSection />);
+  await vi.waitFor(() => expect(ipc.pipHandler).toBeTypeOf('function'));
+
+  act(() => {
+    for (let index = 0; index < 250; index += 1) {
+      ipc.pipHandler?.({ payload: { line: `line-${index}`, done: false, success: false } });
+    }
+  });
+
+  const log = document.querySelector('.h-32.overflow-y-auto');
+  expect(log?.children.length).toBeLessThanOrEqual(200);
+  expect(log?.textContent).toContain('line-249');
+  expect(log?.textContent).not.toContain('line-0');
 });

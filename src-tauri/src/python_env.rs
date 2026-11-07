@@ -61,6 +61,18 @@ use sha2::{Digest, Sha256};
 use std::path::Path;
 use std::time::Duration;
 const INSTALL_STEP_TIMEOUT: Duration = Duration::from_secs(60 * 60);
+const MAX_PROGRESS_LINE_BYTES: usize = 4096;
+
+fn bounded_progress_line(line: &str) -> String {
+    if line.len() <= MAX_PROGRESS_LINE_BYTES {
+        return line.to_owned();
+    }
+    let mut end = MAX_PROGRESS_LINE_BYTES;
+    while !line.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}... [truncated]", &line[..end])
+}
 
 #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
 const REQUIREMENTS: &str = include_str!("../requirements-ai.txt");
@@ -281,17 +293,10 @@ async fn install_step(
         cancel.clone(),
         INSTALL_STEP_TIMEOUT,
         |line| {
-            // Limit line length to prevent unbounded progress emission (defect 1131)
-            const MAX_PROGRESS_LINE: usize = 4096;
-            let truncated = if line.len() > MAX_PROGRESS_LINE {
-                format!("{}... [truncated]", &line[..MAX_PROGRESS_LINE])
-            } else {
-                line.to_owned()
-            };
             let _ = app.emit(
                 "pip-install-progress",
                 PipInstallProgress {
-                    line: truncated,
+                    line: bounded_progress_line(line),
                     done: false,
                     success: false,
                 },
@@ -412,4 +417,23 @@ async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> 
         },
     );
     result
+}
+
+#[cfg(test)]
+mod progress_line_tests {
+    use super::{bounded_progress_line, MAX_PROGRESS_LINE_BYTES};
+
+    #[test]
+    fn progress_line_truncation_preserves_utf8_boundaries() {
+        let input = format!("{}x", "한".repeat(MAX_PROGRESS_LINE_BYTES / 3 + 1));
+        let output = bounded_progress_line(&input);
+        assert!(output.is_char_boundary(output.len()));
+        assert!(output.ends_with("... [truncated]"));
+        assert!(output.len() <= MAX_PROGRESS_LINE_BYTES + "... [truncated]".len());
+    }
+
+    #[test]
+    fn progress_line_under_limit_is_unchanged() {
+        assert_eq!(bounded_progress_line("ready"), "ready");
+    }
 }
