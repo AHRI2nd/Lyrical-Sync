@@ -107,6 +107,17 @@ describe("useUpdaterStore — downloadAndInstall", () => {
     expect(s.progress).toBe(100);
   });
 
+  it("applies a finite deadline to updater downloads", async () => {
+    const mockUpdate = {
+      version: "1.2.3",
+      install: vi.fn(async () => {}),
+      download: vi.fn(async () => {}),
+    };
+    useUpdaterStore.setState({ status: "available", _update: mockUpdate as unknown as Update });
+    await useUpdaterStore.getState().downloadAndInstall();
+    expect(mockUpdate.download).toHaveBeenCalledWith(expect.any(Function), { timeout: 15 * 60 * 1000 });
+  });
+
   it("sets status=error when downloadAndInstall() rejects", async () => {
     const mockUpdate = { version: "1.2.3", install: vi.fn(), download: vi.fn().mockRejectedValue(new Error("disk full")) };
     useUpdaterStore.setState({ status: "available", _update: mockUpdate as unknown as Update });

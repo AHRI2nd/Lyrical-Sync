@@ -26,6 +26,8 @@ interface UpdaterState {
 let updateOperationActive = false;
 let checkGeneration = 0;
 const updateClosePromises = new WeakMap<Update, Promise<void>>();
+const UPDATE_CHECK_TIMEOUT_MS = 15_000;
+const UPDATE_DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1000;
 
 function closeUpdateOnce(update: Update | null | undefined): Promise<void> {
   if (!update) return Promise.resolve();
@@ -69,7 +71,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
     try {
       const { check } = await import("@tauri-apps/plugin-updater");
       if (!isCurrentCheck(generation)) return;
-      const update = await check();
+      const update = await check({ timeout: UPDATE_CHECK_TIMEOUT_MS });
       if (!isCurrentCheck(generation)) {
         if (get()._update !== update) await closeUpdateOnce(update);
         return;
@@ -122,7 +124,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
             set({ progress: 100 });
             break;
         }
-      });
+      }, { timeout: UPDATE_DOWNLOAD_TIMEOUT_MS });
       await preserveBefore(() => _update.install());
       if (get()._update === _update) set({ status: "ready", progress: 100, error: null });
     } catch (e) {
