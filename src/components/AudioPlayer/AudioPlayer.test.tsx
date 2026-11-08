@@ -58,6 +58,7 @@ vi.mock("../../utils/readAudioBytes", () => ({ readAudioBytes: vi.fn() }));
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useWaveformStore } from "../../stores/useWaveformStore";
+import { useServiceStore } from "../../stores/useServiceStore";
 import { useToastStore } from "../../stores/useToastStore";
 import { AudioPlayer } from "./AudioPlayer";
 import { readAudioBytes } from "../../utils/readAudioBytes";
@@ -122,6 +123,19 @@ describe("AudioPlayer — local audio loading", () => {
     expect(blob.type).toBe("audio/mpeg");
     expect([...new Uint8Array(await blob.arrayBuffer())]).toEqual([0x49, 0x44, 0x33]);
     expect(loadSpy).not.toHaveBeenCalled();
+  });
+
+  it("loads the selected local file when Spotify mode is persisted but the user is logged out", async () => {
+    vi.mocked(readAudioBytes).mockResolvedValue({ bytes: Uint8Array.from([1]), transcoded: false });
+    resetLrc([], null);
+    useLrcStore.setState({ audioPath: "/music/song.mp3" });
+    useSettingsStore.setState({ spotifyMode: true, deviceMode: false });
+    useServiceStore.setState({ isLoggedIn: false });
+
+    render(<AudioPlayer />);
+
+    await waitFor(() => expect(readAudioBytes).toHaveBeenCalledWith("/music/song.mp3", expect.any(AbortSignal)));
+    await waitFor(() => expect(loadBlobSpy).toHaveBeenCalledTimes(1));
   });
 
   it("preserves WAV MIME for audio already transcoded from Windows AIFF", async () => {

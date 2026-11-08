@@ -220,7 +220,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     // 파일 모드로 돌아오면 다시 쓰도록), 여기서 걸러야 크래시 복구 후 엉뚱한 파일을
     // 다시 로드 시도하는 걸 막을 수 있다.
     clearWaveform();
-    if (!wsRef.current || !audioPath || spotifyMode || deviceMode) return;
+    if (!wsRef.current || !audioPath || isServiceMode || deviceMode) return;
     let cancelled = false;
     const controller = new AbortController();
 
@@ -255,13 +255,13 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     });
 
     return () => { cancelled = true; controller.abort(); clearWaveform(); };
-  }, [audioPath, audioSelection, spotifyMode, deviceMode]);
+  }, [audioPath, audioSelection, isServiceMode, deviceMode]);
 
   // 오디오 열면 파일 태그(ID3 등)에서 메타데이터를 읽어 비어 있는 필드만 자동 채움
   useEffect(() => {
     // 위와 동일한 이유로 Spotify/기기 모드에서는 건너뜀 — 안 그러면 크래시 복구 후
     // 남아있던 예전 로컬 파일의 태그로 지금 작업 중인 문서의 메타데이터가 덮어써질 수 있다.
-    if (!audioPath || spotifyMode || deviceMode) return;
+    if (!audioPath || isServiceMode || deviceMode) return;
     let cancelled = false;
     invoke<{ title: string; artist: string; album: string }>("read_audio_metadata", { path: audioPath })
       .then((m) => {
@@ -275,7 +275,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [audioPath, audioSelection, documentSession, spotifyMode, deviceMode]);
+  }, [audioPath, audioSelection, documentSession, isServiceMode, deviceMode]);
 
   // 오디오 로드 완료 시 현재 zoom 값 적용 (슬라이더 조작 중 zoom은 debounce로 직접 처리)
   useEffect(() => {
