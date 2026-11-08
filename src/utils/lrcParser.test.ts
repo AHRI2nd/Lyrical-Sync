@@ -479,6 +479,7 @@ describe("long LRC timestamps", () => {
     const doc = parseLrc("[100:00.123][1000:00.123]<100:00.123>a<100:00.456>b");
     expect(doc.lines.map((line) => line.timestamp)).toEqual([6000.123, 60000.123]);
     expect(doc.lines[0].syllables?.map((token) => token.time)).toEqual([6000.123, 6000.456]);
+    expect(doc.lines[1].syllables?.map((token) => token.time)).toEqual([60000.123, 60000.456]);
     expect(doc.lines[0].syllables).not.toBe(doc.lines[1].syllables);
   });
 });
