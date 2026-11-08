@@ -971,11 +971,17 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
 
   // 가사 열기: LRC·SRT 모두 지원.
   openLrc: async () => {
+    const owner = get();
     const selected = await open({
       multiple: false,
       filters: [{ name: "Lyrics", extensions: ["lrc", "srt"] }],
     });
-    if (typeof selected === "string") await get().loadLyricsPath(selected);
+    if (typeof selected === "string") {
+      const current = get();
+      if (current._documentSession !== owner._documentSession || current._history !== owner._history ||
+          current._future !== owner._future || current._audioSelection !== owner._audioSelection) return;
+      await get().loadLyricsPath(selected);
+    }
   },
 
   saveLrc: async () => {

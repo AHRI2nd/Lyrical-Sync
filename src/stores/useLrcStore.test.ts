@@ -23,7 +23,7 @@ import { useSettingsStore } from "./useSettingsStore";
 import type { LrcLine, LrcDocument } from "../types/lrc";
 import { saveRecoverySnapshot, loadRecoverySnapshot, clearRecoverySnapshot } from "../utils/recovery";
 import { invoke } from "@tauri-apps/api/core";
-import { save } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { serializeLrc } from "../utils/lrcParser";
 import { assertSrtDocumentLossless } from "../utils/srtConverter";
@@ -49,6 +49,21 @@ const lrcSnapshot = (content: string) => ({ content, sha256: "b".repeat(64) });
 
 describe("useLrcStore — line actions", () => {
   beforeEach(() => reset([]));
+
+  it("ignores a lyric picker result after another document replaces its owner", async () => {
+    let resolvePicker!: (path: string | null) => void;
+    vi.mocked(open).mockImplementation(() => new Promise((resolve) => { resolvePicker = resolve; }));
+    vi.mocked(invoke).mockResolvedValue({ content: "[00:01.00]stale", sha256: "a".repeat(64) });
+
+    const opening = useLrcStore.getState().openLrc();
+    await Promise.resolve();
+    useLrcStore.getState().loadFromRawText("[00:03.00]new document");
+    resolvePicker("/tmp/stale.lrc");
+    await opening;
+
+    expect(invoke).not.toHaveBeenCalledWith("read_lrc_file_with_hash", { path: "/tmp/stale.lrc" });
+    expect(lines().map((line) => line.text)).toEqual(["new document"]);
+  });
 
   it("addLine appends a line", () => {
     useLrcStore.getState().addLine("hello");
