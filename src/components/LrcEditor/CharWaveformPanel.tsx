@@ -61,7 +61,7 @@ export const CharWaveformPanel = memo(function CharWaveformPanel({ laneRef, onPo
       {tiles.map(tile => <WaveformTile key={tile.start} envelope={tile} style={style}
         left={(tile.start - start) / (end - start) * 100} width={(tile.end - tile.start) / (end - start) * 100} />)}
       {!tiles.length && <div className="absolute inset-0 flex items-center justify-center px-4 text-center text-xs text-[var(--ls-text-secondary)] pointer-events-none">
-        {!available ? t.charSync.waveformUnavailable : preparing && path === audioPath ? t.charSync.waveformPreparing : t.charSync.waveformNoAudio}
+        {!available ? t.charSync.waveformUnavailable : preparing && path === audioPath ? t.charSync.waveformPreparing : audioPath ? t.charSync.waveformUnavailable : t.charSync.waveformNoAudio}
       </div>}
       {showMarkers && timed.map(({ s, index }) => <div key={index} data-testid={index === activeIndex ? "glyph-selected-marker" : undefined}
         style={{ left: `${pct(s.time!)}%` }} className={`absolute inset-y-0 w-px pointer-events-none ${index === activeIndex ? "bg-[var(--ls-accent)] z-10" : "bg-[var(--ls-accent)]/40"}`} />)}

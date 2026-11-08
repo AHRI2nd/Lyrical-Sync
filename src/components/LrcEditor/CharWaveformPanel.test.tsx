@@ -41,6 +41,14 @@ it('does not show a stale local waveform for an external playback source', () =>
   expect(screen.getByTestId('glyph-seek-lane').querySelector('svg')).toBeNull();
   expect(screen.getByText('Waveform unavailable for this playback source')).toBeTruthy();
 });
+it('does not report missing audio when a selected file has no prepared waveform', () => {
+  clearWaveform();
+  render(<CharWaveformPanel laneRef={createRef()} onPointerDown={vi.fn()} audioPath="song.wav"
+    start={0} end={2} lineStart={0} lineEnd={1} playhead={.5}
+    syllables={[]} activeIndex={0} onSelect={vi.fn()} available />);
+  expect(screen.getByText('Waveform unavailable for this playback source')).toBeTruthy();
+  expect(screen.queryByText('Open audio to view the waveform')).toBeNull();
+});
 it('sanitizes restored and user-provided waveform preferences', () => {
   useSettingsStore.getState().setGlyphWaveformHeight(Infinity);
   expect(useSettingsStore.getState().glyphWaveformHeight).toBe(144);
