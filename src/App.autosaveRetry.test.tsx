@@ -117,6 +117,21 @@ it("caps permanent native failures and keeps dirty data available for later manu
   expect(writes()).toHaveLength(4);
 });
 
+it("retries dirty lyrics after silent metadata changes once the retry budget was exhausted", async () => {
+  invokeMock.mockImplementation((command: string) => command === "write_lrc_file_if_unchanged"
+    ? Promise.reject(new Error("drive remains unavailable")) : Promise.resolve(undefined));
+  render(<App />);
+
+  await advance(60_000);
+  expect(writes()).toHaveLength(4);
+  act(() => { useLrcStore.getState().setMetadata({ artist: "Automatic artist" }, true); });
+  await advance(1_500);
+
+  expect(writes()).toHaveLength(5);
+  expect(writes()[4][1].content).toContain("Automatic artist");
+  expect(useLrcStore.getState().isDirty).toBe(true);
+});
+
 it("does not retry a deterministic SRT format loss error", async () => {
   const original = useLrcStore.getState().doc;
   useLrcStore.setState({

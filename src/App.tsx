@@ -146,6 +146,7 @@ function useAutoSave(recoveryPending: boolean) {
   const lrcPath = useLrcStore((s) => s.lrcPath);
   const doc = useLrcStore((s) => s.doc);
   const editRevision = useLrcStore((s) => s._editRevision);
+  const backgroundMetadataRevision = useLrcStore((s) => s._backgroundMetadataRevision);
   const autoSave = useSettingsStore((s) => s.autoSave);
 
   useEffect(() => {
@@ -199,8 +200,8 @@ function useAutoSave(recoveryPending: boolean) {
     };
     timer = setTimeout(() => { void attemptSave(); }, 1500);
     return () => { cancelled = true; clearTimeout(timer); };
-    // Reset the debounce timer for user edits, not automatic metadata refreshes.
-  }, [autoSave, lrcPath, isDirty, editRevision, recoveryPending, documentSession]);
+    // Reset the debounce timer for user edits and silent metadata refreshes while dirty.
+  }, [autoSave, lrcPath, isDirty, editRevision, backgroundMetadataRevision, recoveryPending, documentSession]);
 
   // 미저장 작업 자동 복구 스냅샷: dirty면 디바운스로 저장, 저장되면(dirty 해제) 제거.
   // 저장 경로가 없어도 보호되므로 autoSave와 독립적으로 동작.

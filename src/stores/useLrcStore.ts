@@ -60,6 +60,7 @@ interface LrcStore {
   _savedDocument: LrcDocument | null;
   _documentSession: number;
   _editRevision: number;
+  _backgroundMetadataRevision: number;
   _lrcFileHash: string | null;
   _manualMetadataFields: Set<keyof LrcMetadata>;
   _audioSelection: number;
@@ -348,7 +349,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   return {
   doc: initialDocument,
   _savedDocument: initialDocument,
-  _documentSession: 0, _editRevision: 0, _lrcFileHash: null, _manualMetadataFields: new Set(), _audioSelection: 0,
+  _documentSession: 0, _editRevision: 0, _backgroundMetadataRevision: 0, _lrcFileHash: null, _manualMetadataFields: new Set(), _audioSelection: 0,
   _history: [],
   _future: [],
   _lastEditKey: null,
@@ -542,7 +543,10 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     if (!changed.length) return;
     const changedMeta = Object.fromEntries(changed) as Partial<LrcMetadata>;
     if (silent) {
-      rawSet((s) => ({ doc: { ...s.doc, metadata: { ...s.doc.metadata, ...changedMeta } } }));
+      rawSet((s) => ({
+        doc: { ...s.doc, metadata: { ...s.doc.metadata, ...changedMeta } },
+        _backgroundMetadataRevision: s._backgroundMetadataRevision + 1,
+      }));
     } else {
       const key = `meta:${changed.map(([field]) => field).sort().join(",")}`;
       if (state._lastEditKey !== key) pushHistory("editMetadata");
