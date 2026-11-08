@@ -32,6 +32,30 @@ it("keeps the newest device list when refresh responses finish out of order", as
   expect(screen.queryByText("Old Device")).toBeNull();
 });
 
+it("keeps selection locked through a manual refresh until the active transfer settles", async () => {
+  const refresh = deferred<ReturnType<typeof device>[]>();
+  const transfer = deferred<void>();
+  const fetchDevices = vi.fn()
+    .mockResolvedValueOnce([device("phone", "Phone")])
+    .mockReturnValueOnce(refresh.promise);
+  useServiceStore.setState({ fetchDevices, transferToDevice: vi.fn(() => transfer.promise), isPlaying: false });
+  vi.useFakeTimers();
+  render(<DevicePickerModal onClose={() => {}} />);
+
+  await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+  const phone = screen.getByRole("button", { name: /Phone/ });
+  fireEvent.click(phone);
+  expect(phone.hasAttribute("disabled")).toBe(true);
+
+  fireEvent.click(screen.getByRole("button", { name: useI18nStore.getState().t.devicePicker.refresh }));
+  await vi.waitFor(() => expect(fetchDevices).toHaveBeenCalledTimes(2));
+  await act(async () => { refresh.resolve([device("phone", "Phone")]); await refresh.promise; });
+  expect(screen.getByRole("button", { name: /Phone/ }).hasAttribute("disabled")).toBe(true);
+
+  await act(async () => { transfer.resolve(); await transfer.promise; });
+  expect(screen.getByRole("button", { name: /Phone/ }).hasAttribute("disabled")).toBe(false);
+});
+
 it("shows device-load failures separately from an empty device list", async () => {
   useServiceStore.setState({ fetchDevices: vi.fn().mockRejectedValue(new Error("403")) });
   render(<DevicePickerModal onClose={() => {}} />);
