@@ -13,7 +13,7 @@ export function retimeLine(line: LrcLine, timestamp: number | null): LrcLine {
     timestamp,
     srtEndTime: Number.isFinite(line.srtEndTime) ? Math.max(timestamp, (line.srtEndTime as number) + delta) : line.srtEndTime,
   };
-  const syllableDelta = timestamp - earliest;
+  const syllableDelta = line.timestamp === null ? timestamp - earliest : delta;
   return { ...line, timestamp, syllables: line.syllables?.map(s => ({
     ...s, time: s.time === null ? null : Math.max(0, s.time + syllableDelta),
   })), srtEndTime: Number.isFinite(line.srtEndTime) ? Math.max(timestamp, (line.srtEndTime as number) + delta) : line.srtEndTime };

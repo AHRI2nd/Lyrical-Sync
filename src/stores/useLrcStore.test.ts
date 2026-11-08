@@ -61,6 +61,18 @@ describe("useLrcStore — line actions", () => {
     expect(lines()[0].text).toBe("b");
   });
 
+  it("preserves leading glyph delay when restamping an enhanced line", () => {
+    reset([{ id: "1", timestamp: 1, text: "ab", syllables: [
+      { text: "a", time: 1.2 }, { text: "b", time: 1.5 },
+    ] }]);
+    useLrcStore.setState({ currentTime: 2 });
+
+    useLrcStore.getState().stampCurrentLine("1");
+
+    expect(lines()[0].timestamp).toBe(2);
+    expect(lines()[0].syllables?.map(({ time }) => time)).toEqual([2.2, 2.5]);
+  });
+
   it("drops timed tokens when edited text no longer matches what save serializes", () => {
     reset([{ id: "1", timestamp: 10, text: "old", syllables: [{ text: "old", time: 10 }] }]);
     useLrcStore.getState().updateLine("1", { text: "new" });
