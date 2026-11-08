@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { type Translations } from "../../i18n/translations";
+import { isComposingKeyEvent } from "../../utils/keybindings";
 
 // 도구 오버플로우: 찾기/바꾸기 · 시간 이동 · 타임스탬프 스케일 · BPM 스냅.
 // 열림 상태와 바깥 클릭 감지는 이 컴포넌트가 자체 소유.
@@ -18,6 +19,7 @@ export function EditorToolsMenu({
 }) {
   const [showTools, setShowTools] = useState(false);
   const toolsRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!showTools) return;
@@ -29,8 +31,20 @@ export function EditorToolsMenu({
   }, [showTools]);
 
   return (
-    <div className="relative" ref={toolsRef}>
+    <div
+      className="relative"
+      ref={toolsRef}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && showTools && !isComposingKeyEvent(event.nativeEvent)) {
+          event.preventDefault();
+          event.stopPropagation();
+          setShowTools(false);
+          triggerRef.current?.focus();
+        }
+      }}
+    >
       <button
+        ref={triggerRef}
         onClick={() => setShowTools((v) => !v)}
         className={`ls-button ${`px-3 py-1 text-xs rounded-lg transition-colors ${showTools || showFR || showTS || showScale ? "bg-[var(--ls-control)] text-white" : "text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-white"}`}`}
       >

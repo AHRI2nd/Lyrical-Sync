@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { FindReplaceBar } from './FindReplaceBar';
+import { EditorToolsMenu } from './EditorToolsMenu';
 import { useI18nStore } from '../../stores/useI18nStore';
 
 afterEach(cleanup);
@@ -51,4 +52,35 @@ it('does not run find, replace, or close actions for composing keys', () => {
   expect(onNext).toHaveBeenCalledOnce();
   expect(onReplace).toHaveBeenCalledOnce();
   expect(onClose).toHaveBeenCalledOnce();
+});
+
+it('closes the foreground tools popup on Escape without closing background Find/Replace', () => {
+  const onClose = vi.fn();
+  render(<>
+    <EditorToolsMenu
+      t={useI18nStore.getState().t}
+      showFR
+      showTS={false}
+      showScale={false}
+      onToggleFR={vi.fn()}
+      onToggleTS={vi.fn()}
+      onToggleScale={vi.fn()}
+      onOpenBpmSnap={vi.fn()}
+    />
+    <FindReplaceBar findText="text" replaceText="new" caseSensitive={false} matchCount={1} matchPos={0}
+      onFindChange={vi.fn()} onReplaceChange={vi.fn()} onCaseSensitiveToggle={vi.fn()} onPrev={vi.fn()}
+      onNext={vi.fn()} onReplace={vi.fn()} onReplaceAll={vi.fn()} onClose={onClose}
+      findInputRef={{ current: null }} />
+  </>);
+
+  const toolsTrigger = screen.getByRole('button', { name: useI18nStore.getState().t.editorTools });
+  fireEvent.click(toolsTrigger);
+  fireEvent.keyDown(toolsTrigger, { key: 'Escape', isComposing: false, keyCode: 229 });
+  expect(screen.getByRole('button', { name: useI18nStore.getState().t.findReplace })).toBeTruthy();
+  fireEvent.keyDown(toolsTrigger, { key: 'Escape' });
+
+  expect(screen.queryByRole('button', { name: useI18nStore.getState().t.findReplace })).toBeNull();
+  expect(screen.getAllByRole('textbox')).toHaveLength(2);
+  expect(document.activeElement).toBe(toolsTrigger);
+  expect(onClose).not.toHaveBeenCalled();
 });
