@@ -937,8 +937,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     const sessionId = documentSessionId;
     doc.lines = doc.lines.map((l) => ({ ...l, id: genId(sessionId) }));
     const firstId = doc.lines[0]?.id ?? null;
-    const audioChange = options?.audioPath !== undefined
-      ? { audioPath: options.audioPath, _audioSelection: current._audioSelection + 1 } : {};
+    const audioChange = { audioPath: options?.audioPath ?? null, _audioSelection: current._audioSelection + 1 };
     set({ doc, _savedDocument: doc, lrcPath: path, _lrcFileHash: snapshot.sha256, ...audioChange, isDirty: false, activeLineId: firstId, loopLineId: null, _history: [], _future: [], _lastEditKey: null, ...invalidateAiRun() });
     useSettingsStore.getState().addRecentFile({ lrcPath: path, audioPath: get().audioPath });
   },

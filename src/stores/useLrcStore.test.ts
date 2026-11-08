@@ -1700,6 +1700,16 @@ describe("useLrcStore — document load transactions", () => {
     expect(observed.length).toBeGreaterThan(0);
     expect(observed.every(text => text === "incoming")).toBe(true);
   });
+  it("clears the prior audio when loading a lyrics-only document", async () => {
+    useLrcStore.setState({ audioPath: "/old.mp3", lrcPath: "/old.lrc" });
+    vi.mocked(invoke).mockResolvedValue(lrcSnapshot("[00:02.00]incoming"));
+
+    await useLrcStore.getState().loadLyricsPath("/new.lrc");
+
+    expect(useLrcStore.getState().audioPath).toBeNull();
+    expect(useLrcStore.getState().lrcPath).toBe("/new.lrc");
+    expect(useLrcStore.getState().doc.lines[0].text).toBe("incoming");
+  });
   it("does not overwrite an audio selection made after a paired load starts", async () => {
     let finish!: (value: { content: string; sha256: string }) => void;
     vi.mocked(invoke).mockImplementation(command => command === "read_lrc_file_with_hash"
