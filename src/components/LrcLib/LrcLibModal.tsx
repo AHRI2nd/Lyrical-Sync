@@ -69,6 +69,8 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
     const controller = new AbortController();
     searchAbortRef.current = controller;
     const id = ++reqId.current;
+    setResults([]);
+    setPreview(null);
     setStatus("loading");
     try {
       const raw = await lrclibSearch(q, controller.signal);

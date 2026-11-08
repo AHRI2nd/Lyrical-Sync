@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { formatLrcLibDuration, LrcLibModal } from './LrcLibModal';
 import { useLrcStore } from '../../stores/useLrcStore';
@@ -8,6 +8,12 @@ import { useI18nStore } from '../../stores/useI18nStore';
 const { lrclibSearch } = vi.hoisted(() => ({ lrclibSearch: vi.fn() }));
 vi.mock('../../utils/lrclib', () => ({ lrclibSearch, sortByAccuracy: (results: unknown[]) => results }));
 afterEach(cleanup);
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
 
 it.each([
   [59.4, '0:59'],
@@ -40,4 +46,30 @@ it('exposes labeled search fields and an isolated dialog', () => {
   expect(screen.getByRole('textbox', { name: t.lrclib.fieldTitle })).toBeTruthy();
   expect(screen.getByRole('textbox', { name: t.lrclib.fieldArtist })).toBeTruthy();
   expect(screen.getByRole('textbox', { name: t.lrclib.fieldAlbum })).toBeTruthy();
+});
+
+it('removes old LRCLIB results while a new search is pending', async () => {
+  const t = useI18nStore.getState().t;
+  const oldResult = {
+    id: 1, trackName: 'Old Song', artistName: 'Old Artist', albumName: 'Old Album',
+    duration: 120, instrumental: false, syncedLyrics: '[00:01.00]old', plainLyrics: null,
+  };
+  const next = deferred<typeof oldResult[]>();
+  lrclibSearch.mockReset().mockResolvedValueOnce([oldResult]).mockReturnValueOnce(next.promise);
+  useLrcStore.getState().newLrc();
+  render(<LrcLibModal onClose={() => {}} />);
+  const title = screen.getByRole('textbox', { name: t.lrclib.fieldTitle });
+  const search = screen.getByRole('button', { name: t.lrclib.search });
+
+  fireEvent.change(title, { target: { value: 'Old Song' } });
+  fireEvent.click(search);
+  await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+  expect(screen.getByText('Old Song')).toBeTruthy();
+
+  fireEvent.change(title, { target: { value: 'New Song' } });
+  fireEvent.click(screen.getByRole('button', { name: t.lrclib.search }));
+  expect(screen.queryByText('Old Song')).toBeNull();
+  expect(screen.getAllByText(t.lrclib.searching)).toHaveLength(2);
+
+  await act(async () => { next.resolve([]); await next.promise; });
 });
