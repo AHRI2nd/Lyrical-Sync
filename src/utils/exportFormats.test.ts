@@ -145,6 +145,17 @@ describe("serializeAss", () => {
     expect(durations.reduce((sum, duration) => sum + duration, 0)).toBe(1);
   });
 
+  it.each([0.104, 0.106])("keeps long karaoke timing within the rounded cue end at %s seconds per glyph", (step) => {
+    const syllables = Array.from({ length: 100 }, (_, index) => ({ text: "a", time: index * step }));
+    const out = serializeAss(docOf([{ id: "long-fractional", timestamp: 0, text: "a".repeat(100), syllables }]), 100 * step);
+    const event = out.split("\n").find((line) => line.startsWith("Dialogue:"))!;
+    const durations = [...event.matchAll(/\\k(\d+)/g)].map((match) => Number(match[1]));
+
+    expect(durations).toHaveLength(100);
+    expect(durations.reduce((sum, duration) => sum + duration, 0)).toBe(Math.round(100 * step * 100));
+    expect(durations.every((duration) => duration >= 0)).toBe(true);
+  });
+
   it("converts glyph timings into \\k karaoke durations (centiseconds)", () => {
     const out = serializeAss(docOf([
       { id: "1", timestamp: 1, text: "ab", syllables: [{ text: "a", time: 1 }, { text: "b", time: 1.5 }] },
