@@ -64,6 +64,7 @@ import { useLrcStore } from "./stores/useLrcStore";
 import { defaultDocument } from "./types/lrc";
 import { useI18nStore } from "./stores/useI18nStore";
 import { useServiceStore } from "./stores/useServiceStore";
+import { useSettingsStore } from "./stores/useSettingsStore";
 import { useToastStore } from "./stores/useToastStore";
 import { installMemoryLocalStorage } from "./test/memoryLocalStorage";
 
@@ -95,6 +96,7 @@ describe("App — drag-and-drop conflict resolution", () => {
     eventListen.mockReset().mockResolvedValue(() => {});
     useToastStore.setState({ toasts: [] });
     useServiceStore.setState({ oauthCallbackListenerReady: false });
+    useSettingsStore.setState({ showElrcSaveNotice: true });
   });
 
   afterEach(() => {
@@ -168,6 +170,27 @@ describe("App — drag-and-drop conflict resolution", () => {
     expect(
       await screen.findByText("작업 중인 오디오·가사가 있습니다. 저장하지 않은 변경 사항은 사라집니다. 교체하시겠습니까?")
     ).toBeTruthy();
+  });
+
+  it("dismisses a pending E-LRC save notice and drops its save action when the document changes", async () => {
+    const t = useI18nStore.getState().t;
+    useSettingsStore.setState({ showElrcSaveNotice: true });
+    resetLrc({
+      lrcPath: "/music/old.lrc",
+      doc: { ...defaultDocument(), lines: [{ id: "a", text: "old", timestamp: 1, syllables: [{ text: "old", time: 1 }] }] },
+    });
+    const originalSave = useLrcStore.getState().saveLrc;
+    const save = vi.fn().mockResolvedValue(true);
+    useLrcStore.setState({ saveLrc: save });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: t.save }));
+    expect(await screen.findByRole("dialog", { name: t.elrcNotice.title })).toBeTruthy();
+    act(() => useLrcStore.getState().newLrc());
+    expect(screen.queryByRole("dialog", { name: t.elrcNotice.title })).toBeNull();
+    expect(save).not.toHaveBeenCalled();
+    useLrcStore.setState({ saveLrc: originalSave });
   });
 
   it("does not let a stale New confirmation erase a document opened afterward", async () => {
@@ -322,7 +345,7 @@ describe("App — drag-and-drop conflict resolution", () => {
 
 
 import { saveRecoverySnapshot, loadRecoverySnapshot } from "./utils/recovery";
-import { useSettingsPersistenceStore, useSettingsStore } from "./stores/useSettingsStore";
+import { useSettingsPersistenceStore } from "./stores/useSettingsStore";
 
 // These exercise the actual startup effects and persisted bytes, not a mocked recovery hook.
 describe("App — recovery lifecycle", () => {

@@ -298,6 +298,7 @@ function App() {
   const pendingFetchedLyricsResolveRef = useRef<((choice: TransitionChoice) => void) | null>(null);
   const pendingSaveRef = useRef<(() => Promise<boolean>) | null>(null);
   const pendingSaveSuccessRef = useRef<(() => void | Promise<void>) | null>(null);
+  const pendingSaveSessionRef = useRef<number | null>(null);
   const pendingDocumentOpenSession = useRef<number | null>(null);
   const dropConflictSession = useRef<number | null>(null);
   const [showSpotifySearch, setShowSpotifySearch] = useState(false);
@@ -323,6 +324,13 @@ function App() {
   const { autoCheckUpdate, uiScale, spotifyMode, youtubeMode, deviceMode, setPlaybackMode, showElrcSaveNotice, setShowElrcSaveNotice } = useSettingsStore();
   const settingsPersistenceFailureCount = useSettingsPersistenceStore((s) => s.failureCount);
   const lastReportedSettingsFailure = useRef(0);
+  useEffect(() => {
+    if (pendingSaveSessionRef.current === null || pendingSaveSessionRef.current === appDocumentSession) return;
+    pendingSaveRef.current = null;
+    pendingSaveSuccessRef.current = null;
+    pendingSaveSessionRef.current = null;
+    setShowElrcNotice(false);
+  }, [appDocumentSession]);
   useEffect(() => {
     if (settingsPersistenceFailureCount <= lastReportedSettingsFailure.current) return;
     lastReportedSettingsFailure.current = settingsPersistenceFailureCount;
@@ -448,6 +456,7 @@ function App() {
     if (hasGlyphSync && showElrcSaveNotice) {
       pendingSaveRef.current = fn;
       pendingSaveSuccessRef.current = onSuccess ?? null;
+      pendingSaveSessionRef.current = useLrcStore.getState()._documentSession;
       setShowElrcNotice(true);
     } else {
       runSave(fn(), true, onSuccess);
@@ -810,21 +819,24 @@ function App() {
           onCancel={() => setShowFormatChooser(false)}
         />
       )}
-      {showElrcNotice && (
+      {showElrcNotice && pendingSaveSessionRef.current === appDocumentSession && (
         <ELrcNoticeModal
           onConfirm={(dontShowAgain) => {
             if (dontShowAgain) setShowElrcSaveNotice(false);
             setShowElrcNotice(false);
+            const ownerSession = pendingSaveSessionRef.current;
+            pendingSaveSessionRef.current = null;
             const fn = pendingSaveRef.current;
             pendingSaveRef.current = null;
             const onSuccess = pendingSaveSuccessRef.current;
             pendingSaveSuccessRef.current = null;
-            if (fn) runSave(fn(), true, onSuccess ?? undefined);
+            if (ownerSession === useLrcStore.getState()._documentSession && fn) runSave(fn(), true, onSuccess ?? undefined);
           }}
           onCancel={() => {
             setShowElrcNotice(false);
             pendingSaveRef.current = null;
             pendingSaveSuccessRef.current = null;
+            pendingSaveSessionRef.current = null;
           }}
         />
       )}
