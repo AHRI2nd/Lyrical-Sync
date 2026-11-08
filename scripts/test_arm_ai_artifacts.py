@@ -55,5 +55,22 @@ class ARMArtifactsTests(unittest.TestCase):
             (root/'provenance.json').write_text(json.dumps(manifest))
             with self.assertRaisesRegex(ValueError,'ARM64'):self.verify(root)
 
+    def test_added_x64_dll_and_exe_payloads_are_rejected(self):
+        for suffix in ('dll', 'exe'):
+            with self.subTest(suffix=suffix), tempfile.TemporaryDirectory() as directory:
+                root=Path(directory)/'bundle';shutil.copytree(BUNDLED,root)
+                wheel=next(root.glob('*.whl'))
+                with zipfile.ZipFile(wheel) as archive:
+                    files={name:archive.read(name) for name in archive.namelist()}
+                payload=bytearray(128);payload[:2]=b'MZ';struct.pack_into('<I',payload,0x3c,64)
+                payload[64:68]=b'PE\0\0';struct.pack_into('<H',payload,68,0x8664)
+                files[f'test_payload/helper.{suffix}']=payload
+                with zipfile.ZipFile(wheel,'w') as archive:
+                    for name,data in files.items():archive.writestr(name,data)
+                manifest=json.loads((root/'provenance.json').read_text())
+                next(e for e in manifest['wheels'] if e['file']==wheel.name)['sha256']=hashlib.sha256(wheel.read_bytes()).hexdigest()
+                (root/'provenance.json').write_text(json.dumps(manifest))
+                with self.assertRaisesRegex(ValueError,'ARM64'):self.verify(root)
+
 
 if __name__=='__main__':unittest.main()

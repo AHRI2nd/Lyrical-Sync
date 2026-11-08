@@ -30,17 +30,18 @@ def verify(root=ROOT):
             names=archive.namelist()
             if not any('.dist-info/licenses/' in name for name in names):
                 raise ValueError('Wheel license missing')
-            extensions=[name for name in names if name.endswith('.pyd')]
+            extensions=[name for name in names if name.lower().endswith('.pyd')]
             if not extensions:
                 raise ValueError('Native ARM64 extension missing')
-            for name in extensions:
+            native_payloads=[name for name in names if name.lower().endswith(('.pyd', '.dll', '.exe'))]
+            for name in native_payloads:
                 data=archive.read(name)
                 if len(data)<64 or data[:2]!=b'MZ':raise ValueError('Invalid PE header')
                 offset=struct.unpack_from('<I',data,0x3c)[0]
                 if offset+6>len(data) or data[offset:offset+4]!=b'PE\0\0':raise ValueError('Invalid PE header')
                 if struct.unpack_from('<H',data,offset+4)[0]!=0xaa64:
-                    raise ValueError('Native payload is not ARM64')
-        results.append({'file':path.name,'sha256':entry['sha256'],'extensions':extensions})
+                    raise ValueError(f'Native payload is not ARM64: {name}')
+        results.append({'file':path.name,'sha256':entry['sha256'],'extensions':extensions,'native_payloads':native_payloads})
     return results
 
 
