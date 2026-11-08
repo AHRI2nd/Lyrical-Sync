@@ -11,7 +11,7 @@ import { useLrcStore } from "../../stores/useLrcStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { defaultDocument } from "../../types/lrc";
-import { formatTimestamp, parseTimestampInput } from "../../utils/lrcParser";
+import { formatTimestamp, parseLrc, parseTimestampInput } from "../../utils/lrcParser";
 
 let rafCallbacks: FrameRequestCallback[];
 let seekSpy: ReturnType<typeof vi.spyOn>;
@@ -207,6 +207,24 @@ describe("CharSyncView seek lane", () => {
     const start = parseTimestampInput(labels[0].textContent ?? "");
     const end = parseTimestampInput(labels[1].textContent ?? "");
     expect((end as number) - (start as number)).toBeGreaterThanOrEqual(0.24);
+  });
+
+  it("keeps zoom responsive with an imported glyph timestamp beyond safe integer precision", () => {
+    const imported = parseLrc("[00:00.00]<166666666666666:40.00>a");
+    useLrcStore.setState({
+      doc: imported,
+      activeLineId: imported.lines[0]?.id ?? null,
+      audioPath: null,
+      duration: 0,
+      currentTime: 0,
+    });
+    const { container } = render(<CharSyncView />);
+
+    const zoomIn = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "+");
+    expect(zoomIn).toBeTruthy();
+    fireEvent.click(zoomIn!);
+
+    expect(container.textContent).toContain("2×");
   });
 
   it("continuously centers playback in a zoomed viewport across lyric boundaries", () => {
