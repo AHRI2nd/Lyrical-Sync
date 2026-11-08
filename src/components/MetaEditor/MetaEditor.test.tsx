@@ -153,6 +153,20 @@ it("opens the raw editor with unsupported reserved control metadata preserved fo
   expect(screen.getByRole("alert").textContent).toBe(t.rawEditorReservedTagConflict);
 });
 
+it("opens the raw editor when an active escape tag conflicts with timestamp-shaped lyric text", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), invalidControlTags: [{ key: "x-lyrical-inline-escape", value: "external-value" }],
+    lines: [{ id: "a", timestamp: 1, text: "literal [00:02.00] text" }] } });
+  render(<MetaEditor />);
+
+  fireEvent.click(screen.getByRole("button", { name: t.viewAll }));
+
+  const editor = screen.getAllByRole("textbox").find((element) => element.tagName === "TEXTAREA") as HTMLTextAreaElement;
+  expect(editor.value).toContain("[x-lyrical-inline-escape:external-value]");
+  expect(editor.value).toContain("literal [00:02.00] text");
+  expect(screen.getByRole("alert").textContent).toBe(t.rawEditorReservedTagConflict);
+});
+
 it("keeps a raw editor with a reserved-tag conflict open and explains how to recover", () => {
   const t = useI18nStore.getState().t;
   useLrcStore.setState({ doc: { ...defaultDocument(), invalidControlTags: [{ key: "x-lyrical-inline-escape", value: "external-value" }],
