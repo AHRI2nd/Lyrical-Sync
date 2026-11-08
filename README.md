@@ -134,7 +134,7 @@ The badge shows the app version. JavaScript/Rust versions are defined by their l
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) 18+
+- [Node.js](https://nodejs.org/) 22.22.2+, 24.15.0+, or 26+ (required by the locked development and test dependencies)
 - [Rust](https://www.rust-lang.org/tools/install) (stable)
 - Tauri CLI dependencies — see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)
 

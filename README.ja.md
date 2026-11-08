@@ -131,7 +131,7 @@ Lyrical Sync は **Apple Silicon 搭載 Mac のみ対応**し、Intel Mac はサ
 
 ### 前提条件
 
-- [Node.js](https://nodejs.org/) 18+
+- [Node.js](https://nodejs.org/) 22.22.2+、24.15.0+ または 26+（固定された開発・テスト依存関係の要件）
 - [Rust](https://www.rust-lang.org/tools/install)（stable）
 - Tauri CLI の依存関係 — [Tauri 前提条件](https://v2.tauri.app/start/prerequisites/) を参照
 

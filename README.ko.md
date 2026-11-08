@@ -129,7 +129,7 @@ Lyrical Sync는 **Apple Silicon Mac만 지원**하며 Intel Mac은 지원하지 
 
 ### 사전 요구사항
 
-- [Node.js](https://nodejs.org/) 18+
+- [Node.js](https://nodejs.org/) 22.22.2+, 24.15.0+ 또는 26+ (고정된 개발·테스트 의존성 요구사항)
 - [Rust](https://www.rust-lang.org/tools/install) (stable)
 - Tauri CLI 의존성 — [Tauri 사전 요구사항](https://v2.tauri.app/start/prerequisites/) 참고
 
