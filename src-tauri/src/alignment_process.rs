@@ -35,28 +35,31 @@ async fn run_child_with_output_limit(
         }
         String::from_utf8(bytes).map_err(|e| e.to_string())
     });
-    let mut stderr = child.stderr.take().map(|pipe| {
-        let reader = BufReader::new(pipe);
-        // Wrap with a byte limit
-        reader.take(output_limit as u64).lines()
-    });
+    let stderr_limit = output_limit.saturating_add(1) as u64;
+    let mut stderr = child
+        .stderr
+        .take()
+        .map(|pipe| BufReader::new(pipe).take(stderr_limit));
     let mut stderr_bytes = 0usize;
     let result = async {
         let status;
         loop {
             if cancel.load(Ordering::Relaxed) { return Err("cancelled".into()); }
             // Try to read stderr first, then check exit status
-            if let Some(lines) = stderr.as_mut() {
-                match tokio::time::timeout(Duration::from_millis(50), lines.next_line()).await {
+            if let Some(reader) = stderr.as_mut() {
+                let mut line = Vec::new();
+                match tokio::time::timeout(Duration::from_millis(50), reader.read_until(b'\n', &mut line)).await {
                     Err(_) => (),
-                    Ok(Ok(Some(line))) => {
-                        stderr_bytes += line.len() + 1; // +1 for newline
+                    Ok(Ok(0)) => stderr = None,
+                    Ok(Ok(bytes_read)) => {
+                        stderr_bytes += bytes_read;
                         if stderr_bytes > output_limit {
                             return Err("Child stderr exceeded maximum allowed output size".into());
                         }
-                        progress(&line)?;
+                        if line.last() == Some(&b'\n') { line.pop(); }
+                        if line.last() == Some(&b'\r') { line.pop(); }
+                        progress(&String::from_utf8_lossy(&line))?;
                     },
-                    Ok(Ok(None)) => stderr = None,
                     Ok(Err(error)) => return Err(error.to_string()),
                 }
             }
@@ -68,17 +71,22 @@ async fn run_child_with_output_limit(
             tokio::time::sleep(Duration::from_millis(50)).await;
         };
         // After loop, drain any remaining stderr
-        if let Some(mut lines) = stderr {
+        if let Some(reader) = stderr.as_mut() {
             let deadline = tokio::time::Instant::now() + Duration::from_millis(500);
             let drained = tokio::time::timeout_at(
                 deadline,
                 async {
-                    while let Some(line) = lines.next_line().await.map_err(|e| e.to_string())? {
-                        stderr_bytes += line.len() + 1;
+                    loop {
+                        let mut line = Vec::new();
+                        let bytes_read = reader.read_until(b'\n', &mut line).await.map_err(|e| e.to_string())?;
+                        if bytes_read == 0 { break; }
+                        stderr_bytes += bytes_read;
                         if stderr_bytes > output_limit {
                             return Err("Child stderr exceeded maximum allowed output size".into());
                         }
-                        progress(&line)?;
+                        if line.last() == Some(&b'\n') { line.pop(); }
+                        if line.last() == Some(&b'\r') { line.pop(); }
+                        progress(&String::from_utf8_lossy(&line))?;
                     }
                     Ok::<(), String>(())
                 }
@@ -259,6 +267,10 @@ mod tests {
                 println!("dependency conflict details");
                 std::process::exit(7);
             },
+            Ok("stderr_invalid_utf8") => {
+                std::io::stderr().write_all(b"progress\xff\n").unwrap();
+                println!("ok");
+            }
             _ => (),
         }
     }
@@ -315,6 +327,20 @@ mod tests {
             })).await.unwrap().unwrap();
             assert!(progress);
             assert!(output.contains(&"x".repeat(262144)));
+        });
+    }
+    #[test]
+    fn decodes_non_utf8_stderr_lossily_without_failing_a_successful_child() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let mut progress = Vec::new();
+            let output = run_child(
+                child("stderr_invalid_utf8"),
+                Arc::new(AtomicBool::new(false)),
+                |line| { progress.push(line.to_owned()); Ok(()) },
+            ).await.unwrap();
+
+            assert!(output.lines().any(|line| line == "ok"));
+            assert_eq!(progress, ["progress�"]);
         });
     }
     #[test]
