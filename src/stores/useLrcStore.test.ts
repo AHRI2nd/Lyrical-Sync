@@ -1393,6 +1393,21 @@ describe("useLrcStore — save completion races", () => {
     expect(useSettingsStore.getState().recentFiles[0]).toMatchObject({ lrcPath: "/tmp/new-song.lrc" });
   });
 
+  it("rejects newline-bearing LRC metadata before saving and preserves dirty state", async () => {
+    const state = useLrcStore.getState();
+    useLrcStore.setState({
+      doc: { ...state.doc, metadata: { ...state.doc.metadata, title: "safe\n[00:02.00]injected" } },
+      lrcPath: "/tmp/song.lrc",
+      isDirty: true,
+    });
+
+    await expect(useLrcStore.getState().saveLrc()).rejects.toMatchObject({ code: "LRC_METADATA_LINE_BREAK" });
+
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState().lrcPath).toBe("/tmp/song.lrc");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
   it("refuses to overwrite an SRT source when the document has LRC-only content", async () => {
     const state = useLrcStore.getState();
     useLrcStore.setState({
