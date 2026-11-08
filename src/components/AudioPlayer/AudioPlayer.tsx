@@ -179,7 +179,10 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   }, [setCurrentTime, audioPath, audioSelection, spotifyMode, deviceMode]);
 
   useEffect(() => {
-    audioControls.togglePlay = () => wsRef.current?.playPause();
+    audioControls.togglePlay = () => {
+      if (!audioPath || !isAudioReady || isServiceMode || deviceMode) return;
+      wsRef.current?.playPause();
+    };
     audioControls.pause = () => wsRef.current?.pause();
     audioControls.skip = (delta: number) => {
       const ws = wsRef.current;

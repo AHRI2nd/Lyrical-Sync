@@ -21,7 +21,7 @@ const { wsHandlers, wsMock } = vi.hoisted(() => {
   const handlers: Record<string, (...args: unknown[]) => void> = {};
   const mock = {
     getWrapper: () => ({ classList: { add: () => {} } }),
-    registerPlugin: () => ({ on: () => {}, destroy: () => {} }),
+    registerPlugin: () => ({ on: () => {}, destroy: () => {}, clearRegions: () => {}, getRegions: () => [] }),
     on: (event: string, cb: (...args: unknown[]) => void) => { handlers[event] = cb; },
     getDuration: () => 100,
     getCurrentTime: () => 0,
@@ -47,7 +47,7 @@ vi.mock("wavesurfer.js", () => ({
 const spectrumCreate = vi.hoisted(() => vi.fn(() => ({ type: "spectrum" })));
 vi.mock("wavesurfer.js/dist/plugins/spectrogram.esm.js", () => ({ default: { create: spectrumCreate } }));
 vi.mock("wavesurfer.js/dist/plugins/regions.esm.js", () => ({
-  default: { create: () => ({ on: () => {} }) },
+  default: { create: () => ({ on: () => {}, clearRegions: () => {} }) },
 }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(() => Promise.resolve(undefined)) }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(() => Promise.resolve(() => {})) }));
@@ -63,6 +63,7 @@ import { useToastStore } from "../../stores/useToastStore";
 import { AudioPlayer } from "./AudioPlayer";
 import { readAudioBytes } from "../../utils/readAudioBytes";
 import { invoke } from "@tauri-apps/api/core";
+import { audioControls } from "../../utils/audioControls";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { defaultDocument } from "../../types/lrc";
 import type { LrcLine } from "../../types/lrc";
@@ -81,6 +82,7 @@ const playSpy = vi.spyOn(wsMock, "play");
 const seekToSpy = vi.spyOn(wsMock, "seekTo");
 const loadSpy = vi.spyOn(wsMock, "load");
 const loadBlobSpy = vi.spyOn(wsMock, "loadBlob");
+const playPauseSpy = vi.spyOn(wsMock, "playPause");
 
 describe("AudioPlayer — local audio loading", () => {
   it("gives local volume and waveform zoom sliders localized accessible names", () => {
@@ -91,12 +93,30 @@ describe("AudioPlayer — local audio loading", () => {
     expect(screen.getByRole("slider", { name: t.zoom })).toBeTruthy();
   });
 
+  it("keeps global playback shortcuts inert until local audio is ready", async () => {
+    resetLrc([], null);
+    render(<AudioPlayer />);
+    audioControls.togglePlay();
+    expect(playPauseSpy).not.toHaveBeenCalled();
+
+    vi.mocked(readAudioBytes).mockResolvedValue({ bytes: new Uint8Array([1]), transcoded: false });
+    act(() => useLrcStore.setState({ audioPath: "/music/loading.mp3" }));
+    await waitFor(() => expect(loadBlobSpy).toHaveBeenCalledTimes(1));
+    audioControls.togglePlay();
+    expect(playPauseSpy).not.toHaveBeenCalled();
+
+    act(() => wsHandlers.ready());
+    audioControls.togglePlay();
+    expect(playPauseSpy).toHaveBeenCalledOnce();
+  });
+
   beforeEach(() => {
     vi.mocked(readAudioBytes).mockReset();
     vi.mocked(invoke).mockReset();
     useToastStore.setState({ toasts: [] });
     loadSpy.mockClear();
     loadBlobSpy.mockClear();
+    playPauseSpy.mockClear();
   });
 
   afterEach(() => {
