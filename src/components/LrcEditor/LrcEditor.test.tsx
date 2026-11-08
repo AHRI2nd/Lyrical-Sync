@@ -106,6 +106,21 @@ it("keeps imported multiline subtitle bodies intact while editing", () => {
   expect(useLrcStore.getState().doc.lines[0].text).toBe("first\nchanged");
 });
 
+it("keeps carriage-return-only lyrics editable and focused when they become single-line", () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "first\rsecond", timestamp: 1 }] } });
+  const { getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  const textarea = getByRole("textbox") as HTMLTextAreaElement;
+  expect(textarea.tagName).toBe("TEXTAREA");
+
+  textarea.focus();
+  fireEvent.change(textarea, { target: { value: "single line" } });
+
+  const input = getByRole("textbox");
+  expect(input.tagName).toBe("INPUT");
+  expect(document.activeElement).toBe(input);
+  expect(useLrcStore.getState().doc.lines[0].text).toBe("single line");
+});
+
 it("keeps focus when removing the final newline from a lyric", () => {
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "first\nsecond", timestamp: 1 }] } });
   const { getByRole } = render(<LrcEditor onPreview={() => {}} />);

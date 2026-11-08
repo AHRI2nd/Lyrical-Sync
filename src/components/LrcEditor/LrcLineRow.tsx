@@ -192,11 +192,11 @@ export function LrcLineRowImpl({
       </div>
       </div>
       <div className="ls-line-content">
-      {line.text.includes("\n") ? (
+      {/[\r\n]/.test(line.text) ? (
         <textarea
           ref={inputRef}
           value={line.text}
-          rows={Math.max(2, line.text.split("\n").length)}
+          rows={Math.max(2, line.text.split(/\r\n|\r|\n/).length)}
           onChange={(e) => onTextChange(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && e.shiftKey) onKeyDown(e); }}
           onFocus={onFocus}

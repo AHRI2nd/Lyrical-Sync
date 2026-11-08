@@ -291,7 +291,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   const handleTextChange = (id: string, value: string) => {
     const ln = useLrcStore.getState().doc.lines.find((l) => l.id === id);
     if (!ln || ln.text === value) return;
-    const preserveFocus = ln.text.includes("\n") && !value.includes("\n");
+    const preserveFocus = /[\r\n]/.test(ln.text) && !/[\r\n]/.test(value);
     if (ln.syllables?.some((s) => s.time !== null)) {
       const current = useLrcStore.getState();
       setPendingTextEdit({
