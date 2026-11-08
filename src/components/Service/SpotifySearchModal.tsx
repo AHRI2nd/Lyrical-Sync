@@ -445,6 +445,8 @@ function LoadingRow({ label }: { label: string }) {
 function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
+      type="button"
+      aria-pressed={active}
       onClick={onClick}
       className={`ls-button ${[
         "px-5 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px",

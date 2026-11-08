@@ -92,6 +92,18 @@ it("localizes playlist loading and track-count labels", async () => {
   expect(screen.getByText("Tracks: 1")).toBeTruthy();
 });
 
+it("exposes the selected Spotify search tab programmatically", () => {
+  render(<SpotifySearchModal onClose={() => {}} />);
+  const t = useI18nStore.getState().t;
+  const search = screen.getByRole("button", { name: t.spotifySearchTrack });
+  const playlists = screen.getByRole("button", { name: t.spotifyMyPlaylists });
+  expect(search.getAttribute("aria-pressed")).toBe("true");
+  expect(playlists.getAttribute("aria-pressed")).toBe("false");
+  fireEvent.click(playlists);
+  expect(search.getAttribute("aria-pressed")).toBe("false");
+  expect(playlists.getAttribute("aria-pressed")).toBe("true");
+});
+
 it("loads Spotify playlists incrementally through validated next pages", async () => {
   const first = deferred<Response>();
   const second = deferred<Response>();
