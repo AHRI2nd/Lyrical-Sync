@@ -313,6 +313,25 @@ describe("useLrcStore — offset / shift carry syllable times", () => {
     expect(lines()[1].timestamp).toBe(20);
   });
 
+  it("does not record timing actions that leave all selected timing data unchanged", () => {
+    const noOpActions = [
+      () => useLrcStore.getState().shiftTimeRange(0, 0, 1),
+      () => useLrcStore.getState().shiftLines(["untimed"], 1),
+      () => useLrcStore.getState().scaleTimestamps(2),
+      () => useLrcStore.getState().clearTimestamps(["untimed"]),
+    ];
+    for (const action of noOpActions) {
+      reset([{ id: "untimed", timestamp: null, text: "lyric" }]);
+      const original = useLrcStore.getState().doc;
+
+      action();
+
+      expect(useLrcStore.getState().doc).toBe(original);
+      expect(useLrcStore.getState()._history).toHaveLength(0);
+      expect(useLrcStore.getState().isDirty).toBe(false);
+    }
+  });
+
   it("rejects a shift that would collapse an SRT cue at zero without changing the document", () => {
     reset([{ id: "1", timestamp: 1, srtEndTime: 2, text: "cue" }]);
     const original = useLrcStore.getState().doc;
@@ -745,6 +764,26 @@ describe("useLrcStore — runAiSync blank-line timestamp placement", () => {
     expect(lines()).toEqual([]);
     expect(useLrcStore.getState().aiSyncStatus).toBe("idle");
     expect(useLrcStore.getState().aiDraftConfidence).toBeNull();
+  });
+
+  it("does not cancel AI alignment for an untimed range shift", async () => {
+    reset([{ id: "untimed", timestamp: null, text: "hello" }]);
+    useLrcStore.setState({ audioPath: "/song.mp3" });
+    let resolveAlignment!: (value: string) => void;
+    vi.mocked(invoke).mockImplementation((command: unknown) => {
+      if (command === "run_alignment") return new Promise<string>((resolve) => { resolveAlignment = resolve; });
+      return Promise.resolve(undefined);
+    });
+    const running = useLrcStore.getState().runAiSync("ko", 0.5, false, false);
+    await vi.waitFor(() => expect(resolveAlignment).toBeTypeOf("function"));
+
+    useLrcStore.getState().shiftTimeRange(0, 0, 1);
+    resolveAlignment(JSON.stringify({ lines: [{ index: 0, start: 4, end: 5, confidence: 0.9 }], vocal_segments: [], separated: false }));
+    await running;
+
+    expect(useLrcStore.getState().aiSyncStatus).toBe("done");
+    expect(lines()[0].timestamp).toBe(4);
+    expect(vi.mocked(invoke)).not.toHaveBeenCalledWith("cancel_alignment", expect.anything());
   });
 
   it("keeps audio-tag metadata from invalidating an in-flight alignment", async () => {

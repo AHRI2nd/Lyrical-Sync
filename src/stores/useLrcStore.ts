@@ -21,6 +21,15 @@ const hasFiniteLineTimes = (lines: LrcLine[]): boolean => lines.every((line) =>
   (line.syllables?.every((syllable) => syllable.time === null || Number.isFinite(syllable.time)) ?? true)
 );
 
+const hasSameTiming = (left: LrcLine, right: LrcLine): boolean => {
+  if (left.timestamp !== right.timestamp || left.srtEndTime !== right.srtEndTime) return false;
+  if (left.syllables === right.syllables) return true;
+  if (!left.syllables || !right.syllables || left.syllables.length !== right.syllables.length) return false;
+  return left.syllables.every((syllable, index) =>
+    syllable.text === right.syllables?.[index].text && syllable.time === right.syllables?.[index].time,
+  );
+};
+
 const reportInvalidTime = (): void => toast.error(useI18nStore.getState().t.toast.invalidTimestamp);
 
 type AiSyncStatus = "idle" | "running" | "done" | "error";
@@ -740,6 +749,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
         scaled.timestamp === null || scaled.srtEndTime === undefined || scaled.srtEndTime <= scaled.timestamp;
     });
     if (unrepresentableSrtCue) { reportInvalidTime(); return; }
+    if (lines.every((line, index) => hasSameTiming(line, doc.lines[index]))) return;
     pushHistory("scaleTimestamps");
     set({ doc: { ...doc, lines }, isDirty: true });
   },
@@ -769,16 +779,18 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
         : l
     );
     if (!hasFiniteLineTimes(lines)) { reportInvalidTime(); return; }
+    if (lines.every((line, index) => hasSameTiming(line, doc.lines[index]))) return;
     pushHistory("shiftLines");
     set({ doc: { ...doc, lines }, isDirty: true });
   },
 
   clearTimestamps: (ids) => {
     if (ids.length === 0) return;
-    pushHistory("clearTimestamps");
     const idSet = new Set(ids);
     const { doc } = get();
     const lines = doc.lines.map((l) => (idSet.has(l.id) ? { ...l, timestamp: null, srtEndTime: undefined, syllables: undefined } : l));
+    if (lines.every((line, index) => hasSameTiming(line, doc.lines[index]))) return;
+    pushHistory("clearTimestamps");
     set({ doc: { ...doc, lines }, isDirty: true });
   },
 
@@ -1071,6 +1083,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
       };
     });
     if (!hasFiniteLineTimes(newLines)) { reportInvalidTime(); return; }
+    if (newLines.every((line, index) => hasSameTiming(line, doc.lines[index]))) return;
     pushHistory("shiftTimeRange");
     set({ doc: { ...doc, lines: newLines }, isDirty: true });
   },
