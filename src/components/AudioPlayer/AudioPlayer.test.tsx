@@ -62,6 +62,7 @@ import { useServiceStore } from "../../stores/useServiceStore";
 import { useToastStore } from "../../stores/useToastStore";
 import { AudioPlayer } from "./AudioPlayer";
 import { readAudioBytes } from "../../utils/readAudioBytes";
+import { invoke } from "@tauri-apps/api/core";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { defaultDocument } from "../../types/lrc";
 import type { LrcLine } from "../../types/lrc";
@@ -92,6 +93,7 @@ describe("AudioPlayer — local audio loading", () => {
 
   beforeEach(() => {
     vi.mocked(readAudioBytes).mockReset();
+    vi.mocked(invoke).mockReset();
     useToastStore.setState({ toasts: [] });
     loadSpy.mockClear();
     loadBlobSpy.mockClear();
@@ -199,6 +201,34 @@ describe("AudioPlayer — local audio loading", () => {
 
     await waitFor(() => expect(useToastStore.getState().toasts[useToastStore.getState().toasts.length - 1]?.message)
       .toBe(useI18nStore.getState().t.toast.audioResourceLimit));
+  });
+
+  it("does not import audio tags when loading the selected audio fails", async () => {
+    vi.mocked(readAudioBytes).mockRejectedValue(new Error("AUDIO_RESOURCE_LIMIT"));
+    vi.mocked(invoke).mockImplementation((command: string) => command === "read_audio_metadata"
+      ? Promise.resolve({ title: "Tagged title", artist: "Tagged artist", album: "" }) as ReturnType<typeof invoke>
+      : Promise.resolve(undefined) as ReturnType<typeof invoke>);
+    resetLrc([], null);
+    useLrcStore.setState({ audioPath: "/music/unplayable.mp3" });
+    render(<AudioPlayer />);
+
+    await waitFor(() => expect(useToastStore.getState().toasts[useToastStore.getState().toasts.length - 1]?.message)
+      .toBe(useI18nStore.getState().t.toast.audioResourceLimit));
+
+    expect(vi.mocked(invoke)).not.toHaveBeenCalledWith("read_audio_metadata", { path: "/music/unplayable.mp3" });
+    expect(useLrcStore.getState().doc.metadata).toMatchObject({ title: "", artist: "" });
+  });
+
+  it("imports empty metadata fields after audio loads successfully", async () => {
+    vi.mocked(readAudioBytes).mockResolvedValue({ bytes: new Uint8Array([1]), transcoded: false });
+    vi.mocked(invoke).mockResolvedValue({ title: "Tagged title", artist: "Tagged artist", album: "" });
+    resetLrc([], null);
+    useLrcStore.setState({ audioPath: "/music/valid.mp3" });
+    render(<AudioPlayer />);
+
+    await waitFor(() => expect(useLrcStore.getState().doc.metadata).toMatchObject({
+      title: "Tagged title", artist: "Tagged artist",
+    }));
   });
 
   it("publishes decoded detail after loading and clears it when audio is unloaded", async () => {

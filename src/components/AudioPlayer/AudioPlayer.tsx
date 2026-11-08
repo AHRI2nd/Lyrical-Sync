@@ -77,7 +77,6 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     }))
   );
   const audioSelection = useLrcStore(s => s._audioSelection);
-  const documentSession = useLrcStore(s => s._documentSession);
   const lines = useLrcStore((s) => s.doc.lines);
   const metadata = useLrcStore((s) => s.doc.metadata);
   const activeLineId = useLrcStore((s) => s.activeLineId);
@@ -233,6 +232,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     }
     let cancelled = false;
     const controller = new AbortController();
+    const ownerDocumentSession = useLrcStore.getState()._documentSession;
 
     setIsAudioReady(false);
     // ready 이벤트가 올 때까지 이전 트랙의 시간/재생 상태가 남아 있으면 스탬프와 UI가
@@ -255,7 +255,20 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       await ws.loadBlob(blob);
       if (cancelled) return;
       const decoded = ws.getDecodedData();
-      if (decoded) await prepareWaveform(audioPath, decoded);
+      if (!decoded) return;
+      void invoke<{ title: string; artist: string; album: string }>("read_audio_metadata", { path: audioPath })
+        .then((metadata) => {
+          const store = useLrcStore.getState();
+          if (cancelled || store._documentSession !== ownerDocumentSession || store.audioPath !== audioPath || store._audioSelection !== audioSelection) return;
+          const current = store.doc.metadata;
+          const patch: { title?: string; artist?: string; album?: string } = {};
+          if (!current.title.trim() && metadata.title) patch.title = metadata.title;
+          if (!current.artist.trim() && metadata.artist) patch.artist = metadata.artist;
+          if (!current.album.trim() && metadata.album) patch.album = metadata.album;
+          if (Object.keys(patch).length > 0) store.setAudioMetadata(patch);
+        })
+        .catch(() => {});
+      await prepareWaveform(audioPath, decoded);
     }).catch((e) => {
       // 새 로드로 인한 중단(AbortError)은 무시, 실제 디코드/읽기 실패만 알림
       if (cancelled || (e && (e as Error).name === "AbortError")) return;
@@ -266,26 +279,6 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
 
     return () => { cancelled = true; controller.abort(); clearWaveform(); };
   }, [audioPath, audioSelection, isServiceMode, deviceMode]);
-
-  // 오디오 열면 파일 태그(ID3 등)에서 메타데이터를 읽어 비어 있는 필드만 자동 채움
-  useEffect(() => {
-    // 위와 동일한 이유로 Spotify/기기 모드에서는 건너뜀 — 안 그러면 크래시 복구 후
-    // 남아있던 예전 로컬 파일의 태그로 지금 작업 중인 문서의 메타데이터가 덮어써질 수 있다.
-    if (!audioPath || isServiceMode || deviceMode) return;
-    let cancelled = false;
-    invoke<{ title: string; artist: string; album: string }>("read_audio_metadata", { path: audioPath })
-      .then((m) => {
-        if (cancelled) return;
-        const cur = useLrcStore.getState().doc.metadata;
-        const patch: { title?: string; artist?: string; album?: string } = {};
-        if (!cur.title.trim() && m.title) patch.title = m.title;
-        if (!cur.artist.trim() && m.artist) patch.artist = m.artist;
-        if (!cur.album.trim() && m.album) patch.album = m.album;
-        if (Object.keys(patch).length > 0) useLrcStore.getState().setAudioMetadata(patch);
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [audioPath, audioSelection, documentSession, isServiceMode, deviceMode]);
 
   // 오디오 로드 완료 시 현재 zoom 값 적용 (슬라이더 조작 중 zoom은 debounce로 직접 처리)
   useEffect(() => {
