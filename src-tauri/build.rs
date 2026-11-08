@@ -48,7 +48,6 @@ fn main() {
         "get_now_playing",
         "now_playing_toggle_play_pause",
         "now_playing_seek",
-        "ytdlp_load_audio_url",
     ];
     
     tauri_build::try_build(

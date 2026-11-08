@@ -46,7 +46,6 @@
     "allow-get-now-playing",
     "allow-now-playing-toggle-play-pause",
     "allow-now-playing-seek",
-    "allow-ytdlp-load-audio-url",
     "deep-link:default",
     "updater:default",
     "process:default"
