@@ -162,4 +162,5 @@ it("uses device playback state and routes preview seeking to the device controll
   expect(container.textContent).toContain("0:00:04.000");
   fireEvent.click(getByText("first"));
   expect(invoke).toHaveBeenCalledWith("now_playing_seek", { positionMs: 1000 });
+  expect(invoke).not.toHaveBeenCalledWith("seek_audio", expect.anything());
 });
