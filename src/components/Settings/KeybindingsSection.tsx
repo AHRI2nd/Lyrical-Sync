@@ -35,6 +35,7 @@ export function KeybindingsSection({ focusCharacterSync = false }: { focusCharac
       // Capture keys before application and global shortcut handlers.
       e.preventDefault();
       e.stopPropagation();
+      if (e.isComposing || e.keyCode === 229) return;
       if (e.code === "Escape") { setCapturing(null); setError(""); return; }
       // Wait for an unmodified key rather than a modifier or chord.
       if (e.ctrlKey || e.metaKey || e.altKey || MODIFIER_CODES.has(e.code)) return;

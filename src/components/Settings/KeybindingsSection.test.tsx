@@ -75,4 +75,17 @@ describe("KeybindingsSection", () => {
     expect(getByText(t.keys.fixedShortcutConflict)).toBeTruthy();
     expect(useSettingsStore.getState().keybindings.stamp).toBe("Space");
   });
+
+  it.each([{ isComposing: true }, { keyCode: 229 }])("does not capture IME composition events (%j)", (composition) => {
+    const t = useI18nStore.getState().t;
+    const { getByRole, getByText } = render(<KeybindingsSection />);
+    fireEvent.click(getByRole("button", { name: `${t.charSync.stampHint} Space` }));
+
+    fireEvent.keyDown(window, { code: "KeyY", key: "y", ...composition });
+    expect(useSettingsStore.getState().keybindings.stamp).toBe("Space");
+    expect(getByText(t.keys.capturing)).toBeTruthy();
+
+    fireEvent.keyDown(window, { code: "KeyT", key: "t" });
+    expect(useSettingsStore.getState().keybindings.stamp).toBe("KeyT");
+  });
 });
