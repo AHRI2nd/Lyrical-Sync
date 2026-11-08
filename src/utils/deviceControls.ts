@@ -71,8 +71,10 @@ async function deviceSeekTo(seconds: number): Promise<void> {
 export const deviceControls = {
   togglePlay: () => { deviceTogglePlay().catch(() => {}); },
   skip: (delta: number) => {
-    const { positionMs } = useDeviceStore.getState();
-    deviceSeekTo((positionMs + delta * 1000) / 1000).catch(() => {});
+    const { positionMs, durationMs } = useDeviceStore.getState();
+    const targetMs = positionMs + delta * 1000;
+    const boundedMs = durationMs > 0 ? Math.min(targetMs, durationMs) : targetMs;
+    deviceSeekTo(boundedMs / 1000).catch(() => {});
   },
   seekTo: (seconds: number) => { deviceSeekTo(seconds).catch(() => {}); },
   // 임의의 다른 앱 세션을 "정지+처음으로"까지 강제하는 건 소스 앱이 지원 안 할 수 있어

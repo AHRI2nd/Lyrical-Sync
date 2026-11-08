@@ -130,8 +130,10 @@ async function spotifyStop(): Promise<void> {
 export const serviceControls = {
   togglePlay: () => { spotifyTogglePlay().catch(() => {}); },
   skip: (delta: number) => {
-    const { positionMs } = useServiceStore.getState();
-    spotifySeekTo((positionMs + delta * 1000) / 1000).catch(() => {});
+    const { positionMs, durationMs } = useServiceStore.getState();
+    const targetMs = positionMs + delta * 1000;
+    const boundedMs = durationMs > 0 ? Math.min(targetMs, durationMs) : targetMs;
+    spotifySeekTo(boundedMs / 1000).catch(() => {});
   },
   seekTo: (seconds: number) => { spotifySeekTo(seconds).catch(() => {}); },
   stopAndReset: () => { spotifyStop().catch(() => {}); },

@@ -339,4 +339,15 @@ describe("useDeviceStore — failure notification", () => {
 
     expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(20);
   });
+
+  it("clamps a device skip to the known track duration", () => {
+    useSettingsStore.getState().setDeviceMode(true);
+    useDeviceStore.setState({ hasSession: true, isPlaying: true, positionMs: 59_000, durationMs: 60_000 });
+    invoke.mockReturnValue(new Promise<void>(() => {}));
+
+    deviceControls.skip(5);
+
+    expect(invoke).toHaveBeenCalledWith("now_playing_seek", { positionMs: 60_000 });
+    expect(useDeviceStore.getState().positionMs).toBe(60_000);
+  });
 });

@@ -17,6 +17,28 @@ function deferred<T>() {
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("clamps a Spotify skip to the known track duration", async () => {
+  useServiceStore.setState({
+    isLoggedIn: true,
+    accessToken: "token",
+    tokenExpiresAt: Date.now() + 3_600_000,
+    isPlaying: true,
+    positionMs: 59_000,
+    durationMs: 60_000,
+    _lastKnownPositionMs: 59_000,
+    _lastStateTimestamp: Date.now(),
+    _playbackRevision: 0,
+  });
+  const fetchMock = vi.fn().mockReturnValue(new Promise<Response>(() => {}));
+  vi.stubGlobal("fetch", fetchMock);
+
+  serviceControls.skip(5);
+  await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+
+  expect(String(fetchMock.mock.calls[0][0])).toBe("https://api.spotify.com/v1/me/player/seek?position_ms=60000");
+  expect(useServiceStore.getState().positionMs).toBe(60_000);
+});
+
 it("keeps lyric stamping aligned with a paused Spotify seek", () => {
   useSettingsStore.setState({ spotifyMode: true, deviceMode: false });
   useServiceStore.setState({
