@@ -1421,6 +1421,21 @@ describe("useLrcStore — save completion races", () => {
     expect(useLrcStore.getState().isDirty).toBe(true);
   });
 
+  it("rejects an SRT cue with a terminal line break before writing", async () => {
+    const state = useLrcStore.getState();
+    useLrcStore.setState({
+      doc: { ...state.doc, lines: [{ id: "1", timestamp: 1, text: "first\n" }] },
+      lrcPath: "/tmp/song.srt",
+      isDirty: true,
+    });
+
+    await expect(useLrcStore.getState().saveLrc()).rejects.toMatchObject({ code: "SRT_UNREPRESENTABLE_CONTENT" });
+
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState().lrcPath).toBe("/tmp/song.srt");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
   it("rejects an unrepresentable SRT Save As without changing the working path", async () => {
     const state = useLrcStore.getState();
     useLrcStore.setState({

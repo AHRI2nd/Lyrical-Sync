@@ -136,6 +136,12 @@ describe("serializeSrt", () => {
     );
   });
 
+  it("rejects a terminal newline after translated text in an SRT cue", () => {
+    expect(() => serializeSrt(docOf([{ id: "1", timestamp: 1, text: "original", translation: "translated\n" }]))).toThrow(
+      "SRT cannot preserve blank paragraph rows",
+    );
+  });
+
   it("escapes SRT markup while preserving literal text on reopen", () => {
     const text = "A <b>bold</b> &amp; B";
     const serialized = serializeSrt(docOf([{ id: "1", timestamp: 1, text }]));
