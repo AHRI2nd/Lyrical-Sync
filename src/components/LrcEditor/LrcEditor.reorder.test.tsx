@@ -156,6 +156,36 @@ describe("LrcEditor line reorder", () => {
     expect(useLrcStore.getState()._history).toHaveLength(0);
   });
 
+  it("cancels reordering when Escape is pressed", () => {
+    render(<LrcEditor onPreview={() => {}} />);
+    pointAt(screen.getByDisplayValue("Second lyric"));
+    const handle = startOn();
+    fireEvent.pointerMove(handle, { pointerId: 1, clientX: 20, clientY: 20 });
+    expect(screen.getByTestId("line-insertion-marker")).toBeTruthy();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.pointerUp(handle, { pointerId: 1, clientX: 20, clientY: 20 });
+
+    expect(screen.queryByTestId("line-insertion-marker")).toBeNull();
+    expect(useLrcStore.getState().doc.lines.map((line) => line.id)).toEqual(["first", "second"]);
+    expect(useLrcStore.getState()._history).toHaveLength(0);
+  });
+
+  it("cancels reordering when the window loses focus", () => {
+    render(<LrcEditor onPreview={() => {}} />);
+    pointAt(screen.getByDisplayValue("Second lyric"));
+    const handle = startOn();
+    fireEvent.pointerMove(handle, { pointerId: 1, clientX: 20, clientY: 20 });
+    expect(screen.getByTestId("line-insertion-marker")).toBeTruthy();
+
+    fireEvent.blur(window);
+    fireEvent.pointerUp(handle, { pointerId: 1, clientX: 20, clientY: 20 });
+
+    expect(screen.queryByTestId("line-insertion-marker")).toBeNull();
+    expect(useLrcStore.getState().doc.lines.map((line) => line.id)).toEqual(["first", "second"]);
+    expect(useLrcStore.getState()._history).toHaveLength(0);
+  });
+
   it("uses current line IDs if the document order changes during the gesture", () => {
     render(<LrcEditor onPreview={() => {}} />);
     positionRows();

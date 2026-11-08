@@ -227,6 +227,22 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   };
 
   useEffect(() => { clearReorder(); }, [documentSession, syncMode]);
+  useEffect(() => {
+    const cancelReorder = () => {
+      reorderRef.current = null;
+      setDragIdx(null);
+      setDropGapIdx(null);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.isComposing && reorderRef.current) cancelReorder();
+    };
+    window.addEventListener("blur", cancelReorder);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("blur", cancelReorder);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
 
   const gapAtPoint = (x: number, y: number, list: HTMLDivElement): number | null => {
     const hit = document.elementFromPoint(x, y);
