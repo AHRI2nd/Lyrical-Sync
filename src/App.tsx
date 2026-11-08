@@ -162,6 +162,11 @@ function useAutoSave(recoveryPending: boolean) {
       return !cancelled && current._documentSession === documentSession &&
         current.lrcPath === lrcPath && current._editRevision === editRevision;
     };
+    const ownsSavedDocument = () => {
+      const current = useLrcStore.getState();
+      return current._documentSession === documentSession && current.lrcPath === lrcPath &&
+        current._editRevision === editRevision && !current.isDirty;
+    };
     const scheduleRetry = () => {
       if (!ownsDocument() || !useLrcStore.getState().isDirty || retryIndex >= AUTOSAVE_RETRY_DELAYS_MS.length) return;
       timer = setTimeout(() => { void attemptSave(); }, AUTOSAVE_RETRY_DELAYS_MS[retryIndex++]);
@@ -180,7 +185,10 @@ function useAutoSave(recoveryPending: boolean) {
       const needsLrcNotice = lrcPath.toLowerCase().endsWith(".lrc") && needsInlineTimestampEscape(current.doc);
       try {
         const written = await current.saveLrc();
-        if (!ownsDocument()) return;
+        // A successful save clears isDirty and triggers this effect's cleanup before
+        // the promise continuation runs. Permit that completion only while the exact
+        // saved document session, path, and revision still own the clean state.
+        if (!ownsDocument() && !(written && ownsSavedDocument())) return;
         if (!written) { reportTransientFailure(); return; }
         serializationErrorShown.current = null;
         if (needsLrcNotice && !lrcExtensionNoticeShown.current) {

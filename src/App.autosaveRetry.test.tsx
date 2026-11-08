@@ -27,6 +27,7 @@ import { useSettingsStore } from "./stores/useSettingsStore";
 import { useToastStore } from "./stores/useToastStore";
 import { defaultDocument } from "./types/lrc";
 import { clearRecoverySnapshot, loadRecoverySnapshot } from "./utils/recovery";
+import { needsInlineTimestampEscape } from "./utils/lrcParser";
 
 const path = "/tmp/autosave-retry.lrc";
 const writes = () => invokeMock.mock.calls.filter(([command]) => command === "write_lrc_file_if_unchanged");
@@ -180,6 +181,32 @@ it("does not let an old request retry after the same path is owned by another do
   expect(useLrcStore.getState().isDirty).toBe(false);
   await advance(40_000);
   expect(writes()).toHaveLength(2);
+});
+
+it("does not let an old successful autosave consume the next document's LRC escape notice", async () => {
+  let resolveOld!: (value: undefined) => void;
+  invokeMock.mockImplementation((command: string) => command === "write_lrc_file_if_unchanged" && writes().length === 1
+    ? new Promise<undefined>((resolve) => { resolveOld = resolve; })
+    : Promise.resolve(undefined));
+  const original = useLrcStore.getState().doc;
+  useLrcStore.setState({
+    doc: { ...original, lines: [{ id: "old", timestamp: 1, text: "literal <00:01.000>" }] },
+  });
+  const notice = useI18nStore.getState().t.toast.lrcInlineEscapeNotice;
+  render(<App />);
+  await advance(1500);
+  expect(writes()).toHaveLength(1);
+
+  const nextDoc = { ...defaultDocument(), lines: [{ id: "next", timestamp: 2, text: "literal <00:02.000>" }] };
+  expect(needsInlineTimestampEscape(nextDoc)).toBe(true);
+  act(() => { useLrcStore.getState().restoreDoc(nextDoc, path, null, "a".repeat(64)); });
+  resolveOld(undefined);
+  await act(async () => {});
+  expect(useToastStore.getState().toasts.some((toast) => toast.message === notice)).toBe(false);
+
+  await advance(1500);
+  expect(writes()).toHaveLength(2);
+  expect(useToastStore.getState().toasts.filter((toast) => toast.message === notice)).toHaveLength(1);
 });
 
 it("cancels old-document retry timers when the document session changes", async () => {
