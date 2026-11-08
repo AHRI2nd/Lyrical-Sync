@@ -133,6 +133,25 @@ describe("AudioPlayer — local audio loading", () => {
     expect(loadSpy).not.toHaveBeenCalled();
   });
 
+  it("clears local playback state when restoring a lyrics-only snapshot", async () => {
+    vi.mocked(readAudioBytes).mockResolvedValue({ bytes: Uint8Array.from([1]), transcoded: false });
+    resetLrc([], null);
+    useLrcStore.setState({ audioPath: "/music/old.mp3" });
+    render(<AudioPlayer />);
+    await waitFor(() => expect(loadBlobSpy).toHaveBeenCalled());
+
+    act(() => {
+      useLrcStore.getState().setDuration(100);
+      wsHandlers.audioprocess(42);
+      wsHandlers.play();
+    });
+    expect(useLrcStore.getState()).toMatchObject({ currentTime: 42, duration: 100, isPlaying: true });
+
+    act(() => useLrcStore.getState().restoreDoc(defaultDocument(), null, null));
+
+    expect(useLrcStore.getState()).toMatchObject({ currentTime: 0, duration: 0, isPlaying: false });
+  });
+
   it("loads the selected local file when Spotify mode is persisted but the user is logged out", async () => {
     vi.mocked(readAudioBytes).mockResolvedValue({ bytes: Uint8Array.from([1]), transcoded: false });
     resetLrc([], null);

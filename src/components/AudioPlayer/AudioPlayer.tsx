@@ -220,7 +220,17 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     // 파일 모드로 돌아오면 다시 쓰도록), 여기서 걸러야 크래시 복구 후 엉뚱한 파일을
     // 다시 로드 시도하는 걸 막을 수 있다.
     clearWaveform();
-    if (!wsRef.current || !audioPath || isServiceMode || deviceMode) return;
+    if (!wsRef.current || isServiceMode || deviceMode) return;
+    if (!audioPath) {
+      setIsAudioReady(false);
+      setIsPlayingLocal(false);
+      setCurrentTimeLocal(0);
+      setDurationLocal(0);
+      setIsPlaying(false);
+      setCurrentTime(0);
+      setDuration(0);
+      return;
+    }
     let cancelled = false;
     const controller = new AbortController();
 
