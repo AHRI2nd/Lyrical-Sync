@@ -96,21 +96,17 @@ export function ModeSelectButton() {
     else audioControls.pause();
   };
 
-  const selectFile = () => {
-    stopCurrentPlayback();
-    setPlaybackMode("file"); setOpen(false);
+  const isCurrentMode = (mode: "file" | "spotify" | "youtube" | "device") => {
+    if (mode === "file") return !spotifyMode && !youtubeMode && !deviceMode;
+    if (mode === "spotify") return spotifyMode && !youtubeMode && !deviceMode;
+    if (mode === "youtube") return youtubeMode && !spotifyMode && !deviceMode;
+    return deviceMode && !spotifyMode && !youtubeMode;
   };
-  const selectSpotify = () => {
-    stopCurrentPlayback();
-    setPlaybackMode("spotify"); setOpen(false);
-  };
-  const selectYouTube = () => {
-    stopCurrentPlayback();
-    setPlaybackMode("youtube"); setOpen(false);
-  };
-  const selectDevice = () => {
-    stopCurrentPlayback();
-    setPlaybackMode("device"); setOpen(false);
+
+  const selectMode = (mode: "file" | "spotify" | "youtube" | "device") => {
+    if (!isCurrentMode(mode)) stopCurrentPlayback();
+    setPlaybackMode(mode);
+    setOpen(false);
   };
 
   return (
@@ -134,27 +130,27 @@ export function ModeSelectButton() {
             label={t.modeFile}
             active={!spotifyMode && !youtubeMode && !deviceMode}
             icon={<FileIcon />}
-            onClick={selectFile}
+            onClick={() => selectMode("file")}
           />
           <ModeOption
             label="Spotify"
             active={spotifyMode && !youtubeMode && !deviceMode}
             icon={<SpotifyIcon />}
-            onClick={selectSpotify}
+            onClick={() => selectMode("spotify")}
           />
           <ModeOption
             label={ytdlpInstalled ? t.modeYouTube : `${t.modeYouTube} ${t.modeComingSoon}`}
             active={youtubeMode}
             disabled={!ytdlpInstalled}
             icon={<YouTubeIcon />}
-            onClick={ytdlpInstalled ? selectYouTube : () => {}}
+            onClick={ytdlpInstalled ? () => selectMode("youtube") : () => {}}
           />
           {SUPPORTS_DEVICE_MODE && (
             <ModeOption
               label={t.modeDevice}
               active={deviceMode}
               icon={<DeviceIcon />}
-              onClick={selectDevice}
+              onClick={() => selectMode("device")}
             />
           )}
         </div>

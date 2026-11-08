@@ -65,3 +65,17 @@ it("reports Spotify pause failure but still switches playback mode", async () =>
     message: useI18nStore.getState().t.toast.spotifyActionFailed,
   });
 });
+
+it("does not pause Spotify when selecting the already active playback mode", async () => {
+  const pausePlayback = vi.fn().mockResolvedValue(undefined);
+  useSettingsStore.setState({ spotifyMode: true });
+  useServiceStore.setState({ isLoggedIn: true, pausePlayback });
+  invoke.mockResolvedValue(null);
+
+  render(<ModeSelectButton />);
+  fireEvent.click(screen.getAllByRole("button")[0]);
+  fireEvent.click(screen.getByRole("button", { name: /^Spotify/ }));
+
+  expect(pausePlayback).not.toHaveBeenCalled();
+  expect(useSettingsStore.getState().spotifyMode).toBe(true);
+});
