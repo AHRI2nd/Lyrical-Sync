@@ -12,3 +12,13 @@ it('uses track end for the final valid line and rejects invalid intervals', () =
     expect(getLinePlaybackRange([{ id: 'a', text: '', timestamp }], 'a', 100)).toBeNull();
   }
 });
+
+it('uses an explicit SRT cue end even when the next cue overlaps', () => {
+  expect(getLinePlaybackRange([
+    { id: 'a', text: 'first', timestamp: 1, srtEndTime: 10 },
+    { id: 'b', text: 'overlap', timestamp: 3, srtEndTime: 5 },
+  ], 'a', 20)).toEqual({ start: 1, end: 10 });
+  expect(getLinePlaybackRange([
+    { id: 'a', text: 'first', timestamp: 1, srtEndTime: 30 },
+  ], 'a', 20)).toEqual({ start: 1, end: 20 });
+});

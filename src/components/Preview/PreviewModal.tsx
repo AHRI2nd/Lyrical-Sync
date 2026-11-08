@@ -105,9 +105,13 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
       const timestamp = timestamps[i];
       nextByTimestamp.set(timestamp, timestamps[i + 1] ?? (playbackDuration > 0 ? playbackDuration : timestamp + 4));
     }
-    return doc.lines.map((line) => line.timestamp === null
-      ? (playbackDuration > 0 ? playbackDuration : 4)
-      : nextByTimestamp.get(line.timestamp) ?? (playbackDuration > 0 ? playbackDuration : line.timestamp + 4));
+    return doc.lines.map((line) => {
+      if (line.timestamp === null) return playbackDuration > 0 ? playbackDuration : 4;
+      if (Number.isFinite(line.srtEndTime) && line.srtEndTime! > line.timestamp) {
+        return playbackDuration > 0 ? Math.min(line.srtEndTime!, playbackDuration) : line.srtEndTime!;
+      }
+      return nextByTimestamp.get(line.timestamp) ?? (playbackDuration > 0 ? playbackDuration : line.timestamp + 4);
+    });
   }, [doc.lines, playbackDuration]);
 
   // 활성 줄이 바뀔 때 스크롤 (편집 중이 아닐 때만)

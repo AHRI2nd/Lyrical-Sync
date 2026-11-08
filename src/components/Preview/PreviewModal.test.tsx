@@ -44,6 +44,14 @@ it("selects playback rows by timestamp and ends karaoke at the next chronologica
   expect(earlyRow?.querySelector("span.relative")).toBeNull();
 });
 
+it("uses an explicit SRT cue end for karaoke preview across overlapping cues", () => {
+  useLrcStore.setState({ currentTime: 8, duration: 30, doc: { ...defaultDocument(), lines: [
+    { id: "first", text: "AB", timestamp: 1, srtEndTime: 10, syllables: [{ text: "A", time: 1 }, { text: "B", time: 6 }] },
+  ] } });
+  const { getByText } = render(<PreviewModal onOpenStyleSettings={() => {}} onClose={() => {}} />);
+  expect(getByText("B").style.background).toContain("50%");
+});
+
 it("exposes the lyric preview as a named modal dialog", () => {
   const { getByRole } = render(<PreviewModal onOpenStyleSettings={() => {}} onClose={() => {}} />);
   expect(getByRole("dialog", { name: "song" })).toBeTruthy();
