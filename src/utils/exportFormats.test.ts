@@ -18,6 +18,13 @@ describe("serializeVtt", () => {
     expect(() => serializeVtt(docOf([{ id: "1", timestamp: 1, text: "original\n", translation: "translated" }]))).
       toThrow("VTT cannot preserve blank paragraph rows");
   });
+  it("rejects a terminal cue line break that is lost by common VTT conversion", () => {
+    expect(() => serializeVtt(docOf([{ id: "1", timestamp: 1, text: "hello\n" }]))).
+      toThrow("VTT cannot preserve blank paragraph rows");
+    expect(() => serializeVtt(docOf([{ id: "1", timestamp: 1, text: "hello", translation: "translated\n" }]))).
+      toThrow("VTT cannot preserve blank paragraph rows");
+  });
+
   it("escapes text characters in order without changing original text", () => {
     expect(escapeVttText("& < > &amp;")).toBe("&amp; &lt; &gt; &amp;amp;");
   });

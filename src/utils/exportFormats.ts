@@ -29,8 +29,9 @@ export class VttInvalidSyllableTimeError extends Error {
 }
 
 function assertVttBodyRepresentable(value: string): void {
-  const rows = value.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
-  while (rows.length && rows[rows.length - 1].trim() === "") rows.pop();
+  const normalized = value.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  if (normalized.endsWith("\n")) throw new VttUnrepresentableContentError();
+  const rows = normalized.split("\n");
   if (rows.some((row) => row.trim() === "")) throw new VttUnrepresentableContentError();
 }
 
