@@ -345,6 +345,147 @@ fn inspect_adts_aac(file: &mut File, file_bytes: u64) -> Result<Option<AudioReso
     validate_audio_properties(file_bytes, duration, sample_rate, channels).map(Some)
 }
 
+fn validate_flac_frame_budget(
+    file_bytes: u64,
+    sample_rate: u32,
+    channels: u8,
+    frames: u64,
+) -> Result<AudioResourceInfo, String> {
+    if frames == 0 {
+        return Err("AUDIO_METADATA_UNAVAILABLE".into());
+    }
+    validate_audio_properties(file_bytes, Duration::from_secs(1), sample_rate, channels)?;
+    let duration_nanos = u128::from(frames)
+        .checked_mul(1_000_000_000)
+        .map(|nanos| nanos / u128::from(sample_rate))
+        .ok_or_else(|| AUDIO_RESOURCE_LIMIT_ERROR.to_string())?;
+    let duration_nanos =
+        u64::try_from(duration_nanos).map_err(|_| AUDIO_RESOURCE_LIMIT_ERROR.to_string())?;
+    validate_audio_properties(
+        file_bytes,
+        Duration::from_nanos(duration_nanos),
+        sample_rate,
+        channels,
+    )
+}
+
+fn find_flac_stream_offset(file: &mut File) -> Result<Option<u64>, String> {
+    file.seek(SeekFrom::Start(0))
+        .map_err(|error| error.to_string())?;
+    let mut prefix = [0_u8; 4];
+    match file.read_exact(&mut prefix) {
+        Ok(()) if &prefix == b"fLaC" => return Ok(Some(0)),
+        Ok(()) if &prefix[..3] != b"ID3" => return Ok(None),
+        Err(error) if error.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(None),
+        Err(error) => return Err(error.to_string()),
+        _ => {}
+    }
+
+    file.seek(SeekFrom::Start(0))
+        .map_err(|error| error.to_string())?;
+    let mut header = [0_u8; 10];
+    file.read_exact(&mut header)
+        .map_err(|_| "AUDIO_METADATA_UNAVAILABLE".to_string())?;
+    if !(2..=4).contains(&header[3]) || header[6..10].iter().any(|byte| byte & 0x80 != 0) {
+        return Err("AUDIO_METADATA_UNAVAILABLE".into());
+    }
+    let tag_bytes = (u64::from(header[6]) << 21)
+        | (u64::from(header[7]) << 14)
+        | (u64::from(header[8]) << 7)
+        | u64::from(header[9]);
+    let footer_bytes = u64::from(header[3] == 4 && header[5] & 0x10 != 0) * 10;
+    let offset = 10_u64
+        .checked_add(tag_bytes)
+        .and_then(|offset| offset.checked_add(footer_bytes))
+        .ok_or_else(|| AUDIO_RESOURCE_LIMIT_ERROR.to_string())?;
+    file.seek(SeekFrom::Start(offset))
+        .map_err(|error| error.to_string())?;
+    let mut magic = [0_u8; 4];
+    match file.read_exact(&mut magic) {
+        Ok(()) if &magic == b"fLaC" => Ok(Some(offset)),
+        Ok(()) => Ok(None),
+        Err(error) if error.kind() == std::io::ErrorKind::UnexpectedEof => {
+            Err("AUDIO_METADATA_UNAVAILABLE".into())
+        }
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+fn inspect_flac_frames(
+    file: &mut File,
+    file_bytes: u64,
+) -> Result<Option<AudioResourceInfo>, String> {
+    use symphonia::core::formats::FormatOptions;
+    use symphonia::core::io::MediaSourceStream;
+    use symphonia::core::meta::MetadataOptions;
+    use symphonia::core::probe::Hint;
+
+    let Some(stream_offset) = find_flac_stream_offset(file)? else {
+        file.seek(SeekFrom::Start(0))
+            .map_err(|error| error.to_string())?;
+        return Ok(None);
+    };
+
+    file.seek(SeekFrom::Start(stream_offset))
+        .map_err(|error| error.to_string())?;
+    let source = file.try_clone().map_err(|error| error.to_string())?;
+    let stream = MediaSourceStream::new(Box::new(source), Default::default());
+    let mut hint = Hint::new();
+    hint.with_extension("flac");
+    let probed = symphonia::default::get_probe()
+        .format(
+            &hint,
+            stream,
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        )
+        .map_err(|error| format!("AUDIO_METADATA_UNAVAILABLE: {error}"))?;
+    let mut format = probed.format;
+    let track = format
+        .default_track()
+        .ok_or_else(|| "AUDIO_METADATA_UNAVAILABLE".to_string())?;
+    let track_id = track.id;
+    let sample_rate = track
+        .codec_params
+        .sample_rate
+        .ok_or_else(|| "AUDIO_METADATA_UNAVAILABLE".to_string())?;
+    let channels = track
+        .codec_params
+        .channels
+        .ok_or_else(|| "AUDIO_METADATA_UNAVAILABLE".to_string())?
+        .count();
+    let channels = u8::try_from(channels).map_err(|_| AUDIO_RESOURCE_LIMIT_ERROR.to_string())?;
+
+    let mut frames = 0_u64;
+    loop {
+        let packet = match format.next_packet() {
+            Ok(packet) => packet,
+            Err(symphonia::core::errors::Error::IoError(error))
+                if error.kind() == std::io::ErrorKind::UnexpectedEof =>
+            {
+                break;
+            }
+            Err(error) => return Err(format!("AUDIO_METADATA_UNAVAILABLE: {error}")),
+        };
+        if packet.track_id() != track_id {
+            continue;
+        }
+        let packet_frames = packet.dur();
+        if packet_frames == 0 {
+            return Err("AUDIO_METADATA_UNAVAILABLE".into());
+        }
+        frames = frames
+            .checked_add(packet_frames)
+            .ok_or_else(|| AUDIO_RESOURCE_LIMIT_ERROR.to_string())?;
+        validate_flac_frame_budget(file_bytes, sample_rate, channels, frames)?;
+    }
+
+    let info = validate_flac_frame_budget(file_bytes, sample_rate, channels, frames)?;
+    file.seek(SeekFrom::Start(0))
+        .map_err(|error| error.to_string())?;
+    Ok(Some(info))
+}
+
 fn inspect_audio_file_handle(file: &mut std::fs::File) -> Result<AudioResourceInfo, String> {
     let file_bytes = file.metadata().map_err(|error| error.to_string())?.len();
     if file_bytes > MAX_AUDIO_FILE_BYTES {
@@ -352,6 +493,10 @@ fn inspect_audio_file_handle(file: &mut std::fs::File) -> Result<AudioResourceIn
     }
 
     if let Some(info) = inspect_adts_aac(file, file_bytes)? {
+        return Ok(info);
+    }
+
+    if let Some(info) = inspect_flac_frames(file, file_bytes)? {
         return Ok(info);
     }
 
@@ -500,6 +645,52 @@ mod tests {
         assert_eq!(info.sample_rate, 48_000);
         assert_eq!(info.channels, 2);
         assert!(info.estimated_pcm_bytes <= MAX_AUDIO_PCM_BYTES);
+    }
+
+    #[test]
+    fn inspects_flac_duration_from_frames_instead_of_streaminfo_total_samples() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("understated.flac");
+        std::fs::write(
+            &path,
+            include_bytes!("../test-fixtures/understated-duration.flac"),
+        )
+        .unwrap();
+
+        let (bytes, info) = read_bounded_audio_file(&path).unwrap();
+
+        assert!(bytes.starts_with(b"fLaC"));
+        assert_eq!(info.duration_seconds, 3);
+        assert_eq!(info.estimated_pcm_bytes, 3 * 48_000 * 2 * 4);
+    }
+
+    #[test]
+    fn inspects_flac_duration_after_a_valid_id3v2_prefix() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("understated-with-id3.flac");
+        let mut bytes = b"ID3\x04\x00\x00\x00\x00\x00\x00".to_vec();
+        bytes.extend_from_slice(include_bytes!("../test-fixtures/understated-duration.flac"));
+        std::fs::write(&path, bytes).unwrap();
+
+        let info = inspect_audio_file(&path).unwrap();
+
+        assert_eq!(info.duration_seconds, 3);
+        assert_eq!(info.estimated_pcm_bytes, 3 * 48_000 * 2 * 4);
+    }
+
+    #[test]
+    fn rejects_flac_frame_count_that_exceeds_the_decoded_pcm_budget() {
+        let frames_over_limit = MAX_AUDIO_PCM_BYTES / (2 * 4) + 1;
+
+        assert_eq!(
+            validate_flac_frame_budget(1024, 48_000, 2, frames_over_limit).unwrap_err(),
+            AUDIO_RESOURCE_LIMIT_ERROR
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_flac_sample_rate_without_panicking() {
+        assert!(validate_flac_frame_budget(1024, 0, 2, 1).is_err());
     }
 
     #[test]
