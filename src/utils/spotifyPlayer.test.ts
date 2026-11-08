@@ -16,10 +16,11 @@ import { disconnectSpotifyPlayer, getSpotifyVolume, initSpotifyPlayer, setSpotif
 type Listener = (...args: any[]) => void;
 class MockSpotifyPlayer {
   static instances: MockSpotifyPlayer[] = [];
+  static connectImplementation: (() => Promise<boolean>) | null = null;
   listeners = new Map<string, Listener>();
   options: { getOAuthToken: (callback: (token: string) => void) => Promise<void> };
   disconnect = vi.fn();
-  connect = vi.fn();
+  connect = vi.fn(() => MockSpotifyPlayer.connectImplementation?.() ?? Promise.resolve(true));
   activateElement = vi.fn(async () => {});
   setVolume = vi.fn(async () => {});
   getVolume = vi.fn(async () => this.volume);
@@ -40,6 +41,7 @@ function deferred<T>() {
 
 beforeEach(() => {
   MockSpotifyPlayer.instances = [];
+  MockSpotifyPlayer.connectImplementation = null;
   disconnectSpotifyPlayer();
   invoke.mockReset().mockResolvedValue(undefined);
   useSettingsStore.setState({ spotifyClientId: "spotify-player-test", spotifyMode: false });
@@ -138,6 +140,43 @@ it("connects only one player for the current auth lease and supplies its current
   initSpotifyPlayer();
   expect(MockSpotifyPlayer.instances).toHaveLength(2);
   expect(instance.disconnect).toHaveBeenCalledOnce();
+});
+
+it("reports an SDK connection that resolves false", async () => {
+  MockSpotifyPlayer.connectImplementation = async () => false;
+  initSpotifyPlayer();
+  await Promise.resolve();
+
+  expect(useServiceStore.getState().playerError).toBe("connect_failed");
+  expect(useToastStore.getState().toasts[useToastStore.getState().toasts.length - 1]).toMatchObject({
+    type: "error",
+    message: useI18nStore.getState().t.toast.spotifyActionFailed,
+  });
+});
+
+it("reports a rejected SDK connection without an unhandled rejection", async () => {
+  MockSpotifyPlayer.connectImplementation = async () => { throw new Error("connection rejected"); };
+  initSpotifyPlayer();
+  await Promise.resolve();
+  await Promise.resolve();
+
+  expect(useServiceStore.getState().playerError).toBe("connect_failed");
+  expect(useToastStore.getState().toasts[useToastStore.getState().toasts.length - 1]).toMatchObject({
+    type: "error",
+    message: useI18nStore.getState().t.toast.spotifyActionFailed,
+  });
+});
+
+it("ignores a late failed SDK connection after its player is disconnected", async () => {
+  let resolveConnect!: (connected: boolean) => void;
+  MockSpotifyPlayer.connectImplementation = () => new Promise((resolve) => { resolveConnect = resolve; });
+  initSpotifyPlayer();
+  disconnectSpotifyPlayer();
+  resolveConnect(false);
+  await Promise.resolve();
+
+  expect(useServiceStore.getState().playerError).toBeNull();
+  expect(useToastStore.getState().toasts).toHaveLength(0);
 });
 
 function spotifyResponse(trackName: string) {

@@ -173,7 +173,19 @@ function createPlayer(lease: AuthLease): void {
     });
   }
 
-  instance.connect();
+  let connectionFailureReported = false;
+  const reportConnectFailure = () => {
+    if (connectionFailureReported || !isCurrentInstance()) return;
+    connectionFailureReported = true;
+    useServiceStore.getState().setPlayerError("connect_failed");
+    toast.error(useI18nStore.getState().t.toast.spotifyActionFailed);
+  };
+
+  void instance.connect().then((connected) => {
+    if (connected === false) reportConnectFailure();
+  }).catch(() => {
+    reportConnectFailure();
+  });
 }
 
 let observedAuthGeneration = useServiceStore.getState()._authGeneration;
