@@ -44,6 +44,15 @@ it('clears glyph timing when the line onset is removed', () => {
  useLrcStore.getState().updateLine('a',{timestamp:null});
  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({timestamp:null,syllables:undefined});
 });
+it('rejects a negative shift that would collapse an SRT cue without changing the document', () => {
+ const originalDoc={...defaultDocument(),lines:[{id:'cue',text:'cue text',timestamp:1,srtEndTime:2}]};
+ useLrcStore.setState({doc:originalDoc,isDirty:false});
+ useLrcStore.getState().shiftTimeRange(0,0,-3);
+ expect(useLrcStore.getState().doc).toBe(originalDoc);
+ expect(useLrcStore.getState().isDirty).toBe(false);
+ expect(useLrcStore.getState()._history).toHaveLength(0);
+ expect(serializeSrt(useLrcStore.getState().doc)).toContain('00:00:01,000 --> 00:00:02,000\ncue text');
+});
 it('restores the original line and glyph times with Undo', () => {
  useLrcStore.getState().stampAndAdvance();useLrcStore.getState().undo();
  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({timestamp:1,syllables:[{text:'a',time:1},{text:' ',time:null},{text:'b',time:2}]});
