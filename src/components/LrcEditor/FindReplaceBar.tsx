@@ -52,6 +52,8 @@ export function FindReplaceBar({
         <div className="relative group/aa">
           <button
             onClick={onCaseSensitiveToggle}
+            aria-label={t.caseSensitive}
+            aria-pressed={caseSensitive}
             className={`ls-button ls-button--compact ${`  text-xs rounded-lg font-mono transition-colors ${
               caseSensitive
                 ? "bg-[var(--ls-playhead)] text-[var(--ls-canvas)]"

@@ -1,7 +1,29 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/react';
-import { expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, expect, it, vi } from 'vitest';
 import { FindReplaceBar } from './FindReplaceBar';
+import { useI18nStore } from '../../stores/useI18nStore';
+
+afterEach(cleanup);
+
+it('exposes the case-sensitive toggle name and pressed state', () => {
+  const onCaseSensitiveToggle = vi.fn();
+  const { rerender } = render(<FindReplaceBar findText="text" replaceText="new" caseSensitive={false} matchCount={1} matchPos={0}
+    onFindChange={vi.fn()} onReplaceChange={vi.fn()} onCaseSensitiveToggle={onCaseSensitiveToggle} onPrev={vi.fn()}
+    onNext={vi.fn()} onReplace={vi.fn()} onReplaceAll={vi.fn()} onClose={vi.fn()}
+    findInputRef={{ current: null }} />);
+  const label = useI18nStore.getState().t.caseSensitive;
+  const toggle = screen.getByRole('button', { name: label });
+  expect(toggle.getAttribute('aria-pressed')).toBe('false');
+
+  fireEvent.click(toggle);
+  expect(onCaseSensitiveToggle).toHaveBeenCalledOnce();
+  rerender(<FindReplaceBar findText="text" replaceText="new" caseSensitive matchCount={1} matchPos={0}
+    onFindChange={vi.fn()} onReplaceChange={vi.fn()} onCaseSensitiveToggle={onCaseSensitiveToggle} onPrev={vi.fn()}
+    onNext={vi.fn()} onReplace={vi.fn()} onReplaceAll={vi.fn()} onClose={vi.fn()}
+    findInputRef={{ current: null }} />);
+  expect(screen.getByRole('button', { name: label }).getAttribute('aria-pressed')).toBe('true');
+});
 
 it('does not run find, replace, or close actions for composing keys', () => {
   const onNext = vi.fn();
