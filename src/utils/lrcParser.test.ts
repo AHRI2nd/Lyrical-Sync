@@ -149,6 +149,11 @@ describe("tokenizeText", () => {
   it("splits by character, preserving spaces as tokens", () => {
     expect(tokenizeText("너의 손", "char").map((s) => s.text)).toEqual(["너", "의", " ", "손"]);
   });
+  it("keeps visible Unicode graphemes together in character sync mode", () => {
+    expect(tokenizeText("e\u0301👨‍👩‍👧‍👦", "char").map((s) => s.text)).toEqual([
+      "e\u0301", "👨‍👩‍👧‍👦",
+    ]);
+  });
   it("splits by word, keeping whitespace runs as separate tokens", () => {
     expect(tokenizeText("hello world", "word").map((s) => s.text)).toEqual(["hello", " ", "world"]);
   });
