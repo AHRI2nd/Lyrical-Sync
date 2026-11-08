@@ -142,7 +142,7 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
             <span className="text-[10px] font-bold mr-0.5">5</span><SkipFwdIcon />
           </SpotifyCtrlBtn>
         </div>
-        <SpotifyCtrlBtn onClick={() => toggleLoop().catch(() => {})} title={t.tooltipLoop} active={isLooping}>
+        <SpotifyCtrlBtn onClick={() => toggleLoop().catch(() => toast.error(t.toast.spotifyActionFailed))} title={t.tooltipLoop} active={isLooping}>
           <LoopIcon size={14} />
         </SpotifyCtrlBtn>
       </div>
