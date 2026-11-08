@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { ScaleBar } from "./ScaleBar";
 import { TimeShiftBar } from "./TimeShiftBar";
 import { useI18nStore } from "../../stores/useI18nStore";
@@ -117,6 +118,28 @@ it("does not apply an invalid time shift range", () => {
   fireEvent.change(delta, { target: { value: "0.1" } });
   expect((getByRole("button", { name: "적용" }) as HTMLButtonElement).disabled).toBe(true);
   expect(onApply).not.toHaveBeenCalled();
+});
+
+it("preserves a negative time shift while it is entered sequentially", async () => {
+  const onApply = vi.fn();
+  const user = userEvent.setup();
+  const { getByRole } = render(<TimeShiftBar lineCount={4} defaultFrom={1} onApply={onApply} onClose={vi.fn()} />);
+  const delta = document.querySelectorAll('input[type="number"]')[2] as HTMLInputElement;
+  await user.clear(delta);
+  await user.type(delta, "-1.5");
+  await user.click(getByRole("button", { name: useI18nStore.getState().t.timeShiftApply }));
+  expect(onApply).toHaveBeenCalledWith(0, 3, -1.5);
+});
+
+it("preserves a fractional scale while it is entered sequentially", async () => {
+  const onApply = vi.fn();
+  const user = userEvent.setup();
+  const { getByRole } = render(<ScaleBar onApply={onApply} onClose={vi.fn()} />);
+  const factor = getByRole("spinbutton");
+  await user.clear(factor);
+  await user.type(factor, "0.5");
+  await user.click(getByRole("button", { name: useI18nStore.getState().t.timeShiftApply }));
+  expect(onApply).toHaveBeenCalledWith(0.5);
 });
 
 it.each([{ isComposing: true }, { keyCode: 229 }, { shiftKey: true }, { defaultPrevented: true }])(
