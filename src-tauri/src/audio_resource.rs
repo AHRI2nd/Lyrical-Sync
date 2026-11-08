@@ -1,7 +1,7 @@
 use lofty::file::AudioFile;
 use serde::Serialize;
-use std::io::{Read, Seek, SeekFrom};
 use std::fs::{File, OpenOptions};
+use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use std::time::Duration;
 
@@ -107,13 +107,151 @@ pub fn inspect_audio_file(path: &Path) -> Result<AudioResourceInfo, String> {
     inspect_audio_file_handle(&mut file)
 }
 
+fn inspect_adts_aac(file: &mut File, file_bytes: u64) -> Result<Option<AudioResourceInfo>, String> {
+    let mut audio_end = file_bytes;
+    if file_bytes >= 128 {
+        file.seek(SeekFrom::Start(file_bytes - 128))
+            .map_err(|error| error.to_string())?;
+        let mut id3v1_signature = [0_u8; 3];
+        file.read_exact(&mut id3v1_signature)
+            .map_err(|error| error.to_string())?;
+        if &id3v1_signature == b"TAG" {
+            audio_end -= 128;
+        }
+    }
+
+    file.seek(SeekFrom::Start(0)).map_err(|error| error.to_string())?;
+    let mut prefix = [0_u8; 10];
+    let prefix_len = file.read(&mut prefix).map_err(|error| error.to_string())?;
+    let mut offset = 0_u64;
+
+    if prefix_len >= prefix.len() && &prefix[..3] == b"ID3" {
+        if prefix[6..10].iter().any(|byte| byte & 0x80 != 0) {
+            return Ok(None);
+        }
+        let tag_size = prefix[6..10]
+            .iter()
+            .fold(0_u64, |size, byte| (size << 7) | u64::from(*byte));
+        let footer_size = if prefix[5] & 0x10 != 0 { 10 } else { 0 };
+        offset = 10_u64
+            .checked_add(tag_size)
+            .and_then(|size| size.checked_add(footer_size))
+            .ok_or_else(|| AUDIO_RESOURCE_LIMIT_ERROR.to_string())?;
+        if offset > file_bytes {
+            return Ok(None);
+        }
+    }
+
+    if audio_end.saturating_sub(offset) < 2 {
+        return Ok(None);
+    }
+    file.seek(SeekFrom::Start(offset))
+        .map_err(|error| error.to_string())?;
+    let mut sync = [0_u8; 2];
+    file.read_exact(&mut sync)
+        .map_err(|error| error.to_string())?;
+    if sync[0] != 0xff || sync[1] & 0xf6 != 0xf0 {
+        return Ok(None);
+    }
+
+    const SAMPLE_RATES: [u32; 13] = [
+        96_000, 88_200, 64_000, 48_000, 44_100, 32_000, 24_000, 22_050, 16_000, 12_000, 11_025,
+        8_000, 7_350,
+    ];
+    const CHANNELS: [u8; 8] = [0, 1, 2, 3, 4, 5, 6, 8];
+
+    let mut sample_rate = None;
+    let mut channels = None;
+    let mut decoded_frames = 0_u128;
+    while offset < audio_end {
+        if audio_end - offset < 7 {
+            return Err("AUDIO_METADATA_UNAVAILABLE".into());
+        }
+        file.seek(SeekFrom::Start(offset))
+            .map_err(|error| error.to_string())?;
+        let mut header = [0_u8; 7];
+        file.read_exact(&mut header)
+            .map_err(|error| error.to_string())?;
+        if header[0] != 0xff || header[1] & 0xf6 != 0xf0 {
+            return Err("AUDIO_METADATA_UNAVAILABLE".into());
+        }
+
+        let rate_index = usize::from((header[2] >> 2) & 0x0f);
+        let rate = *SAMPLE_RATES
+            .get(rate_index)
+            .ok_or_else(|| "AUDIO_METADATA_UNAVAILABLE".to_string())?;
+        let channel_index = usize::from(((header[2] & 0x01) << 2) | (header[3] >> 6));
+        let channel_count = CHANNELS[channel_index];
+        if channel_count == 0
+            || sample_rate.is_some_and(|previous| previous != rate)
+            || channels.is_some_and(|previous| previous != channel_count)
+        {
+            return Err("AUDIO_METADATA_UNAVAILABLE".into());
+        }
+
+        let frame_length = (u64::from(header[3] & 0x03) << 11)
+            | (u64::from(header[4]) << 3)
+            | u64::from(header[5] >> 5);
+        let header_length = if header[1] & 0x01 == 0 { 9 } else { 7 };
+        if frame_length < header_length || frame_length > audio_end - offset {
+            return Err("AUDIO_METADATA_UNAVAILABLE".into());
+        }
+
+        sample_rate = Some(rate);
+        channels = Some(channel_count);
+        let raw_blocks = u128::from(header[6] & 0x03) + 1;
+        decoded_frames = decoded_frames
+            .checked_add(1024_u128 * raw_blocks)
+            .ok_or_else(|| AUDIO_RESOURCE_LIMIT_ERROR.to_string())?;
+        let duration_nanos = decoded_frames
+            .checked_mul(1_000_000_000)
+            .map(|nanos| nanos / u128::from(rate))
+            .ok_or_else(|| AUDIO_RESOURCE_LIMIT_ERROR.to_string())?;
+        if duration_nanos > MAX_AUDIO_DURATION.as_nanos() {
+            return Err(AUDIO_RESOURCE_LIMIT_ERROR.into());
+        }
+        let effective_rate = u128::from(rate.max(WEBAUDIO_BASE_SAMPLE_RATE));
+        let estimated_output_frames = decoded_frames
+            .checked_mul(effective_rate)
+            .and_then(|frames| frames.checked_add(u128::from(rate) - 1))
+            .map(|frames| frames / u128::from(rate))
+            .ok_or_else(|| AUDIO_RESOURCE_LIMIT_ERROR.to_string())?;
+        let estimated_pcm_bytes = estimated_output_frames
+            .checked_mul(u128::from(channel_count))
+            .and_then(|samples| samples.checked_mul(4))
+            .ok_or_else(|| AUDIO_RESOURCE_LIMIT_ERROR.to_string())?;
+        if estimated_pcm_bytes > u128::from(MAX_AUDIO_PCM_BYTES) {
+            return Err(AUDIO_RESOURCE_LIMIT_ERROR.into());
+        }
+        offset = offset
+            .checked_add(frame_length)
+            .ok_or_else(|| AUDIO_RESOURCE_LIMIT_ERROR.to_string())?;
+    }
+
+    let sample_rate = sample_rate.ok_or_else(|| "AUDIO_METADATA_UNAVAILABLE".to_string())?;
+    let channels = channels.ok_or_else(|| "AUDIO_METADATA_UNAVAILABLE".to_string())?;
+    let duration_nanos = decoded_frames
+        .checked_mul(1_000_000_000)
+        .map(|nanos| nanos / u128::from(sample_rate))
+        .ok_or_else(|| AUDIO_RESOURCE_LIMIT_ERROR.to_string())?;
+    let duration_nanos =
+        u64::try_from(duration_nanos).map_err(|_| AUDIO_RESOURCE_LIMIT_ERROR.to_string())?;
+    let duration = Duration::from_nanos(duration_nanos);
+    validate_audio_properties(file_bytes, duration, sample_rate, channels).map(Some)
+}
+
 fn inspect_audio_file_handle(file: &mut std::fs::File) -> Result<AudioResourceInfo, String> {
     let file_bytes = file.metadata().map_err(|error| error.to_string())?.len();
     if file_bytes > MAX_AUDIO_FILE_BYTES {
         return Err(AUDIO_RESOURCE_LIMIT_ERROR.into());
     }
 
-    file.seek(SeekFrom::Start(0)).map_err(|error| error.to_string())?;
+    if let Some(info) = inspect_adts_aac(file, file_bytes)? {
+        return Ok(info);
+    }
+
+    file.seek(SeekFrom::Start(0))
+        .map_err(|error| error.to_string())?;
     let tagged = lofty::read_from(file).map_err(|error| error.to_string())?;
     let properties = tagged.properties();
     let sample_rate = properties
@@ -139,7 +277,8 @@ fn read_bounded_audio_file_with_hook(
     if file.metadata().map_err(|error| error.to_string())?.len() > MAX_AUDIO_FILE_BYTES {
         return Err(AUDIO_RESOURCE_LIMIT_ERROR.into());
     }
-    file.seek(SeekFrom::Start(0)).map_err(|error| error.to_string())?;
+    file.seek(SeekFrom::Start(0))
+        .map_err(|error| error.to_string())?;
     let mut bytes = Vec::new();
     file.by_ref()
         .take(MAX_AUDIO_FILE_BYTES + 1)
@@ -172,8 +311,7 @@ mod tests {
         assert_eq!(MAX_AUDIO_PCM_BYTES, one_gib);
         assert!(validate_audio_properties(one_gib, Duration::from_secs(1), 48_000, 2).is_ok());
         assert_eq!(
-            validate_audio_properties(one_gib + 1, Duration::from_secs(1), 48_000, 2)
-                .unwrap_err(),
+            validate_audio_properties(one_gib + 1, Duration::from_secs(1), 48_000, 2).unwrap_err(),
             AUDIO_RESOURCE_LIMIT_ERROR
         );
 
@@ -257,6 +395,52 @@ mod tests {
         assert_eq!(info.sample_rate, 48_000);
         assert_eq!(info.channels, 2);
         assert!(info.estimated_pcm_bytes <= MAX_AUDIO_PCM_BYTES);
+    }
+
+    #[test]
+    fn inspects_adts_aac_duration_from_frame_headers() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("variable-rate.aac");
+        let mut bytes = Vec::new();
+        for index in 0..1_292 {
+            let frame_len = if index % 2 == 0 { 12_usize } else { 80_usize };
+            let channel_config = 1_u8;
+            let mut frame = vec![0_u8; frame_len];
+            frame[0] = 0xff;
+            frame[1] = 0xf1;
+            frame[2] = 0x50 | (channel_config >> 2);
+            frame[3] = ((channel_config & 0x03) << 6) | (((frame_len >> 11) & 0x03) as u8);
+            frame[4] = (frame_len >> 3) as u8;
+            frame[5] = (((frame_len & 0x07) as u8) << 5) | 0x1f;
+            frame[6] = 0xfc;
+            bytes.extend_from_slice(&frame);
+        }
+        let mut id3v1_tag = [0_u8; 128];
+        id3v1_tag[..3].copy_from_slice(b"TAG");
+        bytes.extend_from_slice(&id3v1_tag);
+        std::fs::write(&path, bytes).unwrap();
+
+        let info = inspect_audio_file(&path).unwrap();
+
+        assert_eq!(info.sample_rate, 44_100);
+        assert_eq!(info.channels, 1);
+        assert_eq!(info.duration_seconds, 30);
+    }
+
+    #[test]
+    fn rejects_adts_aac_when_decoded_pcm_would_exceed_the_budget() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("oversized.aac");
+        let mut bytes = Vec::with_capacity(7 * 300_000);
+        for _ in 0..300_000 {
+            bytes.extend_from_slice(&[0xff, 0xf1, 0x50, 0x40, 0x00, 0xff, 0xfc]);
+        }
+        std::fs::write(&path, bytes).unwrap();
+
+        assert_eq!(
+            inspect_audio_file(&path).unwrap_err(),
+            AUDIO_RESOURCE_LIMIT_ERROR
+        );
     }
 
     #[test]
