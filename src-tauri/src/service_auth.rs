@@ -1,7 +1,7 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
@@ -13,6 +13,7 @@ static PENDING_REFRESH_TOKENS: OnceLock<Mutex<HashMap<String, (String, std::time
 static ACTIVE_OAUTH_STATE: OnceLock<Mutex<Option<String>>> = OnceLock::new();
 const PENDING_REFRESH_TOKEN_TTL: Duration = Duration::from_secs(120);
 const MAX_PENDING_REFRESH_TOKENS: usize = 8;
+const MAX_LEGACY_TOKEN_BYTES: u64 = 64 * 1024;
 
 fn token_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     app.path().app_data_dir()
@@ -261,12 +262,46 @@ fn load_refresh_token_value(app: &AppHandle) -> Result<Option<String>, String> {
     }
     // 폴백/레거시: 평문 파일
     let path = token_path(app)?;
-    if !path.exists() {
+    let Some(token) = read_legacy_token_file(&path).map_err(|e| format!("토큰 읽기 실패: {e}"))? else {
         return Ok(None);
-    }
-    let token = std::fs::read_to_string(&path).map_err(|e| format!("토큰 읽기 실패: {e}"))?;
+    };
     let trimmed = token.trim().to_string();
     Ok(if trimmed.is_empty() { None } else { Some(trimmed) })
+}
+
+fn read_legacy_token_file(path: &Path) -> Result<Option<String>, String> {
+    let entry = match std::fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.to_string()),
+    };
+    if !entry.file_type().is_file() || entry.len() > MAX_LEGACY_TOKEN_BYTES {
+        return Err("Legacy Spotify token must be a bounded regular file".into());
+    }
+
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC);
+    }
+    let file = options.open(path).map_err(|error| error.to_string())?;
+    let metadata = file.metadata().map_err(|error| error.to_string())?;
+    if !metadata.file_type().is_file() || metadata.len() > MAX_LEGACY_TOKEN_BYTES {
+        return Err("Legacy Spotify token must be a bounded regular file".into());
+    }
+
+    let mut bytes = Vec::with_capacity(metadata.len() as usize);
+    file.take(MAX_LEGACY_TOKEN_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| error.to_string())?;
+    if bytes.len() as u64 > MAX_LEGACY_TOKEN_BYTES {
+        return Err("Legacy Spotify token exceeds the size limit".into());
+    }
+    String::from_utf8(bytes)
+        .map(Some)
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -355,8 +390,37 @@ pub fn clear_refresh_token(app: AppHandle) -> Result<(), String> {
 mod token_file_tests {
     use super::{
         active_oauth_state_matches, clear_pending_refresh_tokens, register_pending_refresh_token,
-        set_active_oauth_state, write_restricted_token_file, TokenResponse,
+        read_legacy_token_file, set_active_oauth_state, write_restricted_token_file,
+        TokenResponse, MAX_LEGACY_TOKEN_BYTES,
     };
+
+    #[test]
+    fn legacy_refresh_token_reader_accepts_only_bounded_regular_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let valid = dir.path().join("valid-token");
+        std::fs::write(&valid, "legacy-refresh-token\n").unwrap();
+        assert_eq!(read_legacy_token_file(&valid).unwrap().as_deref(), Some("legacy-refresh-token\n"));
+
+        let oversized = dir.path().join("oversized-token");
+        std::fs::write(&oversized, vec![b'x'; MAX_LEGACY_TOKEN_BYTES as usize + 1]).unwrap();
+        assert!(read_legacy_token_file(&oversized).is_err());
+
+        let directory = dir.path().join("directory-token");
+        std::fs::create_dir(&directory).unwrap();
+        assert!(read_legacy_token_file(&directory).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn legacy_refresh_token_reader_rejects_symlinks() {
+        use std::os::unix::fs::symlink;
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("target");
+        let link = dir.path().join("token-link");
+        std::fs::write(&target, "legacy-refresh-token").unwrap();
+        symlink(&target, &link).unwrap();
+        assert!(read_legacy_token_file(&link).is_err());
+    }
 
     #[test]
     fn superseded_oauth_state_cannot_authorize_token_exchange() {
