@@ -41,6 +41,11 @@ def load_audio(path: str) -> tuple:
     return wav, sr
 
 
+def write_vocal_audio(soundfile_module, path, audio, sample_rate):
+    # Keep Demucs' float output out of the default PCM_16 range/clipping path.
+    soundfile_module.write(path, audio, sample_rate, format="WAV", subtype="FLOAT")
+
+
 def load_verified_checkpoint(path, expected_sha256, loader):
     """Deserialize only the private bytes that passed the trusted digest check."""
     digest = hashlib.sha256()
@@ -117,7 +122,7 @@ def main():
     try:
         import soundfile as sf
         audio_np = vocals.numpy().T  # (samples, channels)
-        sf.write(args.output, audio_np, model.samplerate)
+        write_vocal_audio(sf, args.output, audio_np, model.samplerate)
     except Exception as e:
         progress("error", f"저장 실패: {e}")
         sys.exit(1)

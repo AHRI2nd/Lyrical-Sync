@@ -431,6 +431,20 @@ class DemucsIntegrityTests(unittest.TestCase):
             exec(compile(source.read_text(encoding="utf-8"), str(source), "exec"), module.__dict__)
         return module.load_verified_checkpoint(path, expected, loader)
 
+    def test_vocal_intermediate_explicitly_preserves_float_samples(self):
+        source = ROOT / "src-tauri/src/separate.py"
+        module_spec = importlib.util.spec_from_file_location("lyrical_separate_audio", source)
+        module = importlib.util.module_from_spec(module_spec)
+        with patch.dict(sys.modules, {"numpy": types.ModuleType("numpy"), "torch": types.ModuleType("torch")}):
+            exec(compile(source.read_text(encoding="utf-8"), str(source), "exec"), module.__dict__)
+        calls = []
+        soundfile = types.SimpleNamespace(write=lambda *args, **kwargs: calls.append((args, kwargs)))
+        samples = [[-1.2, 0.5, 1.2]]
+
+        module.write_vocal_audio(soundfile, "vocals.wav", samples, 44_100)
+
+        self.assertEqual(calls, [(("vocals.wav", samples, 44_100), {"format": "WAV", "subtype": "FLOAT"})])
+
     def test_changed_checkpoint_never_reaches_deserializer(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "model.th"
