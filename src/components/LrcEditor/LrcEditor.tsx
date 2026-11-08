@@ -6,6 +6,7 @@ import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore, type AlignmentLanguage } from "../../stores/useSettingsStore";
+import { useBusyStore } from "../../stores/useBusyStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { formatDisplayTime, parseTimestampInput, validateTimestamps, type SyncUnit } from "../../utils/lrcParser";
 import { audioControls } from "../../utils/audioControls";
@@ -36,6 +37,10 @@ export function resolveAlignmentLanguage(language: AlignmentLanguage, uiLanguage
   if (language !== "auto") return language;
   const uiCode = LANG_CODE[uiLanguage];
   return uiCode === "kor" || uiCode === "jpn" ? uiCode : "eng";
+}
+
+function isPythonEnvironmentBusy(): boolean {
+  return [...useBusyStore.getState().reasons].some((reason) => reason === "python-download" || reason === "python-packages");
 }
 
 export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => void; onOpenShortcuts?: () => void }) {
@@ -70,6 +75,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   const { t, lang } = useI18nStore();
   const { blankLineOffset, aiAlignmentLanguage, setAiAlignmentLanguage, modelsDir, spotifyMode, deviceMode, lyricsFontScale, useVocalSeparation, useVad, showSpellCheck, showTranslationLines } = useSettingsStore();
   const serviceLoggedIn = useServiceStore((s) => s.isLoggedIn);
+  const pythonEnvironmentBusy = useBusyStore((state) => [...state.reasons].some((reason) => reason === "python-download" || reason === "python-packages"));
   // 실제 Spotify 모드(로그인 + spotifyMode 활성)일 때만 서비스 모드로 간주.
   // 단순 계정 연결만으로 AI 싱크를 막지 않도록 isReady 대신 spotifyMode 기준 사용.
   const isServiceMode = serviceLoggedIn && spotifyMode;
@@ -380,9 +386,11 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
   const checkAiRequirements = useCallback(async () => {
     const requestId = ++aiRequirementsRequest.current;
+    if (isPythonEnvironmentBusy()) return;
     const requestedModelsDir = modelsDir;
     const isCurrent = () => aiRequirementsMounted.current
       && requestId === aiRequirementsRequest.current
+      && !isPythonEnvironmentBusy()
       && useSettingsStore.getState().modelsDir === requestedModelsDir;
     // 앱 재시작 뒤에도 설정 화면을 열기 전에 커스텀 모델 경로를 Rust 상태에 반영한다.
     await invoke("set_models_dir_override", { path: modelsDir || null }).catch(() => {});
@@ -421,7 +429,13 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     if (isCurrent()) setMissingModels(missing);
   }, [modelsDir]);
 
-  useEffect(() => { checkAiRequirements(); }, [checkAiRequirements]);
+  useEffect(() => {
+    if (pythonEnvironmentBusy) {
+      aiRequirementsRequest.current += 1;
+      return;
+    }
+    checkAiRequirements();
+  }, [checkAiRequirements, pythonEnvironmentBusy]);
 
   useEffect(() => {
     let active = true;

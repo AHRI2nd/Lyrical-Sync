@@ -10,7 +10,9 @@ import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { defaultDocument } from "../../types/lrc";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useDeviceStore } from "../../stores/useDeviceStore";
+import { useBusyStore } from "../../stores/useBusyStore";
 beforeEach(() => {
   useSettingsStore.setState({ showTranslationLines: false, showSpellCheck: false });
   vi.stubGlobal("DragEvent", class extends MouseEvent {});
@@ -292,6 +294,43 @@ it("does not let an older AI readiness failure disable a newer successful check"
 
   await act(async () => { envA.reject(new Error("stale readiness failure")); await envA.promise.catch(() => {}); });
   expect(aiButton.hasAttribute("disabled")).toBe(false);
+});
+it("rechecks AI readiness after the package installer releases its environment lease", async () => {
+  let pipHandler: ((event: { payload: { done: boolean } }) => void) | undefined;
+  let readinessCalls = 0;
+  vi.mocked(listen).mockImplementation(async (event, handler) => {
+    if (event === "pip-install-progress") {
+      pipHandler = handler as (event: { payload: { done: boolean } }) => void;
+    }
+    return () => {};
+  });
+  vi.mocked(invoke).mockImplementation((command: unknown) => {
+    if (command === "set_models_dir_override") return Promise.resolve(undefined);
+    if (command === "get_python_env_info") {
+      readinessCalls += 1;
+      const busy = [...useBusyStore.getState().reasons].some((reason) => reason === "python-download" || reason === "python-packages");
+      return busy
+        ? Promise.reject(new Error("AI environment is busy"))
+        : Promise.resolve({ packagesReady: true });
+    }
+    if (command === "get_models_dir") return Promise.resolve("/models/default");
+    if (command === "check_model_files") return Promise.resolve([true]);
+    return Promise.resolve(undefined);
+  });
+  useSettingsStore.setState({ modelsDir: "", deviceMode: false, spotifyMode: false });
+  useLrcStore.setState({ audioPath: "/tmp/audio.wav" });
+  const { getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  const aiButton = getByRole("button", { name: useI18nStore.getState().t.aiAutoSync });
+  await vi.waitFor(() => expect(aiButton.hasAttribute("disabled")).toBe(false));
+  await vi.waitFor(() => expect(typeof pipHandler).toBe("function"));
+
+  act(() => useBusyStore.getState().markBusy("python-packages"));
+  act(() => pipHandler?.({ payload: { done: true } }));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  act(() => useBusyStore.getState().clearBusy("python-packages"));
+
+  await vi.waitFor(() => expect(readinessCalls).toBe(2));
+  await vi.waitFor(() => expect(aiButton.hasAttribute("disabled")).toBe(false));
 });
 it("routes line seeking to the device controller when device mode is selected", () => {
   useSettingsStore.setState({ deviceMode: true, spotifyMode: false });
