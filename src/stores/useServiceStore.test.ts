@@ -289,6 +289,25 @@ describe("Spotify API request failures", () => {
     await expect(useServiceStore.getState().fetchDevices()).rejects.toThrow("403");
   });
 
+  it("rejects malformed successful Spotify device responses", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ devices: "not-an-array" }),
+    }));
+    await expect(useServiceStore.getState().fetchDevices()).rejects.toThrow("invalid_spotify_devices");
+  });
+
+  it("filters malformed Spotify device entries before the picker consumes them", async () => {
+    const valid = { id: "device-1", name: "Speaker", type: "speaker", is_active: false, volume_percent: null };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ devices: [valid, null, { id: "missing-fields" }] }),
+    }));
+    await expect(useServiceStore.getState().fetchDevices()).resolves.toEqual([valid]);
+  });
+
   it("never sends the Spotify bearer token to a non-Spotify origin", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);

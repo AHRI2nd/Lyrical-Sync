@@ -24,6 +24,21 @@ export interface SpotifyDevice {
   volume_percent: number | null;
 }
 
+function parseSpotifyDevices(value: unknown): SpotifyDevice[] {
+  if (!value || typeof value !== "object" || !Array.isArray((value as { devices?: unknown }).devices)) {
+    throw new Error("invalid_spotify_devices");
+  }
+  return (value as { devices: unknown[] }).devices.filter((device): device is SpotifyDevice => {
+    if (!device || typeof device !== "object") return false;
+    const candidate = device as Partial<SpotifyDevice>;
+    return typeof candidate.id === "string" && candidate.id.length > 0 &&
+      typeof candidate.name === "string" && typeof candidate.type === "string" &&
+      typeof candidate.is_active === "boolean" &&
+      (candidate.volume_percent === null || (typeof candidate.volume_percent === "number" &&
+        Number.isInteger(candidate.volume_percent) && candidate.volume_percent >= 0 && candidate.volume_percent <= 100));
+  });
+}
+
 interface TokenResponse {
   accessToken: string;
   refreshTokenHandle?: string;
@@ -530,8 +545,8 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
 
   fetchDevices: async () => {
     return spotifyApiRequest("https://api.spotify.com/v1/me/player/devices", {}, async (resp) => {
-      const data = await resp.json();
-      return (data.devices ?? []) as SpotifyDevice[];
+      const data: unknown = await resp.json();
+      return parseSpotifyDevices(data);
     });
   },
 
