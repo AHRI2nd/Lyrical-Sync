@@ -208,7 +208,7 @@ def postprocess_results(text, spans, stride, scores):
 class EmbeddedAlignmentExecutionTests(unittest.TestCase):
     """Exercise the actual shipped Python script without a network/model download."""
 
-    def run_alignment(self, models_dir, payload, *, mock_dependencies=None):
+    def run_alignment(self, models_dir, payload, *, mock_dependencies=None, language="eng"):
         import hashlib
         model = Path(models_dir) / "ctc-forced-aligner.onnx"
         model.write_bytes(b"trusted-model-fixture")
@@ -217,7 +217,7 @@ class EmbeddedAlignmentExecutionTests(unittest.TestCase):
             "--models-dir", str(models_dir),
             "--model-sha256", hashlib.sha256(model.read_bytes()).hexdigest(),
             "--audio", str(Path(models_dir) / "short.wav"),
-            "--lines-stdin", "--language", "eng",
+            "--lines-stdin", "--language", language,
         ]
         env = {**os.environ}
         if mock_dependencies is not None:
@@ -327,6 +327,62 @@ class EmbeddedAlignmentExecutionTests(unittest.TestCase):
                 for event in events
             ))
             self.assertEqual(result.stdout, "")
+
+    def test_cjk_romanization_expansion_is_rejected_before_native_ctc(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "onnxruntime.py").write_text(
+                "from types import SimpleNamespace\n"
+                "class InferenceSession:\n"
+                " def __init__(self, path): pass\n"
+                " def get_inputs(self): return [SimpleNamespace(name='input')]\n"
+                " def get_outputs(self): return [SimpleNamespace(name='output')]\n",
+                encoding="utf-8",
+            )
+            (root / "numpy.py").write_text("", encoding="utf-8")
+            package = root / "ctc_forced_aligner"
+            package.mkdir()
+            (package / "__init__.py").write_text(
+                "class Tokenizer:\n"
+                " def encode(self, text): return text.split()\n"
+                " def decode(self, tokens): return ' '.join(tokens)\n"
+                " def get_vocab(self): return {c: i for i, c in enumerate('abcdefghijklmnopqrstuvwxyz <>')}\n"
+                "class FakeAudio:\n"
+                " def __len__(self): return 32000\n"
+                "def load_audio(*args, **kwargs): return FakeAudio()\n"
+                "def generate_emissions(session, audio, batch_size): return (list(range(16)), 0.02)\n"
+                "def preprocess_text(text, **kwargs):\n"
+                " if text == '日': return ['n i'], ['ni']\n"
+                " return ['n i', 'r i'], ['ni', 'ri']\n"
+                "def get_alignments(emissions, tokens, tokenizer): return ('segments', 'scores', 'blank')\n"
+                "def get_spans(tokens, segments, blank): return tokens\n"
+                "def postprocess_results(text, spans, stride, scores):\n"
+                " return [dict(text=word, start=i * 0.2, end=(i + 1) * 0.2, score=-0.1) for i, word in enumerate(spans)]\n",
+                encoding="utf-8",
+            )
+            result = self.run_alignment(
+                root,
+                json.dumps([{"index": 7, "text": "月"}]),
+                mock_dependencies=root,
+                language="jpn",
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            events = [json.loads(line) for line in result.stderr.splitlines()]
+            self.assertTrue(any(
+                "정규화되어 원문 줄과 대응하지 않습니다" in event.get("message", "")
+                for event in events
+            ))
+            self.assertEqual(result.stdout, "")
+
+            valid = self.run_alignment(
+                root,
+                json.dumps([{"index": 7, "text": "日"}]),
+                mock_dependencies=root,
+                language="jpn",
+            )
+            self.assertEqual(valid.returncode, 0, valid.stderr)
+            self.assertEqual(json.loads(valid.stdout)["lines"][0]["index"], 7)
 
     def test_unknown_alignment_character_is_rejected_before_native_ctc(self):
         with tempfile.TemporaryDirectory() as folder:
