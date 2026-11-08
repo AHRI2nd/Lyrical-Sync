@@ -110,6 +110,25 @@ it("preserves sequential range entry and applies exactly the displayed rows", ()
   expect(onApply).toHaveBeenCalledWith(14, 17, 0.1);
 });
 
+it("preserves sequentially typed time-shift range bounds", async () => {
+  const onApply = vi.fn();
+  const user = userEvent.setup();
+  const { getByRole } = render(<TimeShiftBar lineCount={20} defaultFrom={1} onApply={onApply} onClose={vi.fn()} />);
+  const [from, to, delta] = Array.from(document.querySelectorAll('input[type="number"]')) as HTMLInputElement[];
+
+  await user.clear(from);
+  await user.type(from, "15");
+  await user.clear(to);
+  await user.type(to, "18");
+  await user.clear(delta);
+  await user.type(delta, "0.1");
+
+  expect(from.value).toBe("15");
+  expect(to.value).toBe("18");
+  await user.click(getByRole("button", { name: useI18nStore.getState().t.timeShiftApply }));
+  expect(onApply).toHaveBeenCalledWith(14, 17, 0.1);
+});
+
 it("does not apply an invalid time shift range", () => {
   const onApply = vi.fn();
   const { getByRole } = render(<TimeShiftBar lineCount={20} defaultFrom={5} onApply={onApply} onClose={vi.fn()} />);
