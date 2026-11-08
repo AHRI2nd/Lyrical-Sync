@@ -34,6 +34,14 @@ describe("keybindings — normalize & labels", () => {
     expect(kb.stamp).toBe("KeyS");
     expect(kb.skipBack5).toBe(DEFAULT_KEYBINDINGS.skipBack5);
   });
+  it("does not let a restored partial assignment shadow a missing action default", () => {
+    expect(normalizeKeybindings({ stamp: "Digit1" })).toEqual(DEFAULT_KEYBINDINGS);
+  });
+  it("repairs duplicate restored assignments while preserving the first valid one", () => {
+    const restored = normalizeKeybindings({ skipBack5: "KeyQ", skipBack1: "KeyQ" });
+    expect(restored.skipBack5).toBe("KeyQ");
+    expect(restored.skipBack1).toBe(DEFAULT_KEYBINDINGS.skipBack1);
+  });
   it("renders readable labels", () => {
     expect(keyLabel("Digit1")).toBe("1");
     expect(keyLabel("KeyA")).toBe("A");
