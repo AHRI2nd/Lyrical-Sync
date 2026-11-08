@@ -307,14 +307,13 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   ) => {
     const parsed = parseLrc(lrcText);
     const current = get().doc.metadata;
-    const metadata = meta
-      ? {
-          ...current,
-          title: current.title.trim() || meta.title,
-          artist: current.artist.trim() || meta.artist,
-          album: current.album.trim() || meta.album,
-        }
-      : current;
+    const metadata = {
+      ...parsed.metadata,
+      title: parsed.metadata.title.trim() || meta?.title || current.title,
+      artist: parsed.metadata.artist.trim() || meta?.artist || current.artist,
+      album: parsed.metadata.album.trim() || meta?.album || current.album,
+      by: parsed.metadata.by.trim() || current.by,
+    };
     beginDocumentSession(metadata);
     const sessionId = documentSessionId;
     parsed.lines = parsed.lines.map((line) => ({ ...line, id: genId(sessionId) }));

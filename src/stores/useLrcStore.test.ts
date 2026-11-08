@@ -220,7 +220,7 @@ describe("useLrcStore — line actions", () => {
     expect(toasts[toasts.length - 1]?.message).toBe(useI18nStore.getState().t.toast.saveFailed);
   });
 
-  it("applies fetched lyrics only after discard and keeps the existing metadata policy", async () => {
+  it("applies fetched lyrics and their metadata only after discard", async () => {
     reset([{ id: "1", timestamp: 1, text: "Unsaved lyric" }]);
     useLrcStore.setState({ isDirty: true, lrcPath: "/tmp/old.lrc" });
     useLrcStore.getState().setMetadata({ title: "Existing title" });
@@ -232,10 +232,32 @@ describe("useLrcStore — line actions", () => {
     unregister();
     expect(result).toBe("applied");
     expect(useLrcStore.getState().doc.lines.map((line) => line.text)).toEqual(["Fetched lyric"]);
-    expect(useLrcStore.getState().doc.metadata).toMatchObject({ title: "Existing title", artist: "Artist", album: "Album" });
+    expect(useLrcStore.getState().doc.metadata).toMatchObject({ title: "Fetched", artist: "Artist", album: "Album", offset: 0 });
     expect(useLrcStore.getState().lrcPath).toBeNull();
     expect(useLrcStore.getState()._history).toEqual([]);
     expect(useLrcStore.getState()._documentSession).toBeGreaterThan(before._documentSession);
+  });
+
+  it("uses fetched lyric offset and metadata instead of carrying the previous document forward", async () => {
+    reset([{ id: "1", timestamp: 1, text: "Existing lyric" }], 2500);
+    useLrcStore.setState({
+      doc: {
+        ...useLrcStore.getState().doc,
+        metadata: { ...useLrcStore.getState().doc.metadata, title: "Previous", artist: "Old artist", album: "Old album" },
+      },
+    });
+    const ownerSession = useLrcStore.getState()._documentSession;
+
+    const result = await useLrcStore.getState().requestApplyFetchedLyrics(
+      "[offset:-1000]\n[ti:From fetch]\n[00:03.00]Fetched lyric",
+      { title: "From fetch", artist: "New artist", album: "New album" },
+      ownerSession,
+    );
+
+    expect(result).toBe("applied");
+    expect(useLrcStore.getState().doc.metadata).toMatchObject({
+      title: "From fetch", artist: "New artist", album: "New album", offset: -1000,
+    });
   });
 
   it("rechecks authorization after edits and rejects a result from an older document session", async () => {
