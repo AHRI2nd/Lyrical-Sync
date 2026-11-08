@@ -138,6 +138,19 @@ describe("useDeviceStore — failure notification", () => {
     expect(invoke).toHaveBeenCalledWith("get_now_playing");
   });
 
+  it("clears local playback time when entering device mode without a session", async () => {
+    useSettingsStore.getState().setDeviceMode(true);
+    useLrcStore.getState().setCurrentTime(42);
+    invoke.mockResolvedValueOnce(null);
+
+    useDeviceStore.getState().startPolling();
+
+    expect(useDeviceStore.getState().hasSession).toBe(false);
+    expect(useLrcStore.getState().currentTime).toBe(0);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useLrcStore.getState().currentTime).toBe(0);
+  });
+
   it("does not overlap slow polls and schedules the next poll after the previous one settles", async () => {
     useSettingsStore.getState().setDeviceMode(true);
     const first = deferred<null>();
