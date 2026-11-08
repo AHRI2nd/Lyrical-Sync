@@ -91,6 +91,7 @@ interface LrcStore {
   clearLineSyllables: (lineId: string) => void;
 
   setMetadata: (meta: Partial<LrcMetadata>, silent?: boolean) => void;
+  setAudioMetadata: (meta: Partial<Pick<LrcMetadata, "title" | "artist" | "album">>) => void;
   setLines: (lines: LrcLine[]) => void;
   addLine: (text?: string) => void;
   insertLinesAfter: (afterId: string, texts: string[]) => string;
@@ -487,6 +488,22 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     }
     const idx = lines.findIndex((l) => l.id === activeLineId);
     if (idx > 0) set({ activeLineId: lines[idx - 1].id });
+  },
+
+  setAudioMetadata: (meta) => {
+    const state = get();
+    const changed = (Object.entries(meta) as [keyof Pick<LrcMetadata, "title" | "artist" | "album">, string][])
+      .filter(([field, value]) =>
+        typeof value === "string" && value.trim() !== "" &&
+        !state.doc.metadata[field].trim() && !state._manualMetadataFields.has(field),
+      );
+    if (changed.length === 0) return;
+    const changedMeta = Object.fromEntries(changed) as Partial<LrcMetadata>;
+    set((current) => ({
+      doc: { ...current.doc, metadata: { ...current.doc.metadata, ...changedMeta } },
+      isDirty: true,
+      _lastEditKey: null,
+    }));
   },
 
   setMetadata: (meta, silent = false) => {
@@ -1090,8 +1107,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
       audioSelection: initial._audioSelection,
       audioPath,
       sourceMode: playbackSourceModeKey(),
-      editRevision: initial._editRevision,
-      lineIds: initial.doc.lines.map((line) => line.id),
+      lines: initial.doc.lines,
     };
     const isCurrentOwner = () => {
       const current = get();
@@ -1099,10 +1115,9 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
         current._documentSession === owner.session &&
         current._audioSelection === owner.audioSelection &&
         current.audioPath === owner.audioPath &&
-        current._editRevision === owner.editRevision &&
+        current.doc.lines === owner.lines &&
         playbackSourceModeKey() === owner.sourceMode &&
-        current.doc.lines.length === owner.lineIds.length &&
-        current.doc.lines.every((line, index) => line.id === owner.lineIds[index]);
+        current.doc.lines.length === owner.lines.length;
     };
     set({ aiSyncStatus: "running", aiSyncMessage: "", aiSyncProgressStatus: "", _lastEditKey: null });
     let unlisten: (() => void) | undefined;

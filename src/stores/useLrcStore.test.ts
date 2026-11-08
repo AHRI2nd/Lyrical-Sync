@@ -148,6 +148,18 @@ describe("useLrcStore — line actions", () => {
     expect(useLrcStore.getState().doc.metadata.title).toBe("Next track");
   });
 
+  it("fills only untouched empty fields from audio tags and marks the document dirty", () => {
+    reset([]);
+    useLrcStore.getState().setMetadata({ title: "Previously set" });
+    useLrcStore.getState().setMetadata({ title: "" });
+    useLrcStore.setState({ isDirty: false });
+
+    useLrcStore.getState().setAudioMetadata({ title: "Tag title", artist: "Tag artist" });
+
+    expect(useLrcStore.getState().doc.metadata).toMatchObject({ title: "", artist: "Tag artist" });
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
   it("tracks document revisions for user edits and undo but excludes silent metadata sync", () => {
     reset([{ id: "1", timestamp: 1, text: "a" }]);
     const initial = useLrcStore.getState()._editRevision;
@@ -733,6 +745,32 @@ describe("useLrcStore — runAiSync blank-line timestamp placement", () => {
     expect(lines()).toEqual([]);
     expect(useLrcStore.getState().aiSyncStatus).toBe("idle");
     expect(useLrcStore.getState().aiDraftConfidence).toBeNull();
+  });
+
+  it("keeps audio-tag metadata from invalidating an in-flight alignment", async () => {
+    reset([{ id: "line", timestamp: null, text: "hello" }]);
+    useLrcStore.setState({ audioPath: "/song.mp3" });
+    let resolveAlignment!: (value: string) => void;
+    vi.mocked(invoke).mockImplementation((command: unknown) => {
+      if (command === "run_alignment") return new Promise<string>((resolve) => { resolveAlignment = resolve; });
+      return Promise.resolve(undefined);
+    });
+
+    const running = useLrcStore.getState().runAiSync("ko", 0.5, false, false);
+    await vi.waitFor(() => expect(resolveAlignment).toBeTypeOf("function"));
+    useLrcStore.getState().setAudioMetadata({ title: "Tag title", artist: "Tag artist" });
+    resolveAlignment(JSON.stringify({
+      lines: [{ index: 0, start: 4, end: 5, confidence: 0.9 }],
+      vocal_segments: [],
+      separated: false,
+    }));
+    await running;
+
+    expect(useLrcStore.getState().doc.metadata).toMatchObject({ title: "Tag title", artist: "Tag artist" });
+    expect(lines()[0].timestamp).toBe(4);
+    expect(useLrcStore.getState().aiSyncStatus).toBe("done");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+    expect(vi.mocked(invoke)).not.toHaveBeenCalledWith("cancel_alignment", expect.anything());
   });
 });
 
