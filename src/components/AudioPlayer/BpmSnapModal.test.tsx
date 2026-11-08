@@ -39,6 +39,21 @@ it("applies the local estimate only to the selected line", async () => {
   expect(useLrcStore.getState().doc.lines.map((line) => line.timestamp)).toEqual([1.1, 2.32]);
 });
 
+it("reports only lines whose timestamps actually changed", async () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+    { id: "will-move", text: "Needs snap", timestamp: 1.34 },
+    { id: "already-aligned", text: "Already aligned", timestamp: 1.5 },
+  ] } });
+  render(<BpmSnapModal onClose={() => {}} selectedIds={["will-move", "already-aligned"]} />);
+  await screen.findAllByRole("textbox");
+  fireEvent.change(screen.getByRole("textbox", { name: "Tempo" }), { target: { value: "120" } });
+  fireEvent.change(screen.getByRole("textbox", { name: "Offset" }), { target: { value: "0" } });
+  fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+
+  expect(screen.getByText("1 applied")).toBeTruthy();
+  expect(useLrcStore.getState().doc.lines.map((line) => line.timestamp)).toEqual([1.5, 1.5]);
+});
+
 it.each(["Infinity", "NaN", "", "0", "-1", "5e-324"])("cannot apply an invalid manual BPM %s", async (value) => {
   render(<BpmSnapModal onClose={() => {}} selectedIds={["a"]} />);
   await screen.findAllByRole("textbox");

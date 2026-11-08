@@ -133,7 +133,7 @@ interface LrcStore {
   clearTimestamps: (ids: string[]) => void;
   /** ids(비어있으면 전체)의 타임스탬프를 bpm/offsetSec 비트 그리드로 스냅.
    *  스냅으로 실제 이동한 줄은 글자 동기화가 균일 이동이 아니게 되므로 함께 제거 */
-  snapLinesToBeatGrid: (ids: string[], bpm: number, offsetSec: number) => void;
+  snapLinesToBeatGrid: (ids: string[], bpm: number, offsetSec: number) => number;
   stampCurrentLine: (id: string) => void;
   applyOffset: () => void;
   loadFromRawText: (raw: string) => void;
@@ -810,21 +810,22 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   },
 
   snapLinesToBeatGrid: (ids, bpm, offsetSec) => {
-    if (!Number.isFinite(bpm) || !(bpm > 0) || !Number.isFinite(60 / bpm) || !Number.isFinite(offsetSec)) return;
+    if (!Number.isFinite(bpm) || !(bpm > 0) || !Number.isFinite(60 / bpm) || !Number.isFinite(offsetSec)) return 0;
     const { doc } = get();
     const selected = ids.length ? new Set(ids) : null;
-    let changed = false;
+    let changedCount = 0;
     const lines = doc.lines.map(line => {
       if (line.timestamp === null || !Number.isFinite(line.timestamp) || (selected && !selected.has(line.id))) return line;
       const timestamp = nearestBeat(line.timestamp, bpm, offsetSec);
       if (timestamp === line.timestamp) return line;
-      changed = true;
+      changedCount += 1;
       const delta = timestamp - line.timestamp;
       // Keep subtitle cue duration and glyph offsets aligned with the snapped onset.
       return { ...line, timestamp, srtEndTime: shiftSrtEnd(line, delta, timestamp), syllables: line.syllables?.map(s => ({ ...s,
         time: s.time === null ? null : Math.round(Math.max(0, s.time + delta) * 1000) / 1000 })) };
     });
-    if (changed) { pushHistory("snapBeatGrid"); set({ doc: { ...doc, lines }, isDirty: true }); }
+    if (changedCount > 0) { pushHistory("snapBeatGrid"); set({ doc: { ...doc, lines }, isDirty: true }); }
+    return changedCount;
   },
 
   stampCurrentLine: (id) => {
