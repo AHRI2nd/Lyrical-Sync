@@ -45,10 +45,10 @@ No server required — it works with just your own Spotify Developer App Client 
 
 ## Step 3 — Log in to Spotify
 
-1. Click the **Spotify button** in the top header.
-2. A browser will open with the Spotify login page.
-3. Log in with your Spotify Premium account and grant the app permissions.
-4. After authentication, Lyrical Sync will automatically resume.
+1. Select **Spotify** in the audio-source selector to show the Spotify player.
+2. Click **Connect Spotify** in that player, or open **Settings → Spotify** and click **Connect**.
+3. A browser will open with the Spotify login page. Log in and grant the app permissions.
+4. After authentication, return to Lyrical Sync. The player will show the current connection state.
 
 > Login credentials are securely stored in the system keychain (macOS: Keychain, Windows: Credential Manager) and automatically restored on the next launch.
 
@@ -56,18 +56,11 @@ No server required — it works with just your own Spotify Developer App Client 
 
 ## Step 4 — Select & Play a Track
 
-Clicking the Spotify button branches based on the current playback state.
+After connecting, use the Spotify player controls:
 
-### When a track is currently playing
-
-- **"Load"**: Loads the currently playing track into the app and switches to Spotify mode.
-- **"Choose another track"**: Opens the search/playlist modal.
-- **"Switch to file mode"**: Returns to local audio file mode.
-
-### When no track is playing
-
-- **"Search on Spotify"**: Opens the search/playlist modal.
-- **"Switch to file mode"**: Returns to local audio file mode.
+- **Load current track**: Loads the track currently playing on Spotify into the editor.
+- **Search Spotify**: Opens the track search and playlist picker.
+- Select **File** in the audio-source selector to return to local audio mode.
 
 ### Search/Playlist Modal
 
@@ -123,8 +116,8 @@ Due to the nature of Spotify streaming, the following features are unavailable:
 
 ## Returning to File Mode
 
-- Click the Spotify button in the header → select **"Switch to file mode"**
-- You can also toggle the mode from Settings → Spotify tab.
+- Select **File** in the audio-source selector.
+- You can also change the source from **Settings → Spotify**.
 
 ---
 
