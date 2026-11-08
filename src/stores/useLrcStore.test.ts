@@ -1227,6 +1227,28 @@ describe("useLrcStore — save completion races", () => {
     expect(useLrcStore.getState().isDirty).toBe(true);
   });
 
+  it("does not let a pending Save As overwrite a newer same-path save", async () => {
+    let resolveDialog!: (path: string | null) => void;
+    vi.mocked(save).mockImplementation(() => new Promise((resolve) => { resolveDialog = resolve; }));
+    vi.mocked(invoke).mockResolvedValue("c".repeat(64));
+
+    const saveAs = useLrcStore.getState().saveLrcAs("lrc");
+    useLrcStore.getState().updateLine("1", { text: "newer saved revision" });
+    await expect(useLrcStore.getState().saveLrc()).resolves.toBe(true);
+    expect(useLrcStore.getState().isDirty).toBe(false);
+
+    resolveDialog("/tmp/song.lrc");
+    await expect(saveAs).resolves.toBe(false);
+
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke).toHaveBeenCalledWith("write_lrc_file_if_unchanged", expect.objectContaining({
+      path: "/tmp/song.lrc",
+      content: expect.stringContaining("newer saved revision"),
+    }));
+    expect(lines()[0].text).toBe("newer saved revision");
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
   it("keeps SRT Save As as an export and preserves the active LRC state", async () => {
     useLrcStore.setState({ doc: { ...useLrcStore.getState().doc, metadata: { ...useLrcStore.getState().doc.metadata, title: "Rich title" }, lines: [{ id: "1", timestamp: 1, text: "lyrics", syllables: [{ text: "lyrics", time: 1 }] }] }, lrcPath: "/tmp/source.lrc", isDirty: true });
     vi.mocked(save).mockResolvedValue("/tmp/export.srt");
