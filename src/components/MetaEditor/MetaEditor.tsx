@@ -21,6 +21,7 @@ export function MetaEditor() {
 
   const [rawEditorSnapshot, setRawEditorSnapshot] = useState<{
     text: string;
+    document: typeof doc;
     documentSession: number;
     editRevision: number;
   } | null>(null);
@@ -60,6 +61,7 @@ export function MetaEditor() {
           <button
             onClick={() => setRawEditorSnapshot({
               text: serializeLrc(doc, true, true),
+              document: doc,
               documentSession,
               editRevision,
             })}
@@ -120,7 +122,8 @@ export function MetaEditor() {
             const current = useLrcStore.getState();
             if (
               current._documentSession !== rawEditorSnapshot.documentSession ||
-              current._editRevision !== rawEditorSnapshot.editRevision
+              current._editRevision !== rawEditorSnapshot.editRevision ||
+              current.doc !== rawEditorSnapshot.document
             ) return false;
             loadFromRawText(raw);
             setRawEditorSnapshot(null);

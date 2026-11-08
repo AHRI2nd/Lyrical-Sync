@@ -73,6 +73,18 @@ it("rejects a raw draft after metadata changes in the same document session", ()
   expect(screen.getByRole("alert").textContent).toBe(t.rawEditorStale);
 });
 
+it("keeps silent metadata updates from being overwritten by an open raw draft", () => {
+  const t = useI18nStore.getState().t;
+  render(<MetaEditor />);
+  fireEvent.click(screen.getByRole("button", { name: t.viewAll }));
+  useLrcStore.getState().setMetadata({ title: "Track metadata" }, true);
+  fireEvent.click(screen.getAllByRole("button", { name: t.rawEditorApply }).slice(-1)[0]);
+
+  expect(useLrcStore.getState().doc.metadata.title).toBe("Track metadata");
+  expect(useLrcStore.getState().doc.lines.map((line) => line.text)).toEqual(["A original"]);
+  expect(screen.getByRole("alert").textContent).toBe(t.rawEditorStale);
+});
+
 it("applies an unchanged-session raw draft and keeps the operation undoable", () => {
   const t = useI18nStore.getState().t;
   render(<MetaEditor />);
