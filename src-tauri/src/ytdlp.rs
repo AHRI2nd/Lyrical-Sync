@@ -1,5 +1,5 @@
 use serde::Serialize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager};
@@ -425,16 +425,26 @@ pub fn check_ytdlp(app: AppHandle) -> Result<Option<String>, String> {
         Ok(e) => e,
         Err(_) => return Ok(None),
     };
-    if !exe.exists() {
-        return Ok(None);
+    let dir = ytdlp_dir(&app)?;
+    Ok(installed_ytdlp_version(&exe, &dir.join("version.txt")))
+}
+
+fn installed_ytdlp_version(exe: &Path, version_file: &Path) -> Option<String> {
+    let metadata = std::fs::symlink_metadata(exe).ok()?;
+    if !metadata.file_type().is_file() {
+        return None;
     }
-    let dir = ytdlp_dir(&app).unwrap_or_default();
-    let version = std::fs::read_to_string(dir.join("version.txt"))
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if metadata.permissions().mode() & 0o111 == 0 {
+            return None;
+        }
+    }
+    std::fs::read_to_string(version_file)
         .ok()
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .unwrap_or_default();
-    Ok(Some(version))
+        .map(|version| version.trim().to_string())
+        .filter(|version| !version.is_empty())
 }
 
 #[tauri::command]
@@ -954,6 +964,23 @@ pub fn cancel_ytdlp_load(run_id: String, ytdlp_state: tauri::State<'_, YtdlpStat
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn installed_version_requires_an_executable_regular_file() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let exe = dir.path().join("yt-dlp");
+        let version = dir.path().join("version.txt");
+        std::fs::write(&exe, b"fixture").unwrap();
+        std::fs::write(&version, "2026.10.21\n").unwrap();
+        std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o644)).unwrap();
+
+        assert_eq!(installed_ytdlp_version(&exe, &version), None);
+
+        std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(installed_ytdlp_version(&exe, &version).as_deref(), Some("2026.10.21"));
+    }
 
     #[test]
     fn ytdlp_process_tree_fixture() {
