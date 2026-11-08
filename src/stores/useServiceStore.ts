@@ -39,6 +39,43 @@ function parseSpotifyDevices(value: unknown): SpotifyDevice[] {
   });
 }
 
+function parseCurrentlyPlayingItem(value: unknown): SpotifyTrack | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "object" || Array.isArray(value)) throw new Error("invalid_spotify_playback_item");
+  const item = value as Record<string, unknown>;
+  if (typeof item.uri !== "string" || typeof item.name !== "string" ||
+      typeof item.duration_ms !== "number" || !Number.isFinite(item.duration_ms) || item.duration_ms < 0) {
+    throw new Error("invalid_spotify_playback_item");
+  }
+
+  const record = (candidate: unknown): Record<string, unknown> | null =>
+    candidate && typeof candidate === "object" && !Array.isArray(candidate)
+      ? candidate as Record<string, unknown>
+      : null;
+  const album = record(item.album);
+  const show = record(item.show);
+  const artists = Array.isArray(item.artists)
+    ? item.artists.map(record).filter((artist): artist is Record<string, unknown> => artist !== null)
+    : [];
+  const artistNames = artists
+    .map((artist) => artist.name)
+    .filter((name): name is string => typeof name === "string");
+  const fallbackArtist = typeof show?.publisher === "string"
+    ? show.publisher
+    : typeof show?.name === "string" ? show.name : "";
+  const imageSource = Array.isArray(album?.images) ? album.images : Array.isArray(show?.images) ? show.images : [];
+  const firstImage = record(imageSource[0]);
+
+  return {
+    uri: item.uri,
+    name: item.name,
+    artistName: artistNames.join(", ") || fallbackArtist,
+    albumName: typeof album?.name === "string" ? album.name : typeof show?.name === "string" ? show.name : "",
+    albumArtUrl: typeof firstImage?.url === "string" ? firstImage.url : null,
+    durationMs: item.duration_ms,
+  };
+}
+
 interface TokenResponse {
   accessToken: string;
   refreshTokenHandle?: string;
@@ -621,16 +658,9 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
   fetchCurrentlyPlaying: async () => {
     return spotifyApiRequest("https://api.spotify.com/v1/me/player/currently-playing", {}, async (resp) => {
       if (resp.status === 204) return null;
-      const data = await resp.json();
-      if (!data?.item) return null;
-      return {
-        uri: data.item.uri as string,
-        name: data.item.name as string,
-        artistName: (data.item.artists as { name: string }[]).map((a) => a.name).join(", "),
-        albumName: data.item.album.name as string,
-        albumArtUrl: (data.item.album.images as { url: string }[])[0]?.url ?? null,
-        durationMs: data.item.duration_ms as number,
-      };
+      const data: unknown = await resp.json();
+      if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("invalid_spotify_playback_response");
+      return parseCurrentlyPlayingItem((data as Record<string, unknown>).item);
     });
   },
 

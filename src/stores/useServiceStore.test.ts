@@ -193,6 +193,55 @@ describe("useServiceStore — player state", () => {
   });
 });
 
+describe("currently playing response shapes", () => {
+  beforeEach(() => {
+    reset();
+    useServiceStore.setState({
+      isLoggedIn: true,
+      accessToken: "token",
+      tokenExpiresAt: Date.now() + 3_600_000,
+    });
+  });
+
+  it("maps Spotify episode items without assuming track artist or album fields", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        item: {
+          uri: "spotify:episode:episode-id",
+          name: "Episode title",
+          duration_ms: 1_200_000,
+          show: {
+            name: "Podcast name",
+            publisher: "Podcast publisher",
+            images: [{ url: "https://images.example/podcast.jpg" }],
+          },
+        },
+      }),
+    }));
+
+    await expect(useServiceStore.getState().fetchCurrentlyPlaying()).resolves.toEqual({
+      uri: "spotify:episode:episode-id",
+      name: "Episode title",
+      artistName: "Podcast publisher",
+      albumName: "Podcast name",
+      albumArtUrl: "https://images.example/podcast.jpg",
+      durationMs: 1_200_000,
+    });
+  });
+
+  it("rejects a malformed currently playing item with a stable error", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ item: { name: "Missing URI and duration" } }),
+    }));
+
+    await expect(useServiceStore.getState().fetchCurrentlyPlaying()).rejects.toThrow("invalid_spotify_playback_item");
+  });
+});
+
 describe("useServiceStore — session restore & logout", () => {
   beforeEach(() => {
     reset();
