@@ -38,7 +38,7 @@ export async function decodeAudioSamples(audioPath: string, signal?: AbortSignal
       throw new Error("AUDIO_RESOURCE_LIMIT: Decoded PCM exceeds 1 GiB limit");
     }
     
-    // Average channels in chunks so cancellation and UI events can run.
+    // Mix channel energy in chunks so opposite-phase channels cannot cancel BPM attacks.
     const samples = new Float32Array(length);
     const channelData = Array.from({ length: channels }, (_, c) => audioBuffer.getChannelData(c));
     const chunkSize = 200000;
@@ -46,8 +46,9 @@ export async function decodeAudioSamples(audioPath: string, signal?: AbortSignal
       checkCancelled();
       const end = Math.min(length, start + chunkSize);
       for (const data of channelData) {
-        for (let i = start; i < end; i++) samples[i] += data[i] / channels;
+        for (let i = start; i < end; i++) samples[i] += data[i] * data[i] / channels;
       }
+      for (let i = start; i < end; i++) samples[i] = Math.sqrt(samples[i]);
       if (end < length) await new Promise<void>((resolve) => setTimeout(resolve, 0));
     }
     checkCancelled();

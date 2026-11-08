@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 vi.mock("./readAudioBytes", () => ({ readAudioBytes: vi.fn() }));
 import { readAudioBytes } from "./readAudioBytes";
 import { decodeAudioSamples } from "./decodeAudioSamples";
+import { detectBpm } from "./bpmDetect";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); vi.clearAllMocks(); });
 
@@ -145,7 +146,7 @@ it("yields during long stereo mixdown and can cancel before the next chunk", asy
   expect(close).toHaveBeenCalledOnce();
 });
 
-it("averages both channels across a chunk boundary and returns mono PCM", async () => {
+it("mixes channel energy across a chunk boundary and returns mono analysis samples", async () => {
   vi.useFakeTimers();
   vi.mocked(readAudioBytes).mockResolvedValue({ bytes: new Uint8Array([1]), transcoded: false });
   const left = new Float32Array(200001).fill(1);
@@ -160,6 +161,25 @@ it("averages both channels across a chunk boundary and returns mono PCM", async 
   const pending = decodeAudioSamples("/song.mp3");
   await vi.runAllTimersAsync();
   const result = await pending;
-  expect(result.samples[0]).toBe(0.25);
-  expect(result.samples[200000]).toBe(0.25);
+  expect(result.samples[0]).toBeCloseTo(Math.sqrt(0.625));
+  expect(result.samples[200000]).toBeCloseTo(Math.sqrt(0.625));
+});
+
+it("preserves BPM attacks from opposite-phase stereo channels", async () => {
+  const left = new Float32Array(12_000);
+  for (let start = 100; start < left.length; start += 500) left.fill(1, start, start + 20);
+  const right = Float32Array.from(left, value => -value);
+  vi.mocked(readAudioBytes).mockResolvedValue({ bytes: new Uint8Array([1]), transcoded: false });
+  vi.stubGlobal("AudioContext", class {
+    close = vi.fn();
+    async decodeAudioData() {
+      return { numberOfChannels: 2, length: left.length, sampleRate: 1000,
+        getChannelData: (channel: number) => channel === 0 ? left : right };
+    }
+  });
+
+  const { samples, sampleRate } = await decodeAudioSamples("/anti-phase.wav");
+
+  expect(detectBpm(left, 1000)?.bpm).toBe(120);
+  expect(detectBpm(samples, sampleRate)?.bpm).toBe(120);
 });
