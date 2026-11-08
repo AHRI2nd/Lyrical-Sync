@@ -7,6 +7,13 @@ const emptyMeta = { title: "Song", artist: "", album: "", by: "", offset: 0 };
 const docOf = (lines: LrcDocument["lines"]): LrcDocument => ({ metadata: emptyMeta, lines, extraTags: {} });
 
 describe("serializeVtt", () => {
+  it("clamps negative subtitle cue starts without producing zero-duration cues", () => {
+    const doc = docOf([{ id: "negative", timestamp: -9, text: "before start" }]);
+
+    expect(serializeVtt(doc)).toContain("00:00:00.000 --> 00:00:04.000\nbefore start");
+    expect(serializeAss(doc)).toContain("Dialogue: 0,0:00:00.00,0:00:04.00,Default,,0,0,0,,before start");
+  });
+
   it("rejects a blank paragraph formed where original text meets translation", () => {
     expect(() => serializeVtt(docOf([{ id: "1", timestamp: 1, text: "original\n", translation: "translated" }]))).
       toThrow("VTT cannot preserve blank paragraph rows");
