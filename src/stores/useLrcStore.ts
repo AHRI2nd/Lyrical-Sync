@@ -13,6 +13,7 @@ import { useSettingsStore } from "./useSettingsStore";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
+import { safeUnlisten } from "../utils/safeUnlisten";
 import { cancelDocumentConfirmation, confirmDocumentReplacement, runDocumentTransition } from "../utils/documentTransition";
 
 const hasFiniteLineTimes = (lines: LrcLine[]): boolean => lines.every((line) =>
@@ -1276,7 +1277,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
         toast.error(useI18nStore.getState().t.toast.aiSyncFailed);
       }
     } finally {
-      unlisten?.();
+      safeUnlisten(unlisten);
     }
   },
 

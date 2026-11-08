@@ -766,6 +766,37 @@ describe("useLrcStore — runAiSync blank-line timestamp placement", () => {
     expect(useLrcStore.getState().aiDraftConfidence).toBeNull();
   });
 
+  it("does not leak a rejected progress-listener cleanup", async () => {
+    reset([{ id: "line", timestamp: null, text: "hello" }]);
+    useLrcStore.setState({ audioPath: "/song.mp3" });
+    const cleanupError = new Error("listener cleanup failed");
+    const onUnhandled = vi.fn();
+    const cleanup = () => Promise.reject(cleanupError);
+    vi.mocked(listen).mockResolvedValueOnce(cleanup as never);
+    vi.mocked(invoke).mockResolvedValueOnce(JSON.stringify({
+      lines: [{ index: 0, start: 1, end: 2, confidence: 0.9 }],
+      vocal_segments: [],
+      separated: false,
+    }));
+    const nodeProcess = (globalThis as unknown as {
+      process: {
+        on: (event: "unhandledRejection", handler: (reason: unknown, promise: Promise<unknown>) => void) => void;
+        off: (event: "unhandledRejection", handler: (reason: unknown, promise: Promise<unknown>) => void) => void;
+      };
+    }).process;
+    nodeProcess.on("unhandledRejection", onUnhandled);
+
+    try {
+      await useLrcStore.getState().runAiSync("ko", 0.5, false, false);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    } finally {
+      nodeProcess.off("unhandledRejection", onUnhandled);
+    }
+
+    expect(useLrcStore.getState().aiSyncStatus).toBe("done");
+    expect(onUnhandled).not.toHaveBeenCalled();
+  });
+
   it("does not cancel AI alignment for an untimed range shift", async () => {
     reset([{ id: "untimed", timestamp: null, text: "hello" }]);
     useLrcStore.setState({ audioPath: "/song.mp3" });
