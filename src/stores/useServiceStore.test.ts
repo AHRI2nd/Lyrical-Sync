@@ -191,6 +191,30 @@ describe("useServiceStore — player state", () => {
     });
     expect(useLrcStore.getState().currentTime).toBe(0);
   });
+
+  it("does not start interpolation or overwrite lyrics from a late SDK event outside Spotify mode", () => {
+    useSettingsStore.setState({ spotifyMode: false });
+    const doc = { ...useLrcStore.getState().doc, metadata: { ...useLrcStore.getState().doc.metadata, title: "Local title" } };
+    useLrcStore.setState({ doc, currentTime: 12 });
+    const requestFrame = vi.fn(() => 1);
+    vi.stubGlobal("requestAnimationFrame", requestFrame);
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+
+    useServiceStore.getState().onPlayerStateChanged({
+      paused: false,
+      position: 45_000,
+      duration: 180_000,
+      track_window: { current_track: {
+        uri: "spotify:track:late", name: "Late SDK track", artists: [{ name: "Artist" }],
+        album: { name: "Album", images: [] },
+      } },
+    } as unknown as Spotify.PlaybackState);
+
+    expect(useServiceStore.getState().trackName).toBe("Late SDK track");
+    expect(requestFrame).not.toHaveBeenCalled();
+    expect(useLrcStore.getState().doc).toBe(doc);
+    expect(useLrcStore.getState().currentTime).toBe(12);
+  });
 });
 
 describe("currently playing response shapes", () => {
