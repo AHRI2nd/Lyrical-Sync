@@ -97,13 +97,14 @@ class InferenceSession:
 class Tokenizer:
     def encode(self, text): return [ord(c) for c in text]
     def decode(self, tokens): return "".join(chr(t) for t in tokens)
+    def get_vocab(self): return {c: i for i, c in enumerate("abcdefghijklmnopqrstuvwxyz <>.")}
 def load_audio(path, ret_type=None):
     return range(16 if "short" in path else 32000)
 def generate_emissions(session, waveform, batch_size=1):
     return list(range(16)), 0.02
 def preprocess_text(text, **kwargs):
-    tokens = text.split()
-    return tokens, tokens
+    words = text.split()
+    return [" ".join(word) for word in words], words
 def get_alignments(emissions, tokens, tokenizer):
     assert len(emissions) == 16, "emissions must precede alignment"
     return tokens, [0.0] * len(tokens), 0
@@ -208,12 +209,14 @@ class EmbeddedAlignmentExecutionTests(unittest.TestCase):
                 "class Tokenizer:\n"
                 " def encode(self, text): return text.split()\n"
                 " def decode(self, tokens): return ' '.join(tokens)\n"
+                " def get_vocab(self): return {c: i for i, c in enumerate('abcdefghijklmnopqrstuvwxyz <>.')}\n"
                 "class FakeAudio:\n"
                 " def __len__(self): return 32000\n"
                 "def load_audio(*args, **kwargs): return FakeAudio()\n"
                 "def generate_emissions(session, audio, batch_size): return (list(range(16)), 0.02)\n"
                 "def preprocess_text(text, **kwargs):\n"
-                " return text.split(), text.split()\n"
+                " words = text.split()\n"
+                " return [' '.join(word) for word in words], words\n"
                 "def get_alignments(emissions, tokens, tokenizer):\n"
                 " assert len(emissions) == 16\n"
                 " return ('segments', 'scores', 'blank')\n"
@@ -252,12 +255,13 @@ class EmbeddedAlignmentExecutionTests(unittest.TestCase):
                 "class Tokenizer:\n"
                 " def encode(self, text): return text.split()\n"
                 " def decode(self, tokens): return ' '.join(tokens)\n"
+                " def get_vocab(self): return {c: i for i, c in enumerate('abcdefghijklmnopqrstuvwxyz <>.')}\n"
                 "class FakeAudio:\n"
                 " def __len__(self): return 32000\n"
                 "def load_audio(*args, **kwargs): return FakeAudio()\n"
                 "def generate_emissions(session, audio, batch_size): return (list(range(16)), 0.02)\n"
                 "def preprocess_text(text, **kwargs):\n"
-                " tokens = ['<star>', '<star>', '<star>', 'hello']\n"
+                " tokens = ['<star>', '<star>', '<star>', 'h e l l o']\n"
                 " return tokens, ' '.join(tokens)\n"
                 "def get_alignments(*args, **kwargs): raise AssertionError('CTC must not run')\n"
                 "def get_spans(*args, **kwargs): raise AssertionError('CTC must not run')\n"
@@ -278,6 +282,48 @@ class EmbeddedAlignmentExecutionTests(unittest.TestCase):
             self.assertTrue(any(
                 "정규화되어 원문 줄과 대응하지 않습니다" in event.get("message", "")
                 for event in events
+            ))
+            self.assertEqual(result.stdout, "")
+
+    def test_unknown_alignment_character_is_rejected_before_native_ctc(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "onnxruntime.py").write_text(
+                "from types import SimpleNamespace\n"
+                "class InferenceSession:\n"
+                " def __init__(self, path): pass\n"
+                " def get_inputs(self): return [SimpleNamespace(name='input')]\n"
+                " def get_outputs(self): return [SimpleNamespace(name='output')]\n",
+                encoding="utf-8",
+            )
+            (root / "numpy.py").write_text("", encoding="utf-8")
+            package = root / "ctc_forced_aligner"
+            package.mkdir()
+            (package / "__init__.py").write_text(
+                "class Tokenizer:\n"
+                " def encode(self, text): return list(text)\n"
+                " def decode(self, tokens): return ''.join(tokens)\n"
+                " def get_vocab(self): return {c: i for i, c in enumerate('abcdefghijklmnopqrstuvwxyz <>')}\n"
+                "class FakeAudio:\n"
+                " def __len__(self): return 32000\n"
+                "def load_audio(*args, **kwargs): return FakeAudio()\n"
+                "def generate_emissions(session, audio, batch_size): return (list(range(16)), 0.02)\n"
+                "def preprocess_text(text, **kwargs): return ['h i 🙂'], ['hi🙂']\n"
+                "def get_alignments(*args, **kwargs): raise AssertionError('native CTC must not run')\n"
+                "def get_spans(*args, **kwargs): raise AssertionError('native CTC must not run')\n"
+                "def postprocess_results(*args, **kwargs): raise AssertionError('native CTC must not run')\n",
+                encoding="utf-8",
+            )
+            result = self.run_alignment(
+                root,
+                json.dumps([{"index": 7, "text": "hi🙂"}]),
+                mock_dependencies=root,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            events = [json.loads(line) for line in result.stderr.splitlines()]
+            self.assertTrue(any(
+                "지원하지 않는 문자" in event.get("message", "") for event in events
             ))
             self.assertEqual(result.stdout, "")
 

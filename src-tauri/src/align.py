@@ -118,6 +118,26 @@ def validate_ctc_native_boundary(emissions, tokens):
     return True, ""
 
 
+def unsupported_alignment_characters(tokens, tokenizer):
+    """Return characters the CTC implementation would omit from its target IDs."""
+    get_vocab = getattr(tokenizer, "get_vocab", None)
+    if not callable(get_vocab):
+        raise ValueError("정렬 모델의 문자 사전을 확인할 수 없습니다")
+    vocabulary = get_vocab()
+    if not isinstance(vocabulary, dict):
+        raise ValueError("정렬 모델의 문자 사전 형식이 올바르지 않습니다")
+    supported = {str(character).casefold() for character in vocabulary}
+    unsupported = set()
+    for token in tokens:
+        # <star> is injected by the aligner itself as a valid separator.
+        if token == "<star>":
+            continue
+        for character in token.split():
+            if character.casefold() not in supported:
+                unsupported.add(character)
+    return unsupported
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--models-dir", required=True)
@@ -348,6 +368,14 @@ def main():
                 language=args.language,
                 split_size="word",
             )
+            try:
+                unsupported = unsupported_alignment_characters(tokens_starred, tokenizer)
+            except Exception as e:
+                progress("error", f"정렬 모델 문자 사전 확인 실패: {e}")
+                sys.exit(1)
+            if unsupported:
+                progress("error", "정렬 모델이 지원하지 않는 문자가 포함되어 있습니다")
+                sys.exit(1)
             if not use_char_split and len(tokens_starred) != sum(tokens_per_line):
                 raise ValueError("가사 일부가 정렬 모델에서 정규화되어 원문 줄과 대응하지 않습니다")
             safe_shape, shape_error = validate_ctc_native_boundary(emissions, tokens_starred)
