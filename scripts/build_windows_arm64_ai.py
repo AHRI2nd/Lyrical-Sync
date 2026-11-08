@@ -52,7 +52,7 @@ def main():
             if script.count(old)!=1:raise ValueError('CTC build script changed; review required')
             replacement='ret = run_pip("wheel", "--no-build-isolation", "--no-deps", "--wheel-dir", '+repr(str(output))+', src_dir)'
             patch=work/'build_ctc.py';patch.write_text(script.replace(old,replacement),encoding='utf-8')
-            run(sys.executable,str(patch),str(archive))
+            run(sys.executable,str(patch),str(archive),str(work))
         else:
             folder=work/name;folder.mkdir(exist_ok=True)
             with tarfile.open(archive) as tar:tar.extractall(folder,filter='data')

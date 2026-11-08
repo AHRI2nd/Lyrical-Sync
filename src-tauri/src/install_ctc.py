@@ -3,6 +3,9 @@ import subprocess, sys, os, tarfile, shutil, tempfile, glob
 sys.stderr.write("[ctc] patch script started\n")
 sys.stderr.flush()
 
+if len(sys.argv) != 3:
+    raise SystemExit("Usage: install_ctc.py <verified-source-archive> <owned-temp-root>")
+
 def run_pip(*args):
     proc = subprocess.Popen(
         [sys.executable, "-m", "pip"] + list(args),
@@ -18,7 +21,7 @@ def run_pip(*args):
     proc.wait()
     return proc.returncode
 
-tmpdir = tempfile.mkdtemp(prefix="ctc_patch_")
+tmpdir = tempfile.mkdtemp(prefix="ctc_patch_", dir=sys.argv[2])
 try:
     sys.stderr.write("[ctc] downloading source...\n")
     sys.stderr.flush()

@@ -435,7 +435,14 @@ async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> 
                 tokio::fs::write(&patch, include_str!("install_ctc.py"))
                     .await
                     .map_err(|e| e.to_string())?;
-                install_step(&app, python_cmd(&python).arg(&patch).arg(&archive)).await?;
+                install_step(
+                    &app,
+                    python_cmd(&python)
+                        .arg(&patch)
+                        .arg(&archive)
+                        .arg(stage.path()),
+                )
+                .await?;
             }
             #[cfg(not(windows))]
             install_step(

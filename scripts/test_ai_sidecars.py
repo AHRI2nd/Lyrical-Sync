@@ -329,6 +329,17 @@ class EmbeddedAlignmentExecutionTests(unittest.TestCase):
 
 
 class PlatformSupportTests(unittest.TestCase):
+    def test_ctc_patcher_scratch_is_scoped_to_its_owned_stage(self):
+        installer = (ROOT / "src-tauri/src/install_ctc.py").read_text(encoding="utf-8")
+        native = (ROOT / "src-tauri/src/python_env.rs").read_text(encoding="utf-8")
+        arm_builder = (ROOT / "scripts/build_windows_arm64_ai.py").read_text(encoding="utf-8")
+
+        self.assertIn(
+            'tempfile.mkdtemp(prefix="ctc_patch_", dir=sys.argv[2])', installer
+        )
+        self.assertIn(".arg(stage.path())", native)
+        self.assertIn("run(sys.executable,str(patch),str(archive),str(work))", arm_builder)
+
     def test_build_script_rejects_intel_mac_but_accepts_release_targets(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
