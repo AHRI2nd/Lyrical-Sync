@@ -13,35 +13,37 @@ const MIN_BPM = 60;
 const MAX_BPM = 200;
 const HOP_SEC = 0.02;
 const MAX_FRAMES = 6000;
-const MAX_FRAME_SAMPLES = 256;
+const MAX_SAMPLE_RATE = 192_000;
 
 /**
  * Estimate tempo and phase from a mono onset envelope. Analysis uses at most
- * the first two minutes and 256 energy samples per frame to bound synchronous
- * work independently of input duration and sample rate.
+ * the first two minutes of audio, with each frame's RMS computed from all its
+ * samples so short transients are independent of their sample phase.
  */
 export function detectBpm(samples: Float32Array | number[], sampleRate: number): BpmResult | null {
-  if (!Number.isFinite(sampleRate) || !(sampleRate > 0) || samples.length === 0) return null;
+  if (
+    !Number.isFinite(sampleRate) ||
+    !(sampleRate > 0) ||
+    sampleRate > MAX_SAMPLE_RATE ||
+    samples.length === 0
+  ) return null;
 
   const hopSize = Math.max(1, Math.round(HOP_SEC * sampleRate));
   const frameSec = hopSize / sampleRate;
   const frameCount = Math.min(MAX_FRAMES, Math.floor(samples.length / hopSize));
   if (frameCount < 8) return null;
 
-  // Frame RMS energy, with bounded sampling for large frame sizes.
+  // Frame RMS energy. MAX_FRAMES and the PCM resource limit bound total work.
   const energy = new Float32Array(frameCount);
   for (let f = 0; f < frameCount; f++) {
     const lo = f * hopSize;
-    const stride = Math.max(1, Math.ceil(hopSize / MAX_FRAME_SAMPLES));
     let sumSquares = 0;
-    let count = 0;
-    for (let i = lo; i < lo + hopSize; i += stride) {
+    for (let i = lo; i < lo + hopSize; i++) {
       const value = samples[i];
       if (!Number.isFinite(value)) return null;
       sumSquares += value * value;
-      count++;
     }
-    energy[f] = Math.sqrt(sumSquares / count);
+    energy[f] = Math.sqrt(sumSquares / hopSize);
     if (!Number.isFinite(energy[f])) return null;
   }
 

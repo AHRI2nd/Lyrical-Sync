@@ -22,6 +22,16 @@ describe("local BPM detection", () => {
     expect(detectBpm(pulseTrack(0.4, 0.2), 1000)?.offsetSec).toBe(0.2);
   });
 
+  it.each([0, 1])("detects one-sample 120 BPM impulses at sample phase %s", (samplePhase) => {
+    const sampleRate = 48_000;
+    const samples = new Float32Array(sampleRate * 12);
+    for (let start = sampleRate / 10 + samplePhase; start < samples.length; start += sampleRate / 2) {
+      samples[start] = 1;
+    }
+
+    expect(detectBpm(samples, sampleRate)?.bpm).toBe(120);
+  });
+
   it.each([0, -1, NaN, Infinity])("rejects invalid sample rate %s", (rate) => {
     expect(detectBpm(pulseTrack(0.5, 0.1), rate)).toBeNull();
   });
@@ -32,6 +42,18 @@ describe("local BPM detection", () => {
     const invalid = pulseTrack(0.5, 0.1);
     invalid[100] = NaN;
     expect(detectBpm(invalid, 1000)).toBeNull();
+  });
+
+  it("rejects sample rates above the supported audio ceiling before reading samples", () => {
+    const unreadableSamples = new Proxy([], {
+      get(_target, property) {
+        if (property === "length") return 30_720;
+        if (property === "0") throw new Error("unsupported rate must be rejected first");
+        return undefined;
+      },
+    }) as number[];
+
+    expect(detectBpm(unreadableSamples, 192_001)).toBeNull();
   });
 
   it("bounds long input analysis without reading its distant tail", () => {
