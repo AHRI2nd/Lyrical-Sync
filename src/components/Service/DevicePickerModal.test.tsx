@@ -8,14 +8,15 @@ import { useI18nStore } from "../../stores/useI18nStore";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => { resolve = done; });
-  return { promise, resolve };
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
 }
 
 const device = (id: string, name: string) => ({ id, name, type: "Computer", is_active: false, volume_percent: null });
 
 beforeEach(() => { useI18nStore.getState().setLang("en"); });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 it("keeps the newest device list when refresh responses finish out of order", async () => {
   const first = deferred<ReturnType<typeof device>[]>();
@@ -51,6 +52,29 @@ it("shows transfer failures and releases the busy state", async () => {
   fireEvent.click(target);
   expect(await screen.findByText(useI18nStore.getState().t.devicePicker.transferFailed)).toBeTruthy();
   expect(screen.getByRole("button", { name: /Phone/ }).hasAttribute("disabled")).toBe(false);
+});
+
+it("preserves a later transfer when the prior transfer's delayed refresh fires", async () => {
+  vi.useFakeTimers();
+  const secondTransfer = deferred<void>();
+  useServiceStore.setState({
+    fetchDevices: vi.fn().mockResolvedValue([device("phone", "Phone"), device("speaker", "Speaker")]),
+    transferToDevice: vi.fn().mockResolvedValueOnce(undefined).mockReturnValueOnce(secondTransfer.promise),
+    isPlaying: false,
+  });
+  render(<DevicePickerModal onClose={() => {}} />);
+
+  await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+  fireEvent.click(screen.getByRole("button", { name: /Phone/ }));
+  await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+  fireEvent.click(screen.getByRole("button", { name: /Speaker/ }));
+  expect(screen.getByRole("button", { name: /Speaker/ }).hasAttribute("disabled")).toBe(true);
+
+  await act(async () => { await vi.advanceTimersByTimeAsync(600); });
+  await act(async () => { secondTransfer.reject(new Error("403")); await secondTransfer.promise.catch(() => {}); });
+
+  expect(screen.getByText(useI18nStore.getState().t.devicePicker.transferFailed)).toBeTruthy();
+  expect(screen.getByRole("button", { name: /Speaker/ }).hasAttribute("disabled")).toBe(false);
 });
 
 it("recovers the mounted guard across React StrictMode effect replay", async () => {

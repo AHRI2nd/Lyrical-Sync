@@ -16,24 +16,24 @@ export function DevicePickerModal({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const requestGeneration = useRef(0);
+  const listGeneration = useRef(0);
+  const transferGeneration = useRef(0);
   const mounted = useRef(true);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(() => {
-    const requestId = ++requestGeneration.current;
+    const requestId = ++listGeneration.current;
     setLoading(true);
-    setBusyId(null);
     setError(null);
     fetchDevices()
-      .then((result) => { if (mounted.current && requestId === requestGeneration.current) setDevices(result); })
+      .then((result) => { if (mounted.current && requestId === listGeneration.current) setDevices(result); })
       .catch(() => {
-        if (mounted.current && requestId === requestGeneration.current) {
+        if (mounted.current && requestId === listGeneration.current) {
           setDevices([]);
           setError(t.devicePicker.error);
         }
       })
-      .finally(() => { if (mounted.current && requestId === requestGeneration.current) setLoading(false); });
+      .finally(() => { if (mounted.current && requestId === listGeneration.current) setLoading(false); });
   }, [fetchDevices, t.devicePicker.error]);
 
   useEffect(() => {
@@ -41,13 +41,15 @@ export function DevicePickerModal({ onClose }: { onClose: () => void }) {
     load();
     return () => {
       mounted.current = false;
-      requestGeneration.current += 1;
+      listGeneration.current += 1;
+      transferGeneration.current += 1;
       if (refreshTimer.current) clearTimeout(refreshTimer.current);
     };
   }, [load]);
 
   const select = async (id: string) => {
-    const operationId = ++requestGeneration.current;
+    const operationId = ++transferGeneration.current;
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
     setBusyId(id);
     setError(null);
     let transferred = false;
@@ -55,9 +57,9 @@ export function DevicePickerModal({ onClose }: { onClose: () => void }) {
       await transferToDevice(id, isPlaying);
       transferred = true;
     } catch {
-      if (mounted.current && operationId === requestGeneration.current) setError(t.devicePicker.transferFailed);
+      if (mounted.current && operationId === transferGeneration.current) setError(t.devicePicker.transferFailed);
     }
-    if (!mounted.current || operationId !== requestGeneration.current) return;
+    if (!mounted.current || operationId !== transferGeneration.current) return;
     setBusyId(null);
     if (!transferred) return;
     // 전환 반영(활성 표시)될 시간을 두고 새로고침
