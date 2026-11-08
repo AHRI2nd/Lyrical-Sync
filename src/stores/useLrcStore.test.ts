@@ -26,7 +26,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { serializeLrc } from "../utils/lrcParser";
-import { assertSrtDocumentLossless } from "../utils/srtConverter";
+import { assertSrtDocumentLossless, SrtMalformedCueError } from "../utils/srtConverter";
 import { setDocumentConfirmation } from "../utils/documentTransition";
 import { useToastStore } from "./useToastStore";
 import { useI18nStore } from "./useI18nStore";
@@ -1839,6 +1839,25 @@ describe("useLrcStore — document load transactions", () => {
     await expect(useLrcStore.getState().loadLyricsPath("/new.lrc", { audioPath: "/new.mp3" })).rejects.toThrow("unreadable");
     expect(useLrcStore.getState().audioPath).toBe("/old.mp3");
     expect(useLrcStore.getState().lrcPath).toBe("/old.lrc");
+  });
+  it("preserves the current document and unsaved edits when an SRT contains an invalid cue", async () => {
+    const malformedSrt = "1\n00:00:01,000 --> 00:00:02,000\nvalid cue\n\n" +
+      "2\n00:00:XX,000 --> 00:00:04,000\ncue that must not be silently lost\n";
+    vi.mocked(invoke).mockResolvedValue({ content: malformedSrt, sha256: "c".repeat(64) });
+    useLrcStore.getState().updateLine("1", { text: "unsaved current edit" });
+    const before = useLrcStore.getState();
+
+    await expect(useLrcStore.getState().loadLyricsPath("/incoming.srt")).rejects.toBeInstanceOf(SrtMalformedCueError);
+
+    const after = useLrcStore.getState();
+    expect(after.doc).toBe(before.doc);
+    expect(after._history).toBe(before._history);
+    expect(after.lrcPath).toBe("/old.lrc");
+    expect(after.audioPath).toBe("/old.mp3");
+    expect(after.isDirty).toBe(true);
+    expect(after.doc.lines[0].text).toBe("unsaved current edit");
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke).toHaveBeenCalledWith("read_lrc_file_with_hash", { path: "/incoming.srt" });
   });
   it("publishes the new lyrics and audio in one store transition", async () => {
     vi.mocked(invoke).mockResolvedValue(lrcSnapshot("[00:02.00]incoming"));
