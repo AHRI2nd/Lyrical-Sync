@@ -48,6 +48,13 @@ it('exposes audio quality as a keyboard-operable radio group', async () => {
   expect(useSettingsStore.getState().ytdlpAudioQuality).toBe('192');
 });
 
+it('exposes the proxy textbox with its visible localized label', async () => {
+  const label = useI18nStore.getState().t.ytdlpProxy;
+  render(<YtdlpSection />);
+
+  expect(await screen.findByRole('textbox', { name: label })).toBeTruthy();
+});
+
 it.each(['ko', 'en', 'ja'] as const)('localizes the checking state in %s', async (lang) => {
   useI18nStore.getState().setLang(lang);
   invoke.mockImplementation((command: string) => command === 'check_ytdlp' ? new Promise(() => {}) : Promise.resolve(undefined));

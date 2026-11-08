@@ -333,9 +333,10 @@ export function YtdlpSection() {
 
       {/* 프록시 */}
       <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-[var(--ls-text)]">{t.ytdlpProxy}</span>
+        <label htmlFor="ytdlp-proxy" className="text-sm font-medium text-[var(--ls-text)]">{t.ytdlpProxy}</label>
         <div className="flex gap-2">
           <input
+            id="ytdlp-proxy"
             type="text"
             value={proxyDraft}
             onChange={(e) => { setProxyDraft(e.target.value); setProxySaved(false); }}
