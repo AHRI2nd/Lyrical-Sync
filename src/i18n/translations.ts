@@ -519,6 +519,7 @@ export interface Translations {
   aiSyncConfidenceHigh: string;
   aiSyncConfidenceLow: string;
   aiSyncConfidenceLabel: string;
+  aiConfidenceRelativeScore: string;
   aiSyncStatusPostprocessing: string;
   aiSyncBlankOffset: string;
   aiSyncBlankOffsetDesc: string;
@@ -872,7 +873,7 @@ const ko: Translations = {
     { title: "Python 환경 설치", desc: "설정(⚙) → AI 환경 탭에서 내장 Python을 다운로드하고 패키지를 설치합니다." },
     { title: "모델 다운로드", desc: "설정 → AI 모델 탭에서 필수 모델 ctc-mms-300m(1.2 GB)을 다운로드합니다." },
     { title: "AI 자동 싱크 실행", desc: "가사를 입력한 후 LRC 에디터 상단의 'AI 자동 싱크' 버튼을 클릭합니다. 언어를 선택하면 자동으로 타임스탬프가 생성됩니다." },
-    { title: "결과 확인 및 보정", desc: "신뢰도 배지가 낮은 줄은 수동으로 타임스탬프를 찍어 보정하세요. Space 키로 재생 중 실시간 스탬핑도 가능합니다." },
+    { title: "결과 확인 및 보정", desc: "낮은 상대 점수 배지는 같은 정렬 결과 안에서 점수가 낮다는 뜻이며 확률은 아닙니다. 해당 줄을 확인하고 수동으로 보정하세요. Space 키로 재생 중 실시간 스탬핑도 가능합니다." },
   ],
   helpSpotifySteps: [
     { title: "Client ID 준비", desc: "Spotify Developer Dashboard(developer.spotify.com)에서 앱을 만들고 Redirect URI에 http://127.0.0.1:8888/callback 을 추가합니다." },
@@ -1201,6 +1202,7 @@ const ko: Translations = {
   aiSyncConfidenceHigh: "높음",
   aiSyncConfidenceLow: "낮음",
   aiSyncConfidenceLabel: "신뢰도",
+  aiConfidenceRelativeScore: "AI 정렬 상대 점수입니다. 같은 결과 안의 비교값이며 확률이 아닙니다.",
   aiSyncStatusPostprocessing: "결과 처리 중...",
   aiSyncBlankOffset: "빈 줄 오프셋 (초)",
   aiSyncBlankOffsetDesc: "빈 줄의 타임스탬프를 앞 가사 끝 시점에서 얼마나 뒤로 설정할지 지정합니다.",
@@ -1553,7 +1555,7 @@ const en: Translations = {
     { title: "Install Python Environment", desc: "Go to Settings(⚙) → AI Environment tab to download the bundled Python and install packages." },
     { title: "Download Model", desc: "Go to Settings → AI Models tab and download the required model ctc-mms-300m (1.2 GB)." },
     { title: "Run AI Auto Sync", desc: "After entering lyrics, click the 'AI Auto Sync' button at the top of the LRC editor. Select a language and timestamps will be generated automatically." },
-    { title: "Review & Correct", desc: "Manually stamp lines with low confidence badges. You can also stamp in real time with the Space key during playback." },
+    { title: "Review & Correct", desc: "Low relative-score badges identify lines scored lower within this alignment; they are not probabilities. Review those lines and correct timestamps manually. You can also stamp in real time with the Space key during playback." },
   ],
   helpSpotifySteps: [
     { title: "Get a Client ID", desc: "Create an app on the Spotify Developer Dashboard (developer.spotify.com) and add http://127.0.0.1:8888/callback as a Redirect URI." },
@@ -1883,6 +1885,7 @@ const en: Translations = {
   aiSyncConfidenceHigh: "High",
   aiSyncConfidenceLow: "Low",
   aiSyncConfidenceLabel: "confidence",
+  aiConfidenceRelativeScore: "Relative AI alignment score within this result; not a probability.",
   aiSyncStatusPostprocessing: "Processing results...",
   aiSyncBlankOffset: "Blank line offset (s)",
   aiSyncBlankOffsetDesc: "How many seconds after the previous lyric's end to set blank line timestamps.",
@@ -2235,7 +2238,7 @@ const ja: Translations = {
     { title: "Python環境のインストール", desc: "設定(⚙) → AI環境タブで内蔵Pythonをダウンロードし、パッケージをインストールします。" },
     { title: "モデルのダウンロード", desc: "設定 → AIモデルタブで必須モデル ctc-mms-300m（1.2 GB）をダウンロードします。" },
     { title: "AI自動シンク実行", desc: "歌詞を入力後、LRCエディタ上部の「AI自動シンク」ボタンをクリックします。言語を選択するとタイムスタンプが自動生成されます。" },
-    { title: "結果の確認と修正", desc: "信頼度バッジが低い行は手動でスタンプして修正してください。再生中にSpaceキーでリアルタイムスタンプも可能です。" },
+    { title: "結果の確認と修正", desc: "低い相対スコアのバッジは、この整列結果の中で相対的に低い行を示し、確率ではありません。該当行を確認して手動で修正してください。再生中にSpaceキーでリアルタイムスタンプも可能です。" },
   ],
   helpSpotifySteps: [
     { title: "Client IDの準備", desc: "Spotify Developer Dashboard（developer.spotify.com）でアプリを作成し、Redirect URIに http://127.0.0.1:8888/callback を追加します。" },
@@ -2564,6 +2567,7 @@ const ja: Translations = {
   aiSyncConfidenceHigh: "高",
   aiSyncConfidenceLow: "低",
   aiSyncConfidenceLabel: "信頼度",
+  aiConfidenceRelativeScore: "AI整列の相対スコアです。同じ結果内の比較値であり、確率ではありません。",
   aiSyncStatusPostprocessing: "結果処理中...",
   aiSyncBlankOffset: "空白行オフセット（秒）",
   aiSyncBlankOffsetDesc: "空白行のタイムスタンプを前の歌詞の終了時点から何秒後に設定するかを指定します。",

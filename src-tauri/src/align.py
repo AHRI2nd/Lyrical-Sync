@@ -438,7 +438,9 @@ def main():
 
     results = []
     for e in raw_entries:
-        confidence = (e["avg_log_prob"] - lo) / score_range
+        # Equal scores provide no evidence to rank one line above another.
+        # Keep them neutral instead of labeling every line "low" at zero.
+        confidence = 0.5 if hi == lo else (e["avg_log_prob"] - lo) / score_range
         confidence_normalized = max(0.0, min(1.0, confidence))
         results.append({
             "index": e["index"],
@@ -496,7 +498,7 @@ def main():
         "lines": results,
         "vocal_segments": vocal_segments,
         "separated": separated,
-        "confidence_unit": "normalized_0_to_1_and_percent",  # documents confidence units
+        "confidence_unit": "batch_relative_0_to_1_not_probability",
     }), flush=True)
 
 

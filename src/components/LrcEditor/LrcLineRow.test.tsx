@@ -21,6 +21,7 @@ function makeProps(overrides: Partial<LrcLineRowProps> = {}): LrcLineRowProps {
       warnDuplicate: "Duplicate timestamp",
       warnOutOfOrder: "Out of order",
       confidence: "Confidence",
+      aiConfidenceRelativeScore: "Relative AI alignment score within this result; not a probability.",
       charSync: { badge: "Character sync" },
     } as unknown as Translations,
     line: { id: "line-1", timestamp: 1, text: "First line" },
@@ -76,6 +77,13 @@ describe("LrcLineRow drag handle", () => {
 
     expect(onReorderPointerDown).toHaveBeenCalledOnce();
   });
+});
+
+it("explains that the AI timestamp color is a relative score, not a probability", () => {
+  const props = makeProps({ confidence: 0.5 });
+  const { container } = render(<LrcLineRow {...props} />);
+  expect(container.querySelector(".ls-time-button")?.getAttribute("title"))
+    .toBe(props.t.aiConfidenceRelativeScore);
 });
 
 describe("LrcLineRow warnings", () => {

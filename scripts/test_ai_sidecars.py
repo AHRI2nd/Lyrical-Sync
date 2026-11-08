@@ -174,7 +174,17 @@ def postprocess_results(text, spans, stride, scores):
         output = json.loads(result.stdout)
         self.assertEqual([line["index"] for line in output["lines"]], [3])
         self.assertEqual([output["lines"][0]["start"], output["lines"][0]["end"]], [0.2, 1.8])
-        self.assertEqual(output["confidence_unit"], "normalized_0_to_1_and_percent")
+        self.assertEqual(output["lines"][0]["confidence"], 0.5)
+        self.assertEqual(output["confidence_unit"], "batch_relative_0_to_1_not_probability")
+
+    def test_equal_score_lines_receive_neutral_relative_confidence(self):
+        result = self.run_alignment(lyric_lines=[
+            {"index": 0, "text": "hello"},
+            {"index": 1, "text": "world"},
+        ])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        output = json.loads(result.stdout)
+        self.assertEqual([line["confidence"] for line in output["lines"]], [0.5, 0.5])
 
     def test_unalignable_lyric_rows_do_not_shift_following_timestamps(self):
         result = self.run_alignment(lyric_lines=[
@@ -278,7 +288,7 @@ class EmbeddedAlignmentExecutionTests(unittest.TestCase):
             self.assertEqual((output["lines"][0]["start"], output["lines"][0]["end"]),
                              (0.0, 0.4))
             self.assertIn('"status": "analyzing"', result.stderr)
-            self.assertEqual(output["confidence_unit"], "normalized_0_to_1_and_percent")
+            self.assertEqual(output["confidence_unit"], "batch_relative_0_to_1_not_probability")
 
     def test_reserved_star_expansion_is_rejected_before_ctc_can_shift_line_ownership(self):
         with tempfile.TemporaryDirectory() as folder:

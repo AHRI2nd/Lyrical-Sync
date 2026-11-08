@@ -144,6 +144,7 @@ export function LrcLineRowImpl({
           <button
             onClick={(e) => { e.stopPropagation(); onStartTsEdit(); }}
             onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onStampCurrentLine(); }}
+            title={confidence !== undefined ? t.aiConfidenceRelativeScore : undefined}
             className={`ls-button ls-button--compact ls-time-button w-full truncate ${`font-mono text-xs transition-colors ${tsClass}`}`}
           >
             {line.timestamp !== null ? formatDisplayTime(line.timestamp) : "-:--:--.---"}
