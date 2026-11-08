@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, WebviewWindow};
@@ -10,6 +11,14 @@ use crate::python_env::{embedded_python_exe, python_cmd_inference};
 // Python scripts embedded at compile time
 const ALIGN_SCRIPT: &str = include_str!("align.py");
 const SEPARATE_SCRIPT: &str = include_str!("separate.py");
+
+fn validate_alignment_audio(path: &Path) -> Result<(), String> {
+    let metadata = std::fs::metadata(path).map_err(|error| error.to_string())?;
+    if !metadata.is_file() {
+        return Err(crate::audio_resource::AUDIO_RESOURCE_LIMIT_ERROR.into());
+    }
+    crate::audio_resource::inspect_audio_file(path).map(|_| ())
+}
 
 /// The active run owns its cancellation flag until its child has been reaped.
 #[derive(Default)]
@@ -77,6 +86,7 @@ pub async fn run_alignment(
 ) -> Result<String, String> {
     let audio_path = crate::path_validation::validate_safe_path(&audio_path)?;
     crate::authorize_window_path(&window, &audio_path)?;
+    validate_alignment_audio(&audio_path)?;
     let audio_path = audio_path.to_string_lossy().into_owned();
     let run = al_state.begin(run_id)?;
     let cancel = run.cancel.clone();
@@ -249,6 +259,20 @@ pub fn cancel_alignment(al_state: tauri::State<'_, AlignmentState>, run_id: u64)
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ai_audio_validation_enforces_the_shared_file_resource_budget() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("oversized-audio.wav");
+        let file = std::fs::File::create(&path).unwrap();
+        file.set_len(crate::audio_resource::MAX_AUDIO_FILE_BYTES + 1).unwrap();
+
+        assert_eq!(
+            validate_alignment_audio(&path).unwrap_err(),
+            crate::audio_resource::AUDIO_RESOURCE_LIMIT_ERROR,
+        );
+    }
+
     #[test]
     fn cancellation_interrupts_a_pending_environment_probe() {
         tokio::runtime::Runtime::new().unwrap().block_on(async {
