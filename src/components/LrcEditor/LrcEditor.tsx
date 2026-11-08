@@ -982,7 +982,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
       {showTS && (
         <TimeShiftBar
-          key={documentSession}
+          key={`${documentSession}:${lines.map((line) => line.id).join("\0")}`}
           lineCount={lines.length}
           defaultFrom={(activeLineId ? lines.findIndex((l) => l.id === activeLineId) : 0) + 1}
           onApply={handleShiftApply}

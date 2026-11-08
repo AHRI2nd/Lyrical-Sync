@@ -53,6 +53,27 @@ it("resets the time shift range and delta when the document is replaced", () => 
   expect(numberInputs[1].value).toBe("2");
   expect(numberInputs[2].value).toBe("0");
 });
+it("resets the time shift range when its selected rows are deleted", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+    { id: "a", text: "first", timestamp: 1 },
+    { id: "b", text: "second", timestamp: 3 },
+    { id: "c", text: "third", timestamp: 5 },
+  ] }, activeLineId: "c" });
+  const { container, getByRole, getAllByRole } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getByRole("button", { name: t.editorTools }));
+  fireEvent.click(getByRole("button", { name: t.timeShift }));
+  let numberInputs = getAllByRole("spinbutton") as HTMLInputElement[];
+  fireEvent.change(numberInputs[0], { target: { value: "3" } });
+  fireEvent.change(numberInputs[1], { target: { value: "3" } });
+  fireEvent.change(numberInputs[2], { target: { value: "1" } });
+
+  const selectedRow = container.querySelector('[data-line-id="c"]');
+  fireEvent.click(selectedRow!.querySelector(`button[aria-label="${t.deleteLine}"]`)!);
+
+  numberInputs = getAllByRole("spinbutton") as HTMLInputElement[];
+  expect(numberInputs.map(({ value }) => value)).toEqual(["1", "2", "0"]);
+});
 it("starts a new undo group when editing resumes after focus leaves the editor", () => {
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "a", timestamp: null }] } });
   const { getByDisplayValue } = render(<LrcEditor onPreview={() => {}} />);
