@@ -1170,6 +1170,12 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
       // align.py는 { lines, vocal_segments, separated } 객체를 반환(구버전은 배열).
       const parsed = JSON.parse(resultJson);
       const results: AlignmentResult[] = Array.isArray(parsed) ? parsed : parsed.lines;
+      if (!Array.isArray(results) || results.some((result) =>
+        !Number.isFinite(result.start) || !Number.isFinite(result.end) ||
+        result.start < 0 || result.end < result.start || !Number.isFinite(result.confidence)
+      )) {
+        throw new Error("AI alignment returned invalid timestamps");
+      }
       const vocalSegments: [number, number][] = Array.isArray(parsed) ? [] : (parsed.vocal_segments ?? []);
       const separated: boolean = Array.isArray(parsed) ? false : !!parsed.separated;
       const byIndex = new Map(results.map((r) => [r.index, r]));

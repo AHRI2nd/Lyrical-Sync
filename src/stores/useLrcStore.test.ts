@@ -766,6 +766,21 @@ describe("useLrcStore — runAiSync blank-line timestamp placement", () => {
     expect(useLrcStore.getState().aiDraftConfidence).toBeNull();
   });
 
+  it("rejects non-finite AI alignment timestamps before changing the document", async () => {
+    reset([{ id: "line", timestamp: null, text: "hello" }]);
+    useLrcStore.setState({ audioPath: "/song.mp3" });
+    vi.mocked(invoke).mockResolvedValueOnce(
+      '{"lines":[{"index":0,"start":1e400,"end":2,"confidence":0.9}],"vocal_segments":[],"separated":false}',
+    );
+
+    await useLrcStore.getState().runAiSync("ko", 0.5, false, false);
+
+    expect(lines()[0].timestamp).toBeNull();
+    expect(useLrcStore.getState().isDirty).toBe(false);
+    expect(useLrcStore.getState()._history).toHaveLength(0);
+    expect(useLrcStore.getState().aiSyncStatus).toBe("error");
+  });
+
   it("does not leak a rejected progress-listener cleanup", async () => {
     reset([{ id: "line", timestamp: null, text: "hello" }]);
     useLrcStore.setState({ audioPath: "/song.mp3" });
