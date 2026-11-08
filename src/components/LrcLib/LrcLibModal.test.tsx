@@ -101,3 +101,28 @@ it('uses plain lyrics when synchronized lyrics are an empty string', async () =>
   }, expect.any(Number));
   expect(onClose).toHaveBeenCalledOnce();
 });
+
+it('does not close a newly opened dialog when an older apply finishes', async () => {
+  const t = useI18nStore.getState().t;
+  const result = {
+    id: 3, trackName: 'Deferred Song', artistName: 'Artist', albumName: '',
+    duration: 90, instrumental: false, syncedLyrics: '[00:01.00]line', plainLyrics: null,
+  };
+  const apply = deferred<'applied' | 'cancelled'>();
+  lrclibSearch.mockReset().mockResolvedValueOnce([result]);
+  useLrcStore.getState().newLrc();
+  useLrcStore.setState({ requestApplyFetchedLyrics: vi.fn(() => apply.promise) as never });
+  const onClose = vi.fn();
+  const oldDialog = render(<LrcLibModal onClose={onClose} />);
+  fireEvent.change(screen.getByRole('textbox', { name: t.lrclib.fieldTitle }), { target: { value: 'Deferred Song' } });
+  fireEvent.click(screen.getByRole('button', { name: t.lrclib.search }));
+  await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+  fireEvent.click(screen.getByRole('button', { name: t.lrclib.confirm }));
+  oldDialog.unmount();
+  render(<LrcLibModal onClose={onClose} />);
+
+  await act(async () => { apply.resolve('applied'); await apply.promise; });
+
+  expect(onClose).not.toHaveBeenCalled();
+  expect(screen.getByRole('dialog', { name: t.lrclib.title })).toBeTruthy();
+});

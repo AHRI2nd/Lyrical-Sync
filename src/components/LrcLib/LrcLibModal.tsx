@@ -118,7 +118,7 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
     } catch {
       result = "cancelled";
     }
-    if (result === "applied") {
+    if (result === "applied" && mountedRef.current) {
       onClose();
     } else if (mountedRef.current) {
       applyingRef.current = false;
