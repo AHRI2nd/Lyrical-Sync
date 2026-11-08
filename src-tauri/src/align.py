@@ -39,7 +39,7 @@ def detect_vocal_segments(waveform, sr=16000, hop=0.01, win=0.025,
         for i in range(n_frames):
             s = i * hop_n
             frame = x[s:s + win_n]
-            rms[i] = np.sqrt(np.mean(frame * frame) + 1e-12)
+            rms[i] = np.sqrt(np.mean(frame * frame))
         peak = float(rms.max())
         if peak <= 0:
             return []

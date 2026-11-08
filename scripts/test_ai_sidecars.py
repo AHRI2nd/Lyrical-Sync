@@ -2,18 +2,61 @@
 import importlib.util
 import hashlib
 import json
+import math
 import tempfile
 import subprocess
 import sys
 import os
 import sysconfig
+import types
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("lyrical_align", ROOT / "src-tauri/src/align.py")
 align = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(align)
+
+
+class VocalActivityTests(unittest.TestCase):
+    def test_digital_silence_has_no_vocal_segments_and_a_pulse_remains_detectable(self):
+        class AudioArray(list):
+            @property
+            def size(self):
+                return len(self)
+
+            def reshape(self, _shape):
+                return self
+
+            def __getitem__(self, key):
+                value = super().__getitem__(key)
+                return AudioArray(value) if isinstance(key, slice) else value
+
+            def __mul__(self, other):
+                return AudioArray(left * right for left, right in zip(self, other))
+
+        class RmsArray(list):
+            def max(self):
+                return max(self, default=0.0)
+
+            def __gt__(self, threshold):
+                return [value > threshold for value in self]
+
+        numpy = types.SimpleNamespace(
+            float32="float32",
+            asarray=lambda values, dtype: AudioArray(values),
+            empty=lambda size, dtype: RmsArray([0.0] * size),
+            sqrt=math.sqrt,
+            mean=lambda values: sum(values) / len(values),
+        )
+        silent = [0.0] * 32_000
+        pulse = silent.copy()
+        pulse[7_680:12_000] = [0.5] * 4_320
+
+        with patch.dict(sys.modules, {"numpy": numpy}):
+            self.assertEqual(align.detect_vocal_segments(silent), [])
+            self.assertTrue(align.detect_vocal_segments(pulse))
 
 
 class ModelIntegrityTests(unittest.TestCase):
