@@ -57,11 +57,11 @@ it('restores the original line and glyph times with Undo', () => {
  useLrcStore.getState().stampAndAdvance();useLrcStore.getState().undo();
  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({timestamp:1,syllables:[{text:'a',time:1},{text:' ',time:null},{text:'b',time:2}]});
 });
-it('anchors previously inconsistent glyph timing at a fractional new onset', () => {
+it('preserves valid glyph offsets when retiming to a fractional new onset', () => {
  const line=useLrcStore.getState().doc.lines[0];
- useLrcStore.setState({doc:{...defaultDocument(),lines:[{...line,timestamp:20}]}});
+ useLrcStore.setState({doc:{...defaultDocument(),lines:[{...line,timestamp:20,syllables:[{text:'a',time:19.75},{text:' ',time:null},{text:'b',time:20.75}]}]}});
  useLrcStore.getState().updateLine('a',{timestamp:5.25});
- expect(useLrcStore.getState().doc.lines[0].syllables?.map(s=>s.time)).toEqual([5.25,null,6.25]);
+ expect(useLrcStore.getState().doc.lines[0].syllables?.map(s=>s.time)).toEqual([5,null,6]);
 });
 it('respects an explicit replacement for glyphs in the same edit', () => {
  useLrcStore.getState().updateLine('a',{timestamp:5,syllables:undefined});
@@ -171,10 +171,10 @@ it('scales a representable SRT cue, supports undo/redo and saves the intended du
 });
 
 it.each([
-  [1, 1, 1.001],
-  [1.000000000001, 1, 1.001],
-  [2, 2, 2.002],
-])('retains a representable original 1ms cue when scaling by %s', async (factor, expectedStart, expectedEnd) => {
+  [1, 1, 1.001, false],
+  [1.000000000001, 1, 1.001, false],
+  [2, 2, 2.002, true],
+])('retains a representable original 1ms cue when scaling by %s', async (factor, expectedStart, expectedEnd, changesTiming) => {
   const { writes } = await loadSrtFixture('00:00:01,000', '00:00:01,001');
   const initialDoc = useLrcStore.getState().doc;
   useLrcStore.getState().scaleTimestamps(factor);
@@ -182,14 +182,16 @@ it.each([
   expect(current.doc.lines.find(line => line.text === 'Quick')).toMatchObject({
     timestamp: expectedStart, srtEndTime: expectedEnd,
   });
-  if (factor === 1) {
+  if (!changesTiming) {
     expect(current.doc).toBe(initialDoc);
     expect(current._history).toHaveLength(0);
+    expect(current.isDirty).toBe(false);
+    expect(writes).toEqual([]);
   } else {
     expect(current.doc).not.toBe(initialDoc);
     expect(current._history).toHaveLength(1);
+    await expect(useLrcStore.getState().saveLrc()).resolves.toBe(true);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).not.toContain('00:00:04,');
   }
-  await expect(useLrcStore.getState().saveLrc()).resolves.toBe(true);
-  expect(writes).toHaveLength(1);
-  expect(writes[0]).not.toContain('00:00:04,');
 });
