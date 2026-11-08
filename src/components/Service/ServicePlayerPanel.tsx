@@ -95,6 +95,7 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
     if (nextVolume === null) return;
     const requestId = volumeRequestGeneration.current;
     void setSpotifyVolume(nextVolume).catch(async () => {
+      if (requestId !== volumeRequestGeneration.current) return;
       toast.error(useI18nStore.getState().t.toast.spotifyActionFailed);
       const currentVolume = await getSpotifyVolume().catch(() => null);
       if (requestId !== volumeRequestGeneration.current) return;

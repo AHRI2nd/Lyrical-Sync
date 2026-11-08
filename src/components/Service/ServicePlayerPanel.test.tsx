@@ -17,6 +17,7 @@ beforeEach(() => {
   getVolume.mockReset().mockResolvedValue(0.5).mockResolvedValueOnce(0.42).mockResolvedValueOnce(0.67);
   setVolume.mockReset().mockResolvedValue(undefined);
   useI18nStore.getState().setLang("en");
+  useToastStore.setState({ toasts: [] });
   useServiceStore.setState({
     deviceId: "web-player",
     activePlaybackDeviceId: "web-player",
@@ -109,4 +110,25 @@ it("reports a failed Spotify repeat change after restoring the prior state", asy
   await waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1));
   expect(useServiceStore.getState().isLooping).toBe(false);
   expect(useToastStore.getState().toasts[0]?.message).toBe(useI18nStore.getState().t.toast.spotifyActionFailed);
+});
+
+it("ignores an old volume failure after playback changes devices", async () => {
+  let rejectVolume!: (error: Error) => void;
+  setVolume.mockReturnValueOnce(new Promise((_, reject) => { rejectVolume = reject; }));
+  const { container } = render(<ServicePlayerPanel />);
+  const slider = container.querySelector('input[type="range"]') as HTMLInputElement;
+  await waitFor(() => expect(slider.value).toBe("0.42"));
+
+  fireEvent.change(slider, { target: { value: "0.8" } });
+  fireEvent.pointerUp(slider);
+  await waitFor(() => expect(setVolume).toHaveBeenCalledOnce());
+  const readsBeforeFailure = getVolume.mock.calls.length;
+
+  act(() => useServiceStore.setState({ activePlaybackDeviceId: "external-speaker" }));
+  await waitFor(() => expect(slider.value).toBe("0.67"));
+  rejectVolume(new Error("old device disappeared"));
+  await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+
+  expect(useToastStore.getState().toasts).toHaveLength(0);
+  expect(getVolume).toHaveBeenCalledTimes(readsBeforeFailure + 1);
 });
