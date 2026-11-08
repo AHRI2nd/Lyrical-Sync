@@ -2,6 +2,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 pub const READY_MARKER: &str = ".lyrical-runtime-ready";
 pub const RUNTIME_ID: &str = "cpython-3.13.17-20261021-v1";
+const BACKUP_PREFIX: &str = ".lyrical-python-runtime-backup-";
 pub const MANIFEST: &str = include_str!("../ai-manifest.json");
 pub static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
@@ -22,6 +23,47 @@ pub fn runtime_complete(root: &Path) -> bool {
 pub fn publish_runtime(stage: &Path, destination: &Path) -> io::Result<()> {
     publish_with(stage, destination, |from, to| std::fs::rename(from, to))
 }
+
+pub fn recover_runtime(destination: &Path) -> io::Result<()> {
+    let parent = destination
+        .parent()
+        .ok_or_else(|| io::Error::other("Missing runtime parent"))?;
+    match std::fs::symlink_metadata(destination) {
+        Ok(_) => return Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+
+    let mut backups = Vec::new();
+    for entry in std::fs::read_dir(parent)? {
+        let entry = entry?;
+        if !entry.file_name().to_string_lossy().starts_with(BACKUP_PREFIX) {
+            continue;
+        }
+        let metadata = entry.file_type()?;
+        if !metadata.is_dir() {
+            continue;
+        }
+        let previous = entry.path().join("previous");
+        if std::fs::symlink_metadata(&previous).is_ok() {
+            backups.push((entry.path(), previous));
+        }
+    }
+    if backups.is_empty() {
+        return Ok(());
+    }
+    if backups.len() != 1 {
+        return Err(io::Error::other(
+            "Multiple interrupted Python runtime backups require manual recovery",
+        ));
+    }
+
+    let (backup_dir, previous) = backups.pop().expect("one backup was checked");
+    std::fs::rename(&previous, destination)?;
+    std::fs::remove_dir(backup_dir)?;
+    Ok(())
+}
+
 fn publish_with(
     stage: &Path,
     destination: &Path,
@@ -33,7 +75,9 @@ fn publish_with(
     let parent = destination
         .parent()
         .ok_or_else(|| io::Error::other("Missing runtime parent"))?;
-    let backup = tempfile::tempdir_in(parent)?;
+    let backup = tempfile::Builder::new()
+        .prefix(BACKUP_PREFIX)
+        .tempdir_in(parent)?;
     let previous = backup.path().join("previous");
     // Path::exists() follows symlinks. A dangling link still occupies the
     // destination entry and must be backed up before publishing the runtime.
@@ -102,6 +146,73 @@ mod tests {
         std::fs::remove_file(runtime_exe(root.path())).unwrap();
         assert!(!runtime_complete(root.path()));
     }
+
+    #[test]
+    fn interrupted_publish_is_recovered_after_process_exit() {
+        if let Ok(root) = std::env::var("LYRICAL_RUNTIME_CRASH_FIXTURE") {
+            let root = PathBuf::from(root);
+            let live = root.join("embedded-python");
+            let stage = root.join("stage");
+            ready_stage(&live);
+            ready_stage(&stage);
+            let mut calls = 0;
+            let _ = publish_with(&stage, &live, |from, to| {
+                calls += 1;
+                let result = std::fs::rename(from, to);
+                if calls == 1 {
+                    std::process::exit(42);
+                }
+                result
+            });
+            panic!("fixture must exit between the two runtime renames");
+        }
+
+        let root = tempfile::tempdir().unwrap();
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "python_runtime::tests::interrupted_publish_is_recovered_after_process_exit",
+                "--nocapture",
+            ])
+            .env("LYRICAL_RUNTIME_CRASH_FIXTURE", root.path())
+            .status()
+            .unwrap();
+        assert_eq!(status.code(), Some(42));
+
+        let live = root.path().join("embedded-python");
+        assert!(std::fs::symlink_metadata(&live).is_err());
+        recover_runtime(&live).unwrap();
+        assert!(runtime_complete(&live));
+        assert!(!std::fs::read_dir(root.path())
+            .unwrap()
+            .any(|entry| entry.unwrap().file_name().to_string_lossy().starts_with(BACKUP_PREFIX)));
+    }
+
+    #[test]
+    fn ambiguous_runtime_backups_are_preserved_for_manual_recovery() {
+        let root = tempfile::tempdir().unwrap();
+        let live = root.path().join("embedded-python");
+        let backups = (0..2)
+            .map(|_| {
+                tempfile::Builder::new()
+                    .prefix(BACKUP_PREFIX)
+                    .tempdir_in(root.path())
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        for backup in &backups {
+            ready_stage(&backup.path().join("previous"));
+        }
+
+        let error = recover_runtime(&live).unwrap_err();
+
+        assert!(error.to_string().contains("Multiple interrupted"));
+        assert!(!live.exists());
+        assert!(backups
+            .iter()
+            .all(|backup| runtime_complete(&backup.path().join("previous"))));
+    }
+
     #[test]
     fn failed_publish_restores_the_previous_directory() {
         let root = tempfile::tempdir().unwrap();
