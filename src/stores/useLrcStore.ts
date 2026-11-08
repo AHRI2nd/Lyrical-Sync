@@ -1327,7 +1327,12 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
 });
 
 let previousPlaybackSourceMode = playbackSourceModeKey();
-useSettingsStore.subscribe(() => {
+let previousDeviceMode = useSettingsStore.getState().deviceMode;
+useSettingsStore.subscribe((settings) => {
+  const enteredDeviceMode = !previousDeviceMode && settings.deviceMode;
+  previousDeviceMode = settings.deviceMode;
+  if (enteredDeviceMode) useLrcStore.getState().setCurrentTime(0);
+
   const currentPlaybackSourceMode = playbackSourceModeKey();
   if (currentPlaybackSourceMode === previousPlaybackSourceMode) return;
   previousPlaybackSourceMode = currentPlaybackSourceMode;

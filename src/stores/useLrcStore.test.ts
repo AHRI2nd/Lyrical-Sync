@@ -47,6 +47,17 @@ const reset = (lines: LrcLine[], offset = 0) =>
 const lines = () => useLrcStore.getState().doc.lines;
 const lrcSnapshot = (content: string) => ({ content, sha256: "b".repeat(64) });
 
+describe("playback source transitions", () => {
+  it("clears the previous file position synchronously when device mode is selected", () => {
+    useLrcStore.setState({ currentTime: 42 });
+
+    useSettingsStore.getState().setPlaybackMode("device");
+
+    expect(useLrcStore.getState().currentTime).toBe(0);
+    useSettingsStore.getState().setPlaybackMode("file");
+  });
+});
+
 describe("useLrcStore — line actions", () => {
   beforeEach(() => reset([]));
 
