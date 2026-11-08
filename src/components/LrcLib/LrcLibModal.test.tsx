@@ -126,3 +126,16 @@ it('does not close a newly opened dialog when an older apply finishes', async ()
   expect(onClose).not.toHaveBeenCalled();
   expect(screen.getByRole('dialog', { name: t.lrclib.title })).toBeTruthy();
 });
+
+it('shows a search error instead of no-results when LRCLIB returns an unexpected payload', async () => {
+  const t = useI18nStore.getState().t;
+  lrclibSearch.mockReset().mockRejectedValueOnce(new Error('LRCLIB unexpected response shape'));
+  useLrcStore.getState().newLrc();
+  render(<LrcLibModal onClose={() => {}} />);
+  fireEvent.change(screen.getByRole('textbox', { name: t.lrclib.fieldTitle }), { target: { value: 'Song' } });
+  fireEvent.click(screen.getByRole('button', { name: t.lrclib.search }));
+  await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+
+  expect(screen.getByText(t.lrclib.error)).toBeTruthy();
+  expect(screen.queryByText(t.lrclib.noResults)).toBeNull();
+});

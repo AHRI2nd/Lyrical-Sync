@@ -130,9 +130,9 @@ describe("lrclibSearch", () => {
     expect(await lrclibSearch({ title: "Song" })).toEqual([result({ id: 2, albumName: "" })]);
   });
 
-  it("returns [] when the response body is not an array", async () => {
+  it("rejects a successful response with an unexpected object shape", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ invalid: true }));
-    expect(await lrclibSearch({ title: "Song" })).toEqual([]);
+    await expect(lrclibSearch({ title: "Song" })).rejects.toThrow("unexpected response shape");
   });
 
   it("cancels a pending fetch using the caller's AbortSignal", async () => {

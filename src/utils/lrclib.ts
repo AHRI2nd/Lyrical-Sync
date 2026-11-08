@@ -109,7 +109,7 @@ export async function lrclibSearch(q: LrcLibQuery, signal?: AbortSignal): Promis
       offset += chunk.length;
     }
     const data: unknown = JSON.parse(new TextDecoder().decode(concatenated));
-    if (!Array.isArray(data)) return [];
+    if (!Array.isArray(data)) throw new Error("LRCLIB unexpected response shape");
     return data.map(parseLrcLibResult).filter((result): result is LrcLibResult => result !== null);
   } catch (error) {
     // Stop streaming a response after a parse, status or size error as well.
