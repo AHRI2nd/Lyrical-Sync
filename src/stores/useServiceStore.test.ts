@@ -361,6 +361,29 @@ describe("Spotify API request failures", () => {
     expect(observedSignal?.aborted).toBe(true);
   });
 
+  it("does not send a track play request after logout during token refresh", async () => {
+    useServiceStore.setState({ accessToken: null, tokenExpiresAt: 0 });
+    const refresh = deferred<{ accessToken: string; expiresIn: number }>();
+    invoke.mockImplementation((command: string) => {
+      if (command === "refresh_spotify_token") return refresh.promise;
+      return Promise.resolve(undefined);
+    });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const pendingPlay = useServiceStore.getState().playTrack("spotify:track:track-id");
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("refresh_spotify_token", expect.any(Object)));
+    useServiceStore.getState().logout();
+    await expect(pendingPlay).rejects.toThrow();
+    refresh.resolve({ accessToken: "stale-token", expiresIn: 3600 });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(useServiceStore.getState().isLoggedIn).toBe(false);
+    expect(useServiceStore.getState().accessToken).toBeNull();
+  });
+
   it("includes token refresh in the Spotify request deadline", async () => {
     vi.useFakeTimers();
     useServiceStore.setState({ accessToken: null, tokenExpiresAt: 0 });
