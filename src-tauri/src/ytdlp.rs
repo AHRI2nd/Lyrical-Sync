@@ -13,6 +13,12 @@ pub struct YtdlpState {
 static YTDLP_RUN_COUNTER: AtomicU64 = AtomicU64::new(0);
 const MAX_YTDLP_DOWNLOAD_BYTES: u64 = 100 * 1024 * 1024;
 const MAX_YTDLP_METADATA_BYTES: u64 = 1024 * 1024;
+const MAX_YTDLP_AUDIO_BYTES: u64 = crate::audio_resource::MAX_AUDIO_FILE_BYTES;
+const MAX_YTDLP_AUDIO_RUN: std::time::Duration = crate::audio_resource::MAX_AUDIO_DURATION;
+
+fn ytdlp_deadline_expired(started: std::time::Instant, now: std::time::Instant) -> bool {
+    now.saturating_duration_since(started) >= MAX_YTDLP_AUDIO_RUN
+}
 
 fn next_ytdlp_run_id() -> String {
     let millis = std::time::SystemTime::now()
@@ -816,7 +822,11 @@ fn configure_ytdlp_audio_command(
         .arg("-o")
         .arg(output_template)
         .arg("--newline")
-        .arg("--no-part");
+        .arg("--no-part")
+        .arg("--max-filesize")
+        .arg(MAX_YTDLP_AUDIO_BYTES.to_string())
+        .arg("--socket-timeout")
+        .arg("30");
 
     if let Some(cookies) = cookies_file.filter(|value| !value.is_empty()) {
         command.arg("--cookies").arg(cookies);
@@ -865,6 +875,7 @@ async fn ytdlp_run_child(
     #[cfg(target_os = "windows")]
     cmd.creation_flags(0x08000000);
 
+    let started = std::time::Instant::now();
     let mut child = cmd.spawn().map_err(|e| format!("yt-dlp 실행 실패: {e}"))?;
     let mut process_tree = YtdlpProcessTreeGuard::new(child.id());
     let stdout = child
@@ -898,6 +909,13 @@ async fn ytdlp_run_child(
     let app_c = app.clone();
     let mut dest_path: Option<String> = None;
     loop {
+        if ytdlp_deadline_expired(started, std::time::Instant::now()) {
+            process_tree.terminate().await;
+            let _ = child.kill().await;
+            let _ = child.wait().await;
+            let _ = stderr_task.await;
+            return Err("yt-dlp audio download exceeded its time limit".into());
+        }
         if cancel_flag.load(Ordering::Relaxed) {
             process_tree.terminate().await;
             let _ = child.kill().await;
@@ -930,6 +948,13 @@ async fn ytdlp_run_child(
     }
 
     let status = loop {
+        if ytdlp_deadline_expired(started, std::time::Instant::now()) {
+            process_tree.terminate().await;
+            let _ = child.kill().await;
+            let _ = child.wait().await;
+            let _ = stderr_task.await;
+            return Err("yt-dlp audio download exceeded its time limit".into());
+        }
         if cancel_flag.load(Ordering::Relaxed) {
             process_tree.terminate().await;
             let _ = child.kill().await;
@@ -1019,6 +1044,46 @@ mod tests {
         assert!(args.windows(2).any(|pair| pair == ["--proxy", "http://127.0.0.1:8080"]));
         let terminator = args.iter().position(|argument| argument == "--").unwrap();
         assert_eq!(args[terminator + 1], "https://www.youtube.com/watch?v=fixture");
+    }
+
+    #[test]
+    fn audio_command_caps_download_to_supported_audio_file_size() {
+        let output = PathBuf::from("/tmp/owned-run/audio.%(ext)s");
+        let mut command = tokio::process::Command::new("yt-dlp");
+        configure_ytdlp_audio_command(
+            &mut command,
+            "bestaudio/best",
+            &output,
+            None,
+            None,
+            "https://www.youtube.com/watch?v=fixture",
+        );
+        let args: Vec<String> = command
+            .as_std()
+            .get_args()
+            .map(|argument| argument.to_string_lossy().into_owned())
+            .collect();
+
+        let limit_index = args
+            .iter()
+            .position(|argument| argument == "--max-filesize")
+            .unwrap();
+        assert_eq!(args[limit_index + 1], MAX_YTDLP_AUDIO_BYTES.to_string());
+        let timeout_index = args
+            .iter()
+            .position(|argument| argument == "--socket-timeout")
+            .unwrap();
+        assert_eq!(args[timeout_index + 1], "30");
+    }
+
+    #[test]
+    fn ytdlp_deadline_expires_at_the_configured_limit() {
+        let started = std::time::Instant::now();
+        assert!(!ytdlp_deadline_expired(
+            started,
+            started + MAX_YTDLP_AUDIO_RUN - std::time::Duration::from_nanos(1)
+        ));
+        assert!(ytdlp_deadline_expired(started, started + MAX_YTDLP_AUDIO_RUN));
     }
 
     #[test]
