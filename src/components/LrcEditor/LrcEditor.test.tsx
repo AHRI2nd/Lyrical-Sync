@@ -13,6 +13,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useDeviceStore } from "../../stores/useDeviceStore";
 import { useBusyStore } from "../../stores/useBusyStore";
+import { useServiceStore } from "../../stores/useServiceStore";
+import { serviceControls } from "../../utils/serviceControls";
+import { deviceControls } from "../../utils/deviceControls";
 beforeEach(() => {
   useSettingsStore.setState({ showTranslationLines: false, showSpellCheck: false });
   vi.stubGlobal("DragEvent", class extends MouseEvent {});
@@ -365,6 +368,23 @@ it("routes line seeking to the device controller when device mode is selected", 
   expect(invoke).toHaveBeenCalledWith("now_playing_seek", { positionMs: 1000 });
   expect(invoke).not.toHaveBeenCalledWith("seek_audio", expect.anything());
   expect(document.body.textContent).toContain("현재: 0:00:01.000");
+});
+it("updates a memoized row seek handler when switching from Spotify to device playback", () => {
+  const serviceSeek = vi.spyOn(serviceControls, "seekTo").mockImplementation(() => {});
+  const deviceSeek = vi.spyOn(deviceControls, "seekTo").mockImplementation(() => {});
+  useServiceStore.setState({ isLoggedIn: true });
+  useSettingsStore.setState({ spotifyMode: true, deviceMode: false });
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "lyric", timestamp: 1 }] } });
+  const { container } = render(<LrcEditor onPreview={() => {}} />);
+  const row = container.querySelector('[data-line-id="a"]')!;
+
+  fireEvent.click(row);
+  expect(serviceSeek).toHaveBeenCalledWith(1);
+  act(() => useSettingsStore.setState({ spotifyMode: false, deviceMode: true }));
+  fireEvent.click(row);
+
+  expect(deviceSeek).toHaveBeenCalledWith(1);
+  expect(serviceSeek).toHaveBeenCalledTimes(1);
 });
 it("continues to the next matching row after replacing the current row", () => {
   const t = useI18nStore.getState().t;

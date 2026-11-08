@@ -19,8 +19,8 @@ interface LrcLineRowProps {
   lyricsFontScale: number;
   showSpellCheck: boolean;
   showTranslationLines: boolean;
-  /** onToggleLoop 클로저가 재생 대상(오디오/서비스)을 고르는 데만 쓰임 — 리렌더 비교용 */
-  serviceActive: boolean;
+  /** Forces memoized rows to refresh mode-dependent seek handlers. */
+  seekSource: "local" | "spotify" | "device";
 
   dragIdx: number | null;
   showInsertionBefore: boolean;
@@ -296,7 +296,7 @@ function areEqual(prev: LrcLineRowProps, next: LrcLineRowProps): boolean {
     prev.lyricsFontScale !== next.lyricsFontScale ||
     prev.showSpellCheck !== next.showSpellCheck ||
     prev.showTranslationLines !== next.showTranslationLines ||
-    prev.serviceActive !== next.serviceActive ||
+    prev.seekSource !== next.seekSource ||
     prev.dragIdx !== next.dragIdx ||
     prev.showInsertionBefore !== next.showInsertionBefore ||
     prev.showInsertionAfter !== next.showInsertionAfter ||

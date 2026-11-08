@@ -1001,7 +1001,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
               lyricsFontScale={lyricsFontScale}
               showSpellCheck={showSpellCheck}
               showTranslationLines={showTranslationLines}
-              serviceActive={serviceActive || deviceMode}
+              seekSource={serviceActive ? "spotify" : deviceMode ? "device" : "local"}
               dragIdx={dragIdx}
               showInsertionBefore={dragIdx !== null && dropGapIdx === idx}
               showInsertionAfter={dragIdx !== null && idx === lines.length - 1 && dropGapIdx === lines.length}

@@ -35,7 +35,7 @@ function makeProps(overrides: Partial<LrcLineRowProps> = {}): LrcLineRowProps {
     lyricsFontScale: 1,
     showSpellCheck: false,
     showTranslationLines: false,
-    serviceActive: false,
+    seekSource: "local",
     dragIdx: null,
     showInsertionBefore: false,
     showInsertionAfter: false,
