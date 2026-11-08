@@ -18,6 +18,12 @@ export function formatLrcLibDuration(sec: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+function getAvailableLyrics(result: LrcLibResult): string | null {
+  if (typeof result.syncedLyrics === "string" && result.syncedLyrics.trim()) return result.syncedLyrics;
+  if (typeof result.plainLyrics === "string" && result.plainLyrics.trim()) return result.plainLyrics;
+  return null;
+}
+
 export function LrcLibModal({ onClose }: { onClose: () => void }) {
   const { t } = useI18nStore();
   const dialog = useRef<HTMLDivElement>(null);
@@ -98,7 +104,7 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
   }, []);
 
   const handleConfirm = async (r: LrcLibResult) => {
-    const lrc = r.syncedLyrics ?? r.plainLyrics;
+    const lrc = getAvailableLyrics(r);
     if (!lrc || applyingRef.current) return;
     applyingRef.current = true;
     setApplying(true);
@@ -215,9 +221,9 @@ export function LrcLibModal({ onClose }: { onClose: () => void }) {
               </div>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
-              {preview.syncedLyrics || preview.plainLyrics ? (
+              {getAvailableLyrics(preview) ? (
                 <pre className="text-sm text-[var(--ls-text)] whitespace-pre-wrap font-mono leading-relaxed">
-                  {preview.syncedLyrics ?? preview.plainLyrics}
+                  {getAvailableLyrics(preview)}
                 </pre>
               ) : (
                 <p className="text-center text-[var(--ls-text-secondary)] text-sm py-8">{t.lrclib.noLyrics}</p>
@@ -286,7 +292,7 @@ function ResultRow({
   applying: boolean;
 }) {
   const dur = formatLrcLibDuration(r.duration);
-  const hasLyrics = !!(r.syncedLyrics || r.plainLyrics);
+  const hasLyrics = getAvailableLyrics(r) !== null;
   return (
     <div className="flex items-center gap-3 rounded-lg px-3 py-2 bg-[var(--ls-control)]/50 hover:bg-[var(--ls-control)] transition-colors">
       <div className="min-w-0 flex-1">
@@ -298,7 +304,7 @@ function ResultRow({
         <div className="flex items-center gap-1.5 mt-1">
           {r.instrumental ? (
             <Badge color="zinc">{t.lrclib.instrumental}</Badge>
-          ) : r.syncedLyrics ? (
+          ) : r.syncedLyrics?.trim() ? (
             <Badge color="emerald">{t.lrclib.synced}</Badge>
           ) : r.plainLyrics ? (
             <Badge color="amber">{t.lrclib.plain}</Badge>

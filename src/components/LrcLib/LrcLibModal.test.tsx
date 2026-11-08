@@ -73,3 +73,31 @@ it('removes old LRCLIB results while a new search is pending', async () => {
 
   await act(async () => { next.resolve([]); await next.promise; });
 });
+
+it('uses plain lyrics when synchronized lyrics are an empty string', async () => {
+  const t = useI18nStore.getState().t;
+  const result = {
+    id: 2, trackName: 'Plain Fallback', artistName: 'Artist', albumName: '',
+    duration: 90, instrumental: false, syncedLyrics: '', plainLyrics: 'Plain text fallback',
+  };
+  const apply = vi.fn().mockResolvedValue('applied');
+  lrclibSearch.mockReset().mockResolvedValueOnce([result]);
+  useLrcStore.getState().newLrc();
+  useLrcStore.setState({ requestApplyFetchedLyrics: apply as never });
+  const onClose = vi.fn();
+  render(<LrcLibModal onClose={onClose} />);
+  fireEvent.change(screen.getByRole('textbox', { name: t.lrclib.fieldTitle }), { target: { value: 'Plain Fallback' } });
+  fireEvent.click(screen.getByRole('button', { name: t.lrclib.search }));
+  await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+
+  fireEvent.click(screen.getByRole('button', { name: t.lrclib.preview }));
+  expect(screen.getByText('Plain text fallback')).toBeTruthy();
+  const confirmButtons = screen.getAllByRole('button', { name: t.lrclib.confirm });
+  fireEvent.click(confirmButtons[confirmButtons.length - 1]);
+  await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+
+  expect(apply).toHaveBeenCalledWith('Plain text fallback', {
+    title: 'Plain Fallback', artist: 'Artist', album: '',
+  }, expect.any(Number));
+  expect(onClose).toHaveBeenCalledOnce();
+});
