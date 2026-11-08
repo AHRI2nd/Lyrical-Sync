@@ -157,7 +157,13 @@ export function useMacMenu(handlers: MacMenuHandlers, state: MacMenuState) {
 
       if (cancelled) return;
       await menu.setAsAppMenu();
-    })();
+    })().catch((error: unknown) => {
+      if (!cancelled) {
+        console.error("Failed to create macOS application menu", error);
+        const detail = error instanceof Error ? error.stack || error.message : String(error);
+        window.dispatchEvent(new CustomEvent("lyrical-runtime-error", { detail }));
+      }
+    });
 
     return () => {
       cancelled = true;
