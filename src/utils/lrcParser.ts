@@ -32,7 +32,7 @@ const META_TAGS: Record<string, keyof LrcMetadata> = {
   offset: "offset",
 };
 
-const META_RE = /^\[([\w-]+):(.*)\]$/;
+const META_RE = /^\[([\w-]+):([\s\S]*)\]$/;
 // 줄 맨 앞의 타임스탬프 토큰: [mm:ss.xx] / [mm:ss.xxx] / [mm:ss] (센티초 선택)
 // 한 줄에 여러 토큰이 올 수 있음 (후렴 반복: [t1][t2]가사)
 const TS_TOKEN_RE = /^\[(\d+):(\d{2})(?:\.(\d{1,3}))?\]/;
@@ -449,7 +449,7 @@ export function serializeLrc(doc: LrcDocument, enhanced = true, allowInvalidCont
   const sequence = doc.metadataTagSequence;
   if (sequence !== undefined && (!Array.isArray(sequence) || sequence.some((entry) =>
     !entry || typeof entry.key !== "string" || typeof entry.value !== "string" ||
-    !/^[\w-]+$/.test(entry.key) || /[\r\n]/.test(entry.value) ||
+    !/^[\w-]+$/.test(entry.key) || /[\r\n\u2028\u2029]/.test(entry.value) ||
     [TRANSLATION_TAG, INLINE_ESCAPE_TAG, LINE_ORDER_TAG, WHITESPACE_TAG].includes(entry.key)))) {
     throw new LrcMetadataLineBreakError();
   }
@@ -462,7 +462,7 @@ export function serializeLrc(doc: LrcDocument, enhanced = true, allowInvalidCont
     ...(doc.invalidControlTags?.flatMap(({ key, value }) => [key, value]) ?? []),
     ...Object.entries(extraTags).flatMap(([key, value]) => [key, value]),
     ...(sequence?.flatMap(({ key, value }) => [key, value]) ?? [])];
-  if (metadataValues.some((value) => /[\r\n]/.test(value))) throw new LrcMetadataLineBreakError();
+  if (metadataValues.some((value) => /[\r\n\u2028\u2029]/.test(value))) throw new LrcMetadataLineBreakError();
   const parts: string[] = [];
   if (allowInvalidControlTags) {
     for (const { key, value } of doc.invalidControlTags ?? []) parts.push(`[${key}:${value}]`);

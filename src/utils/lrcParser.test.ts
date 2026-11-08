@@ -33,6 +33,21 @@ it("rejects line breaks in extra metadata keys and values", () => {
   expect(() => serializeLrc({ ...docOf([]), extraTags: { "x-safe": "value\r\n[00:02.00]" } })).toThrow("LRC metadata cannot contain line breaks");
 });
 
+it.each(["\u2028", "\u2029"])("rejects Unicode line separator %s in LRC metadata", (separator) => {
+  expect(() => serializeLrc({
+    ...docOf([]),
+    metadata: { ...emptyMeta, title: `safe${separator}[00:02.00]injected` },
+  })).toThrow("LRC metadata cannot contain line breaks");
+  expect(() => serializeLrc({ ...docOf([]), extraTags: { "x-safe": `value${separator}injected` } }))
+    .toThrow("LRC metadata cannot contain line breaks");
+});
+
+it.each(["\u2028", "\u2029"])("rejects imported metadata containing Unicode line separator %s", (separator) => {
+  const imported = parseLrc(`[ti:safe${separator}[00:02.00]injected]\n[00:01.00]lyric`);
+  expect(imported.metadata.title).toBe(`safe${separator}[00:02.00]injected`);
+  expect(() => serializeLrc(imported)).toThrow("LRC metadata cannot contain line breaks");
+});
+
 it("retains unsupported reserved controls as inactive recovery data and refuses normal serialization", () => {
   const raw = "[x-lyrical-translations:custom]\n[x-lyrical-inline-escape:custom]\n[00:01.00]safe";
   const parsed = parseLrc(raw);
