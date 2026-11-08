@@ -513,6 +513,7 @@ export interface Translations {
   settingsVenvInstallTitle: string;
   settingsVenvRefresh: string;
   settingsVenvChecking: string;
+  settingsVenvCheckFailed: string;
   settingsVenvInstallBtn: string;
   settingsVenvInstalling: string;
   settingsVenvCmdWarning: string;
@@ -1172,6 +1173,7 @@ const ko: Translations = {
   settingsVenvInstallTitle: "패키지 설치 명령 (터미널에서 실행)",
   settingsVenvRefresh: "새로고침",
   settingsVenvChecking: "확인 중...",
+  settingsVenvCheckFailed: "Python 환경을 확인하지 못했습니다. 새로고침 후 다시 시도하세요.",
   settingsVenvInstallBtn: "패키지 자동 설치",
   settingsVenvInstalling: "설치 중...",
   settingsVenvCmdWarning: "설치에 수 분이 소요될 수 있습니다. 완료될 때까지 창을 닫지 마세요.",
@@ -1831,6 +1833,7 @@ const en: Translations = {
   settingsVenvInstallTitle: "Install packages (run in terminal)",
   settingsVenvRefresh: "Refresh",
   settingsVenvChecking: "Checking...",
+  settingsVenvCheckFailed: "Could not check the Python environment. Refresh and try again.",
   settingsVenvInstallBtn: "Auto-install packages",
   settingsVenvInstalling: "Installing...",
   settingsVenvCmdWarning: "Installation may take several minutes. Please do not close this window.",
@@ -2489,6 +2492,7 @@ const ja: Translations = {
   settingsVenvInstallTitle: "パッケージインストールコマンド（ターミナルで実行）",
   settingsVenvRefresh: "更新",
   settingsVenvChecking: "確認中...",
+  settingsVenvCheckFailed: "Python環境を確認できませんでした。更新して再試行してください。",
   settingsVenvInstallBtn: "パッケージ自動インストール",
   settingsVenvInstalling: "インストール中...",
   settingsVenvCmdWarning: "インストールには数分かかる場合があります。完了するまでウィンドウを閉じないでください。",

@@ -27,6 +27,7 @@ export function PythonEnvSection() {
   const mounted = useRef(true);
   const [info, setInfo] = useState<PythonEnvInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const downloading = useBusyStore((state) => state.reasons.has("python-download"));
   const [dlPercent, setDlPercent] = useState(0);
   const installing = useBusyStore((state) => state.reasons.has("python-packages"));
@@ -40,12 +41,25 @@ export function PythonEnvSection() {
   }, []);
 
   const refresh = useCallback(async () => {
-    if (mounted.current) setLoading(true);
+    if (mounted.current) {
+      setLoading(true);
+      setLoadError(false);
+    }
     try {
       const v = await invoke<PythonEnvInfo>("get_python_env_info");
       if (mounted.current) setInfo(v);
-    } catch { /* ignore */ }
-    if (mounted.current) setLoading(false);
+    } catch {
+      if (mounted.current) {
+        const environmentBusy = [...useBusyStore.getState().reasons]
+          .some((reason) => reason === "python-download" || reason === "python-packages");
+        if (!environmentBusy) {
+          setInfo(null);
+          setLoadError(true);
+        }
+      }
+    } finally {
+      if (mounted.current) setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -123,10 +137,12 @@ export function PythonEnvSection() {
   };
 
   const statusColor = loading ? "text-[var(--ls-text-secondary)]"
+    : loadError ? "text-red-400"
     : info?.packagesReady ? "text-emerald-400"
     : info?.pythonReady ? "text-[var(--ls-playhead)]"
     : "text-[var(--ls-text-secondary)]";
   const statusText = loading ? t.settingsVenvChecking
+    : loadError ? t.settingsVenvCheckFailed
     : info?.packagesReady ? t.settingsVenvReady
     : info?.pythonReady ? t.settingsVenvNoPackages
     : t.settingsVenvNotCreated;
@@ -152,8 +168,13 @@ export function PythonEnvSection() {
       {/* Status row */}
       <div className="flex items-center gap-2">
         <span className={`text-xs font-mono ${statusColor}`}>●</span>
-        <span className="text-xs text-[var(--ls-text-secondary)]">{statusText}</span>
-        {!loading && !info?.pythonReady && !downloading && (
+        <span
+          role={loadError ? "alert" : undefined}
+          className={`text-xs ${loadError ? "text-red-400" : "text-[var(--ls-text-secondary)]"}`}
+        >
+          {statusText}
+        </span>
+        {!loading && !loadError && !info?.pythonReady && !downloading && !installing && (
           <button
             onClick={handleDownload}
             className="ls-button ml-auto text-xs bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] text-white transition-colors ls-button--primary"

@@ -27,6 +27,37 @@ it('shows upgrade failures and allows retry while the old interpreter is incompa
   expect(screen.getByRole('button', { name: /Python|AI/ }).hasAttribute('disabled')).toBe(false);
 });
 
+it('does not report Python as absent or offer installation when readiness lookup fails', async () => {
+  ipc.invoke.mockImplementation(async (command: string) => {
+    if (command === 'get_python_env_info') throw new Error('AI environment is busy');
+  });
+  render(<PythonEnvSection />);
+
+  const lookupError = await screen.findByRole('alert');
+  expect(lookupError.textContent).toBe(useI18nStore.getState().t.settingsVenvCheckFailed);
+  expect(screen.queryByText(useI18nStore.getState().t.settingsVenvNotCreated)).toBeNull();
+  expect(screen.queryByRole('button', { name: useI18nStore.getState().t.settingsVenvCreate })).toBeNull();
+});
+
+it('recovers from a readiness lookup failure after refresh', async () => {
+  let fail = true;
+  ipc.invoke.mockImplementation(async (command: string) => {
+    if (command !== 'get_python_env_info') return;
+    if (fail) throw new Error('temporary lookup failure');
+    return { pythonReady: true, packagesReady: true, pipInstallCmd: '', pythonPath: '/python' };
+  });
+  render(<PythonEnvSection />);
+  await screen.findByRole('alert');
+
+  fail = false;
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: useI18nStore.getState().t.settingsVenvRefresh }));
+  });
+
+  expect(await screen.findByText(useI18nStore.getState().t.settingsVenvReady)).toBeTruthy();
+  expect(screen.queryByRole('alert')).toBeNull();
+});
+
 it('refreshes completed installation and settles busy state when progress listeners fail', async () => {
   ipc.failListeners = true;
   let ready = false;
