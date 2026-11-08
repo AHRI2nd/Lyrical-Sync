@@ -1069,6 +1069,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
         requestId === saveAsGeneration &&
         documentSessionId === sessionId &&
         get().lrcPath === originalPath &&
+        get().doc === doc &&
         get()._editRevision === revision;
       if (!isCurrentRequest()) return false;
       const fileName = path.split(/[\\/]/).pop() ?? "";

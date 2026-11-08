@@ -1413,6 +1413,21 @@ describe("useLrcStore — save completion races", () => {
     expect(useLrcStore.getState().isDirty).toBe(false);
   });
 
+  it("does not save a stale Save As snapshot after silent metadata synchronization", async () => {
+    let resolveDialog!: (path: string | null) => void;
+    vi.mocked(save).mockImplementation(() => new Promise((resolve) => { resolveDialog = resolve; }));
+    vi.mocked(invoke).mockResolvedValue("f".repeat(64));
+
+    const saving = useLrcStore.getState().saveLrcAs("lrc");
+    useLrcStore.getState().setMetadata({ title: "Updated title" }, true);
+    resolveDialog("/tmp/updated-title.lrc");
+
+    await expect(saving).resolves.toBe(false);
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState().doc.metadata.title).toBe("Updated title");
+    expect(useLrcStore.getState().lrcPath).toBe("/tmp/song.lrc");
+  });
+
   it("keeps SRT Save As as an export and preserves the active LRC state", async () => {
     useLrcStore.setState({ doc: { ...useLrcStore.getState().doc, metadata: { ...useLrcStore.getState().doc.metadata, title: "Rich title" }, lines: [{ id: "1", timestamp: 1, text: "lyrics", syllables: [{ text: "lyrics", time: 1 }] }] }, lrcPath: "/tmp/source.lrc", isDirty: true });
     vi.mocked(save).mockResolvedValue("/tmp/export.srt");
