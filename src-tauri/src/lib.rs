@@ -58,14 +58,18 @@ fn read_lyric_file(path: &std::path::Path) -> Result<String, String> {
     if metadata.len() > MAX_LYRIC_FILE_BYTES {
         return Err("LYRIC_RESOURCE_LIMIT".into());
     }
-    let mut content = String::new();
+    let mut bytes = Vec::new();
     file.take(MAX_LYRIC_FILE_BYTES + 1)
-        .read_to_string(&mut content)
+        .read_to_end(&mut bytes)
         .map_err(|error| error.to_string())?;
-    if content.len() as u64 > MAX_LYRIC_FILE_BYTES {
+    if bytes.len() as u64 > MAX_LYRIC_FILE_BYTES {
         return Err("LYRIC_RESOURCE_LIMIT".into());
     }
-    Ok(content)
+    if bytes.starts_with(&[0xFF, 0xFE]) || bytes.starts_with(&[0xFE, 0xFF]) || bytes.contains(&0) {
+        return Err("Unsupported lyric encoding: UTF-16 is not supported; convert a copy to UTF-8 before editing.".into());
+    }
+    String::from_utf8(bytes)
+        .map_err(|_| "Unsupported lyric encoding: expected UTF-8; convert a copy to UTF-8 before editing.".into())
 }
 
 #[tauri::command]
@@ -77,14 +81,7 @@ async fn read_lrc_file(path: String, window: tauri::WebviewWindow) -> Result<Str
 
 async fn read_lrc_file_impl(path: String) -> Result<String, String> {
     let path = path_validation::validate_safe_path(&path)?;
-    let content = read_lyric_file(&path)?;
-    // BOM-less UTF-16LE composed of ASCII code units is valid UTF-8 but
-    // contains NUL bytes. Passing it to the LRC/SRT parser would silently
-    // produce empty or malformed rows and could overwrite the original file.
-    if content.contains('\0') {
-        return Err("Unsupported lyric encoding: NUL bytes detected (possible UTF-16); convert a copy to UTF-8 before editing.".into());
-    }
-    Ok(content)
+    read_lyric_file(&path)
 }
 
 #[derive(serde::Serialize)]
@@ -633,6 +630,26 @@ mod lyric_save_command_tests {
         assert_eq!(fs::read_to_string(&target).unwrap(), "[00:01.00]First");
         write_lrc_file_impl(path.clone(), "[00:02.00]Second".into(), None, None).await.unwrap();
         assert_eq!(read_lrc_file_impl(path).await.unwrap(), "[00:02.00]Second");
+    }
+
+    #[tokio::test]
+    async fn rejects_bom_marked_utf16_with_an_actionable_error_without_changing_bytes() {
+        let dir = tempfile::tempdir().unwrap();
+        for (name, bom, little_endian) in [
+            ("utf16-le.srt", [0xFF, 0xFE], true),
+            ("utf16-be.srt", [0xFE, 0xFF], false),
+        ] {
+            let target = dir.path().join(name);
+            let text = "1\n00:00:01,000 --> 00:00:02,000\ncue\n";
+            let mut bytes = bom.to_vec();
+            for unit in text.encode_utf16() {
+                bytes.extend(if little_endian { unit.to_le_bytes() } else { unit.to_be_bytes() });
+            }
+            fs::write(&target, &bytes).unwrap();
+            let error = read_lrc_file_impl(target.to_string_lossy().into_owned()).await.unwrap_err();
+            assert!(error.contains("UTF-16"), "unexpected error for {name}: {error}");
+            assert_eq!(fs::read(target).unwrap(), bytes);
+        }
     }
 
     #[tokio::test]
