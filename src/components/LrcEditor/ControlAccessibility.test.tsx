@@ -42,3 +42,15 @@ it("exposes the selected sync mode and unit while preserving disabled transition
   fireEvent.click(getByRole("button", { name: t.charSync.unitChar }));
   expect(onUnitChange).toHaveBeenCalledExactlyOnceWith("char");
 });
+
+it("preserves focus after keyboard activation of a sync mode control", () => {
+  const t = translations.en;
+  const { getByRole } = render(<SyncModeToggle t={t} charMode={false} syncUnit="char" onSetSyncMode={() => {}}
+    onUnitChange={() => {}} isRunning={false} />);
+  const control = getByRole("button", { name: t.charSync.modeChar });
+  control.focus();
+
+  fireEvent.click(control, { detail: 0 });
+
+  expect(document.activeElement).toBe(control);
+});
