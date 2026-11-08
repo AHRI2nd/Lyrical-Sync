@@ -54,6 +54,7 @@ export function TimeShiftBar({
       <span className="text-[var(--ls-text-secondary)] shrink-0">{t.timeShiftFrom}</span>
       <input
         type="number"
+        aria-label={t.timeShiftFrom}
         min={1} max={lineCount}
         value={from}
         onChange={(e) => setFrom(e.target.value)}
@@ -63,6 +64,7 @@ export function TimeShiftBar({
       <span className="text-[var(--ls-text-secondary)] shrink-0">{t.timeShiftTo}</span>
       <input
         type="number"
+        aria-label={t.timeShiftTo}
         min={1} max={lineCount}
         value={to}
         onChange={(e) => setTo(e.target.value)}
@@ -77,6 +79,7 @@ export function TimeShiftBar({
         <button onClick={() => step(-0.1)} className="ls-button ls-button--compact w-6 h-6 flex items-center justify-center transition-colors">−</button>
         <input
           type="number"
+          aria-label={t.timeShiftDelta}
           step={0.1}
           value={deltaInput}
           onChange={(e) => setDeltaInput(e.target.value)}
@@ -96,8 +99,8 @@ export function TimeShiftBar({
       >
         {t.timeShiftApply}
       </button>
-      <button onClick={onClose} className="ls-button ls-button--compact w-6 h-6 flex items-center justify-center hover:text-white transition-colors">
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      <button type="button" aria-label={t.close} onClick={onClose} className="ls-button ls-button--compact w-6 h-6 flex items-center justify-center hover:text-white transition-colors">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
   );

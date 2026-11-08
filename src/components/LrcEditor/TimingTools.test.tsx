@@ -150,6 +150,22 @@ it("preserves a negative time shift while it is entered sequentially", async () 
   expect(onApply).toHaveBeenCalledWith(0, 3, -1.5);
 });
 
+it("names timing inputs and close controls for assistive technology", () => {
+  const { getAllByRole, getByRole } = render(
+    <>
+      <ScaleBar onApply={vi.fn()} onClose={vi.fn()} />
+      <TimeShiftBar lineCount={4} defaultFrom={1} onApply={vi.fn()} onClose={vi.fn()} />
+    </>,
+  );
+  const t = useI18nStore.getState().t;
+
+  expect(getByRole("spinbutton", { name: t.tsScaleFactor })).toBeTruthy();
+  expect(getByRole("spinbutton", { name: t.timeShiftFrom })).toBeTruthy();
+  expect(getByRole("spinbutton", { name: t.timeShiftTo })).toBeTruthy();
+  expect(getByRole("spinbutton", { name: t.timeShiftDelta })).toBeTruthy();
+  expect(getAllByRole("button", { name: t.close })).toHaveLength(2);
+});
+
 it("preserves a fractional scale while it is entered sequentially", async () => {
   const onApply = vi.fn();
   const user = userEvent.setup();
