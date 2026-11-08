@@ -10,7 +10,9 @@ export async function decodeAudioSamples(audioPath: string, signal?: AbortSignal
   checkCancelled();
   const { bytes } = await readAudioBytes(audioPath, signal);
   checkCancelled();
-  const ctx = new AudioContext();
+  // Match the native resource estimate's Web Audio baseline so device output
+  // rates cannot silently inflate decoded PCM for local analysis.
+  const ctx = new AudioContext({ sampleRate: 48_000 });
   try {
     // decodeAudioData consumes its ArrayBuffer. The file reader returns a fresh byte
     // view, and nothing reads it after this call, so reuse complete ArrayBuffers

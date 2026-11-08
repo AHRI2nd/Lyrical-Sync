@@ -23,6 +23,22 @@ it("passes a complete owned byte buffer to Web Audio without copying it", async 
   expect(decodeAudioData.mock.calls[0][0]).toBe(bytes.buffer);
 });
 
+it("requests the 48 kHz rate used by the native PCM resource estimate", async () => {
+  vi.mocked(readAudioBytes).mockResolvedValue({ bytes: new Uint8Array([1]), transcoded: false });
+  let options: AudioContextOptions | undefined;
+  vi.stubGlobal("AudioContext", class {
+    constructor(value?: AudioContextOptions) { options = value; }
+    close = vi.fn();
+    async decodeAudioData() {
+      return { numberOfChannels: 1, length: 1, sampleRate: 48000, getChannelData: () => new Float32Array([0.5]) };
+    }
+  });
+
+  await decodeAudioSamples("/song.mp3");
+
+  expect(options?.sampleRate).toBe(48000);
+});
+
 it("copies only the selected bytes when the file reader returns a partial view", async () => {
   const backing = new Uint8Array([99, 1, 2, 3, 88]);
   const bytes = backing.subarray(1, 4);
