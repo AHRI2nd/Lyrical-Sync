@@ -30,11 +30,16 @@ export function MetaEditor() {
 
   // 오프셋 입력은 로컬 문자열로 관리해 ""·"-"·음수 입력을 허용 (숫자 0 고정 방지)
   const [offsetStr, setOffsetStr] = useState(String(metadata.offset));
+  const offsetDocumentSession = useRef(documentSession);
   useEffect(() => {
     // 외부에서 offset이 바뀌면(파일 로드·오프셋 적용 등) 입력값 동기화
-    if ((parseInt(offsetStr, 10) || 0) !== metadata.offset) setOffsetStr(String(metadata.offset));
+    const sessionChanged = offsetDocumentSession.current !== documentSession;
+    offsetDocumentSession.current = documentSession;
+    if (sessionChanged || (parseInt(offsetStr, 10) || 0) !== metadata.offset) {
+      setOffsetStr(String(metadata.offset));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [metadata.offset]);
+  }, [metadata.offset, documentSession]);
 
   const offsetChanged = metadata.offset !== 0;
 

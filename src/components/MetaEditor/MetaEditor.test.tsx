@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(async () => () => {}) }));
@@ -39,6 +39,19 @@ it("connects metadata labels to their inputs", () => {
   expect(screen.getByLabelText(t.metaAlbum.label)).toBeTruthy();
   expect(screen.getByLabelText(t.metaBy.label)).toBeTruthy();
   expect(screen.getByLabelText(t.metaOffsetShort)).toBeTruthy();
+});
+
+it("resets a transitional offset draft when a new document has the same offset", () => {
+  const t = useI18nStore.getState().t;
+  render(<MetaEditor />);
+  const offset = screen.getByRole("textbox", { name: t.metaOffsetShort }) as HTMLInputElement;
+  fireEvent.change(offset, { target: { value: "-" } });
+  expect(offset.value).toBe("-");
+  expect(useLrcStore.getState().doc.metadata.offset).toBe(0);
+
+  act(() => { useLrcStore.getState().newLrc(); });
+
+  expect(screen.getByRole("textbox", { name: t.metaOffsetShort })).toHaveProperty("value", "0");
 });
 
 it("keeps a raw draft from being applied to a replacement document", () => {
