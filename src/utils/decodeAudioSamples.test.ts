@@ -183,3 +183,26 @@ it("preserves BPM attacks from opposite-phase stereo channels", async () => {
   expect(detectBpm(left, 1000)?.bpm).toBe(120);
   expect(detectBpm(samples, sampleRate)?.bpm).toBe(120);
 });
+
+it("returns only the first two minutes needed for BPM analysis", async () => {
+  const sampleRate = 1_000;
+  const fullTrack = new Float32Array(sampleRate * 121).fill(0.25);
+  vi.mocked(readAudioBytes).mockResolvedValue({ bytes: new Uint8Array([1]), transcoded: false });
+  vi.stubGlobal("AudioContext", class {
+    close = vi.fn();
+    async decodeAudioData() {
+      return {
+        numberOfChannels: 1,
+        length: fullTrack.length,
+        sampleRate,
+        getChannelData: () => fullTrack,
+      };
+    }
+  });
+
+  const result = await decodeAudioSamples("/long-track.wav");
+
+  expect(result.samples).toHaveLength(sampleRate * 120);
+  expect(result.samples[0]).toBeCloseTo(0.25);
+  expect(result.samples[result.samples.length - 1]).toBeCloseTo(0.25);
+});

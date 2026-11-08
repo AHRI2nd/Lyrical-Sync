@@ -1,6 +1,7 @@
 import { readAudioBytes } from "./readAudioBytes";
 
 const MAX_AUDIO_PCM_BYTES = 1024 * 1024 * 1024; // 1 GiB
+const MAX_ANALYSIS_DURATION_SECONDS = 120;
 
 // Decode original PCM for local analysis; display peaks lose transient detail.
 export async function decodeAudioSamples(audioPath: string, signal?: AbortSignal): Promise<{ samples: Float32Array; sampleRate: number }> {
@@ -37,14 +38,18 @@ export async function decodeAudioSamples(audioPath: string, signal?: AbortSignal
     if (estimatedPcmBytes > BigInt(MAX_AUDIO_PCM_BYTES)) {
       throw new Error("AUDIO_RESOURCE_LIMIT: Decoded PCM exceeds 1 GiB limit");
     }
+
+    // BPM detection only inspects the first two minutes. Keep the additional
+    // mono analysis buffer and its mixdown work within that same window.
+    const analysisLength = Math.min(length, Math.floor(sampleRate * MAX_ANALYSIS_DURATION_SECONDS));
     
     // Mix channel energy in chunks so opposite-phase channels cannot cancel BPM attacks.
-    const samples = new Float32Array(length);
+    const samples = new Float32Array(analysisLength);
     const channelData = Array.from({ length: channels }, (_, c) => audioBuffer.getChannelData(c));
     const chunkSize = 200000;
-    for (let start = 0; start < length; start += chunkSize) {
+    for (let start = 0; start < analysisLength; start += chunkSize) {
       checkCancelled();
-      const end = Math.min(length, start + chunkSize);
+      const end = Math.min(analysisLength, start + chunkSize);
       for (const data of channelData) {
         for (let i = start; i < end; i++) samples[i] += data[i] * data[i] / channels;
       }
