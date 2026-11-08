@@ -18,6 +18,25 @@ def run(*args):
     subprocess.run(list(args),check=True)
 
 
+def prepare_build_dirs(work: Path, output: Path, repo: Path = REPO) -> tuple[Path, Path]:
+    work = work.resolve()
+    output = output.resolve()
+    if work == output or work in output.parents or output in work.parents:
+        raise ValueError('Use separate, non-overlapping work and output directories')
+    if output == repo.resolve()/'src-tauri/resources/windows-arm64-ai':
+        raise ValueError('Rebuild outside the reviewed vendored wheel directory')
+    if ' ' in str(work) or len(str(work)) > 50:
+        raise ValueError('Use a short, space-free build directory, e.g. C:\\ls-arm-ai')
+    for label, directory in (('work', work), ('output', output)):
+        if directory.exists() and not directory.is_dir():
+            raise ValueError(f'The {label} path must be a directory: {directory}')
+        if directory.exists() and next(directory.iterdir(), None) is not None:
+            raise ValueError(f'The {label} directory must be empty to prevent stale build inputs or outputs: {directory}')
+    work.mkdir(parents=True, exist_ok=True)
+    output.mkdir(parents=True, exist_ok=True)
+    return work, output
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--work-dir',type=Path,required=True)
@@ -27,12 +46,7 @@ def main():
         raise RuntimeError('Run under native Windows ARM64 CPython 3.13')
     for name,version in {'torch':'2.14.1+cpu','numpy':'2.5.4','setuptools':'84.2.1','wheel':'0.48.0'}.items():
         if metadata.version(name)!=version:raise RuntimeError(f'Unsupported build dependency: {name}')
-    work=args.work_dir.resolve();output=args.output.resolve()
-    if ' ' in str(work) or len(str(work))>50:
-        raise ValueError('Use a short, space-free build directory, e.g. C:\\ls-arm-ai')
-    if output==REPO/'src-tauri/resources/windows-arm64-ai':
-        raise ValueError('Rebuild outside the reviewed vendored wheel directory')
-    work.mkdir(parents=True,exist_ok=True);output.mkdir(parents=True,exist_ok=True)
+    work, output = prepare_build_dirs(args.work_dir, args.output)
     os.environ.update(USE_CUDA='0',USE_ROCM='0',BUILD_CUDA_CTC_DECODER='0',
         BUILD_VERSION='2.11.0',PYTORCH_VERSION='2.14.1',MAX_JOBS='2',CMAKE_BUILD_PARALLEL_LEVEL='2')
     os.environ['PATH']=str(Path(sys.executable).parent/'Scripts')+os.pathsep+os.environ.get('PATH','')
