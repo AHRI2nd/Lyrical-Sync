@@ -373,7 +373,6 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
       if (syllable.time !== null && Number.isFinite(syllable.time) && (lineTs === null || syllable.time < lineTs)) lineTs = syllable.time;
     }
     if (syllables.some((syllable) => syllable.time !== null && !Number.isFinite(syllable.time))) { reportInvalidTime(); return; }
-    if (recordHistory) pushHistory("commitSyllables");
     const lines = doc.lines.map((l) =>
       l.id === lineId
         ? {
@@ -385,6 +384,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
         : l
     );
     if (!hasFiniteLineTimes(lines)) { reportInvalidTime(); return; }
+    if (recordHistory) pushHistory("commitSyllables");
     set({
       doc: { ...doc, lines },
       isDirty: true,

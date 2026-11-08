@@ -425,6 +425,24 @@ describe("useLrcStore — syllable actions", () => {
     useLrcStore.getState().commitSyllables("1", [{ text: "a", time: 1 }], false);
     expect(useLrcStore.getState()._history.length).toBe(h0);
   });
+
+  it("rejects an overflowing SRT retime without changing history or cancelling AI", () => {
+    reset([{ id: "1", timestamp: -Number.MAX_VALUE, srtEndTime: -Number.MAX_VALUE / 2, text: "a" }]);
+    useLrcStore.getState().addLine("temporary");
+    useLrcStore.getState().undo();
+    useLrcStore.setState({ aiSyncStatus: "running" });
+    vi.mocked(invoke).mockReset().mockResolvedValue(undefined);
+    const before = useLrcStore.getState();
+
+    useLrcStore.getState().commitSyllables("1", [{ text: "a", time: Number.MAX_VALUE }]);
+
+    const after = useLrcStore.getState();
+    expect(after.doc).toBe(before.doc);
+    expect(after._history).toBe(before._history);
+    expect(after._future).toBe(before._future);
+    expect(after.aiSyncStatus).toBe("running");
+    expect(invoke).not.toHaveBeenCalledWith("cancel_alignment", expect.anything());
+  });
 });
 
 describe("useLrcStore — history & raw load", () => {
