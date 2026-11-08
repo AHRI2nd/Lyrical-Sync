@@ -38,6 +38,13 @@ export const useI18nStore = create<I18nState>()(
       name: "lyrical-sync-lang",
       storage: safeLanguageStorage,
       partialize: (state) => ({ lang: state.lang }),
+      merge: (persistedState, currentState) => {
+        const persistedLang = persistedState && typeof persistedState === "object" && !Array.isArray(persistedState)
+          ? (persistedState as { lang?: unknown }).lang
+          : undefined;
+        const lang = normalizeLang(persistedLang);
+        return { ...currentState, lang, t: translations[lang] };
+      },
       onRehydrateStorage: () => (state) => {
         if (state) {
           state.lang = normalizeLang(state.lang);

@@ -20,3 +20,20 @@ it('keeps language selection functional when localStorage writes fail', () => {
   setItem.mockRestore();
   useI18nStore.getState().setLang('ko');
 });
+
+it('does not let persisted properties replace the language setter', async () => {
+  localStorage.setItem('lyrical-sync-lang', JSON.stringify({
+    state: { lang: 'en', setLang: 'not a function', t: { corrupted: true } },
+    version: 0,
+  }));
+
+  await useI18nStore.persist.rehydrate();
+
+  expect(useI18nStore.getState().lang).toBe('en');
+  expect(typeof useI18nStore.getState().setLang).toBe('function');
+  useI18nStore.getState().setLang('ja');
+  expect(useI18nStore.getState().lang).toBe('ja');
+
+  localStorage.removeItem('lyrical-sync-lang');
+  useI18nStore.getState().setLang('ko');
+});
