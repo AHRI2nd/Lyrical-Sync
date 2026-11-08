@@ -17,6 +17,14 @@ from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1]
 
 class SignedCandidateTests(unittest.TestCase):
+    def test_signed_build_gate_runs_every_python_regression_script(self):
+        workflow = (ROOT / '.github/workflows/test.yml').read_text(encoding='utf-8')
+        configured = set(re.findall(r'(?m)^\s*- run: python scripts/([\w.-]+\.py)\s*$', workflow))
+        regression_scripts = {path.name for path in (ROOT / 'scripts').glob('test_*.py')}
+        self.assertTrue(regression_scripts)
+        self.assertTrue(regression_scripts.issubset(configured),
+                        f"Missing Python regression scripts from signed-build gate: {sorted(regression_scripts-configured)}")
+
     def run_release_draft_gate(self, mode, source_sha='source-sha', tag_sha='source-sha'):
         workflow=(ROOT/'.github/workflows/release.yml').read_text(encoding='utf-8')
         lines=workflow.splitlines()
