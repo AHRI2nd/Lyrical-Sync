@@ -188,6 +188,23 @@ describe("serializeSrt", () => {
     expect(back).toContain("00:00:01,000 --> 00:00:03,000");
     expect(back).toContain("00:00:05,000 --> 00:00:07,000");
   });
+
+  it("round-trips editor-created blank timed rows through an SRT working save", () => {
+    const edited = docOf([
+      { id: "first", timestamp: 1, text: "first" },
+      { id: "first-end", timestamp: 3, text: "" },
+      { id: "second", timestamp: 5, text: "second" },
+      { id: "second-end", timestamp: 7, text: "" },
+    ]);
+    const saved = serializeSrt(edited);
+    const reopened = parseSrt(saved);
+
+    expect(saved).toContain("00:00:01,000 --> 00:00:03,000\nfirst");
+    expect(saved).toContain("00:00:05,000 --> 00:00:07,000\nsecond");
+    expect(reopened.lines.map(({ timestamp, text }) => [timestamp, text])).toEqual([
+      [1, "first"], [3, ""], [5, "second"], [7, ""],
+    ]);
+  });
 });
 
 
