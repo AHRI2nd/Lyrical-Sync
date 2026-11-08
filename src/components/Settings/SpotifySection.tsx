@@ -33,7 +33,9 @@ export function SpotifySection({
     try {
       await startLogin();
     } catch (e) {
-      setError(String(e));
+      setError(String(e).includes("spotify_callback_listener_unavailable")
+        ? t.toast.spotifyCallbackListenerUnavailable
+        : String(e));
     } finally {
       setConnecting(false);
     }

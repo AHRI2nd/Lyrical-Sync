@@ -194,6 +194,8 @@ interface ServiceState {
   /** 최근 Web Playback SDK 오류(초기화/인증/계정/재생). null=정상 */
   playerError: string | null;
   setPlayerError: (msg: string | null) => void;
+  oauthCallbackListenerReady: boolean;
+  setOAuthCallbackListenerReady: (ready: boolean) => void;
   isReady: boolean;
   isPlaying: boolean;
   isLooping: boolean;
@@ -246,6 +248,7 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
   activePlaybackDeviceId: null,
   activePlaybackVolumePercent: null,
   playerError: null,
+  oauthCallbackListenerReady: false,
   isReady: false,
   isPlaying: false,
   isLooping: false,
@@ -263,6 +266,7 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
   startLogin: async () => {
     const clientId = useSettingsStore.getState().spotifyClientId.trim();
     if (!clientId) throw new Error("no_client_id");
+    if (!get().oauthCallbackListenerReady) throw new Error("spotify_callback_listener_unavailable");
 
     const generation = get()._authGeneration + 1;
     const lease = { generation, clientId };
@@ -467,6 +471,7 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
   },
 
   setPlayerError: (msg) => set({ playerError: msg }),
+  setOAuthCallbackListenerReady: (ready) => set({ oauthCallbackListenerReady: ready }),
 
   onPlayerReady: (deviceId: string) => {
     set({ deviceId, isReady: true, playerError: null });

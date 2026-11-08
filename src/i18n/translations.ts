@@ -422,6 +422,7 @@ export interface Translations {
     deviceUnavailable: string;
     deviceControlFailed: string;
     spotifyActionFailed: string;
+    spotifyCallbackListenerUnavailable: string;
     spotifySessionRestoreFailed: string;
     spotifyTokenCleanupFailed: string;
   };
@@ -1089,6 +1090,7 @@ const ko: Translations = {
     deviceUnavailable: "기기 감지를 사용할 수 없습니다",
     deviceControlFailed: "미디어 기기를 제어하지 못했습니다. 재생 상태를 다시 확인하세요.",
     spotifyActionFailed: "Spotify 요청에 실패했습니다. 연결 상태를 확인하고 다시 시도하세요.",
+    spotifyCallbackListenerUnavailable: "앱이 Spotify 로그인 콜백을 받을 준비가 되지 않았습니다. 앱을 다시 시작한 뒤 시도하세요.",
     spotifySessionRestoreFailed: "저장된 Spotify 로그인을 확인하지 못했습니다. 시스템 자격 증명 접근 권한을 확인하고 다시 시도하세요.",
     spotifyTokenCleanupFailed: "Spotify 로그아웃 중 저장된 인증 정보를 모두 삭제하지 못했습니다. 앱을 다시 시작하면 로그인이 복구될 수 있습니다.",
   },
@@ -1754,6 +1756,7 @@ const en: Translations = {
     deviceUnavailable: "Device detection is unavailable",
     deviceControlFailed: "Could not control the media device. Playback state will be refreshed.",
     spotifyActionFailed: "The Spotify request failed. Check your connection and try again.",
+    spotifyCallbackListenerUnavailable: "Spotify sign-in is unavailable because the app could not register its callback handler. Restart the app and try again.",
     spotifySessionRestoreFailed: "Couldn't check your saved Spotify login. Check system credential access and try again.",
     spotifyTokenCleanupFailed: "Spotify sign-out could not remove all saved credentials. The session may return after restarting the app.",
   },
@@ -2418,6 +2421,7 @@ const ja: Translations = {
     deviceUnavailable: "デバイス検出を利用できません",
     deviceControlFailed: "メディアデバイスを操作できませんでした。再生状態を再確認します。",
     spotifyActionFailed: "Spotify リクエストに失敗しました。接続を確認して再試行してください。",
+    spotifyCallbackListenerUnavailable: "アプリが Spotify ログインのコールバックを受け取れる状態ではありません。アプリを再起動してから再試行してください。",
     spotifySessionRestoreFailed: "保存済みの Spotify ログインを確認できませんでした。システムの認証情報へのアクセスを確認して再試行してください。",
     spotifyTokenCleanupFailed: "Spotify からのログアウト時に保存済みの認証情報をすべて削除できませんでした。アプリの再起動後にログイン状態が戻る場合があります。",
   },

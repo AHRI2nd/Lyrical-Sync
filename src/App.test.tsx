@@ -18,11 +18,12 @@ if (typeof globalThis.localStorage === "undefined") {
 
 // App.tsx가 마운트 시 건드리는 Tauri API 전부 스텁 — 이 테스트는 드래그앤드롭 충돌
 // 해소 로직(App.tsx 자체)만 검증하므로, 실제 IPC/OS 연동은 필요 없음.
-const { dragDropHandler, dialogOpen, closeRequestedHandler, closeWindow } = vi.hoisted(() => ({
+const { dragDropHandler, dialogOpen, closeRequestedHandler, closeWindow, eventListen } = vi.hoisted(() => ({
   dragDropHandler: { current: null as ((e: unknown) => void) | null },
   dialogOpen: vi.fn(),
   closeRequestedHandler: { current: null as ((event: { preventDefault: () => void }) => void) | null },
   closeWindow: vi.fn(() => Promise.resolve()),
+  eventListen: vi.fn((..._args: unknown[]) => Promise.resolve(() => {})),
 }));
 vi.mock("@tauri-apps/api/webview", () => ({
   getCurrentWebview: () => ({
@@ -32,7 +33,7 @@ vi.mock("@tauri-apps/api/webview", () => ({
     },
   }),
 }));
-vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(() => Promise.resolve(() => {})) }));
+vi.mock("@tauri-apps/api/event", () => ({ listen: (...args: unknown[]) => eventListen(...args) }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(() => Promise.resolve(undefined)) }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: dialogOpen, save: vi.fn() }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
@@ -62,6 +63,8 @@ import App from "./App";
 import { useLrcStore } from "./stores/useLrcStore";
 import { defaultDocument } from "./types/lrc";
 import { useI18nStore } from "./stores/useI18nStore";
+import { useServiceStore } from "./stores/useServiceStore";
+import { useToastStore } from "./stores/useToastStore";
 import { installMemoryLocalStorage } from "./test/memoryLocalStorage";
 
 const initialLoadLyricsPath = useLrcStore.getInitialState().loadLyricsPath;
@@ -89,6 +92,9 @@ describe("App — drag-and-drop conflict resolution", () => {
     closeRequestedHandler.current = null;
     closeWindow.mockClear();
     dialogOpen.mockReset();
+    eventListen.mockReset().mockResolvedValue(() => {});
+    useToastStore.setState({ toasts: [] });
+    useServiceStore.setState({ oauthCallbackListenerReady: false });
   });
 
   afterEach(() => {
@@ -109,6 +115,17 @@ describe("App — drag-and-drop conflict resolution", () => {
     // 충돌이 없으므로 확인 모달 없이 바로 적용됨
     expect(screen.queryByText("파일 열기")).toBeNull();
     expect(setAudioPathSpy).toHaveBeenCalledWith("/music/song.mp3");
+  });
+
+  it("reports callback-listener registration failure and keeps Spotify login unavailable", async () => {
+    eventListen.mockImplementation((event: unknown) => event === "spotify-callback"
+      ? Promise.reject(new Error("listener unavailable"))
+      : Promise.resolve(() => {}));
+    render(<App />);
+
+    await waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1));
+    expect(useServiceStore.getState().oauthCallbackListenerReady).toBe(false);
+    expect(useToastStore.getState().toasts[0]?.message).toBe(useI18nStore.getState().t.toast.spotifyCallbackListenerUnavailable);
   });
 
   it("asks for confirmation when dropping audio while audio is already loaded, and applies only on confirm", async () => {
@@ -294,7 +311,6 @@ describe("App — drag-and-drop conflict resolution", () => {
 
 import { saveRecoverySnapshot, loadRecoverySnapshot } from "./utils/recovery";
 import { useSettingsPersistenceStore, useSettingsStore } from "./stores/useSettingsStore";
-import { useToastStore } from "./stores/useToastStore";
 
 // These exercise the actual startup effects and persisted bytes, not a mocked recovery hook.
 describe("App — recovery lifecycle", () => {

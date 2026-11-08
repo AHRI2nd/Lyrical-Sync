@@ -39,6 +39,7 @@ const reset = () =>
     activePlaybackDeviceId: null,
     activePlaybackVolumePercent: null,
     playerError: null,
+    oauthCallbackListenerReady: false,
     isReady: false,
     isPlaying: false,
   });
@@ -400,7 +401,21 @@ describe("Spotify API request failures", () => {
 });
 
 describe("OAuth listener security", () => {
-  beforeEach(() => { reset(); invoke.mockReset(); invoke.mockResolvedValue(undefined); });
+  beforeEach(() => {
+    reset();
+    useServiceStore.setState({ oauthCallbackListenerReady: true });
+    invoke.mockReset();
+    invoke.mockResolvedValue(undefined);
+  });
+  it("does not start Spotify login until the app callback listener is ready", async () => {
+    const { useSettingsStore } = await import("./useSettingsStore");
+    useSettingsStore.setState({ spotifyClientId: "public-client-id" });
+    useServiceStore.setState({ oauthCallbackListenerReady: false });
+
+    await expect(useServiceStore.getState().startLogin()).rejects.toThrow("spotify_callback_listener_unavailable");
+    expect(invoke).not.toHaveBeenCalledWith("start_oauth_listener", expect.anything());
+    expect(openUrl).not.toHaveBeenCalled();
+  });
   it("passes the pending random state to the native listener", async () => {
     const { useSettingsStore } = await import("./useSettingsStore");
     useSettingsStore.setState({ spotifyClientId: "public-client-id" });
@@ -419,6 +434,7 @@ describe("OAuth listener security", () => {
 describe("auth generation ownership", () => {
   beforeEach(async () => {
     reset();
+    useServiceStore.setState({ oauthCallbackListenerReady: true });
     const { useSettingsStore } = await import("./useSettingsStore");
     useSettingsStore.setState({ spotifyClientId: "generation-client" });
     invoke.mockReset().mockResolvedValue(undefined);

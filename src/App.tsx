@@ -384,10 +384,18 @@ function App() {
       }
     }).then((fn) => {
       if (cancelled) safeUnlisten(fn);
-      else unlistenFn = fn;
-    }).catch(() => {});
+      else {
+        unlistenFn = fn;
+        useServiceStore.getState().setOAuthCallbackListenerReady(true);
+      }
+    }).catch(() => {
+      if (cancelled) return;
+      useServiceStore.getState().setOAuthCallbackListenerReady(false);
+      toast.error(useI18nStore.getState().t.toast.spotifyCallbackListenerUnavailable);
+    });
     return () => {
       cancelled = true;
+      useServiceStore.getState().setOAuthCallbackListenerReady(false);
       safeUnlisten(unlistenFn);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
