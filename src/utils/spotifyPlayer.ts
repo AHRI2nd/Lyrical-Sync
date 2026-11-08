@@ -6,6 +6,7 @@ import { toast } from "../stores/useToastStore";
 
 let player: Spotify.Player | null = null;
 type AuthLease = { generation: number; clientId: string };
+let playerLease: AuthLease | null = null;
 let pendingToken: { lease: AuthLease } | null = null;
 let sdkReady = false;
 let pollingTimer: ReturnType<typeof setTimeout> | null = null;
@@ -29,6 +30,10 @@ function isCurrentLease(lease: AuthLease): boolean {
     useSettingsStore.getState().spotifyClientId.trim() === lease.clientId;
 }
 
+function isSameLease(left: AuthLease | null, right: AuthLease): boolean {
+  return left?.generation === right.generation && left.clientId === right.clientId;
+}
+
 // Must be defined before the SDK script executes
 if (typeof window !== "undefined") {
   window.onSpotifyWebPlaybackSDKReady = () => {
@@ -47,6 +52,10 @@ export function initSpotifyPlayer(): void {
     startPolling();
     return;
   }
+  if (isSameLease(playerLease, lease) || isSameLease(pendingToken?.lease ?? null, lease)) {
+    startPolling();
+    return;
+  }
   if (sdkReady) {
     createPlayer(lease);
   } else {
@@ -60,6 +69,7 @@ export function disconnectSpotifyPlayer(): void {
   pendingToken = null;
   const previous = player;
   player = null;
+  playerLease = null;
   previous?.disconnect();
   stopPolling();
 }
@@ -98,6 +108,7 @@ export async function getSpotifyVolume(): Promise<number | null> {
 function disconnectOwnedPlayer(instance: Spotify.Player, generation: number): void {
   if (player !== instance || playerGeneration !== generation) return;
   player = null;
+  playerLease = null;
   playerGeneration += 1;
   instance.disconnect();
   stopPolling();
@@ -105,8 +116,10 @@ function disconnectOwnedPlayer(instance: Spotify.Player, generation: number): vo
 
 function createPlayer(lease: AuthLease): void {
   if (!isCurrentLease(lease)) return;
+  if (isSameLease(playerLease, lease)) return;
   const previous = player;
   player = null;
+  playerLease = null;
   previous?.disconnect();
   const generation = ++playerGeneration;
   let instance: Spotify.Player;
@@ -136,6 +149,7 @@ function createPlayer(lease: AuthLease): void {
     volume: 1.0,
   });
   player = instance;
+  playerLease = lease;
 
   instance.addListener("ready", ({ device_id }) => {
     if (!isCurrentInstance()) { disconnectOwnedPlayer(instance, generation); return; }

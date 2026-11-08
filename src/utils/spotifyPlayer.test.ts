@@ -79,6 +79,8 @@ it("discards a token queued before the SDK becomes ready if logout invalidates i
   const generation = useServiceStore.getState()._authGeneration;
   initSpotifyPlayer();
   expect(MockSpotifyPlayer.instances).toHaveLength(0);
+  initSpotifyPlayer();
+  expect(MockSpotifyPlayer.instances).toHaveLength(0);
   useServiceStore.getState().logout();
   (window as any).onSpotifyWebPlaybackSDKReady();
   expect(MockSpotifyPlayer.instances).toHaveLength(0);
@@ -131,15 +133,15 @@ it("returns an empty OAuth token instead of a captured old access token when ref
   expect(useServiceStore.getState().accessToken).toBeNull();
 });
 
-it("connects only one player for the current auth lease and supplies its current token", async () => {
+it("reuses the current player for the same auth lease", async () => {
   initSpotifyPlayer();
   const instance = MockSpotifyPlayer.instances[0];
   const callback = vi.fn();
   await instance.options.getOAuthToken(callback);
   expect(callback).toHaveBeenCalledWith("access-token");
   initSpotifyPlayer();
-  expect(MockSpotifyPlayer.instances).toHaveLength(2);
-  expect(instance.disconnect).toHaveBeenCalledOnce();
+  expect(MockSpotifyPlayer.instances).toHaveLength(1);
+  expect(instance.disconnect).not.toHaveBeenCalled();
 });
 
 it("reports an SDK connection that resolves false", async () => {
