@@ -39,11 +39,18 @@ function validDocument(value: unknown): value is LrcDocument {
   if (value.metadataTagSequence !== undefined && (!Array.isArray(value.metadataTagSequence) || value.metadataTagSequence.some((tag: unknown) =>
     !isRecord(tag) || typeof tag.key !== "string" || typeof tag.value !== "string"
   ))) return false;
-  return value.lines.every((line: unknown) => isRecord(line) && typeof line.id === "string" && typeof line.text === "string" &&
-    (line.timestamp === null || isFiniteNumber(line.timestamp)) &&
-    (line.translation === undefined || typeof line.translation === "string") &&
-    (line.syllables === undefined || (Array.isArray(line.syllables) && line.syllables.every((token: unknown) =>
-      isRecord(token) && typeof token.text === "string" && (token.time === null || isFiniteNumber(token.time))))));
+  return value.lines.every((line: unknown) => {
+    if (!isRecord(line) || typeof line.id !== "string" || typeof line.text !== "string" ||
+        (line.timestamp !== null && !isFiniteNumber(line.timestamp)) ||
+        (line.translation !== undefined && typeof line.translation !== "string")) return false;
+    if (line.srtEndTime !== undefined &&
+        (line.timestamp === null || !isFiniteNumber(line.srtEndTime) || line.srtEndTime <= line.timestamp)) return false;
+    if (line.syllables === undefined) return true;
+    return Array.isArray(line.syllables) &&
+      line.syllables.every((token: unknown) => isRecord(token) && typeof token.text === "string" &&
+        (token.time === null || isFiniteNumber(token.time))) &&
+      line.syllables.map((token: { text: string }) => token.text).join("") === line.text;
+  });
 }
 
 export function saveRecoverySnapshot(doc: LrcDocument, lrcPath: string | null, audioPath: string | null,

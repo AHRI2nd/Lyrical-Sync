@@ -117,6 +117,28 @@ it.each(["metadata", "timestamp", "syllable", "extraTags", "bookmark", "savedAt"
   localStorage.setItem(KEY, JSON.stringify(snapshot));
   expect(loadRecoverySnapshot()).toBeNull();
 });
+it.each([
+  { timestamp: 1, srtEndTime: 0.5 },
+  { timestamp: 1, srtEndTime: Number.NaN },
+  { timestamp: null, srtEndTime: 2 },
+])("rejects a recovery snapshot with invalid SRT cue end $srtEndTime", (timing) => {
+  const invalid = doc();
+  Object.assign(invalid.lines[0], timing);
+  const raw = JSON.stringify({ doc: invalid, lrcPath: "/song.srt", audioPath: null, savedAt: 1 });
+  localStorage.setItem(KEY, raw);
+
+  expect(loadRecoverySnapshot()).toBeNull();
+  expect(localStorage.getItem(KEY)).toBe(raw);
+});
+it("rejects recovery when timed token text no longer matches its lyric row", () => {
+  const invalid = doc();
+  invalid.lines[0].syllables = [{ text: "other", time: 1.5 }];
+  const raw = JSON.stringify({ doc: invalid, lrcPath: "/song.lrc", audioPath: null, savedAt: 1 });
+  localStorage.setItem(KEY, raw);
+
+  expect(loadRecoverySnapshot()).toBeNull();
+  expect(localStorage.getItem(KEY)).toBe(raw);
+});
 it("loads a legacy snapshot without bookmark fields", () => {
   localStorage.setItem(KEY, JSON.stringify({ doc: doc(), lrcPath: null, audioPath: null, savedAt: 1 }));
   expect(loadRecoverySnapshot()?.lrcBookmark).toBeNull();
@@ -158,6 +180,7 @@ it("persists unsupported reserved control tags so recovery can preserve a raw dr
 it("restores rich document data from stored bytes after recreating the module", async () => {
   const rich = doc();
   rich.extraTags = { language: "ko" };
+  rich.lines[0].text = "hello ";
   rich.lines[0].syllables = [{ text: "hello", time: 1.5 }, { text: " ", time: null }];
   expect(saveRecoverySnapshot(rich, "/a.lrc", null, "grant", null, "restart")).toBe(true);
   expect(JSON.parse(localStorage.getItem(`${KEY_PREFIX}restart`)!).doc).toEqual(rich);
