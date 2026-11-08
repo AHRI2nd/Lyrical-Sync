@@ -208,6 +208,7 @@ pub async fn run_alignment(
         .spawn()
         .map_err(|e| format!("Python 실행 실패: {e}"))?;
 
+    let process_id = child.id();
     use tokio::io::AsyncWriteExt;
     let mut stdin = child.stdin.take().ok_or("Python stdin is unavailable")?;
     let input = lines_json.into_bytes();
@@ -215,13 +216,28 @@ pub async fn run_alignment(
         stdin.write_all(&input).await.map_err(|error| error.to_string())
     });
     let output = run_child(child, cancel, progress).await;
-    let input_result = input_task.await.map_err(|error| error.to_string())?;
     match output {
         Ok(output) => {
-            input_result?;
-            Ok(output.trim().to_string())
+            match crate::alignment_process::finish_stdin_writer(
+                input_task,
+                std::time::Duration::from_millis(500),
+            )
+            .await
+            {
+                Ok(()) => Ok(output.trim().to_string()),
+                Err(error) => {
+                    if let Some(pid) = process_id {
+                        crate::alignment_process::terminate_process_tree(pid).await;
+                    }
+                    Err(error)
+                }
+            }
         }
-        Err(error) => Err(error),
+        Err(error) => {
+            input_task.abort();
+            let _ = input_task.await;
+            Err(error)
+        }
     }
 }
 

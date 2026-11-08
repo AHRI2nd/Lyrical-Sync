@@ -151,9 +151,53 @@ pub async fn run_child_with_timeout(
     }
 }
 
+pub async fn finish_stdin_writer(
+    mut writer: tokio::task::JoinHandle<Result<(), String>>,
+    timeout: Duration,
+) -> Result<(), String> {
+    match tokio::time::timeout(timeout, &mut writer).await {
+        Ok(Ok(result)) => result,
+        Ok(Err(error)) => Err(error.to_string()),
+        Err(_) => {
+            writer.abort();
+            let _ = writer.await;
+            Err("Python stdin writer timed out".into())
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn stdin_writer_timeout_aborts_the_detached_write_task() {
+        struct DropFlag(Arc<AtomicBool>);
+        impl Drop for DropFlag {
+            fn drop(&mut self) {
+                self.0.store(true, Ordering::Relaxed);
+            }
+        }
+
+        let dropped = Arc::new(AtomicBool::new(false));
+        let writer_dropped = dropped.clone();
+        let writer = tokio::spawn(async move {
+            let _drop_flag = DropFlag(writer_dropped);
+            std::future::pending::<()>().await;
+            Ok(())
+        });
+
+        let result = finish_stdin_writer(writer, Duration::from_millis(10)).await;
+
+        assert_eq!(result.unwrap_err(), "Python stdin writer timed out");
+        assert!(dropped.load(Ordering::Relaxed));
+    }
+
+    #[tokio::test]
+    async fn completed_stdin_writer_preserves_its_result() {
+        let writer = tokio::spawn(async { Ok(()) });
+        finish_stdin_writer(writer, Duration::from_secs(1)).await.unwrap();
+    }
     use std::io::Write;
     use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
     use std::time::{Duration, Instant};
