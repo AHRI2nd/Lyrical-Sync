@@ -567,7 +567,9 @@ function App() {
   // 모드 전환 (ModeSelectButton과 동일한 동작 — 전환 시 재생 정지)
   const stopCurrentPlaybackForModeSwitch = () => {
     if (deviceMode) deviceControls.stopAndReset();
-    else if (spotifyMode && isLoggedIn) pausePlayback();
+    else if (spotifyMode && isLoggedIn) {
+      void pausePlayback().catch(() => toast.error(useI18nStore.getState().t.toast.spotifyActionFailed));
+    }
     else audioControls.pause();
   };
   const selectModeFile = () => {

@@ -8,6 +8,7 @@ import { useDeviceStore } from "../../stores/useDeviceStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { audioControls } from "../../utils/audioControls";
 import { deviceControls } from "../../utils/deviceControls";
+import { toast } from "../../stores/useToastStore";
 
 const SUPPORTS_DEVICE_MODE = navigator.platform.startsWith("Win") || navigator.platform.startsWith("Mac");
 
@@ -89,7 +90,9 @@ export function ModeSelectButton() {
   // 모드 이탈 시 이전 재생 정지(공통 헬퍼)
   const stopCurrentPlayback = () => {
     if (deviceMode) deviceControls.stopAndReset();
-    else if (spotifyMode && isLoggedIn) pausePlayback();
+    else if (spotifyMode && isLoggedIn) {
+      void pausePlayback().catch(() => toast.error(t.toast.spotifyActionFailed));
+    }
     else audioControls.pause();
   };
 
