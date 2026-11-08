@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { SpotifySearchModal } from "./SpotifySearchModal";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { useSettingsStore } from "../../stores/useSettingsStore";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -166,6 +167,33 @@ it("maps the native no-active-device error to its dedicated message", async () =
   await act(async () => { await Promise.resolve(); await Promise.resolve(); });
   expect(screen.getByText(useI18nStore.getState().t.spotifyNoPlayableDevices)).toBeTruthy();
   expect(screen.queryByText(/no_active_spotify_device/)).toBeNull();
+});
+
+it("does not complete a track selection after the modal is closed", async () => {
+  const pendingPlay = deferred<void>();
+  const onClose = vi.fn();
+  useServiceStore.setState({ playTrack: vi.fn(() => pendingPlay.promise) });
+  useSettingsStore.setState({ spotifyMode: false });
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => response("Test Track"),
+  } as Response));
+  render(<SpotifySearchModal onClose={onClose} />);
+  const t = useI18nStore.getState().t;
+  fireEvent.change(screen.getByPlaceholderText(t.spotifySearchPlaceholder), { target: { value: "test" } });
+  await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+  fireEvent.click(screen.getByRole("button", { name: /Test Track/ }));
+  await vi.waitFor(() => expect(useServiceStore.getState().playTrack).toHaveBeenCalledOnce());
+
+  fireEvent.click(screen.getByRole("button", { name: t.close }));
+  expect(onClose).toHaveBeenCalledOnce();
+  await act(async () => {
+    pendingPlay.resolve();
+    await pendingPlay.promise;
+  });
+
+  expect(onClose).toHaveBeenCalledOnce();
+  expect(useSettingsStore.getState().spotifyMode).toBe(false);
 });
 
 it("loads Spotify playlists incrementally through validated next pages", async () => {

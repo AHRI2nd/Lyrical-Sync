@@ -54,7 +54,12 @@ export function SpotifySearchModal({ onClose }: Props) {
   const { t } = useI18nStore();
   const dialog = useRef<HTMLDivElement>(null);
   const titleId = useId();
-  useModalFocus(dialog, onClose, true, 60);
+  const selectionGeneration = useRef(0);
+  const closeModal = useCallback(() => {
+    selectionGeneration.current += 1;
+    onClose();
+  }, [onClose]);
+  useModalFocus(dialog, closeModal, true, 60);
   const playTrack = useServiceStore((s) => s.playTrack);
   const authGeneration = useServiceStore((s) => s._authGeneration);
   const setSpotifyMode = useSettingsStore((s) => s.setSpotifyMode);
@@ -161,6 +166,7 @@ export function SpotifySearchModal({ onClose }: Props) {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      selectionGeneration.current += 1;
       searchGeneration.current += 1;
       playlistGeneration.current += 1;
       playlistDetailGeneration.current += 1;
@@ -282,17 +288,19 @@ export function SpotifySearchModal({ onClose }: Props) {
   };
 
   const handleSelectTrack = async (track: SpotifyTrack) => {
+    const requestId = ++selectionGeneration.current;
     const lease = spotifyAuthLease();
+    const ownsSelection = () => mounted.current && requestId === selectionGeneration.current && isSpotifyAuthLeaseCurrent(lease);
     setError(null);
     try {
       await activateSpotifyPlayer(); // unlock audio context on user gesture
-      if (!isSpotifyAuthLeaseCurrent(lease)) return;
+      if (!ownsSelection()) return;
       await playTrack(track.uri);
-      if (!isSpotifyAuthLeaseCurrent(lease)) return;
+      if (!ownsSelection()) return;
       setSpotifyMode(true);
-      onClose();
+      closeModal();
     } catch (e) {
-      if (!isSpotifyAuthLeaseCurrent(lease)) return;
+      if (!ownsSelection()) return;
       const msg = e instanceof Error ? e.message : String(e);
       if (msg === "no_active_spotify_device" || msg.includes("NO_ACTIVE_DEVICE") || msg.includes("No active device")) {
         setError(t.spotifyNoPlayableDevices);
@@ -305,7 +313,7 @@ export function SpotifySearchModal({ onClose }: Props) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
+      onClick={closeModal}
     >
       <div
         ref={dialog}
@@ -318,7 +326,7 @@ export function SpotifySearchModal({ onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)] shrink-0">
           <span id={titleId} className="font-semibold text-[var(--ls-text)]">{t.spotifySearchTitle}</span>
-          <button onClick={onClose} aria-label={t.close} className="ls-button hover:text-white transition-colors text-lg leading-none">✕</button>
+          <button onClick={closeModal} aria-label={t.close} className="ls-button hover:text-white transition-colors text-lg leading-none">✕</button>
         </div>
 
         {/* Tabs */}
