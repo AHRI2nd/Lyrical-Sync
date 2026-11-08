@@ -101,6 +101,8 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
           {tabs.map(({ id, label }) => (
             <button
               key={id}
+              type="button"
+              aria-pressed={tab === id}
               onClick={() => setTab(id)}
               className={`ls-button ${[
                 "flex-1 py-2 text-xs font-medium transition-colors",
