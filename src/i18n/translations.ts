@@ -500,6 +500,13 @@ export interface Translations {
   aiSyncModeUnsupported: string;
   aiSyncDone: string;
   aiSyncError: string;
+  aiSyncErrorGeneral: string;
+  aiSyncErrorPackages: string;
+  aiSyncErrorModel: string;
+  aiSyncErrorAudio: string;
+  aiSyncErrorAudioTooShort: string;
+  aiSyncErrorUnsupported: string;
+  aiSyncWarning: string;
   aiSyncStatusLoadingModel: string;
   aiSyncStatusLoadingAudio: string;
   aiSyncStatusAnalyzing: string;
@@ -1170,6 +1177,13 @@ const ko: Translations = {
   aiSyncModeUnsupported: "파일 모드에서만 AI 자동 동기화를 사용할 수 있습니다",
   aiSyncDone: "AI 싱크 완료",
   aiSyncError: "AI 싱크 오류",
+  aiSyncErrorGeneral: "AI 자동 싱크에 실패했습니다. 다시 시도하거나 AI 모델을 다시 설치해 주세요.",
+  aiSyncErrorPackages: "AI 패키지를 불러오지 못했습니다. 설정 > AI 모델에서 다시 설치해 주세요.",
+  aiSyncErrorModel: "정렬 모델을 불러오지 못했습니다. 설정 > AI 모델에서 다시 다운로드해 주세요.",
+  aiSyncErrorAudio: "선택한 오디오를 처리하지 못했습니다.",
+  aiSyncErrorAudioTooShort: "오디오가 너무 짧아 가사를 정렬할 수 없습니다.",
+  aiSyncErrorUnsupported: "정렬 모델이 일부 가사 문자를 지원하지 않습니다.",
+  aiSyncWarning: "AI 정렬에서 경고가 발생했습니다. 해당 가사 줄을 확인해 주세요.",
   aiSyncStatusLoadingModel: "모델 로딩 중...",
   aiSyncStatusLoadingAudio: "오디오 로딩 중...",
   aiSyncStatusAnalyzing: "오디오 분석 중...",
@@ -1840,6 +1854,13 @@ const en: Translations = {
   aiSyncModeUnsupported: "AI auto sync is only available in File mode",
   aiSyncDone: "AI Sync complete",
   aiSyncError: "AI Sync error",
+  aiSyncErrorGeneral: "AI alignment failed. Try again or reinstall the AI models.",
+  aiSyncErrorPackages: "AI packages could not be loaded. Reinstall them in Settings > AI Models.",
+  aiSyncErrorModel: "The alignment model could not be loaded. Re-download it in Settings > AI Models.",
+  aiSyncErrorAudio: "The selected audio could not be processed.",
+  aiSyncErrorAudioTooShort: "The audio is too short to align these lyrics.",
+  aiSyncErrorUnsupported: "The alignment model does not support some lyric characters.",
+  aiSyncWarning: "AI alignment reported a warning. Review the affected lyric rows.",
   aiSyncStatusLoadingModel: "Loading model...",
   aiSyncStatusLoadingAudio: "Loading audio...",
   aiSyncStatusAnalyzing: "Analyzing audio...",
@@ -2509,6 +2530,13 @@ const ja: Translations = {
   aiSyncModeUnsupported: "AI自動同期はファイルモードでのみ使用できます",
   aiSyncDone: "AI同期完了",
   aiSyncError: "AI同期エラー",
+  aiSyncErrorGeneral: "AI同期に失敗しました。再試行するか、AIモデルを再インストールしてください。",
+  aiSyncErrorPackages: "AIパッケージを読み込めませんでした。設定 > AIモデルから再インストールしてください。",
+  aiSyncErrorModel: "アライメントモデルを読み込めませんでした。設定 > AIモデルから再ダウンロードしてください。",
+  aiSyncErrorAudio: "選択した音声を処理できませんでした。",
+  aiSyncErrorAudioTooShort: "音声が短すぎるため歌詞を整列できません。",
+  aiSyncErrorUnsupported: "アライメントモデルが一部の歌詞文字に対応していません。",
+  aiSyncWarning: "AI同期で警告が発生しました。該当する歌詞行を確認してください。",
   aiSyncStatusLoadingModel: "モデル読み込み中...",
   aiSyncStatusLoadingAudio: "音声読み込み中...",
   aiSyncStatusAnalyzing: "音声解析中...",

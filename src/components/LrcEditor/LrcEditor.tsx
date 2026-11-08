@@ -13,6 +13,7 @@ import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
 import { deviceControls } from "../../utils/deviceControls";
 import { MODEL_DEFS } from "../../utils/modelDefs";
+import { localizeAiSyncError } from "../../utils/aiSyncMessages";
 import { listenSafely } from "../../utils/safeListen";
 import { setModelsDirOverride } from "../../utils/modelsDirOverride";
 import type { LrcLine, LrcSyllable } from "../../types/lrc";
@@ -834,10 +835,11 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     postprocessing: t.aiSyncStatusPostprocessing,
     separating: t.aiSyncStatusAnalyzing,
     done: t.aiSyncStatusDone,
+    warning: t.aiSyncWarning,
   };
 
   const displayMessage = aiSyncStatus === "error"
-    ? aiSyncMessage
+    ? localizeAiSyncError(aiSyncMessage, t)
     : (PROGRESS_STATUS_MAP[aiSyncProgressStatus] ?? aiSyncMessage);
 
 

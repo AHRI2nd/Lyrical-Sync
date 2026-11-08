@@ -78,6 +78,15 @@ it("removes an individually deleted row from bulk selection", () => {
   expect(useLrcStore.getState().doc.lines.map((line) => line.id)).toEqual(["b", "c", "d"]);
   expect(queryByText(`1 ${t.bulkSelected}`)).toBeNull();
 });
+it.each(["en", "ja"] as const)("shows Korean sidecar package errors in the selected %s UI language", (lang) => {
+  useI18nStore.getState().setLang(lang);
+  useLrcStore.setState({ aiSyncStatus: "error", aiSyncProgressStatus: "error", aiSyncMessage: "패키지 임포트 실패: /private/user/path" });
+  const { getByText, queryByText } = render(<LrcEditor onPreview={() => {}} />);
+  expect(getByText(useI18nStore.getState().t.aiSyncErrorPackages)).toBeTruthy();
+  expect(queryByText(/패키지 임포트 실패/)).toBeNull();
+  act(() => useI18nStore.getState().setLang("ko"));
+});
+
 it("lets the user choose the AI language separately from the interface language", () => {
   const { getByLabelText } = render(<LrcEditor onPreview={() => {}} />);
   fireEvent.change(getByLabelText(useI18nStore.getState().t.aiLanguageLabel), { target: { value: "jpn" } });
