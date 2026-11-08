@@ -224,21 +224,73 @@ mod platform {
     fn parse_iso8601_utc_ms(s: &str) -> Option<i64> {
         let s = s.strip_suffix('Z')?;
         let (date, time) = s.split_once('T')?;
-        let mut date_parts = date.split('-');
-        let year: i64 = date_parts.next()?.parse().ok()?;
-        let month: i64 = date_parts.next()?.parse().ok()?;
-        let day: i64 = date_parts.next()?.parse().ok()?;
+        if date.len() != 10
+            || date.as_bytes().get(4) != Some(&b'-')
+            || date.as_bytes().get(7) != Some(&b'-')
+        {
+            return None;
+        }
+        let parse_digits = |start: usize, end: usize| -> Option<i64> {
+            let digits = date.as_bytes().get(start..end)?;
+            if !digits.iter().all(u8::is_ascii_digit) {
+                return None;
+            }
+            std::str::from_utf8(digits).ok()?.parse().ok()
+        };
+        let year = parse_digits(0, 4)?;
+        let month = parse_digits(5, 7)?;
+        let day = parse_digits(8, 10)?;
         let (time_main, frac_ms) = match time.split_once('.') {
             Some((t, f)) => {
-                let padded = format!("{:0<3}", f);
-                (t, padded.get(0..3)?.parse().ok()?)
+                if f.is_empty() || f.len() > 9 || !f.bytes().all(|b| b.is_ascii_digit()) {
+                    return None;
+                }
+                let millis_digits = &f[..f.len().min(3)];
+                let parsed: i64 = millis_digits.parse().ok()?;
+                let millis = if millis_digits.len() < 3 {
+                    parsed * 10_i64.pow((3 - millis_digits.len()) as u32)
+                } else {
+                    parsed
+                };
+                (t, millis)
             }
             None => (time, 0i64),
         };
-        let mut time_parts = time_main.split(':');
-        let hour: i64 = time_parts.next()?.parse().ok()?;
-        let min: i64 = time_parts.next()?.parse().ok()?;
-        let sec: i64 = time_parts.next()?.parse().ok()?;
+        if time_main.len() != 8
+            || time_main.as_bytes().get(2) != Some(&b':')
+            || time_main.as_bytes().get(5) != Some(&b':')
+        {
+            return None;
+        }
+        let parse_time = |start: usize, end: usize| -> Option<i64> {
+            let digits = time_main.as_bytes().get(start..end)?;
+            if !digits.iter().all(u8::is_ascii_digit) {
+                return None;
+            }
+            std::str::from_utf8(digits).ok()?.parse().ok()
+        };
+        let hour = parse_time(0, 2)?;
+        let min = parse_time(3, 5)?;
+        let sec = parse_time(6, 8)?;
+
+        if !(1..=9999).contains(&year)
+            || !(1..=12).contains(&month)
+            || !(0..=23).contains(&hour)
+            || !(0..=59).contains(&min)
+            || !(0..=59).contains(&sec)
+        {
+            return None;
+        }
+        let leap_year = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+        let days_in_month = match month {
+            2 if leap_year => 29,
+            2 => 28,
+            4 | 6 | 9 | 11 => 30,
+            _ => 31,
+        };
+        if !(1..=days_in_month).contains(&day) {
+            return None;
+        }
 
         // Howard Hinnant's days_from_civil algorithm (public domain).
         let y = if month <= 2 { year - 1 } else { year };
@@ -249,8 +301,12 @@ mod platform {
         let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
         let days = era * 146097 + doe - 719468;
 
-        let total_seconds = days * 86400 + hour * 3600 + min * 60 + sec;
-        Some(total_seconds * 1000 + frac_ms)
+        let total_millis = days
+            .checked_mul(86_400_000)?
+            .checked_add(hour.checked_mul(3_600_000)?)?
+            .checked_add(min.checked_mul(60_000)?)?
+            .checked_add(sec.checked_mul(1_000)?)?;
+        total_millis.checked_add(frac_ms)
     }
 
     fn adapter_paths(app: &AppHandle) -> Result<(PathBuf, PathBuf), String> {
@@ -336,7 +392,7 @@ mod platform {
 
     #[cfg(test)]
     mod tests {
-        use super::adapter_stdout;
+        use super::{adapter_stdout, parse_iso8601_utc_ms};
         use std::os::unix::process::ExitStatusExt;
         use std::process::{ExitStatus, Output};
 
@@ -358,6 +414,25 @@ mod platform {
                 stderr: Vec::new(),
             });
             assert_eq!(result, Ok("{\"ok\":true}".into()));
+        }
+
+        #[test]
+        fn timestamp_parser_rejects_out_of_range_calendar_and_clock_fields() {
+            for value in [
+                "2024-13-01T00:00:00Z",
+                "2024-02-30T00:00:00Z",
+                "2024-01-01T24:00:00Z",
+                "2024-01-01T00:60:00Z",
+                "2024-01-01T00:00:60Z",
+            ] {
+                assert_eq!(parse_iso8601_utc_ms(value), None, "accepted {value}");
+            }
+        }
+
+        #[test]
+        fn timestamp_parser_accepts_leap_days_and_fractional_seconds() {
+            assert!(parse_iso8601_utc_ms("2024-02-29T23:59:59.123Z").is_some());
+            assert_eq!(parse_iso8601_utc_ms("1970-01-01T00:00:00.1Z"), Some(100));
         }
     }
 }
