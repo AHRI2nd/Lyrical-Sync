@@ -240,6 +240,10 @@ if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
         self.assertIn('secrets: inherit',source)
         self.assertIn('workflow_call:',(ROOT/'.github/workflows/candidate.yml').read_text())
 
+    def test_ordinary_build_fails_when_expected_artifacts_are_missing(self):
+        source=(ROOT/'.github/workflows/build.yml').read_text()
+        self.assertEqual(source.count('if-no-files-found: error'),2)
+
     def recorder(self):
         path=ROOT/'scripts/record_signed_candidate.py'
         self.assertTrue(path.is_file())
