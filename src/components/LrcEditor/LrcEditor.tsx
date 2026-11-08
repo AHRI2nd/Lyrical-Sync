@@ -40,6 +40,14 @@ export function resolveAlignmentLanguage(language: AlignmentLanguage, uiLanguage
   return uiCode === "kor" || uiCode === "jpn" ? uiCode : "eng";
 }
 
+function sameSyllables(left: LrcSyllable[] | undefined, right: LrcSyllable[] | undefined): boolean {
+  if (left === right) return true;
+  if (!left || !right || left.length !== right.length) return false;
+  return left.every((syllable, index) =>
+    syllable.text === right[index].text && syllable.time === right[index].time,
+  );
+}
+
 function isPythonEnvironmentBusy(): boolean {
   return [...useBusyStore.getState().reasons].some((reason) => reason === "python-download" || reason === "python-packages");
 }
@@ -158,6 +166,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     session: number;
     text: string;
     translation: string;
+    syllables: LrcSyllable[] | undefined;
     first: string;
     second: string;
   } | null>(null);
@@ -198,7 +207,8 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     if (!pending) return;
     const current = useLrcStore.getState();
     const line = current.doc.lines.find(item => item.id === pending.id);
-    if (current._documentSession === pending.session && line?.text === pending.text && line.translation === pending.translation) {
+    if (current._documentSession === pending.session && line?.text === pending.text &&
+        line.translation === pending.translation && sameSyllables(line.syllables, pending.syllables)) {
       const newId = splitLine(pending.id, pending.caretPos, { first: pending.first, second: pending.second });
       setActiveLineId(newId);
       pendingFocusId.current = newId;
@@ -489,8 +499,16 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
       const current = useLrcStore.getState();
       const line = current.doc.lines.find((item) => item.id === id);
       if (line?.translation !== undefined) {
-        const requestSplit = () => setPendingTranslationSplit({ id, caretPos: caret, session: current._documentSession, text: line.text,
-          translation: line.translation!, first: line.translation!, second: "" });
+        const requestSplit = () => setPendingTranslationSplit({
+          id,
+          caretPos: caret,
+          session: current._documentSession,
+          text: line.text,
+          translation: line.translation!,
+          syllables: line.syllables?.map((syllable) => ({ ...syllable })),
+          first: line.translation!,
+          second: "",
+        });
         if (line.syllables?.some((syllable) => syllable.time !== null)) requestGlyphMutation([line], requestSplit);
         else requestSplit();
         return;

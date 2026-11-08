@@ -123,6 +123,29 @@ it("asks for explicit translation parts when splitting and cancellation leaves t
   expect(useLrcStore.getState().doc.lines.map(l => [l.text, l.translation])).toEqual([["ori", "first part"], ["ginal", "second part"]]);
 });
 
+it("does not split a translated line when undo restores glyph timing while the dialog is open", () => {
+  const t = useI18nStore.getState().t;
+  const syllables = [{ text: "original", time: 1 }];
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{
+    id: "a", text: "original", translation: "translated", timestamp: 1, syllables,
+  }] } });
+  const { getByDisplayValue, getByRole } = render(<LrcEditor onPreview={() => {}} />);
+
+  act(() => useLrcStore.getState().clearLineSyllables("a"));
+  fireEvent.keyDown(getByDisplayValue("original"), { key: "Enter", shiftKey: true });
+  expect(getByRole("dialog", { name: t.translationSplitTitle })).toBeTruthy();
+  act(() => useLrcStore.getState().undo());
+
+  fireEvent.change(getByRole("textbox", { name: t.translationFirstPart }), { target: { value: "first" } });
+  fireEvent.change(getByRole("textbox", { name: t.translationSecondPart }), { target: { value: "second" } });
+  fireEvent.click(getByRole("button", { name: t.translationSplitAction }));
+
+  expect(useLrcStore.getState().doc.lines).toHaveLength(1);
+  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({
+    id: "a", text: "original", translation: "translated", syllables,
+  });
+});
+
 
 it("cancels a pending translation split when its document is replaced", () => {
   const t = useI18nStore.getState().t;
