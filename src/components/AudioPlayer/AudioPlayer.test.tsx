@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { act, fireEvent, render, cleanup, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, cleanup, waitFor, screen } from "@testing-library/react";
 
 if (typeof globalThis.localStorage === "undefined") {
   const m = new Map<string, string>();
@@ -136,6 +136,18 @@ describe("AudioPlayer — local audio loading", () => {
 
     await waitFor(() => expect(readAudioBytes).toHaveBeenCalledWith("/music/song.mp3", expect.any(AbortSignal)));
     await waitFor(() => expect(loadBlobSpy).toHaveBeenCalledTimes(1));
+  });
+
+  it("shows a localized error when Spotify login cannot be initiated from the player", async () => {
+    resetLrc([], null);
+    vi.mocked(readAudioBytes).mockResolvedValue({ bytes: new Uint8Array(), transcoded: false });
+    useSettingsStore.setState({ spotifyMode: true, deviceMode: false, spotifyClientId: "client-id" });
+    useServiceStore.setState({ isLoggedIn: false, startLogin: vi.fn().mockRejectedValue(new Error("callback listener failed")) });
+    render(<AudioPlayer />);
+
+    fireEvent.click(screen.getByRole("button", { name: useI18nStore.getState().t.spotifyConnect }));
+    await waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1));
+    expect(useToastStore.getState().toasts[0]).toMatchObject({ type: "error", message: useI18nStore.getState().t.toast.spotifyActionFailed });
   });
 
   it("preserves WAV MIME for audio already transcoded from Windows AIFF", async () => {

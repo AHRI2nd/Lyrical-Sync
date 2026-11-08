@@ -420,7 +420,9 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       onSpotifyNoClientId?.();
       return;
     }
-    try { await startLogin(); } catch { /* error shown in settings */ }
+    try { await startLogin(); } catch {
+      toast.error(t.toast.spotifyActionFailed);
+    }
   };
 
   const handleLoadCurrent = async () => {
