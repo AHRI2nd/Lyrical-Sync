@@ -82,6 +82,14 @@ const loadSpy = vi.spyOn(wsMock, "load");
 const loadBlobSpy = vi.spyOn(wsMock, "loadBlob");
 
 describe("AudioPlayer — local audio loading", () => {
+  it("gives local volume and waveform zoom sliders localized accessible names", () => {
+    const t = useI18nStore.getState().t;
+    render(<AudioPlayer />);
+
+    expect(screen.getByRole("slider", { name: t.volume })).toBeTruthy();
+    expect(screen.getByRole("slider", { name: t.zoom })).toBeTruthy();
+  });
+
   beforeEach(() => {
     vi.mocked(readAudioBytes).mockReset();
     useToastStore.setState({ toasts: [] });

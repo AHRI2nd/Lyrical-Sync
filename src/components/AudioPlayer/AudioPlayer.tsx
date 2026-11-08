@@ -573,6 +573,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         <span className="shrink-0"><VolumeIcon /></span>
         <input
           type="range" min={0} max={1} step={0.01} value={volume}
+          aria-label={t.volume}
           onChange={(e) => setVolume(parseFloat(Number(e.target.value).toFixed(2)))}
           className="ls-range range-slim min-w-0 flex-1"
           style={{ backgroundImage: `linear-gradient(to right, #6366f1 ${Math.round(volume * 100)}%, #3f3f46 ${Math.round(volume * 100)}%)` }}
@@ -587,6 +588,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
             <span className="shrink-0"><ZoomIcon /></span>
             <input
               type="range" min={0} max={100} value={zoomLevel}
+              aria-label={t.zoom}
               onChange={(e) => {
                 const v = Number(e.target.value);
                 setZoomLevel(v);
