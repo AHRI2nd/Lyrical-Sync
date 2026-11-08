@@ -631,9 +631,10 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   // 매칭 줄 id 목록
   const matchIds = useMemo(() => {
     if (!findText) return [];
-    const needle = caseSensitive ? findText : findText.toLowerCase();
+    const escaped = findText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(escaped, caseSensitive ? "" : "i");
     return lines
-      .filter((l) => (caseSensitive ? l.text : l.text.toLowerCase()).includes(needle))
+      .filter((line) => re.test(line.text))
       .map((l) => l.id);
   }, [lines, findText, caseSensitive]);
   // handleRowClick을 안정된 참조로 유지하려고 matchIds를 의존성에 넣지 않는 대신 ref로 미러링

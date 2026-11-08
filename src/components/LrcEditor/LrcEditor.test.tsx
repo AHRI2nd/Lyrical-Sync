@@ -408,6 +408,19 @@ it("continues to the next matching row after replacing the current row", () => {
   expect(getByText("1 / 2")).toBeTruthy();
 });
 
+it("uses the same Unicode case-folding for find and replacement", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "İstanbul", timestamp: null }] } });
+  const { getByRole, getByPlaceholderText, getByText } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getByRole("button", { name: t.editorTools }));
+  fireEvent.click(getByRole("button", { name: t.findReplace }));
+  fireEvent.change(getByPlaceholderText(t.findPlaceholder), { target: { value: "i" } });
+  fireEvent.change(getByPlaceholderText(t.replacePlaceholder), { target: { value: "x" } });
+
+  expect(getByText(t.noMatches)).toBeTruthy();
+  expect(useLrcStore.getState().doc.lines[0].text).toBe("İstanbul");
+});
+
 it("asks before an individual find-and-replace clears timed glyphs", () => {
   const t = useI18nStore.getState().t;
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "old lyric", timestamp: 1,
