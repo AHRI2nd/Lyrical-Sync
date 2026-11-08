@@ -514,6 +514,7 @@ export interface Translations {
   settingsVenvRefresh: string;
   settingsVenvChecking: string;
   settingsVenvCheckFailed: string;
+  settingsVenvProgressUnavailable: string;
   settingsVenvInstallBtn: string;
   settingsVenvInstalling: string;
   settingsVenvCmdWarning: string;
@@ -1174,6 +1175,7 @@ const ko: Translations = {
   settingsVenvRefresh: "새로고침",
   settingsVenvChecking: "확인 중...",
   settingsVenvCheckFailed: "Python 환경을 확인하지 못했습니다. 새로고침 후 다시 시도하세요.",
+  settingsVenvProgressUnavailable: "진행 상황을 표시할 수 없지만 작업은 계속됩니다.",
   settingsVenvInstallBtn: "패키지 자동 설치",
   settingsVenvInstalling: "설치 중...",
   settingsVenvCmdWarning: "설치에 수 분이 소요될 수 있습니다. 완료될 때까지 창을 닫지 마세요.",
@@ -1834,6 +1836,7 @@ const en: Translations = {
   settingsVenvRefresh: "Refresh",
   settingsVenvChecking: "Checking...",
   settingsVenvCheckFailed: "Could not check the Python environment. Refresh and try again.",
+  settingsVenvProgressUnavailable: "Progress details are unavailable, but the operation continues.",
   settingsVenvInstallBtn: "Auto-install packages",
   settingsVenvInstalling: "Installing...",
   settingsVenvCmdWarning: "Installation may take several minutes. Please do not close this window.",
@@ -2493,6 +2496,7 @@ const ja: Translations = {
   settingsVenvRefresh: "更新",
   settingsVenvChecking: "確認中...",
   settingsVenvCheckFailed: "Python環境を確認できませんでした。更新して再試行してください。",
+  settingsVenvProgressUnavailable: "進行状況を表示できませんが、処理は続行されます。",
   settingsVenvInstallBtn: "パッケージ自動インストール",
   settingsVenvInstalling: "インストール中...",
   settingsVenvCmdWarning: "インストールには数分かかる場合があります。完了するまでウィンドウを閉じないでください。",

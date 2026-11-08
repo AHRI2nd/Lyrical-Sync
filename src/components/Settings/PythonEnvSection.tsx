@@ -31,6 +31,7 @@ export function PythonEnvSection() {
   const downloading = useBusyStore((state) => state.reasons.has("python-download"));
   const [dlPercent, setDlPercent] = useState(0);
   const installing = useBusyStore((state) => state.reasons.has("python-packages"));
+  const [progressUnavailable, setProgressUnavailable] = useState(false);
   const [installLog, setInstallLog] = useState<string[]>([]);
   const [installError, setInstallError] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
@@ -82,7 +83,9 @@ export function PythonEnvSection() {
     return listenSafely((isActive) => listen<{ percent: number; done: boolean }>("python-download-progress", (e) => {
       if (!isActive() || !mounted.current) return;
       setDlPercent(e.payload.percent);
-    }));
+    }), () => {
+      if (mounted.current) setProgressUnavailable(true);
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -93,7 +96,9 @@ export function PythonEnvSection() {
         const line = boundedInstallLogLine(e.payload.line);
         setInstallLog((prev) => [...prev.slice(-(MAX_INSTALL_LOG_LINES - 1)), line]);
       }
-    }));
+    }), () => {
+      if (mounted.current) setProgressUnavailable(true);
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -214,7 +219,12 @@ export function PythonEnvSection() {
         </div>
       )}
       {(downloading || installing) && (
-        <p className="text-xs text-[var(--ls-playhead)]/80">{t.settingsVenvCmdWarning}</p>
+        <>
+          <p className="text-xs text-[var(--ls-playhead)]/80">{t.settingsVenvCmdWarning}</p>
+          {progressUnavailable && (
+            <p role="status" className="text-xs text-[var(--ls-text-secondary)]">{t.settingsVenvProgressUnavailable}</p>
+          )}
+        </>
       )}
       <div className="flex flex-col gap-2">
           {installError && (

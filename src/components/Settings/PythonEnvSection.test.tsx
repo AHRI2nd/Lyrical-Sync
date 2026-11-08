@@ -58,6 +58,26 @@ it('recovers from a readiness lookup failure after refresh', async () => {
   expect(screen.queryByRole('alert')).toBeNull();
 });
 
+it('reports missing progress updates without treating a running install as failed', async () => {
+  ipc.failListeners = true;
+  let resolveInstall!: () => void;
+  const install = new Promise<void>((resolve) => { resolveInstall = resolve; });
+  ipc.invoke.mockImplementation((command: string) => {
+    if (command === 'get_python_env_info') return Promise.resolve({ pythonReady: true, packagesReady: false });
+    if (command === 'install_python_packages') return install;
+    return Promise.resolve(undefined);
+  });
+  render(<PythonEnvSection />);
+  const installButton = await screen.findByRole('button', { name: useI18nStore.getState().t.settingsVenvInstallBtn });
+
+  fireEvent.click(installButton);
+  expect(await screen.findByText(useI18nStore.getState().t.settingsVenvProgressUnavailable)).toBeTruthy();
+  expect(ipc.invoke).toHaveBeenCalledWith('install_python_packages');
+  expect(screen.queryByRole('alert')).toBeNull();
+
+  await act(async () => { resolveInstall(); await install; });
+});
+
 it('refreshes completed installation and settles busy state when progress listeners fail', async () => {
   ipc.failListeners = true;
   let ready = false;
