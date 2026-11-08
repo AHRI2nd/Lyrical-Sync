@@ -535,6 +535,19 @@ it("retains empty untimed originals and multiline translation strings in marked 
     ["", "only translation"], ["one\ntwo\\n", "/three\nfour\\path"],
   ]);
 });
+
+it("round-trips an empty untimed line without a translation", () => {
+  const doc = docOf([
+    { id: "before", timestamp: 1, text: "before" },
+    { id: "empty", timestamp: null, text: "" },
+    { id: "after", timestamp: 2, text: "after" },
+  ]);
+  const output = serializeLrc(doc);
+  expect(output).toContain("[x-lyrical-translations:1]");
+  expect(parseLrc(output).lines.map(({ timestamp, text, translation }) => [timestamp, text, translation])).toEqual([
+    [1, "before", undefined], [null, "", undefined], [2, "after", undefined],
+  ]);
+});
 it("does not merge pre-marker or mismatched repeated timestamps", () => {
   const parsed = parseLrc("[00:01.00]a\n[00:01.00]/b\n[x-lyrical-translations:1]\n[00:03.00][00:05.00]c\n[00:03.00]/d");
   expect(parsed.lines.map(l => [l.timestamp, l.text, l.translation])).toEqual([
