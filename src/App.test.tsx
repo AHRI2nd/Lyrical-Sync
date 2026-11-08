@@ -395,6 +395,18 @@ describe("App — drag-and-drop conflict resolution", () => {
     expect(stampSpy).toHaveBeenCalledTimes(1);
   });
 
+  it("does not invoke unmodified playback shortcuts with Shift", () => {
+    const stampSpy = vi.spyOn(useLrcStore.getState(), "stampAndAdvance");
+    render(<><App /><div data-testid="editor-surface" tabIndex={0}>editor</div></>);
+    const surface = screen.getByTestId("editor-surface");
+    surface.focus();
+    const event = new KeyboardEvent("keydown", { code: "Space", key: " ", shiftKey: true, bubbles: true, cancelable: true });
+    surface.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(stampSpy).not.toHaveBeenCalled();
+  });
+
   it("does not stamp additional rows from repeated Space keydown events", () => {
     const stampSpy = vi.spyOn(useLrcStore.getState(), "stampAndAdvance");
     render(<><App /><div data-testid="editor-surface" tabIndex={0}>editor</div></>);

@@ -292,13 +292,13 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
       if (isInteractiveKeyTarget(e.target) || isInteractiveKeyTarget(document.activeElement)) return;
       // 모달이 열려 있으면 글자 모드 키가 모달 뒤에서 동작하지 않게 차단
       if (anyModalOpen()) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       // 글자 이동/미세조정(고정)
       if (e.code === "ArrowLeft" && e.shiftKey) { e.preventDefault(); nudge(-0.05); return; }
       if (e.code === "ArrowRight" && e.shiftKey) { e.preventDefault(); nudge(0.05); return; }
       if (e.code === "ArrowLeft") { e.preventDefault(); moveActive(-1); return; }
       if (e.code === "ArrowRight") { e.preventDefault(); moveActive(1); return; }
       // 사용자 단축키(stamp/prevLine). 수식자 조합 제외.
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
       const kb = normalizeKeybindings(useSettingsStore.getState().keybindings);
       const action = matchAction(e.code, kb);
       if (action === "stamp") { e.preventDefault(); stampActive(); }

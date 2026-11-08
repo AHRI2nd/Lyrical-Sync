@@ -709,6 +709,20 @@ it('ignores stamp and nudge shortcuts during IME composition', () => {
   expect(useLrcStore.getState()._history).toHaveLength(0);
 });
 
+it.each([{ ctrlKey: true }, { metaKey: true }, { altKey: true }])('does not nudge glyph timing when Shift+Arrow has another modifier (%j)', modifiers => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: 'line-1', timestamp: 10, text: 'ab', syllables: [
+    { text: 'a', time: 10 }, { text: 'b', time: 11 },
+  ] }] }, activeSyllableIndex: 0 });
+  setup();
+  const before = useLrcStore.getState();
+  fireEvent.keyDown(window, { code: 'ArrowRight', shiftKey: true, ...modifiers });
+  expect(useLrcStore.getState().doc).toBe(before.doc);
+  expect(useLrcStore.getState()._history).toEqual(before._history);
+
+  fireEvent.keyDown(window, { code: 'ArrowRight', shiftKey: true });
+  expect(useLrcStore.getState().doc.lines[0].syllables?.[0].time).toBe(10.05);
+});
+
 it('clears line repeat when the local audio path changes', () => {
   const { getByRole } = setup();
   fireEvent.click(getByRole('button', { name: /줄 반복|Repeat line/ }));

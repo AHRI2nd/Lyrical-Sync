@@ -88,4 +88,16 @@ describe("KeybindingsSection", () => {
     fireEvent.keyDown(window, { code: "KeyT", key: "t" });
     expect(useSettingsStore.getState().keybindings.stamp).toBe("KeyT");
   });
+
+  it("does not capture a shifted shortcut as an unmodified key", () => {
+    const t = useI18nStore.getState().t;
+    const { getByRole, getByText } = render(<KeybindingsSection />);
+    fireEvent.click(getByRole("button", { name: `${t.charSync.stampHint} Space` }));
+
+    fireEvent.keyDown(window, { code: "KeyY", key: "Y", shiftKey: true });
+    expect(useSettingsStore.getState().keybindings.stamp).toBe("Space");
+    expect(getByText(t.keys.capturing)).toBeTruthy();
+    fireEvent.keyDown(window, { code: "KeyT", key: "t" });
+    expect(useSettingsStore.getState().keybindings.stamp).toBe("KeyT");
+  });
 });
