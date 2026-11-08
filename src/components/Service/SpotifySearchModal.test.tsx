@@ -83,6 +83,37 @@ it("does not show no-results after a search is cancelled by changing tabs", asyn
   expect(screen.queryByText(t.spotifyNoResults)).toBeNull();
 });
 
+it("keeps playlist loading visible when a cancelled search settles", async () => {
+  const pendingSearch = deferred<Response>();
+  const pendingPlaylists = deferred<Response>();
+  const fetchMock = vi.fn()
+    .mockReturnValueOnce(pendingSearch.promise)
+    .mockReturnValueOnce(pendingPlaylists.promise);
+  vi.stubGlobal("fetch", fetchMock);
+  render(<SpotifySearchModal onClose={() => {}} />);
+  const t = useI18nStore.getState().t;
+  fireEvent.change(screen.getByPlaceholderText(t.spotifySearchPlaceholder), { target: { value: "song" } });
+  await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+
+  fireEvent.click(screen.getByRole("button", { name: t.spotifyMyPlaylists }));
+  await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  expect(screen.getByText(t.spotifyLoading)).toBeTruthy();
+
+  await act(async () => {
+    pendingSearch.resolve({ ok: true, json: async () => response("Late Search") } as Response);
+    await pendingSearch.promise;
+  });
+  expect(screen.getByText(t.spotifyLoading)).toBeTruthy();
+  expect(screen.queryByText("Late Search")).toBeNull();
+
+  await act(async () => {
+    pendingPlaylists.resolve({ ok: true, json: async () => playlistPage(["Playlist A"], null) } as Response);
+    await pendingPlaylists.promise;
+  });
+  expect(screen.queryByText(t.spotifyLoading)).toBeNull();
+  expect(screen.getByText("Playlist A")).toBeTruthy();
+});
+
 it("ignores an in-flight search after Spotify logout", async () => {
   const pending = deferred<Response>();
   vi.stubGlobal("fetch", vi.fn().mockReturnValue(pending.promise));
