@@ -274,12 +274,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "block"
-version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d8c1fef690941d3e7788d328517591fecc684c084084702d6ff1641e993699a"
-
-[[package]]
 name = "block-buffer"
 version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -522,35 +516,6 @@ dependencies = [
  "num-traits",
  "serde",
  "windows-link 0.2.1",
-]
-
-[[package]]
-name = "cocoa"
-version = "0.27.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e0d7076fd2bf3e3864683161b46e8b72277cdd0d304d6291faceea6e7db9a14"
-dependencies = [
- "bitflags 2.11.1",
- "block",
- "cocoa-foundation",
- "core-foundation 0.10.1",
- "core-graphics",
- "foreign-types 0.5.0",
- "libc",
- "objc",
-]
-
-[[package]]
-name = "cocoa-foundation"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81411967c50ee9a1fc11365f8c585f863a22a9697c89239c452292c40ba79b0d"
-dependencies = [
- "bitflags 2.11.1",
- "block",
- "core-foundation 0.10.1",
- "core-graphics-types",
- "objc",
 ]
 
 [[package]]
@@ -2291,7 +2256,6 @@ dependencies = [
  "base64 0.21.7",
  "cap-std",
  "cap-tempfile",
- "cocoa",
  "getrandom 0.3.4",
  "hound",
  "keyring",

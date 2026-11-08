@@ -45,7 +45,6 @@ windows = { version = "0.62.2", features = ["Media_Control", "Foundation", "Foun
 
 [target.'cfg(target_os = "macos")'.dependencies]
 xattr = "=1.6.1"
-cocoa = "0.27"
 objc = "0.2"
 base64 = "0.21"
 url = "2.5"
