@@ -9,18 +9,27 @@ const MAX_CHILD_OUTPUT_BYTES: usize = 64 * 1024 * 1024;
 /// Drain both pipes while checking cancellation independently of process output.
 /// Every return path reaps the child and releases the stdout reader.
 pub async fn run_child(
+    child: tokio::process::Child,
+    cancel: Arc<AtomicBool>,
+    progress: impl FnMut(&str) -> Result<(), String>,
+) -> Result<String, String> {
+    run_child_with_output_limit(child, cancel, progress, MAX_CHILD_OUTPUT_BYTES).await
+}
+
+async fn run_child_with_output_limit(
     mut child: tokio::process::Child,
     cancel: Arc<AtomicBool>,
     mut progress: impl FnMut(&str) -> Result<(), String>,
+    output_limit: usize,
 ) -> Result<String, String> {
     let process_id = child.id();
     let stdout = child.stdout.take();
     let mut output = tokio::spawn(async move {
         let mut bytes = Vec::new();
         if let Some(mut stdout) = stdout {
-            let mut limited = stdout.take(MAX_CHILD_OUTPUT_BYTES as u64);
+            let mut limited = stdout.take(output_limit as u64);
             limited.read_to_end(&mut bytes).await.map_err(|e| e.to_string())?;
-            if bytes.len() >= MAX_CHILD_OUTPUT_BYTES {
+            if bytes.len() >= output_limit {
                 return Err("Child stdout exceeded maximum allowed output size".into());
             }
         }
@@ -29,7 +38,7 @@ pub async fn run_child(
     let mut stderr = child.stderr.take().map(|pipe| {
         let reader = BufReader::new(pipe);
         // Wrap with a byte limit
-        reader.take(MAX_CHILD_OUTPUT_BYTES as u64).lines()
+        reader.take(output_limit as u64).lines()
     });
     let mut stderr_bytes = 0usize;
     let result = async {
@@ -42,7 +51,7 @@ pub async fn run_child(
                     Err(_) => (),
                     Ok(Ok(Some(line))) => {
                         stderr_bytes += line.len() + 1; // +1 for newline
-                        if stderr_bytes > MAX_CHILD_OUTPUT_BYTES {
+                        if stderr_bytes > output_limit {
                             return Err("Child stderr exceeded maximum allowed output size".into());
                         }
                         progress(&line)?;
@@ -66,7 +75,7 @@ pub async fn run_child(
                 async {
                     while let Some(line) = lines.next_line().await.map_err(|e| e.to_string())? {
                         stderr_bytes += line.len() + 1;
-                        if stderr_bytes > MAX_CHILD_OUTPUT_BYTES {
+                        if stderr_bytes > output_limit {
                             return Err("Child stderr exceeded maximum allowed output size".into());
                         }
                         progress(&line)?;
@@ -210,6 +219,17 @@ mod tests {
                 std::io::stdout().write_all(&vec![b'x'; 262144]).unwrap();
                 eprintln!("progress");
             }
+            Ok("stdout_sized") => {
+                let size: usize = std::env::var("LYRICAL_PROCESS_OUTPUT_BYTES").unwrap().parse().unwrap();
+                std::io::stdout().write_all(&vec![b'x'; size]).unwrap();
+            }
+            Ok("stderr_sized") => {
+                let size: usize = std::env::var("LYRICAL_PROCESS_OUTPUT_BYTES").unwrap().parse().unwrap();
+                let line = "x".repeat(128);
+                for _ in 0..size / (line.len() + 1) {
+                    eprintln!("{line}");
+                }
+            }
             Ok(mode @ ("inherited" | "inherited_stdout")) => {
                 // Windows inherits other inheritable handles even when the new
                 // standard stdout is NUL. Keep this fixture stderr-only.
@@ -240,12 +260,18 @@ mod tests {
         }
     }
     fn child(mode: &str) -> tokio::process::Child {
+        child_with_output_bytes(mode, None)
+    }
+    fn child_with_output_bytes(mode: &str, output_bytes: Option<usize>) -> tokio::process::Child {
         let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
         command
             .args(["--exact", "alignment_process::tests::child_fixture", "--nocapture"])
             .env("LYRICAL_PROCESS_FIXTURE", mode)
             .stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped())
             .kill_on_drop(true);
+        if let Some(output_bytes) = output_bytes {
+            command.env("LYRICAL_PROCESS_OUTPUT_BYTES", output_bytes.to_string());
+        }
         #[cfg(unix)]
         command.process_group(0);
         command.spawn().unwrap()
@@ -286,6 +312,39 @@ mod tests {
             })).await.unwrap().unwrap();
             assert!(progress);
             assert!(output.contains(&"x".repeat(262144)));
+        });
+    }
+    #[test]
+    fn rejects_stdout_and_stderr_above_the_configured_limit() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let stdout_result = tokio::time::timeout(
+                Duration::from_secs(3),
+                run_child_with_output_limit(
+                    child_with_output_bytes("stdout_sized", Some(4096)),
+                    Arc::new(AtomicBool::new(false)),
+                    |_| Ok(()),
+                    1024,
+                ),
+            )
+            .await
+            .expect("stdout overflow should not hang");
+            assert!(stdout_result.is_err());
+
+            let stderr_result = tokio::time::timeout(
+                Duration::from_secs(3),
+                run_child_with_output_limit(
+                    child_with_output_bytes("stderr_sized", Some(2048)),
+                    Arc::new(AtomicBool::new(false)),
+                    |_| Ok(()),
+                    1024,
+                ),
+            )
+            .await
+            .expect("stderr overflow should not hang");
+            assert_eq!(
+                stderr_result.unwrap_err(),
+                "Child stderr exceeded maximum allowed output size"
+            );
         });
     }
     #[test]
