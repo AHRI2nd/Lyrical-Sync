@@ -21,6 +21,7 @@ vi.mock("./useToastStore", () => ({ toast: { error: (m: string) => pushErrorToas
 
 import { useDeviceStore } from "./useDeviceStore";
 import { useSettingsStore } from "./useSettingsStore";
+import { useLrcStore } from "./useLrcStore";
 import { deviceControls } from "../utils/deviceControls";
 
 function deferred<T>() {
@@ -288,7 +289,7 @@ describe("useDeviceStore — failure notification", () => {
     expect(useDeviceStore.getState().durationMs).toBe(60000);
   });
 
-  it("does not clamp interpolation to zero when duration is unknown", async () => {
+  it("does not cap interpolation to duration when duration is unknown", async () => {
     useSettingsStore.getState().setDeviceMode(true);
     const raf: { tick?: FrameRequestCallback } = {};
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { raf.tick = callback; return 1; });
@@ -300,5 +301,27 @@ describe("useDeviceStore — failure notification", () => {
     useDeviceStore.setState({ _lastStateTimestamp: Date.now() - 2000 });
     raf.tick?.(0);
     expect(useDeviceStore.getState().positionMs).toBeGreaterThan(3000);
+  });
+
+  it("clamps interpolation at zero if the system clock moves backwards", () => {
+    vi.setSystemTime(new Date(10_000));
+    useSettingsStore.getState().setDeviceMode(true);
+    const raf: { tick?: FrameRequestCallback } = {};
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { raf.tick = callback; return 1; });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    useDeviceStore.setState({
+      isPlaying: true,
+      positionMs: 1000,
+      durationMs: 0,
+      _lastKnownPositionMs: 1000,
+      _lastStateTimestamp: 10_000,
+    });
+
+    useDeviceStore.getState()._startInterpolation();
+    vi.setSystemTime(new Date(8_000));
+    raf.tick?.(0);
+
+    expect(useDeviceStore.getState().positionMs).toBe(0);
+    expect(useLrcStore.getState().currentTime).toBe(0);
   });
 });

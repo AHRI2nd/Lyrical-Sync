@@ -98,9 +98,9 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
         return;
       }
       const elapsed = Date.now() - _lastStateTimestamp;
-      const interpolated = durationMs > 0
+      const interpolated = Math.max(0, durationMs > 0
         ? Math.min(_lastKnownPositionMs + elapsed, durationMs)
-        : _lastKnownPositionMs + elapsed;
+        : _lastKnownPositionMs + elapsed);
       set({ positionMs: interpolated });
       if (useSettingsStore.getState().deviceMode) {
         useLrcStore.getState().setCurrentTime(interpolated / 1000);
