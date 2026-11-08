@@ -78,6 +78,9 @@ afterEach(() => {
 it("discards a token queued before the SDK becomes ready if logout invalidates its lease", () => {
   const generation = useServiceStore.getState()._authGeneration;
   initSpotifyPlayer();
+  const sdkScript = document.querySelector<HTMLScriptElement>('script[src="https://sdk.scdn.co/spotify-player.js"]');
+  expect(sdkScript?.async).toBe(true);
+  expect(typeof (window as any).onSpotifyWebPlaybackSDKReady).toBe("function");
   expect(MockSpotifyPlayer.instances).toHaveLength(0);
   initSpotifyPlayer();
   expect(MockSpotifyPlayer.instances).toHaveLength(0);

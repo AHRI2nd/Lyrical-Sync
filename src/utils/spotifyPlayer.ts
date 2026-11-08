@@ -6,9 +6,11 @@ import { toast } from "../stores/useToastStore";
 
 let player: Spotify.Player | null = null;
 type AuthLease = { generation: number; clientId: string };
+const SPOTIFY_SDK_URL = "https://sdk.scdn.co/spotify-player.js";
 let playerLease: AuthLease | null = null;
 let pendingToken: { lease: AuthLease } | null = null;
 let sdkReady = false;
+let sdkScript: HTMLScriptElement | null = null;
 let pollingTimer: ReturnType<typeof setTimeout> | null = null;
 let pollingAbortController: AbortController | null = null;
 let pollingGeneration = 0;
@@ -33,6 +35,26 @@ function isCurrentLease(lease: AuthLease): boolean {
 
 function isSameLease(left: AuthLease | null, right: AuthLease): boolean {
   return left?.generation === right.generation && left.clientId === right.clientId;
+}
+
+function loadSpotifySdk(): void {
+  if (sdkReady || sdkScript || typeof document === "undefined") return;
+  const existing = document.querySelector<HTMLScriptElement>(`script[src="${SPOTIFY_SDK_URL}"]`);
+  if (existing) {
+    sdkScript = existing;
+    return;
+  }
+  const script = document.createElement("script");
+  script.src = SPOTIFY_SDK_URL;
+  script.async = true;
+  script.onerror = () => {
+    if (sdkScript !== script) return;
+    sdkScript = null;
+    pendingToken = null;
+    script.remove();
+  };
+  sdkScript = script;
+  document.head.appendChild(script);
 }
 
 // Must be defined before the SDK script executes
@@ -61,6 +83,7 @@ export function initSpotifyPlayer(): void {
     createPlayer(lease);
   } else {
     pendingToken = { lease };
+    loadSpotifySdk();
   }
   startPolling();
 }
