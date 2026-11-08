@@ -776,6 +776,27 @@ describe("useLrcStore — runAiSync blank-line timestamp placement", () => {
     expect(useLrcStore.getState().aiSyncStatus).toBe("done");
   });
 
+  it("does not report a successful alignment when the document contains only blank lines", async () => {
+    reset([
+      { id: "blank-1", timestamp: null, text: "   " },
+      { id: "blank-2", timestamp: null, text: "" },
+    ]);
+    useLrcStore.setState({ audioPath: "/song.mp3" });
+    vi.mocked(invoke).mockResolvedValueOnce(JSON.stringify({
+      lines: [],
+      vocal_segments: [],
+      separated: false,
+    }));
+
+    await useLrcStore.getState().runAiSync("ko", 0.5, false, false);
+
+    expect(vi.mocked(invoke).mock.calls.some(([command]) => command === "run_alignment")).toBe(false);
+    expect(lines().map((line) => line.timestamp)).toEqual([null, null]);
+    expect(useLrcStore.getState().isDirty).toBe(false);
+    expect(useLrcStore.getState()._history).toHaveLength(0);
+    expect(useLrcStore.getState().aiSyncStatus).toBe("error");
+  });
+
   it("does not apply a completed result after the user starts a new document", async () => {
     reset([{ id: "old", timestamp: null, text: "old lyric" }]);
     useLrcStore.setState({ audioPath: "/song.mp3" });

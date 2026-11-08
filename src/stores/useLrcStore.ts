@@ -1126,6 +1126,19 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     const { audioPath, doc } = initial;
     if (!audioPath) return;
 
+    const nonBlank = doc.lines
+      .map((line, idx) => ({ line, idx }))
+      .filter(({ line }) => line.text.trim() !== "");
+    if (nonBlank.length === 0) {
+      set({
+        aiSyncStatus: "error",
+        aiSyncMessage: useI18nStore.getState().t.aiSyncError,
+        aiSyncProgressStatus: "error",
+      });
+      toast.error(useI18nStore.getState().t.toast.aiSyncFailed);
+      return;
+    }
+
     const runId = ++aiRunId;
     const owner = {
       session: initial._documentSession,
@@ -1156,11 +1169,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
 
       if (!isCurrentOwner()) return;
 
-      // Only pass non-empty lines to Python; track their original indices
-      const nonBlank = doc.lines
-        .map((line, idx) => ({ line, idx }))
-        .filter(({ line }) => line.text.trim() !== "");
-
+      // Only pass non-empty lines to Python; track their original indices.
       const linesInput = nonBlank.map(({ line, idx }) => ({
         index: idx,
         text: line.text,
