@@ -149,11 +149,10 @@ function vttText(line: LrcLine, cueStart: number, cueEnd: number): string {
     let out = "";
     for (const syllable of line.syllables) {
       if (syllable.time !== null) {
-        // Clamp syllable time to be within cue boundaries (WebVTT spec)
-        let syllableTime = syllable.time;
-        if (!Number.isFinite(syllableTime)) syllableTime = cueStart;
-        if (syllableTime < cueStart) syllableTime = cueStart;
-        if (syllableTime > cueEnd) syllableTime = cueEnd;
+        const syllableTime = syllable.time;
+        if (!Number.isFinite(syllableTime) || syllableTime < cueStart || syllableTime >= cueEnd) {
+          throw new VttInvalidSyllableTimeError();
+        }
         const unit = Math.round(syllableTime * 1000);
         // WebVTT cannot contain an inline timestamp equal to the cue start.
         // Its timing is already implicit, even when untimed text precedes it.

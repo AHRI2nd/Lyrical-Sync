@@ -99,6 +99,12 @@ describe("serializeVtt", () => {
     expect(() => serializeVtt(docOf([line]), end)).toThrow(/VTT cannot represent these syllable timestamps/);
   });
 
+  it("rejects a first inline timestamp before the cue instead of silently clamping it", () => {
+    expect(() => serializeVtt(docOf([{
+      id: "early", timestamp: 1, text: "a", syllables: [{ text: "a", time: 0.5 }],
+    }]), 3)).toThrow(/VTT cannot represent these syllable timestamps/);
+  });
+
   it("escapes syllable text but leaves generated VTT timing tags intact", () => {
     const out = serializeVtt(docOf([{
       id: "1", timestamp: 1, text: "<b> & >", translation: "&amp; <i>",
