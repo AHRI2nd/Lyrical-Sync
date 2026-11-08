@@ -799,6 +799,35 @@ async fn ytdlp_load_audio_inner(
     result
 }
 
+fn configure_ytdlp_audio_command(
+    command: &mut tokio::process::Command,
+    format: &str,
+    output_template: &Path,
+    cookies_file: Option<&str>,
+    proxy: Option<&str>,
+    url: &str,
+) {
+    command
+        .arg("--ignore-config")
+        .arg("--no-plugin-dirs")
+        .arg("--no-playlist")
+        .arg("-f")
+        .arg(format)
+        .arg("-o")
+        .arg(output_template)
+        .arg("--newline")
+        .arg("--no-part");
+
+    if let Some(cookies) = cookies_file.filter(|value| !value.is_empty()) {
+        command.arg("--cookies").arg(cookies);
+    }
+    if let Some(proxy) = proxy.filter(|value| !value.is_empty()) {
+        command.arg("--proxy").arg(proxy);
+    }
+
+    command.arg("--").arg(url);
+}
+
 async fn ytdlp_run_child(
     url: String,
     quality: String,
@@ -819,31 +848,18 @@ async fn ytdlp_run_child(
     };
 
     let mut cmd = tokio::process::Command::new(&exe);
-    cmd.arg("--no-playlist")
-        .arg("-f")
-        .arg(format)
-        .arg("-o")
-        .arg(&output_tpl)
-        .arg("--newline")
-        .arg("--no-part")
-        .kill_on_drop(true);
+    configure_ytdlp_audio_command(
+        &mut cmd,
+        format,
+        &output_tpl,
+        cookies_file.as_deref(),
+        proxy.as_deref(),
+        &url,
+    );
+    cmd.kill_on_drop(true);
     #[cfg(unix)]
     cmd.process_group(0);
-
-    if let Some(ref c) = cookies_file {
-        if !c.is_empty() {
-            cmd.arg("--cookies").arg(c);
-        }
-    }
-    if let Some(ref p) = proxy {
-        if !p.is_empty() {
-            cmd.arg("--proxy").arg(p);
-        }
-    }
-
-    cmd.arg("--")
-        .arg(&url)
-        .stdout(std::process::Stdio::piped())
+    cmd.stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
 
     #[cfg(target_os = "windows")]
@@ -978,6 +994,32 @@ pub fn cancel_ytdlp_load(run_id: String, ytdlp_state: tauri::State<'_, YtdlpStat
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn audio_command_ignores_external_config_and_plugins() {
+        let output = PathBuf::from("/tmp/owned-run/audio.%(ext)s");
+        let mut command = tokio::process::Command::new("yt-dlp");
+        configure_ytdlp_audio_command(
+            &mut command,
+            "bestaudio/best",
+            &output,
+            Some("/tmp/cookies.txt"),
+            Some("http://127.0.0.1:8080"),
+            "https://www.youtube.com/watch?v=fixture",
+        );
+        let args: Vec<String> = command
+            .as_std()
+            .get_args()
+            .map(|argument| argument.to_string_lossy().into_owned())
+            .collect();
+
+        assert!(args.contains(&"--ignore-config".to_string()));
+        assert!(args.contains(&"--no-plugin-dirs".to_string()));
+        assert!(args.windows(2).any(|pair| pair == ["--cookies", "/tmp/cookies.txt"]));
+        assert!(args.windows(2).any(|pair| pair == ["--proxy", "http://127.0.0.1:8080"]));
+        let terminator = args.iter().position(|argument| argument == "--").unwrap();
+        assert_eq!(args[terminator + 1], "https://www.youtube.com/watch?v=fixture");
+    }
 
     #[test]
     fn output_validation_accepts_only_regular_files_in_the_active_run_directory() {
