@@ -78,6 +78,24 @@ describe("LrcLineRow drag handle", () => {
   });
 });
 
+describe("LrcLineRow warnings", () => {
+  afterEach(cleanup);
+
+  it("exposes warning details to keyboard users and opens the visual tooltip on focus", () => {
+    render(<LrcLineRow {...makeProps({ warning: "duplicate" })} />);
+
+    const warning = screen.getByRole("button", { name: "Duplicate timestamp" });
+    expect(warning.getAttribute("type")).toBe("button");
+    expect(warning.className).toContain("focus-visible:outline");
+    warning.focus();
+
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip.textContent).toBe("Duplicate timestamp");
+    expect(warning.getAttribute("aria-describedby")).toBe(tooltip.id);
+    expect(tooltip.className).toContain("group-focus-within/warn:block");
+  });
+});
+
 describe("LrcLineRow timestamp input", () => {
   afterEach(cleanup);
   it.each([{ isComposing: true }, { keyCode: 229 }])("keeps composition Enter and Escape in the timestamp input (%j)", (composition) => {
