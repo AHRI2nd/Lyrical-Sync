@@ -469,6 +469,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     const stamped = lines.map((l) =>
       l.id === activeLineId ? retimeLine(l, currentTime) : l
     );
+    if (!hasFiniteLineTimes(stamped)) { reportInvalidTime(); return; }
     const next = stamped[idx + 1];
 
     // Remove AI confidence for manually stamped line
@@ -815,8 +816,10 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   },
 
   stampCurrentLine: (id) => {
-    pushHistory("stampLine");
     const { currentTime, doc, aiDraftConfidence } = get();
+    const lines = doc.lines.map((l) => l.id === id ? retimeLine(l, currentTime) : l);
+    if (!hasFiniteLineTimes(lines)) { reportInvalidTime(); return; }
+    pushHistory("stampLine");
     let newConfidence = aiDraftConfidence;
     if (newConfidence && id in newConfidence) {
       newConfidence = { ...newConfidence };
@@ -825,9 +828,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     set({
       doc: {
         ...doc,
-        lines: doc.lines.map((l) =>
-          l.id === id ? retimeLine(l, currentTime) : l
-        ),
+        lines,
       },
       aiDraftConfidence: newConfidence,
       isDirty: true,

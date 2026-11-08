@@ -59,6 +59,31 @@ it('respects an explicit replacement for glyphs in the same edit', () => {
  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({timestamp:5,syllables:undefined});
 });
 
+it.each([
+ ['stampAndAdvance', () => useLrcStore.getState().stampAndAdvance()],
+ ['stampCurrentLine', () => useLrcStore.getState().stampCurrentLine('a')],
+])('%s rejects an invalid resulting timestamp without mutating document state', (_, stamp) => {
+ useLrcStore.setState({
+  doc: { ...defaultDocument(), lines: [{ id: 'a', text: 'a', timestamp: -Number.MAX_VALUE, srtEndTime: -Number.MAX_VALUE / 2 }] },
+  activeLineId: 'a', currentTime: Number.MAX_VALUE,
+ });
+ useLrcStore.getState().addLine('temporary');
+ useLrcStore.getState().undo();
+ useLrcStore.setState({ aiSyncStatus: 'running' });
+ vi.mocked(invoke).mockReset().mockResolvedValue(undefined);
+ const before = useLrcStore.getState();
+
+ stamp();
+
+ const after = useLrcStore.getState();
+ expect(after.doc).toBe(before.doc);
+ expect(after._history).toBe(before._history);
+ expect(after._future).toBe(before._future);
+ expect(after.activeLineId).toBe(before.activeLineId);
+ expect(after.aiSyncStatus).toBe('running');
+ expect(invoke).not.toHaveBeenCalledWith('cancel_alignment', expect.anything());
+});
+
 // Use the real SRT import, store mutation and serializer. Only native IPC is mocked.
 const loadSrtFixture = async (start: string, end: string) => {
   const original = `1\n${start} --> ${end}\nQuick\n`;
