@@ -70,13 +70,20 @@ export function SeekBar({ position, duration, seekContextKey = "", onSeek, accen
       setScrubPosition(null);
     };
 
+    const onWindowBlur = () => {
+      activePointerRef.current = null;
+      setScrubPosition(null);
+    };
+
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointercancel", onPointerCancel);
+    window.addEventListener("blur", onWindowBlur);
     return () => {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("pointercancel", onPointerCancel);
+      window.removeEventListener("blur", onWindowBlur);
       activePointerRef.current = null;
       if (pendingTimerRef.current) clearTimeout(pendingTimerRef.current);
     };

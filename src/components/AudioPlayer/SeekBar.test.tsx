@@ -58,6 +58,18 @@ describe("SeekBar scrubbing", () => {
     expect(fill.style.width).toBe("10%");
   });
 
+  it("cancels an active scrub when the window loses focus", () => {
+    const { track, fill, onSeek } = setup();
+
+    fireEvent.pointerDown(track, { pointerId: 13, button: 0, clientX: 20 });
+    fireEvent.pointerMove(window, { pointerId: 13, clientX: 70 });
+    fireEvent.blur(window);
+    fireEvent.pointerUp(window, { pointerId: 13, button: 0, clientX: 80 });
+
+    expect(onSeek).not.toHaveBeenCalled();
+    expect(fill.style.width).toBe("10%");
+  });
+
   it("ignores other pointers and cancels the active scrub on unmount", () => {
     const { track, onSeek, unmount } = setup();
 

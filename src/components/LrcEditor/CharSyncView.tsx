@@ -387,13 +387,17 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
       cancelDrag();
     };
 
+    const onWindowBlur = () => cancelDrag();
+
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointercancel", onPointerCancel);
+    window.addEventListener("blur", onWindowBlur);
     return () => {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("pointercancel", onPointerCancel);
+      window.removeEventListener("blur", onWindowBlur);
       cancelDrag();
       if (lanePreviewTimerRef.current) clearTimeout(lanePreviewTimerRef.current);
       lanePreviewTimerRef.current = null;

@@ -394,6 +394,20 @@ describe("CharSyncView seek lane", () => {
     expect(seekSpy).not.toHaveBeenCalled();
   });
 
+  it("cancels an active waveform seek when the window loses focus", () => {
+    const { lane, playhead } = setup();
+    const initialPlayhead = playhead.style.left;
+
+    fireEvent.pointerDown(lane, { pointerId: 18, button: 0, clientX: 20 });
+    fireEvent.pointerMove(window, { pointerId: 18, clientX: 75 });
+    fireEvent.blur(window);
+    act(() => rafCallbacks.splice(0).forEach((callback) => callback(0)));
+    fireEvent.pointerUp(window, { pointerId: 18, button: 0, clientX: 80 });
+
+    expect(seekSpy).not.toHaveBeenCalled();
+    expect(playhead.style.left).toBe(initialPlayhead);
+  });
+
   it("cancels an active drag when the audio path changes", () => {
     const { lane } = setup();
 
