@@ -1549,6 +1549,22 @@ describe("useLrcStore — document load transactions", () => {
     useLrcStore.getState().undo();
     expect(lines()[0].text).toBe("original");
   });
+  it.each(["audio tags", "silent service"] as const)("does not cancel a pending lyric load for %s metadata from the old document", async (source) => {
+    let finish!: (value: ReturnType<typeof lrcSnapshot>) => void;
+    vi.mocked(invoke).mockImplementation(() => new Promise<ReturnType<typeof lrcSnapshot>>(resolve => { finish = resolve; }));
+    const loading = useLrcStore.getState().loadLyricsPath("/new.lrc");
+    if (source === "audio tags") {
+      useLrcStore.getState().setAudioMetadata({ title: "Old track metadata" });
+    } else {
+      useLrcStore.getState().setMetadata({ title: "Old track metadata" }, true);
+    }
+    finish(lrcSnapshot("[ti:Incoming title]\n[00:02.00]incoming lyrics"));
+
+    await expect(loading).resolves.toBeUndefined();
+    expect(useLrcStore.getState().lrcPath).toBe("/new.lrc");
+    expect(useLrcStore.getState().doc.metadata.title).toBe("Incoming title");
+    expect(lines().map((line) => line.text)).toEqual(["incoming lyrics"]);
+  });
   it("does not replace either member of a pair when lyrics cannot be read", async () => {
     vi.mocked(invoke).mockRejectedValue(new Error("unreadable"));
     await expect(useLrcStore.getState().loadLyricsPath("/new.lrc", { audioPath: "/new.mp3" })).rejects.toThrow("unreadable");

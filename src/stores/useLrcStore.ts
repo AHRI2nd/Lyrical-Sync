@@ -923,7 +923,8 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     const content = snapshot.content;
     if (requestId !== lyricLoadGeneration) return;
     const current = get();
-    if (current.doc !== initial.doc || current._history !== initial._history ||
+    if (current._documentSession !== initial._documentSession ||
+        current._history !== initial._history ||
         current._future !== initial._future || current._audioSelection !== initial._audioSelection) {
       throw new Error("document_changed_during_load");
     }
