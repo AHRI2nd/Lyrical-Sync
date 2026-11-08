@@ -202,6 +202,8 @@ mod platform {
     use tauri::{AppHandle, Manager};
     use tokio::process::Command;
 
+    const NOW_PLAYING_GET_ARGS: &[&str] = &["get", "--no-artwork"];
+
     #[derive(Deserialize, Default)]
     struct AdapterInfo {
         title: Option<String>,
@@ -346,7 +348,7 @@ mod platform {
     }
 
     pub async fn get_now_playing(app: &AppHandle) -> Result<Option<NowPlayingInfo>, String> {
-        let stdout = run_adapter(app, &["get"]).await?;
+        let stdout = run_adapter(app, NOW_PLAYING_GET_ARGS).await?;
         if stdout.is_empty() || stdout == "null" {
             return Ok(None);
         }
@@ -392,7 +394,7 @@ mod platform {
 
     #[cfg(test)]
     mod tests {
-        use super::{adapter_stdout, parse_iso8601_utc_ms};
+        use super::{adapter_stdout, parse_iso8601_utc_ms, NOW_PLAYING_GET_ARGS};
         use std::os::unix::process::ExitStatusExt;
         use std::process::{ExitStatus, Output};
 
@@ -414,6 +416,11 @@ mod platform {
                 stderr: Vec::new(),
             });
             assert_eq!(result, Ok("{\"ok\":true}".into()));
+        }
+
+        #[test]
+        fn now_playing_poll_omits_unused_artwork() {
+            assert_eq!(NOW_PLAYING_GET_ARGS, &["get", "--no-artwork"]);
         }
 
         #[test]
