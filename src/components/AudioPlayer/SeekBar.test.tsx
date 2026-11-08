@@ -176,3 +176,15 @@ it('continues keyboard seeking from the pending target while remote feedback is 
   fireEvent.keyDown(slider,{key:'Home'}); fireEvent.keyDown(slider,{key:'ArrowRight'}); fireEvent.keyDown(slider,{key:'ArrowRight'});
   expect(view.onSeek.mock.calls.slice(-3).map(([time])=>time)).toEqual([0,1,2]);
 });
+
+it('keeps keyboard seeking based on its pending target across unrelated position updates', () => {
+  const view = setup(10, 100);
+  const slider = view.getByRole('slider');
+
+  fireEvent.keyDown(slider, { key: 'End' });
+  view.rerender(<SeekBar position={11} duration={100} onSeek={view.onSeek} accentClass="bg-indigo-500" />);
+
+  expect(slider.getAttribute('aria-valuenow')).toBe('100');
+  fireEvent.keyDown(slider, { key: 'ArrowLeft' });
+  expect(view.onSeek.mock.calls.map(([time]) => time)).toEqual([100, 99]);
+});

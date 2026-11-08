@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { formatDisplayTime } from "../../utils/lrcParser";
 
+const POSITION_ACK_TOLERANCE_SECONDS = 0.25;
+
 // 파일/Spotify/YouTube/기기 감지 모드가 공유하는 얇은 탐색 바(기기 감지 모드 스타일을 그대로 일반화).
 interface SeekBarProps {
   position: number; // seconds
@@ -83,7 +85,7 @@ export function SeekBar({ position, duration, seekContextKey = "", onSeek, accen
   useEffect(() => {
     if (observedPositionRef.current !== position) {
       observedPositionRef.current = position;
-      if (pendingPosition !== null) {
+      if (pendingPosition !== null && Math.abs(position - pendingPosition) <= POSITION_ACK_TOLERANCE_SECONDS) {
         if (pendingTimerRef.current) clearTimeout(pendingTimerRef.current);
         pendingTimerRef.current = null;
         setPendingPosition(null);
