@@ -29,6 +29,7 @@ export function YtdlpSection() {
   // effects twice, so refresh() can be called concurrently on mount).
   const refreshIdRef = useRef(0);
   const mountedRef = useRef(true);
+  const sawDownloadRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -71,6 +72,17 @@ export function YtdlpSection() {
   };
 
   useEffect(() => { refresh(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (downloading) {
+      sawDownloadRef.current = true;
+      return;
+    }
+    if (sawDownloadRef.current) {
+      sawDownloadRef.current = false;
+      void refresh();
+    }
+  }, [downloading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Listener effect with proper StrictMode-safe cleanup:
   // listen() is async, so we track whether the effect is still active and

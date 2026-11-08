@@ -88,6 +88,31 @@ it('retains install ownership across remounts and blocks the updater', async () 
   await vi.waitFor(() => expect(useBusyStore.getState().reasons.has('ytdlp-install')).toBe(false));
 });
 
+it('refreshes installed status when a remounted section observes install completion', async () => {
+  let resolveDownload!: () => void;
+  let installedVersion: string | null = null;
+  const download = new Promise<void>((resolve) => { resolveDownload = resolve; });
+  invoke.mockImplementation((command: string) => {
+    if (command === 'check_ytdlp') return Promise.resolve(installedVersion);
+    if (command === 'download_ytdlp') return download;
+    return Promise.resolve(undefined);
+  });
+  const first = render(<YtdlpSection />);
+  fireEvent.click(await screen.findByRole('button', { name: useI18nStore.getState().t.ytdlpDownload }));
+  await vi.waitFor(() => expect(useBusyStore.getState().reasons.has('ytdlp-install')).toBe(true));
+  first.unmount();
+
+  render(<YtdlpSection />);
+  await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith('check_ytdlp'));
+  expect(await screen.findByText(useI18nStore.getState().t.ytdlpNotInstalled)).toBeTruthy();
+
+  installedVersion = '2026.11.08';
+  await act(async () => { resolveDownload(); await download; });
+
+  expect(await screen.findByText(`${useI18nStore.getState().t.ytdlpVersion}: ${installedVersion}`)).toBeTruthy();
+  expect(screen.getByText(useI18nStore.getState().t.ytdlpInstalled)).toBeTruthy();
+});
+
 it('does not show a failed-install alert for an acknowledged cancellation', async () => {
   let rejectDownload!: (error: Error) => void;
   let onProgress: ((event: { payload: { downloaded: number; total: number; done: boolean; error?: string } }) => void) | undefined;
