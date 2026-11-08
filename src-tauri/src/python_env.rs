@@ -4,6 +4,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
 const PYTHON_EXTRACTION_TIMEOUT: Duration = Duration::from_secs(10 * 60);
+const MAX_VERIFIED_DOWNLOAD_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 
 // A verified self-contained Python is downloaded into an architecture-specific directory.
 // This removes any dependency on the user's system Python / conda / pyenv.
@@ -209,14 +210,21 @@ async fn download_verified(
         .error_for_status()
         .map_err(|e| e.to_string())?;
     let total = response.content_length();
+    if total.is_some_and(|total| total > MAX_VERIFIED_DOWNLOAD_BYTES) {
+        return Err(format!(
+            "Verified AI artifact exceeds the {MAX_VERIFIED_DOWNLOAD_BYTES}-byte size limit"
+        ));
+    }
     let mut downloaded = 0u64;
     let mut digest = Sha256::new();
     let mut file = tokio::fs::File::create(path)
         .await
         .map_err(|e| e.to_string())?;
     while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
+        let chunk_size = u64::try_from(chunk.len())
+            .map_err(|_| "AI artifact chunk size overflow".to_string())?;
+        downloaded = checked_verified_download_bytes(downloaded, chunk_size)?;
         digest.update(&chunk);
-        downloaded += chunk.len() as u64;
         file.write_all(&chunk).await.map_err(|e| e.to_string())?;
         if show_progress {
             let percent = total
@@ -238,6 +246,18 @@ async fn download_verified(
         return Err("Download checksum or length mismatch".into());
     }
     file.sync_all().await.map_err(|e| e.to_string())
+}
+
+fn checked_verified_download_bytes(current: u64, additional: u64) -> Result<u64, String> {
+    let total = current
+        .checked_add(additional)
+        .ok_or_else(|| "AI artifact download size overflow".to_string())?;
+    if total > MAX_VERIFIED_DOWNLOAD_BYTES {
+        return Err(format!(
+            "Verified AI artifact exceeds the {MAX_VERIFIED_DOWNLOAD_BYTES}-byte size limit"
+        ));
+    }
+    Ok(total)
 }
 
 async fn prepare_runtime(app: &AppHandle, stage: &Path) -> Result<(), String> {
@@ -485,6 +505,21 @@ mod progress_line_tests {
     #[test]
     fn progress_line_under_limit_is_unchanged() {
         assert_eq!(bounded_progress_line("ready"), "ready");
+    }
+}
+
+#[cfg(test)]
+mod verified_download_limit_tests {
+    use super::{checked_verified_download_bytes, MAX_VERIFIED_DOWNLOAD_BYTES};
+
+    #[test]
+    fn verified_download_byte_count_enforces_limit_and_overflow() {
+        assert_eq!(
+            checked_verified_download_bytes(MAX_VERIFIED_DOWNLOAD_BYTES - 1, 1).unwrap(),
+            MAX_VERIFIED_DOWNLOAD_BYTES
+        );
+        assert!(checked_verified_download_bytes(MAX_VERIFIED_DOWNLOAD_BYTES, 1).is_err());
+        assert!(checked_verified_download_bytes(u64::MAX, 1).is_err());
     }
 }
 
