@@ -107,6 +107,95 @@ pub fn inspect_audio_file(path: &Path) -> Result<AudioResourceInfo, String> {
     inspect_audio_file_handle(&mut file)
 }
 
+struct AacBitReader<'a> {
+    bytes: &'a [u8],
+    bit_offset: usize,
+}
+
+impl AacBitReader<'_> {
+    fn read_bits(&mut self, bit_count: u8) -> Option<u32> {
+        let end = self.bit_offset.checked_add(usize::from(bit_count))?;
+        if end > self.bytes.len().checked_mul(8)? {
+            return None;
+        }
+        let mut value = 0_u32;
+        while self.bit_offset < end {
+            let byte = self.bytes[self.bit_offset / 8];
+            let bit = (byte >> (7 - self.bit_offset % 8)) & 1;
+            value = (value << 1) | u32::from(bit);
+            self.bit_offset += 1;
+        }
+        Some(value)
+    }
+
+    fn skip_bits(&mut self, bit_count: usize) -> Option<()> {
+        let end = self.bit_offset.checked_add(bit_count)?;
+        if end > self.bytes.len().checked_mul(8)? {
+            return None;
+        }
+        self.bit_offset = end;
+        Some(())
+    }
+
+    fn align_to_byte(&mut self) -> Option<()> {
+        self.bit_offset = self.bit_offset.checked_add(7)? & !7;
+        if self.bit_offset > self.bytes.len().checked_mul(8)? {
+            return None;
+        }
+        Some(())
+    }
+}
+
+fn aac_program_config_channels(payload: &[u8], expected_rate_index: usize) -> Option<u8> {
+    let mut bits = AacBitReader {
+        bytes: payload,
+        bit_offset: 0,
+    };
+    if bits.read_bits(3)? != 5 {
+        return None;
+    }
+    bits.skip_bits(4)?;
+    bits.skip_bits(2)?;
+    if usize::try_from(bits.read_bits(4)?).ok()? != expected_rate_index {
+        return None;
+    }
+
+    let front_count = bits.read_bits(4)? as usize;
+    let side_count = bits.read_bits(4)? as usize;
+    let back_count = bits.read_bits(4)? as usize;
+    let lfe_count = bits.read_bits(2)? as usize;
+    let assoc_count = bits.read_bits(3)? as usize;
+    let valid_cc_count = bits.read_bits(4)? as usize;
+
+    if bits.read_bits(1)? != 0 {
+        bits.skip_bits(4)?;
+    }
+    if bits.read_bits(1)? != 0 {
+        bits.skip_bits(4)?;
+    }
+    if bits.read_bits(1)? != 0 {
+        bits.skip_bits(3)?;
+    }
+
+    let mut channels = 0_u8;
+    for element_count in [front_count, side_count, back_count] {
+        for _ in 0..element_count {
+            let is_channel_pair = bits.read_bits(1)? != 0;
+            bits.skip_bits(4)?;
+            channels = channels.checked_add(if is_channel_pair { 2 } else { 1 })?;
+        }
+    }
+    bits.skip_bits(lfe_count.checked_mul(4)?)?;
+    channels = channels.checked_add(u8::try_from(lfe_count).ok()?)?;
+    bits.skip_bits(assoc_count.checked_mul(4)?)?;
+    bits.skip_bits(valid_cc_count.checked_mul(5)?)?;
+    bits.align_to_byte()?;
+    let comment_bytes = usize::try_from(bits.read_bits(8)?).ok()?;
+    bits.skip_bits(comment_bytes.checked_mul(8)?)?;
+
+    (channels > 0 && channels <= MAX_AUDIO_CHANNELS).then_some(channels)
+}
+
 fn inspect_adts_aac(file: &mut File, file_bytes: u64) -> Result<Option<AudioResourceInfo>, String> {
     let mut audio_end = file_bytes;
     if file_bytes >= 128 {
@@ -181,19 +270,35 @@ fn inspect_adts_aac(file: &mut File, file_bytes: u64) -> Result<Option<AudioReso
             .get(rate_index)
             .ok_or_else(|| "AUDIO_METADATA_UNAVAILABLE".to_string())?;
         let channel_index = usize::from(((header[2] & 0x01) << 2) | (header[3] >> 6));
-        let channel_count = CHANNELS[channel_index];
-        if channel_count == 0
-            || sample_rate.is_some_and(|previous| previous != rate)
-            || channels.is_some_and(|previous| previous != channel_count)
-        {
-            return Err("AUDIO_METADATA_UNAVAILABLE".into());
-        }
-
         let frame_length = (u64::from(header[3] & 0x03) << 11)
             | (u64::from(header[4]) << 3)
             | u64::from(header[5] >> 5);
         let header_length = if header[1] & 0x01 == 0 { 9 } else { 7 };
         if frame_length < header_length || frame_length > audio_end - offset {
+            return Err("AUDIO_METADATA_UNAVAILABLE".into());
+        }
+
+        let channel_count = if channel_index == 0 {
+            if let Some(channels) = channels {
+                channels
+            } else {
+                let payload_length = usize::try_from(frame_length - header_length)
+                    .map_err(|_| "AUDIO_METADATA_UNAVAILABLE".to_string())?;
+                let mut payload = vec![0_u8; payload_length];
+                file.seek(SeekFrom::Start(offset + header_length))
+                    .map_err(|error| error.to_string())?;
+                file.read_exact(&mut payload)
+                    .map_err(|error| error.to_string())?;
+                aac_program_config_channels(&payload, rate_index)
+                    .ok_or_else(|| "AUDIO_METADATA_UNAVAILABLE".to_string())?
+            }
+        } else {
+            CHANNELS[channel_index]
+        };
+        if channel_count == 0
+            || sample_rate.is_some_and(|previous| previous != rate)
+            || channels.is_some_and(|previous| previous != channel_count)
+        {
             return Err("AUDIO_METADATA_UNAVAILABLE".into());
         }
 
@@ -425,6 +530,75 @@ mod tests {
         assert_eq!(info.sample_rate, 44_100);
         assert_eq!(info.channels, 1);
         assert_eq!(info.duration_seconds, 30);
+    }
+
+    #[test]
+    fn reads_multichannel_layout_from_adts_program_config_element() {
+        fn push_bits(bits: &mut Vec<bool>, value: u32, count: usize) {
+            for shift in (0..count).rev() {
+                bits.push((value >> shift) & 1 != 0);
+            }
+        }
+
+        let mut pce = Vec::new();
+        push_bits(&mut pce, 5, 3); // program_config_element
+        push_bits(&mut pce, 0, 4); // element_instance_tag
+        push_bits(&mut pce, 1, 2); // object_type
+        push_bits(&mut pce, 3, 4); // 48 kHz sampling_frequency_index
+        push_bits(&mut pce, 2, 4); // two front elements
+        push_bits(&mut pce, 1, 4); // one side element
+        push_bits(&mut pce, 1, 4); // one back element
+        push_bits(&mut pce, 1, 2); // one LFE element
+        push_bits(&mut pce, 0, 3); // no associated data elements
+        push_bits(&mut pce, 0, 4); // no valid CC elements
+        push_bits(&mut pce, 0, 1); // no mono mixdown
+        push_bits(&mut pce, 0, 1); // no stereo mixdown
+        push_bits(&mut pce, 0, 1); // no matrix mixdown
+        push_bits(&mut pce, 1, 1); // front CPE = two channels
+        push_bits(&mut pce, 0, 4);
+        push_bits(&mut pce, 0, 1); // front SCE = one channel
+        push_bits(&mut pce, 1, 4);
+        push_bits(&mut pce, 1, 1); // side CPE = two channels
+        push_bits(&mut pce, 0, 4);
+        push_bits(&mut pce, 1, 1); // back CPE = two channels
+        push_bits(&mut pce, 0, 4);
+        push_bits(&mut pce, 0, 4); // LFE tag
+        while pce.len() % 8 != 0 {
+            pce.push(false);
+        }
+        push_bits(&mut pce, 0, 8); // no comment bytes
+        let payload: Vec<u8> = pce
+            .chunks(8)
+            .map(|chunk| {
+                chunk
+                    .iter()
+                    .fold(0_u8, |byte, bit| (byte << 1) | u8::from(*bit))
+            })
+            .collect();
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("seven-one.aac");
+        let frame_len = 7 + payload.len();
+        let mut stream = Vec::new();
+        for _ in 0..48 {
+            let mut header = [0_u8; 7];
+            header[0] = 0xff;
+            header[1] = 0xf1;
+            header[2] = 0x4c; // AAC-LC, 48 kHz, channel configuration 0
+            header[3] = 0;
+            header[4] = (frame_len >> 3) as u8;
+            header[5] = (((frame_len & 0x07) as u8) << 5) | 0x1f;
+            header[6] = 0xfc;
+            stream.extend_from_slice(&header);
+            stream.extend_from_slice(&payload);
+        }
+        std::fs::write(&path, stream).unwrap();
+
+        let info = inspect_audio_file(&path).unwrap();
+
+        assert_eq!(info.sample_rate, 48_000);
+        assert_eq!(info.channels, 8);
+        assert_eq!(info.duration_seconds, 1);
     }
 
     #[test]
