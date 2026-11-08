@@ -354,6 +354,26 @@ describe("App — recovery lifecycle", () => {
     expect(screen.getByText(useI18nStore.getState().t.recovery.title)).toBeTruthy();
     expect(loadRecoverySnapshot()?.doc).toEqual(doc);
   });
+  it("defers a native audio drop until recovery is decided, then checks replacement against restored audio", async () => {
+    const doc = defaultDocument();
+    expect(saveRecoverySnapshot(doc, null, "/music/recovered.mp3")).toBe(true);
+    const setAudioPathSpy = vi.spyOn(useLrcStore.getState(), "setAudioPath");
+    const user = userEvent.setup();
+    render(<App />);
+
+    dragDropHandler.current?.({ payload: { type: "drop", paths: ["/music/new.mp3"] } });
+    expect(useLrcStore.getState().audioPath).toBeNull();
+    expect(setAudioPathSpy).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: useI18nStore.getState().t.recovery.title })).toBeTruthy();
+
+    await user.click(screen.getByText(useI18nStore.getState().t.recovery.restore));
+    expect(useLrcStore.getState().audioPath).toBe("/music/recovered.mp3");
+    expect(await screen.findByText("작업 중인 오디오가 있습니다. 새 오디오로 교체하시겠습니까?")).toBeTruthy();
+    expect(setAudioPathSpy).not.toHaveBeenCalledWith("/music/new.mp3");
+
+    await user.click(screen.getByText("교체"));
+    expect(setAudioPathSpy).toHaveBeenCalledWith("/music/new.mp3");
+  });
   it("does not delete an invalid legacy recovery record on a clean startup", () => {
     const key = "lyrical-sync-recovery";
     const raw = JSON.stringify({ doc: defaultDocument(), lrcPath: null, audioPath: null });

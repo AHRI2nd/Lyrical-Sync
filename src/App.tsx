@@ -277,6 +277,9 @@ function App() {
     const snap = loadRecoverySnapshot();
     return snap;
   });
+  const recoveryRef = useRef(recovery);
+  recoveryRef.current = recovery;
+  const deferredRecoveryDropRef = useRef<{ audio?: string; lyrics?: string } | null>(null);
   useAutoSave(recovery !== null);
   const [showHelp, setShowHelp] = useState(false);
   const [showBatchTool, setShowBatchTool] = useState(false);
@@ -522,6 +525,30 @@ function App() {
     else if (d.audio) st.setAudioPath(d.audio);
   };
 
+  const handleDrop = (d: { audio?: string; lyrics?: string }) => {
+    if (recoveryRef.current) {
+      deferredRecoveryDropRef.current = d;
+      return;
+    }
+    const st = useLrcStore.getState();
+    const audioConflict = !!d.audio && st.audioPath !== null;
+    const lyricsConflict = !!d.lyrics && (st.lrcPath !== null || st.isDirty || st.doc.lines.length > 0);
+    if (audioConflict || lyricsConflict) {
+      setDropConflict({ ...d, audioConflict, lyricsConflict });
+      dropConflictSession.current = st._documentSession;
+    } else {
+      applyDrop(d);
+    }
+  };
+
+  const finishRecoveryDecision = () => {
+    recoveryRef.current = null;
+    setRecovery(null);
+    const deferredDrop = deferredRecoveryDropRef.current;
+    deferredRecoveryDropRef.current = null;
+    if (deferredDrop) handleDrop(deferredDrop);
+  };
+
   // 파일 드래그앤드롭 열기 (Tauri 네이티브 드롭 이벤트 → 파일 경로 제공)
   useEffect(() => {
     let cancelled = false;
@@ -544,15 +571,7 @@ function App() {
         const lyrics = p.paths.find((x) => LYRICS_EXTS.includes(fileExt(x)));
         if (!audio && !lyrics) return; // 지원하지 않는 파일은 무시
 
-        const st = useLrcStore.getState();
-        const audioConflict = !!audio && st.audioPath !== null;
-        const lyricsConflict = !!lyrics && (st.lrcPath !== null || st.isDirty || st.doc.lines.length > 0);
-        if (audioConflict || lyricsConflict) {
-          setDropConflict({ audio, lyrics, audioConflict, lyricsConflict });
-          dropConflictSession.current = st._documentSession;
-        } else {
-          applyDrop({ audio, lyrics });
-        }
+        handleDrop({ audio, lyrics });
       })
       .then((fn) => { if (cancelled) safeUnlisten(fn); else unlisten = fn; })
       .catch(() => {});
@@ -708,7 +727,7 @@ function App() {
           cancelLabel={t.recovery.discard}
           onOk={() => {
             useLrcStore.getState().restoreDoc(recovery.doc, recovery.lrcPath, recovery.audioPath, recovery.lrcFileHash);
-            setRecovery(null);
+            finishRecoveryDecision();
             // Keep recovery snapshot until restored document is explicitly saved
           }}
           onCancel={() => {
@@ -716,7 +735,7 @@ function App() {
               toast.error(t.recovery.discardFailed);
               return;
             }
-            setRecovery(null);
+            finishRecoveryDecision();
           }}
         />
       )}
