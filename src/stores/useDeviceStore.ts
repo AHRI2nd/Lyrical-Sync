@@ -224,5 +224,5 @@ async function pollOnce(generation: number): Promise<void> {
 }
 
 useSettingsStore.subscribe((state, previous) => {
-  if (previous.deviceMode && !state.deviceMode) useDeviceStore.getState().stopPolling();
+  if (previous.deviceMode !== state.deviceMode) useDeviceStore.getState().stopPolling();
 });

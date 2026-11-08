@@ -88,6 +88,27 @@ describe("useDeviceStore — failure notification", () => {
     expect(pushErrorToast).not.toHaveBeenCalled();
   });
 
+  it("clears a previous device session synchronously when entering device mode", () => {
+    useDeviceStore.setState({
+      hasSession: true,
+      isPlaying: true,
+      positionMs: 12_000,
+      durationMs: 60_000,
+      trackName: "Previous session",
+      sourceApp: "Old player",
+    });
+
+    useSettingsStore.getState().setDeviceMode(true);
+
+    expect(useDeviceStore.getState()).toMatchObject({
+      hasSession: false,
+      isPlaying: false,
+      positionMs: 0,
+      trackName: "",
+      sourceApp: "",
+    });
+  });
+
   it("starting polling again resets the failure streak flag", async () => {
     useSettingsStore.getState().setDeviceMode(true);
     invoke.mockRejectedValue(new Error("adapter broken"));
