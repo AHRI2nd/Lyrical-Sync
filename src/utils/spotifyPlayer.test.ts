@@ -260,6 +260,29 @@ it("does not let an older remote poll overwrite a newer accepted SDK playback st
   expect(useServiceStore.getState().positionMs).toBe(7000);
 });
 
+it("refreshes authoritative playback immediately after a null SDK state", async () => {
+  const stalePoll = deferred<Response>();
+  const emptyPlayback = { status: 204, ok: true } as Response;
+  const fetchMock = vi.fn().mockReturnValueOnce(stalePoll.promise).mockResolvedValueOnce(emptyPlayback);
+  vi.stubGlobal("fetch", fetchMock);
+  useSettingsStore.setState({ spotifyMode: true });
+  useServiceStore.setState({ isPlaying: true, positionMs: 24000, trackName: "Old Track", trackUri: "spotify:track:old" });
+  initSpotifyPlayer();
+  await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+
+  MockSpotifyPlayer.instances[0].emit("player_state_changed", null);
+
+  await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  await vi.waitFor(() => expect(useServiceStore.getState().trackName).toBe(""));
+  expect(useServiceStore.getState().isPlaying).toBe(false);
+  expect(useServiceStore.getState().positionMs).toBe(0);
+
+  stalePoll.resolve(spotifyResponse("stale"));
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(useServiceStore.getState().trackName).toBe("");
+});
+
 it("does not restart Spotify interpolation after leaving Spotify mode", () => {
   const start = vi.spyOn(useServiceStore.getState(), "_startInterpolation").mockImplementation(() => {});
   const stop = vi.spyOn(useServiceStore.getState(), "_stopInterpolation").mockImplementation(() => {});

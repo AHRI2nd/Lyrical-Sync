@@ -12,6 +12,7 @@ let pollingTimer: ReturnType<typeof setTimeout> | null = null;
 let pollingAbortController: AbortController | null = null;
 let pollingGeneration = 0;
 let isPolling = false;
+let pollRefreshRequested = false;
 let playerGeneration = 0;
 let hasNotifiedPollFailure = false;
 
@@ -143,7 +144,13 @@ function createPlayer(lease: AuthLease): void {
 
   instance.addListener("player_state_changed", (state) => {
     if (!isCurrentInstance()) { disconnectOwnedPlayer(instance, generation); return; }
-    if (state) useServiceStore.getState().onPlayerStateChanged(state);
+    if (state) {
+      useServiceStore.getState().onPlayerStateChanged(state);
+    } else if (useSettingsStore.getState().spotifyMode) {
+      useServiceStore.setState((current) => ({ _playbackRevision: current._playbackRevision + 1 }));
+      useServiceStore.getState()._stopInterpolation();
+      refreshPlaybackAfterUnknownSdkState();
+    }
   });
 
   instance.addListener("not_ready", () => {
@@ -205,6 +212,7 @@ function startPolling(): void {
 
 function stopPolling(): void {
   isPolling = false;
+  pollRefreshRequested = false;
   pollingGeneration += 1;
   if (pollingTimer !== null) {
     clearTimeout(pollingTimer);
@@ -212,6 +220,21 @@ function stopPolling(): void {
   }
   pollingAbortController?.abort();
   pollingAbortController = null;
+}
+
+function refreshPlaybackAfterUnknownSdkState(): void {
+  if (!isPolling) return;
+  pollRefreshRequested = true;
+  if (pollingAbortController) {
+    pollingAbortController.abort();
+    return;
+  }
+  if (pollingTimer !== null) {
+    clearTimeout(pollingTimer);
+    pollingTimer = null;
+  }
+  pollRefreshRequested = false;
+  void pollOnce(pollingGeneration, currentLease());
 }
 
 function isCurrentPoll(generation: number, lease: AuthLease): boolean {
@@ -304,10 +327,12 @@ async function pollOnce(generation: number, lease: AuthLease): Promise<void> {
   } finally {
     if (pollingAbortController === controller) pollingAbortController = null;
     if (isCurrentPoll(generation, lease)) {
+      const delay = pollRefreshRequested ? 0 : 1500;
+      pollRefreshRequested = false;
       pollingTimer = setTimeout(() => {
         pollingTimer = null;
         void pollOnce(generation, lease);
-      }, 1500);
+      }, delay);
     }
   }
 }
