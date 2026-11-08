@@ -22,6 +22,12 @@ const hasFiniteLineTimes = (lines: LrcLine[]): boolean => lines.every((line) =>
   (line.syllables?.every((syllable) => syllable.time === null || Number.isFinite(syllable.time)) ?? true)
 );
 
+const populatedMetadataFields = (metadata: LrcMetadata): Set<keyof LrcMetadata> =>
+  new Set((Object.keys(metadata) as Array<keyof LrcMetadata>).filter((field) => {
+    const value = metadata[field];
+    return typeof value === "string" ? value.trim().length > 0 : value !== 0;
+  }));
+
 const hasSameTiming = (left: LrcLine, right: LrcLine): boolean => {
   if (left.timestamp !== right.timestamp || left.srtEndTime !== right.srtEndTime) return false;
   if (left.syllables === right.syllables) return true;
@@ -269,10 +275,13 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     }
   };
 
-  const beginDocumentSession = () => {
+  const beginDocumentSession = (metadata?: LrcMetadata) => {
     documentSessionId += 1;
     lyricLoadGeneration += 1;
-    set({ _documentSession: documentSessionId, _manualMetadataFields: new Set() });
+    set({
+      _documentSession: documentSessionId,
+      _manualMetadataFields: metadata ? populatedMetadataFields(metadata) : new Set(),
+    });
   };
 
   const resetAiState = () => ({
@@ -295,10 +304,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     lrcText: string,
     meta?: { title: string; artist: string; album: string },
   ) => {
-    beginDocumentSession();
     const parsed = parseLrc(lrcText);
-    const sessionId = documentSessionId;
-    parsed.lines = parsed.lines.map((line) => ({ ...line, id: genId(sessionId) }));
     const current = get().doc.metadata;
     const metadata = meta
       ? {
@@ -308,6 +314,9 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
           album: current.album.trim() || meta.album,
         }
       : current;
+    beginDocumentSession(metadata);
+    const sessionId = documentSessionId;
+    parsed.lines = parsed.lines.map((line) => ({ ...line, id: genId(sessionId) }));
     const firstId = parsed.lines[0]?.id ?? null;
     set({
       doc: { ...parsed, metadata },
@@ -839,7 +848,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     const parsed = parseLrc(raw);
     if (parsed.invalidControlTags?.length) throw new Error("LRC_RESERVED_CONTROL_TAG_CONFLICT");
     pushHistory("loadDoc");
-    beginDocumentSession();
+    beginDocumentSession(parsed.metadata);
     const sessionId = documentSessionId;
     parsed.lines = parsed.lines.map((l) => ({ ...l, id: genId(sessionId) }));
     const firstId = parsed.lines[0]?.id ?? null;
@@ -847,7 +856,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   },
 
   restoreDoc: (doc, lrcPath, audioPath, lrcFileHash = null) => {
-    beginDocumentSession();
+    beginDocumentSession(doc.metadata);
     const sessionId = documentSessionId;
     const lines = doc.lines.map((l) => ({ ...l, id: genId(sessionId) }));
     set({
@@ -920,7 +929,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     }
     const isSrt = path.split(".").pop()?.toLowerCase() === "srt";
     const doc = isSrt ? parseSrt(content) : parseLrc(content);
-    beginDocumentSession();
+    beginDocumentSession(doc.metadata);
     const sessionId = documentSessionId;
     doc.lines = doc.lines.map((l) => ({ ...l, id: genId(sessionId) }));
     const firstId = doc.lines[0]?.id ?? null;
@@ -1063,8 +1072,8 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   },
 
   newLrc: () => {
-    beginDocumentSession();
     const doc = defaultDocument();
+    beginDocumentSession(doc.metadata);
     set({ doc, _savedDocument: doc, lrcPath: null, _lrcFileHash: null, isDirty: false, activeLineId: null, loopLineId: null, _history: [], _future: [], _lastEditKey: null, ...invalidateAiRun() });
   },
 

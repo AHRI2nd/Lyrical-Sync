@@ -1504,6 +1504,16 @@ describe("useLrcStore — document load transactions", () => {
     useLrcStore.setState({ lrcPath: "/old.lrc", audioPath: "/old.mp3" });
     vi.mocked(invoke).mockReset();
   });
+  it("preserves loaded metadata during silent track sync while filling blank fields", async () => {
+    vi.mocked(invoke).mockResolvedValue(lrcSnapshot("[ti:Saved title]\n[00:01.00]text"));
+    await useLrcStore.getState().loadLyricsPath("/tmp/saved.lrc");
+    useLrcStore.getState().setMetadata({ title: "Different track", artist: "Track artist" }, true);
+
+    expect(useLrcStore.getState().doc.metadata.title).toBe("Saved title");
+    expect(useLrcStore.getState().doc.metadata.artist).toBe("Track artist");
+    expect(useLrcStore.getState().isDirty).toBe(false);
+    expect(useLrcStore.getState()._history).toHaveLength(0);
+  });
   it("preserves edits and undo history made while the read is pending", async () => {
     let finish!: (value: ReturnType<typeof lrcSnapshot>) => void;
     vi.mocked(invoke).mockImplementation(() => new Promise<ReturnType<typeof lrcSnapshot>>(resolve => { finish = resolve; }));
