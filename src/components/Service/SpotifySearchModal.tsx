@@ -341,7 +341,7 @@ export function SpotifySearchModal({ onClose }: Props) {
                   className="ls-field w-full text-sm"
                 />
               </div>
-              {loading && <LoadingRow />}
+              {loading && <LoadingRow label={t.spotifyLoading} />}
               {!loading && query && searchResults.length === 0 && (
                 <p className="text-xs text-[var(--ls-text-secondary)] text-center py-8">{t.spotifyNoResults}</p>
               )}
@@ -362,7 +362,7 @@ export function SpotifySearchModal({ onClose }: Props) {
 
           {tab === "playlists" && !selectedPlaylist && (
             <div className="flex flex-col">
-              {loadingPlaylistPage && <LoadingRow />}
+              {loadingPlaylistPage && <LoadingRow label={t.spotifyLoading} />}
               {playlists.map((pl) => (
                 <button
                   key={pl.id}
@@ -375,7 +375,7 @@ export function SpotifySearchModal({ onClose }: Props) {
                   }
                   <div className="flex flex-col min-w-0">
                     <span className="text-sm text-[var(--ls-text)] truncate">{pl.name}</span>
-                    <span className="text-xs text-[var(--ls-text-secondary)]">{pl.trackCount} tracks</span>
+                    <span className="text-xs text-[var(--ls-text-secondary)]">{t.spotifyPlaylistTrackCount.replace("{count}", String(pl.trackCount))}</span>
                   </div>
                 </button>
               ))}
@@ -399,7 +399,7 @@ export function SpotifySearchModal({ onClose }: Props) {
               >
                 ← {selectedPlaylist.name}
               </button>
-              {loadingPlaylistTracks && <LoadingRow />}
+              {loadingPlaylistTracks && <LoadingRow label={t.spotifyLoading} />}
               {playlistTracks?.map((track) => (
                 <TrackRow key={track.uri} track={track} onSelect={handleSelectTrack} />
               ))}
@@ -438,8 +438,8 @@ function TrackRow({ track, onSelect }: { track: SpotifyTrack; onSelect: (t: Spot
   );
 }
 
-function LoadingRow() {
-  return <div className="px-4 py-6 text-xs text-[var(--ls-text-secondary)] text-center">loading...</div>;
+function LoadingRow({ label }: { label: string }) {
+  return <div className="px-4 py-6 text-xs text-[var(--ls-text-secondary)] text-center">{label}</div>;
 }
 
 function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {

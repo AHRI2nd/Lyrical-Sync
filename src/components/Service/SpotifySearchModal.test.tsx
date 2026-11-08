@@ -77,6 +77,21 @@ it("ignores an in-flight search after Spotify logout", async () => {
   expect(screen.queryByText("Old Track")).toBeNull();
 });
 
+it("localizes playlist loading and track-count labels", async () => {
+  const pending = deferred<Response>();
+  vi.stubGlobal("fetch", vi.fn().mockReturnValue(pending.promise));
+  render(<SpotifySearchModal onClose={() => {}} />);
+  const t = useI18nStore.getState().t;
+  fireEvent.click(screen.getByRole("button", { name: t.spotifyMyPlaylists }));
+  expect(screen.getByText(t.spotifyLoading)).toBeTruthy();
+
+  await act(async () => {
+    pending.resolve({ ok: true, json: async () => playlistPage(["Playlist A"], null) } as Response);
+    await pending.promise;
+  });
+  expect(screen.getByText("Tracks: 1")).toBeTruthy();
+});
+
 it("loads Spotify playlists incrementally through validated next pages", async () => {
   const first = deferred<Response>();
   const second = deferred<Response>();
@@ -119,13 +134,13 @@ it("keeps playlist details loading when an older page request settles", async ()
   await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
   fireEvent.click(screen.getByRole("button", { name: /Playlist A/ }));
   await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
-  expect(screen.getByText("loading...")).toBeTruthy();
+  expect(screen.getByText(useI18nStore.getState().t.spotifyLoading)).toBeTruthy();
 
   await act(async () => {
     pendingPage.resolve({ ok: true, json: async () => playlistPage(["Playlist B"], null) } as Response);
     await pendingPage.promise;
   });
-  expect(screen.getByText("loading...")).toBeTruthy();
+  expect(screen.getByText(useI18nStore.getState().t.spotifyLoading)).toBeTruthy();
 
   await act(async () => {
     pendingDetail.resolve({ ok: true, json: async () => ({ items: [] }) } as Response);

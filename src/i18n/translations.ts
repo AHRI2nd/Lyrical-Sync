@@ -549,6 +549,8 @@ export interface Translations {
   spotifyLoadMore: string;
   spotifySearchFailed: string;
   spotifyNoResults: string;
+  spotifyLoading: string;
+  spotifyPlaylistTrackCount: string;
   spotifyServiceModeInfo: string;
   spotifyBackToFileMode: string;
   spotifyNoTrackTitle: string;
@@ -1210,6 +1212,8 @@ const ko: Translations = {
   spotifyLoadMore: "더 불러오기",
   spotifySearchFailed: "Spotify 검색에 실패했습니다. 연결을 확인하고 다시 시도하세요.",
   spotifyNoResults: "검색 결과가 없습니다",
+  spotifyLoading: "불러오는 중...",
+  spotifyPlaylistTrackCount: "트랙 {count}개",
   spotifyServiceModeInfo: "Spotify 모드에서는 파형 시각화, 배속 조절, AI Sync를 사용할 수 없습니다.",
   spotifyBackToFileMode: "파일 모드로 돌아가기",
   spotifyNoTrackTitle: "재생 중인 곡 없음",
@@ -1872,6 +1876,8 @@ const en: Translations = {
   spotifyLoadMore: "Load more",
   spotifySearchFailed: "Spotify search failed. Check your connection and try again.",
   spotifyNoResults: "No results found",
+  spotifyLoading: "Loading...",
+  spotifyPlaylistTrackCount: "Tracks: {count}",
   spotifyServiceModeInfo: "Waveform, speed control, and AI Sync are not available in Spotify mode.",
   spotifyBackToFileMode: "Back to File Mode",
   spotifyNoTrackTitle: "No track playing",
@@ -2533,6 +2539,8 @@ const ja: Translations = {
   spotifyLoadMore: "さらに読み込む",
   spotifySearchFailed: "Spotify の検索に失敗しました。接続を確認して再試行してください。",
   spotifyNoResults: "検索結果がありません",
+  spotifyLoading: "読み込み中...",
+  spotifyPlaylistTrackCount: "トラック数: {count}",
   spotifyServiceModeInfo: "Spotifyモードでは波形表示・速度調整・AI Syncは利用できません。",
   spotifyBackToFileMode: "ファイルモードに戻る",
   spotifyNoTrackTitle: "再生中の曲なし",
