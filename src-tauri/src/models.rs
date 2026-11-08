@@ -352,6 +352,9 @@ fn start_registered_download(
     else {
         return Err("Model download was not registered".into());
     };
+    if download.started {
+        return Err("Model download is already running".into());
+    }
     download.started = true;
     Ok(download.cancel.clone())
 }
@@ -764,6 +767,20 @@ mod integrity_tests {
         ));
         assert!(cancel.load(Ordering::Relaxed));
         assert!(state.active.lock().unwrap().contains_key("model"));
+    }
+
+    #[test]
+    fn duplicate_dispatch_cannot_start_the_same_registered_download_twice() {
+        let state = DownloadState::default();
+        let registered = register_download(&state, "model", "run-1").unwrap();
+        let first = start_registered_download(&state, "model", "run-1").unwrap();
+
+        assert!(Arc::ptr_eq(&registered, &first));
+        assert_eq!(
+            start_registered_download(&state, "model", "run-1").unwrap_err(),
+            "Model download is already running",
+        );
+        assert!(state.active.lock().unwrap().get("model").unwrap().started);
     }
 
     #[tokio::test]
