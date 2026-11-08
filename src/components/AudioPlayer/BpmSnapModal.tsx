@@ -19,6 +19,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
   const [confidence, setConfidence] = useState<number | null>(null);
   const [snappedCount, setSnappedCount] = useState<number | null>(null);
   const tapTimesRef = useRef<number[]>([]);
+  const manualEntryRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const dismissedRef = useRef(false);
   const [owner, setOwner] = useState({ session, selection, path: audioPath });
@@ -49,6 +50,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
     setConfidence(null);
     setSnappedCount(null);
     setError(null);
+    manualEntryRef.current = false;
     tapTimesRef.current = [];
     setLoading(Boolean(owner.path));
     if (owner.path) {
@@ -57,11 +59,13 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
           if (controller.signal.aborted || !isCurrent()) return;
           const result = detectBpm(samples, sampleRate);
           if (controller.signal.aborted || !isCurrent()) return;
-          if (result) {
-            setBpmStr(String(result.bpm));
-            setOffsetStr(result.offsetSec.toFixed(2));
-            setConfidence(result.confidence);
-          } else setError(t.bpmDetectFailed);
+          if (!manualEntryRef.current) {
+            if (result) {
+              setBpmStr(String(result.bpm));
+              setOffsetStr(result.offsetSec.toFixed(2));
+              setConfidence(result.confidence);
+            } else setError(t.bpmDetectFailed);
+          }
         })
         .catch((error: unknown) => {
           if (!controller.signal.aborted && isCurrent()) {
@@ -87,6 +91,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
 
   const handleTapTempo = () => {
     if (!isCurrent()) return;
+    manualEntryRef.current = true;
     const now = performance.now();
     const taps = tapTimesRef.current;
     // Reset after a long pause; duplicate or reversed clocks cannot form intervals.
@@ -132,10 +137,11 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
         </div>
 
         <div className="p-5 flex flex-col gap-4">
-          {loading || !sourceCurrent ? (
+          {!sourceCurrent ? (
             <p className="text-sm text-[var(--ls-text-secondary)]">{t.bpmDetecting}</p>
           ) : (
             <>
+              {loading && <p className="text-sm text-[var(--ls-text-secondary)]">{t.bpmDetecting}</p>}
               {!audioPath && <p className="text-sm text-[var(--ls-playhead)]">{t.bpmManualHint}</p>}
               <p className="text-[11px] leading-relaxed text-[var(--ls-text-secondary)]">{t.bpmHint}</p>
               {error && <p className="text-xs text-[var(--ls-playhead)]">{error}</p>}
@@ -148,7 +154,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
                     type="text"
                     inputMode="decimal"
                     value={bpmStr}
-                    onChange={(e) => { setBpmStr(e.target.value); setSnappedCount(null); }}
+                    onChange={(e) => { manualEntryRef.current = true; setBpmStr(e.target.value); setSnappedCount(null); }}
                     className="ls-field w-20 text-white text-xs text-right transition-colors"
                   />
                   <span className="text-[11px] text-[var(--ls-text-secondary)] w-9">BPM</span>
@@ -163,7 +169,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
                     type="text"
                     inputMode="decimal"
                     value={offsetStr}
-                    onChange={(e) => { setOffsetStr(e.target.value); setSnappedCount(null); }}
+                    onChange={(e) => { manualEntryRef.current = true; setOffsetStr(e.target.value); setSnappedCount(null); }}
                     className="ls-field w-20 text-white text-xs text-right transition-colors"
                   />
                   <span className="text-[11px] text-[var(--ls-text-secondary)] w-9">s</span>
@@ -202,7 +208,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
             >
               {t.cancelLabel}
             </button>
-            {sourceCurrent && !loading && (
+            {sourceCurrent && (!loading || manualEntryRef.current) && (
               <button
                 onClick={handleApply}
                 disabled={!valid}

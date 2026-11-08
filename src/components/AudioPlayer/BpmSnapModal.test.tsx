@@ -115,6 +115,21 @@ it("keeps manual BPM available after an unsuccessful local detection", async () 
   expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(1.5);
 });
 
+it("allows manual BPM entry while detection is pending and keeps it over a late estimate", async () => {
+  let finish!: (value: ReturnType<typeof decoded>) => void;
+  vi.mocked(decodeAudioSamples).mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+  render(<BpmSnapModal onClose={() => {}} selectedIds={["a"]} />);
+
+  const bpmInput = await screen.findByRole<HTMLInputElement>("textbox", { name: "Tempo" });
+  fireEvent.change(bpmInput, { target: { value: "90" } });
+  expect(screen.getByRole<HTMLButtonElement>("button", { name: "Apply" }).disabled).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+  expect(useLrcStore.getState().doc.lines[0].timestamp).not.toBe(1.34);
+
+  await act(async () => finish(decoded()));
+  expect(bpmInput.value).toBe("90");
+});
+
 it("reads the selected audio path and aborts work on unmount", () => {
   vi.mocked(decodeAudioSamples).mockReturnValue(new Promise(() => {}));
   const { unmount } = render(<BpmSnapModal onClose={() => {}} selectedIds={[]} />);
