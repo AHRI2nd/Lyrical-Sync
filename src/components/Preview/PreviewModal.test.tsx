@@ -5,6 +5,7 @@ import { act, cleanup, fireEvent, render } from "@testing-library/react";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 import { PreviewModal } from "./PreviewModal";
+import { audioControls } from "../../utils/audioControls";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { defaultDocument } from "../../types/lrc";
 beforeEach(() => {
@@ -55,6 +56,20 @@ it("uses an explicit SRT cue end for karaoke preview across overlapping cues", (
 it("exposes the lyric preview as a named modal dialog", () => {
   const { getByRole } = render(<PreviewModal onOpenStyleSettings={() => {}} onClose={() => {}} />);
   expect(getByRole("dialog", { name: "song" })).toBeTruthy();
+});
+
+it("supports keyboard seeking from the progress bar and timed lyric rows", async () => {
+  const { useI18nStore } = await import("../../stores/useI18nStore");
+  const seek = vi.spyOn(audioControls, "seekTo").mockImplementation(() => {});
+  const { getByRole } = render(<PreviewModal onOpenStyleSettings={() => {}} onClose={() => {}} />);
+  const progress = getByRole("slider", { name: useI18nStore.getState().t.tooltipViewSeekBar });
+  fireEvent.keyDown(progress, { key: "ArrowRight" });
+  expect(seek).toHaveBeenLastCalledWith(2);
+
+  const lyric = getByRole("button", { name: "first" });
+  fireEvent.keyDown(lyric, { key: "Enter" });
+  fireEvent.keyDown(lyric, { key: " " });
+  expect(seek.mock.calls.slice(-2).map(([time]) => time)).toEqual([1, 1]);
 });
 
 it("updates rendered lyric font, active color and accent glow when preview settings change", async () => {

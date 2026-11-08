@@ -205,6 +205,14 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
         </div>
 
         <div
+          role={line.timestamp !== null ? "button" : undefined}
+          tabIndex={line.timestamp !== null ? 0 : undefined}
+          onKeyDown={(e) => {
+            if (line.timestamp === null || (e.key !== "Enter" && e.key !== " ")) return;
+            e.preventDefault();
+            e.stopPropagation();
+            seekToLine(line.timestamp);
+          }}
           className={`flex-1 leading-snug ${fontWeightClass} ${line.timestamp !== null ? "cursor-pointer" : "select-none"}`}
           style={{
             fontSize: `${fontRem}rem`,
@@ -250,16 +258,35 @@ export function PreviewModal({ onClose, onOpenStyleSettings }: { onClose: () => 
   const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (!playbackDuration) return;
     const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0) return;
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     controls.seekTo(ratio * playbackDuration);
   }, [controls, playbackDuration]);
+
+  const handleSeekKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (playbackDuration <= 0) return;
+    const target = e.key === "Home" ? 0 : e.key === "End" ? playbackDuration
+      : e.key === "ArrowLeft" ? playbackTime - 1 : e.key === "ArrowRight" ? playbackTime + 1 : null;
+    if (target === null) return;
+    e.preventDefault();
+    controls.seekTo(Math.max(0, Math.min(playbackDuration, target)));
+  }, [controls, playbackDuration, playbackTime]);
 
   return (
     <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby={dialogTitleId} tabIndex={-1} className="fixed inset-0 z-50 flex flex-col bg-[var(--ls-canvas)]">
       {/* 진행 상태바 */}
       <div
-        className="shrink-0 h-1 bg-[var(--ls-control)] cursor-pointer group"
+        role="slider"
+        tabIndex={0}
+        aria-label={t.tooltipViewSeekBar}
+        aria-orientation="horizontal"
+        aria-valuemin={0}
+        aria-valuemax={playbackDuration}
+        aria-valuenow={Math.max(0, Math.min(playbackDuration, playbackTime))}
+        aria-valuetext={formatDisplayTime(playbackTime)}
+        className="shrink-0 h-1 bg-[var(--ls-control)] cursor-pointer group focus-visible:outline focus-visible:outline-[var(--ls-accent)]"
         onClick={handleSeek}
+        onKeyDown={handleSeekKeyDown}
       >
         <div
           className="h-full bg-[var(--ls-accent)] group-hover:bg-[var(--ls-accent)] transition-colors relative"
