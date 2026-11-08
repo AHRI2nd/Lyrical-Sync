@@ -11,6 +11,7 @@ import argparse
 import math
 import os
 import hashlib
+import tempfile
 
 
 def progress(status: str, message: str = "", percent: float = 0.0):
@@ -75,6 +76,20 @@ def verify_model_file(path, expected_sha256):
             digest.update(chunk)
     if digest.hexdigest() != expected_sha256:
         raise ValueError("Model checksum mismatch. Download it again in Settings > AI Models.")
+
+
+def load_verified_onnx_model(path, expected_sha256, loader):
+    """Load a private copy of the exact ONNX bytes whose checksum was verified."""
+    digest = hashlib.sha256()
+    with tempfile.TemporaryDirectory(prefix="lyrical-sync-onnx-") as staging_dir:
+        verified_path = os.path.join(staging_dir, "ctc-forced-aligner.onnx")
+        with open(path, "rb") as source, open(verified_path, "xb") as verified:
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(chunk)
+                verified.write(chunk)
+        if digest.hexdigest() != expected_sha256:
+            raise ValueError("Model checksum mismatch. Download it again in Settings > AI Models.")
+        return loader(verified_path)
 
 
 def read_lines_input(lines_json, from_stdin):
@@ -157,9 +172,8 @@ def main():
 
     progress("loading_model", "Loading model...", 0.05)
     try:
-        verify_model_file(onnx_path, args.model_sha256)
         import onnxruntime as ort
-        session = ort.InferenceSession(onnx_path)
+        session = load_verified_onnx_model(onnx_path, args.model_sha256, ort.InferenceSession)
         tokenizer = Tokenizer()
         
         # Verify model identity by checking input/output names and shapes

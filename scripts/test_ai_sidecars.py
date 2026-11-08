@@ -37,6 +37,31 @@ class ModelIntegrityTests(unittest.TestCase):
                 align.verify_model_file(Path(folder) / "missing.onnx", "0" * 64)
             self.assertEqual(list(Path(folder).iterdir()), [])
 
+    def test_onnx_loader_uses_the_exact_bytes_that_passed_checksum_verification(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "model.onnx"
+            path.write_bytes(b"trusted model")
+            expected = hashlib.sha256(b"trusted model").hexdigest()
+
+            def loader(verified_path):
+                path.write_bytes(b"replacement")
+                self.assertEqual(Path(verified_path).read_bytes(), b"trusted model")
+                return "loaded verified model"
+
+            self.assertEqual(align.load_verified_onnx_model(path, expected, loader), "loaded verified model")
+
+    def test_onnx_checksum_mismatch_never_reaches_loader(self):
+        from unittest.mock import Mock
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "model.onnx"
+            path.write_bytes(b"changed model")
+            loader = Mock()
+
+            with self.assertRaisesRegex(ValueError, "checksum"):
+                align.load_verified_onnx_model(path, "0" * 64, loader)
+
+            loader.assert_not_called()
+
 
 class CtcBoundaryTests(unittest.TestCase):
     def test_rejects_the_pinned_native_near_boundary_frame_window(self):
