@@ -43,7 +43,9 @@ it.each(['different','same path','new document'])('ignores a result after a late
 });
 it('does not apply a download result after leaving YouTube mode', async () => {
  const run=start();
- useSettingsStore.getState().setPlaybackMode("spotify");
+ act(()=>useSettingsStore.getState().setPlaybackMode("spotify"));
+ const loadCall=invokeMock.mock.calls.find(([command])=>command==='ytdlp_load_audio');
+ expect(invokeMock).toHaveBeenCalledWith('cancel_ytdlp_load', {runId:loadCall?.[1]?.runId});
  await act(async()=>{run.resolve('/stale-mode.wav');await run.pending;});
  expect(run.apply).not.toHaveBeenCalled();
  expect(run.result.current.ytLoading).toBe(false);

@@ -9,7 +9,7 @@ let youtubeRequestSequence = 0;
 // YouTube URL → yt-dlp 오디오 다운로드 흐름 전체(모달 상태 + 진행률 이벤트 + 취소).
 // AudioPlayer에서 분리해 파일 모드/Spotify/기기 감지 엔진 로직과 뒤섞이지 않게 함.
 export function useYouTubeLoad(setAudioPath: (path: string) => void) {
-  const { ytdlpAudioQuality, ytdlpCookiesFile, ytdlpProxy } = useSettingsStore();
+  const { ytdlpAudioQuality, ytdlpCookiesFile, ytdlpProxy, youtubeMode } = useSettingsStore();
 
   const [ytUrl, setYtUrl] = useState("");
   const [ytLoading, setYtLoadingRaw] = useState(false);
@@ -26,12 +26,19 @@ export function useYouTubeLoad(setAudioPath: (path: string) => void) {
     return () => {
       mounted.current = false;
       const active = operation.current;
-      if (active) {
+      if (active && !active.cancelled) {
         active.cancelled = true;
         void invoke("cancel_ytdlp_load", { runId: active.runId }).catch(() => {});
       }
     };
   }, []);
+  useEffect(() => {
+    const active = operation.current;
+    if (!youtubeMode && active && !active.cancelled) {
+      active.cancelled = true;
+      void invoke("cancel_ytdlp_load", { runId: active.runId }).catch(() => {});
+    }
+  }, [youtubeMode]);
   const setYtLoading = (v: boolean) => {
     if (mounted.current) setYtLoadingRaw(v);
     if (v) useBusyStore.getState().markBusy(YT_BUSY_ID);
@@ -72,7 +79,7 @@ export function useYouTubeLoad(setAudioPath: (path: string) => void) {
 
   const handleYtCancel = () => {
     const active = operation.current;
-    if (!active) return;
+    if (!active || active.cancelled) return;
     active.cancelled = true;
     invoke("cancel_ytdlp_load", { runId: active.runId }).catch(() => {});
   };
