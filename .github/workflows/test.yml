@@ -44,6 +44,7 @@ jobs:
       - run: node --test scripts/windows-build-commands.node-test.mjs
       - run: npm test
       - run: python scripts/test_ai_sidecars.py
+      - run: python scripts/test_alignment_stdin.py
       - run: python scripts/test_ai_profiles.py
       - run: python scripts/test_python_runtime.py
       - run: python scripts/test_arm_ai_artifacts.py
