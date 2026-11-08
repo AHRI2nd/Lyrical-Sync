@@ -55,6 +55,7 @@ export function YtdlpSection() {
     if (mountedRef.current) {
       setChecking(true);
       setCheckError(null);
+      setLatestTag(null);
     }
     try {
       const v = await invoke<string | null>("check_ytdlp");

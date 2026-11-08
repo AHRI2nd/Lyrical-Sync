@@ -172,3 +172,23 @@ it('ignores an older latest-release response after a newer refresh', async () =>
 
   expect(screen.queryByRole('button', { name: useI18nStore.getState().t.ytdlpUpdate })).toBeNull();
 });
+
+it('does not keep offering an update when the refreshed latest-release lookup fails', async () => {
+  let checkCount = 0;
+  vi.stubGlobal('fetch', vi.fn()
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ tag_name: 'v3' }) })
+    .mockResolvedValueOnce({ ok: false, json: async () => ({}) }));
+  invoke.mockImplementation(async (command: string) => {
+    if (command !== 'check_ytdlp') return undefined;
+    return ++checkCount === 1 ? 'v1' : 'v2';
+  });
+  render(<YtdlpSection />);
+  const updateButton = await screen.findByRole('button', { name: useI18nStore.getState().t.ytdlpUpdate });
+  expect(updateButton).toBeTruthy();
+
+  fireEvent.click(screen.getByRole('button', { name: useI18nStore.getState().t.ytdlpRefresh }));
+  await screen.findByText(`${useI18nStore.getState().t.ytdlpVersion}: v2`);
+  await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+
+  expect(screen.queryByRole('button', { name: useI18nStore.getState().t.ytdlpUpdate })).toBeNull();
+});
