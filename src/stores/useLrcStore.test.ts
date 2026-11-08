@@ -1452,6 +1452,22 @@ describe("useLrcStore — save completion races", () => {
     expect(useLrcStore.getState().isDirty).toBe(true);
   });
 
+  it("rejects a VTT Save As that cannot represent blank paragraph rows before writing", async () => {
+    const state = useLrcStore.getState();
+    useLrcStore.setState({
+      doc: { ...state.doc, lines: [{ id: "1", timestamp: 1, text: "first\n\nsecond" }] },
+      lrcPath: "/tmp/original.lrc",
+      isDirty: true,
+    });
+    vi.mocked(save).mockResolvedValue("/tmp/export.vtt");
+
+    await expect(useLrcStore.getState().saveLrcAs("vtt")).rejects.toMatchObject({ code: "VTT_UNREPRESENTABLE_CONTENT" });
+
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState().lrcPath).toBe("/tmp/original.lrc");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
   it("rejects unrepresentable ASS text before writing and keeps the document dirty", async () => {
     const state = useLrcStore.getState();
     useLrcStore.setState({
