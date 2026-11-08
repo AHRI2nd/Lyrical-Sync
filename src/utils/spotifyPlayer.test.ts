@@ -380,3 +380,20 @@ it("uses the active external device for volume reads and writes", async () => {
     expect.objectContaining({ method: "PUT", headers: expect.any(Headers) }),
   );
 });
+
+it("serializes volume changes sent to the Spotify SDK player", async () => {
+  initSpotifyPlayer();
+  const instance = MockSpotifyPlayer.instances[0];
+  const firstWrite = deferred<void>();
+  instance.setVolume.mockReturnValueOnce(firstWrite.promise);
+
+  const first = setSpotifyVolume(0.25);
+  const second = setSpotifyVolume(0.75);
+  await Promise.resolve();
+  expect(instance.setVolume).toHaveBeenCalledTimes(1);
+
+  firstWrite.resolve();
+  await Promise.all([first, second]);
+  expect(instance.setVolume).toHaveBeenNthCalledWith(1, 0.25);
+  expect(instance.setVolume).toHaveBeenNthCalledWith(2, 0.75);
+});

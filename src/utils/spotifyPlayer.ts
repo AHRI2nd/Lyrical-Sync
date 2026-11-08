@@ -16,6 +16,7 @@ let isPolling = false;
 let pollRefreshRequested = false;
 let playerGeneration = 0;
 let hasNotifiedPollFailure = false;
+let volumeCommandQueue: Promise<void> = Promise.resolve();
 
 function currentLease(): AuthLease {
   return {
@@ -82,18 +83,31 @@ export function getSpotifyDeviceId(): string | null {
   return useServiceStore.getState().deviceId;
 }
 
-export async function setSpotifyVolume(volume: number): Promise<void> {
+export function setSpotifyVolume(volume: number): Promise<void> {
   const { deviceId, activePlaybackDeviceId } = useServiceStore.getState();
-  if (player && (!activePlaybackDeviceId || activePlaybackDeviceId === deviceId)) {
-    await player.setVolume(volume);
-    return;
-  }
-  if (!activePlaybackDeviceId) throw new Error("spotify_player_not_ready");
-  await spotifyApiRequest(
-    `https://api.spotify.com/v1/me/player/volume?volume_percent=${Math.round(Math.max(0, Math.min(1, volume)) * 100)}&device_id=${encodeURIComponent(activePlaybackDeviceId)}`,
-    { method: "PUT" },
-    async () => undefined,
-  );
+  const targetPlayer = player;
+  const targetPlayerGeneration = playerGeneration;
+  const lease = currentLease();
+  const request = volumeCommandQueue.then(async () => {
+    const current = useServiceStore.getState();
+    if (!isCurrentLease(lease) || current.deviceId !== deviceId ||
+      current.activePlaybackDeviceId !== activePlaybackDeviceId ||
+      player !== targetPlayer || playerGeneration !== targetPlayerGeneration) return;
+
+    if (targetPlayer && (!activePlaybackDeviceId || activePlaybackDeviceId === deviceId)) {
+      await targetPlayer.setVolume(volume);
+      return;
+    }
+    if (!activePlaybackDeviceId) throw new Error("spotify_player_not_ready");
+    await spotifyApiRequest(
+      `https://api.spotify.com/v1/me/player/volume?volume_percent=${Math.round(Math.max(0, Math.min(1, volume)) * 100)}&device_id=${encodeURIComponent(activePlaybackDeviceId)}`,
+      { method: "PUT" },
+      async () => undefined,
+      lease,
+    );
+  });
+  volumeCommandQueue = request.then(() => undefined, () => undefined);
+  return request;
 }
 
 export async function getSpotifyVolume(): Promise<number | null> {
