@@ -55,6 +55,8 @@ it("honors cancellation while waiting for the progress listener before native re
 
   expect(invoke).not.toHaveBeenCalledWith("begin_model_download", expect.anything());
   expect(invoke).not.toHaveBeenCalledWith("download_model", expect.anything());
+  expect(useModelDownloadStore.getState().models[model.id]).toMatchObject({ status: "not-installed", progress: 0 });
+  expect(useModelDownloadStore.getState().models[model.id].error).toBeUndefined();
   expect(useBusyStore.getState().reasons.size).toBe(0);
 });
 
@@ -76,6 +78,8 @@ it("cancels a native registration that completes after the user requests cancell
 
   expect(invoke).toHaveBeenCalledWith("cancel_model_download", { modelId: model.id, runId });
   expect(invoke).not.toHaveBeenCalledWith("download_model", expect.anything());
+  expect(useModelDownloadStore.getState().models[model.id]).toMatchObject({ status: "not-installed", progress: 0 });
+  expect(useModelDownloadStore.getState().models[model.id].error).toBeUndefined();
   expect(useBusyStore.getState().reasons.size).toBe(0);
 });
 

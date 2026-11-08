@@ -240,7 +240,8 @@ export const useModelDownloadStore = create<ModelDownloadState>((set, get) => ({
           await invoke("cancel_model_download", { modelId: model.id, runId }).catch(() => {});
           operation.nativeStarted = false;
         }
-        const cancelled = String(error) === "cancelled";
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const cancelled = errorMessage === "cancelled";
         updateOperation(operation, { status: cancelled ? "not-installed" : "error", progress: 0 }, {
           status: cancelled ? "not-installed" : "error",
           progress: 0,
