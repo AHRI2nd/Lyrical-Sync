@@ -40,26 +40,37 @@ impl Default for ModelsDirState {
 }
 
 fn authorize_custom_models_root(
-    path: Option<&str>,
+    path: Option<&Path>,
     scope_is_allowed: bool,
     previously_authorized: Option<&Path>,
 ) -> Result<Option<PathBuf>, String> {
-    let Some(path) = path.filter(|path| !path.is_empty()) else {
+    let Some(requested) = path else {
         return Ok(None);
     };
-    if !Path::new(path).is_absolute() {
+    if !requested.is_absolute() {
         return Err("Model directory must be an absolute path".into());
     }
-    let requested = PathBuf::from(path)
-        .canonicalize()
-        .map_err(|error| error.to_string())?;
     if !requested.is_dir() {
         return Err("Model directory is not a directory".into());
     }
-    if !scope_is_allowed && previously_authorized != Some(requested.as_path()) {
+    if !scope_is_allowed && previously_authorized != Some(requested) {
         return Err("Model directory has not been authorized".into());
     }
-    Ok(Some(requested))
+    Ok(Some(requested.to_path_buf()))
+}
+
+fn canonical_custom_models_root(path: &str) -> Result<PathBuf, String> {
+    let requested = Path::new(path);
+    if !requested.is_absolute() {
+        return Err("Model directory must be an absolute path".into());
+    }
+    let canonical = requested
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
+    if !canonical.is_dir() {
+        return Err("Model directory is not a directory".into());
+    }
+    Ok(canonical)
 }
 
 fn authorized_models_root_file(app: &AppHandle) -> Result<PathBuf, String> {
@@ -153,11 +164,16 @@ pub fn set_models_dir_override(
     let selected_path = path.filter(|path| !path.is_empty());
     let previously_authorized = read_authorized_models_root(&app)?;
     let scope = window.fs_scope();
-    let scope_is_allowed = selected_path
+    let canonical_selected = selected_path
         .as_deref()
-        .is_some_and(|path| scope.is_allowed(Path::new(path)));
+        .map(canonical_custom_models_root)
+        .transpose()?;
+    let scope_is_allowed = match canonical_selected.as_deref() {
+        Some(canonical) => scope.is_allowed(canonical),
+        None => false,
+    };
     let authorized = authorize_custom_models_root(
-        selected_path.as_deref(),
+        canonical_selected.as_deref(),
         scope_is_allowed,
         previously_authorized.as_deref(),
     )?;
@@ -612,11 +628,32 @@ mod integrity_tests {
     #[test]
     fn rejects_custom_model_roots_without_a_picker_grant_or_saved_approval() {
         let selected = tempfile::tempdir().unwrap();
+        let selected_path =
+            canonical_custom_models_root(selected.path().to_str().unwrap()).unwrap();
         let error =
-            authorize_custom_models_root(Some(selected.path().to_str().unwrap()), false, None)
-                .unwrap_err();
+            authorize_custom_models_root(Some(&selected_path), false, None).unwrap_err();
 
         assert_eq!(error, "Model directory has not been authorized");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn checks_the_canonical_model_root_against_the_filesystem_scope() {
+        let root = tempfile::tempdir().unwrap();
+        let allowed = root.path().join("allowed");
+        let outside = root.path().join("outside");
+        let selected = root.path().join("selected-models");
+        std::fs::create_dir_all(&allowed).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        std::os::unix::fs::symlink(&outside, &selected).unwrap();
+
+        let allowed_root = allowed.canonicalize().unwrap();
+        let selected_canonical = canonical_custom_models_root(selected.to_str().unwrap()).unwrap();
+        let is_in_scope = |path: &Path| path.starts_with(&allowed_root);
+
+        assert!(!is_in_scope(&selected_canonical));
+        let allowed_canonical = canonical_custom_models_root(allowed.to_str().unwrap()).unwrap();
+        assert!(is_in_scope(&allowed_canonical));
     }
 
     #[cfg(unix)]
@@ -631,11 +668,11 @@ mod integrity_tests {
             std::fs::write(directory.join("demucs/htdemucs.th"), b"preserve").unwrap();
         }
         std::os::unix::fs::symlink(&safe, &selected).unwrap();
-        let approved = authorize_custom_models_root(
-            Some(selected.to_str().unwrap()),
-            true,
-            None,
-        ).unwrap().unwrap();
+        let canonical_selected = canonical_custom_models_root(selected.to_str().unwrap()).unwrap();
+        let approved =
+            authorize_custom_models_root(Some(&canonical_selected), true, None)
+                .unwrap()
+                .unwrap();
         assert_eq!(approved, safe.canonicalize().unwrap());
 
         std::fs::remove_file(&selected).unwrap();
@@ -652,14 +689,13 @@ mod integrity_tests {
     fn accepts_a_picked_or_previously_approved_model_root() {
         let selected = tempfile::tempdir().unwrap();
         let selected_path = selected.path().canonicalize().unwrap();
-        let picked =
-            authorize_custom_models_root(Some(selected.path().to_str().unwrap()), true, None)
-                .unwrap()
-                .unwrap();
+        let picked = authorize_custom_models_root(Some(&selected_path), true, None)
+            .unwrap()
+            .unwrap();
         assert_eq!(picked, selected_path);
 
         let restored = authorize_custom_models_root(
-            Some(selected.path().to_str().unwrap()),
+            Some(&selected_path),
             false,
             Some(&selected_path),
         )
@@ -670,7 +706,7 @@ mod integrity_tests {
 
     #[test]
     fn rejects_relative_model_roots_even_when_picker_scope_matches() {
-        let error = authorize_custom_models_root(Some("relative/models"), true, None).unwrap_err();
+        let error = canonical_custom_models_root("relative/models").unwrap_err();
 
         assert_eq!(error, "Model directory must be an absolute path");
     }
@@ -680,9 +716,10 @@ mod integrity_tests {
         let selected = tempfile::tempdir().unwrap();
         let other = tempfile::tempdir().unwrap();
         let other_path = other.path().canonicalize().unwrap();
+        let selected_path = selected.path().canonicalize().unwrap();
 
         let error = authorize_custom_models_root(
-            Some(selected.path().to_str().unwrap()),
+            Some(&selected_path),
             false,
             Some(&other_path),
         )
@@ -696,8 +733,7 @@ mod integrity_tests {
         let parent = tempfile::tempdir().unwrap();
         let missing = parent.path().join("missing");
 
-        let error =
-            authorize_custom_models_root(Some(missing.to_str().unwrap()), true, None).unwrap_err();
+        let error = canonical_custom_models_root(missing.to_str().unwrap()).unwrap_err();
 
         assert!(!error.is_empty());
     }

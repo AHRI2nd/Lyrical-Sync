@@ -70,11 +70,13 @@ if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
             result=subprocess.run(['bash','-c','set -euo pipefail\n'+gate],cwd=ROOT,env=env,text=True,capture_output=True)
             return result,log.read_text(encoding='utf-8') if log.exists() else ''
 
-    def test_default_capability_does_not_grant_recursive_audio_enumeration(self):
+    def test_default_capability_does_not_grant_plugin_file_read_access(self):
         config=json.loads((ROOT/'src-tauri/capabilities/default.json').read_text(encoding='utf-8'))
-        self.assertIn('fs:allow-read-file',config['permissions'])
+        self.assertNotIn('fs:allow-read-file',config['permissions'])
         self.assertNotIn('fs:allow-read-dir',config['permissions'])
         self.assertNotIn('fs:scope-audio-recursive',config['permissions'])
+        app_permissions=json.loads((ROOT/'src-tauri/permissions/default.json').read_text(encoding='utf-8'))['allow']
+        self.assertNotIn('fs:allow-read-file',app_permissions)
 
     def test_localized_install_guides_match_macos_ai_and_update_warnings(self):
         korean=(ROOT/'README.ko.md').read_text(encoding='utf-8')
