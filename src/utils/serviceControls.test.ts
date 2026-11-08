@@ -15,7 +15,10 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  useServiceStore.getState().logout();
+  vi.unstubAllGlobals();
+});
 
 it("clamps a Spotify skip to the known track duration", async () => {
   useServiceStore.setState({
@@ -107,16 +110,46 @@ it("does not let a delayed Stop reset a newer Spotify seek", async () => {
   serviceControls.stopAndReset();
   await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
   serviceControls.seekTo(15);
-  await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(useServiceStore.getState().positionMs).toBe(15_000);
 
   pause.resolve({ ok: true } as Response);
-  await Promise.resolve();
-  await Promise.resolve();
-  expect(fetchMock).toHaveBeenCalledTimes(2);
+  await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
   expect(useServiceStore.getState().positionMs).toBe(15_000);
 
   seek.resolve({ ok: true } as Response);
   await Promise.resolve();
   await Promise.resolve();
   expect(useServiceStore.getState().positionMs).toBe(15_000);
+});
+
+it("sends rapid Spotify seeks in the same order as their optimistic state", async () => {
+  useServiceStore.setState({
+    isLoggedIn: true,
+    accessToken: "token",
+    tokenExpiresAt: Date.now() + 3_600_000,
+    positionMs: 0,
+    durationMs: 60_000,
+    _lastKnownPositionMs: 0,
+    _lastStateTimestamp: Date.now(),
+    _playbackRevision: 0,
+  });
+  const first = deferred<Response>();
+  const fetchMock = vi.fn().mockReturnValueOnce(first.promise).mockResolvedValueOnce({ ok: true, status: 204 } as Response);
+  vi.stubGlobal("fetch", fetchMock);
+
+  serviceControls.seekTo(10);
+  await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+  serviceControls.seekTo(20);
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(fetchMock).toHaveBeenCalledOnce();
+  expect(useServiceStore.getState().positionMs).toBe(20_000);
+
+  first.resolve({ ok: true, status: 204 } as Response);
+  await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  expect(String(fetchMock.mock.calls[0][0])).toContain("position_ms=10000");
+  expect(String(fetchMock.mock.calls[1][0])).toContain("position_ms=20000");
 });

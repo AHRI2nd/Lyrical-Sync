@@ -4,6 +4,16 @@ import { useLrcStore } from "../stores/useLrcStore";
 import { useSettingsStore } from "../stores/useSettingsStore";
 import { toast } from "../stores/useToastStore";
 
+let spotifyCommandQueue: Promise<void> = Promise.resolve();
+
+function enqueueSpotifyCommand(url: string, lease: ReturnType<typeof spotifyAuthLease>): Promise<void> {
+  const request = spotifyCommandQueue.then(() => spotifyApiRequest(url, {
+    method: "PUT",
+  }, async () => undefined, lease));
+  spotifyCommandQueue = request.then(() => undefined, () => undefined);
+  return request;
+}
+
 function restorePlayback(
   revision: number,
   snapshot: ReturnType<typeof useServiceStore.getState>,
@@ -42,9 +52,7 @@ async function spotifySeekTo(seconds: number): Promise<void> {
   });
   if (updateLyricTime) useLrcStore.getState().setCurrentTime(posMs / 1000);
   try {
-    await spotifyApiRequest(`https://api.spotify.com/v1/me/player/seek?position_ms=${posMs}`, {
-      method: "PUT",
-    }, async () => undefined, lease);
+    await enqueueSpotifyCommand(`https://api.spotify.com/v1/me/player/seek?position_ms=${posMs}`, lease);
   } catch (error) {
     if (isSpotifyAuthLeaseCurrent(lease)) {
       restorePlayback(revision, snapshot, false);
@@ -73,9 +81,7 @@ async function spotifyTogglePlay(): Promise<void> {
   else snapshot._stopInterpolation();
 
   try {
-    await spotifyApiRequest(`https://api.spotify.com/v1/me/player/${willPlay ? "play" : "pause"}`, {
-      method: "PUT",
-    }, async () => undefined, lease);
+    await enqueueSpotifyCommand(`https://api.spotify.com/v1/me/player/${willPlay ? "play" : "pause"}`, lease);
   } catch (error) {
     if (isSpotifyAuthLeaseCurrent(lease)) {
       restorePlayback(revision, snapshot, true);
@@ -93,9 +99,7 @@ async function spotifyStop(): Promise<void> {
   snapshot._stopInterpolation();
   if (snapshot.isPlaying) {
     try {
-      await spotifyApiRequest("https://api.spotify.com/v1/me/player/pause", {
-        method: "PUT",
-      }, async () => undefined, lease);
+      await enqueueSpotifyCommand("https://api.spotify.com/v1/me/player/pause", lease);
     } catch (error) {
       if (isSpotifyAuthLeaseCurrent(lease)) {
         restorePlayback(revision, snapshot, true);
@@ -115,9 +119,7 @@ async function spotifyStop(): Promise<void> {
     _playbackRevision: seekRevision,
   });
   try {
-    await spotifyApiRequest("https://api.spotify.com/v1/me/player/seek?position_ms=0", {
-      method: "PUT",
-    }, async () => undefined, lease);
+    await enqueueSpotifyCommand("https://api.spotify.com/v1/me/player/seek?position_ms=0", lease);
   } catch (error) {
     if (isSpotifyAuthLeaseCurrent(lease)) {
       restorePlayback(seekRevision, paused, false);
