@@ -26,6 +26,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { serializeLrc } from "../utils/lrcParser";
+import { assertSrtDocumentLossless } from "../utils/srtConverter";
 import { setDocumentConfirmation } from "../utils/documentTransition";
 import { useToastStore } from "./useToastStore";
 import { useI18nStore } from "./useI18nStore";
@@ -158,6 +159,17 @@ describe("useLrcStore — line actions", () => {
 
     expect(useLrcStore.getState().doc.metadata).toMatchObject({ title: "", artist: "Tag artist" });
     expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
+  it("does not add audio-tag metadata to an SRT working document", () => {
+    reset([{ id: "srt-line", timestamp: 1, srtEndTime: 2, text: "Cue" }]);
+    useLrcStore.setState({ lrcPath: "/tmp/current.srt", isDirty: false });
+
+    useLrcStore.getState().setAudioMetadata({ title: "Tagged title", artist: "Tagged artist" });
+
+    expect(useLrcStore.getState().doc.metadata).toMatchObject({ title: "", artist: "", album: "" });
+    expect(useLrcStore.getState().isDirty).toBe(false);
+    expect(() => assertSrtDocumentLossless(useLrcStore.getState().doc)).not.toThrow();
   });
 
   it("tracks document revisions for user edits and undo but excludes silent metadata sync", () => {

@@ -502,6 +502,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
 
   setAudioMetadata: (meta) => {
     const state = get();
+    if (state.lrcPath?.toLowerCase().endsWith(".srt")) return;
     const changed = (Object.entries(meta) as [keyof Pick<LrcMetadata, "title" | "artist" | "album">, string][])
       .filter(([field, value]) =>
         typeof value === "string" && value.trim() !== "" &&
