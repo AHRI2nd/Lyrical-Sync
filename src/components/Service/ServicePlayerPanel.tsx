@@ -163,6 +163,7 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
         <span className="shrink-0"><VolumeIcon /></span>
         <input
           type="range" min={0} max={1} step={0.01} value={volumeAvailable ? volume : 0} disabled={!volumeAvailable}
+          aria-label={t.volume}
           onChange={(e) => {
             isAdjustingVolume.current = true;
             const v = parseFloat(Number(e.target.value).toFixed(2));

@@ -42,6 +42,13 @@ it("syncs its volume slider when the active playback device changes", async () =
   expect(getVolume).toHaveBeenCalledTimes(2);
 });
 
+it("exposes the Spotify volume slider with an accessible name", async () => {
+  render(<ServicePlayerPanel />);
+
+  const slider = screen.getByRole("slider", { name: useI18nStore.getState().t.volume });
+  await waitFor(() => expect((slider as HTMLInputElement).disabled).toBe(false));
+});
+
 it("refreshes a remote volume change without changing the active device", async () => {
   useServiceStore.setState({ activePlaybackDeviceId: "external-speaker", activePlaybackVolumePercent: 30 });
   getVolume.mockReset().mockResolvedValue(0.3);
