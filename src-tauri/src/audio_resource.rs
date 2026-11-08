@@ -1,6 +1,7 @@
 use lofty::file::AudioFile;
 use serde::Serialize;
 use std::io::{Read, Seek, SeekFrom};
+use std::fs::{File, OpenOptions};
 use std::path::Path;
 use std::time::Duration;
 
@@ -12,6 +13,21 @@ const MIN_AUDIO_SAMPLE_RATE: u32 = 8_000;
 const MAX_AUDIO_SAMPLE_RATE: u32 = 192_000;
 const WEBAUDIO_BASE_SAMPLE_RATE: u32 = 48_000;
 pub const AUDIO_RESOURCE_LIMIT_ERROR: &str = "AUDIO_RESOURCE_LIMIT";
+
+fn open_audio_file(path: &Path) -> Result<File, String> {
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NONBLOCK);
+    }
+    let file = options.open(path).map_err(|error| error.to_string())?;
+    if !file.metadata().map_err(|error| error.to_string())?.is_file() {
+        return Err("Audio path is not a regular file".into());
+    }
+    Ok(file)
+}
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -87,7 +103,7 @@ pub fn validate_pcm_frames(sample_rate: u32, channels: u8, frames: u64) -> Resul
 }
 
 pub fn inspect_audio_file(path: &Path) -> Result<AudioResourceInfo, String> {
-    let mut file = std::fs::File::open(path).map_err(|error| error.to_string())?;
+    let mut file = open_audio_file(path)?;
     inspect_audio_file_handle(&mut file)
 }
 
@@ -117,7 +133,7 @@ fn read_bounded_audio_file_with_hook(
     path: &Path,
     after_inspect: impl FnOnce(),
 ) -> Result<(Vec<u8>, AudioResourceInfo), String> {
-    let mut file = std::fs::File::open(path).map_err(|error| error.to_string())?;
+    let mut file = open_audio_file(path)?;
     let info = inspect_audio_file_handle(&mut file)?;
     after_inspect();
     if file.metadata().map_err(|error| error.to_string())?.len() > MAX_AUDIO_FILE_BYTES {
@@ -191,6 +207,32 @@ mod tests {
 
         let error = inspect_audio_file(&path).unwrap_err();
         assert_eq!(error, AUDIO_RESOURCE_LIMIT_ERROR);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn rejects_fifo_audio_paths_without_blocking() {
+        use std::ffi::CString;
+        use std::os::unix::ffi::OsStrExt;
+        use std::sync::mpsc;
+        use std::thread;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("audio.pipe");
+        let c_path = CString::new(path.as_os_str().as_bytes()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(c_path.as_ptr(), 0o600) }, 0);
+
+        let inspect_path = path.clone();
+        let (inspect_tx, inspect_rx) = mpsc::channel();
+        thread::spawn(move || { let _ = inspect_tx.send(inspect_audio_file(&inspect_path)); });
+        let inspect = inspect_rx.recv_timeout(Duration::from_secs(1)).expect("FIFO inspection must not block");
+        assert!(inspect.unwrap_err().contains("regular file"));
+
+        let read_path = path.clone();
+        let (read_tx, read_rx) = mpsc::channel();
+        thread::spawn(move || { let _ = read_tx.send(read_bounded_audio_file(&read_path)); });
+        let read = read_rx.recv_timeout(Duration::from_secs(1)).expect("FIFO read must not block");
+        assert!(read.unwrap_err().contains("regular file"));
     }
 
     #[test]
