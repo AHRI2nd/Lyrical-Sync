@@ -277,6 +277,18 @@ describe("App — drag-and-drop conflict resolution", () => {
     expect(stampSpy).toHaveBeenCalledTimes(1);
   });
 
+  it("does not stamp additional rows from repeated Space keydown events", () => {
+    const stampSpy = vi.spyOn(useLrcStore.getState(), "stampAndAdvance");
+    render(<><App /><div data-testid="editor-surface" tabIndex={0}>editor</div></>);
+    const surface = screen.getByTestId("editor-surface");
+    surface.focus();
+
+    fireEvent.keyDown(surface, { code: "Space", key: " " });
+    fireEvent.keyDown(surface, { code: "Space", key: " ", repeat: true });
+
+    expect(stampSpy).toHaveBeenCalledTimes(1);
+  });
+
   it("asks before closing a dirty document and closes when the user discards it", async () => {
     resetLrc({ isDirty: true, doc: { ...defaultDocument(), lines: [{ id: "1", text: "Unsaved", timestamp: 1 }] } });
     render(<App />);

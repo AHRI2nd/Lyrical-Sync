@@ -109,6 +109,7 @@ function useGlobalKeys() {
       if (action === "stamp" || action === "prevLine") {
         if (syncMode === "char" || anyModalOpen()) return;
         e.preventDefault();
+        if (e.repeat) return;
         if (action === "stamp") stampAndAdvance();
         else goToPreviousLine();
       }
