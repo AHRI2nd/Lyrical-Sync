@@ -69,11 +69,12 @@ it("freezes list and settings during execution and waits for active work after s
   await selectInputsAndOutput();
   fireEvent.click(screen.getByRole("button", { name: "Run" }));
   await screen.findByRole("button", { name: "Stop" });
-  for (const name of ["Select files", "Output folder", "Convert", t.deleteLine, t.confirmNewCancel]) {
+  for (const name of ["Select files", "Output folder", "Convert", t.confirmNewCancel]) {
     for (const button of screen.getAllByRole("button", { name })) {
       expect(button.hasAttribute("disabled") || !!button.closest("fieldset[disabled]")).toBe(true);
     }
   }
+  expect(screen.getByRole("button", { name: new RegExp(`${t.deleteLine}: /inputs/song\\.lrc`) }).hasAttribute("disabled")).toBe(true);
   expect(screen.getByRole("spinbutton", { name: "Offset seconds" }).closest("fieldset[disabled]")).not.toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Stop" }));
   expect(vi.mocked(runBatchOperation).mock.calls[0][4]?.signal?.aborted).toBe(true);
@@ -96,12 +97,16 @@ it("aborts a running snapshot on unmount", async () => {
   await act(async () => { finish({ done: 1, error: 0, cancelled: 0 }); });
 });
 
-it("shows preflight failures without leaving the dialog running", async () => {
-  vi.mocked(runBatchOperation).mockRejectedValueOnce(new Error("Duplicate output: song.srt"));
-  render(<BatchToolModal t={t} onClose={vi.fn()} />);
+it.each([
+  ["en", translations.en, "Duplicate output filename: song.srt"],
+  ["ko", translations.ko, "중복된 출력 파일명: song.srt"],
+  ["ja", translations.ja, "重複した出力ファイル名: song.srt"],
+] as const)("localizes duplicate output preflight errors in %s", async (_lang, locale, expected) => {
+  vi.mocked(runBatchOperation).mockRejectedValueOnce(new Error("DUPLICATE_OUTPUT:song.srt"));
+  render(<BatchToolModal t={{ ...t, batchErrorDuplicateOutput: locale.batchErrorDuplicateOutput }} onClose={vi.fn()} />);
   await selectInputsAndOutput();
   fireEvent.click(screen.getByRole("button", { name: "Run" }));
-  expect(await screen.findByRole("alert")).toHaveProperty("textContent", "Duplicate output: song.srt");
+  expect(await screen.findByRole("alert")).toHaveProperty("textContent", expected);
   expect((screen.getByRole("button", { name: "Select files" }) as HTMLButtonElement).disabled).toBe(false);
 });
 
@@ -128,7 +133,7 @@ it("keeps same-basename rows distinct when removing and reporting refreshed refe
   vi.mocked(open).mockResolvedValueOnce(["/a/song.lrc", "/b/song.lrc"]);
   fireEvent.click(screen.getByRole("button", { name: "Select files" }));
   await waitFor(() => expect(screen.getAllByText("song.lrc")).toHaveLength(2));
-  fireEvent.click(screen.getAllByRole("button", { name: t.deleteLine })[0]);
+  fireEvent.click(screen.getByRole("button", { name: /Delete line: \/a\/song\.lrc/ }));
   expect(screen.getAllByText("song.lrc")).toHaveLength(1);
   vi.mocked(open).mockResolvedValueOnce("/output");
   fireEvent.click(screen.getByRole("button", { name: "Output folder" }));

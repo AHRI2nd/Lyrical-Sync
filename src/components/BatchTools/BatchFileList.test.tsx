@@ -67,3 +67,19 @@ it("localizes unrepresentable ASS text in the batch row", () => {
 
   expect(screen.getByText(t.toast.assUnrepresentableContent)).toBeTruthy();
 });
+
+it("gives each batch-file removal control a filename-specific accessible name", () => {
+  const t = useI18nStore.getState().t;
+  render(<BatchFileList
+    t={t}
+    entries={[
+      { id: "first", file: { path: "/one/song.lrc", bookmark: "" }, status: "pending" },
+      { id: "second", file: { path: "/two/song.lrc", bookmark: "" }, status: "pending" },
+    ]}
+    onRemove={() => {}}
+    disabled={false}
+  />);
+
+  expect(screen.getByRole("button", { name: /\/one\/song\.lrc/ })).toBeTruthy();
+  expect(screen.getByRole("button", { name: /\/two\/song\.lrc/ })).toBeTruthy();
+});
