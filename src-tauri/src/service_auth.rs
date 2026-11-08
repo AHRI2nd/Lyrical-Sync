@@ -24,6 +24,45 @@ fn token_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
 const KEYRING_SERVICE: &str = "Lyrical Sync";
 const KEYRING_USER: &str = "spotify_refresh_token";
 const TOKEN_REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
+const MAX_OAUTH_ERROR_BODY_BYTES: usize = 16 * 1024;
+
+#[derive(Deserialize)]
+struct SpotifyOAuthError {
+    error: String,
+}
+
+fn is_invalid_grant_error_body(body: &[u8]) -> bool {
+    if body.len() > MAX_OAUTH_ERROR_BODY_BYTES {
+        return false;
+    }
+    serde_json::from_slice::<SpotifyOAuthError>(body)
+        .is_ok_and(|error| error.error == "invalid_grant")
+}
+
+async fn response_is_invalid_grant(mut response: reqwest::Response) -> bool {
+    if response
+        .content_length()
+        .is_some_and(|length| length > MAX_OAUTH_ERROR_BODY_BYTES as u64)
+    {
+        return false;
+    }
+    let mut body = Vec::new();
+    loop {
+        let chunk = match response.chunk().await {
+            Ok(Some(chunk)) => chunk,
+            Ok(None) => break,
+            Err(_) => return false,
+        };
+        let Some(next_length) = body.len().checked_add(chunk.len()) else {
+            return false;
+        };
+        if next_length > MAX_OAUTH_ERROR_BODY_BYTES {
+            return false;
+        }
+        body.extend_from_slice(&chunk);
+    }
+    is_invalid_grant_error_body(&body)
+}
 
 fn token_client() -> Result<Client, String> {
     Client::builder()
@@ -161,7 +200,11 @@ pub async fn refresh_spotify_token(
         .map_err(|e| format!("토큰 갱신 요청 실패: {e}"))?;
 
     if !resp.status().is_success() {
-        return Err(format!("Spotify token refresh failed ({})", resp.status()));
+        let status = resp.status();
+        if response_is_invalid_grant(resp).await {
+            return Err("invalid_grant".into());
+        }
+        return Err(format!("Spotify token refresh failed ({status})"));
     }
 
     let token = resp
@@ -466,5 +509,15 @@ mod token_file_tests {
         write_restricted_token_file(&path, "secret-token").unwrap();
 
         assert_eq!(std::fs::metadata(path).unwrap().permissions().mode() & 0o777, 0o600);
+    }
+
+    #[test]
+    fn refresh_error_recognizes_only_a_bounded_invalid_grant_body() {
+        use super::{is_invalid_grant_error_body, MAX_OAUTH_ERROR_BODY_BYTES};
+
+        assert!(is_invalid_grant_error_body(br#"{"error":"invalid_grant"}"#));
+        assert!(!is_invalid_grant_error_body(br#"{"error":"invalid_client"}"#));
+        assert!(!is_invalid_grant_error_body(b"invalid_grant"));
+        assert!(!is_invalid_grant_error_body(&vec![b'x'; MAX_OAUTH_ERROR_BODY_BYTES + 1]));
     }
 }
