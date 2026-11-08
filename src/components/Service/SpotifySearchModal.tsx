@@ -288,8 +288,8 @@ export function SpotifySearchModal({ onClose }: Props) {
       onClose();
     } catch (e) {
       if (!isSpotifyAuthLeaseCurrent(lease)) return;
-      const msg = String(e);
-      if (msg.includes("NO_ACTIVE_DEVICE") || msg.includes("No active device")) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg === "no_active_spotify_device" || msg.includes("NO_ACTIVE_DEVICE") || msg.includes("No active device")) {
         setError(t.spotifyNoPlayableDevices);
       } else {
         setError(t.spotifyPlaybackFailed.replace("{error}", msg));

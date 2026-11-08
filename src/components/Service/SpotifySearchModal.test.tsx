@@ -104,6 +104,22 @@ it("exposes the selected Spotify search tab programmatically", () => {
   expect(playlists.getAttribute("aria-pressed")).toBe("true");
 });
 
+it("maps the native no-active-device error to its dedicated message", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => response("Test Track"),
+  } as Response));
+  useServiceStore.setState({ playTrack: vi.fn().mockRejectedValue(new Error("no_active_spotify_device")) });
+  render(<SpotifySearchModal onClose={() => {}} />);
+  fireEvent.change(screen.getByPlaceholderText(useI18nStore.getState().t.spotifySearchPlaceholder), { target: { value: "test" } });
+  await act(async () => { await vi.advanceTimersByTimeAsync(400); await Promise.resolve(); await Promise.resolve(); });
+  expect(screen.getByText("Test Track")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: /Test Track/ }));
+  await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+  expect(screen.getByText(useI18nStore.getState().t.spotifyNoPlayableDevices)).toBeTruthy();
+  expect(screen.queryByText(/no_active_spotify_device/)).toBeNull();
+});
+
 it("loads Spotify playlists incrementally through validated next pages", async () => {
   const first = deferred<Response>();
   const second = deferred<Response>();
