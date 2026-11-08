@@ -122,7 +122,7 @@ export function BatchToolModal({ t, onClose }: { t: Translations; onClose: () =>
           </div>
           <BatchOperationPicker t={t} operation={operation} disabled={busy} onChange={(next) => { if (!abortRef.current && !selectingRef.current) { setOperation(next); setSummary(null); } }} />
           {error && <p role="alert" className="break-words text-xs text-red-400">{localizeBatchError(t, error)}</p>}
-          {summary && <p role="status" className="text-xs text-[var(--ls-text-secondary)]">{summary.done} {t.batchSummaryDone} · {summary.error} {t.batchSummaryError} · {summary.cancelled} {t.batchSummaryCancelled}</p>}
+          {summary && <p role="status" className="text-xs text-[var(--ls-text-secondary)]">{summary.done} {t.batchSummaryDone} · {summary.error} {t.batchSummaryError} · {t.batchSummaryCancelled.replace("{count}", String(summary.cancelled))}</p>}
           <div className="flex justify-end gap-2">
             <button type="button" disabled={busy} className={`ls-button ${buttonClass}`} onClick={close}>{t.confirmNewCancel}</button>
             {running ? <button type="button" disabled={stopping} className={`ls-button ${`${buttonClass} border-red-800 text-red-300`}`} onClick={() => { abortRef.current?.abort(); setStopping(true); }}>{stopping ? t.batchStopping : t.batchStop}</button>

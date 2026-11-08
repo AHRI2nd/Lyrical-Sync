@@ -45,6 +45,22 @@ it("requires an explicitly selected folder and uses direct-edition file referenc
   expect(open).toHaveBeenCalledWith(expect.objectContaining({ directory: true, multiple: false }));
 });
 
+it.each([
+  ["en", translations.en.batchSummaryCancelled, "2 cancelled"],
+  ["ko", translations.ko.batchSummaryCancelled, "취소 2개"],
+  ["ja", translations.ja.batchSummaryCancelled, "2件キャンセル"],
+] as const)("interpolates the cancelled count in the %s batch summary", async (_lang, template, expected) => {
+  vi.mocked(runBatchOperation).mockResolvedValueOnce({ done: 1, error: 0, cancelled: 2 });
+  const localized = { ...t, batchSummaryCancelled: template };
+  render(<BatchToolModal t={localized} onClose={vi.fn()} />);
+  await selectInputsAndOutput();
+  fireEvent.click(screen.getByRole("button", { name: "Run" }));
+
+  const summary = await screen.findByRole("status");
+  expect(summary.textContent).toContain(expected);
+  expect(summary.textContent).not.toContain("{count}");
+});
+
 it("freezes list and settings during execution and waits for active work after stopping", async () => {
   let finish!: (summary: BatchSummary) => void;
   vi.mocked(runBatchOperation).mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
