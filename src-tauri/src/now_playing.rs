@@ -31,7 +31,7 @@ pub struct NowPlayingInfo {
 
 #[cfg(test)]
 mod tests {
-    use super::{valid_unix_timestamp, with_device_timeout};
+    use super::{milliseconds_to_100ns_ticks, valid_unix_timestamp, with_device_timeout};
     use std::time::Duration;
 
     #[test]
@@ -39,6 +39,19 @@ mod tests {
         assert_eq!(valid_unix_timestamp(0), None);
         assert_eq!(valid_unix_timestamp(-1), None);
         assert_eq!(valid_unix_timestamp(1_700_000_000_000), Some(1_700_000_000_000));
+    }
+
+    #[test]
+    fn seek_positions_clamp_negative_values_and_reject_overflow() {
+        assert_eq!(milliseconds_to_100ns_ticks(-1).unwrap(), 0);
+        assert_eq!(
+            milliseconds_to_100ns_ticks(i64::MAX / 10_000).unwrap(),
+            (i64::MAX / 10_000) * 10_000
+        );
+        assert_eq!(
+            milliseconds_to_100ns_ticks(i64::MAX / 10_000 + 1).unwrap_err(),
+            "seek_position_out_of_range"
+        );
     }
 
     #[tokio::test]
@@ -56,9 +69,16 @@ fn valid_unix_timestamp(value: i64) -> Option<i64> {
     (value > 0).then_some(value)
 }
 
+fn milliseconds_to_100ns_ticks(position_ms: i64) -> Result<i64, String> {
+    position_ms
+        .max(0)
+        .checked_mul(10_000)
+        .ok_or_else(|| "seek_position_out_of_range".into())
+}
+
 #[cfg(target_os = "windows")]
 mod platform {
-    use super::{valid_unix_timestamp, NowPlayingInfo};
+    use super::{milliseconds_to_100ns_ticks, valid_unix_timestamp, NowPlayingInfo};
     use tauri::AppHandle;
     use windows::Media::Control::GlobalSystemMediaTransportControlsSessionManager;
     use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
@@ -154,7 +174,7 @@ mod platform {
             .await
             .map_err(|e| e.to_string())?;
         let session = manager.GetCurrentSession().map_err(|e| e.to_string())?;
-        let ticks = position_ms.max(0) * 10_000;
+        let ticks = milliseconds_to_100ns_ticks(position_ms)?;
         let accepted = session
             .TryChangePlaybackPositionAsync(ticks)
             .map_err(|e| e.to_string())?
