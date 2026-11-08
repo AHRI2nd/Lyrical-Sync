@@ -411,7 +411,13 @@ export function parseLrc(raw: string): LrcDocument {
       previous = [];
       continue;
     }
-    const rawContent = translationMode ? rest : (preserveWhitespace ? rest : rest.trim());
+    const rawContent = translationMode
+      ? rest
+      : preserveWhitespace
+        ? rest
+        : timestamps.length > 0
+          ? rawLine.trimStart().slice(line.length - rest.length)
+          : rest.trim();
     const parsedInline = inlineEscapeMode
       ? parseMarkedInlineSyllables(rawContent, MAX_ENHANCED_LRC_TIMESTAMPS - inlineTimestampCount)
       : (() => {

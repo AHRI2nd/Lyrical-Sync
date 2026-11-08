@@ -33,6 +33,12 @@ it("rejects line breaks in extra metadata keys and values", () => {
   expect(() => serializeLrc({ ...docOf([]), extraTags: { "x-safe": "value\r\n[00:02.00]" } })).toThrow("LRC metadata cannot contain line breaks");
 });
 
+it("preserves edge whitespace from an unmarked timed LRC lyric row", () => {
+  const imported = parseLrc("[00:01.00]  lyric  ");
+  expect(imported.lines[0].text).toBe("  lyric  ");
+  expect(parseLrc(serializeLrc(imported)).lines[0].text).toBe("  lyric  ");
+});
+
 it.each(["\u2028", "\u2029"])("rejects Unicode line separator %s in LRC metadata", (separator) => {
   expect(() => serializeLrc({
     ...docOf([]),
@@ -562,8 +568,8 @@ it("does not merge pre-marker or mismatched repeated timestamps", () => {
 });
 
 
-it("retains ordinary LRC whitespace normalization around timestamps", () => {
-  expect(parseLrc("  [00:01.00]hello  ").lines[0]).toMatchObject({ timestamp: 1, text: "hello" });
+it("preserves lyric edge whitespace while normalizing layout before a timestamp", () => {
+  expect(parseLrc("  [00:01.00]hello  ").lines[0]).toMatchObject({ timestamp: 1, text: "hello  " });
 });
 
 it("round-trips edited row order, untimed blank rows, and lyric edge whitespace", () => {

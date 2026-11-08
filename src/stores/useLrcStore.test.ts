@@ -1283,6 +1283,31 @@ describe("useLrcStore — save completion races", () => {
     expect(useLrcStore.getState().isDirty).toBe(true);
   });
 
+  it("preserves imported timed lyric edge whitespace when another row is edited and saved", async () => {
+    const writes: string[] = [];
+    vi.mocked(invoke).mockImplementation(async (command: unknown, args?: unknown) => {
+      if (command === "read_lrc_file_with_hash") {
+        return { content: "[00:01.00]  original  \n[00:02.00]second", sha256: "a".repeat(64) };
+      }
+      if (command === "write_lrc_file_if_unchanged") {
+        writes.push((args as { content: string }).content);
+        return "c".repeat(64);
+      }
+      return undefined;
+    });
+
+    await useLrcStore.getState().loadLyricsPath("/tmp/edge-whitespace.lrc");
+    const imported = useLrcStore.getState().doc.lines;
+    expect(imported[0].text).toBe("  original  ");
+    useLrcStore.getState().updateLine(imported[1].id, { text: "edited second" });
+
+    await expect(useLrcStore.getState().saveLrc()).resolves.toBe(true);
+
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toContain("[00:01.00]  original  ");
+    expect(writes[0]).toContain("[00:02.00]edited second");
+  });
+
   it("returns to clean when undo restores the last saved document", () => {
     const savedDoc = { ...useLrcStore.getState().doc, lines: [{ id: "1", timestamp: 1, text: "saved" }] };
     useLrcStore.setState({ doc: savedDoc, _savedDocument: savedDoc, isDirty: false, lrcPath: "/tmp/song.lrc" });
