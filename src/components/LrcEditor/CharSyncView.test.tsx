@@ -578,6 +578,24 @@ it('paints vertically across wrapped glyphs in a single undo entry', () => {
   expect(useLrcStore.getState()._history).toHaveLength(1);
 });
 
+it('preserves earlier glyph stamps when paint events share a React batch', () => {
+  const { container } = setup();
+  const first = container.querySelector('[data-glyph="0"]')!;
+  const second = container.querySelector('[data-glyph="1"]')!;
+  Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => second });
+  fireEvent.mouseDown(first, { button: 0, clientX: 10, clientY: 10 });
+
+  act(() => {
+    fireEvent.mouseMove(window, { buttons: 1, clientX: 10, clientY: 30 });
+    useLrcStore.setState({ currentTime: 13 });
+    fireEvent.mouseMove(window, { buttons: 1, clientX: 10, clientY: 40 });
+  });
+  fireEvent.mouseUp(window);
+
+  expect(useLrcStore.getState().doc.lines[0].syllables?.slice(0, 2).map(({ time }) => time)).toEqual([12, 13]);
+  expect(useLrcStore.getState()._history).toHaveLength(1);
+});
+
 it.each(["window blur", "buttons=0 movement"])("cancels an unfinished glyph gesture after %s", (reason) => {
   const { container } = setup();
   const first = container.querySelector('[data-glyph="0"]')!;

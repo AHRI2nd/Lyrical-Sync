@@ -441,12 +441,17 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
   // 글자를 "현재 재생 시간"으로 찍고 다음 글자를 준비(활성)로. 재생헤드는 건드리지 않음.
   // recordHistory=false면 히스토리 미기록(칠하기 드래그 도중 글자들을 1회 undo로 묶기 위함).
   const stampGlyphAt = (index: number, recordHistory = true) => {
-    const { line: ln, syllables: syl, stampableIdx: sidx } = stateRef.current;
-    if (!ln || !syl[index] || !isStampable(syl[index])) return;
-    const time = clampToNeighbors(syl, index, useLrcStore.getState().currentTime);
-    commitSyllables(ln.id, syl.map((s, i) => (i === index ? { ...s, time } : s)), recordHistory);
-    const pos = sidx.indexOf(index);
-    const nextIdx = sidx[pos + 1];
+    const { line: visibleLine, syllables: visibleSyllables, stampableIdx } = stateRef.current;
+    if (!visibleLine) return;
+    const currentState = useLrcStore.getState();
+    const line = currentState.doc.lines.find((candidate) => candidate.id === visibleLine.id);
+    if (!line || line.text !== visibleLine.text) return;
+    const syllables = line.syllables ?? visibleSyllables;
+    if (!syllables[index] || !isStampable(syllables[index])) return;
+    const time = clampToNeighbors(syllables, index, currentState.currentTime);
+    commitSyllables(line.id, syllables.map((s, i) => (i === index ? { ...s, time } : s)), recordHistory);
+    const pos = stampableIdx.indexOf(index);
+    const nextIdx = stampableIdx[pos + 1];
     if (nextIdx != null) setActiveSyllable(nextIdx);
   };
 
