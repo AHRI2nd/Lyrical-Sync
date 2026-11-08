@@ -26,3 +26,15 @@ it("keeps the ready state visible but disables restart until model work settles"
   expect(getByRole("button", { name: useI18nStore.getState().t.updater.restart }).hasAttribute("disabled")).toBe(true);
   expect(getByRole("button", { name: useI18nStore.getState().t.updater.later }).hasAttribute("disabled")).toBe(false);
 });
+
+it("exposes updater download progress as a named progressbar", () => {
+  const progress = 37;
+  useUpdaterStore.setState({ status: "downloading", progress });
+  const { getByRole, getByText } = render(<UpdateModal />);
+  const bar = getByRole("progressbar", { name: useI18nStore.getState().t.updater.downloading });
+
+  expect(bar.getAttribute("aria-valuemin")).toBe("0");
+  expect(bar.getAttribute("aria-valuemax")).toBe("100");
+  expect(bar.getAttribute("aria-valuenow")).toBe(String(progress));
+  expect(getByText(`${progress}%`)).toBeTruthy();
+});
