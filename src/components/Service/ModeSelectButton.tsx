@@ -14,6 +14,8 @@ const SUPPORTS_DEVICE_MODE = navigator.platform.startsWith("Win") || navigator.p
 export function ModeSelectButton() {
   const [open, setOpen] = useState(false);
   const [ytdlpInstalled, setYtdlpInstalled] = useState(false);
+  const ytdlpCheckIdRef = useRef(0);
+  const mountedRef = useRef(true);
   const ref = useRef<HTMLDivElement>(null);
   const { t } = useI18nStore();
   const spotifyMode = useSettingsStore((s) => s.spotifyMode);
@@ -27,11 +29,21 @@ export function ModeSelectButton() {
   const deviceTrackName = useDeviceStore((s) => s.trackName);
 
   const checkYtdlp = () => {
-    invoke<string | null>("check_ytdlp").then((v) => setYtdlpInstalled(v !== null)).catch(() => {});
+    const checkId = ++ytdlpCheckIdRef.current;
+    invoke<string | null>("check_ytdlp")
+      .then((v) => {
+        if (mountedRef.current && ytdlpCheckIdRef.current === checkId) setYtdlpInstalled(v !== null);
+      })
+      .catch(() => {});
   };
 
   useEffect(() => {
+    mountedRef.current = true;
     checkYtdlp();
+    return () => {
+      mountedRef.current = false;
+      ytdlpCheckIdRef.current += 1;
+    };
   }, []);
 
   // Re-check when yt-dlp installation completes
