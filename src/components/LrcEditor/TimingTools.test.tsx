@@ -95,6 +95,30 @@ it("applies time shift only for Ctrl/Cmd+Enter inside its own controls", () => {
   expect(onApply).toHaveBeenCalledTimes(2);
 });
 
+it("preserves sequential range entry and applies exactly the displayed rows", () => {
+  const onApply = vi.fn();
+  const { getByRole } = render(<TimeShiftBar lineCount={20} defaultFrom={1} onApply={onApply} onClose={vi.fn()} />);
+  const [from, to, delta] = Array.from(document.querySelectorAll('input[type="number"]')) as HTMLInputElement[];
+  fireEvent.change(from, { target: { value: "15" } });
+  fireEvent.change(to, { target: { value: "18" } });
+  fireEvent.change(delta, { target: { value: "0.1" } });
+
+  expect(from.value).toBe("15");
+  expect(to.value).toBe("18");
+  fireEvent.click(getByRole("button", { name: "적용" }));
+  expect(onApply).toHaveBeenCalledWith(14, 17, 0.1);
+});
+
+it("does not apply an invalid time shift range", () => {
+  const onApply = vi.fn();
+  const { getByRole } = render(<TimeShiftBar lineCount={20} defaultFrom={5} onApply={onApply} onClose={vi.fn()} />);
+  const [from, , delta] = Array.from(document.querySelectorAll('input[type="number"]')) as HTMLInputElement[];
+  fireEvent.change(from, { target: { value: "21" } });
+  fireEvent.change(delta, { target: { value: "0.1" } });
+  expect((getByRole("button", { name: "적용" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(onApply).not.toHaveBeenCalled();
+});
+
 it.each([{ isComposing: true }, { keyCode: 229 }, { shiftKey: true }, { defaultPrevented: true }])(
   "ignores time shift shortcuts during composition or when another key owner claims them (%j)",
   (modifiers) => {
