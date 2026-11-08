@@ -640,3 +640,22 @@ it("does not restore a stale timestamp draft over a newer same-document value", 
 
   expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(3);
 });
+
+it("does not describe a failed model inventory check as a missing model", async () => {
+  const t = useI18nStore.getState().t;
+  useSettingsStore.setState({ modelsDir: "", deviceMode: false, spotifyMode: false });
+  useBusyStore.setState({ reasons: new Set() });
+  vi.mocked(invoke).mockImplementation((command: unknown) => {
+    if (command === "get_python_env_info") return Promise.resolve({ packagesReady: true });
+    if (command === "get_models_dir") return Promise.resolve("/models");
+    if (command === "check_model_files") return Promise.reject(new Error("access denied"));
+    return Promise.resolve(undefined);
+  });
+  useLrcStore.setState({ audioPath: "/tmp/audio.wav" });
+  const { findByText, getByRole, queryByText } = render(<LrcEditor onPreview={() => {}} />);
+
+  await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("check_model_files", expect.anything()));
+  await findByText(t.aiSyncModelInventoryError);
+  expect(queryByText(t.aiSyncNoModel)).toBeNull();
+  expect(getByRole("button", { name: t.aiAutoSync }).hasAttribute("disabled")).toBe(true);
+});

@@ -93,6 +93,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
   const [pythonReady, setPythonReady] = useState(false);
   const [missingModels, setMissingModels] = useState<string[]>([]);
+  const [modelInventoryError, setModelInventoryError] = useState(false);
   const aiRequirementsRequest = useRef(0);
   const aiRequirementsMounted = useRef(true);
 
@@ -409,10 +410,12 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
       if (!isCurrent()) return;
     } catch {
       if (!isCurrent()) return;
-      setMissingModels(MODEL_DEFS.filter((model) => model.required).map((model) => model.name));
+      setMissingModels([]);
+      setModelInventoryError(true);
       return;
     }
     const missing: string[] = [];
+    let inventoryFailed = false;
     for (const model of MODEL_DEFS.filter((m) => m.required)) {
       try {
         const results = await invoke<boolean[]>("check_model_files", {
@@ -423,10 +426,13 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
         if (!results.every(Boolean)) missing.push(model.name);
       } catch {
         if (!isCurrent()) return;
-        missing.push(model.name);
+        inventoryFailed = true;
       }
     }
-    if (isCurrent()) setMissingModels(missing);
+    if (isCurrent()) {
+      setMissingModels(inventoryFailed ? [] : missing);
+      setModelInventoryError(inventoryFailed);
+    }
   }, [modelsDir]);
 
   useEffect(() => {
@@ -449,7 +455,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     return () => { active = false; stopModel(); stopPip(); };
   }, [checkAiRequirements]);
 
-  const canRunAi = pythonReady && missingModels.length === 0;
+  const canRunAi = pythonReady && !modelInventoryError && missingModels.length === 0;
 
   useEffect(() => {
     if (!activeLineId) return;
@@ -814,7 +820,9 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
                 {aiSyncModeUnsupported ? (
                   t.aiSyncModeUnsupported
                 ) : !canRunAi ? (
-                  <>
+                  modelInventoryError ? (
+                    <p className="font-medium text-[var(--ls-text)]">{t.aiSyncModelInventoryError}</p>
+                  ) : <>
                     <p className="font-medium text-[var(--ls-text)] mb-1">{t.aiSyncNoModel}</p>
                     <ul className="flex flex-col gap-0.5 text-[var(--ls-text-secondary)]">
                       {!pythonReady && <li>· {t.settingsVenvTitle}</li>}
