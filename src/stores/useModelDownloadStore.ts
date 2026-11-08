@@ -4,6 +4,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useBusyStore } from "./useBusyStore";
 import { useI18nStore } from "./useI18nStore";
 import { useSettingsStore } from "./useSettingsStore";
+import { setModelsDirOverride } from "../utils/modelsDirOverride";
 import { toast } from "./useToastStore";
 import { MODEL_DEFS, type ModelDef } from "../utils/modelDefs";
 
@@ -126,7 +127,7 @@ async function refreshInventory(): Promise<void> {
     ])),
   }));
   try {
-    await invoke("set_models_dir_override", { path: configuredRoot });
+    await setModelsDirOverride(configuredRoot);
     const root = await invoke<string>("get_models_dir");
     if (generation !== inventoryGeneration || (useSettingsStore.getState().modelsDir || null) !== configuredRoot) return;
     useModelDownloadStore.setState({ modelsPath: root });
@@ -198,7 +199,7 @@ export const useModelDownloadStore = create<ModelDownloadState>((set, get) => ({
     void (async () => {
       const configuredRoot = useSettingsStore.getState().modelsDir || null;
       try {
-        await invoke("set_models_dir_override", { path: configuredRoot });
+        await setModelsDirOverride(configuredRoot);
         const root = await invoke<string>("get_models_dir");
         if ((useSettingsStore.getState().modelsDir || null) !== configuredRoot) throw new Error("models_root_changed");
         operation.root = root;

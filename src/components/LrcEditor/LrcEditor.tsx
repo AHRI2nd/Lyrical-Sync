@@ -14,6 +14,7 @@ import { serviceControls } from "../../utils/serviceControls";
 import { deviceControls } from "../../utils/deviceControls";
 import { MODEL_DEFS } from "../../utils/modelDefs";
 import { listenSafely } from "../../utils/safeListen";
+import { setModelsDirOverride } from "../../utils/modelsDirOverride";
 import type { LrcLine, LrcSyllable } from "../../types/lrc";
 import { CurrentTimeFooter } from "./CurrentTimeFooter";
 import { MiniConfirm } from "./MiniConfirm";
@@ -394,7 +395,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
       && !isPythonEnvironmentBusy()
       && useSettingsStore.getState().modelsDir === requestedModelsDir;
     // 앱 재시작 뒤에도 설정 화면을 열기 전에 커스텀 모델 경로를 Rust 상태에 반영한다.
-    await invoke("set_models_dir_override", { path: modelsDir || null }).catch(() => {});
+    await setModelsDirOverride(modelsDir || null).catch(() => {});
     if (!isCurrent()) return;
     try {
       const v = await invoke<{ packagesReady: boolean }>("get_python_env_info");
