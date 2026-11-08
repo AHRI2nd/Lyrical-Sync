@@ -196,8 +196,12 @@ function assTime(seconds: number): string {
 }
 
 // Timed glyphs use ASS karaoke tags with centisecond durations.
-function escapeAssText(text: string): string {
+function assertAssTextLiteral(text: string): void {
   if (/[{}]|\\[Nnh]/.test(text)) throw new AssUnrepresentableContentError();
+}
+
+function escapeAssText(text: string): string {
+  assertAssTextLiteral(text);
   return text.replace(/\r\n|\r|\n/g, "\\N");
 }
 
@@ -205,6 +209,20 @@ function assText(line: LrcLine, cueStart: number, cueEnd: number): string {
   if (line.text.trim() === "") return escapeAssText(line.translation ?? "");
   const syl = line.syllables;
   if (syl?.some((s) => s.time !== null)) {
+    // Generated karaoke tags separate literal runs. Validate each contiguous
+    // run as a whole so a forbidden ASS escape cannot be assembled across
+    // adjacent glyph tokens that each look safe in isolation.
+    let literalRun = "";
+    for (const syllable of syl) {
+      if (syllable.time !== null) {
+        assertAssTextLiteral(literalRun);
+        literalRun = syllable.text;
+      } else {
+        literalRun += syllable.text;
+      }
+    }
+    assertAssTextLiteral(literalRun);
+
     let out = "";
     const firstTimed = syl.find((syllable) => syllable.time !== null);
     if (firstTimed?.time !== null && firstTimed) {
