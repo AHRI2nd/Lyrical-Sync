@@ -26,7 +26,7 @@ import { initSpotifyPlayer } from "./utils/spotifyPlayer";
 import { useUpdaterStore } from "./stores/useUpdaterStore";
 const UpdateModal = lazy(() => import("./components/Update/UpdateModal").then((m) => ({ default: m.UpdateModal })));
 import { useMacMenu } from "./hooks/useMacMenu";
-import { hasUnrepresentableSrtCueEndsInLrc, SrtInvalidTimestampError, SrtLossyDocumentError, SrtUnrepresentableContentError } from "./utils/srtConverter";
+import { hasUnrepresentableSrtCueDataInLrc, SrtInvalidTimestampError, SrtLossyDocumentError, SrtUnrepresentableContentError } from "./utils/srtConverter";
 import { AssUnrepresentableContentError, AssUnrepresentableCueEndError, SubtitleTimestampUnrepresentableError, VttInvalidSyllableTimeError, VttUnrepresentableContentError } from "./utils/exportFormats";
 import { LrcInlineEscapeTagConflictError, LrcInvalidTimestampError, LrcMetadataLineBreakError, LrcReservedTagConflictError, needsInlineTimestampEscape } from "./utils/lrcParser";
 import { listen } from "@tauri-apps/api/event";
@@ -244,7 +244,7 @@ function useAutoSave(recoveryPending: boolean) {
 
 function serializationErrorCode(error: unknown): string | null {
   if (error instanceof Error && error.message === "LYRICS_FILE_CHANGED") return "LYRICS_FILE_CHANGED";
-  if (error instanceof Error && error.message === "SRT_END_TIMES_NOT_REPRESENTABLE") return error.message;
+  if (error instanceof Error && error.message === "SRT_ONLY_DATA_NOT_REPRESENTABLE") return error.message;
   if (error instanceof SrtUnrepresentableContentError || error instanceof SrtLossyDocumentError || error instanceof SrtInvalidTimestampError || error instanceof VttUnrepresentableContentError || error instanceof VttInvalidSyllableTimeError || error instanceof AssUnrepresentableContentError || error instanceof AssUnrepresentableCueEndError || error instanceof SubtitleTimestampUnrepresentableError || error instanceof LrcInlineEscapeTagConflictError || error instanceof LrcInvalidTimestampError || error instanceof LrcMetadataLineBreakError || error instanceof LrcReservedTagConflictError) return error.code;
   return null;
 }
@@ -255,7 +255,7 @@ function openErrorMessage(error: unknown, t: ReturnType<typeof useI18nStore.getS
 
 function saveErrorMessage(error: unknown, t: ReturnType<typeof useI18nStore.getState>["t"]): string {
   if (error instanceof Error && error.message === "LYRICS_FILE_CHANGED") return t.toast.fileChanged;
-  if (error instanceof Error && error.message === "SRT_END_TIMES_NOT_REPRESENTABLE") return t.srtCueEndLossMessage;
+  if (error instanceof Error && error.message === "SRT_ONLY_DATA_NOT_REPRESENTABLE") return t.srtOnlyDataLossMessage;
   if (error instanceof SrtInvalidTimestampError || error instanceof LrcInvalidTimestampError) return t.toast.invalidTimestamp;
   if (error instanceof SrtUnrepresentableContentError) return t.toast.srtBlankRowsUnsupported;
   if (error instanceof SrtLossyDocumentError) return t.toast.srtLossyDocument;
@@ -484,10 +484,10 @@ function App() {
     fn: () => Promise<boolean>,
     onSuccess?: () => void | Promise<void>,
     confirmedFn: () => Promise<boolean> = fn,
-    srtCueEndLossConfirmed = false,
+    srtOnlyDataLossConfirmed = false,
   ) => {
     const current = useLrcStore.getState();
-    if (!srtCueEndLossConfirmed && hasUnrepresentableSrtCueEndsInLrc(current.doc)) {
+    if (!srtOnlyDataLossConfirmed && hasUnrepresentableSrtCueDataInLrc(current.doc)) {
       pendingSrtCueEndLossRef.current = {
         run: fn,
         confirmedRun: confirmedFn,
@@ -498,7 +498,7 @@ function App() {
       setShowSrtCueEndLossConfirm(true);
       return;
     }
-    const saveFn = srtCueEndLossConfirmed ? confirmedFn : fn;
+    const saveFn = srtOnlyDataLossConfirmed ? confirmedFn : fn;
     if (hasGlyphSync && showElrcSaveNotice) {
       pendingSaveRef.current = saveFn;
       pendingSaveSuccessRef.current = onSuccess ?? null;
@@ -809,9 +809,9 @@ function App() {
       )}
       {showSrtCueEndLossConfirm && pendingSrtCueEndLossRef.current?.session === appDocumentSession && (
         <ConfirmModal
-          title={t.srtCueEndLossTitle}
-          message={t.srtCueEndLossMessage}
-          okLabel={t.srtCueEndLossConfirm}
+          title={t.srtOnlyDataLossTitle}
+          message={t.srtOnlyDataLossMessage}
+          okLabel={t.srtOnlyDataLossConfirm}
           cancelLabel={t.cancelLabel}
           onOk={() => {
             const pending = pendingSrtCueEndLossRef.current;

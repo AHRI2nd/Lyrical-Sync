@@ -5,7 +5,7 @@ import { LrcDocument, LrcLine, LrcMetadata, LrcSyllable, defaultDocument } from 
 import { type HistoryEntry, type HistoryLabel } from "../types/history";
 import { isStampable, parseLrc, serializeLrc, tokenizeText, type SyncUnit } from "../utils/lrcParser";
 import { nearestBeat } from "../utils/bpmDetect";
-import { assertSrtDocumentLossless, hasUnrepresentableSrtCueEndsInLrc, serializeSrt, parseSrt } from "../utils/srtConverter";
+import { assertSrtDocumentLossless, hasUnrepresentableSrtCueDataInLrc, serializeSrt, parseSrt } from "../utils/srtConverter";
 import { serializeVtt, serializeAss } from "../utils/exportFormats";
 import { toast } from "./useToastStore";
 import { useI18nStore } from "./useI18nStore";
@@ -146,9 +146,9 @@ interface LrcStore {
   loadLyricsPath: (path: string, options?: { audioPath?: string | null }) => Promise<void>;
   requestApplyFetchedLyrics: (lrcText: string, meta: { title: string; artist: string; album: string } | undefined, ownerSession: number) => Promise<"applied" | "cancelled">;
   // 반환값: 실제로 파일을 썼으면 true, 사용자가 저장 다이얼로그를 취소하면 false
-  saveLrc: (confirmSrtCueEndLoss?: boolean) => Promise<boolean>;
+  saveLrc: (confirmSrtOnlyDataLoss?: boolean) => Promise<boolean>;
   // enhanced: 이번 저장에만 적용하는 일회성 override(미지정 시 글자 데이터 있으면 E-LRC)
-  saveLrcAs: (format: "lrc" | "srt" | "vtt" | "ass", enhanced?: boolean, confirmSrtCueEndLoss?: boolean) => Promise<boolean>;
+  saveLrcAs: (format: "lrc" | "srt" | "vtt" | "ass", enhanced?: boolean, confirmSrtOnlyDataLoss?: boolean) => Promise<boolean>;
   newLrc: () => void;
   replaceInLines: (find: string, replace: string, caseSensitive: boolean) => number;
   shiftTimeRange: (fromIdx: number, toIdx: number, deltaSeconds: number) => void;
@@ -998,16 +998,16 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     }
   },
 
-  saveLrc: async (confirmSrtCueEndLoss = false) => {
+  saveLrc: async (confirmSrtOnlyDataLoss = false) => {
     const { lrcPath, doc, duration, _editRevision: revision, _lrcFileHash: expectedSha256 } = get();
-    if (!lrcPath) return get().saveLrcAs("lrc", undefined, confirmSrtCueEndLoss);
+    if (!lrcPath) return get().saveLrcAs("lrc", undefined, confirmSrtOnlyDataLoss);
     if (!expectedSha256) throw new Error("LYRICS_FILE_CHANGED");
     const sessionId = documentSessionId;
     if (lrcPath.toLowerCase().endsWith(".srt")) assertSrtDocumentLossless(doc);
-    const normalizesSrtEnds = lrcPath.toLowerCase().endsWith(".lrc") && hasUnrepresentableSrtCueEndsInLrc(doc);
-    if (normalizesSrtEnds && !confirmSrtCueEndLoss) throw new Error("SRT_END_TIMES_NOT_REPRESENTABLE");
-    const savedDoc = normalizesSrtEnds
-      ? { ...doc, lines: doc.lines.map(({ srtEndTime: _srtEndTime, ...line }) => line) }
+    const normalizesSrtOnlyData = lrcPath.toLowerCase().endsWith(".lrc") && hasUnrepresentableSrtCueDataInLrc(doc);
+    if (normalizesSrtOnlyData && !confirmSrtOnlyDataLoss) throw new Error("SRT_ONLY_DATA_NOT_REPRESENTABLE");
+    const savedDoc = normalizesSrtOnlyData
+      ? { ...doc, lines: doc.lines.map(({ srtEndTime: _srtEndTime, srtCueSettings: _srtCueSettings, ...line }) => line) }
       : doc;
     const sameOwnerAndRevision = () =>
       documentSessionId === sessionId && get().lrcPath === lrcPath && get()._editRevision === revision;
@@ -1033,7 +1033,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     if (!result.success) return false;
     if (documentSessionId === sessionId && get().lrcPath === lrcPath) set({ _savedDocument: savedDoc });
     if (documentSessionId === sessionId && get().lrcPath === lrcPath && current.doc === doc) {
-      if (normalizesSrtEnds) {
+      if (normalizesSrtOnlyData) {
         pushHistory("convertFormat");
         set({ doc: savedDoc, _savedDocument: savedDoc, isDirty: false, _lastEditKey: null, _editRevision: revision + 1 });
       } else {
@@ -1045,12 +1045,12 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     return true;
   },
 
-  saveLrcAs: async (format, enhanced, confirmSrtCueEndLoss = false) => {
+  saveLrcAs: async (format, enhanced, confirmSrtOnlyDataLoss = false) => {
     const { doc, duration, lrcPath: originalPath, _editRevision: revision, _lrcFileHash: originalFileHash } = get();
-    const normalizesSrtEnds = format === "lrc" && hasUnrepresentableSrtCueEndsInLrc(doc);
-    if (normalizesSrtEnds && !confirmSrtCueEndLoss) throw new Error("SRT_END_TIMES_NOT_REPRESENTABLE");
-    const savedDoc = normalizesSrtEnds
-      ? { ...doc, lines: doc.lines.map(({ srtEndTime: _srtEndTime, ...line }) => line) }
+    const normalizesSrtOnlyData = format === "lrc" && hasUnrepresentableSrtCueDataInLrc(doc);
+    if (normalizesSrtOnlyData && !confirmSrtOnlyDataLoss) throw new Error("SRT_ONLY_DATA_NOT_REPRESENTABLE");
+    const savedDoc = normalizesSrtOnlyData
+      ? { ...doc, lines: doc.lines.map(({ srtEndTime: _srtEndTime, srtCueSettings: _srtCueSettings, ...line }) => line) }
       : doc;
     const sessionId = documentSessionId;
     const requestId = ++saveAsGeneration;
@@ -1098,13 +1098,13 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
         isCurrentRequest() &&
         format === "lrc"
       ) {
-        if (normalizesSrtEnds) pushHistory("convertFormat");
+        if (normalizesSrtOnlyData) pushHistory("convertFormat");
         set({
           lrcPath: path,
           _lrcFileHash: result.fileHash,
           _savedDocument: savedDoc,
           ...(current.doc === doc && current._editRevision === revision ? {
-            ...(normalizesSrtEnds ? { doc: savedDoc, _editRevision: revision + 1 } : {}),
+            ...(normalizesSrtOnlyData ? { doc: savedDoc, _editRevision: revision + 1 } : {}),
             isDirty: false,
             _lastEditKey: null,
           } : {}),

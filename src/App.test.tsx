@@ -235,10 +235,10 @@ describe("App — drag-and-drop conflict resolution", () => {
 
     await user.click(screen.getByRole("button", { name: t.save }));
 
-    expect(await screen.findByRole("dialog", { name: t.srtCueEndLossTitle })).toBeTruthy();
+    expect(await screen.findByRole("dialog", { name: t.srtOnlyDataLossTitle })).toBeTruthy();
     expect(save).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("button", { name: t.srtCueEndLossConfirm }));
+    await user.click(screen.getByRole("button", { name: t.srtOnlyDataLossConfirm }));
     await waitFor(() => expect(save).toHaveBeenCalledWith(true));
     useLrcStore.setState({ saveLrc: originalSave });
   });
@@ -260,10 +260,10 @@ describe("App — drag-and-drop conflict resolution", () => {
 
     await user.click(screen.getByRole("button", { name: t.saveAs }));
     await user.click(screen.getByRole("button", { name: /LRC/ }));
-    expect(await screen.findByRole("dialog", { name: t.srtCueEndLossTitle })).toBeTruthy();
+    expect(await screen.findByRole("dialog", { name: t.srtOnlyDataLossTitle })).toBeTruthy();
     expect(saveAs).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("button", { name: t.srtCueEndLossConfirm }));
+    await user.click(screen.getByRole("button", { name: t.srtOnlyDataLossConfirm }));
     await waitFor(() => expect(saveAs).toHaveBeenCalledWith("lrc", undefined, true));
     useLrcStore.setState({ saveLrcAs: originalSaveAs });
   });

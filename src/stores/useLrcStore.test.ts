@@ -1449,12 +1449,31 @@ describe("useLrcStore — save completion races", () => {
     ] };
     useLrcStore.setState({ doc: original, lrcPath: "/tmp/source.srt", isDirty: false });
 
-    await expect(useLrcStore.getState().saveLrcAs("lrc")).rejects.toThrow("SRT_END_TIMES_NOT_REPRESENTABLE");
+    await expect(useLrcStore.getState().saveLrcAs("lrc")).rejects.toThrow("SRT_ONLY_DATA_NOT_REPRESENTABLE");
 
     expect(save).not.toHaveBeenCalled();
     expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
     expect(useLrcStore.getState().doc).toBe(original);
     expect(useLrcStore.getState().lrcPath).toBe("/tmp/source.srt");
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
+  it("requires confirmation and clears SRT-only cue settings when converting to LRC", async () => {
+    vi.mocked(save).mockClear();
+    const original = { ...useLrcStore.getState().doc, lines: [
+      { id: "positioned", timestamp: 1, srtCueSettings: "X1:10 X2:90", text: "positioned" },
+    ] };
+    useLrcStore.setState({ doc: original, lrcPath: "/tmp/source.srt", isDirty: false });
+    vi.mocked(save).mockResolvedValue("/tmp/positioned.lrc");
+    vi.mocked(invoke).mockResolvedValue("g".repeat(64));
+
+    await expect(useLrcStore.getState().saveLrcAs("lrc")).rejects.toThrow("SRT_ONLY_DATA_NOT_REPRESENTABLE");
+    expect(save).not.toHaveBeenCalled();
+    expect(useLrcStore.getState().doc).toBe(original);
+
+    await expect(useLrcStore.getState().saveLrcAs("lrc", undefined, true)).resolves.toBe(true);
+    expect(useLrcStore.getState().doc.lines[0].srtCueSettings).toBeUndefined();
+    expect(useLrcStore.getState().doc.lines[0].srtEndTime).toBeUndefined();
     expect(useLrcStore.getState().isDirty).toBe(false);
   });
 
@@ -1490,7 +1509,7 @@ describe("useLrcStore — save completion races", () => {
     useLrcStore.setState({ doc: original, lrcPath: "/tmp/song.lrc", isDirty: true });
     vi.mocked(invoke).mockClear();
 
-    await expect(useLrcStore.getState().saveLrc()).rejects.toThrow("SRT_END_TIMES_NOT_REPRESENTABLE");
+    await expect(useLrcStore.getState().saveLrc()).rejects.toThrow("SRT_ONLY_DATA_NOT_REPRESENTABLE");
     expect(invoke).not.toHaveBeenCalled();
     expect(useLrcStore.getState().doc).toBe(original);
     expect(useLrcStore.getState().isDirty).toBe(true);

@@ -346,9 +346,9 @@ export interface Translations {
   closeUnsavedTitle: string;
   closeUnsavedMessage: string;
   closeWithoutSaving: string;
-  srtCueEndLossTitle: string;
-  srtCueEndLossMessage: string;
-  srtCueEndLossConfirm: string;
+  srtOnlyDataLossTitle: string;
+  srtOnlyDataLossMessage: string;
+  srtOnlyDataLossConfirm: string;
   // In-app updater
   updater: {
     title: string;
@@ -1031,9 +1031,9 @@ const ko: Translations = {
   closeUnsavedTitle: "저장되지 않은 변경 사항",
   closeUnsavedMessage: "닫기 전에 변경 사항을 저장하시겠습니까?",
   closeWithoutSaving: "저장하지 않고 닫기",
-  srtCueEndLossTitle: "SRT 종료 시각 손실",
-  srtCueEndLossMessage: "LRC 형식은 SRT 자막의 종료 시각을 저장할 수 없습니다. 계속하면 자막 종료 시각이 제거됩니다. 변환 후에는 실행 취소로 복원할 수 있습니다.",
-  srtCueEndLossConfirm: "종료 시각을 제거하고 저장",
+  srtOnlyDataLossTitle: "SRT 전용 정보 손실",
+  srtOnlyDataLossMessage: "LRC 형식은 SRT 자막의 종료 시각과 위치 설정을 저장할 수 없습니다. 계속하면 보존할 수 없는 SRT 정보가 제거됩니다. 변환 후 실행 취소로 복원할 수 있습니다.",
+  srtOnlyDataLossConfirm: "SRT 전용 정보를 제거하고 저장",
   updater: {
     title: "업데이트 알림",
     readyTitle: "업데이트 준비 완료",
@@ -1712,9 +1712,9 @@ const en: Translations = {
   closeUnsavedTitle: "Unsaved changes",
   closeUnsavedMessage: "Would you like to save your changes before closing?",
   closeWithoutSaving: "Close without saving",
-  srtCueEndLossTitle: "SRT cue end times will be lost",
-  srtCueEndLossMessage: "LRC cannot store SRT cue end times. Continuing removes those end times from the working document. You can restore them with Undo after conversion.",
-  srtCueEndLossConfirm: "Remove end times and save",
+  srtOnlyDataLossTitle: "SRT-only data will be lost",
+  srtOnlyDataLossMessage: "LRC cannot store SRT cue end times or positioning settings. Continuing removes this SRT-only data from the working document. You can restore it with Undo after conversion.",
+  srtOnlyDataLossConfirm: "Remove SRT-only data and save",
   updater: {
     title: "Update Available",
     readyTitle: "Update Ready",
@@ -2392,9 +2392,9 @@ const ja: Translations = {
   closeUnsavedTitle: "未保存の変更",
   closeUnsavedMessage: "閉じる前に変更を保存しますか？",
   closeWithoutSaving: "保存せずに閉じる",
-  srtCueEndLossTitle: "SRT字幕の終了時刻が失われます",
-  srtCueEndLossMessage: "LRC形式ではSRT字幕の終了時刻を保存できません。続行すると作業中の文書から終了時刻が削除されます。変換後に取り消して復元できます。",
-  srtCueEndLossConfirm: "終了時刻を削除して保存",
+  srtOnlyDataLossTitle: "SRT固有情報が失われます",
+  srtOnlyDataLossMessage: "LRC形式ではSRT字幕の終了時刻や位置設定を保存できません。続行すると作業中の文書から保存できないSRT情報が削除されます。変換後に取り消して復元できます。",
+  srtOnlyDataLossConfirm: "SRT固有情報を削除して保存",
   updater: {
     title: "アップデート通知",
     readyTitle: "アップデート準備完了",

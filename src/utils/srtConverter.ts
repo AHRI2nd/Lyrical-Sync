@@ -43,7 +43,7 @@ export function assertSrtDocumentLossless(doc: LrcDocument): void {
   }
 }
 
-export function hasUnrepresentableSrtCueEndsInLrc(doc: LrcDocument): boolean {
+export function hasUnrepresentableSrtCueDataInLrc(doc: LrcDocument): boolean {
   const starts = [...new Set(doc.lines.flatMap((line) => line.timestamp === null ? [] : [line.timestamp]))]
     .sort((left, right) => left - right);
   const nextStarts = new Map<number, number>();
@@ -52,6 +52,7 @@ export function hasUnrepresentableSrtCueEndsInLrc(doc: LrcDocument): boolean {
   }
 
   return doc.lines.some((line) => {
+    if (line.srtCueSettings !== undefined) return true;
     if (line.timestamp === null || line.srtEndTime === undefined) return false;
     const nextStart = nextStarts.get(line.timestamp);
     if (nextStart === undefined) return true;
