@@ -472,9 +472,15 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
 
   onPlayerStateChanged: (state: Spotify.PlaybackState) => {
     if (!state) return;
+    const inSpotifyMode = useSettingsStore.getState().spotifyMode;
+    const repeatMode = state.repeat_mode;
+    const repeatUpdate = inSpotifyMode && (repeatMode === 0 || repeatMode === 1 || repeatMode === 2)
+      ? { isLooping: repeatMode === 1 }
+      : {};
     const track = state.track_window.current_track;
     if (!track) {
       set({
+        ...repeatUpdate,
         _playbackRevision: get()._playbackRevision + 1,
         isPlaying: false,
         positionMs: 0,
@@ -495,6 +501,7 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
     const isPlaying = !state.paused;
 
     set({
+      ...repeatUpdate,
       _playbackRevision: get()._playbackRevision + 1,
       isPlaying,
       positionMs,
@@ -509,7 +516,6 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
     });
 
     // Spotify 모드일 때만 문서(가사 위치·메타데이터)에 반영. 파일/유튜브 모드에선 무시.
-    const inSpotifyMode = useSettingsStore.getState().spotifyMode;
     if (isPlaying && inSpotifyMode) {
       get()._startInterpolation();
     } else {

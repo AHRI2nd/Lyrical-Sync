@@ -242,6 +242,24 @@ describe("useServiceStore — Spotify repeat ownership", () => {
     useServiceStore.setState({ isLoggedIn: true, accessToken: "token", tokenExpiresAt: Date.now() + 3600000, isLooping: false });
   });
 
+  it("adopts track-repeat state from SDK playback events before the next toggle", async () => {
+    useSettingsStore.setState({ spotifyMode: true });
+    useServiceStore.getState().onPlayerStateChanged({
+      paused: true,
+      position: 5_000,
+      duration: 30_000,
+      repeat_mode: 1,
+      track_window: { current_track: { uri: "spotify:track:repeat", name: "Repeat", artists: [{ name: "Artist" }], album: { name: "Album", images: [] } } },
+    } as any);
+    expect(useServiceStore.getState().isLooping).toBe(true);
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 204 });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await useServiceStore.getState().toggleLoop();
+
+    expect(String(fetchMock.mock.calls[0][0])).toBe("https://api.spotify.com/v1/me/player/repeat?state=off");
+  });
+
   it("keeps loop state unchanged when Spotify rejects the repeat request", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 403 }));
     await expect(useServiceStore.getState().toggleLoop()).rejects.toThrow();
