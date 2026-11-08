@@ -247,6 +247,19 @@ fn publish_ytdlp_install(
     version: &std::path::Path,
     run_id: &str,
 ) -> Result<(), String> {
+    publish_ytdlp_install_with(part, version_part, dest, version, run_id, |from, to| {
+        std::fs::rename(from, to)
+    })
+}
+
+fn publish_ytdlp_install_with(
+    part: &std::path::Path,
+    version_part: &std::path::Path,
+    dest: &std::path::Path,
+    version: &std::path::Path,
+    run_id: &str,
+    mut rename: impl FnMut(&std::path::Path, &std::path::Path) -> std::io::Result<()>,
+) -> Result<(), String> {
     // Validate that dest is the expected yt-dlp executable (defect 1026)
     let dest_filename = dest.file_name().ok_or("Destination has no filename")?;
     let expected_name = crate::platform_profile::ytdlp_asset(std::env::consts::OS, std::env::consts::ARCH).1;
@@ -295,22 +308,27 @@ fn publish_ytdlp_install(
     }
 
     if had_dest {
-        std::fs::rename(dest, &dest_backup)
+        rename(dest, &dest_backup)
             .map_err(|e| format!("기존 yt-dlp 실행 파일 백업 실패: {e}"))?;
     }
     if had_version {
-        if let Err(error) = std::fs::rename(version, &version_backup) {
+        if let Err(error) = rename(version, &version_backup) {
             if had_dest {
-                let _ = std::fs::rename(&dest_backup, dest);
+                if let Err(restore_error) = rename(&dest_backup, dest) {
+                    return Err(format!(
+                        "기존 yt-dlp 버전 정보 백업 실패: {error}; 실행 파일 복구 실패: {restore_error}. 백업 유지 위치: {}",
+                        dest_backup.display()
+                    ));
+                }
             }
             return Err(format!("기존 yt-dlp 버전 정보 백업 실패: {error}"));
         }
     }
 
-    let publish_result = std::fs::rename(part, dest)
+    let publish_result = rename(part, dest)
         .map_err(|e| format!("yt-dlp 설치 파일 확정 실패: {e}"))
         .and_then(|()| {
-            std::fs::rename(version_part, version)
+            rename(version_part, version)
                 .map_err(|e| format!("yt-dlp 버전 정보 확정 실패: {e}"))
         });
 
@@ -322,12 +340,12 @@ fn publish_ytdlp_install(
             Err(error) => rollback_errors.push(format!("새 실행 파일 제거 실패: {error}")),
         }
         if had_version {
-            if let Err(error) = std::fs::rename(&version_backup, version) {
+            if let Err(error) = rename(&version_backup, version) {
                 rollback_errors.push(format!("기존 버전 정보 복구 실패: {error}"));
             }
         }
         if had_dest {
-            if let Err(error) = std::fs::rename(&dest_backup, dest) {
+            if let Err(error) = rename(&dest_backup, dest) {
                 rollback_errors.push(format!("기존 실행 파일 복구 실패: {error}"));
             }
         }
@@ -1215,6 +1233,46 @@ mod tests {
         assert!(!part.exists());
         assert!(!version_part.exists());
         assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 2);
+    }
+
+    #[test]
+    fn failed_version_backup_reports_and_retains_an_unrestored_binary_backup() {
+        let dir = tempfile::tempdir().unwrap();
+        let part = dir.path().join("yt-dlp.part");
+        let version_part = dir.path().join("version.txt.part");
+        let dest = dir.path().join("yt-dlp");
+        let version = dir.path().join("version.txt");
+        let dest_backup = dir.path().join(".yt-dlp.rollback-test.backup");
+        std::fs::write(&part, b"new binary").unwrap();
+        std::fs::write(&version_part, "new-version").unwrap();
+        std::fs::write(&dest, b"working binary").unwrap();
+        std::fs::write(&version, "old-version").unwrap();
+        let mut calls = 0;
+
+        let result = publish_ytdlp_install_with(
+            &part,
+            &version_part,
+            &dest,
+            &version,
+            "rollback-test",
+            |from, to| {
+                calls += 1;
+                if calls == 2 || calls == 3 {
+                    Err(std::io::Error::other("injected rename failure"))
+                } else {
+                    std::fs::rename(from, to)
+                }
+            },
+        );
+
+        let error = result.unwrap_err();
+        assert!(error.contains("실행 파일 복구 실패"));
+        assert!(error.contains(&dest_backup.display().to_string()));
+        assert!(!dest.exists());
+        assert_eq!(std::fs::read(&dest_backup).unwrap(), b"working binary");
+        assert_eq!(std::fs::read_to_string(&version).unwrap(), "old-version");
+        assert!(part.exists());
+        assert!(version_part.exists());
     }
 
     #[test]
