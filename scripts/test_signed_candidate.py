@@ -1,6 +1,8 @@
 """Prevent signed qualification builds from mutating public releases."""
 from pathlib import Path
 import importlib.util
+import os
+import subprocess
 import tempfile
 import io
 import hashlib
@@ -8,12 +10,66 @@ import json
 import plistlib
 import re
 import tarfile
+import textwrap
 import unittest
 from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[1]
 
 class SignedCandidateTests(unittest.TestCase):
+    def run_release_draft_gate(self, mode, source_sha='source-sha', tag_sha='source-sha'):
+        workflow=(ROOT/'.github/workflows/release.yml').read_text(encoding='utf-8')
+        lines=workflow.splitlines()
+        start=next(i for i,line in enumerate(lines) if line.startswith('          draft_ids=$(gh api'))
+        end=next(i for i,line in enumerate(lines[start:],start) if line.strip().startswith('gh release upload'))
+        gate=textwrap.dedent('\n'.join(lines[start:end+1]))
+        # macOS ships Bash 3.2; supply the already-verified fixture file in place of Bash 4's mapfile.
+        gate,replaced=re.subn(r'(?m)^mapfile -t files < <\(python .*\)$','files=("$RELEASE_FILE")',gate)
+        self.assertEqual(replaced,1,'Release file list command changed; update the local fake-API harness.')
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);bin_dir=root/'bin';bin_dir.mkdir()
+            release_file=root/'fixture.pkg';release_file.write_text('synthetic artifact',encoding='utf-8')
+            gh=bin_dir/'gh'
+            gh.write_text('''#!/bin/sh
+printf 'gh %s\\n' "$*" >> "$GH_LOG"
+case "$1:$2" in
+  api:--paginate)
+    case "$5" in
+      *'draft == true'*)
+        case "$GH_MODE" in
+          no-draft|published) ;;
+          ambiguous) printf '41\\n42\\n' ;;
+          *) printf '42\\n' ;;
+        esac ;;
+      *'draft == false'*)
+        if [ "$GH_MODE" = published ]; then printf '31\\n'; fi ;;
+    esac ;;
+  api:repos/*/releases/*/assets)
+    if [ "$GH_MODE" = assets ]; then printf '1\\n'; else printf '0\\n'; fi ;;
+  api:repos/*/releases/*)
+    if [ "$GH_MODE" = wrong-target ]; then printf 'other-sha\\n'; else printf '%s\\n' "$SOURCE_SHA"; fi ;;
+  release:create)
+    printf 'gh release create %s\\n' "$*" >> "$GH_LOG" ;;
+  release:upload)
+    printf 'gh release upload %s\\n' "$*" >> "$GH_LOG" ;;
+  *) exit 19 ;;
+esac
+''',encoding='utf-8')
+            gh.chmod(0o755)
+            git=bin_dir/'git'
+            git.write_text('''#!/bin/sh
+printf 'git %s\\n' "$*" >> "$GH_LOG"
+if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
+''',encoding='utf-8')
+            git.chmod(0o755)
+            log=root/'commands.log'
+            env=os.environ.copy()
+            env.update(PATH=str(bin_dir)+os.pathsep+env.get('PATH',''),GH_LOG=str(log),
+                       GH_MODE=mode,RELEASE_REPO='owner/repo',TAG='v0.7.1',SOURCE_SHA=source_sha,TAG_SHA=tag_sha,
+                       RELEASE_FILE=str(release_file),RUNNER_TEMP=str(root))
+            result=subprocess.run(['bash','-c','set -euo pipefail\n'+gate],cwd=ROOT,env=env,text=True,capture_output=True)
+            return result,log.read_text(encoding='utf-8') if log.exists() else ''
+
     def test_default_capability_does_not_grant_recursive_audio_enumeration(self):
         config=json.loads((ROOT/'src-tauri/capabilities/default.json').read_text(encoding='utf-8'))
         self.assertIn('fs:allow-read-file',config['permissions'])
@@ -91,6 +147,32 @@ class SignedCandidateTests(unittest.TestCase):
         self.assertNotRegex(source,r'(?m)^\s*releaseName:')
         self.assertLess(source.index('Verify Windows artifact architecture'),source.index('actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02'))
         self.assertLess(source.index('Record exact source and signed candidate hashes'),source.index('actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02'))
+
+    def test_release_draft_guard_rejects_ambiguous_published_wrong_source_and_existing_assets(self):
+        for mode in ('ambiguous','published','wrong-target','assets'):
+            with self.subTest(mode=mode):
+                result,log=self.run_release_draft_gate(mode)
+                self.assertNotEqual(result.returncode,0, result.stdout+result.stderr)
+                self.assertNotIn('release upload',log)
+
+    def test_release_draft_guard_rejects_tag_sha_mismatch_before_upload(self):
+        result,log=self.run_release_draft_gate('matching-draft',tag_sha='other-sha')
+        self.assertNotEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertIn('Current remote tag points to other-sha',result.stdout)
+        self.assertNotIn('release upload',log)
+
+    def test_release_draft_guard_accepts_only_empty_draft_bound_to_exact_source(self):
+        result,log=self.run_release_draft_gate('matching-draft')
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertIn('git rev-parse FETCH_HEAD^{commit}',log)
+        self.assertIn('gh release upload',log)
+        self.assertNotIn('--clobber',log)
+
+    def test_release_draft_guard_creates_a_fresh_draft_at_the_tested_sha(self):
+        result,log=self.run_release_draft_gate('no-draft')
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertIn('gh release create',log)
+        self.assertIn('gh release upload',log)
 
     def test_external_workflow_actions_are_pinned_to_full_commit_shas(self):
         workflows = ROOT / '.github/workflows'
