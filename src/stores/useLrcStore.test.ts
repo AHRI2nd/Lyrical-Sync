@@ -920,12 +920,16 @@ describe("useLrcStore — runAiSync blank-line timestamp placement", () => {
     expect(useLrcStore.getState().aiDraftConfidence).toBeNull();
   });
 
-  it("rejects non-finite AI alignment timestamps before changing the document", async () => {
+  it.each([
+    ["non-finite start", '{"lines":[{"index":0,"start":1e400,"end":2,"confidence":0.9}],"vocal_segments":[],"separated":false}'],
+    ["non-finite end", '{"lines":[{"index":0,"start":1,"end":1e400,"confidence":0.9}],"vocal_segments":[],"separated":false}'],
+    ["negative start", '{"lines":[{"index":0,"start":-1,"end":2,"confidence":0.9}],"vocal_segments":[],"separated":false}'],
+    ["end before start", '{"lines":[{"index":0,"start":2,"end":1,"confidence":0.9}],"vocal_segments":[],"separated":false}'],
+    ["non-finite confidence", '{"lines":[{"index":0,"start":1,"end":2,"confidence":1e400}],"vocal_segments":[],"separated":false}'],
+  ])("rejects AI alignment with %s before changing the document", async (_label, result) => {
     reset([{ id: "line", timestamp: null, text: "hello" }]);
     useLrcStore.setState({ audioPath: "/song.mp3" });
-    vi.mocked(invoke).mockResolvedValueOnce(
-      '{"lines":[{"index":0,"start":1e400,"end":2,"confidence":0.9}],"vocal_segments":[],"separated":false}',
-    );
+    vi.mocked(invoke).mockResolvedValueOnce(result);
 
     await useLrcStore.getState().runAiSync("ko", 0.5, false, false);
 
