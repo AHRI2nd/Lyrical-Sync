@@ -14,7 +14,7 @@ vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async (event: string, ha
   return () => {};
 }) }));
 afterEach(cleanup);
-beforeEach(() => { ipc.invoke.mockReset(); ipc.failListeners = false; ipc.pipHandler = null; useBusyStore.setState({ reasons: new Set() }); });
+beforeEach(() => { ipc.invoke.mockReset(); ipc.failListeners = false; ipc.pipHandler = null; useBusyStore.setState({ reasons: new Set(), errors: {} }); });
 it('shows upgrade failures and allows retry while the old interpreter is incompatible', async () => {
   ipc.invoke.mockImplementation(async (command: string) => {
     if (command === 'get_python_env_info') return { pythonReady: false, packagesReady: false };
@@ -122,6 +122,27 @@ it('refreshes completed installation and settles busy state when progress listen
   expect(ipc.invoke).toHaveBeenCalledWith('download_embedded_python');
   expect(container.textContent).not.toContain('0%');
   expect(screen.queryByRole('button', { name: /Python|AI/ })).toBeNull();
+});
+
+it('retains an installation failure for the settings section after it unmounts', async () => {
+  let rejectInstall!: (error: Error) => void;
+  const install = new Promise<void>((_resolve, reject) => { rejectInstall = reject; });
+  ipc.invoke.mockImplementation((command: string) => {
+    if (command === 'get_python_env_info') return Promise.resolve({ pythonReady: true, packagesReady: false, pipInstallCmd: '', pythonPath: '/python' });
+    if (command === 'install_python_packages') return install;
+    return Promise.resolve(undefined);
+  });
+  const first = render(<PythonEnvSection />);
+  const button = await screen.findByRole('button', { name: useI18nStore.getState().t.settingsVenvInstallBtn });
+  fireEvent.click(button);
+  await vi.waitFor(() => expect(useBusyStore.getState().reasons.has('python-packages')).toBe(true));
+  first.unmount();
+
+  await act(async () => { rejectInstall(new Error('Package installation failed')); await install.catch(() => {}); });
+  expect(useBusyStore.getState().reasons.has('python-packages')).toBe(false);
+  render(<PythonEnvSection />);
+
+  expect((await screen.findByRole('alert')).textContent).toContain('Package installation failed');
 });
 
 it('keeps updater blocked by a Python download after the settings section unmounts', async () => {

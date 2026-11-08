@@ -6,12 +6,16 @@ import { create } from "zustand";
 // UpdateModal이 이 신호를 보고 버튼을 비활성화한다.
 interface BusyState {
   reasons: Set<string>;
+  errors: Record<string, string>;
   markBusy: (id: string) => void;
   clearBusy: (id: string) => void;
+  setError: (id: string, message: string) => void;
+  clearError: (id: string) => void;
 }
 
 export const useBusyStore = create<BusyState>((set) => ({
   reasons: new Set(),
+  errors: {},
   markBusy: (id) => set((s) => ({ reasons: new Set(s.reasons).add(id) })),
   clearBusy: (id) =>
     set((s) => {
@@ -20,4 +24,11 @@ export const useBusyStore = create<BusyState>((set) => ({
       next.delete(id);
       return { reasons: next };
     }),
+  setError: (id, message) => set((state) => ({ errors: { ...state.errors, [id]: message } })),
+  clearError: (id) => set((state) => {
+    if (!(id in state.errors)) return state;
+    const errors = { ...state.errors };
+    delete errors[id];
+    return { errors };
+  }),
 }));

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { useBusyStore } from "./useBusyStore";
 
 describe("useBusyStore", () => {
-  beforeEach(() => useBusyStore.setState({ reasons: new Set() }));
+  beforeEach(() => useBusyStore.setState({ reasons: new Set(), errors: {} }));
 
   it("starts with no busy reasons", () => {
     expect(useBusyStore.getState().reasons.size).toBe(0);
@@ -32,6 +32,13 @@ describe("useBusyStore", () => {
     const reasons = useBusyStore.getState().reasons;
     expect(reasons.has("model-download")).toBe(false);
     expect(reasons.has("youtube-download")).toBe(true);
+  });
+
+  it("keeps operation failures across component unmounts and clears them independently", () => {
+    useBusyStore.getState().setError("python-packages", "install failed");
+    useBusyStore.getState().setError("python-download", "download failed");
+    useBusyStore.getState().clearError("python-packages");
+    expect(useBusyStore.getState().errors).toEqual({ "python-download": "download failed" });
   });
 
   it("clearBusy on an id that isn't tracked is a no-op (no re-render churn)", () => {

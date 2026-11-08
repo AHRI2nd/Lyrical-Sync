@@ -34,7 +34,7 @@ export function PythonEnvSection() {
   const installing = useBusyStore((state) => state.reasons.has("python-packages"));
   const [progressUnavailable, setProgressUnavailable] = useState(false);
   const [installLog, setInstallLog] = useState<string[]>([]);
-  const [installError, setInstallError] = useState<string | null>(null);
+  const installError = useBusyStore((state) => state.errors["python-packages"] ?? state.errors["python-download"] ?? null);
   const logRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -80,7 +80,7 @@ export function PythonEnvSection() {
   // case where pip exits with non-zero on Windows but packages are installed).
   useEffect(() => {
     if (info?.packagesReady) {
-      setInstallError(null);
+      useBusyStore.getState().clearError("python-packages");
     }
   }, [info]);
 
@@ -120,11 +120,11 @@ export function PythonEnvSection() {
     useBusyStore.getState().markBusy(busyId);
     setDlPercent(0);
     setInstallLog([]);
-    setInstallError(null);
+    useBusyStore.getState().clearError(busyId);
     try {
       await invoke("download_embedded_python");
     } catch (e) {
-      if (mounted.current) setInstallError(String(e));
+      useBusyStore.getState().setError(busyId, String(e));
     } finally {
       useBusyStore.getState().clearBusy(busyId);
     }
@@ -136,11 +136,11 @@ export function PythonEnvSection() {
     const busyId = "python-packages";
     useBusyStore.getState().markBusy(busyId);
     setInstallLog([]);
-    setInstallError(null);
+    useBusyStore.getState().clearError(busyId);
     try {
       await invoke("install_python_packages");
     } catch (e) {
-      if (mounted.current) setInstallError(String(e));
+      useBusyStore.getState().setError(busyId, String(e));
     } finally {
       useBusyStore.getState().clearBusy(busyId);
     }
