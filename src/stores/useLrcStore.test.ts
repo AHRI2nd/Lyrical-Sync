@@ -980,6 +980,28 @@ describe("useLrcStore — save completion races", () => {
     expect(useLrcStore.getState()._lrcFileHash).toBe("a".repeat(64));
   });
 
+  it("saves an SRT working file after its translation has been cleared", async () => {
+    useLrcStore.setState({
+      doc: {
+        metadata: { title: "", artist: "", album: "", by: "", offset: 0 },
+        lines: [{ id: "1", timestamp: 1, text: "lyric", translation: "" }],
+        extraTags: {},
+      },
+      lrcPath: "/tmp/song.srt",
+      _lrcFileHash: "a".repeat(64),
+      isDirty: true,
+    });
+    vi.mocked(invoke).mockResolvedValue("b".repeat(64));
+
+    await expect(useLrcStore.getState().saveLrc()).resolves.toBe(true);
+
+    expect(invoke).toHaveBeenCalledWith("write_lrc_file_if_unchanged", expect.objectContaining({
+      path: "/tmp/song.srt",
+      content: expect.stringContaining("\nlyric\n"),
+    }));
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
   it("refuses an in-place recovery save when no original file revision is available", async () => {
     useLrcStore.setState({ _lrcFileHash: null });
 
