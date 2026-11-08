@@ -25,7 +25,8 @@ export type HistoryLabel =
   | "aiSync"
   | "snapBeatGrid"
   | "editText"
-  | "editMetadata";
+  | "editMetadata"
+  | "convertFormat";
 
 export interface HistoryEntry {
   doc: LrcDocument;

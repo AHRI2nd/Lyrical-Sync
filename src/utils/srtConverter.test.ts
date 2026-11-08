@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseLrc, serializeLrc } from "./lrcParser";
-import { parseSrt, serializeSrt, SrtMalformedCueError, SRT_MALFORMED_CUE_CODE } from "./srtConverter";
+import { hasUnrepresentableSrtCueEndsInLrc, parseSrt, serializeSrt, SrtMalformedCueError, SRT_MALFORMED_CUE_CODE } from "./srtConverter";
 import type { LrcDocument } from "../types/lrc";
 
 const emptyMeta = { title: "", artist: "", album: "", by: "", offset: 0 };
@@ -11,6 +11,19 @@ const docOf = (lines: LrcDocument["lines"]): LrcDocument => ({
 });
 
 describe("parseSrt", () => {
+  it("detects overlapping SRT cue ends that LRC cannot preserve", () => {
+    const doc = parseSrt("1\n00:00:01,000 --> 00:00:10,000\nfirst\n\n2\n00:00:03,000 --> 00:00:05,000\nsecond\n");
+    expect(hasUnrepresentableSrtCueEndsInLrc(doc)).toBe(true);
+  });
+
+  it("matches each cue end to the next start regardless of source order", () => {
+    expect(hasUnrepresentableSrtCueEndsInLrc(docOf([
+      { id: "later", timestamp: 3, text: "later" },
+      { id: "middle", timestamp: 2, srtEndTime: 3, text: "middle" },
+      { id: "earlier", timestamp: 1, srtEndTime: 2, text: "earlier" },
+    ]))).toBe(false);
+  });
+
   it.each([
     ["start", "00:00:XX,000 --> 00:00:05,000"],
     ["end", "00:00:04,000 --> 00:00:XX,000"],

@@ -1425,6 +1425,70 @@ describe("useLrcStore — save completion races", () => {
     expect(useLrcStore.getState().isDirty).toBe(true);
   });
 
+  it("requires confirmation before adopting LRC when SRT cue ends cannot be represented", async () => {
+    vi.mocked(save).mockClear();
+    vi.mocked(invoke).mockClear();
+    const original = { ...useLrcStore.getState().doc, lines: [
+      { id: "first", timestamp: 1, srtEndTime: 10, text: "first" },
+      { id: "second", timestamp: 3, srtEndTime: 5, text: "second" },
+    ] };
+    useLrcStore.setState({ doc: original, lrcPath: "/tmp/source.srt", isDirty: false });
+
+    await expect(useLrcStore.getState().saveLrcAs("lrc")).rejects.toThrow("SRT_END_TIMES_NOT_REPRESENTABLE");
+
+    expect(save).not.toHaveBeenCalled();
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState().doc).toBe(original);
+    expect(useLrcStore.getState().lrcPath).toBe("/tmp/source.srt");
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
+  it("normalizes cue ends after a confirmed SRT-to-LRC working-file conversion and keeps it undoable", async () => {
+    const original = { ...useLrcStore.getState().doc, lines: [
+      { id: "first", timestamp: 1, srtEndTime: 10, text: "first" },
+      { id: "second", timestamp: 3, srtEndTime: 5, text: "second" },
+    ] };
+    useLrcStore.setState({ doc: original, lrcPath: "/tmp/source.srt", isDirty: true });
+    vi.mocked(save).mockResolvedValue("/tmp/converted.lrc");
+    vi.mocked(invoke).mockResolvedValue("d".repeat(64));
+
+    await expect(useLrcStore.getState().saveLrcAs("lrc", undefined, true)).resolves.toBe(true);
+
+    expect(invoke).toHaveBeenCalledWith("write_lrc_file", expect.objectContaining({
+      path: "/tmp/converted.lrc",
+      content: expect.stringContaining("[00:01.00]first"),
+    }));
+    expect(useLrcStore.getState().lrcPath).toBe("/tmp/converted.lrc");
+    expect(useLrcStore.getState().doc.lines.every((line) => line.srtEndTime === undefined)).toBe(true);
+    expect(useLrcStore.getState().isDirty).toBe(false);
+
+    useLrcStore.getState().undo();
+    expect(useLrcStore.getState().doc).toBe(original);
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
+  it("blocks unconfirmed LRC autosave and normalizes only after explicit confirmation", async () => {
+    const original = { ...useLrcStore.getState().doc, lines: [
+      { id: "first", timestamp: 1, srtEndTime: 10, text: "first" },
+      { id: "second", timestamp: 3, srtEndTime: 5, text: "second" },
+    ] };
+    useLrcStore.setState({ doc: original, lrcPath: "/tmp/song.lrc", isDirty: true });
+    vi.mocked(invoke).mockClear();
+
+    await expect(useLrcStore.getState().saveLrc()).rejects.toThrow("SRT_END_TIMES_NOT_REPRESENTABLE");
+    expect(invoke).not.toHaveBeenCalled();
+    expect(useLrcStore.getState().doc).toBe(original);
+    expect(useLrcStore.getState().isDirty).toBe(true);
+
+    vi.mocked(invoke).mockResolvedValue("e".repeat(64));
+    await expect(useLrcStore.getState().saveLrc(true)).resolves.toBe(true);
+    expect(useLrcStore.getState().doc.lines.every((line) => line.srtEndTime === undefined)).toBe(true);
+    expect(useLrcStore.getState().isDirty).toBe(false);
+    useLrcStore.getState().undo();
+    expect(useLrcStore.getState().doc).toBe(original);
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
   it("rejects a Save As path whose extension does not match the selected format", async () => {
     vi.mocked(save).mockResolvedValue("/tmp/song.srt");
     vi.mocked(invoke).mockResolvedValue(undefined);

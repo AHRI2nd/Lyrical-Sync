@@ -43,6 +43,22 @@ export function assertSrtDocumentLossless(doc: LrcDocument): void {
   }
 }
 
+export function hasUnrepresentableSrtCueEndsInLrc(doc: LrcDocument): boolean {
+  const starts = [...new Set(doc.lines.flatMap((line) => line.timestamp === null ? [] : [line.timestamp]))]
+    .sort((left, right) => left - right);
+  const nextStarts = new Map<number, number>();
+  for (let index = 0; index < starts.length - 1; index += 1) {
+    nextStarts.set(starts[index], starts[index + 1]);
+  }
+
+  return doc.lines.some((line) => {
+    if (line.timestamp === null || line.srtEndTime === undefined) return false;
+    const nextStart = nextStarts.get(line.timestamp);
+    if (nextStart === undefined) return true;
+    return Math.round(nextStart * 100) !== Math.round(line.srtEndTime * 100);
+  });
+}
+
 export class SrtUnrepresentableContentError extends Error {
   readonly code = SRT_UNREPRESENTABLE_CONTENT_CODE;
 

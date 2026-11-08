@@ -26,7 +26,7 @@ import { initSpotifyPlayer } from "./utils/spotifyPlayer";
 import { useUpdaterStore } from "./stores/useUpdaterStore";
 const UpdateModal = lazy(() => import("./components/Update/UpdateModal").then((m) => ({ default: m.UpdateModal })));
 import { useMacMenu } from "./hooks/useMacMenu";
-import { SrtInvalidTimestampError, SrtLossyDocumentError, SrtUnrepresentableContentError } from "./utils/srtConverter";
+import { hasUnrepresentableSrtCueEndsInLrc, SrtInvalidTimestampError, SrtLossyDocumentError, SrtUnrepresentableContentError } from "./utils/srtConverter";
 import { AssUnrepresentableContentError, AssUnrepresentableCueEndError, SubtitleTimestampUnrepresentableError, VttInvalidSyllableTimeError, VttUnrepresentableContentError } from "./utils/exportFormats";
 import { LrcInlineEscapeTagConflictError, LrcInvalidTimestampError, LrcMetadataLineBreakError, LrcReservedTagConflictError, needsInlineTimestampEscape } from "./utils/lrcParser";
 import { listen } from "@tauri-apps/api/event";
@@ -244,6 +244,7 @@ function useAutoSave(recoveryPending: boolean) {
 
 function serializationErrorCode(error: unknown): string | null {
   if (error instanceof Error && error.message === "LYRICS_FILE_CHANGED") return "LYRICS_FILE_CHANGED";
+  if (error instanceof Error && error.message === "SRT_END_TIMES_NOT_REPRESENTABLE") return error.message;
   if (error instanceof SrtUnrepresentableContentError || error instanceof SrtLossyDocumentError || error instanceof SrtInvalidTimestampError || error instanceof VttUnrepresentableContentError || error instanceof VttInvalidSyllableTimeError || error instanceof AssUnrepresentableContentError || error instanceof AssUnrepresentableCueEndError || error instanceof SubtitleTimestampUnrepresentableError || error instanceof LrcInlineEscapeTagConflictError || error instanceof LrcInvalidTimestampError || error instanceof LrcMetadataLineBreakError || error instanceof LrcReservedTagConflictError) return error.code;
   return null;
 }
@@ -254,6 +255,7 @@ function openErrorMessage(error: unknown, t: ReturnType<typeof useI18nStore.getS
 
 function saveErrorMessage(error: unknown, t: ReturnType<typeof useI18nStore.getState>["t"]): string {
   if (error instanceof Error && error.message === "LYRICS_FILE_CHANGED") return t.toast.fileChanged;
+  if (error instanceof Error && error.message === "SRT_END_TIMES_NOT_REPRESENTABLE") return t.srtCueEndLossMessage;
   if (error instanceof SrtInvalidTimestampError || error instanceof LrcInvalidTimestampError) return t.toast.invalidTimestamp;
   if (error instanceof SrtUnrepresentableContentError) return t.toast.srtBlankRowsUnsupported;
   if (error instanceof SrtLossyDocumentError) return t.toast.srtLossyDocument;
@@ -306,6 +308,14 @@ function App() {
   const [newConfirmRevision, setNewConfirmRevision] = useState<number | null>(null);
   const [showFormatChooser, setShowFormatChooser] = useState(false);
   const [showElrcNotice, setShowElrcNotice] = useState(false);
+  const [showSrtCueEndLossConfirm, setShowSrtCueEndLossConfirm] = useState(false);
+  const pendingSrtCueEndLossRef = useRef<{
+    run: () => Promise<boolean>;
+    confirmedRun: () => Promise<boolean>;
+    onSuccess?: () => void | Promise<void>;
+    session: number;
+    revision: number;
+  } | null>(null);
   const [pendingDocumentOpen, setPendingDocumentOpen] = useState<{ lyricsPath: string; audioPath?: string | null } | null>(null);
   const [pendingFetchedLyricsConfirm, setPendingFetchedLyricsConfirm] = useState(false);
   const pendingFetchedLyricsResolveRef = useRef<((choice: TransitionChoice) => void) | null>(null);
@@ -343,6 +353,11 @@ function App() {
     pendingSaveSuccessRef.current = null;
     pendingSaveSessionRef.current = null;
     setShowElrcNotice(false);
+  }, [appDocumentSession]);
+  useEffect(() => {
+    if (pendingSrtCueEndLossRef.current?.session === appDocumentSession) return;
+    pendingSrtCueEndLossRef.current = null;
+    setShowSrtCueEndLossConfirm(false);
   }, [appDocumentSession]);
   useEffect(() => {
     if (settingsPersistenceFailureCount <= lastReportedSettingsFailure.current) return;
@@ -465,14 +480,32 @@ function App() {
   };
 
   // 글자/단어 동기화가 있어 E-LRC로 저장될 LRC 저장은 알림 팝업을 거쳐 실행
-  const requestSaveLrc = (fn: () => Promise<boolean>, onSuccess?: () => void | Promise<void>) => {
+  const requestSaveLrc = (
+    fn: () => Promise<boolean>,
+    onSuccess?: () => void | Promise<void>,
+    confirmedFn: () => Promise<boolean> = fn,
+    srtCueEndLossConfirmed = false,
+  ) => {
+    const current = useLrcStore.getState();
+    if (!srtCueEndLossConfirmed && hasUnrepresentableSrtCueEndsInLrc(current.doc)) {
+      pendingSrtCueEndLossRef.current = {
+        run: fn,
+        confirmedRun: confirmedFn,
+        onSuccess,
+        session: current._documentSession,
+        revision: current._editRevision,
+      };
+      setShowSrtCueEndLossConfirm(true);
+      return;
+    }
+    const saveFn = srtCueEndLossConfirmed ? confirmedFn : fn;
     if (hasGlyphSync && showElrcSaveNotice) {
-      pendingSaveRef.current = fn;
+      pendingSaveRef.current = saveFn;
       pendingSaveSuccessRef.current = onSuccess ?? null;
       pendingSaveSessionRef.current = useLrcStore.getState()._documentSession;
       setShowElrcNotice(true);
     } else {
-      runSave(fn(), true, onSuccess);
+      runSave(saveFn(), true, onSuccess);
     }
   };
 
@@ -494,17 +527,17 @@ function App() {
 
   const saveBeforeClose = () => {
     if (lrcPath?.toLowerCase().endsWith(".lrc")) {
-      requestSaveLrc(() => saveLrc(), finishCloseAfterSave);
+      requestSaveLrc(() => saveLrc(), finishCloseAfterSave, () => saveLrc(true));
     } else if (lrcPath) {
       runSave(saveLrc(), false, finishCloseAfterSave);
     } else {
-      requestSaveLrc(() => saveLrcAs("lrc"), finishCloseAfterSave);
+      requestSaveLrc(() => saveLrcAs("lrc"), finishCloseAfterSave, () => saveLrcAs("lrc", undefined, true));
     }
   };
 
   const handleSave = () => {
     if (lrcPath) {
-      if (lrcPath.toLowerCase().endsWith(".lrc")) requestSaveLrc(() => saveLrc());
+      if (lrcPath.toLowerCase().endsWith(".lrc")) requestSaveLrc(() => saveLrc(), undefined, () => saveLrc(true));
       else runSave(saveLrc());
     } else {
       setShowFormatChooser(true);
@@ -650,7 +683,7 @@ function App() {
       openLrc: handleOpenLrc,
       openAudio,
       save: handleSave,
-      saveAsLrc: () => requestSaveLrc(() => saveLrcAs("lrc")),
+      saveAsLrc: () => requestSaveLrc(() => saveLrcAs("lrc"), undefined, () => saveLrcAs("lrc", undefined, true)),
       saveAsSrt: () => runSave(saveLrcAs("srt")),
       undo,
       redo,
@@ -774,6 +807,33 @@ function App() {
           priority
         />
       )}
+      {showSrtCueEndLossConfirm && pendingSrtCueEndLossRef.current?.session === appDocumentSession && (
+        <ConfirmModal
+          title={t.srtCueEndLossTitle}
+          message={t.srtCueEndLossMessage}
+          okLabel={t.srtCueEndLossConfirm}
+          cancelLabel={t.cancelLabel}
+          onOk={() => {
+            const pending = pendingSrtCueEndLossRef.current;
+            const current = useLrcStore.getState();
+            if (!pending || pending.session !== current._documentSession) return;
+            if (pending.revision !== current._editRevision) {
+              pendingSrtCueEndLossRef.current = null;
+              setShowSrtCueEndLossConfirm(false);
+              requestSaveLrc(pending.run, pending.onSuccess, pending.confirmedRun);
+              return;
+            }
+            pendingSrtCueEndLossRef.current = null;
+            setShowSrtCueEndLossConfirm(false);
+            requestSaveLrc(pending.run, pending.onSuccess, pending.confirmedRun, true);
+          }}
+          onCancel={() => {
+            pendingSrtCueEndLossRef.current = null;
+            setShowSrtCueEndLossConfirm(false);
+          }}
+          priority
+        />
+      )}
       {pendingFetchedLyricsConfirm && (
         <ConfirmModal
           title={t.confirmNewTitle}
@@ -826,7 +886,7 @@ function App() {
         <SaveFormatModal
           onSelect={(format) => {
             setShowFormatChooser(false);
-            if (format === "lrc") requestSaveLrc(() => saveLrcAs("lrc"));
+            if (format === "lrc") requestSaveLrc(() => saveLrcAs("lrc"), undefined, () => saveLrcAs("lrc", undefined, true));
             else runSave(saveLrcAs(format));
           }}
           onCancel={() => setShowFormatChooser(false)}

@@ -215,6 +215,59 @@ describe("App — drag-and-drop conflict resolution", () => {
     useLrcStore.setState({ saveLrc: originalSave });
   });
 
+  it("asks before saving an LRC document that contains unrepresentable SRT cue ends", async () => {
+    const t = useI18nStore.getState().t;
+    const originalSave = useLrcStore.getState().saveLrc;
+    const save = vi.fn().mockResolvedValue(true);
+    resetLrc({
+      lrcPath: "/music/converted.lrc",
+      doc: {
+        ...defaultDocument(),
+        lines: [
+          { id: "first", timestamp: 1, srtEndTime: 10, text: "first" },
+          { id: "second", timestamp: 3, srtEndTime: 5, text: "second" },
+        ],
+      },
+    });
+    useLrcStore.setState({ saveLrc: save });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: t.save }));
+
+    expect(await screen.findByRole("dialog", { name: t.srtCueEndLossTitle })).toBeTruthy();
+    expect(save).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: t.srtCueEndLossConfirm }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith(true));
+    useLrcStore.setState({ saveLrc: originalSave });
+  });
+
+  it("passes explicit loss consent when Save As converts SRT cues to LRC", async () => {
+    const t = useI18nStore.getState().t;
+    const originalSaveAs = useLrcStore.getState().saveLrcAs;
+    const saveAs = vi.fn().mockResolvedValue(true);
+    resetLrc({
+      lrcPath: "/music/source.srt",
+      doc: {
+        ...defaultDocument(),
+        lines: [{ id: "first", timestamp: 1, srtEndTime: 10, text: "first" }],
+      },
+    });
+    useLrcStore.setState({ saveLrcAs: saveAs });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: t.saveAs }));
+    await user.click(screen.getByRole("button", { name: /LRC/ }));
+    expect(await screen.findByRole("dialog", { name: t.srtCueEndLossTitle })).toBeTruthy();
+    expect(saveAs).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: t.srtCueEndLossConfirm }));
+    await waitFor(() => expect(saveAs).toHaveBeenCalledWith("lrc", undefined, true));
+    useLrcStore.setState({ saveLrcAs: originalSaveAs });
+  });
+
   it("does not let a stale New confirmation erase a document opened afterward", async () => {
     const first = defaultDocument();
     first.lines = [{ id: "old", timestamp: 1, text: "unsaved" }];

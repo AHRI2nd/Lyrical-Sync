@@ -5,7 +5,7 @@ import { LrcDocument, LrcLine, LrcMetadata, LrcSyllable, defaultDocument } from 
 import { type HistoryEntry, type HistoryLabel } from "../types/history";
 import { isStampable, parseLrc, serializeLrc, tokenizeText, type SyncUnit } from "../utils/lrcParser";
 import { nearestBeat } from "../utils/bpmDetect";
-import { assertSrtDocumentLossless, serializeSrt, parseSrt } from "../utils/srtConverter";
+import { assertSrtDocumentLossless, hasUnrepresentableSrtCueEndsInLrc, serializeSrt, parseSrt } from "../utils/srtConverter";
 import { serializeVtt, serializeAss } from "../utils/exportFormats";
 import { toast } from "./useToastStore";
 import { useI18nStore } from "./useI18nStore";
@@ -146,9 +146,9 @@ interface LrcStore {
   loadLyricsPath: (path: string, options?: { audioPath?: string | null }) => Promise<void>;
   requestApplyFetchedLyrics: (lrcText: string, meta: { title: string; artist: string; album: string } | undefined, ownerSession: number) => Promise<"applied" | "cancelled">;
   // 반환값: 실제로 파일을 썼으면 true, 사용자가 저장 다이얼로그를 취소하면 false
-  saveLrc: () => Promise<boolean>;
+  saveLrc: (confirmSrtCueEndLoss?: boolean) => Promise<boolean>;
   // enhanced: 이번 저장에만 적용하는 일회성 override(미지정 시 글자 데이터 있으면 E-LRC)
-  saveLrcAs: (format: "lrc" | "srt" | "vtt" | "ass", enhanced?: boolean) => Promise<boolean>;
+  saveLrcAs: (format: "lrc" | "srt" | "vtt" | "ass", enhanced?: boolean, confirmSrtCueEndLoss?: boolean) => Promise<boolean>;
   newLrc: () => void;
   replaceInLines: (find: string, replace: string, caseSensitive: boolean) => number;
   shiftTimeRange: (fromIdx: number, toIdx: number, deltaSeconds: number) => void;
@@ -998,17 +998,22 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     }
   },
 
-  saveLrc: async () => {
+  saveLrc: async (confirmSrtCueEndLoss = false) => {
     const { lrcPath, doc, duration, _editRevision: revision, _lrcFileHash: expectedSha256 } = get();
-    if (!lrcPath) return get().saveLrcAs("lrc");
+    if (!lrcPath) return get().saveLrcAs("lrc", undefined, confirmSrtCueEndLoss);
     if (!expectedSha256) throw new Error("LYRICS_FILE_CHANGED");
     const sessionId = documentSessionId;
     if (lrcPath.toLowerCase().endsWith(".srt")) assertSrtDocumentLossless(doc);
+    const normalizesSrtEnds = lrcPath.toLowerCase().endsWith(".lrc") && hasUnrepresentableSrtCueEndsInLrc(doc);
+    if (normalizesSrtEnds && !confirmSrtCueEndLoss) throw new Error("SRT_END_TIMES_NOT_REPRESENTABLE");
+    const savedDoc = normalizesSrtEnds
+      ? { ...doc, lines: doc.lines.map(({ srtEndTime: _srtEndTime, ...line }) => line) }
+      : doc;
     const sameOwnerAndRevision = () =>
       documentSessionId === sessionId && get().lrcPath === lrcPath && get()._editRevision === revision;
     const result = await writeLrcFileWithMeta(
       lrcPath,
-      serializeForPath(lrcPath, doc, duration),
+      serializeForPath(lrcPath, savedDoc, duration),
       revision,
       doc,
       // Silent metadata synchronization changes doc without advancing editRevision.
@@ -1017,7 +1022,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
       expectedSha256,
     );
     if (result.success && result.fileHash && documentSessionId === sessionId && get().lrcPath === lrcPath) {
-      set({ _lrcFileHash: result.fileHash, _savedDocument: doc });
+      set({ _lrcFileHash: result.fileHash, _savedDocument: savedDoc });
     }
     const current = get();
     if (sameOwnerAndRevision() && current.doc !== doc && current.isDirty) {
@@ -1026,17 +1031,27 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
       set({ _editRevision: revision + 1 });
     }
     if (!result.success) return false;
-    if (documentSessionId === sessionId && get().lrcPath === lrcPath) set({ _savedDocument: doc });
+    if (documentSessionId === sessionId && get().lrcPath === lrcPath) set({ _savedDocument: savedDoc });
     if (documentSessionId === sessionId && get().lrcPath === lrcPath && current.doc === doc) {
-      set({ isDirty: false, _lastEditKey: null });
+      if (normalizesSrtEnds) {
+        pushHistory("convertFormat");
+        set({ doc: savedDoc, _savedDocument: savedDoc, isDirty: false, _lastEditKey: null, _editRevision: revision + 1 });
+      } else {
+        set({ isDirty: false, _lastEditKey: null });
+      }
       // Clear recovery snapshot if this save completes the restored document
       // (recovery is cleared only when the restored document is explicitly saved)
     }
     return true;
   },
 
-  saveLrcAs: async (format, enhanced) => {
+  saveLrcAs: async (format, enhanced, confirmSrtCueEndLoss = false) => {
     const { doc, duration, lrcPath: originalPath, _editRevision: revision, _lrcFileHash: originalFileHash } = get();
+    const normalizesSrtEnds = format === "lrc" && hasUnrepresentableSrtCueEndsInLrc(doc);
+    if (normalizesSrtEnds && !confirmSrtCueEndLoss) throw new Error("SRT_END_TIMES_NOT_REPRESENTABLE");
+    const savedDoc = normalizesSrtEnds
+      ? { ...doc, lines: doc.lines.map(({ srtEndTime: _srtEndTime, ...line }) => line) }
+      : doc;
     const sessionId = documentSessionId;
     const requestId = ++saveAsGeneration;
     const FILTERS: Record<string, { name: string; extensions: string[] }> = {
@@ -1065,7 +1080,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
         format === "srt" ? serializeSrt(doc, end)
         : format === "vtt" ? serializeVtt(doc, end)
         : format === "ass" ? serializeAss(doc, end)
-        : serializeLrc(doc, enhanced ?? true);
+        : serializeLrc(savedDoc, enhanced ?? true);
       const result = await writeLrcFileWithMeta(
         path,
         content,
@@ -1082,11 +1097,16 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
         isCurrentRequest() &&
         format === "lrc"
       ) {
+        if (normalizesSrtEnds) pushHistory("convertFormat");
         set({
           lrcPath: path,
           _lrcFileHash: result.fileHash,
-          _savedDocument: doc,
-          ...(current.doc === doc && current._editRevision === revision ? { isDirty: false, _lastEditKey: null } : {}),
+          _savedDocument: savedDoc,
+          ...(current.doc === doc && current._editRevision === revision ? {
+            ...(normalizesSrtEnds ? { doc: savedDoc, _editRevision: revision + 1 } : {}),
+            isDirty: false,
+            _lastEditKey: null,
+          } : {}),
         });
         useSettingsStore.getState().addRecentFile({ lrcPath: path, audioPath: current.audioPath });
       }
