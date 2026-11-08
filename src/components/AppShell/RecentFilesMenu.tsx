@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useSettingsStore, type RecentFileEntry } from "../../stores/useSettingsStore";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { isComposingKeyEvent } from "../../utils/keybindings";
 import { HistoryIcon } from "./icons";
 
 const basename = (path: string) => path.split(/[\\/]/).pop() ?? path;
@@ -8,6 +9,8 @@ const basename = (path: string) => path.split(/[\\/]/).pop() ?? path;
 export function RecentFilesMenu({ onOpen }: { onOpen: (entry: RecentFileEntry) => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
   const { t } = useI18nStore();
   const recentFiles = useSettingsStore((s) => s.recentFiles);
   const clearRecentFiles = useSettingsStore((s) => s.clearRecentFiles);
@@ -28,17 +31,27 @@ export function RecentFilesMenu({ onOpen }: { onOpen: (entry: RecentFileEntry) =
   };
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative" onKeyDown={(event) => {
+      if (event.key === "Escape" && open && !isComposingKeyEvent(event.nativeEvent)) {
+        event.preventDefault();
+        event.stopPropagation();
+        setOpen(false);
+        trigger.current?.focus();
+      }
+    }}>
       <button
+        ref={trigger}
         onClick={() => setOpen((v) => !v)}
         title={t.recentFiles}
         aria-label={t.recentFiles}
+        aria-expanded={open}
+        aria-controls={menuId}
         className="ls-button ls-button--icon w-8 h-8 flex items-center justify-center rounded-lg text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-white transition-colors"
       >
         <HistoryIcon />
       </button>
       {open && (
-        <div className="absolute left-0 top-full mt-1 bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] rounded-lg shadow-xl z-50 overflow-hidden py-1 min-w-[240px] max-w-[320px]">
+        <div id={menuId} role="group" aria-label={t.recentFiles} className="absolute left-0 top-full mt-1 bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] rounded-lg shadow-xl z-50 overflow-hidden py-1 min-w-[240px] max-w-[320px]">
           {recentFiles.map((entry, i) => {
             const primary = entry.lrcPath ?? entry.audioPath ?? "";
             const secondary = entry.lrcPath && entry.audioPath ? entry.audioPath : null;

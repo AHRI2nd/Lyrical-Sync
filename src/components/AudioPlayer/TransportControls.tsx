@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { type Translations } from "../../i18n/translations";
 import { CtrlBtn } from "./CtrlBtn";
 import { MorePopover } from "./MorePopover";
+import { isComposingKeyEvent } from "../../utils/keybindings";
 import {
   PlayIcon, PauseIcon, StopIcon, SkipBackIcon, SkipFwdIcon, TriLeftIcon, TriRightIcon, MoreIcon,
 } from "./icons";
@@ -33,6 +34,8 @@ export function TransportControls({
 }) {
   const [showMore, setShowMore] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
+  const moreTrigger = useRef<HTMLButtonElement>(null);
+  const moreId = useId();
 
   // 더보기 팝오버 바깥 클릭 시 닫기
   useEffect(() => {
@@ -46,7 +49,14 @@ export function TransportControls({
 
   return (
     // relative를 행 전체에 두어 팝오버가 좁은 카드 폭(우측 정렬) 안에 들어오게 함
-    <div className="ls-transport relative flex items-center gap-0.5" ref={moreRef}>
+    <div className="ls-transport relative flex items-center gap-0.5" ref={moreRef} onKeyDown={(event) => {
+      if (event.key === "Escape" && showMore && !isComposingKeyEvent(event.nativeEvent)) {
+        event.preventDefault();
+        event.stopPropagation();
+        setShowMore(false);
+        moreTrigger.current?.focus();
+      }
+    }}>
       <CtrlBtn onClick={stopAndReset} title={t.tooltipStop}>
         <StopIcon />
       </CtrlBtn>
@@ -70,8 +80,11 @@ export function TransportControls({
       </div>
 
       <CtrlBtn
+        ref={moreTrigger}
         onClick={() => setShowMore((v) => !v)}
         title={t.playerMore}
+        ariaExpanded={showMore}
+        ariaControls={moreId}
         active={showMore || isLooping || playbackRate !== 1.0 || showSpectrogram}
       >
         <MoreIcon />
@@ -79,6 +92,7 @@ export function TransportControls({
       {showMore && (
         <MorePopover
           t={t}
+          id={moreId}
           isLooping={isLooping} onToggleLoop={onToggleLoop}
           showMarkers={showMarkers} onToggleMarkers={onToggleMarkers}
           showSpectrogram={showSpectrogram} onToggleSpectrogram={onToggleSpectrogram}

@@ -3,10 +3,11 @@ import { LoopIcon, MarkerIcon, SpectrogramIcon } from "./icons";
 
 // 재생 컨트롤 "더보기" 팝오버 내용: 파일 전체 반복·가사 마커·스펙트로그램 토글 + 배속 조절.
 export function MorePopover({
-  t, isLooping, onToggleLoop, showMarkers, onToggleMarkers, showSpectrogram, onToggleSpectrogram,
+  t, id, isLooping, onToggleLoop, showMarkers, onToggleMarkers, showSpectrogram, onToggleSpectrogram,
   playbackRate, speedMin, speedMax, onSpeedDown, onSpeedUp,
 }: {
   t: Translations;
+  id: string;
   isLooping: boolean;
   onToggleLoop: () => void;
   showMarkers: boolean;
@@ -20,7 +21,7 @@ export function MorePopover({
   onSpeedUp: () => void;
 }) {
   return (
-    <div className="absolute right-0 top-full mt-2 z-40 w-56 bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl p-3 flex flex-col gap-2.5">
+    <div id={id} role="group" aria-label={t.playerMore} className="absolute right-0 top-full mt-2 z-40 w-56 bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl p-3 flex flex-col gap-2.5">
       <div className="flex items-center justify-between">
         <span className="text-xs text-[var(--ls-text-secondary)]">{t.tooltipLoop}</span>
         <button onClick={onToggleLoop} className={`ls-button ls-button--compact ls-button--icon-compact ${popToggleCls(isLooping)}`} title={t.tooltipLoop} aria-label={t.tooltipLoop} aria-pressed={isLooping}>
