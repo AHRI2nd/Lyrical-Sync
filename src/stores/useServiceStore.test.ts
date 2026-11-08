@@ -20,6 +20,8 @@ vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: (...args: unknown[]) => o
 import { spotifyApiRequest, useServiceStore } from "./useServiceStore";
 import { useSettingsStore } from "./useSettingsStore";
 import { useLrcStore } from "./useLrcStore";
+import { useToastStore } from "./useToastStore";
+import { useI18nStore } from "./useI18nStore";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -213,10 +215,16 @@ describe("useServiceStore — session restore & logout", () => {
     expect(useServiceStore.getState().isLoggedIn).toBe(false);
   });
 
-  it("tryRestoreSession silently skips when the keyring is unavailable", async () => {
+  it("reports credential-store failures while preserving the signed-out state", async () => {
     invoke.mockImplementation(() => Promise.reject(new Error("keyring unavailable")));
+    useToastStore.setState({ toasts: [] });
+    useI18nStore.getState().setLang("en");
     await expect(useServiceStore.getState().tryRestoreSession()).resolves.toBeUndefined();
     expect(useServiceStore.getState().isLoggedIn).toBe(false);
+    expect(useToastStore.getState().toasts[0]).toMatchObject({
+      type: "error",
+      message: useI18nStore.getState().t.toast.spotifySessionRestoreFailed,
+    });
   });
 
   it("logout clears auth state and playback fields", async () => {

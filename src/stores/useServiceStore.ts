@@ -359,7 +359,9 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
       // Mark as logged in with a near-expired token to trigger refresh on first use
       set({ isLoggedIn: true, accessToken: null, tokenExpiresAt: 0 });
     } catch {
-      // Keyring unavailable — silently skip
+      if (isCurrentLease(lease)) {
+        toast.error(useI18nStore.getState().t.toast.spotifySessionRestoreFailed);
+      }
     }
   },
 
