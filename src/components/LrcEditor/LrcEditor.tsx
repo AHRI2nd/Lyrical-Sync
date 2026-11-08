@@ -151,7 +151,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
   // 글자 동기화된 줄의 텍스트 수정 경고 / 단위 변경 경고
   const [pendingTextEdit, setPendingTextEdit] = useState<{
-    id: string; text: string; session: number; baseText: string; baseSyllables: LrcSyllable[] | undefined;
+    id: string; text: string; session: number; baseText: string; baseSyllables: LrcSyllable[] | undefined; preserveFocus: boolean;
   } | null>(null);
   const [pendingGlyphMutation, setPendingGlyphMutation] = useState<{
     session: number;
@@ -291,6 +291,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   const handleTextChange = (id: string, value: string) => {
     const ln = useLrcStore.getState().doc.lines.find((l) => l.id === id);
     if (!ln || ln.text === value) return;
+    const preserveFocus = ln.text.includes("\n") && !value.includes("\n");
     if (ln.syllables?.some((s) => s.time !== null)) {
       const current = useLrcStore.getState();
       setPendingTextEdit({
@@ -299,9 +300,11 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
         session: current._documentSession,
         baseText: ln.text,
         baseSyllables: ln.syllables?.map((syllable) => ({ ...syllable })),
+        preserveFocus,
       });
       return;
     }
+    if (preserveFocus) pendingFocusId.current = id;
     updateLine(id, { text: value });
   };
   const confirmTextEdit = () => {
@@ -310,6 +313,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
       const line = current.doc.lines.find((item) => item.id === pendingTextEdit.id);
       const syllablesMatch = JSON.stringify(line?.syllables) === JSON.stringify(pendingTextEdit.baseSyllables);
       if (current._documentSession === pendingTextEdit.session && line?.text === pendingTextEdit.baseText && syllablesMatch) {
+        if (pendingTextEdit.preserveFocus) pendingFocusId.current = pendingTextEdit.id;
         updateLine(pendingTextEdit.id, { text: pendingTextEdit.text, syllables: undefined });
       }
     }

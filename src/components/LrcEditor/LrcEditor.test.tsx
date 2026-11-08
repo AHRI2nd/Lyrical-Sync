@@ -106,6 +106,18 @@ it("keeps imported multiline subtitle bodies intact while editing", () => {
   expect(useLrcStore.getState().doc.lines[0].text).toBe("first\nchanged");
 });
 
+it("keeps focus when removing the final newline from a lyric", () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "first\nsecond", timestamp: 1 }] } });
+  const { getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  const textarea = getByRole("textbox") as HTMLTextAreaElement;
+  textarea.focus();
+  fireEvent.change(textarea, { target: { value: "first second" } });
+
+  const input = getByRole("textbox");
+  expect(input.tagName).toBe("INPUT");
+  expect(document.activeElement).toBe(input);
+});
+
 
 it("asks for explicit translation parts when splitting and cancellation leaves the cue untouched", () => {
   const t = useI18nStore.getState().t;
