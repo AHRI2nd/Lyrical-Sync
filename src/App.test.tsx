@@ -67,6 +67,7 @@ import { useServiceStore } from "./stores/useServiceStore";
 import { useSettingsStore } from "./stores/useSettingsStore";
 import { useToastStore } from "./stores/useToastStore";
 import { installMemoryLocalStorage } from "./test/memoryLocalStorage";
+import { audioControls } from "./utils/audioControls";
 
 const initialLoadLyricsPath = useLrcStore.getInitialState().loadLyricsPath;
 
@@ -143,6 +144,27 @@ describe("App — drag-and-drop conflict resolution", () => {
 
     await user.click(screen.getByText("교체"));
     expect(setAudioPathSpy).toHaveBeenCalledWith("/music/new.mp3");
+  });
+
+  it("keeps playback shortcuts available when a confirmation modal focuses a button", async () => {
+    resetLrc({ isDirty: true, lrcPath: "/music/unsaved.lrc" });
+    const togglePlay = vi.spyOn(audioControls, "togglePlay");
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: useI18nStore.getState().t.newFileBtn }));
+    const cancel = screen.getByRole("button", { name: useI18nStore.getState().t.confirmNewCancel });
+    expect(document.activeElement).toBe(cancel);
+    fireEvent.keyDown(window, { code: "Digit3", key: "3" });
+
+    expect(togglePlay).toHaveBeenCalledOnce();
+    expect(screen.getByRole("dialog", { name: useI18nStore.getState().t.confirmNewTitle })).toBeTruthy();
+
+    const input = document.createElement("input");
+    screen.getByRole("dialog").appendChild(input);
+    input.focus();
+    fireEvent.keyDown(input, { code: "Digit3", key: "3" });
+    expect(togglePlay).toHaveBeenCalledOnce();
   });
 
   it("dismisses without applying when the conflict is cancelled", async () => {

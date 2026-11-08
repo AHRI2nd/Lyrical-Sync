@@ -18,7 +18,7 @@ import { deviceControls } from "./utils/deviceControls";
 import { useDeviceStore } from "./stores/useDeviceStore";
 import { anyModalOpen } from "./utils/modalGuard";
 import { safeUnlisten } from "./utils/safeUnlisten";
-import { isComposingKeyEvent, isInteractiveKeyTarget, matchAction, normalizeKeybindings, PLAYBACK_ACTIONS } from "./utils/keybindings";
+import { isComposingKeyEvent, isInteractiveKeyTarget, isTextEntryKeyTarget, matchAction, normalizeKeybindings, PLAYBACK_ACTIONS } from "./utils/keybindings";
 import { toast } from "./stores/useToastStore";
 import { ToastContainer } from "./components/Toast/ToastContainer";
 import { type RecoverySnapshot, loadRecoverySnapshot, saveRecoverySnapshot, clearRecoverySnapshot } from "./utils/recovery";
@@ -75,6 +75,7 @@ function useGlobalKeys() {
     const kb = normalizeKeybindings(keybindings);
     const handler = (e: KeyboardEvent) => {
       if (isComposingKeyEvent(e)) return;
+      const modalOpen = anyModalOpen();
       const inInteractiveControl =
         isInteractiveKeyTarget(e.target) || isInteractiveKeyTarget(document.activeElement);
 
@@ -91,10 +92,12 @@ function useGlobalKeys() {
       if (e.ctrlKey || e.altKey || e.metaKey) return;
 
       const action = matchAction(e.code, kb);
-      if (!action || inInteractiveControl) return;
+      if (!action) return;
 
       // 재생 트랜스포트: 줄/글자 모드 공통(모달 열려도 미디어 제어 허용)
       if (PLAYBACK_ACTIONS.includes(action)) {
+        const textEntryFocused = isTextEntryKeyTarget(e.target) || isTextEntryKeyTarget(document.activeElement);
+        if (textEntryFocused || (inInteractiveControl && !modalOpen)) return;
         e.preventDefault();
         if (action === "skipBack5") controls.skip(-5);
         else if (action === "skipBack1") controls.skip(-1);
@@ -104,6 +107,8 @@ function useGlobalKeys() {
         else if (action === "stop") controls.stopAndReset();
         return;
       }
+
+      if (inInteractiveControl) return;
 
       // stamp/prevLine: 글자 모드에선 CharSyncView가 처리, 모달 뒤에선 차단
       if (action === "stamp" || action === "prevLine") {
