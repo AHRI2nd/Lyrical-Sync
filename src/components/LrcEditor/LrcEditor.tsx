@@ -640,6 +640,8 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     setActiveLineId(id);
     const ln = currentLines.find((l) => l.id === id);
     if (ln && ln.timestamp !== null) {
+      const store = useLrcStore.getState();
+      if (store.loopLineId && store.loopLineId !== ln.id) store.setLoopLine(null);
       seekControls.seekTo(ln.timestamp);
     }
     if (showFR) {

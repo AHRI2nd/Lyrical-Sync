@@ -413,6 +413,17 @@ it("updates a memoized row seek handler when switching from Spotify to device pl
   expect(deviceSeek).toHaveBeenCalledWith(1);
   expect(serviceSeek).toHaveBeenCalledTimes(1);
 });
+it("clears the previous local line repeat when seeking to another lyric row", () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+    { id: "a", text: "first", timestamp: 1 },
+    { id: "b", text: "next", timestamp: 2 },
+  ] }, audioPath: "/music/song.mp3", loopLineId: "a" });
+  const { container } = render(<LrcEditor onPreview={() => {}} />);
+
+  fireEvent.click(container.querySelector('[data-line-id="b"]')!);
+
+  expect(useLrcStore.getState().loopLineId).toBeNull();
+});
 it("continues to the next matching row after replacing the current row", () => {
   const t = useI18nStore.getState().t;
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
