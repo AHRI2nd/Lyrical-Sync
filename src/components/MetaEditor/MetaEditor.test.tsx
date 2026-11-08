@@ -111,6 +111,28 @@ it("applies an unchanged-session raw draft and keeps the operation undoable", ()
   expect(useLrcStore.getState().doc.lines.map((line) => line.text)).toEqual(["A original"]);
 });
 
+it("keeps SRT cue ends when the unchanged raw editor is applied", () => {
+  const t = useI18nStore.getState().t;
+  const doc = {
+    ...defaultDocument(),
+    lines: [
+      { id: "first", timestamp: 1, srtEndTime: 4, text: "first" },
+      { id: "second", timestamp: 3, srtEndTime: 5, text: "second" },
+    ],
+  };
+  useLrcStore.setState({ doc, lrcPath: "/tmp/song.srt", isDirty: false });
+  const history = useLrcStore.getState()._history;
+  render(<MetaEditor />);
+
+  fireEvent.click(screen.getByRole("button", { name: t.viewAll }));
+  fireEvent.click(screen.getAllByRole("button", { name: t.rawEditorApply }).slice(-1)[0]);
+
+  expect(useLrcStore.getState().doc).toBe(doc);
+  expect(useLrcStore.getState().doc.lines.map((line) => line.srtEndTime)).toEqual([4, 5]);
+  expect(useLrcStore.getState()._history).toBe(history);
+  expect(useLrcStore.getState().isDirty).toBe(false);
+});
+
 it("opens the raw editor from non-reserved parse errors instead of hiding the repair path", () => {
   const t = useI18nStore.getState().t;
   useLrcStore.setState({ doc: { ...defaultDocument(), metadata: { ...defaultDocument().metadata, title: "Bad\\nTitle" },

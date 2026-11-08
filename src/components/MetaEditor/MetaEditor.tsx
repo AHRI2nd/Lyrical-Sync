@@ -130,6 +130,10 @@ export function MetaEditor() {
               current._editRevision !== rawEditorSnapshot.editRevision ||
               current.doc !== rawEditorSnapshot.document
             ) return false;
+            if (raw === rawEditorSnapshot.text) {
+              setRawEditorSnapshot(null);
+              return true;
+            }
             loadFromRawText(raw);
             setRawEditorSnapshot(null);
             return true;
