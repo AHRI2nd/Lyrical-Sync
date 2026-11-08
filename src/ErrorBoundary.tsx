@@ -1,10 +1,28 @@
 import { Component, ReactNode } from "react";
+import { useLrcStore } from "./stores/useLrcStore";
+import { saveRecoverySnapshot } from "./utils/recovery";
 
 interface Props { children: ReactNode }
 interface State { error: Error | null }
 
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null };
+
+  componentDidCatch(): void {
+    const document = useLrcStore.getState();
+    if (!document.isDirty) return;
+    saveRecoverySnapshot(
+      document.doc,
+      document.lrcPath,
+      document.audioPath,
+      null,
+      null,
+      undefined,
+      document._documentSession,
+      document._editRevision,
+      document._lrcFileHash,
+    );
+  }
 
   static getDerivedStateFromError(error: Error): State {
     return { error };
