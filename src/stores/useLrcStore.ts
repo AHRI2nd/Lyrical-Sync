@@ -242,6 +242,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   };
   let documentSessionId = 0;
   let lyricLoadGeneration = 0;
+  let audioPickerGeneration = 0;
   let saveAsGeneration = 0;
   let fetchedLyricsRequestId = 0;
   type SaveResult = { success: boolean; path: string; revision: number; docRef: LrcDocument; fileHash: string | null };
@@ -909,11 +910,15 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   },
 
   openAudio: async () => {
+    const requestId = ++audioPickerGeneration;
+    const audioSelection = get()._audioSelection;
     const selected = await open({
       multiple: false,
       filters: [{ name: "Audio", extensions: ["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff", "aif"] }],
     });
-    if (typeof selected === "string") get().setAudioPath(selected);
+    const current = get();
+    if (requestId !== audioPickerGeneration || current._audioSelection !== audioSelection) return;
+    if (typeof selected === "string") current.setAudioPath(selected);
   },
 
   // 경로로 가사 로드 (확장자로 LRC/SRT 분기). 다이얼로그/드래그앤드롭 공용.

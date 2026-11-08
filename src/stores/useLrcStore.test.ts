@@ -58,6 +58,39 @@ describe("playback source transitions", () => {
   });
 });
 
+describe("audio picker ownership", () => {
+  beforeEach(() => {
+    reset([]);
+    vi.mocked(open).mockReset();
+  });
+
+  it("does not apply a picker result after a newer audio selection", async () => {
+    let resolvePicker!: (path: string | null) => void;
+    vi.mocked(open).mockImplementation(() => new Promise((resolve) => { resolvePicker = resolve; }));
+    const opening = useLrcStore.getState().openAudio();
+
+    useLrcStore.getState().setAudioPath("/music/manual.mp3");
+    resolvePicker("/music/stale.mp3");
+    await opening;
+
+    expect(useLrcStore.getState().audioPath).toBe("/music/manual.mp3");
+  });
+
+  it("keeps a newer picker result when an older picker resolves last", async () => {
+    const resolvePickers: Array<(path: string | null) => void> = [];
+    vi.mocked(open).mockImplementation(() => new Promise((resolve) => { resolvePickers.push(resolve); }));
+    const older = useLrcStore.getState().openAudio();
+    const newer = useLrcStore.getState().openAudio();
+
+    resolvePickers[1]("/music/newer.mp3");
+    await newer;
+    resolvePickers[0]("/music/older.mp3");
+    await older;
+
+    expect(useLrcStore.getState().audioPath).toBe("/music/newer.mp3");
+  });
+});
+
 describe("useLrcStore — line actions", () => {
   beforeEach(() => reset([]));
 
