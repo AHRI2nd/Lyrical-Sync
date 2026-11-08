@@ -325,7 +325,7 @@ fn write_with_expected_unlocked_and_sync(
             io::Error::new(
                 error.kind(),
                 format!(
-                    "Destination was replaced, but directory durability could not be confirmed: {error}"
+                    "SAVE_PUBLISHED_DURABILITY_UNCONFIRMED: Destination was replaced, but directory durability could not be confirmed: {error}"
                 ),
             )
         })?;
@@ -612,6 +612,7 @@ mod tests {
         )
         .unwrap_err();
 
+        assert!(error.to_string().contains("SAVE_PUBLISHED_DURABILITY_UNCONFIRMED"));
         assert!(error.to_string().contains("Destination was replaced"));
         assert!(error.to_string().contains("durability could not be confirmed"));
         assert!(error.to_string().contains("simulated directory sync failure"));

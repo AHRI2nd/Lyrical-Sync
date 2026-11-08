@@ -94,6 +94,33 @@ it("does not overwrite an externally changed file or retry the conflict", async 
   expect(writes()).toHaveLength(1);
 });
 
+it("accepts a published autosave after directory durability failure without misreporting a file conflict", async () => {
+  let publishedContent = "";
+  invokeMock.mockImplementation((command: string, args?: { content?: string }) => {
+    if (command === "write_lrc_file_if_unchanged") {
+      publishedContent = args?.content ?? "";
+      return Promise.reject(new Error("SAVE_PUBLISHED_DURABILITY_UNCONFIRMED: directory sync failed"));
+    }
+    if (command === "read_lrc_file_with_hash") {
+      return Promise.resolve({ content: publishedContent, sha256: "b".repeat(64) });
+    }
+    return Promise.resolve(undefined);
+  });
+  render(<App />);
+
+  await advance(1_500);
+
+  expect(writes()).toHaveLength(1);
+  expect(useLrcStore.getState().isDirty).toBe(false);
+  expect(useLrcStore.getState()._lrcFileHash).toBe("b".repeat(64));
+  expect(useToastStore.getState().toasts.some(({ message }) =>
+    message === useI18nStore.getState().t.toast.saveDurabilityUnconfirmed,
+  )).toBe(true);
+  expect(useToastStore.getState().toasts.some(({ message }) =>
+    message === useI18nStore.getState().t.toast.fileChanged,
+  )).toBe(false);
+});
+
 it("never retries a successful first autosave", async () => {
   render(<App />);
   await advance(1500);

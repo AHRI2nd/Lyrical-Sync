@@ -245,7 +245,14 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
   let audioPickerGeneration = 0;
   let saveAsGeneration = 0;
   let fetchedLyricsRequestId = 0;
-  type SaveResult = { success: boolean; path: string; revision: number; docRef: LrcDocument; fileHash: string | null };
+  type SaveResult = {
+    success: boolean;
+    path: string;
+    revision: number;
+    docRef: LrcDocument;
+    fileHash: string | null;
+    durabilityUnconfirmed: boolean;
+  };
   const writeLrcFileWithMeta = async (
     path: string,
     content: string,
@@ -255,7 +262,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     expectedSha256: string | null = null,
     sourcePath: string | null = null,
   ): Promise<SaveResult> => {
-    if (!isCurrent()) return { success: false, path, revision, docRef: doc, fileHash: null };
+    if (!isCurrent()) return { success: false, path, revision, docRef: doc, fileHash: null, durabilityUnconfirmed: false };
     let fileHash: string | null = null;
     let wrote = false;
     try {
@@ -270,10 +277,20 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
         fileHash = await invoke<string>(command, args);
         wrote = true;
       });
-      return { success: wrote, path, revision, docRef: doc, fileHash };
+      return { success: wrote, path, revision, docRef: doc, fileHash, durabilityUnconfirmed: false };
     } catch (error) {
       if (String(error).includes("LYRICS_FILE_CHANGED")) throw new Error("LYRICS_FILE_CHANGED");
-      return { success: false, path, revision, docRef: doc, fileHash: null };
+      if (String(error).includes("SAVE_PUBLISHED_DURABILITY_UNCONFIRMED")) {
+        try {
+          const snapshot = await invoke<{ content: string; sha256: string }>("read_lrc_file_with_hash", { path });
+          if (snapshot.content === content && /^[0-9a-f]{64}$/.test(snapshot.sha256)) {
+            return { success: true, path, revision, docRef: doc, fileHash: snapshot.sha256, durabilityUnconfirmed: true };
+          }
+        } catch {
+          // A failed read cannot establish that the staged content was published.
+        }
+      }
+      return { success: false, path, revision, docRef: doc, fileHash: null, durabilityUnconfirmed: false };
     }
   };
 
@@ -1031,6 +1048,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
       set({ _editRevision: revision + 1 });
     }
     if (!result.success) return false;
+    if (result.durabilityUnconfirmed) toast.info(useI18nStore.getState().t.toast.saveDurabilityUnconfirmed);
     if (documentSessionId === sessionId && get().lrcPath === lrcPath) set({ _savedDocument: savedDoc });
     if (documentSessionId === sessionId && get().lrcPath === lrcPath && current.doc === doc) {
       if (normalizesSrtOnlyData) {
@@ -1092,6 +1110,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
         originalPath,
       );
       if (!result.success) return false;
+      if (result.durabilityUnconfirmed) toast.info(useI18nStore.getState().t.toast.saveDurabilityUnconfirmed);
       // 보조 포맷 저장 시엔 작업 파일 경로(lrcPath)·dirty 상태를 바꾸지 않음
       const current = get();
       if (
