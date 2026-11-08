@@ -5,6 +5,11 @@ import json
 from pathlib import Path
 import re
 
+try:
+    from minisign_signature import verify_signature
+except ModuleNotFoundError:
+    from scripts.minisign_signature import verify_signature
+
 
 EXPECTED = {
     'aarch64-apple-darwin': {'app', 'dmg'},
@@ -46,7 +51,8 @@ def confined_candidate_file(directory, value, label):
     return resolved
 
 
-def verify(root, version, source_sha):
+def verify(root, version, source_sha, signature_verifier=None):
+    signature_verifier = signature_verifier or verify_signature
     root = Path(root).resolve()
     if not isinstance(version, str) or not re.fullmatch(r'\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?', version):
         raise ValueError('Invalid candidate version')
@@ -95,6 +101,7 @@ def verify(root, version, source_sha):
                         or signature.stat().st_size == 0
                         or sha256_file(signature) != row['signatureSha256']):
                     raise ValueError(f'Missing or changed updater signature sidecar: {row.get("path")}')
+                signature_verifier(artifact, signature)
                 if signature.name in names:
                     raise ValueError(f'Duplicate release artifact filename: {signature.name}')
                 names.add(signature.name)

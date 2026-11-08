@@ -6,7 +6,13 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import tempfile
 from urllib.parse import quote
+
+try:
+    from minisign_signature import verify_signature
+except ModuleNotFoundError:
+    from scripts.minisign_signature import verify_signature
 
 
 def has_minisign_signature_structure(signature):
@@ -75,8 +81,13 @@ def assemble_manifest(version, repo, assets, signatures, published_at):
             'pub_date': published_at, 'platforms': platforms}
 
 
-def gh(*args, binary=False):
-    return subprocess.check_output(['gh', *args], text=not binary)
+def gh(*args, binary=False, output=None):
+    command = ['gh', *args]
+    if output is not None:
+        with Path(output).open('wb') as stream:
+            subprocess.run(command, stdout=stream, check=True)
+        return None
+    return subprocess.check_output(command, text=not binary)
 
 
 def get_draft_release(repo, tag):
@@ -90,8 +101,12 @@ def get_draft_release(repo, tag):
     return json.loads(result)
 
 
-def publish(repo, version, output):
+def publish(repo, version, output, signature_verifier=verify_signature):
     tag = 'v' + version
+    windows = re.compile(r'Lyrical[ .]Sync_' + re.escape(version)
+        + r'_(x64|arm64|aarch64)(-setup\.exe|_setup\.msi|\.msi|_[a-z]{2}-[A-Z]{2}\.msi)')
+    macos = re.compile(r'Lyrical[ .]Sync(?:_' + re.escape(version)
+        + r')?_(?:aarch64|arm64)\.app\.tar\.gz')
     release = get_draft_release(repo, tag)
     if not release.get('draft'):
         raise ValueError('Updater assembly only modifies a draft release')
@@ -145,6 +160,23 @@ def publish(repo, version, output):
             signatures[asset['name']] = gh('api',
                 f'repos/{repo}/releases/assets/{asset["id"]}',
                 '-H', 'Accept: application/octet-stream', binary=True).decode('utf-8')
+    supported_artifacts = {
+        asset['name']: asset for asset in release['assets']
+        if (windows.fullmatch(asset['name']) or macos.fullmatch(asset['name']))
+    }
+    for name, artifact in supported_artifacts.items():
+        if name + '.sig' not in signatures:
+            continue
+        signature_asset = assets_by_name.get(name + '.sig')
+        if signature_asset is None:
+            raise ValueError(f'Missing signature asset: {name}')
+        with tempfile.TemporaryDirectory(prefix='lyrical-updater-') as directory:
+            artifact_path = Path(directory) / name
+            signature_path = Path(directory) / (name + '.sig')
+            gh('api', f'repos/{repo}/releases/assets/{artifact["id"]}',
+               '-H', 'Accept: application/octet-stream', output=artifact_path)
+            signature_path.write_text(signatures[name + '.sig'], encoding='utf-8')
+            signature_verifier(artifact_path, signature_path)
     manifest = assemble_manifest(version, repo, release['assets'], signatures,
         datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'))
     output.write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')

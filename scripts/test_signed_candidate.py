@@ -133,6 +133,8 @@ if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
         self.assertIn('publish-release:',source)
         self.assertRegex(source,r'needs:\s*\[\s*release\s*,\s*test-gate\s*\]')
         self.assertIn('scripts/verify_release_candidates.py',source)
+        self.assertIn('node-version: 22',source[source.index('  publish-release:'):source.index('  updater-manifest:')])
+        self.assertIn('node-version: 22',source[source.index('  updater-manifest:'):])
         self.assertIn('gh release upload',source)
         self.assertNotRegex(source,r'(?m)^\s*gh release upload .*--clobber')
         self.assertIn('existing_asset_count=$(gh api',source)
@@ -349,6 +351,9 @@ if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
         path=ROOT/'scripts/verify_release_candidates.py'
         spec=importlib.util.spec_from_file_location('release_candidates',path)
         module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        # Candidate matrix fixtures exercise metadata/path/hash gates; cryptographic
+        # behavior has dedicated real-key Minisign fixtures in test_minisign_verifier.py.
+        module.verify_signature=lambda artifact, signature: None
         return module
 
     def release_candidate_matrix(self, root):
@@ -386,6 +391,17 @@ if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
             record.unlink()
             with self.assertRaisesRegex(ValueError,'matrix is incomplete'):
                 module.verify(root,'0.7.0','a'*40)
+
+    def test_release_candidate_verifies_every_signed_artifact_with_configured_key(self):
+        module=self.release_candidate_verifier()
+        verified=[]
+        module.verify_signature=lambda artifact, signature: verified.append((artifact.name,signature.name))
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            self.release_candidate_matrix(root)
+            module.verify(root,'0.7.0','a'*40)
+        self.assertEqual(len(verified),4)
+        self.assertTrue(all(artifact+'.sig'==signature for artifact,signature in verified))
 
     def test_release_candidate_hashing_streams_without_reading_whole_artifacts(self):
         module=self.release_candidate_verifier()

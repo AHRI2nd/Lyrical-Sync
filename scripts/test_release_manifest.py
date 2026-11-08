@@ -68,7 +68,11 @@ class ReleaseManifestTests(unittest.TestCase):
         assets = [{'id':i+1,'name':a['name']} for i,a in enumerate(self.assets)]
         draft = {'id':99,'tag_name':'v0.7.0','draft':True,'assets':assets}
         uploaded = []
-        def fake_gh(*args, binary=False):
+        verified = []
+        def fake_gh(*args, binary=False, output=None):
+            if output is not None:
+                Path(output).write_bytes(b'fixture artifact')
+                return None
             if args[0]=='release':
                 uploaded.append(json.loads(Path(args[3]).read_text()))
                 return ''
@@ -91,8 +95,11 @@ class ReleaseManifestTests(unittest.TestCase):
             name=next(a for a in assets if a['id']==asset_id)['name']
             return fake_signature_file()
         with tempfile.TemporaryDirectory() as directory, patch.object(self.module,'gh',fake_gh):
-            self.module.publish('AHRI2nd/Lyrical-Sync','0.7.0',Path(directory)/'latest.json')
+            self.module.publish('AHRI2nd/Lyrical-Sync','0.7.0',Path(directory)/'latest.json',
+                signature_verifier=lambda artifact, signature: verified.append((artifact.name, signature.name)))
         self.assertEqual(len(uploaded),1)
+        self.assertEqual(len(verified),4)
+        self.assertTrue(all(signature == artifact + '.sig' for artifact, signature in verified))
         self.assertTrue(uploaded[0]['platforms']['windows-x86_64-msi']['url'].endswith('_x64_setup.msi'))
         self.assertTrue(uploaded[0]['platforms']['windows-aarch64']['url'].endswith('_arm64-setup.exe'))
         final_names = {a['name'] for a in assets}
@@ -100,12 +107,45 @@ class ReleaseManifestTests(unittest.TestCase):
         self.assertNotIn('Lyrical.Sync_0.7.0_x64.msi',final_names)
         self.assertNotIn('Lyrical.Sync_0.7.0_x64.msi.sig',final_names)
 
+    def test_invalid_artifact_signature_prevents_manifest_upload(self):
+        self.assemble()
+        assets = [{'id':i+1,'name':a['name']} for i,a in enumerate(self.assets)]
+        draft = {'id':99,'tag_name':'v0.7.0','draft':True,'assets':assets}
+        uploaded = []
+        def fake_gh(*args, binary=False, output=None):
+            if output is not None:
+                Path(output).write_bytes(b'tampered artifact')
+                return None
+            if args[0] == 'release':
+                uploaded.append(Path(args[3]).read_text())
+                return ''
+            if args[0] == 'api' and '--paginate' in args:
+                return json.dumps(draft)
+            if '--method' in args:
+                asset_id = int(next(arg for arg in args if '/releases/assets/' in arg).split('/')[-1])
+                name = args[-1].removeprefix('name=')
+                next(asset for asset in assets if asset['id'] == asset_id)['name'] = name
+                return '{}'
+            return fake_signature_file()
+
+        def reject_signature(artifact, signature):
+            raise ValueError('fixture signature mismatch')
+
+        with tempfile.TemporaryDirectory() as directory, patch.object(self.module, 'gh', fake_gh):
+            with self.assertRaisesRegex(ValueError, 'fixture signature mismatch'):
+                self.module.publish('AHRI2nd/Lyrical-Sync', '0.7.0', Path(directory) / 'latest.json',
+                    signature_verifier=reject_signature)
+        self.assertEqual(uploaded, [])
+
     def test_legacy_locale_msi_is_still_renamed_for_existing_release_workflows(self):
         self.assemble()
         assets = [{'id':i+1,'name':a['name'].replace('_x64.msi','_x64_en-US.msi')} for i,a in enumerate(self.assets)]
         draft = {'id':99,'tag_name':'v0.7.0','draft':True,'assets':assets}
         uploaded = []
-        def fake_gh(*args, binary=False):
+        def fake_gh(*args, binary=False, output=None):
+            if output is not None:
+                Path(output).write_bytes(b'fixture artifact')
+                return None
             if args[0]=='release':
                 uploaded.append(json.loads(Path(args[3]).read_text()))
                 return ''
@@ -126,7 +166,8 @@ class ReleaseManifestTests(unittest.TestCase):
             name=next(a for a in assets if a['id']==asset_id)['name']
             return fake_signature_file()
         with tempfile.TemporaryDirectory() as directory, patch.object(self.module,'gh',fake_gh):
-            self.module.publish('AHRI2nd/Lyrical-Sync','0.7.0',Path(directory)/'latest.json')
+            self.module.publish('AHRI2nd/Lyrical-Sync','0.7.0',Path(directory)/'latest.json',
+                signature_verifier=lambda artifact, signature: None)
         self.assertEqual(len(uploaded),1)
         self.assertTrue(uploaded[0]['platforms']['windows-x86_64-msi']['url'].endswith('_x64_setup.msi'))
         self.assertNotIn('Lyrical.Sync_0.7.0_x64_en-US.msi',{a['name'] for a in assets})
@@ -141,7 +182,10 @@ class ReleaseManifestTests(unittest.TestCase):
         assets = [{'id':i+1,'name':name} for i,name in enumerate(names)]
         draft = {'id':99,'tag_name':'v0.7.0','draft':True,'assets':assets}
         uploaded = []
-        def fake_gh(*args, binary=False):
+        def fake_gh(*args, binary=False, output=None):
+            if output is not None:
+                Path(output).write_bytes(b'fixture artifact')
+                return None
             if args[0]=='release':
                 uploaded.append(json.loads(Path(args[3]).read_text()))
                 return ''
@@ -156,7 +200,8 @@ class ReleaseManifestTests(unittest.TestCase):
             return fake_signature_file()
         with tempfile.TemporaryDirectory() as directory, patch.object(self.module,'gh',fake_gh):
             with self.assertRaisesRegex(ValueError, 'Ambiguous duplicate MSI asset pair'):
-                self.module.publish('AHRI2nd/Lyrical-Sync','0.7.0',Path(directory)/'latest.json')
+                self.module.publish('AHRI2nd/Lyrical-Sync','0.7.0',Path(directory)/'latest.json',
+                    signature_verifier=lambda artifact, signature: None)
         remaining = {a['name'] for a in assets}
         self.assertIn('Lyrical.Sync_0.7.0_x64.msi',remaining)
         self.assertIn('Lyrical.Sync_0.7.0_x64.msi.sig',remaining)
@@ -169,8 +214,11 @@ class ReleaseManifestTests(unittest.TestCase):
         draft = {'id':99,'tag_name':'v0.7.0','draft':True,'assets':assets}
         patch_calls = 0
         uploaded = []
-        def fake_gh(*args, binary=False):
+        def fake_gh(*args, binary=False, output=None):
             nonlocal patch_calls
+            if output is not None:
+                Path(output).write_bytes(b'fixture artifact')
+                return None
             if args[0] == 'release':
                 uploaded.append(json.loads(Path(args[3]).read_text()))
                 return ''
@@ -192,8 +240,10 @@ class ReleaseManifestTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.object(self.module, 'gh', fake_gh):
             output = Path(directory) / 'latest.json'
             with self.assertRaisesRegex(RuntimeError, 'transient signature'):
-                self.module.publish('AHRI2nd/Lyrical-Sync', '0.7.0', output)
-            self.module.publish('AHRI2nd/Lyrical-Sync', '0.7.0', output)
+                self.module.publish('AHRI2nd/Lyrical-Sync', '0.7.0', output,
+                    signature_verifier=lambda artifact, signature: None)
+            self.module.publish('AHRI2nd/Lyrical-Sync', '0.7.0', output,
+                signature_verifier=lambda artifact, signature: None)
 
         self.assertEqual(len(uploaded), 1)
         final_names = {asset['name'] for asset in assets}
@@ -208,7 +258,10 @@ class ReleaseManifestTests(unittest.TestCase):
         old_signature['name'] = 'Lyrical.Sync_0.7.0_x64_setup.msi.sig'
         draft = {'id':99,'tag_name':'v0.7.0','draft':True,'assets':assets}
         uploaded = []
-        def fake_gh(*args, binary=False):
+        def fake_gh(*args, binary=False, output=None):
+            if output is not None:
+                Path(output).write_bytes(b'fixture artifact')
+                return None
             if args[0] == 'release':
                 uploaded.append(json.loads(Path(args[3]).read_text()))
                 return ''
@@ -224,7 +277,8 @@ class ReleaseManifestTests(unittest.TestCase):
             return fake_signature_file()
 
         with tempfile.TemporaryDirectory() as directory, patch.object(self.module, 'gh', fake_gh):
-            self.module.publish('AHRI2nd/Lyrical-Sync', '0.7.0', Path(directory) / 'latest.json')
+            self.module.publish('AHRI2nd/Lyrical-Sync', '0.7.0', Path(directory) / 'latest.json',
+                signature_verifier=lambda artifact, signature: None)
 
         self.assertEqual(len(uploaded), 1)
         final_names = {asset['name'] for asset in assets}
