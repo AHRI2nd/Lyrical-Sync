@@ -58,6 +58,37 @@ it('recovers from a readiness lookup failure after refresh', async () => {
   expect(screen.queryByRole('alert')).toBeNull();
 });
 
+it('ignores an older readiness response after a newer refresh succeeds', async () => {
+  const deferred = <T,>() => {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((done) => { resolve = done; });
+    return { promise, resolve };
+  };
+  const older = deferred<{ pythonReady: boolean; packagesReady: boolean; pipInstallCmd: string; pythonPath: string }>();
+  const newer = deferred<{ pythonReady: boolean; packagesReady: boolean; pipInstallCmd: string; pythonPath: string }>();
+  let lookupCount = 0;
+  ipc.invoke.mockImplementation((command: string) => {
+    if (command !== 'get_python_env_info') return Promise.resolve(undefined);
+    return ++lookupCount === 1 ? older.promise : newer.promise;
+  });
+  render(<PythonEnvSection />);
+  await vi.waitFor(() => expect(lookupCount).toBe(1));
+
+  act(() => useBusyStore.setState({ reasons: new Set(['python-packages']) }));
+  act(() => useBusyStore.setState({ reasons: new Set() }));
+  await vi.waitFor(() => expect(lookupCount).toBe(2));
+  await act(async () => {
+    newer.resolve({ pythonReady: true, packagesReady: true, pipInstallCmd: '', pythonPath: '/python' });
+  });
+  expect(await screen.findByText(useI18nStore.getState().t.settingsVenvReady)).toBeTruthy();
+
+  await act(async () => {
+    older.resolve({ pythonReady: false, packagesReady: false, pipInstallCmd: '', pythonPath: '' });
+  });
+  expect(screen.getByText(useI18nStore.getState().t.settingsVenvReady)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: useI18nStore.getState().t.settingsVenvCreate })).toBeNull();
+});
+
 it('reports missing progress updates without treating a running install as failed', async () => {
   ipc.failListeners = true;
   let resolveInstall!: () => void;

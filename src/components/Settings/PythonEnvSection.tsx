@@ -28,6 +28,7 @@ export function PythonEnvSection() {
   const [info, setInfo] = useState<PythonEnvInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const refreshIdRef = useRef(0);
   const downloading = useBusyStore((state) => state.reasons.has("python-download"));
   const [dlPercent, setDlPercent] = useState(0);
   const installing = useBusyStore((state) => state.reasons.has("python-packages"));
@@ -38,19 +39,23 @@ export function PythonEnvSection() {
 
   useEffect(() => {
     mounted.current = true;
-    return () => { mounted.current = false; };
+    return () => {
+      mounted.current = false;
+      refreshIdRef.current += 1;
+    };
   }, []);
 
   const refresh = useCallback(async () => {
+    const refreshId = ++refreshIdRef.current;
     if (mounted.current) {
       setLoading(true);
       setLoadError(false);
     }
     try {
       const v = await invoke<PythonEnvInfo>("get_python_env_info");
-      if (mounted.current) setInfo(v);
+      if (mounted.current && refreshIdRef.current === refreshId) setInfo(v);
     } catch {
-      if (mounted.current) {
+      if (mounted.current && refreshIdRef.current === refreshId) {
         const environmentBusy = [...useBusyStore.getState().reasons]
           .some((reason) => reason === "python-download" || reason === "python-packages");
         if (!environmentBusy) {
@@ -59,7 +64,7 @@ export function PythonEnvSection() {
         }
       }
     } finally {
-      if (mounted.current) setLoading(false);
+      if (mounted.current && refreshIdRef.current === refreshId) setLoading(false);
     }
   }, []);
 
