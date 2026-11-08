@@ -172,6 +172,13 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   } | null>(null);
   const translationSplitDialog = useRef<HTMLDivElement>(null);
   useModalFocus(translationSplitDialog, () => setPendingTranslationSplit(null), !!pendingTranslationSplit, 90);
+  const [pendingTranslationPaste, setPendingTranslationPaste] = useState<{
+    id: string; session: number; revision: number; text: string; timestamp: number | null;
+    translation: string | undefined; syllables: LrcSyllable[] | undefined;
+    firstText: string; restTexts: string[]; translations: string[];
+  } | null>(null);
+  const translationPasteDialog = useRef<HTMLDivElement>(null);
+  useModalFocus(translationPasteDialog, () => setPendingTranslationPaste(null), !!pendingTranslationPaste, 91);
   const [pendingUnit, setPendingUnit] = useState<{
     unit: SyncUnit; session: number; lineId: string; baseSyllables: LrcSyllable[];
   } | null>(null);
@@ -190,6 +197,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     setPendingUnit(null);
     setPendingAiSync(null);
     setPendingTranslationSplit(null);
+    setPendingTranslationPaste(null);
   }, [documentSession]);
 
   // Reset _lastEditKey when editor loses focus to start new undo group
@@ -202,6 +210,21 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     editor.addEventListener("focusout", onBlur);
     return () => editor.removeEventListener("focusout", onBlur);
   }, []);
+  const applyTranslationPaste = () => {
+    const pending = pendingTranslationPaste;
+    if (!pending) return;
+    const current = useLrcStore.getState();
+    const line = current.doc.lines.find((item) => item.id === pending.id);
+    if (current._documentSession === pending.session && current._editRevision === pending.revision &&
+        line?.text === pending.text && line.timestamp === pending.timestamp && line.translation === pending.translation &&
+        sameSyllables(line.syllables, pending.syllables)) {
+      const newId = pasteLinesAfter(pending.id, pending.firstText, pending.restTexts, pending.translations);
+      setActiveLineId(newId);
+      pendingFocusId.current = newId;
+    }
+    setPendingTranslationPaste(null);
+  };
+
   const applyTranslationSplit = () => {
     const pending = pendingTranslationSplit;
     if (!pending) return;
@@ -568,13 +591,26 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
     const restTexts = pasteLines.slice(1);
     restTexts[restTexts.length - 1] += after;
+    const firstText = before + pasteLines[0];
+    const source = useLrcStore.getState().doc.lines.find((line) => line.id === id);
+    if (!source) return;
     const apply = () => {
-      const newId = pasteLinesAfter(id, before + pasteLines[0], restTexts);
+      const current = useLrcStore.getState();
+      if (source.translation !== undefined) {
+        setPendingTranslationPaste({
+          id, session: current._documentSession, revision: current._editRevision,
+          text: source.text, timestamp: source.timestamp, translation: source.translation,
+          syllables: source.syllables?.map((syllable) => ({ ...syllable })),
+          firstText, restTexts,
+          translations: [source.translation, ...restTexts.map(() => "")],
+        });
+        return;
+      }
+      const newId = pasteLinesAfter(id, firstText, restTexts);
       setActiveLineId(newId);
       pendingFocusId.current = newId;
     };
-    const source = useLrcStore.getState().doc.lines.find((line) => line.id === id);
-    if (source) requestGlyphMutation([source], apply);
+    requestGlyphMutation([source], apply);
   };
 
   // 타임스탬프 검증 경고
@@ -1132,6 +1168,53 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
           onOk={confirmAiSync}
           onCancel={() => setPendingAiSync(null)}
         />
+      )}
+      {pendingTranslationPaste && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setPendingTranslationPaste(null)}
+        >
+          <div
+            ref={translationPasteDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="translation-paste-title"
+            className="mx-4 max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-xl border border-[var(--ls-border-subtle)] bg-[var(--ls-surface)] p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="translation-paste-title" className="text-sm font-semibold text-[var(--ls-text)]">
+              {t.translationPasteTitle}
+            </h2>
+            <p className="mt-2 text-xs text-[var(--ls-text-secondary)]">{t.translationPasteHint}</p>
+            <div className="mt-4 space-y-3">
+              {[pendingTranslationPaste.firstText, ...pendingTranslationPaste.restTexts].map((text, index) => (
+                <label key={`${index}-${text}`} className="block text-xs text-[var(--ls-text-secondary)]">
+                  <span className="block truncate">{t.translationPasteLine} {index + 1}: {text || "…"}</span>
+                  <textarea
+                    autoFocus={index === 0}
+                    spellCheck={showSpellCheck}
+                    aria-label={`${t.translationPasteLine} ${index + 1}: ${text}`}
+                    value={pendingTranslationPaste.translations[index] ?? ""}
+                    onChange={(e) => setPendingTranslationPaste((pending) => {
+                      if (!pending) return pending;
+                      const translations = [...pending.translations];
+                      translations[index] = e.target.value;
+                      return { ...pending, translations };
+                    })}
+                    className="ls-field mt-1 min-h-14 w-full resize-y text-sm"
+                  />
+                </label>
+              ))}
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setPendingTranslationPaste(null)} className="ls-button text-xs">{t.cancelLabel}</button>
+              <button
+                onClick={applyTranslationPaste}
+                className="ls-button bg-[var(--ls-primary)] text-xs text-white hover:bg-[var(--ls-selection)] ls-button--primary"
+              >{t.translationPasteApply}</button>
+            </div>
+          </div>
+        </div>
       )}
       {pendingTranslationSplit && (
         <div

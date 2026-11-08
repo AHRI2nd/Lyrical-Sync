@@ -524,6 +524,79 @@ it("does not apply replace-all after undo changes the affected rows", () => {
   expect(useLrcStore.getState().doc.lines[1].syllables).toEqual([{ text: "old second", time: 2 }]);
 });
 
+it("edits a translation for each pasted line and applies all rows as one undo action", () => {
+  const t = useI18nStore.getState().t;
+  useSettingsStore.setState({ showTranslationLines: true });
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "old lyric", translation: "old translation", timestamp: 1 }] } });
+  const { getByDisplayValue, getByRole, getAllByRole } = render(<LrcEditor onPreview={() => {}} />);
+  const input = getByDisplayValue("old lyric") as HTMLInputElement;
+  input.setSelectionRange(4, 4);
+  fireEvent.paste(input, { clipboardData: { getData: () => "new first\nnew second" } });
+  expect(getByRole("dialog", { name: t.translationPasteTitle })).toBeTruthy();
+  expect(useLrcStore.getState().doc.lines).toHaveLength(1);
+  expect((getByRole("textbox", { name: `${t.translationPasteLine} 1: old new first` }) as HTMLTextAreaElement).value).toBe("old translation");
+  const pasteTranslationInputs = getAllByRole("textbox").filter((element) => element.tagName === "TEXTAREA");
+  fireEvent.change(pasteTranslationInputs[pasteTranslationInputs.length - 2], { target: { value: "first translation" } });
+  fireEvent.change(pasteTranslationInputs[pasteTranslationInputs.length - 1], { target: { value: "second translation" } });
+  fireEvent.click(getByRole("button", { name: t.translationPasteApply }));
+
+  expect(useLrcStore.getState().doc.lines.map((line) => [line.text, line.translation, line.timestamp])).toEqual([
+    ["old new first", "first translation", 1], ["new secondlyric", "second translation", null],
+  ]);
+  expect(useLrcStore.getState()._history).toHaveLength(1);
+  act(() => useLrcStore.getState().undo());
+  expect(useLrcStore.getState().doc.lines).toEqual([{ id: "a", text: "old lyric", translation: "old translation", timestamp: 1 }]);
+});
+
+it("cancels multiline paste translation editing without changing the source row", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "old lyric", translation: "old translation", timestamp: 1 }] } });
+  const { getByDisplayValue, getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  const input = getByDisplayValue("old lyric") as HTMLInputElement;
+  input.setSelectionRange(0, input.value.length);
+  fireEvent.paste(input, { clipboardData: { getData: () => "new first\nnew second" } });
+  fireEvent.click(getByRole("button", { name: t.cancelLabel }));
+  expect(useLrcStore.getState().doc.lines).toEqual([{ id: "a", text: "old lyric", translation: "old translation", timestamp: 1 }]);
+  expect(useLrcStore.getState()._history).toHaveLength(0);
+});
+
+it("confirms glyph clearing before opening translated-paste editors", () => {
+  const t = useI18nStore.getState().t;
+  useSettingsStore.setState({ showTranslationLines: true });
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{
+    id: "a", text: "old lyric", translation: "old translation", timestamp: 1,
+    syllables: [{ text: "old lyric", time: 1 }],
+  }] } });
+  const { getByDisplayValue, getByRole, getByText } = render(<LrcEditor onPreview={() => {}} />);
+  const input = getByDisplayValue("old lyric") as HTMLTextAreaElement;
+  input.setSelectionRange(0, input.value.length);
+  fireEvent.paste(input, { clipboardData: { getData: () => "new first\nnew second" } });
+  expect(getByText(t.charSync.retokenizeTitle)).toBeTruthy();
+  expect(useLrcStore.getState().doc.lines[0].syllables).toEqual([{ text: "old lyric", time: 1 }]);
+  fireEvent.click(getByRole("button", { name: t.charSync.retokenizeOk }));
+  expect(getByRole("dialog", { name: t.translationPasteTitle })).toBeTruthy();
+  fireEvent.click(getByRole("button", { name: t.translationPasteApply }));
+  expect(useLrcStore.getState().doc.lines.map((line) => [line.text, line.translation, line.syllables])).toEqual([
+    ["new first", "old translation", undefined], ["new second", "", undefined],
+  ]);
+  act(() => useLrcStore.getState().undo());
+  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({
+    text: "old lyric", translation: "old translation", syllables: [{ text: "old lyric", time: 1 }],
+  });
+});
+
+it("does not apply pending translated paste after the source document changes", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "old lyric", translation: "old translation", timestamp: 1 }] } });
+  const { getByDisplayValue, getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  const input = getByDisplayValue("old lyric") as HTMLInputElement;
+  input.setSelectionRange(0, input.value.length);
+  fireEvent.paste(input, { clipboardData: { getData: () => "new first\nnew second" } });
+  act(() => useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "replacement", translation: "other", timestamp: 2 }] }, _editRevision: useLrcStore.getState()._editRevision + 1 }));
+  fireEvent.click(getByRole("button", { name: t.translationPasteApply }));
+  expect(useLrcStore.getState().doc.lines).toEqual([{ id: "a", text: "replacement", translation: "other", timestamp: 2 }]);
+});
+
 it("asks before multiline paste replaces timed glyphs and preserves the source on cancel", () => {
   const t = useI18nStore.getState().t;
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "old lyric", timestamp: 1,

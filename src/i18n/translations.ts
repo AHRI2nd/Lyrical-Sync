@@ -10,6 +10,10 @@ export interface Translations {
   translationFirstPart: string;
   translationSecondPart: string;
   translationSplitAction: string;
+  translationPasteTitle: string;
+  translationPasteHint: string;
+  translationPasteLine: string;
+  translationPasteApply: string;
   audioRequired: string;
   // Header
   newFileTitle: string;
@@ -618,6 +622,10 @@ const ko: Translations = {
   translationFirstPart: "앞 줄 번역",
   translationSecondPart: "뒷 줄 번역",
   translationSplitAction: "줄 나누기",
+  translationPasteTitle: "붙여넣은 줄 번역",
+  translationPasteHint: "각 가사 줄의 번역을 입력하세요. 비워 두면 번역 없이 적용됩니다.",
+  translationPasteLine: "줄",
+  translationPasteApply: "붙여넣기 적용",
   audioRequired: "오디오 파일을 먼저 열어주세요",
   newFileTitle: "새 LRC 파일",
   newFileBtn: "새로 만들기",
@@ -1283,6 +1291,10 @@ const en: Translations = {
   translationFirstPart: "First line translation",
   translationSecondPart: "Second line translation",
   translationSplitAction: "Split line",
+  translationPasteTitle: "Translate pasted lines",
+  translationPasteHint: "Enter a translation for each lyric line. Leave a field empty to apply that line without a translation.",
+  translationPasteLine: "Line",
+  translationPasteApply: "Apply paste",
   audioRequired: "Open an audio file first",
   newFileTitle: "New LRC File",
   newFileBtn: "New",
@@ -1949,6 +1961,10 @@ const ja: Translations = {
   translationFirstPart: "前の行の翻訳",
   translationSecondPart: "次の行の翻訳",
   translationSplitAction: "行を分割",
+  translationPasteTitle: "貼り付けた行の翻訳",
+  translationPasteHint: "各歌詞行の翻訳を入力してください。空欄の場合は翻訳なしで適用します。",
+  translationPasteLine: "行",
+  translationPasteApply: "貼り付けを適用",
   audioRequired: "先に音声ファイルを開いてください",
   newFileTitle: "新規LRCファイル",
   newFileBtn: "新規作成",

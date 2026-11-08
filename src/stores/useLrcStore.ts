@@ -112,7 +112,7 @@ interface LrcStore {
   setLines: (lines: LrcLine[]) => void;
   addLine: (text?: string) => void;
   insertLinesAfter: (afterId: string, texts: string[]) => string;
-  pasteLinesAfter: (id: string, firstText: string, restTexts: string[]) => string;
+  pasteLinesAfter: (id: string, firstText: string, restTexts: string[], translations?: string[]) => string;
   updateLine: (id: string, patch: Partial<Omit<LrcLine, "id">>) => void;
   deleteLine: (id: string) => void;
   /** 줄 복제(텍스트만, 타임스탬프 없이 바로 아래에). 새 줄 id 반환 */
@@ -586,14 +586,23 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     return lastId;
   },
 
-  pasteLinesAfter: (id, firstText, restTexts) => {
+  pasteLinesAfter: (id, firstText, restTexts, translations) => {
     const { doc } = get();
     const idx = doc.lines.findIndex((line) => line.id === id);
     if (idx < 0) return id;
-    const inserted = restTexts.map((text) => ({ id: genId(documentSessionId), timestamp: null as null, text }));
+    const inserted = restTexts.map((text, index) => ({
+      id: genId(documentSessionId), timestamp: null as null, text,
+      ...(translations ? { translation: translations[index + 1] ?? "" } : {}),
+    }));
     pushHistory("insertLines", inserted.length);
     const lines = [...doc.lines];
-    lines.splice(idx, 1, { ...lines[idx], text: firstText, syllables: undefined }, ...inserted);
+    const source = lines[idx];
+    lines.splice(idx, 1, {
+      ...source,
+      text: firstText,
+      syllables: undefined,
+      ...(translations ? { translation: translations[0] ?? "" } : {}),
+    }, ...inserted);
     set({ doc: { ...doc, lines }, isDirty: true });
     return inserted[inserted.length - 1]?.id ?? id;
   },
