@@ -234,6 +234,53 @@ class EmbeddedAlignmentExecutionTests(unittest.TestCase):
             self.assertIn('"status": "analyzing"', result.stderr)
             self.assertEqual(output["confidence_unit"], "normalized_0_to_1_and_percent")
 
+    def test_reserved_star_expansion_is_rejected_before_ctc_can_shift_line_ownership(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "onnxruntime.py").write_text(
+                "from types import SimpleNamespace\n"
+                "class InferenceSession:\n"
+                " def __init__(self, path): pass\n"
+                " def get_inputs(self): return [SimpleNamespace(name='input')]\n"
+                " def get_outputs(self): return [SimpleNamespace(name='output')]\n",
+                encoding="utf-8",
+            )
+            (root / "numpy.py").write_text("", encoding="utf-8")
+            package = root / "ctc_forced_aligner"
+            package.mkdir()
+            (package / "__init__.py").write_text(
+                "class Tokenizer:\n"
+                " def encode(self, text): return text.split()\n"
+                " def decode(self, tokens): return ' '.join(tokens)\n"
+                "class FakeAudio:\n"
+                " def __len__(self): return 32000\n"
+                "def load_audio(*args, **kwargs): return FakeAudio()\n"
+                "def generate_emissions(session, audio, batch_size): return (list(range(16)), 0.02)\n"
+                "def preprocess_text(text, **kwargs):\n"
+                " tokens = ['<star>', '<star>', '<star>', 'hello']\n"
+                " return tokens, ' '.join(tokens)\n"
+                "def get_alignments(*args, **kwargs): raise AssertionError('CTC must not run')\n"
+                "def get_spans(*args, **kwargs): raise AssertionError('CTC must not run')\n"
+                "def postprocess_results(*args, **kwargs): raise AssertionError('CTC must not run')\n",
+                encoding="utf-8",
+            )
+            result = self.run_alignment(
+                root,
+                json.dumps([
+                    {"index": 7, "text": "<star>"},
+                    {"index": 8, "text": "hello"},
+                ]),
+                mock_dependencies=root,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            events = [json.loads(line) for line in result.stderr.splitlines()]
+            self.assertTrue(any(
+                "정규화되어 원문 줄과 대응하지 않습니다" in event.get("message", "")
+                for event in events
+            ))
+            self.assertEqual(result.stdout, "")
+
 
 class PlatformSupportTests(unittest.TestCase):
     def test_build_script_rejects_intel_mac_but_accepts_release_targets(self):
