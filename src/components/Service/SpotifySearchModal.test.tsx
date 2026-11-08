@@ -66,6 +66,23 @@ it("ignores an in-flight search after the query is cleared", async () => {
   expect(screen.queryByText("Old Track")).toBeNull();
 });
 
+it("does not show no-results after a search is cancelled by changing tabs", async () => {
+  const pendingSearch = deferred<Response>();
+  const fetchMock = vi.fn()
+    .mockReturnValueOnce(pendingSearch.promise)
+    .mockResolvedValueOnce({ ok: true, json: async () => playlistPage([], null) } as Response);
+  vi.stubGlobal("fetch", fetchMock);
+  render(<SpotifySearchModal onClose={() => {}} />);
+  const t = useI18nStore.getState().t;
+  fireEvent.change(screen.getByPlaceholderText(t.spotifySearchPlaceholder), { target: { value: "song" } });
+  await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+  fireEvent.click(screen.getByRole("button", { name: t.spotifyMyPlaylists }));
+  await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+  fireEvent.click(screen.getByRole("button", { name: t.spotifySearchTrack }));
+
+  expect(screen.queryByText(t.spotifyNoResults)).toBeNull();
+});
+
 it("ignores an in-flight search after Spotify logout", async () => {
   const pending = deferred<Response>();
   vi.stubGlobal("fetch", vi.fn().mockReturnValue(pending.promise));

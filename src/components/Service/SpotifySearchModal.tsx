@@ -69,6 +69,7 @@ export function SpotifySearchModal({ onClose }: Props) {
   const [playlistsLoaded, setPlaylistsLoaded] = useState(false);
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
   const [loading, setLoading] = useState(false);
+  const [searchCompleted, setSearchCompleted] = useState(false);
   const [loadingPlaylistPage, setLoadingPlaylistPage] = useState(false);
   const [loadingPlaylistTracks, setLoadingPlaylistTracks] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -181,6 +182,7 @@ export function SpotifySearchModal({ onClose }: Props) {
     playlistDetailAbort.current?.abort();
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setLoading(false);
+    setSearchCompleted(false);
     setLoadingPlaylistPage(false);
     setLoadingPlaylistTracks(false);
     setError(null);
@@ -231,6 +233,7 @@ export function SpotifySearchModal({ onClose }: Props) {
       const tracks = ((data.tracks?.items ?? []) as SpotifyTrackPayload[]).map(toSpotifyTrack);
       setSearchResults((current) => append ? [...current, ...tracks] : tracks);
       setNextSearchUrl(validateNextPage(data.tracks?.next, "/v1/search"));
+      setSearchCompleted(true);
     } catch {
       if (mounted.current && requestId === searchGeneration.current && !controller.signal.aborted && isSpotifyAuthLeaseCurrent(lease)) {
         setError(t.spotifySearchFailed);
@@ -247,10 +250,12 @@ export function SpotifySearchModal({ onClose }: Props) {
     setQuery(q);
     setSearchResults([]);
     setNextSearchUrl(null);
+    setSearchCompleted(false);
     setError(null);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (!q.trim()) { setLoading(false); return; }
     debounceRef.current = setTimeout(async () => {
+      debounceRef.current = null;
       if (queryGeneration === searchGeneration.current) void loadSearchPage(q, null, false);
     }, 400);
   };
@@ -321,7 +326,10 @@ export function SpotifySearchModal({ onClose }: Props) {
           <TabBtn active={tab === "search"} onClick={() => { setTab("search"); backToPlaylists(); }}>
             {t.spotifySearchPlaceholder.split(",")[0]}
           </TabBtn>
-          <TabBtn active={tab === "playlists"} onClick={() => setTab("playlists")}>
+          <TabBtn active={tab === "playlists"} onClick={() => {
+            if (loading || debounceRef.current !== null) setSearchCompleted(false);
+            setTab("playlists");
+          }}>
             {t.spotifyMyPlaylists}
           </TabBtn>
         </div>
@@ -342,7 +350,7 @@ export function SpotifySearchModal({ onClose }: Props) {
                 />
               </div>
               {loading && <LoadingRow label={t.spotifyLoading} />}
-              {!loading && query && searchResults.length === 0 && (
+              {!loading && searchCompleted && query && searchResults.length === 0 && (
                 <p className="text-xs text-[var(--ls-text-secondary)] text-center py-8">{t.spotifyNoResults}</p>
               )}
               {searchResults.map((track) => (
