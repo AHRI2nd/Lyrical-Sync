@@ -685,11 +685,24 @@ async fn find_ytdlp_output(dir: &PathBuf, prefix: &str) -> Result<PathBuf, Strin
     let mut rd = tokio::fs::read_dir(dir).await.map_err(|e| e.to_string())?;
     while let Ok(Some(entry)) = rd.next_entry().await {
         let name = entry.file_name().to_string_lossy().to_string();
-        if name.starts_with(prefix) && !name.ends_with(".part") {
+        if name.starts_with(prefix)
+            && !name.ends_with(".part")
+            && entry.file_type().await.map(|kind| kind.is_file()).unwrap_or(false)
+        {
             return Ok(entry.path());
         }
     }
     Err("다운로드된 파일을 찾을 수 없습니다".into())
+}
+
+fn validate_ytdlp_output(path: &Path, run_dir: &Path) -> Result<PathBuf, String> {
+    let canonical_run_dir = run_dir.canonicalize().map_err(|error| error.to_string())?;
+    let canonical_path = path.canonicalize().map_err(|error| error.to_string())?;
+    let metadata = std::fs::metadata(&canonical_path).map_err(|error| error.to_string())?;
+    if !canonical_path.starts_with(&canonical_run_dir) || !metadata.is_file() {
+        return Err("yt-dlp output is outside the active download directory".into());
+    }
+    Ok(canonical_path)
 }
 
 #[tauri::command]
@@ -930,7 +943,7 @@ async fn ytdlp_run_child(
         });
     }
 
-    let file_path = if let Some(ref p) = dest_path {
+    let candidate_path = if let Some(ref p) = dest_path {
         let pb = PathBuf::from(p);
         if pb.exists() {
             pb
@@ -940,6 +953,7 @@ async fn ytdlp_run_child(
     } else {
         find_ytdlp_output(&cache_dir, &ts).await?
     };
+    let file_path = validate_ytdlp_output(&candidate_path, &cache_dir)?;
 
     process_tree.disarm();
 
@@ -964,6 +978,32 @@ pub fn cancel_ytdlp_load(run_id: String, ytdlp_state: tauri::State<'_, YtdlpStat
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn output_validation_accepts_only_regular_files_in_the_active_run_directory() {
+        let temp = tempfile::tempdir().unwrap();
+        let audio_root = temp.path().join("ytdlp-audio");
+        let run_dir = audio_root.join("run-1");
+        let other_run = audio_root.join("run-2");
+        std::fs::create_dir_all(&run_dir).unwrap();
+        std::fs::create_dir_all(&other_run).unwrap();
+        let valid = run_dir.join("run-1.m4a");
+        let sibling = other_run.join("run-2.m4a");
+        let outside = temp.path().join("outside.m4a");
+        let directory = run_dir.join("run-1-directory");
+        std::fs::write(&valid, b"audio").unwrap();
+        std::fs::write(&sibling, b"audio").unwrap();
+        std::fs::write(&outside, b"audio").unwrap();
+        std::fs::create_dir(&directory).unwrap();
+
+        assert_eq!(
+            validate_ytdlp_output(&valid, &run_dir).unwrap(),
+            valid.canonicalize().unwrap()
+        );
+        assert!(validate_ytdlp_output(&sibling, &run_dir).is_err());
+        assert!(validate_ytdlp_output(&outside, &run_dir).is_err());
+        assert!(validate_ytdlp_output(&directory, &run_dir).is_err());
+    }
 
     #[cfg(unix)]
     #[test]
