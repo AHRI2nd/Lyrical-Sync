@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { isComposingKeyEvent } from "../../utils/keybindings";
 import { ChevronDownIcon } from "./icons";
 
 // Undo/redo 스택(_history/_future)을 하나의 타임라인으로 보여주고 임의 시점으로 점프.
@@ -54,7 +55,7 @@ export function HistoryPanel() {
 
   return (
     <div ref={ref} className="relative" onKeyDown={(event) => {
-      if (event.key === "Escape" && open && !event.nativeEvent.isComposing) {
+      if (event.key === "Escape" && open && !isComposingKeyEvent(event.nativeEvent)) {
         event.preventDefault();
         event.stopPropagation();
         setOpen(false);

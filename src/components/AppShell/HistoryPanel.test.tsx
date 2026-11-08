@@ -28,6 +28,22 @@ it("exposes expanded state and closes on Escape while restoring trigger focus", 
   expect(document.activeElement).toBe(trigger);
 });
 
+it("keeps history open for an IME keyCode 229 Escape event", () => {
+  useLrcStore.setState({
+    doc: { ...defaultDocument(), lines: [{ id: "a", text: "before", timestamp: null }] },
+    _history: [], _future: [], _lastEditKey: null,
+  });
+  useLrcStore.getState().updateLine("a", { text: "after" });
+  const t = useI18nStore.getState().t;
+  const { getByRole } = render(<HistoryPanel />);
+  const trigger = getByRole("button", { name: t.historyPanelTitle });
+  fireEvent.click(trigger);
+  const menu = getByRole("group", { name: t.historyPanelTitle });
+  fireEvent.keyDown(menu, { key: "Escape", isComposing: false, keyCode: 229 });
+  expect(getByRole("group", { name: t.historyPanelTitle })).toBeTruthy();
+  expect(trigger.getAttribute("aria-expanded")).toBe("true");
+});
+
 it("labels history states with the action that produced each state", () => {
   useLrcStore.setState({
     doc: { ...defaultDocument(), lines: [{ id: "a", text: "before", timestamp: null }] },

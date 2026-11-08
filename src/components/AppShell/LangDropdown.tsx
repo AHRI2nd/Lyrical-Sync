@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { type Lang } from "../../i18n/translations";
+import { isComposingKeyEvent } from "../../utils/keybindings";
 import { GlobeIcon } from "./icons";
 
 const LANG_LABELS: { lang: Lang; label: string }[] = [
@@ -28,7 +29,7 @@ export function LangDropdown() {
 
   return (
     <div ref={ref} className="relative" onKeyDown={(event) => {
-      if (event.key === "Escape" && open && !event.nativeEvent.isComposing) {
+      if (event.key === "Escape" && open && !isComposingKeyEvent(event.nativeEvent)) {
         event.preventDefault(); event.stopPropagation(); setOpen(false); trigger.current?.focus();
       }
     }}>

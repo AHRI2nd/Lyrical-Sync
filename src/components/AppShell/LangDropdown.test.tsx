@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import {afterEach,it,expect} from 'vitest';
-import {render,screen,cleanup} from '@testing-library/react';
+import {render,screen,cleanup,fireEvent} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {LangDropdown} from './LangDropdown';
 import {useI18nStore} from '../../stores/useI18nStore';
@@ -14,6 +14,11 @@ it('returns focus to the trigger when Escape closes the choices',async()=>{
  useI18nStore.getState().setLang('en');render(<LangDropdown/>);const user=userEvent.setup();const trigger=screen.getByRole('button');
  await user.click(trigger);const english=screen.getByRole('button',{name:/English/});english.focus();await user.keyboard('{Escape}');
  expect(screen.queryByRole('button',{name:/日本語/})).toBeNull();expect(document.activeElement).toBe(trigger);expect(trigger.getAttribute('aria-expanded')).toBe('false');
+});
+it('keeps the choices open for an IME keyCode 229 Escape event',()=>{
+ useI18nStore.getState().setLang('en');render(<LangDropdown/>);const trigger=screen.getByRole('button');fireEvent.click(trigger);
+ const choices=screen.getByRole('group',{name:'Choose language'});fireEvent.keyDown(choices,{key:'Escape',isComposing:false,keyCode:229});
+ expect(screen.getByRole('group',{name:'Choose language'})).toBeTruthy();expect(trigger.getAttribute('aria-expanded')).toBe('true');
 });
 it('keeps pointer selection and exposes the current language',async()=>{
  useI18nStore.getState().setLang('en');render(<LangDropdown/>);const user=userEvent.setup();await user.click(screen.getByRole('button'));
