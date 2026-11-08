@@ -226,6 +226,7 @@ function RawEditorModal({
   const { t } = useI18nStore();
   const [value, setValue] = useState(initialValue);
   const [isStale, setIsStale] = useState(false);
+  const [resourceLimitReached, setResourceLimitReached] = useState(false);
   const [hasReservedTagConflict, setHasReservedTagConflict] = useState(
     () => sourceHasReservedTagConflict || hasUnsupportedReservedTag(initialValue),
   );
@@ -270,6 +271,7 @@ function RawEditorModal({
           onChange={(e) => {
             const next = e.target.value;
             setValue(next);
+            setResourceLimitReached(false);
             setHasReservedTagConflict(hasUnsupportedReservedTag(next));
           }}
           spellCheck={false}
@@ -278,6 +280,7 @@ function RawEditorModal({
 
         {hasReservedTagConflict && <p role="alert" className="px-5 py-2 text-sm text-amber-300">{t.rawEditorReservedTagConflict}</p>}
         {isStale && <p role="alert" className="px-5 py-2 text-sm text-amber-300">{t.rawEditorStale}</p>}
+        {resourceLimitReached && <p role="alert" className="px-5 py-2 text-sm text-amber-300">{t.toast.lyricResourceLimit}</p>}
 
         <div className="flex justify-end gap-2 px-5 py-3 border-t border-[var(--ls-border-subtle)] shrink-0">
           <button
@@ -291,11 +294,12 @@ function RawEditorModal({
               if (hasReservedTagConflict) return;
               try {
                 if (!onApply(value)) setIsStale(true);
-              } catch {
-                setHasReservedTagConflict(true);
+              } catch (error) {
+                if (String(error).includes("LYRIC_RESOURCE_LIMIT")) setResourceLimitReached(true);
+                else setHasReservedTagConflict(true);
               }
             }}
-            disabled={hasReservedTagConflict}
+            disabled={hasReservedTagConflict || resourceLimitReached}
             title={hasReservedTagConflict ? t.rawEditorReservedTagConflict : undefined}
             className="ls-button text-sm bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] text-white transition-colors ls-button--primary"
           >

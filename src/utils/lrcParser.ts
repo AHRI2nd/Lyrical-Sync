@@ -49,15 +49,17 @@ const TS_TOKEN_RE = /^\[(\d+):(\d{2})(?:\.(\d{1,3}))?\]/;
 
 // Enhanced LRC 인라인 단어 타임스탬프 <mm:ss.xx>
 const INLINE_TS_RE = /<(\d+):(\d{2})(?:\.(\d{1,3}))?>/g;
+const MAX_ENHANCED_LRC_TIMESTAMPS = 50_000;
 
 // 줄 텍스트(앞쪽 [..] 제거 후) 안의 <mm:ss.xx> 인라인 태그를 파싱해 토큰 배열로.
 // 인라인 태그가 없으면 null.
-function parseInlineSyllables(rest: string): LrcSyllable[] | null {
+function parseInlineSyllables(rest: string, remainingBudget: number): { syllables: LrcSyllable[]; timestampCount: number } | null {
   if (!rest.includes("<")) return null;
   INLINE_TS_RE.lastIndex = 0;
   const tags: { time: number; start: number; end: number }[] = [];
   let m: RegExpExecArray | null;
   while ((m = INLINE_TS_RE.exec(rest)) !== null) {
+    if (tags.length >= remainingBudget) throw new Error("LYRIC_RESOURCE_LIMIT");
     const time = parseInt(m[1], 10) * 60 + parseInt(m[2], 10) + fracToSeconds(m[3]);
     if (!Number.isFinite(time)) return null;
     tags.push({
@@ -76,7 +78,7 @@ function parseInlineSyllables(rest: string): LrcSyllable[] | null {
     const textEnd = i + 1 < tags.length ? tags[i + 1].start : rest.length;
     syl.push({ text: rest.slice(textStart, textEnd), time: tags[i].time });
   }
-  return syl;
+  return { syllables: syl, timestampCount: tags.length };
 }
 
 // 소수 부분 문자열을 초로 변환 ("5"→0.5, "34"→0.34, "345"→0.345)
@@ -250,10 +252,11 @@ function decodeInlineEscapes(text: string): string {
   return decoded;
 }
 
-function parseMarkedInlineSyllables(raw: string): { text: string; syllables: LrcSyllable[] | null } {
+function parseMarkedInlineSyllables(raw: string, remainingBudget: number): { text: string; syllables: LrcSyllable[] | null; timestampCount: number } {
   const parts: ({ kind: "text"; text: string } | { kind: "time"; time: number })[] = [];
   let buffer = "";
   let hasTimestamp = false;
+  let timestampCount = 0;
   for (let i = 0; i < raw.length;) {
     if (raw.startsWith(INLINE_ESCAPE_CODE, i)) {
       buffer += "<";
@@ -268,6 +271,7 @@ function parseMarkedInlineSyllables(raw: string): { text: string; syllables: Lrc
     if (raw[i] === "<") {
       const match = /^<(\d+):(\d{2})(?:\.(\d{1,3}))?>/.exec(raw.slice(i));
       if (match) {
+        if (timestampCount >= remainingBudget) throw new Error("LYRIC_RESOURCE_LIMIT");
         if (parts.length === 0 ? buffer.length > 0 : parts[parts.length - 1].kind === "time" || buffer.length > 0) {
           parts.push({ kind: "text", text: buffer });
         }
@@ -278,13 +282,14 @@ function parseMarkedInlineSyllables(raw: string): { text: string; syllables: Lrc
         parts.push({ kind: "time", time });
         buffer = "";
         hasTimestamp = true;
+        timestampCount += 1;
         i += match[0].length;
         continue;
       }
     }
     buffer += raw[i++];
   }
-  if (!hasTimestamp) return { text: buffer, syllables: null };
+  if (!hasTimestamp) return { text: buffer, syllables: null, timestampCount: 0 };
   parts.push({ kind: "text", text: buffer });
 
   const syllables: LrcSyllable[] = [];
@@ -297,7 +302,7 @@ function parseMarkedInlineSyllables(raw: string): { text: string; syllables: Lrc
       pendingTime = null;
     }
   }
-  return { text: syllables.map((syllable) => syllable.text).join(""), syllables };
+  return { text: syllables.map((syllable) => syllable.text).join(""), syllables, timestampCount };
 }
 
 // Escaping applies only to marked documents, leaving ordinary LRC slash text literal.
@@ -320,6 +325,7 @@ export function parseLrc(raw: string): LrcDocument {
   let inlineEscapeMode = false;
   let preserveLineOrder = false;
   let preserveWhitespace = false;
+  let inlineTimestampCount = 0;
   let previous: LrcLine[] = [];
 
   // Legacy LRC may use bare CR separators. Normalize separators, not literal
@@ -407,8 +413,12 @@ export function parseLrc(raw: string): LrcDocument {
     }
     const rawContent = translationMode ? rest : (preserveWhitespace ? rest : rest.trim());
     const parsedInline = inlineEscapeMode
-      ? parseMarkedInlineSyllables(rawContent)
-      : { text: rawContent, syllables: parseInlineSyllables(rawContent) };
+      ? parseMarkedInlineSyllables(rawContent, MAX_ENHANCED_LRC_TIMESTAMPS - inlineTimestampCount)
+      : (() => {
+          const parsed = parseInlineSyllables(rawContent, MAX_ENHANCED_LRC_TIMESTAMPS - inlineTimestampCount);
+          return { text: rawContent, syllables: parsed?.syllables ?? null, timestampCount: parsed?.timestampCount ?? 0 };
+        })();
+    inlineTimestampCount += parsedInline.timestampCount;
     const decodeText = (text: string) => translationMode ? unescapeTranslationText(text) : text;
     const syllables = timestamps.length
       ? parsedInline.syllables?.map((syllable) => ({ ...syllable, text: decodeText(syllable.text) })) ?? null

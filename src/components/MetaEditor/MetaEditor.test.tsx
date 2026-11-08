@@ -186,6 +186,22 @@ it("keeps a raw editor with a reserved-tag conflict open and explains how to rec
   expect(screen.queryAllByRole("textbox").some((element) => element.tagName === "TEXTAREA")).toBe(false);
 });
 
+it("keeps an oversized enhanced-LRC draft open and reports the resource limit", () => {
+  const t = useI18nStore.getState().t;
+  render(<MetaEditor />);
+  fireEvent.click(screen.getByRole("button", { name: t.viewAll }));
+
+  const textarea = screen.getAllByRole("textbox").find((element) => element.tagName === "TEXTAREA") as HTMLTextAreaElement;
+  const apply = screen.getAllByRole("button", { name: t.rawEditorApply }).slice(-1)[0] as HTMLButtonElement;
+  fireEvent.change(textarea, { target: { value: `[00:01.00]${"<00:01.00>x".repeat(50_001)}` } });
+  fireEvent.click(apply);
+
+  expect(useLrcStore.getState().doc.lines.map((line) => line.text)).toEqual(["A original"]);
+  expect(screen.getByRole("alert").textContent).toBe(t.toast.lyricResourceLimit);
+  expect(textarea.value).toContain("<00:01.00>x");
+  expect(screen.getAllByRole("button", { name: t.rawEditorApply }).slice(-1)[0]).toHaveProperty("disabled", true);
+});
+
 it("does not close the raw editor when Escape is composing an IME character", () => {
   const t = useI18nStore.getState().t;
   render(<MetaEditor />);

@@ -619,6 +619,16 @@ describe("useLrcStore — history & raw load", () => {
     expect(lines()[0].text).toBe("hello");
     expect(lines()[0].timestamp).toBe(1);
   });
+
+  it("rejects excessive enhanced-LRC expansion without changing the current document or history", () => {
+    reset([{ id: "9", timestamp: null, text: "current" }]);
+    const before = useLrcStore.getState();
+    const raw = `[00:01.00]${"<00:01.00>x".repeat(50_001)}`;
+
+    expect(() => useLrcStore.getState().loadFromRawText(raw)).toThrow("LYRIC_RESOURCE_LIMIT");
+    expect(useLrcStore.getState().doc).toBe(before.doc);
+    expect(useLrcStore.getState()._history).toBe(before._history);
+  });
 });
 
 describe("useLrcStore — line manipulation", () => {

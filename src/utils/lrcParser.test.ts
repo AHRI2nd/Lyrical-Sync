@@ -640,6 +640,21 @@ it('keeps marked bracket lyrics and translations distinct from legacy tags', () 
  expect(parseLrc('\\[literal]').lines[0].text).toBe('\\[literal]');
 });
 
+it("rejects excessive enhanced-LRC timestamp expansion before allocating syllables", () => {
+  const tags = "<00:01.00>x".repeat(50_001);
+  expect(() => parseLrc(`[00:01.00]${tags}`)).toThrow("LYRIC_RESOURCE_LIMIT");
+});
+
+it("applies the enhanced-LRC expansion limit to marked inline timestamps too", () => {
+  const tags = "<00:01.00>x".repeat(50_001);
+  expect(() => parseLrc(`[x-lyrical-inline-escape:1]\n[00:01.00]${tags}`)).toThrow("LYRIC_RESOURCE_LIMIT");
+});
+
+it("caps enhanced-LRC timestamps across all rows in a document", () => {
+  const row = "[00:01.00]" + "<00:01.00>x".repeat(25_001);
+  expect(() => parseLrc(`${row}\n${row}`)).toThrow("LYRIC_RESOURCE_LIMIT");
+});
+
 it.each([' [ti:literal title]', '\t[Intro: Instrumental]'])('preserves whitespace-prefixed bracket lyrics with or without translations: %s', text => {
  for(const translated of [false,true]) {
   const doc=docOf([{id:'a',timestamp:null,text,...(translated?{translation:'translated'}:{})}]);
