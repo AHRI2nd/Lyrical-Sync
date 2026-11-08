@@ -1,5 +1,7 @@
 import { spotifyApiRequest, spotifyAuthLease, isSpotifyAuthLeaseCurrent, useServiceStore } from "../stores/useServiceStore";
 import { useI18nStore } from "../stores/useI18nStore";
+import { useLrcStore } from "../stores/useLrcStore";
+import { useSettingsStore } from "../stores/useSettingsStore";
 import { toast } from "../stores/useToastStore";
 
 function restorePlayback(
@@ -28,6 +30,8 @@ function reportControlFailure(): void {
 async function spotifySeekTo(seconds: number): Promise<void> {
   const snapshot = useServiceStore.getState();
   const lease = spotifyAuthLease();
+  const lyricSnapshot = useLrcStore.getState();
+  const updateLyricTime = useSettingsStore.getState().spotifyMode;
   const posMs = Math.max(0, Math.round(seconds * 1000));
   const revision = snapshot._playbackRevision + 1;
   useServiceStore.setState({
@@ -36,6 +40,7 @@ async function spotifySeekTo(seconds: number): Promise<void> {
     _lastStateTimestamp: Date.now(),
     _playbackRevision: revision,
   });
+  if (updateLyricTime) useLrcStore.getState().setCurrentTime(posMs / 1000);
   try {
     await spotifyApiRequest(`https://api.spotify.com/v1/me/player/seek?position_ms=${posMs}`, {
       method: "PUT",
@@ -43,6 +48,10 @@ async function spotifySeekTo(seconds: number): Promise<void> {
   } catch (error) {
     if (isSpotifyAuthLeaseCurrent(lease)) {
       restorePlayback(revision, snapshot, false);
+      if (updateLyricTime && useSettingsStore.getState().spotifyMode &&
+          useLrcStore.getState()._documentSession === lyricSnapshot._documentSession) {
+        useLrcStore.getState().setCurrentTime(lyricSnapshot.currentTime);
+      }
       reportControlFailure();
     }
     throw error;

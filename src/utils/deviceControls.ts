@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { isCurrentDeviceCommand, markDeviceCommand, useDeviceStore } from "../stores/useDeviceStore";
 import { useI18nStore } from "../stores/useI18nStore";
+import { useLrcStore } from "../stores/useLrcStore";
+import { useSettingsStore } from "../stores/useSettingsStore";
 import { toast } from "../stores/useToastStore";
 
 async function deviceTogglePlay(): Promise<void> {
@@ -37,6 +39,8 @@ async function deviceTogglePlay(): Promise<void> {
 async function deviceSeekTo(seconds: number): Promise<void> {
   const store = useDeviceStore.getState();
   if (!store.hasSession) return;
+  const lyricSnapshot = useLrcStore.getState();
+  const updateLyricTime = useSettingsStore.getState().deviceMode;
   const posMs = Math.max(0, Math.round(seconds * 1000));
   const commandRevision = markDeviceCommand();
   useDeviceStore.setState({
@@ -44,6 +48,7 @@ async function deviceSeekTo(seconds: number): Promise<void> {
     _lastKnownPositionMs: posMs,
     _lastStateTimestamp: Date.now(),
   });
+  if (updateLyricTime) useLrcStore.getState().setCurrentTime(posMs / 1000);
   try {
     await invoke("now_playing_seek", { positionMs: posMs });
   } catch (error) {
@@ -53,6 +58,10 @@ async function deviceSeekTo(seconds: number): Promise<void> {
         _lastKnownPositionMs: store._lastKnownPositionMs,
         _lastStateTimestamp: store._lastStateTimestamp,
       });
+      if (updateLyricTime && useSettingsStore.getState().deviceMode &&
+          useLrcStore.getState()._documentSession === lyricSnapshot._documentSession) {
+        useLrcStore.getState().setCurrentTime(lyricSnapshot.currentTime);
+      }
     }
     toast.error(useI18nStore.getState().t.toast.deviceControlFailed);
     throw error;

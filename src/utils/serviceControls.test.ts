@@ -6,6 +6,8 @@ vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
 
 import { serviceControls } from "./serviceControls";
 import { useServiceStore } from "../stores/useServiceStore";
+import { useLrcStore } from "../stores/useLrcStore";
+import { useSettingsStore } from "../stores/useSettingsStore";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -14,6 +16,31 @@ function deferred<T>() {
 }
 
 afterEach(() => vi.unstubAllGlobals());
+
+it("keeps lyric stamping aligned with a paused Spotify seek", () => {
+  useSettingsStore.setState({ spotifyMode: true, deviceMode: false });
+  useServiceStore.setState({
+    isLoggedIn: true,
+    accessToken: "token",
+    tokenExpiresAt: Date.now() + 3_600_000,
+    isPlaying: false,
+    positionMs: 59_000,
+    durationMs: 60_000,
+    _lastKnownPositionMs: 59_000,
+    _lastStateTimestamp: Date.now(),
+    _playbackRevision: 0,
+  });
+  useLrcStore.setState({
+    currentTime: 59,
+    doc: { ...useLrcStore.getState().doc, lines: [{ id: "stamp", text: "line", timestamp: null }] },
+  });
+  vi.stubGlobal("fetch", vi.fn().mockReturnValue(new Promise<Response>(() => {})));
+
+  serviceControls.seekTo(20);
+  useLrcStore.getState().stampCurrentLine("stamp");
+
+  expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(20);
+});
 
 it("resets a paused Spotify track to the beginning", async () => {
   useServiceStore.setState({

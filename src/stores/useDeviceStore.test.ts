@@ -324,4 +324,19 @@ describe("useDeviceStore — failure notification", () => {
     expect(useDeviceStore.getState().positionMs).toBe(0);
     expect(useLrcStore.getState().currentTime).toBe(0);
   });
+
+  it("keeps lyric stamping aligned with a paused device seek", () => {
+    useSettingsStore.getState().setDeviceMode(true);
+    useDeviceStore.setState({ hasSession: true, isPlaying: false, positionMs: 59_000, durationMs: 60_000 });
+    useLrcStore.setState({
+      currentTime: 59,
+      doc: { ...useLrcStore.getState().doc, lines: [{ id: "stamp", text: "line", timestamp: null }] },
+    });
+    invoke.mockReturnValue(new Promise<void>(() => {}));
+
+    deviceControls.seekTo(20);
+    useLrcStore.getState().stampCurrentLine("stamp");
+
+    expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(20);
+  });
 });
