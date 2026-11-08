@@ -83,7 +83,10 @@ async fn run_child_with_output_limit(
                     Ok::<(), String>(())
                 }
             ).await;
-            if let Ok(result) = drained { result?; }
+            match drained {
+                Ok(result) => result?,
+                Err(_) => return Err("Python stderr did not close".into()),
+            }
         }
         let status = status.unwrap_or_else(|| {
     let wait_result = tokio::task::block_in_place(|| {
@@ -350,10 +353,20 @@ mod tests {
     #[test]
     fn observes_parent_exit_even_when_a_descendant_keeps_stderr_open() {
         tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let child = child("inherited");
+            #[cfg(unix)]
+            let process_group = child.id().expect("child process must have a PID");
             let result = tokio::time::timeout(Duration::from_millis(1500),
-                run_child(child("inherited"), Arc::new(AtomicBool::new(false)), |_| Ok(()))).await;
-            assert!(result.is_ok(), "inherited stderr must not hide parent exit");
-            result.unwrap().expect("parent exit must release inherited stderr without an output error");
+                run_child(child, Arc::new(AtomicBool::new(false)), |_| Ok(()))).await;
+            assert_eq!(result.expect("stderr drain must be bounded").unwrap_err(), "Python stderr did not close");
+            #[cfg(unix)]
+            {
+                for _ in 0..20 {
+                    if unsafe { libc::kill(-(process_group as i32), 0) } == -1 { break; }
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+                assert_eq!(unsafe { libc::kill(-(process_group as i32), 0) }, -1, "owned descendants must be terminated after the output drain deadline");
+            }
         });
     }
     #[test]
