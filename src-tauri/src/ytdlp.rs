@@ -838,6 +838,14 @@ fn configure_ytdlp_audio_command(
     command.arg("--").arg(url);
 }
 
+fn audio_format_for_quality(quality: &str) -> &'static str {
+    match quality {
+        "192" => "bestaudio[ext=m4a][abr<=192]/bestaudio[ext=m4a]",
+        "128" => "bestaudio[ext=m4a][abr<=128]/bestaudio[ext=m4a]",
+        _ => "bestaudio[ext=m4a]",
+    }
+}
+
 async fn ytdlp_run_child(
     url: String,
     quality: String,
@@ -851,11 +859,7 @@ async fn ytdlp_run_child(
 ) -> Result<String, String> {
     let output_tpl = cache_dir.join(format!("{}.%(ext)s", ts));
 
-    let format = match quality.as_str() {
-        "192" => "bestaudio[abr<=192]/bestaudio/best",
-        "128" => "bestaudio[abr<=128]/bestaudio/best",
-        _ => "bestaudio/best",
-    };
+    let format = audio_format_for_quality(&quality);
 
     let mut cmd = tokio::process::Command::new(&exe);
     configure_ytdlp_audio_command(
@@ -1074,6 +1078,19 @@ mod tests {
             .position(|argument| argument == "--socket-timeout")
             .unwrap();
         assert_eq!(args[timeout_index + 1], "30");
+    }
+
+    #[test]
+    fn audio_format_selection_restricts_output_to_playback_compatible_m4a() {
+        assert_eq!(
+            audio_format_for_quality("192"),
+            "bestaudio[ext=m4a][abr<=192]/bestaudio[ext=m4a]"
+        );
+        assert_eq!(
+            audio_format_for_quality("128"),
+            "bestaudio[ext=m4a][abr<=128]/bestaudio[ext=m4a]"
+        );
+        assert_eq!(audio_format_for_quality("best"), "bestaudio[ext=m4a]");
     }
 
     #[test]
