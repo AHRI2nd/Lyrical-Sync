@@ -1,5 +1,8 @@
+use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex, OnceLock, Weak};
 #[cfg(unix)]
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
@@ -93,6 +96,51 @@ fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> i
 }
 
 fn write_with_expected(
+    path: &Path,
+    write: impl FnOnce(&mut File) -> io::Result<()>,
+    expected_sha256: Option<&str>,
+) -> io::Result<()> {
+    with_target_write_lock(path, |target| {
+        write_with_expected_unlocked(target, write, expected_sha256)
+    })
+}
+
+fn with_target_write_lock<T>(
+    path: &Path,
+    operation: impl FnOnce(&Path) -> io::Result<T>,
+) -> io::Result<T> {
+    static LOCKS: OnceLock<Mutex<HashMap<PathBuf, Weak<Mutex<()>>>>> = OnceLock::new();
+
+    let parent = path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
+    let parent = fs::canonicalize(parent)?;
+    let name = path.file_name().ok_or_else(|| {
+        io::Error::new(io::ErrorKind::InvalidInput, "Destination has no file name")
+    })?;
+    let selected_target = parent.join(name);
+    let key = match fs::metadata(&selected_target) {
+        Ok(_) => fs::canonicalize(&selected_target)?,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => selected_target,
+        Err(error) => return Err(error),
+    };
+
+    let locks = LOCKS.get_or_init(|| Mutex::new(HashMap::new()));
+    let lock = {
+        let mut locks = locks.lock().unwrap_or_else(|error| error.into_inner());
+        locks.retain(|_, lock| lock.strong_count() > 0);
+        if let Some(lock) = locks.get(&key).and_then(Weak::upgrade) {
+            lock
+        } else {
+            let lock = Arc::new(Mutex::new(()));
+            locks.insert(key.clone(), Arc::downgrade(&lock));
+            lock
+        }
+    };
+
+    let _guard = lock.lock().unwrap_or_else(|error| error.into_inner());
+    operation(&key)
+}
+
+fn write_with_expected_unlocked(
     path: &Path,
     write: impl FnOnce(&mut File) -> io::Result<()>,
     expected_sha256: Option<&str>,
@@ -461,6 +509,50 @@ mod tests {
         assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
         assert!(error.to_string().contains("does not allow creating a temporary file"));
         assert!(error.to_string().contains("Save As"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn serializes_writers_that_refer_to_the_same_file_through_symlink_aliases() {
+        use std::os::unix::fs::symlink;
+        use std::sync::mpsc;
+        use std::time::Duration;
+
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("song.lrc");
+        let alias = dir.path().join("alias.lrc");
+        fs::write(&target, "original").unwrap();
+        symlink(&target, &alias).unwrap();
+
+        let (first_started_tx, first_started_rx) = mpsc::channel();
+        let (release_first_tx, release_first_rx) = mpsc::channel();
+        let first_target = target.clone();
+        let first = std::thread::spawn(move || {
+            write_with(&first_target, |stage| {
+                first_started_tx.send(()).unwrap();
+                release_first_rx.recv().unwrap();
+                stage.write_all(b"first revision")
+            })
+            .unwrap();
+        });
+        first_started_rx.recv().unwrap();
+
+        let (second_started_tx, second_started_rx) = mpsc::channel();
+        let second = std::thread::spawn(move || {
+            write_with(&alias, |stage| {
+                second_started_tx.send(()).unwrap();
+                stage.write_all(b"second revision")
+            })
+            .unwrap();
+        });
+
+        assert!(second_started_rx.recv_timeout(Duration::from_millis(50)).is_err());
+        release_first_tx.send(()).unwrap();
+        second_started_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        first.join().unwrap();
+        second.join().unwrap();
+        assert_eq!(fs::read(&target).unwrap(), b"second revision");
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 2);
     }
 
     #[test]
