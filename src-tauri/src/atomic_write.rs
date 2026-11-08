@@ -145,6 +145,25 @@ fn write_with_expected_unlocked(
     write: impl FnOnce(&mut File) -> io::Result<()>,
     expected_sha256: Option<&str>,
 ) -> io::Result<()> {
+    write_with_expected_unlocked_and_sync(path, write, expected_sha256, |parent| {
+        #[cfg(unix)]
+        {
+            File::open(parent)?.sync_all()
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = parent;
+            Ok(())
+        }
+    })
+}
+
+fn write_with_expected_unlocked_and_sync(
+    path: &Path,
+    write: impl FnOnce(&mut File) -> io::Result<()>,
+    expected_sha256: Option<&str>,
+    sync_directory: impl FnOnce(&Path) -> io::Result<()>,
+) -> io::Result<()> {
     // Resolve the selected parent before inspecting the destination. Every
     // subsequent read, stage, publication and directory sync must use this
     // resolved location, even if a symlink in the caller's path is retargeted.
@@ -298,12 +317,21 @@ fn write_with_expected_unlocked(
         }
     }
     
-    // A successful return includes directory durability on Unix.
-    // Sync the same anchored directory that received the publication.
+    // A successful return includes directory durability on Unix. If this fails,
+    // publication already happened, so explain the uncertain persistence state.
     #[cfg(unix)]
     {
-        File::open(target_parent)?.sync_all()?;
+        sync_directory(target_parent).map_err(|error| {
+            io::Error::new(
+                error.kind(),
+                format!(
+                    "Destination was replaced, but directory durability could not be confirmed: {error}"
+                ),
+            )
+        })?;
     }
+    #[cfg(not(unix))]
+    let _ = sync_directory;
     
     Ok(())
 }
@@ -566,6 +594,28 @@ mod tests {
         });
         assert!(result.is_err());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "original");
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn reports_when_parent_sync_fails_after_the_new_bytes_were_published() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("song.lrc");
+        std::fs::write(&path, "original").unwrap();
+
+        let error = write_with_expected_unlocked_and_sync(
+            &path,
+            |file| file.write_all(b"updated lyrics"),
+            None,
+            |_| Err(io::Error::other("simulated directory sync failure")),
+        )
+        .unwrap_err();
+
+        assert!(error.to_string().contains("Destination was replaced"));
+        assert!(error.to_string().contains("durability could not be confirmed"));
+        assert!(error.to_string().contains("simulated directory sync failure"));
+        assert_eq!(std::fs::read(&path).unwrap(), b"updated lyrics");
         assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
     }
 
