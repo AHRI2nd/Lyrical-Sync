@@ -78,21 +78,22 @@ async function spotifyTogglePlay(): Promise<void> {
 
 async function spotifyStop(): Promise<void> {
   const snapshot = useServiceStore.getState();
-  if (!snapshot.isPlaying) return;
   const lease = spotifyAuthLease();
   const revision = snapshot._playbackRevision + 1;
   useServiceStore.setState({ isPlaying: false, _playbackRevision: revision });
   snapshot._stopInterpolation();
-  try {
-    await spotifyApiRequest("https://api.spotify.com/v1/me/player/pause", {
-      method: "PUT",
-    }, async () => undefined, lease);
-  } catch (error) {
-    if (isSpotifyAuthLeaseCurrent(lease)) {
-      restorePlayback(revision, snapshot, true);
-      reportControlFailure();
+  if (snapshot.isPlaying) {
+    try {
+      await spotifyApiRequest("https://api.spotify.com/v1/me/player/pause", {
+        method: "PUT",
+      }, async () => undefined, lease);
+    } catch (error) {
+      if (isSpotifyAuthLeaseCurrent(lease)) {
+        restorePlayback(revision, snapshot, true);
+        reportControlFailure();
+      }
+      throw error;
     }
-    throw error;
   }
 
   const paused = useServiceStore.getState();
