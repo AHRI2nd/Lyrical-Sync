@@ -6,7 +6,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use crate::path_validation;
 
 pub struct YtdlpState {
-    active_cancel: Mutex<Option<Arc<AtomicBool>>>,
+    active_cancel: Mutex<Option<(String, Arc<AtomicBool>)>>,
     active_install_cancel: Mutex<Option<Arc<AtomicBool>>>,
 }
 
@@ -72,24 +72,26 @@ impl YtdlpState {
         }
     }
 
-    fn start_run(&self) -> Result<Arc<AtomicBool>, String> {
+    fn start_run(&self, run_id: String) -> Result<Arc<AtomicBool>, String> {
         let mut active = self.active_cancel.lock().unwrap_or_else(|e| e.into_inner());
         if active.is_some() {
             return Err("yt-dlp 다운로드가 이미 진행 중입니다".into());
         }
         let flag = Arc::new(AtomicBool::new(false));
-        *active = Some(flag.clone());
+        *active = Some((run_id, flag.clone()));
         Ok(flag)
     }
 
-    fn cancel_active(&self) {
-        if let Some(flag) = self
+    fn cancel_run(&self, run_id: &str) {
+        if let Some((active_run_id, flag)) = self
             .active_cancel
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .as_ref()
         {
-            flag.store(true, Ordering::Relaxed);
+            if active_run_id == run_id {
+                flag.store(true, Ordering::Relaxed);
+            }
         }
     }
 
@@ -97,7 +99,7 @@ impl YtdlpState {
         let mut active = self.active_cancel.lock().unwrap_or_else(|e| e.into_inner());
         if active
             .as_ref()
-            .is_some_and(|current| Arc::ptr_eq(current, flag))
+            .is_some_and(|(_, current)| Arc::ptr_eq(current, flag))
         {
             *active = None;
         }
@@ -668,17 +670,21 @@ pub async fn ytdlp_load_audio(
     quality: String,
     cookies_file: Option<String>,
     proxy: Option<String>,
+    run_id: String,
     app: AppHandle,
     ytdlp_state: tauri::State<'_, YtdlpState>,
     window: tauri::WebviewWindow,
 ) -> Result<String, String> {
+    if run_id.is_empty() || run_id.len() > 128 {
+        return Err("잘못된 yt-dlp 요청 식별자입니다".into());
+    }
     path_validation::validate_ytdlp_url(&url)?;
     let exe = ytdlp_exe(&app)?;
     if !exe.exists() {
         return Err("yt-dlp가 설치되지 않았습니다".into());
     }
 
-    let cancel_flag = ytdlp_state.start_run()?;
+    let cancel_flag = ytdlp_state.start_run(run_id)?;
     let _run_guard = ActiveYtdlpRun::new(&ytdlp_state, cancel_flag.clone());
     let path = ytdlp_load_audio_inner(
         url,
@@ -923,8 +929,8 @@ async fn ytdlp_run_child(
 }
 
 #[tauri::command]
-pub fn cancel_ytdlp_load(ytdlp_state: tauri::State<'_, YtdlpState>) {
-    ytdlp_state.cancel_active();
+pub fn cancel_ytdlp_load(run_id: String, ytdlp_state: tauri::State<'_, YtdlpState>) {
+    ytdlp_state.cancel_run(&run_id);
 }
 
 #[cfg(test)]
@@ -954,13 +960,13 @@ mod tests {
     #[test]
     fn dropping_active_run_releases_the_single_run_slot() {
         let state = YtdlpState::default();
-        let cancel = state.start_run().unwrap();
+        let cancel = state.start_run("first".into()).unwrap();
         {
             let _guard = ActiveYtdlpRun::new(&state, cancel.clone());
-            assert!(state.start_run().is_err());
+            assert!(state.start_run("other".into()).is_err());
         }
         assert!(cancel.load(Ordering::Relaxed));
-        assert!(state.start_run().is_ok());
+        assert!(state.start_run("after".into()).is_ok());
     }
 
     #[cfg(unix)]
@@ -1057,13 +1063,15 @@ mod tests {
     #[test]
     fn a_new_download_does_not_clear_an_older_runs_cancel_request() {
         let state = YtdlpState::default();
-        let first_run_flag = state.start_run().expect("first run should start");
+        let first_run_flag = state
+            .start_run("first".into())
+            .expect("first run should start");
         first_run_flag.store(true, Ordering::Relaxed);
         state.finish_run(&first_run_flag);
 
         // A second run gets its own cancellation flag instead of resetting the first one.
         let second_run_flag = state
-            .start_run()
+            .start_run("second".into())
             .expect("second run should start after first finishes");
 
         assert!(first_run_flag.load(Ordering::Relaxed));
@@ -1071,14 +1079,33 @@ mod tests {
     }
 
     #[test]
+    fn a_stale_cancel_request_cannot_cancel_a_newer_download() {
+        let state = YtdlpState::default();
+        let first = state
+            .start_run("first".into())
+            .expect("first run should start");
+        state.finish_run(&first);
+        let second = state
+            .start_run("second".into())
+            .expect("second run should start");
+
+        state.cancel_run("first");
+        assert!(!second.load(Ordering::Relaxed));
+        state.cancel_run("second");
+        assert!(second.load(Ordering::Relaxed));
+    }
+
+    #[test]
     fn a_second_download_cannot_start_until_the_active_child_is_reaped() {
         let state = YtdlpState::default();
-        let first_run_flag = state.start_run().expect("first run should start");
-        assert!(state.start_run().is_err());
-        state.cancel_active();
+        let first_run_flag = state
+            .start_run("first".into())
+            .expect("first run should start");
+        assert!(state.start_run("second".into()).is_err());
+        state.cancel_run("first");
         assert!(first_run_flag.load(Ordering::Relaxed));
         state.finish_run(&first_run_flag);
-        assert!(state.start_run().is_ok());
+        assert!(state.start_run("second".into()).is_ok());
     }
 
     #[test]

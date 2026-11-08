@@ -50,13 +50,18 @@ it('does not apply a download result after leaving YouTube mode', async () => {
 });
 it('keeps cancellation busy until native completion without applying a late success', async () => {
  const run=start();act(()=>run.result.current.handleYtCancel());
- expect(invokeMock).toHaveBeenCalledWith('cancel_ytdlp_load');
+ const loadCall=invokeMock.mock.calls.find(([command])=>command==='ytdlp_load_audio');
+ expect(invokeMock).toHaveBeenCalledWith('cancel_ytdlp_load', {runId:loadCall?.[1]?.runId});
  expect(run.result.current.ytLoading).toBe(true);expect(useBusyStore.getState().reasons.size).toBe(1);
  await act(async()=>{run.resolve('/cancelled.wav');await run.pending;});
  expect(run.apply).not.toHaveBeenCalled();expect(useBusyStore.getState().reasons.size).toBe(0);
 });
 it('does not apply a download after unmount and retains busy until completion', async () => {
- const run=start();run.unmount();expect(useBusyStore.getState().reasons.size).toBe(1);
+ const run=start();run.unmount();
+ const loadCall=invokeMock.mock.calls.find(([command])=>command==='ytdlp_load_audio');
+ expect(invokeMock).toHaveBeenCalledWith('cancel_ytdlp_load', {runId:loadCall?.[1]?.runId});
+ expect(typeof loadCall?.[1]?.runId).toBe('string');
+ expect(useBusyStore.getState().reasons.size).toBe(1);
  run.resolve('/unmounted.wav');await run.pending;
  expect(run.apply).not.toHaveBeenCalled();expect(useBusyStore.getState().reasons.size).toBe(0);
 });

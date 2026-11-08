@@ -4,6 +4,8 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useBusyStore } from "../../stores/useBusyStore";
 import { useLrcStore } from "../../stores/useLrcStore";
 
+let youtubeRequestSequence = 0;
+
 // YouTube URL → yt-dlp 오디오 다운로드 흐름 전체(모달 상태 + 진행률 이벤트 + 취소).
 // AudioPlayer에서 분리해 파일 모드/Spotify/기기 감지 엔진 로직과 뒤섞이지 않게 함.
 export function useYouTubeLoad(setAudioPath: (path: string) => void) {
@@ -18,12 +20,16 @@ export function useYouTubeLoad(setAudioPath: (path: string) => void) {
   const busyOwner = useId();
   const YT_BUSY_ID = `youtube-download:${busyOwner}`;
   const mounted = useRef(true);
-  const operation = useRef<{ cancelled: boolean } | null>(null);
+  const operation = useRef<{ runId: string; cancelled: boolean } | null>(null);
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
-      if (operation.current) operation.current.cancelled = true;
+      const active = operation.current;
+      if (active) {
+        active.cancelled = true;
+        void invoke("cancel_ytdlp_load", { runId: active.runId }).catch(() => {});
+      }
     };
   }, []);
   const setYtLoading = (v: boolean) => {
@@ -36,7 +42,7 @@ export function useYouTubeLoad(setAudioPath: (path: string) => void) {
     const url = ytUrl.trim();
     if (!url || operation.current || !mounted.current) return;
     if (!useSettingsStore.getState().youtubeMode) return;
-    const request = { cancelled: false };
+    const request = { runId: `youtube-${Date.now()}-${++youtubeRequestSequence}`, cancelled: false };
     operation.current = request;
     const { _audioSelection: audioSelection, _documentSession: documentSession } = useLrcStore.getState();
     setYtLoading(true);
@@ -47,6 +53,7 @@ export function useYouTubeLoad(setAudioPath: (path: string) => void) {
         quality: ytdlpAudioQuality,
         cookiesFile: ytdlpCookiesFile,
         proxy: ytdlpProxy,
+        runId: request.runId,
       });
       const current = useLrcStore.getState();
       const isYouTubeMode = useSettingsStore.getState().youtubeMode;
@@ -64,8 +71,10 @@ export function useYouTubeLoad(setAudioPath: (path: string) => void) {
   };
 
   const handleYtCancel = () => {
-    if (operation.current) operation.current.cancelled = true;
-    invoke("cancel_ytdlp_load").catch(() => {});
+    const active = operation.current;
+    if (!active) return;
+    active.cancelled = true;
+    invoke("cancel_ytdlp_load", { runId: active.runId }).catch(() => {});
   };
 
   const handleYtModalClose = () => {
