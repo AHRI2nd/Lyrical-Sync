@@ -18,12 +18,13 @@ if (typeof globalThis.localStorage === "undefined") {
 
 // App.tsx가 마운트 시 건드리는 Tauri API 전부 스텁 — 이 테스트는 드래그앤드롭 충돌
 // 해소 로직(App.tsx 자체)만 검증하므로, 실제 IPC/OS 연동은 필요 없음.
-const { dragDropHandler, dialogOpen, closeRequestedHandler, closeWindow, eventListen } = vi.hoisted(() => ({
+const { dragDropHandler, dialogOpen, closeRequestedHandler, closeWindow, eventListen, appMenuHandlers } = vi.hoisted(() => ({
   dragDropHandler: { current: null as ((e: unknown) => void) | null },
   dialogOpen: vi.fn(),
   closeRequestedHandler: { current: null as ((event: { preventDefault: () => void }) => void) | null },
   closeWindow: vi.fn(() => Promise.resolve()),
   eventListen: vi.fn((..._args: unknown[]) => Promise.resolve(() => {})),
+  appMenuHandlers: { current: null as Record<string, (() => void) | undefined> | null },
 }));
 vi.mock("@tauri-apps/api/webview", () => ({
   getCurrentWebview: () => ({
@@ -57,7 +58,7 @@ vi.mock("./components/AppShell/RecentFilesMenu", () => ({ RecentFilesMenu: () =>
 vi.mock("./components/AppShell/LangDropdown", () => ({ LangDropdown: () => null }));
 vi.mock("./components/AppShell/HistoryPanel", () => ({ HistoryPanel: () => null }));
 vi.mock("./components/Update/UpdateModal", () => ({ UpdateModal: () => null }));
-vi.mock("./hooks/useMacMenu", () => ({ useMacMenu: () => {} }));
+vi.mock("./hooks/useMacMenu", () => ({ useMacMenu: (handlers: typeof appMenuHandlers.current) => { appMenuHandlers.current = handlers; } }));
 
 import App from "./App";
 import { useLrcStore } from "./stores/useLrcStore";
@@ -266,6 +267,25 @@ describe("App — drag-and-drop conflict resolution", () => {
     await user.click(screen.getByRole("button", { name: t.srtOnlyDataLossConfirm }));
     await waitFor(() => expect(saveAs).toHaveBeenCalledWith("lrc", undefined, true));
     useLrcStore.setState({ saveLrcAs: originalSaveAs });
+  });
+
+  it("moves modal focus to Settings while keeping Preview available behind it", async () => {
+    const t = useI18nStore.getState().t;
+    const user = userEvent.setup();
+    render(<App />);
+
+    act(() => appMenuHandlers.current?.openPreview?.());
+    const preview = await screen.findByRole("dialog", { name: t.previewUntitled });
+    await user.click(within(preview).getByRole("button", { name: t.previewStyleSettingsTooltip }));
+
+    const settings = await screen.findByRole("dialog", { name: t.settingsTitle });
+    expect(preview.isConnected).toBe(true);
+    expect(preview.hasAttribute("inert")).toBe(true);
+    expect(settings.contains(document.activeElement)).toBe(true);
+
+    await user.click(within(settings).getByRole("button", { name: t.close }));
+    await waitFor(() => expect(preview.hasAttribute("inert")).toBe(false));
+    expect(preview.contains(document.activeElement)).toBe(true);
   });
 
   it("does not let a stale New confirmation erase a document opened afterward", async () => {

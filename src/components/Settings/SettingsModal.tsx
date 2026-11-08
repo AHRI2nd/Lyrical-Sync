@@ -21,10 +21,12 @@ export function SettingsModal({
   onClose,
   onUpdateFound,
   initialTab = "general",
+  modalPriority = 50,
 }: {
   onClose: () => void;
   onUpdateFound: () => void;
   initialTab?: Tab;
+  modalPriority?: number;
 }) {
   const { t, lang } = useI18nStore();
   const { spotifyClientId, spotifyMode, setSpotifyClientId, setSpotifyMode } = useSettingsStore();
@@ -37,7 +39,7 @@ export function SettingsModal({
   const [tab, setTab] = useState<Tab>(initialTab);
   const dialog = useRef<HTMLDivElement>(null);
   const titleId = useId();
-  useModalFocus(dialog, onClose);
+  useModalFocus(dialog, onClose, true, modalPriority);
 
   const handleCheckNow = async () => {
     setCheckState("checking");

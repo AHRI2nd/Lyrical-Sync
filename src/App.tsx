@@ -768,6 +768,7 @@ function App() {
             onClose={() => setShowSettings(false)}
             onUpdateFound={() => setShowSettings(false)}
             initialTab={settingsInitialTab}
+            modalPriority={showPreview ? 70 : 50}
           />
         </Suspense>
       )}
