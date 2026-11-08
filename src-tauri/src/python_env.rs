@@ -31,6 +31,7 @@ pub fn embedded_python_exe(app: &AppHandle) -> Result<PathBuf, String> {
 fn python_cmd(python: impl AsRef<std::ffi::OsStr>) -> tokio::process::Command {
     #[allow(unused_mut)]
     let mut cmd = tokio::process::Command::new(python);
+    isolate_python_environment(&mut cmd);
     #[cfg(target_os = "windows")]
     {
         // CREATE_NO_WINDOW: prevents a black CMD console from flashing during Python subprocess spawns.
@@ -48,6 +49,7 @@ fn python_cmd(python: impl AsRef<std::ffi::OsStr>) -> tokio::process::Command {
 pub fn python_cmd_inference(python: impl AsRef<std::ffi::OsStr>) -> tokio::process::Command {
     #[allow(unused_mut)]
     let mut cmd = tokio::process::Command::new(python);
+    isolate_python_environment(&mut cmd);
     #[cfg(target_os = "windows")]
     {
         // CREATE_NO_WINDOW (0x08000000) | ABOVE_NORMAL_PRIORITY_CLASS (0x00008000)
@@ -56,6 +58,22 @@ pub fn python_cmd_inference(python: impl AsRef<std::ffi::OsStr>) -> tokio::proce
     #[cfg(unix)]
     cmd.process_group(0);
     cmd
+}
+
+fn isolate_python_environment(command: &mut tokio::process::Command) {
+    for variable in [
+        "PYTHONHOME",
+        "PYTHONPATH",
+        "PYTHONUSERBASE",
+        "PYTHONSTARTUP",
+        "PYTHONEXECUTABLE",
+        "PYTHONWARNINGS",
+    ] {
+        command.env_remove(variable);
+    }
+    command
+        .env("PYTHONNOUSERSITE", "1")
+        .env("PYTHONSAFEPATH", "1");
 }
 
 use crate::python_runtime::{
@@ -408,6 +426,7 @@ async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> 
             .args([
                 "-m",
                 "pip",
+                "--isolated",
                 "install",
                 "--prefer-binary",
                 "--disable-pip-version-check",
@@ -453,7 +472,11 @@ async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> 
             )
             .await?;
         }
-        install_step(&app, python_cmd(&python).args(["-m", "pip", "check"])).await?;
+        install_step(
+            &app,
+            python_cmd(&python).args(["-m", "pip", "--isolated", "check"]),
+        )
+        .await?;
         if !probe(&python, PACKAGE_PROBE).await {
             return Err("AI package validation failed; previous installation was retained".into());
         }
@@ -469,7 +492,7 @@ async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> 
         let graph = tokio::time::timeout(
             INSTALL_STEP_TIMEOUT,
             python_cmd(&python)
-            .args(["-m", "pip", "freeze", "--all"])
+                .args(["-m", "pip", "--isolated", "freeze", "--all"])
             .kill_on_drop(true)
             .output(),
         )
@@ -512,6 +535,35 @@ mod progress_line_tests {
     #[test]
     fn progress_line_under_limit_is_unchanged() {
         assert_eq!(bounded_progress_line("ready"), "ready");
+    }
+}
+
+#[cfg(test)]
+mod isolated_python_environment_tests {
+    use super::{python_cmd, python_cmd_inference};
+
+    #[test]
+    fn embedded_python_commands_remove_inherited_python_paths() {
+        for command in [python_cmd("python"), python_cmd_inference("python")] {
+            for key in [
+                "PYTHONHOME",
+                "PYTHONPATH",
+                "PYTHONUSERBASE",
+                "PYTHONSTARTUP",
+                "PYTHONEXECUTABLE",
+                "PYTHONWARNINGS",
+            ] {
+                assert!(command.as_std().get_envs().any(|(name, value)| {
+                    name == key && value.is_none()
+                }), "{key} must be removed from embedded Python children");
+            }
+            assert!(command.as_std().get_envs().any(|(name, value)| {
+                name == "PYTHONNOUSERSITE" && value == Some("1".as_ref())
+            }));
+            assert!(command.as_std().get_envs().any(|(name, value)| {
+                name == "PYTHONSAFEPATH" && value == Some("1".as_ref())
+            }));
+        }
     }
 }
 

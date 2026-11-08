@@ -337,7 +337,9 @@ class PlatformSupportTests(unittest.TestCase):
         self.assertIn(
             'tempfile.mkdtemp(prefix="ctc_patch_", dir=sys.argv[2])', installer
         )
+        self.assertIn('"--isolated"', installer)
         self.assertIn(".arg(stage.path())", native)
+        self.assertIn('"--isolated"', native)
         self.assertIn("run(sys.executable,str(patch),str(archive),str(work))", arm_builder)
 
     def test_build_script_rejects_intel_mac_but_accepts_release_targets(self):
