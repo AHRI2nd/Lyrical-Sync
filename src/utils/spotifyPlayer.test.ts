@@ -221,6 +221,22 @@ it("does not let an older remote poll overwrite a newer accepted SDK playback st
   expect(useServiceStore.getState().positionMs).toBe(7000);
 });
 
+it("does not restart Spotify interpolation after leaving Spotify mode", () => {
+  const start = vi.spyOn(useServiceStore.getState(), "_startInterpolation").mockImplementation(() => {});
+  const stop = vi.spyOn(useServiceStore.getState(), "_stopInterpolation").mockImplementation(() => {});
+  useSettingsStore.setState({ spotifyMode: false });
+
+  useServiceStore.getState().onPlayerStateChanged({
+    paused: false,
+    position: 7000,
+    duration: 30000,
+    track_window: { current_track: { uri: "spotify:track:late", name: "Late Song", artists: [{ name: "Artist" }], album: { name: "Album", images: [] } } },
+  } as any);
+
+  expect(start).not.toHaveBeenCalled();
+  expect(stop).toHaveBeenCalledOnce();
+});
+
 it("discards an in-flight remote response after leaving Spotify mode", async () => {
   const pending = deferred<Response>();
   const fetchMock = vi.fn().mockReturnValue(pending.promise);

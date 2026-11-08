@@ -510,7 +510,7 @@ export const useServiceStore = create<ServiceState>()((set, get) => ({
 
     // Spotify 모드일 때만 문서(가사 위치·메타데이터)에 반영. 파일/유튜브 모드에선 무시.
     const inSpotifyMode = useSettingsStore.getState().spotifyMode;
-    if (isPlaying) {
+    if (isPlaying && inSpotifyMode) {
       get()._startInterpolation();
     } else {
       get()._stopInterpolation();
