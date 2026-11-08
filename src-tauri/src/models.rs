@@ -616,6 +616,35 @@ mod integrity_tests {
         assert_eq!(error, "Model directory has not been authorized");
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn selected_root_symlink_retarget_does_not_redirect_model_deletion() {
+        let root = tempfile::tempdir().unwrap();
+        let safe = root.path().join("safe");
+        let outside = root.path().join("outside");
+        let selected = root.path().join("selected-models");
+        for directory in [&safe, &outside] {
+            std::fs::create_dir_all(directory.join("demucs")).unwrap();
+            std::fs::write(directory.join("demucs/htdemucs.th"), b"preserve").unwrap();
+        }
+        std::os::unix::fs::symlink(&safe, &selected).unwrap();
+        let approved = authorize_custom_models_root(
+            Some(selected.to_str().unwrap()),
+            true,
+            None,
+        ).unwrap().unwrap();
+        assert_eq!(approved, safe.canonicalize().unwrap());
+
+        std::fs::remove_file(&selected).unwrap();
+        std::os::unix::fs::symlink(&outside, &selected).unwrap();
+        assert!(models_root_matches(&approved, approved.to_str().unwrap()));
+        crate::model_store::ModelStore::open(&approved).unwrap()
+            .remove("demucs/htdemucs.th").unwrap();
+
+        assert!(!safe.join("demucs/htdemucs.th").exists());
+        assert_eq!(std::fs::read(outside.join("demucs/htdemucs.th")).unwrap(), b"preserve");
+    }
+
     #[test]
     fn accepts_a_picked_or_previously_approved_model_root() {
         let selected = tempfile::tempdir().unwrap();
