@@ -41,6 +41,42 @@ it("syncs its volume slider when the active playback device changes", async () =
   expect(getVolume).toHaveBeenCalledTimes(2);
 });
 
+it("refreshes a remote volume change without changing the active device", async () => {
+  useServiceStore.setState({ activePlaybackDeviceId: "external-speaker", activePlaybackVolumePercent: 30 });
+  getVolume.mockReset().mockResolvedValue(0.3);
+  const { container } = render(<ServicePlayerPanel />);
+  const slider = container.querySelector('input[type="range"]') as HTMLInputElement;
+  await waitFor(() => expect(slider.value).toBe("0.3"));
+
+  act(() => useServiceStore.setState({ activePlaybackVolumePercent: 80 }));
+
+  await waitFor(() => expect(slider.value).toBe("0.8"));
+});
+
+it("does not overwrite a volume value while the user is adjusting it", async () => {
+  const { container } = render(<ServicePlayerPanel />);
+  const slider = container.querySelector('input[type="range"]') as HTMLInputElement;
+  await waitFor(() => expect(slider.value).toBe("0.42"));
+
+  fireEvent.change(slider, { target: { value: "0.8" } });
+  act(() => useServiceStore.setState({ activePlaybackVolumePercent: 60 }));
+
+  expect(slider.value).toBe("0.8");
+});
+
+it("ignores a late initial volume read after the user starts adjusting", async () => {
+  let resolveVolume!: (value: number) => void;
+  getVolume.mockReset().mockReturnValueOnce(new Promise((resolve) => { resolveVolume = resolve; }));
+  const { container } = render(<ServicePlayerPanel />);
+  const slider = container.querySelector('input[type="range"]') as HTMLInputElement;
+
+  await waitFor(() => expect(slider.value).toBe("0.42"));
+  fireEvent.change(slider, { target: { value: "0.8" } });
+  await act(async () => { resolveVolume(0.2); });
+
+  expect(slider.value).toBe("0.8");
+});
+
 it("cancels a pending volume write when playback changes devices", async () => {
   const { container } = render(<ServicePlayerPanel />);
   const slider = container.querySelector('input[type="range"]') as HTMLInputElement;

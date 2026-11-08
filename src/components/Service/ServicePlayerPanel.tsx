@@ -36,7 +36,7 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
   const {
     isPlaying, isLooping, positionMs, durationMs,
     trackName, artistName, albumName, albumArtUrl, trackUri,
-    deviceId, activePlaybackDeviceId, toggleLoop,
+    deviceId, activePlaybackDeviceId, activePlaybackVolumePercent, toggleLoop,
   } = useServiceStore();
 
   // Spotify 콘텐츠 출처표시: 트랙을 Spotify에서 열기 (spotify:track:ID → open.spotify.com)
@@ -50,19 +50,21 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
   const volumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingVolume = useRef<number | null>(null);
   const volumeRequestGeneration = useRef(0);
+  const isAdjustingVolume = useRef(false);
 
   useEffect(() => {
     let active = true;
     const generation = ++volumeRequestGeneration.current;
+    isAdjustingVolume.current = false;
     if (volumeTimer.current) clearTimeout(volumeTimer.current);
     volumeTimer.current = null;
     pendingVolume.current = null;
     void getSpotifyVolume().then((currentVolume) => {
-      if (!active || generation !== volumeRequestGeneration.current) return;
+      if (!active || generation !== volumeRequestGeneration.current || isAdjustingVolume.current) return;
       setVolumeAvailable(currentVolume !== null);
       if (currentVolume !== null) setVolume(currentVolume);
     }).catch(() => {
-      if (active && generation === volumeRequestGeneration.current) setVolumeAvailable(false);
+      if (active && generation === volumeRequestGeneration.current && !isAdjustingVolume.current) setVolumeAvailable(false);
     });
     return () => {
       active = false;
@@ -73,11 +75,19 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
     };
   }, [deviceId, activePlaybackDeviceId]);
 
+  useEffect(() => {
+    if (activePlaybackVolumePercent === null || isAdjustingVolume.current) return;
+    volumeRequestGeneration.current += 1;
+    setVolumeAvailable(true);
+    setVolume(activePlaybackVolumePercent / 100);
+  }, [activePlaybackVolumePercent]);
+
   useEffect(() => () => {
     if (volumeTimer.current) clearTimeout(volumeTimer.current);
   }, []);
 
   const commitVolume = () => {
+    isAdjustingVolume.current = false;
     if (volumeTimer.current) clearTimeout(volumeTimer.current);
     volumeTimer.current = null;
     const nextVolume = pendingVolume.current;
@@ -153,6 +163,7 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
         <input
           type="range" min={0} max={1} step={0.01} value={volumeAvailable ? volume : 0} disabled={!volumeAvailable}
           onChange={(e) => {
+            isAdjustingVolume.current = true;
             const v = parseFloat(Number(e.target.value).toFixed(2));
             volumeRequestGeneration.current += 1;
             pendingVolume.current = v;
