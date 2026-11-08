@@ -489,6 +489,19 @@ it('closes waveform view options with Escape and returns focus to its trigger', 
   expect(document.activeElement).toBe(trigger);
 });
 
+it('keeps waveform view options open and focus unchanged when Escape is composing', () => {
+  const { getByRole } = setup();
+  const trigger = getByRole('button', { name: /파형 보기|Waveform view/ });
+  fireEvent.click(trigger);
+  const height = getByRole('slider', { name: /파형 높이|Waveform height/ });
+  height.focus();
+
+  fireEvent.keyDown(document, { key: 'Escape', code: 'Escape', isComposing: true });
+
+  expect(getByRole('slider', { name: /파형 높이|Waveform height/ })).toBeTruthy();
+  expect(document.activeElement).toBe(height);
+});
+
 it('keeps the viewport scale when stamping changes the current line start', () => {
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
     { id: 'line-1', timestamp: 10, text: 'ab' }, { id: 'line-2', timestamp: 20, text: 'next' },
