@@ -1592,6 +1592,21 @@ describe("useLrcStore — save completion races", () => {
     expect(useLrcStore.getState().isDirty).toBe(true);
   });
 
+  it("rejects an SRT timestamp that overflows milliseconds before file I/O", async () => {
+    const state = useLrcStore.getState();
+    useLrcStore.setState({
+      doc: { ...state.doc, lines: [{ id: "1", timestamp: 1e306, text: "extreme" }] },
+      lrcPath: "/tmp/song.srt",
+      isDirty: true,
+    });
+
+    await expect(useLrcStore.getState().saveLrc()).rejects.toMatchObject({ code: "SRT_INVALID_TIMESTAMP" });
+
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState().lrcPath).toBe("/tmp/song.srt");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
   it("rejects an SRT cue with a terminal line break before writing", async () => {
     const state = useLrcStore.getState();
     useLrcStore.setState({
