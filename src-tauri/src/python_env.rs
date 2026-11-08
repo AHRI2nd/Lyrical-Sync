@@ -1,6 +1,9 @@
 use serde::Serialize;
 use std::path::PathBuf;
+use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
+
+const PYTHON_EXTRACTION_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 
 // A verified self-contained Python is downloaded into an architecture-specific directory.
 // This removes any dependency on the user's system Python / conda / pyenv.
@@ -60,7 +63,6 @@ use crate::python_runtime::{
 };
 use sha2::{Digest, Sha256};
 use std::path::Path;
-use std::time::Duration;
 const INSTALL_STEP_TIMEOUT: Duration = Duration::from_secs(60 * 60);
 const MAX_PROGRESS_LINE_BYTES: usize = 4096;
 
@@ -242,15 +244,19 @@ async fn prepare_runtime(app: &AppHandle, stage: &Path) -> Result<(), String> {
     let data = manifest()?;
     let archive = stage.join("python.tar.gz");
     download_verified(app, &data["python"][platform_key()], &archive, true).await?;
-    let status = tokio::process::Command::new("tar")
+    let mut command = tokio::process::Command::new("tar");
+    command
         .arg("-xzf")
         .arg(&archive)
         .arg("-C")
         .arg(stage)
-        .kill_on_drop(true)
-        .status()
-        .await
-        .map_err(|e| e.to_string())?;
+        .kill_on_drop(true);
+    #[cfg(unix)]
+    command.process_group(0);
+    #[cfg(windows)]
+    command.creation_flags(0x08000000);
+    let child = command.spawn().map_err(|error| error.to_string())?;
+    let status = wait_for_runtime_extraction(child, PYTHON_EXTRACTION_TIMEOUT).await?;
     if !status.success() {
         return Err("Python extraction failed".into());
     }
@@ -264,6 +270,32 @@ async fn prepare_runtime(app: &AppHandle, stage: &Path) -> Result<(), String> {
         .await
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+async fn wait_for_runtime_extraction(
+    mut child: tokio::process::Child,
+    timeout: Duration,
+) -> Result<std::process::ExitStatus, String> {
+    let pid = child.id();
+    match tokio::time::timeout(timeout, child.wait()).await {
+        Ok(Ok(status)) => Ok(status),
+        Ok(Err(error)) => {
+            if let Some(pid) = pid {
+                crate::alignment_process::terminate_process_tree(pid).await;
+            }
+            let _ = child.kill().await;
+            let _ = child.wait().await;
+            Err(format!("Python extraction failed: {error}"))
+        }
+        Err(_) => {
+            if let Some(pid) = pid {
+                crate::alignment_process::terminate_process_tree(pid).await;
+            }
+            let _ = child.kill().await;
+            let _ = child.wait().await;
+            Err("Python extraction timed out".into())
+        }
+    }
 }
 
 #[tauri::command]
@@ -453,6 +485,65 @@ mod progress_line_tests {
     #[test]
     fn progress_line_under_limit_is_unchanged() {
         assert_eq!(bounded_progress_line("ready"), "ready");
+    }
+}
+
+#[cfg(test)]
+mod extraction_timeout_tests {
+    use super::wait_for_runtime_extraction;
+    use std::process::Stdio;
+    use std::time::Duration;
+
+    #[test]
+    fn extractor_child_fixture() {
+        if std::env::var("LYRICAL_EXTRACT_FIXTURE").as_deref() == Ok("hang") {
+            std::thread::sleep(Duration::from_secs(60));
+        }
+    }
+
+    #[tokio::test]
+    async fn extraction_timeout_terminates_the_child_process() {
+        let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+        command
+            .args([
+                "--exact",
+                "python_env::extraction_timeout_tests::extractor_child_fixture",
+                "--nocapture",
+            ])
+            .env("LYRICAL_EXTRACT_FIXTURE", "hang")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .kill_on_drop(true);
+        #[cfg(unix)]
+        command.process_group(0);
+
+        let child = command.spawn().unwrap();
+        let error = wait_for_runtime_extraction(child, Duration::from_millis(50))
+            .await
+            .unwrap_err();
+        assert!(error.contains("timed out"));
+    }
+
+    #[tokio::test]
+    async fn extraction_wait_returns_a_successful_child_status() {
+        let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+        command
+            .args([
+                "--exact",
+                "python_env::extraction_timeout_tests::extractor_child_fixture",
+                "--nocapture",
+            ])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .kill_on_drop(true);
+        #[cfg(unix)]
+        command.process_group(0);
+
+        let child = command.spawn().unwrap();
+        let status = wait_for_runtime_extraction(child, Duration::from_secs(2))
+            .await
+            .unwrap();
+        assert!(status.success());
     }
 }
 
