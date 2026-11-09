@@ -126,9 +126,17 @@ async fn run_child_with_output_limit(
             });
         }
         let deadline = tokio::time::Instant::now() + Duration::from_millis(500);
-        tokio::time::timeout_at(deadline, &mut output).await
+        let stdout = tokio::time::timeout_at(deadline, &mut output)
+            .await
             .map_err(|_| "Python output did not close".to_string())?
-            .map_err(|e| e.to_string())?
+            .map_err(|e| e.to_string())?;
+        #[cfg(unix)]
+        if let Some(pid) = process_id {
+            // Python inference runs in a dedicated process group. Do not let a
+            // successful sidecar leave background workers behind.
+            terminate_process_tree(pid).await;
+        }
+        stdout
     }.await;
     if result.is_err() {
         if let Some(pid) = process_id {
@@ -304,6 +312,31 @@ mod tests {
                     .spawn().unwrap();
             }
             Ok("inherited_hold") => std::thread::sleep(Duration::from_secs(2)),
+            Ok("sleep_descendant") => {
+                if let Ok(path) = std::env::var("LYRICAL_PROCESS_DESCENDANT_PID_FILE") {
+                    std::fs::write(path, std::process::id().to_string()).unwrap();
+                }
+                std::thread::sleep(Duration::from_millis(250));
+                if let Ok(path) = std::env::var("LYRICAL_PROCESS_DESCENDANT_ALIVE_FILE") {
+                    std::fs::write(path, "still running").unwrap();
+                }
+            }
+            Ok("successful_parent_with_detached_descendant") => {
+                std::process::Command::new(std::env::current_exe().unwrap())
+                    .args(["--exact", "alignment_process::tests::child_fixture", "--nocapture"])
+                    .env("LYRICAL_PROCESS_FIXTURE", "sleep_descendant")
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .spawn().unwrap();
+                if let Ok(path) = std::env::var("LYRICAL_PROCESS_DESCENDANT_PID_FILE") {
+                    let deadline = std::time::Instant::now() + Duration::from_secs(2);
+                    while !std::path::Path::new(&path).exists() {
+                        assert!(std::time::Instant::now() < deadline, "descendant did not start");
+                        std::thread::sleep(Duration::from_millis(5));
+                    }
+                }
+            }
             Ok("failure") => std::process::exit(7),
             Ok("failure_stdout") => {
                 println!("dependency conflict details");
@@ -318,6 +351,23 @@ mod tests {
     }
     fn child(mode: &str) -> tokio::process::Child {
         child_with_output_bytes(mode, None)
+    }
+    #[cfg(unix)]
+    fn child_with_descendant_markers(
+        pid_path: &std::path::Path,
+        alive_path: &std::path::Path,
+    ) -> tokio::process::Child {
+        let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+        command
+            .args(["--exact", "alignment_process::tests::child_fixture", "--nocapture"])
+            .env("LYRICAL_PROCESS_FIXTURE", "successful_parent_with_detached_descendant")
+            .env("LYRICAL_PROCESS_DESCENDANT_PID_FILE", pid_path)
+            .env("LYRICAL_PROCESS_DESCENDANT_ALIVE_FILE", alive_path)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .kill_on_drop(true)
+            .process_group(0);
+        command.spawn().unwrap()
     }
     fn child_with_stdin(mode: &str) -> tokio::process::Child {
         let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
@@ -518,6 +568,34 @@ mod tests {
                 }
                 assert_eq!(unsafe { libc::kill(-(process_group as i32), 0) }, -1, "owned descendants must be terminated after the output drain deadline");
             }
+        });
+    }
+    #[cfg(unix)]
+    #[test]
+    fn successful_parent_exit_terminates_owned_descendants() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let dir = tempfile::tempdir().unwrap();
+            let pid_file = dir.path().join("descendant.pid");
+            let alive_file = dir.path().join("descendant.alive");
+            let child = child_with_descendant_markers(&pid_file, &alive_file);
+            let process_group = child.id().expect("child process must have a PID");
+            let result = tokio::time::timeout(
+                Duration::from_secs(2),
+                run_child(child, Arc::new(AtomicBool::new(false)), |_| Ok(())),
+            )
+            .await
+            .expect("the direct child should finish promptly");
+
+            assert!(pid_file.exists(), "descendant must start before its parent exits");
+            tokio::time::sleep(Duration::from_millis(350)).await;
+            let descendant_survived = alive_file.exists();
+            terminate_process_tree(process_group).await;
+
+            assert!(result.is_ok());
+            assert!(
+                !descendant_survived,
+                "successful completion must not leave an owned descendant running"
+            );
         });
     }
     #[test]
