@@ -1,6 +1,6 @@
 use crate::path_validation;
 use serde::Serialize;
-use std::io;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -19,6 +19,250 @@ const MAX_YTDLP_STDOUT_LINE_BYTES: usize = 64 * 1024;
 const MAX_YTDLP_STDERR_LINE_BYTES: usize = 8 * 1024;
 const MAX_YTDLP_AUDIO_BYTES: u64 = crate::audio_resource::MAX_AUDIO_FILE_BYTES;
 const MAX_YTDLP_AUDIO_RUN: std::time::Duration = crate::audio_resource::MAX_AUDIO_DURATION;
+const YTDLP_TRANSACTION_PREFIX: &str = ".lyrical-ytdlp-install-";
+static YTDLP_INSTALL_RECOVERY_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn ytdlp_transaction_paths(parent: &Path, run_id: &str) -> (PathBuf, PathBuf) {
+    let base = parent.join(format!("{YTDLP_TRANSACTION_PREFIX}{run_id}"));
+    (
+        base.with_extension("prepared"),
+        base.with_extension("committed"),
+    )
+}
+
+fn validate_ytdlp_transaction_id(run_id: &str) -> Result<(), String> {
+    if run_id.is_empty()
+        || run_id.len() > 128
+        || !run_id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+    {
+        return Err("Invalid yt-dlp transaction identifier".into());
+    }
+    Ok(())
+}
+
+fn transaction_staging_name(path: &Path, parent: &Path, expected_prefix: &str) -> Result<String, String> {
+    if path.parent() != Some(parent) {
+        return Err("yt-dlp staging file must be in the installation directory".into());
+    }
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or("Invalid yt-dlp staging filename")?;
+    if !name.starts_with(expected_prefix)
+        || !name.ends_with(".part")
+        || !name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"._-".contains(&byte))
+    {
+        return Err("Invalid yt-dlp staging filename".into());
+    }
+    Ok(name.to_string())
+}
+
+fn write_new_marker(path: &Path, contents: &[u8]) -> io::Result<()> {
+    let file_name = path.file_name().unwrap_or_default().to_string_lossy();
+    let temp = path.with_file_name(format!(
+        "{file_name}.{}.{}.tmp",
+        std::process::id(),
+        next_ytdlp_run_id()
+    ));
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temp)?;
+    let write_result = file.write_all(contents).and_then(|()| file.sync_all());
+    drop(file);
+    let result = write_result.and_then(|()| std::fs::rename(&temp, path));
+    if result.is_err() {
+        let _ = std::fs::remove_file(&temp);
+    }
+    result
+}
+
+fn remove_file_if_present(path: &Path) -> io::Result<()> {
+    match std::fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_file() || metadata.file_type().is_symlink() => {
+            std::fs::remove_file(path)
+        }
+        Ok(_) => Err(io::Error::other(format!(
+            "yt-dlp transaction entry is not a file: {}",
+            path.display()
+        ))),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
+fn recover_ytdlp_install(executable: &Path, version: &Path) -> Result<(), String> {
+    let _guard = YTDLP_INSTALL_RECOVERY_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    recover_ytdlp_install_unlocked(executable, version)
+}
+
+fn recover_ytdlp_install_unlocked(executable: &Path, version: &Path) -> Result<(), String> {
+    let parent = executable
+        .parent()
+        .ok_or("yt-dlp destination has no parent directory")?;
+    let entries = match std::fs::read_dir(parent) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.to_string()),
+    };
+    let mut prepared = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if name.starts_with(YTDLP_TRANSACTION_PREFIX) && name.ends_with(".prepared") {
+            if !entry
+                .file_type()
+                .map_err(|error| error.to_string())?
+                .is_file()
+            {
+                return Err("yt-dlp transaction marker is not a regular file".into());
+            }
+            prepared.push(entry.path());
+        }
+    }
+    if prepared.is_empty() {
+        return Ok(());
+    }
+    if prepared.len() != 1 {
+        return Err("Multiple interrupted yt-dlp installations require manual recovery".into());
+    }
+
+    let prepared_path = prepared.pop().unwrap();
+    let file_name = prepared_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or("Invalid yt-dlp transaction marker")?;
+    let run_id = file_name
+        .strip_prefix(YTDLP_TRANSACTION_PREFIX)
+        .and_then(|name| name.strip_suffix(".prepared"))
+        .ok_or("Invalid yt-dlp transaction marker")?;
+    validate_ytdlp_transaction_id(run_id)?;
+    let (_, committed_path) = ytdlp_transaction_paths(parent, run_id);
+    let executable_backup = backup_path(executable, run_id);
+    let version_backup = backup_path(version, run_id);
+    let executable_name = executable
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or("Invalid yt-dlp executable filename")?;
+    let version_name = version
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or("Invalid yt-dlp version filename")?;
+    let state_text = std::fs::read_to_string(&prepared_path).map_err(|error| error.to_string())?;
+    let mut state_values = state_text.split_whitespace();
+    let had_executable = match state_values.next() {
+        Some("1") => true,
+        Some("0") => false,
+        _ => return Err("Invalid yt-dlp transaction state".into()),
+    };
+    let had_version = match state_values.next() {
+        Some("1") => true,
+        Some("0") => false,
+        _ => return Err("Invalid yt-dlp transaction state".into()),
+    };
+    let part_name = state_values
+        .next()
+        .ok_or("Missing yt-dlp executable staging filename")?;
+    let version_part_name = state_values
+        .next()
+        .ok_or("Missing yt-dlp version staging filename")?;
+    if state_values.next().is_some()
+        || transaction_staging_name(&parent.join(part_name), parent, &format!("{executable_name}."))?
+            != part_name
+        || transaction_staging_name(
+            &parent.join(version_part_name),
+            parent,
+            &format!("{version_name}."),
+        )? != version_part_name
+    {
+        return Err("Invalid yt-dlp transaction state".into());
+    }
+
+    let committed = match std::fs::symlink_metadata(&committed_path) {
+        Ok(metadata) if metadata.file_type().is_file() => {
+            std::fs::read(&committed_path)
+                .map(|contents| contents == b"complete")
+                .map_err(|error| error.to_string())?
+        }
+        Ok(_) => return Err("yt-dlp commit marker is not a regular file".into()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => false,
+        Err(error) => return Err(error.to_string()),
+    };
+    if committed && installed_ytdlp_version(executable, version).is_some() {
+        remove_file_if_present(&executable_backup).map_err(|error| error.to_string())?;
+        remove_file_if_present(&version_backup).map_err(|error| error.to_string())?;
+        remove_file_if_present(&parent.join(part_name)).map_err(|error| error.to_string())?;
+        remove_file_if_present(&parent.join(version_part_name)).map_err(|error| error.to_string())?;
+        std::fs::remove_file(&committed_path).map_err(|error| error.to_string())?;
+        std::fs::remove_file(&prepared_path).map_err(|error| error.to_string())?;
+        return Ok(());
+    }
+
+    restore_ytdlp_entry(executable, &executable_backup, had_executable)?;
+    restore_ytdlp_entry(version, &version_backup, had_version)?;
+    remove_file_if_present(&parent.join(part_name)).map_err(|error| error.to_string())?;
+    remove_file_if_present(&parent.join(version_part_name)).map_err(|error| error.to_string())?;
+    remove_file_if_present(&committed_path).map_err(|error| error.to_string())?;
+    std::fs::remove_file(&prepared_path).map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+fn backup_path(path: &Path, run_id: &str) -> PathBuf {
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    path.with_file_name(format!(".{name}.{run_id}.backup"))
+}
+
+fn restore_ytdlp_entry(path: &Path, backup: &Path, existed_before: bool) -> Result<(), String> {
+    let backup_exists = match std::fs::symlink_metadata(backup) {
+        Ok(metadata)
+            if metadata.file_type().is_file() || metadata.file_type().is_symlink() =>
+        {
+            true
+        }
+        Ok(_) => return Err(format!("yt-dlp backup is not a file: {}", backup.display())),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => false,
+        Err(error) => return Err(error.to_string()),
+    };
+    if existed_before {
+        if backup_exists {
+            remove_file_if_present(path).map_err(|error| error.to_string())?;
+            std::fs::rename(backup, path).map_err(|error| error.to_string())?;
+        } else {
+            match std::fs::symlink_metadata(path) {
+                Ok(metadata)
+                    if metadata.file_type().is_file() || metadata.file_type().is_symlink() => {}
+                Ok(_) => {
+                    return Err(format!(
+                        "yt-dlp previous installation entry is not a file: {}",
+                        path.display()
+                    ));
+                }
+                Err(error) => {
+                    return Err(format!(
+                        "yt-dlp previous installation entry is missing: {} ({error})",
+                        path.display()
+                    ));
+                }
+            }
+        }
+    } else {
+        remove_file_if_present(path).map_err(|error| error.to_string())?;
+        if backup_exists {
+            return Err(format!(
+                "Unexpected yt-dlp backup requires manual recovery: {}",
+                backup.display()
+            ));
+        }
+    }
+    Ok(())
+}
 
 struct BoundedLine {
     bytes: Vec<u8>,
@@ -353,8 +597,33 @@ fn publish_ytdlp_install_with(
     dest: &std::path::Path,
     version: &std::path::Path,
     run_id: &str,
-    mut rename: impl FnMut(&std::path::Path, &std::path::Path) -> std::io::Result<()>,
+    rename: impl FnMut(&std::path::Path, &std::path::Path) -> std::io::Result<()>,
 ) -> Result<(), String> {
+    publish_ytdlp_install_with_hooks(
+        part,
+        version_part,
+        dest,
+        version,
+        run_id,
+        rename,
+        write_new_marker,
+    )
+}
+
+fn publish_ytdlp_install_with_hooks(
+    part: &std::path::Path,
+    version_part: &std::path::Path,
+    dest: &std::path::Path,
+    version: &std::path::Path,
+    run_id: &str,
+    mut rename: impl FnMut(&std::path::Path, &std::path::Path) -> std::io::Result<()>,
+    mut write_marker: impl FnMut(&Path, &[u8]) -> io::Result<()>,
+) -> Result<(), String> {
+    validate_ytdlp_transaction_id(run_id)?;
+    let _guard = YTDLP_INSTALL_RECOVERY_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+
     // Validate that dest is the expected yt-dlp executable (defect 1026)
     let dest_filename = dest.file_name().ok_or("Destination has no filename")?;
     let expected_name = crate::platform_profile::ytdlp_asset(std::env::consts::OS, std::env::consts::ARCH).1;
@@ -362,16 +631,18 @@ fn publish_ytdlp_install_with(
         return Err(format!("Unexpected yt-dlp executable name: {} (expected {})", dest_filename.to_string_lossy(), expected_name));
     }
     // Ensure parent directory exists
-    let _parent = dest.parent().ok_or("yt-dlp destination has no parent directory")?;
+    let parent = dest.parent().ok_or("yt-dlp destination has no parent directory")?;
+    recover_ytdlp_install_unlocked(dest, version)?;
     // Note: We don't enforce a specific parent directory path to allow for testing
     // with temporary directories. The filename validation is the critical check.
 
-    let backup_path = |path: &std::path::Path| {
-        let name = path.file_name().unwrap_or_default().to_string_lossy();
-        path.with_file_name(format!(".{name}.{run_id}.backup"))
-    };
-    let dest_backup = backup_path(dest);
-    let version_backup = backup_path(version);
+    let dest_backup = backup_path(dest, run_id);
+    let version_backup = backup_path(version, run_id);
+    let (prepared_path, committed_path) = ytdlp_transaction_paths(parent, run_id);
+    let dest_name = dest.file_name().and_then(|name| name.to_str()).ok_or("Invalid yt-dlp executable filename")?;
+    let version_name = version.file_name().and_then(|name| name.to_str()).ok_or("Invalid yt-dlp version filename")?;
+    let part_name = transaction_staging_name(part, parent, &format!("{dest_name}."))?;
+    let version_part_name = transaction_staging_name(version_part, parent, &format!("{version_name}."))?;
     let entry_exists = |path: &std::path::Path| match std::fs::symlink_metadata(path) {
         Ok(_) => Ok(true),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
@@ -385,6 +656,14 @@ fn publish_ytdlp_install_with(
             return Err(format!(
                 "yt-dlp 임시 백업 경로가 이미 존재합니다: {}",
                 backup.display()
+            ));
+        }
+    }
+    for marker in [&prepared_path, &committed_path] {
+        if entry_exists(marker)? {
+            return Err(format!(
+                "yt-dlp installation transaction marker already exists: {}",
+                marker.display()
             ));
         }
     }
@@ -402,9 +681,22 @@ fn publish_ytdlp_install_with(
         }
     }
 
+    write_marker(
+        &prepared_path,
+        format!(
+            "{} {} {part_name} {version_part_name}\n",
+            u8::from(had_dest),
+            u8::from(had_version)
+        )
+        .as_bytes(),
+    )
+    .map_err(|error| format!("yt-dlp installation transaction could not start: {error}"))?;
+
     if had_dest {
-        rename(dest, &dest_backup)
-            .map_err(|e| format!("기존 yt-dlp 실행 파일 백업 실패: {e}"))?;
+        if let Err(error) = rename(dest, &dest_backup) {
+            let _ = std::fs::remove_file(&prepared_path);
+            return Err(format!("기존 yt-dlp 실행 파일 백업 실패: {error}"));
+        }
     }
     if had_version {
         if let Err(error) = rename(version, &version_backup) {
@@ -416,6 +708,7 @@ fn publish_ytdlp_install_with(
                     ));
                 }
             }
+            let _ = std::fs::remove_file(&prepared_path);
             return Err(format!("기존 yt-dlp 버전 정보 백업 실패: {error}"));
         }
     }
@@ -444,6 +737,9 @@ fn publish_ytdlp_install_with(
                 rollback_errors.push(format!("기존 실행 파일 복구 실패: {error}"));
             }
         }
+        if rollback_errors.is_empty() {
+            let _ = std::fs::remove_file(&prepared_path);
+        }
         let _ = std::fs::remove_file(part);
         let _ = std::fs::remove_file(version_part);
         return Err(if rollback_errors.is_empty() {
@@ -456,11 +752,49 @@ fn publish_ytdlp_install_with(
         });
     }
 
-    if had_dest {
-        let _ = std::fs::remove_file(dest_backup);
+    if let Err(error) = write_marker(&committed_path, b"complete") {
+        let mut rollback_errors = Vec::new();
+        let executable_removed = match remove_file_if_present(dest) {
+            Ok(()) => true,
+            Err(error) => {
+                rollback_errors.push(format!("새 실행 파일 제거 실패: {error}"));
+                false
+            }
+        };
+        let version_removed = match remove_file_if_present(version) {
+            Ok(()) => true,
+            Err(error) => {
+                rollback_errors.push(format!("새 버전 정보 제거 실패: {error}"));
+                false
+            }
+        };
+        if had_version && version_removed {
+            if let Err(error) = rename(&version_backup, version) {
+                rollback_errors.push(format!("기존 버전 정보 복구 실패: {error}"));
+            }
+        }
+        if had_dest && executable_removed {
+            if let Err(error) = rename(&dest_backup, dest) {
+                rollback_errors.push(format!("기존 실행 파일 복구 실패: {error}"));
+            }
+        }
+        if rollback_errors.is_empty() {
+            let _ = std::fs::remove_file(&prepared_path);
+        }
+        return Err(if rollback_errors.is_empty() {
+            format!("yt-dlp 설치 완료 기록 실패: {error}")
+        } else {
+            format!("yt-dlp 설치 완료 기록 실패: {error}; 롤백 미완료: {}", rollback_errors.join(" / "))
+        });
     }
-    if had_version {
-        let _ = std::fs::remove_file(version_backup);
+
+    // The committed marker makes the new pair authoritative. Cleanup is safe to retry on
+    // the next readiness check if the process exits or the filesystem rejects a removal.
+    if remove_file_if_present(&dest_backup).is_ok()
+        && remove_file_if_present(&version_backup).is_ok()
+    {
+        let _ = std::fs::remove_file(&committed_path);
+        let _ = std::fs::remove_file(&prepared_path);
     }
     Ok(())
 }
@@ -521,6 +855,7 @@ pub fn check_ytdlp(app: AppHandle) -> Result<Option<String>, String> {
         Err(_) => return Ok(None),
     };
     let dir = ytdlp_dir(&app)?;
+    recover_ytdlp_install(&exe, &dir.join("version.txt"))?;
     Ok(installed_ytdlp_version(&exe, &dir.join("version.txt")))
 }
 
@@ -572,9 +907,9 @@ async fn download_ytdlp_inner(app: AppHandle, cancel: Arc<AtomicBool>) -> Result
     tokio::fs::create_dir_all(&dir)
         .await
         .map_err(|e| e.to_string())?;
-
     let (remote_name, local_name) =
         crate::platform_profile::ytdlp_asset(std::env::consts::OS, std::env::consts::ARCH);
+    recover_ytdlp_install(&dir.join(local_name), &dir.join("version.txt"))?;
 
     let dest = dir.join(local_name);
     let client = reqwest::Client::builder()
@@ -816,7 +1151,10 @@ pub async fn ytdlp_load_audio(
     }
     path_validation::validate_ytdlp_url(&url)?;
     let exe = ytdlp_exe(&app)?;
-    if !exe.exists() {
+    let dir = ytdlp_dir(&app)?;
+    let version = dir.join("version.txt");
+    recover_ytdlp_install(&exe, &version)?;
+    if installed_ytdlp_version(&exe, &version).is_none() {
         return Err("yt-dlp가 설치되지 않았습니다".into());
     }
 
@@ -1580,6 +1918,44 @@ mod tests {
     }
 
     #[test]
+    fn failed_commit_marker_restores_the_previous_install_pair() {
+        let dir = tempfile::tempdir().unwrap();
+        let part = dir.path().join("yt-dlp.part");
+        let version_part = dir.path().join("version.txt.part");
+        let dest = dir.path().join(
+            crate::platform_profile::ytdlp_asset(std::env::consts::OS, std::env::consts::ARCH).1,
+        );
+        let version = dir.path().join("version.txt");
+        std::fs::write(&part, b"new binary").unwrap();
+        std::fs::write(&version_part, "new-version").unwrap();
+        std::fs::write(&dest, b"old binary").unwrap();
+        std::fs::write(&version, "old-version").unwrap();
+        let mut marker_writes = 0;
+
+        let result = publish_ytdlp_install_with_hooks(
+            &part,
+            &version_part,
+            &dest,
+            &version,
+            "commit-marker-failure",
+            |from, to| std::fs::rename(from, to),
+            |path, contents| {
+                marker_writes += 1;
+                if marker_writes == 2 {
+                    return Err(std::io::Error::other("injected commit marker failure"));
+                }
+                write_new_marker(path, contents)
+            },
+        );
+
+        assert!(result.unwrap_err().contains("설치 완료 기록 실패"));
+        assert_eq!(std::fs::read(&dest).unwrap(), b"old binary");
+        assert_eq!(std::fs::read_to_string(&version).unwrap(), "old-version");
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 2);
+        assert_eq!(marker_writes, 2);
+    }
+
+    #[test]
     fn failed_version_backup_reports_and_retains_an_unrestored_binary_backup() {
         let dir = tempfile::tempdir().unwrap();
         let part = dir.path().join("yt-dlp.part");
@@ -1617,6 +1993,218 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&version).unwrap(), "old-version");
         assert!(part.exists());
         assert!(version_part.exists());
+
+        recover_ytdlp_install(&dest, &version).unwrap();
+        assert_eq!(std::fs::read(&dest).unwrap(), b"working binary");
+        assert_eq!(std::fs::read_to_string(&version).unwrap(), "old-version");
+        for entry in std::fs::read_dir(dir.path()).unwrap() {
+            let name = entry.unwrap().file_name().to_string_lossy().into_owned();
+            assert!(!name.ends_with(".backup"), "stale backup: {name}");
+            assert!(!name.ends_with(".prepared"), "stale journal: {name}");
+        }
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 2);
+    }
+
+    #[test]
+    fn interrupted_publication_recovers_a_complete_installed_pair() {
+        if let Ok(root) = std::env::var("LYRICAL_YTDLP_CRASH_FIXTURE") {
+            let root = PathBuf::from(root);
+            let exe_name = crate::platform_profile::ytdlp_asset(
+                std::env::consts::OS,
+                std::env::consts::ARCH,
+            )
+            .1;
+            let dest = root.join(exe_name);
+            let version = root.join("version.txt");
+            let part = root.join("yt-dlp.part");
+            let version_part = root.join("version.txt.part");
+            std::fs::write(&dest, b"working binary").unwrap();
+            std::fs::write(&version, "old-version").unwrap();
+            std::fs::write(&part, b"new binary").unwrap();
+            std::fs::write(&version_part, "new-version").unwrap();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755)).unwrap();
+                std::fs::set_permissions(&part, std::fs::Permissions::from_mode(0o755)).unwrap();
+            }
+            let crash_after = std::env::var("LYRICAL_YTDLP_CRASH_AFTER")
+                .unwrap()
+                .parse::<usize>()
+                .unwrap();
+            let mut calls = 0;
+            let _ = publish_ytdlp_install_with(
+                &part,
+                &version_part,
+                &dest,
+                &version,
+                "crash-fixture",
+                |from, to| {
+                    calls += 1;
+                    let result = std::fs::rename(from, to);
+                    if calls == crash_after {
+                        std::process::exit(51);
+                    }
+                    result
+                },
+            );
+            panic!("fixture must exit after the first publication rename");
+        }
+
+        for crash_after in 1..=4 {
+            let root = tempfile::tempdir().unwrap();
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "ytdlp::tests::interrupted_publication_recovers_a_complete_installed_pair",
+                    "--nocapture",
+                ])
+                .env("LYRICAL_YTDLP_CRASH_FIXTURE", root.path())
+                .env("LYRICAL_YTDLP_CRASH_AFTER", crash_after.to_string())
+                .status()
+                .unwrap();
+            assert_eq!(status.code(), Some(51), "rename boundary {crash_after}");
+
+            let exe = root.path().join(
+                crate::platform_profile::ytdlp_asset(
+                    std::env::consts::OS,
+                    std::env::consts::ARCH,
+                )
+                .1,
+            );
+            let version = root.path().join("version.txt");
+            recover_ytdlp_install(&exe, &version).unwrap();
+            assert_eq!(
+                std::fs::read(&exe).unwrap(),
+                b"working binary",
+                "rename boundary {crash_after} must restore the prior executable"
+            );
+            assert_eq!(
+                std::fs::read_to_string(&version).unwrap(),
+                "old-version",
+                "rename boundary {crash_after} must restore the prior version"
+            );
+            // Recovery removes staging inputs owned by the interrupted transaction.
+            for entry in std::fs::read_dir(root.path()).unwrap() {
+                let name = entry.unwrap().file_name().to_string_lossy().into_owned();
+                assert!(!name.ends_with(".backup"), "stale backup: {name}");
+                assert!(!name.ends_with(".prepared"), "stale journal: {name}");
+                assert!(!name.ends_with(".committed"), "stale commit marker: {name}");
+            }
+            assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 2);
+        }
+    }
+
+    #[test]
+    fn committed_install_recovery_keeps_new_pair_and_cleans_backups() {
+        let root = tempfile::tempdir().unwrap();
+        let exe = root.path().join(
+            crate::platform_profile::ytdlp_asset(std::env::consts::OS, std::env::consts::ARCH).1,
+        );
+        let version = root.path().join("version.txt");
+        let run_id = "committed-fixture";
+        std::fs::write(&exe, b"new binary").unwrap();
+        std::fs::write(&version, "new-version").unwrap();
+        std::fs::write(backup_path(&exe, run_id), b"old binary").unwrap();
+        std::fs::write(backup_path(&version, run_id), "old-version").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let (prepared, committed) = ytdlp_transaction_paths(root.path(), run_id);
+        write_new_marker(
+            &prepared,
+            b"1 1 yt-dlp.committed-fixture.part version.txt.committed-fixture.part\n",
+        )
+        .unwrap();
+        write_new_marker(&committed, b"complete").unwrap();
+
+        recover_ytdlp_install(&exe, &version).unwrap();
+
+        assert_eq!(std::fs::read(&exe).unwrap(), b"new binary");
+        assert_eq!(std::fs::read_to_string(&version).unwrap(), "new-version");
+        assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 2);
+    }
+
+    #[test]
+    fn malformed_install_journal_fails_closed_without_touching_install() {
+        let root = tempfile::tempdir().unwrap();
+        let exe = root.path().join(
+            crate::platform_profile::ytdlp_asset(std::env::consts::OS, std::env::consts::ARCH).1,
+        );
+        let version = root.path().join("version.txt");
+        std::fs::write(&exe, b"installed binary").unwrap();
+        std::fs::write(&version, "installed-version").unwrap();
+        let (prepared, _) = ytdlp_transaction_paths(root.path(), "malformed-fixture");
+        write_new_marker(&prepared, b"not a valid state\n").unwrap();
+
+        assert!(recover_ytdlp_install(&exe, &version).is_err());
+        assert_eq!(std::fs::read(&exe).unwrap(), b"installed binary");
+        assert_eq!(std::fs::read_to_string(&version).unwrap(), "installed-version");
+        assert!(prepared.exists());
+    }
+
+    #[test]
+    fn interrupted_first_install_removes_uncommitted_executable() {
+        if let Ok(root) = std::env::var("LYRICAL_YTDLP_FIRST_INSTALL_FIXTURE") {
+            let root = PathBuf::from(root);
+            let exe_name = crate::platform_profile::ytdlp_asset(
+                std::env::consts::OS,
+                std::env::consts::ARCH,
+            )
+            .1;
+            let dest = root.join(exe_name);
+            let version = root.join("version.txt");
+            let part = root.join("yt-dlp.part");
+            let version_part = root.join("version.txt.part");
+            std::fs::write(&part, b"new binary").unwrap();
+            std::fs::write(&version_part, "new-version").unwrap();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&part, std::fs::Permissions::from_mode(0o755)).unwrap();
+            }
+            let _ = publish_ytdlp_install_with(
+                &part,
+                &version_part,
+                &dest,
+                &version,
+                "first-install-fixture",
+                |from, to| {
+                    let _ = std::fs::rename(from, to);
+                    std::process::exit(52)
+                },
+            );
+            panic!("fixture must exit after publishing the executable");
+        }
+
+        let root = tempfile::tempdir().unwrap();
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "ytdlp::tests::interrupted_first_install_removes_uncommitted_executable",
+                "--nocapture",
+            ])
+            .env("LYRICAL_YTDLP_FIRST_INSTALL_FIXTURE", root.path())
+            .status()
+            .unwrap();
+        assert_eq!(status.code(), Some(52));
+
+        let exe = root.path().join(
+            crate::platform_profile::ytdlp_asset(std::env::consts::OS, std::env::consts::ARCH).1,
+        );
+        let version = root.path().join("version.txt");
+        recover_ytdlp_install(&exe, &version).unwrap();
+        assert_eq!(installed_ytdlp_version(&exe, &version), None);
+        assert!(!exe.exists());
+        assert!(!version.exists());
+        assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 0);
+        for entry in std::fs::read_dir(root.path()).unwrap() {
+            let name = entry.unwrap().file_name().to_string_lossy().into_owned();
+            assert!(!name.ends_with(".prepared"), "stale journal: {name}");
+            assert!(!name.ends_with(".committed"), "stale commit marker: {name}");
+        }
     }
 
     #[test]
