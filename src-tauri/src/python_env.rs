@@ -77,7 +77,7 @@ fn isolate_python_environment(command: &mut tokio::process::Command) {
 }
 
 use crate::python_runtime::{
-    publish_runtime, recover_runtime, runtime_complete, runtime_exe, ENV_LOCK, MANIFEST,
+    publish_runtime, recover_runtime, runtime_complete, runtime_exe, try_lock_environment, MANIFEST,
     READY_MARKER, RUNTIME_ID,
 };
 use sha2::{Digest, Sha256};
@@ -177,8 +177,9 @@ async fn wait_probe_child(mut child: tokio::process::Child, timeout: Duration) -
 
 #[tauri::command]
 pub async fn get_python_env_info(app: AppHandle) -> Result<PythonEnvInfo, String> {
-    let _environment = ENV_LOCK.try_lock().map_err(|_| "AI environment is busy")?;
-    recover_runtime(&embedded_python_dir(&app)?).map_err(|error| error.to_string())?;
+    let runtime_root = embedded_python_dir(&app)?;
+    let _environment = try_lock_environment(&runtime_root)?;
+    recover_runtime(&runtime_root).map_err(|error| error.to_string())?;
     let python = embedded_python_exe(&app)?;
     // Legacy runtimes must prove they work; executable existence alone is insufficient.
     let python_ready = python.is_file() && probe(&python, RUNTIME_PROBE).await;
@@ -338,8 +339,8 @@ async fn wait_for_runtime_extraction(
 
 #[tauri::command]
 pub async fn download_embedded_python(app: AppHandle) -> Result<(), String> {
-    let _environment = ENV_LOCK.try_lock().map_err(|_| "AI environment is busy")?;
     let destination = embedded_python_dir(&app)?;
+    let _environment = try_lock_environment(&destination)?;
     recover_runtime(&destination).map_err(|error| error.to_string())?;
     let python = runtime_exe(&destination);
     if python.is_file() && probe(&python, RUNTIME_PROBE).await {
@@ -402,12 +403,13 @@ async fn install_step(
 
 #[tauri::command]
 pub async fn install_python_packages(app: AppHandle) -> Result<(), String> {
-    let _environment = ENV_LOCK.try_lock().map_err(|_| "AI environment is busy")?;
-    recover_runtime(&embedded_python_dir(&app)?).map_err(|error| error.to_string())?;
+    let runtime_root = embedded_python_dir(&app)?;
+    let _environment = try_lock_environment(&runtime_root)?;
+    recover_runtime(&runtime_root).map_err(|error| error.to_string())?;
     install_python_packages_unlocked(app).await
 }
 
-// The caller owns ENV_LOCK for the entire staging, validation and publication transaction.
+// The caller holds the environment lock for the entire staging, validation and publication transaction.
 async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> {
     let result = async {
         let destination = embedded_python_dir(&app)?;

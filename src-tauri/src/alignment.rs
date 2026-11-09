@@ -90,8 +90,9 @@ pub async fn run_alignment(
     let audio_path = audio_path.to_string_lossy().into_owned();
     let run = al_state.begin(run_id)?;
     let cancel = run.cancel.clone();
-    let _environment = crate::python_runtime::ENV_LOCK.try_lock().map_err(|_| "AI environment is busy")?;
-    crate::python_runtime::recover_runtime(&crate::python_env::embedded_python_dir(&app)?)
+    let runtime_root = crate::python_env::embedded_python_dir(&app)?;
+    let _environment = crate::python_runtime::try_lock_environment(&runtime_root)?;
+    crate::python_runtime::recover_runtime(&runtime_root)
         .map_err(|error| error.to_string())?;
     // Use the app-embedded Python (downloaded once via Settings > AI Models)
     let python_exe = embedded_python_exe(&app)?;

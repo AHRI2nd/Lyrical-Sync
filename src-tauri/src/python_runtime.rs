@@ -1,10 +1,120 @@
+use std::fs::{File, OpenOptions};
 use std::io;
 use std::path::{Path, PathBuf};
+use sha2::{Digest, Sha256};
+use tokio::sync::MutexGuard;
 pub const READY_MARKER: &str = ".lyrical-runtime-ready";
 pub const RUNTIME_ID: &str = "cpython-3.13.17-20261021-v1";
 const BACKUP_PREFIX: &str = ".lyrical-python-runtime-backup-";
 pub const MANIFEST: &str = include_str!("../ai-manifest.json");
 pub static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+pub struct EnvironmentGuard {
+    _file: File,
+    _process_guard: MutexGuard<'static, ()>,
+}
+
+pub fn try_lock_environment(runtime_root: &Path) -> Result<EnvironmentGuard, String> {
+    let process_guard = ENV_LOCK
+        .try_lock()
+        .map_err(|_| "AI environment is busy".to_string())?;
+    let lock_path = environment_lock_path(runtime_root)?;
+    let file = open_environment_lock(&lock_path)?;
+    match file.try_lock() {
+        Ok(()) => Ok(EnvironmentGuard {
+            _file: file,
+            _process_guard: process_guard,
+        }),
+        Err(std::fs::TryLockError::WouldBlock) => Err("AI environment is busy".into()),
+        Err(std::fs::TryLockError::Error(error)) => {
+            Err(format!("Unable to lock AI environment: {error}"))
+        }
+    }
+}
+
+fn environment_lock_path(runtime_root: &Path) -> Result<PathBuf, String> {
+    let temp = std::env::temp_dir();
+    #[cfg(unix)]
+    let lock_dir = {
+        use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
+        let uid = unsafe { libc::geteuid() };
+        let lock_dir = temp.join(format!("lyrical-sync-runtime-locks-{uid}"));
+        match std::fs::DirBuilder::new().mode(0o700).create(&lock_dir) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(error) => {
+                return Err(format!("Unable to create AI environment lock directory: {error}"))
+            }
+        }
+        let metadata = std::fs::symlink_metadata(&lock_dir).map_err(|error| error.to_string())?;
+        if !metadata.file_type().is_dir()
+            || metadata.uid() != uid
+            || metadata.permissions().mode() & 0o077 != 0
+        {
+            return Err("AI environment lock directory is not private to the current user".into());
+        }
+        lock_dir
+    };
+    #[cfg(windows)]
+    let lock_dir = {
+        let lock_dir = temp.join("lyrical-sync-runtime-locks");
+        match std::fs::create_dir(&lock_dir) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(error) => {
+                return Err(format!("Unable to create AI environment lock directory: {error}"))
+            }
+        }
+        if !std::fs::symlink_metadata(&lock_dir)
+            .map_err(|error| error.to_string())?
+            .file_type()
+            .is_dir()
+        {
+            return Err("AI environment lock path is not a directory".into());
+        }
+        lock_dir
+    };
+    #[cfg(not(any(unix, windows)))]
+    let lock_dir = temp.join("lyrical-sync-runtime-locks");
+
+    let digest = Sha256::digest(runtime_root.as_os_str().as_encoded_bytes());
+    let hex = digest
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    // Keep this file after unlock: removing it could let processes lock different inodes.
+    let filename = format!("{hex}.lock");
+    Ok(lock_dir.join(filename))
+}
+
+fn open_environment_lock(path: &Path) -> Result<File, String> {
+    let mut options = OpenOptions::new();
+    options.read(true).write(true).create(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600).custom_flags(libc::O_NOFOLLOW);
+    }
+    let file = options
+        .open(path)
+        .map_err(|error| format!("Unable to open AI environment lock: {error}"))?;
+    let metadata = file
+        .metadata()
+        .map_err(|error| format!("Unable to inspect AI environment lock: {error}"))?;
+    if !metadata.file_type().is_file() {
+        return Err("AI environment lock path is not a regular file".into());
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        if metadata.uid() != unsafe { libc::geteuid() }
+            || metadata.permissions().mode() & 0o077 != 0
+        {
+            return Err("AI environment lock file is not private to the current user".into());
+        }
+    }
+    Ok(file)
+}
 
 pub fn runtime_exe(root: &Path) -> PathBuf {
     if cfg!(windows) {
@@ -146,6 +256,71 @@ mod tests {
         std::fs::create_dir_all(runtime_exe(path).parent().unwrap()).unwrap();
         std::fs::write(runtime_exe(path), "verified interpreter fixture").unwrap();
         std::fs::write(path.join(READY_MARKER), RUNTIME_ID).unwrap();
+    }
+
+    #[test]
+    fn environment_lock_is_shared_with_child_processes() {
+        if let Ok(root) = std::env::var("LYRICAL_ENV_LOCK_CHILD") {
+            match try_lock_environment(&PathBuf::from(root)) {
+                Ok(_) => std::process::exit(24),
+                Err(error) if error == "AI environment is busy" => std::process::exit(0),
+                Err(_) => std::process::exit(25),
+            }
+        }
+        let root = tempfile::tempdir().unwrap();
+        let _parent_guard = try_lock_environment(root.path()).unwrap();
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "python_runtime::tests::environment_lock_is_shared_with_child_processes",
+                "--nocapture",
+            ])
+            .env("LYRICAL_ENV_LOCK_CHILD", root.path())
+            .status()
+            .unwrap();
+        assert_eq!(status.code(), Some(0), "child acquired shared runtime lock");
+    }
+
+    #[test]
+    fn environment_lock_is_released_when_process_exits_abruptly() {
+        if let Ok(root) = std::env::var("LYRICAL_ENV_LOCK_CRASH_CHILD") {
+            match try_lock_environment(&PathBuf::from(root)) {
+                Ok(_guard) => std::process::exit(42),
+                Err(_) => std::process::exit(25),
+            }
+        }
+        let root = tempfile::tempdir().unwrap();
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "python_runtime::tests::environment_lock_is_released_when_process_exits_abruptly",
+                "--nocapture",
+            ])
+            .env("LYRICAL_ENV_LOCK_CRASH_CHILD", root.path())
+            .status()
+            .unwrap();
+        assert_eq!(status.code(), Some(42), "child failed before acquiring lock");
+        let _guard =
+            try_lock_environment(root.path()).expect("process exit should release OS lock");
+    }
+
+    #[test]
+    fn environment_lock_does_not_create_runtime_data_directories() {
+        let base = tempfile::tempdir().unwrap();
+        let runtime_root = base.path().join("not-created/runtime");
+        let _guard = try_lock_environment(&runtime_root).unwrap();
+        assert!(!runtime_root.exists());
+        assert!(!runtime_root.parent().unwrap().exists());
+    }
+
+    #[test]
+    fn environment_lock_rejects_a_second_guard_in_the_same_process() {
+        let root = tempfile::tempdir().unwrap();
+        let _guard = try_lock_environment(root.path()).unwrap();
+        assert!(matches!(
+            try_lock_environment(root.path()),
+            Err(error) if error == "AI environment is busy"
+        ));
     }
     #[test]
     fn only_a_complete_runtime_is_published() {
