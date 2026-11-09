@@ -13,7 +13,15 @@ ROOT=Path(__file__).resolve().parents[1]
 def pe_file(path, machine):
     data=bytearray(128);data[:2]=b'MZ';struct.pack_into('<I',data,0x3c,64)
     data[64:68]=b'PE\0\0';struct.pack_into('<H',data,68,machine)
+    data.extend(b'__TAURI_BUNDLE_TYPE_VAR_UNK')
     path.write_bytes(data)
+
+
+def mark_nsis_bundle(path):
+    marker=b'__TAURI_BUNDLE_TYPE_VAR_UNK'
+    data=path.read_bytes()
+    if data.count(marker)!=1:raise AssertionError('Expected one unpatched Tauri marker')
+    path.write_bytes(data.replace(marker,b'__TAURI_BUNDLE_TYPE_VAR_NSS',1))
 
 
 class WindowsBuildTests(unittest.TestCase):
@@ -25,7 +33,11 @@ class WindowsBuildTests(unittest.TestCase):
         return module
 
     def verify(self, binary, installer, arch, installer_app=None):
-        return self.load_verifier().verify(binary,installer,arch,'0.7.0',installer_app or binary)
+        if installer_app is None:
+            installer_app=binary.with_name('installer-lyrical-sync.exe')
+            installer_app.write_bytes(binary.read_bytes())
+            mark_nsis_bundle(installer_app)
+        return self.load_verifier().verify(binary,installer,arch,'0.7.0',installer_app)
 
     def test_extracts_one_application_executable_without_running_installer(self):
         module=self.load_verifier()
@@ -71,6 +83,7 @@ class WindowsBuildTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);binary=root/'lyrical-sync.exe';embedded=root/'payload'/'lyrical-sync.exe';installer=root/'Lyrical Sync_0.7.0_arm64-setup.exe'
             embedded.parent.mkdir();pe_file(binary,0xaa64);pe_file(embedded,0x8664);pe_file(installer,0x14c)
+            mark_nsis_bundle(embedded)
             with self.assertRaisesRegex(ValueError,'contained application architecture'):
                 self.verify(binary,installer,'arm64',embedded)
 
@@ -78,9 +91,17 @@ class WindowsBuildTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);binary=root/'lyrical-sync.exe';embedded=root/'payload'/'lyrical-sync.exe';installer=root/'Lyrical Sync_0.7.0_arm64-setup.exe'
             embedded.parent.mkdir();pe_file(binary,0xaa64);pe_file(embedded,0xaa64);pe_file(installer,0x14c)
+            mark_nsis_bundle(embedded)
             embedded.write_bytes(embedded.read_bytes()+b'stale payload')
             with self.assertRaisesRegex(ValueError,'does not contain the verified build'):
                 self.verify(binary,installer,'arm64',embedded)
+
+    def test_nsis_bundle_marker_is_the_only_allowed_payload_difference(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);binary=root/'lyrical-sync.exe';embedded=root/'payload'/'lyrical-sync.exe';installer=root/'Lyrical Sync_0.7.0_arm64-setup.exe'
+            embedded.parent.mkdir();pe_file(binary,0xaa64);pe_file(embedded,0xaa64);pe_file(installer,0x14c)
+            mark_nsis_bundle(embedded)
+            self.assertEqual(self.verify(binary,installer,'arm64',embedded)['installer_application_machine'],'0xaa64')
 
 
 if __name__=='__main__':unittest.main()

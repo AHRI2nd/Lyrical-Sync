@@ -45,7 +45,15 @@ def verify(binary, installer, architecture, version, installer_app=None):
             return verify(binary,installer,architecture,version,extracted)
     embedded_machine=pe_machine(installer_app)
     if embedded_machine!=expected:raise ValueError('Installer-contained application architecture does not match release target')
-    if hashlib.sha256(binary.read_bytes()).digest()!=hashlib.sha256(installer_app.read_bytes()).digest():
+    binary_data=binary.read_bytes()
+    installer_data=installer_app.read_bytes()
+    unpatched_marker=b'__TAURI_BUNDLE_TYPE_VAR_UNK'
+    nsis_marker=b'__TAURI_BUNDLE_TYPE_VAR_NSS'
+    if (binary_data.count(unpatched_marker)!=1 or binary_data.count(nsis_marker)!=0
+            or installer_data.count(unpatched_marker)!=0 or installer_data.count(nsis_marker)!=1):
+        raise ValueError('Unexpected Tauri NSIS bundle marker')
+    normalized_installer=installer_data.replace(nsis_marker,unpatched_marker,1)
+    if hashlib.sha256(binary_data).digest()!=hashlib.sha256(normalized_installer).digest():
         raise ValueError('Installer does not contain the verified build application')
     return {'application':binary.name,'application_machine':hex(machine),
             'installer':installer.name,'installer_machine':hex(bootstrap),
