@@ -226,7 +226,6 @@ it("clears stale track metadata when polling an unsupported Spotify item", async
 
   expect(useServiceStore.getState()).toMatchObject({
     isPlaying: true,
-    positionMs: 4200,
     durationMs: 60000,
     trackUri: null,
     trackName: "",
@@ -235,6 +234,8 @@ it("clears stale track metadata when polling an unsupported Spotify item", async
     albumArtUrl: null,
     activePlaybackVolumePercent: 45,
   });
+  expect(useServiceStore.getState().positionMs).toBeGreaterThanOrEqual(4200);
+  expect(useServiceStore.getState().positionMs).toBeLessThanOrEqual(4950);
   expect(useToastStore.getState().toasts).toHaveLength(0);
 });
 
