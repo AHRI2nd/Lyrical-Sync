@@ -81,8 +81,79 @@ pub fn validate_ytdlp_url(url: &str) -> Result<(), String> {
     if !is_youtube_host {
         return Err("Only YouTube video URLs are supported".into());
     }
+
+    // yt-dlp falls back to its generic webpage extractor when a URL matches
+    // the YouTube host allowlist but not a YouTube video route. That extractor
+    // follows redirects, so only pass URLs that match a direct video route.
+    if !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || has_url_user_info(url)
+    {
+        return Err("YouTube URLs with credentials are not allowed".into());
+    }
+    if parsed.port().is_some_and(|port| port != 443) {
+        return Err("Non-standard YouTube ports are not allowed".into());
+    }
+
+    let has_video_route = if normalized_host == "youtu.be" {
+        let path = parsed.path().strip_prefix('/').unwrap_or("");
+        let path = path.strip_suffix('/').unwrap_or(path);
+        is_youtube_video_id(path) && !path.contains('/')
+    } else {
+        has_youtube_video_route(&parsed)
+    };
+    if !has_video_route {
+        return Err("Only direct YouTube video URLs are allowed".into());
+    }
     
     Ok(())
+}
+
+fn has_youtube_video_route(url: &url::Url) -> bool {
+    let query_video_id = || {
+        let mut video_ids = url
+            .query_pairs()
+            .filter(|(key, _)| key == "v")
+            .map(|(_, value)| value.into_owned());
+        let video_id = video_ids.next()?;
+        if video_ids.next().is_some() || !is_youtube_video_id(&video_id) {
+            return None;
+        }
+        Some(video_id)
+    };
+
+    match url.path() {
+        "/" | "/watch" | "/watch.php" | "/watch_popup" | "/watch_popup.php" | "/movie"
+        | "/movie.php" => query_video_id().is_some(),
+        path => {
+            let Some((route, video_id)) = path
+                .strip_prefix('/')
+                .and_then(|path| path.split_once('/'))
+            else {
+                return false;
+            };
+            matches!(route, "v" | "e" | "embed" | "shorts" | "live")
+                && !video_id.contains('/')
+                && is_youtube_video_id(video_id)
+        }
+    }
+}
+
+fn is_youtube_video_id(video_id: &str) -> bool {
+    video_id.len() == 11
+        && video_id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
+}
+
+fn has_url_user_info(url: &str) -> bool {
+    url.split_once("://")
+        .and_then(|(_, remainder)| {
+            remainder
+                .split(|character| matches!(character, '/' | '\\' | '?' | '#'))
+                .next()
+        })
+        .is_some_and(|authority| authority.contains('@'))
 }
 
 pub fn require_filesystem_scope(
@@ -247,21 +318,62 @@ mod ytdlp_url_tests {
 
     #[test]
     fn accepts_https_youtube_urls_and_rejects_public_non_youtube_hosts() {
-        assert!(validate_ytdlp_url("https://www.youtube.com/watch?v=abc").is_ok());
-        assert!(validate_ytdlp_url("https://youtu.be/abc").is_ok());
+        assert!(validate_ytdlp_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ").is_ok());
+        assert!(validate_ytdlp_url("https://youtu.be/dQw4w9WgXcQ").is_ok());
         assert!(validate_ytdlp_url("http://www.youtube.com/watch?v=abc").is_err());
         assert!(validate_ytdlp_url("https://203.0.114.1/video").is_err());
     }
 
     #[test]
     fn only_accepts_secure_youtube_video_hosts() {
-        assert!(validate_ytdlp_url("https://youtube.com/watch?v=abc").is_ok());
-        assert!(validate_ytdlp_url("https://music.youtube.com/watch?v=abc").is_ok());
-        assert!(validate_ytdlp_url("https://youtu.be/abc").is_ok());
+        assert!(validate_ytdlp_url("https://youtube.com/watch?v=dQw4w9WgXcQ").is_ok());
+        assert!(validate_ytdlp_url("https://music.youtube.com/watch?v=dQw4w9WgXcQ").is_ok());
+        assert!(validate_ytdlp_url("https://youtu.be/dQw4w9WgXcQ").is_ok());
         assert!(validate_ytdlp_url("https://example.com/video").is_err());
         assert!(validate_ytdlp_url("https://youtube.com.example.org/watch?v=abc").is_err());
         assert!(validate_ytdlp_url("https://.youtube.com/watch?v=abc").is_err());
         assert!(validate_ytdlp_url("http://www.youtube.com/watch?v=abc").is_err());
+    }
+
+    #[test]
+    fn rejects_youtube_host_urls_that_fall_through_to_generic_extractor() {
+        let denied = [
+            "https://www.youtube.com/redirect?q=https%3A%2F%2F127.0.0.1%2Fadmin",
+            "https://www.youtube.com/attribution_link?u=%2Fredirect%3Fq%3Dhttp%253A%252F%252F127.0.0.1",
+            "https://www.youtube.com/random/path",
+            "https://www.youtube.com/watch?v=not-a-video-id",
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ&v=aaaaaaaaaaa",
+            "https://www.youtube.com:8443/watch?v=dQw4w9WgXcQ",
+            "https://user@www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "https://@www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "https://youtu.be//dQw4w9WgXcQ",
+        ];
+
+        for url in denied {
+            assert!(validate_ytdlp_url(url).is_err(), "accepted {url}");
+        }
+    }
+
+    #[test]
+    fn accepts_supported_youtube_video_url_forms_only() {
+        let allowed = [
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "https://music.youtube.com/watch?v=dQw4w9WgXcQ",
+            "https://youtube.com/?v=dQw4w9WgXcQ",
+            "https://www.youtube.com/watch_popup.php?v=dQw4w9WgXcQ",
+            "https://www.youtube.com/movie?v=dQw4w9WgXcQ",
+            "https://www.youtube.com/movie.php?v=dQw4w9WgXcQ",
+            "https://www.youtube.com/v/dQw4w9WgXcQ",
+            "https://www.youtube.com/e/dQw4w9WgXcQ",
+            "https://www.youtube.com/shorts/dQw4w9WgXcQ",
+            "https://www.youtube.com/live/dQw4w9WgXcQ",
+            "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            "https://youtu.be/dQw4w9WgXcQ?si=share-token",
+        ];
+
+        for url in allowed {
+            assert!(validate_ytdlp_url(url).is_ok(), "rejected {url}");
+        }
     }
 }
 
