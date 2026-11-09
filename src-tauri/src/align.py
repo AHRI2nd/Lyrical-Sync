@@ -376,8 +376,11 @@ def main():
             if unsupported:
                 progress("error", "정렬 모델이 지원하지 않는 문자가 포함되어 있습니다")
                 sys.exit(1)
-            if len(tokens_starred) != sum(tokens_per_line):
+            alignment_tokens = [token for token in tokens_starred if token != "<star>"]
+            if len(alignment_tokens) != sum(tokens_per_line):
                 raise ValueError("가사 일부가 정렬 모델에서 정규화되어 원문 줄과 대응하지 않습니다")
+            if any(not token.strip() for token in alignment_tokens):
+                raise ValueError("가사 정규화 후 빈 정렬 토큰이 있습니다 (empty normalized token)")
             safe_shape, shape_error = validate_ctc_native_boundary(emissions, tokens_starred)
             if not safe_shape:
                 progress("error", shape_error)

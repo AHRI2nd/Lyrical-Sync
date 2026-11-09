@@ -269,26 +269,95 @@ class EmbeddedAlignmentExecutionTests(unittest.TestCase):
                 "def generate_emissions(session, audio, batch_size): return (list(range(16)), 0.02)\n"
                 "def preprocess_text(text, **kwargs):\n"
                 " words = text.split()\n"
-                " return [' '.join(word) for word in words], words\n"
+                " tokens = []\n"
+                " starred_text = []\n"
+                " for word in words:\n"
+                "  tokens.extend(['<star>', ' '.join(word)])\n"
+                "  starred_text.extend(['<star>', word])\n"
+                " return tokens, starred_text\n"
                 "def get_alignments(emissions, tokens, tokenizer):\n"
                 " assert len(emissions) == 16\n"
                 " return ('segments', 'scores', 'blank')\n"
                 "def get_spans(tokens, segments, blank): return tokens\n"
                 "def postprocess_results(text, spans, stride, scores):\n"
-                " return [dict(text=word, start=i * 0.2, end=(i + 1) * 0.2, score=-0.1)"
-                " for i, word in enumerate(spans)]\n",
+                " result = []\n"
+                " for word in text:\n"
+                "  if word != '<star>':\n"
+                "   i = len(result)\n"
+                "   result.append(dict(text=word, start=i * 0.2, end=(i + 1) * 0.2, score=-0.1))\n"
+                " return result\n",
                 encoding="utf-8",
             )
-            result = self.run_alignment(root, json.dumps([{"index": 7, "text": "hello world"}]),
-                                        mock_dependencies=root)
+            result = self.run_alignment(
+                root,
+                json.dumps([
+                    {"index": 7, "text": "hello"},
+                    {"index": 8, "text": "world"},
+                ]),
+                mock_dependencies=root,
+            )
             self.assertEqual(result.returncode, 0, result.stderr)
             output = json.loads(result.stdout)
-            self.assertEqual(len(output["lines"]), 1)
-            self.assertEqual(output["lines"][0]["index"], 7)
-            self.assertEqual((output["lines"][0]["start"], output["lines"][0]["end"]),
-                             (0.0, 0.4))
+            self.assertEqual([line["index"] for line in output["lines"]], [7, 8])
+            self.assertEqual(
+                [(line["start"], line["end"]) for line in output["lines"]],
+                [(0.0, 0.2), (0.2, 0.4)],
+            )
             self.assertIn('"status": "analyzing"', result.stderr)
             self.assertEqual(output["confidence_unit"], "batch_relative_0_to_1_not_probability")
+
+    def test_empty_normalized_word_is_rejected_before_native_ctc(self):
+        import json
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "onnxruntime.py").write_text(
+                "from types import SimpleNamespace\n"
+                "class InferenceSession:\n"
+                " def __init__(self, path): pass\n"
+                " def get_inputs(self): return [SimpleNamespace(name='input')]\n"
+                " def get_outputs(self): return [SimpleNamespace(name='output')]\n",
+                encoding="utf-8",
+            )
+            (root / "numpy.py").write_text("", encoding="utf-8")
+            package = root / "ctc_forced_aligner"
+            package.mkdir()
+            (package / "__init__.py").write_text(
+                "class Tokenizer:\n"
+                " def encode(self, text): return text.split()\n"
+                " def decode(self, tokens): return ' '.join(tokens)\n"
+                " def get_vocab(self): return {c: i for i, c in enumerate('abcdefghijklmnopqrstuvwxyz <>.')}\n"
+                "class FakeAudio:\n"
+                " def __len__(self): return 32000\n"
+                "def load_audio(*args, **kwargs): return FakeAudio()\n"
+                "def generate_emissions(session, audio, batch_size): return (list(range(32)), 0.02)\n"
+                "def preprocess_text(text, **kwargs):\n"
+                " words = text.split()\n"
+                " normalized = ['' if word == '...' else ' '.join(word) for word in words]\n"
+                " tokens = []\n"
+                " starred_text = []\n"
+                " for word, normalized_word in zip(words, normalized):\n"
+                "  tokens.extend(['<star>', normalized_word])\n"
+                "  starred_text.extend(['<star>', word])\n"
+                " return tokens, starred_text\n"
+                "def get_alignments(*args, **kwargs): raise AssertionError('native CTC must not run')\n"
+                "def get_spans(*args, **kwargs): raise AssertionError('native CTC must not run')\n"
+                "def postprocess_results(*args, **kwargs): raise AssertionError('native CTC must not run')\n",
+                encoding="utf-8",
+            )
+            result = self.run_alignment(
+                root,
+                json.dumps([{"index": 7, "text": "hello ... world"}]),
+                mock_dependencies=root,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            events = [json.loads(line) for line in result.stderr.splitlines()]
+            self.assertTrue(any(
+                "empty normalized token" in event.get("message", "")
+                for event in events
+            ))
+            self.assertNotIn("AssertionError: native CTC must not run", result.stderr)
+            self.assertEqual(result.stdout, "")
 
     def test_reserved_star_expansion_is_rejected_before_ctc_can_shift_line_ownership(self):
         with tempfile.TemporaryDirectory() as folder:
