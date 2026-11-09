@@ -1,9 +1,11 @@
+use crate::path_validation;
 use serde::Serialize;
+use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager};
-use crate::path_validation;
+use tokio::io::{AsyncBufRead, AsyncBufReadExt};
 
 pub struct YtdlpState {
     active_cancel: Mutex<Option<(String, Arc<AtomicBool>)>>,
@@ -13,8 +15,95 @@ pub struct YtdlpState {
 static YTDLP_RUN_COUNTER: AtomicU64 = AtomicU64::new(0);
 const MAX_YTDLP_DOWNLOAD_BYTES: u64 = 100 * 1024 * 1024;
 const MAX_YTDLP_METADATA_BYTES: u64 = 1024 * 1024;
+const MAX_YTDLP_STDOUT_LINE_BYTES: usize = 64 * 1024;
+const MAX_YTDLP_STDERR_LINE_BYTES: usize = 8 * 1024;
 const MAX_YTDLP_AUDIO_BYTES: u64 = crate::audio_resource::MAX_AUDIO_FILE_BYTES;
 const MAX_YTDLP_AUDIO_RUN: std::time::Duration = crate::audio_resource::MAX_AUDIO_DURATION;
+
+struct BoundedLine {
+    bytes: Vec<u8>,
+    truncated: bool,
+}
+
+async fn read_bounded_line<R>(reader: &mut R, max_bytes: usize) -> io::Result<Option<BoundedLine>>
+where
+    R: AsyncBufRead + Unpin,
+{
+    let mut bytes = Vec::with_capacity(max_bytes);
+    let mut read_any = false;
+
+    loop {
+        let (chunk, consumed, line_ended, truncated) = {
+            let available = reader.fill_buf().await?;
+            if available.is_empty() {
+                return Ok(read_any.then_some(BoundedLine {
+                    bytes,
+                    truncated: false,
+                }));
+            }
+
+            let line_bytes = available
+                .iter()
+                .position(|byte| *byte == b'\n')
+                .map_or(available.len(), |index| index + 1);
+            let remaining = max_bytes.saturating_sub(bytes.len());
+            if line_bytes > remaining {
+                (available[..remaining].to_vec(), remaining, false, true)
+            } else {
+                (
+                    available[..line_bytes].to_vec(),
+                    line_bytes,
+                    available[line_bytes - 1] == b'\n',
+                    false,
+                )
+            }
+        };
+
+        reader.consume(consumed);
+        read_any = true;
+        bytes.extend_from_slice(&chunk);
+
+        if truncated {
+            return Ok(Some(BoundedLine {
+                bytes,
+                truncated: true,
+            }));
+        }
+
+        if line_ended {
+            bytes.pop();
+            if bytes.last() == Some(&b'\r') {
+                bytes.pop();
+            }
+            return Ok(Some(BoundedLine {
+                bytes,
+                truncated: false,
+            }));
+        }
+    }
+}
+
+async fn discard_line_remainder<R>(reader: &mut R) -> io::Result<()>
+where
+    R: AsyncBufRead + Unpin,
+{
+    loop {
+        let (consumed, line_ended) = {
+            let available = reader.fill_buf().await?;
+            if available.is_empty() {
+                return Ok(());
+            }
+            match available.iter().position(|byte| *byte == b'\n') {
+                Some(index) => (index + 1, true),
+                None => (available.len(), false),
+            }
+        };
+        reader.consume(consumed);
+        if line_ended || consumed == 0 {
+            return Ok(());
+        }
+    }
+}
 
 fn ytdlp_deadline_expired(started: std::time::Instant, now: std::time::Instant) -> bool {
     now.saturating_duration_since(started) >= MAX_YTDLP_AUDIO_RUN
@@ -891,24 +980,36 @@ async fn ytdlp_run_child(
         .take()
         .ok_or("yt-dlp stderr를 열 수 없습니다")?;
 
-    use tokio::io::{AsyncBufReadExt, BufReader};
+    use tokio::io::BufReader;
 
     // stderr는 실패 원인 파악용으로 병행해서 끝까지 비워야 한다(안 읽으면 파이프가 차서
     // 자식 프로세스가 멈출 수 있음). 마지막 몇 줄만 보관해 에러 메시지에 붙인다.
     let stderr_tail = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
     let stderr_tail_c = stderr_tail.clone();
     let stderr_task = tokio::spawn(async move {
-        let mut reader = BufReader::new(stderr).lines();
-        while let Ok(Some(line)) = reader.next_line().await {
+        let mut reader = BufReader::new(stderr);
+        loop {
+            let line = match read_bounded_line(&mut reader, MAX_YTDLP_STDERR_LINE_BYTES).await {
+                Ok(Some(line)) => line,
+                Ok(None) | Err(_) => break,
+            };
+            let mut message = String::from_utf8_lossy(&line.bytes).into_owned();
+            if line.truncated {
+                message.push_str(" …[line truncated]");
+                if discard_line_remainder(&mut reader).await.is_err() {
+                    break;
+                }
+            }
             let mut tail = stderr_tail_c.lock().unwrap_or_else(|e| e.into_inner());
-            tail.push(line);
+            tail.push(message);
             if tail.len() > 5 {
                 tail.remove(0);
             }
         }
     });
 
-    let mut reader = BufReader::new(stdout).lines();
+    let mut reader = BufReader::new(stdout);
+    let mut pending_line = Box::pin(read_bounded_line(&mut reader, MAX_YTDLP_STDOUT_LINE_BYTES));
 
     let app_c = app.clone();
     let mut dest_path: Option<String> = None;
@@ -927,10 +1028,28 @@ async fn ytdlp_run_child(
             let _ = stderr_task.await;
             return Err("cancelled".into());
         }
-        match tokio::time::timeout(std::time::Duration::from_millis(100), reader.next_line()).await
-        {
+        match tokio::time::timeout(std::time::Duration::from_millis(100), &mut pending_line).await {
             Err(_) => continue,
+            Ok(Ok(Some(line))) if line.truncated => {
+                process_tree.terminate().await;
+                let _ = child.kill().await;
+                let _ = child.wait().await;
+                let _ = stderr_task.await;
+                return Err(format!(
+                    "yt-dlp stdout line exceeded the {MAX_YTDLP_STDOUT_LINE_BYTES}-byte limit"
+                ));
+            }
             Ok(Ok(Some(line))) => {
+                let line = match String::from_utf8(line.bytes) {
+                    Ok(line) => line,
+                    Err(error) => {
+                        process_tree.terminate().await;
+                        let _ = child.kill().await;
+                        let _ = child.wait().await;
+                        let _ = stderr_task.await;
+                        return Err(error.to_string());
+                    }
+                };
                 if let Some(p) = line.strip_prefix("[download] Destination: ") {
                     dest_path = Some(p.trim().to_string());
                 } else if let Some(p) = line.strip_prefix("[Merger] Merging formats into \"") {
@@ -939,6 +1058,9 @@ async fn ytdlp_run_child(
                 if let Some(progress) = parse_ytdlp_progress(&line) {
                     let _ = app_c.emit("ytdlp-audio-progress", &progress);
                 }
+                drop(pending_line);
+                pending_line =
+                    Box::pin(read_bounded_line(&mut reader, MAX_YTDLP_STDOUT_LINE_BYTES));
             }
             Ok(Ok(None)) => break,
             Ok(Err(e)) => {
@@ -1023,6 +1145,7 @@ pub fn cancel_ytdlp_load(run_id: String, ytdlp_state: tauri::State<'_, YtdlpStat
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::io::BufReader;
 
     #[test]
     fn audio_command_ignores_external_config_and_plugins() {
@@ -1221,6 +1344,36 @@ mod tests {
         assert_eq!(checked_limited_bytes(4, 6, 10).unwrap(), 10);
         assert!(checked_limited_bytes(4, 7, 10).is_err());
         assert!(checked_limited_bytes(u64::MAX, 1, u64::MAX).is_err());
+    }
+
+    #[tokio::test]
+    async fn child_output_line_reader_caps_memory_and_can_resume_after_discard() {
+        let input = b"0123456789abcdef\nnext\n";
+        let mut reader = BufReader::new(input.as_slice());
+
+        let line = read_bounded_line(&mut reader, 8).await.unwrap().unwrap();
+        assert!(line.truncated);
+        assert_eq!(line.bytes.len(), 8);
+
+        discard_line_remainder(&mut reader).await.unwrap();
+        let next = read_bounded_line(&mut reader, 8).await.unwrap().unwrap();
+        assert!(!next.truncated);
+        assert_eq!(next.bytes, b"next");
+    }
+
+    #[tokio::test]
+    async fn child_output_line_reader_accepts_exact_limit_and_final_unterminated_line() {
+        let input = b"abc\n1234";
+        let mut reader = BufReader::new(input.as_slice());
+
+        let line = read_bounded_line(&mut reader, 4).await.unwrap().unwrap();
+        assert!(!line.truncated);
+        assert_eq!(line.bytes, b"abc");
+
+        let final_line = read_bounded_line(&mut reader, 4).await.unwrap().unwrap();
+        assert!(!final_line.truncated);
+        assert_eq!(final_line.bytes, b"1234");
+        assert!(read_bounded_line(&mut reader, 4).await.unwrap().is_none());
     }
 
     #[tokio::test]
