@@ -2,10 +2,12 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const invoke = vi.hoisted(() => vi.fn());
+const sdkBridge = vi.hoisted(() => ({ createPlayer: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: (...args: unknown[]) => invoke(...args) }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(() => Promise.resolve(() => {})) }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
+vi.mock("./spotifySdkBridge", () => ({ createSpotifySdkPlayer: (...args: unknown[]) => sdkBridge.createPlayer(...args) }));
 
 import { useServiceStore } from "../stores/useServiceStore";
 import { useSettingsStore } from "../stores/useSettingsStore";
@@ -42,6 +44,7 @@ function deferred<T>() {
 beforeEach(() => {
   MockSpotifyPlayer.instances = [];
   MockSpotifyPlayer.connectImplementation = null;
+  sdkBridge.createPlayer.mockImplementation((options: MockSpotifyPlayer["options"]) => new MockSpotifyPlayer(options));
   disconnectSpotifyPlayer();
   invoke.mockReset().mockResolvedValue(undefined);
   useSettingsStore.setState({ spotifyClientId: "spotify-player-test", spotifyMode: false });
@@ -66,7 +69,6 @@ beforeEach(() => {
     _playbackRevision: 0,
     playerError: null,
   });
-  (globalThis as any).Spotify = { Player: MockSpotifyPlayer };
 });
 
 afterEach(() => {
@@ -75,19 +77,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("discards a token queued before the SDK becomes ready if logout invalidates its lease", () => {
-  const generation = useServiceStore.getState()._authGeneration;
-  initSpotifyPlayer();
-  const sdkScript = document.querySelector<HTMLScriptElement>('script[src="https://sdk.scdn.co/spotify-player.js"]');
-  expect(sdkScript?.async).toBe(true);
-  expect(typeof (window as any).onSpotifyWebPlaybackSDKReady).toBe("function");
-  expect(MockSpotifyPlayer.instances).toHaveLength(0);
+it("does not create the SDK player before an access token is available", () => {
+  useServiceStore.setState({ accessToken: null });
   initSpotifyPlayer();
   expect(MockSpotifyPlayer.instances).toHaveLength(0);
-  useServiceStore.getState().logout();
-  (window as any).onSpotifyWebPlaybackSDKReady();
-  expect(MockSpotifyPlayer.instances).toHaveLength(0);
-  expect(useServiceStore.getState()._authGeneration).toBeGreaterThan(generation);
+  useServiceStore.setState({ accessToken: "access-token" });
+  initSpotifyPlayer();
+  expect(MockSpotifyPlayer.instances).toHaveLength(1);
 });
 
 it("ignores late ready, playback, and error callbacks from a disconnected player", () => {

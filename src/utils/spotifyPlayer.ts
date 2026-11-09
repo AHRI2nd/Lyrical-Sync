@@ -3,14 +3,11 @@ import { useLrcStore } from "../stores/useLrcStore";
 import { useSettingsStore } from "../stores/useSettingsStore";
 import { useI18nStore } from "../stores/useI18nStore";
 import { toast } from "../stores/useToastStore";
+import { createSpotifySdkPlayer } from "./spotifySdkBridge";
 
 let player: Spotify.Player | null = null;
 type AuthLease = { generation: number; clientId: string };
-const SPOTIFY_SDK_URL = "https://sdk.scdn.co/spotify-player.js";
 let playerLease: AuthLease | null = null;
-let pendingToken: { lease: AuthLease } | null = null;
-let sdkReady = false;
-let sdkScript: HTMLScriptElement | null = null;
 let pollingTimer: ReturnType<typeof setTimeout> | null = null;
 let pollingAbortController: AbortController | null = null;
 let pollingGeneration = 0;
@@ -37,36 +34,6 @@ function isSameLease(left: AuthLease | null, right: AuthLease): boolean {
   return left?.generation === right.generation && left.clientId === right.clientId;
 }
 
-function loadSpotifySdk(): void {
-  if (sdkReady || sdkScript || typeof document === "undefined") return;
-  const existing = document.querySelector<HTMLScriptElement>(`script[src="${SPOTIFY_SDK_URL}"]`);
-  if (existing) {
-    sdkScript = existing;
-    return;
-  }
-  const script = document.createElement("script");
-  script.src = SPOTIFY_SDK_URL;
-  script.async = true;
-  script.onerror = () => {
-    if (sdkScript !== script) return;
-    sdkScript = null;
-    pendingToken = null;
-    script.remove();
-  };
-  sdkScript = script;
-  document.head.appendChild(script);
-}
-
-// Must be defined before the SDK script executes
-if (typeof window !== "undefined") {
-  window.onSpotifyWebPlaybackSDKReady = () => {
-    sdkReady = true;
-    const pending = pendingToken;
-    pendingToken = null;
-    if (pending && isCurrentLease(pending.lease)) createPlayer(pending.lease);
-  };
-}
-
 export function initSpotifyPlayer(): void {
   const lease = currentLease();
   const token = useServiceStore.getState().accessToken;
@@ -75,22 +42,16 @@ export function initSpotifyPlayer(): void {
     startPolling();
     return;
   }
-  if (isSameLease(playerLease, lease) || isSameLease(pendingToken?.lease ?? null, lease)) {
+  if (isSameLease(playerLease, lease)) {
     startPolling();
     return;
   }
-  if (sdkReady) {
-    createPlayer(lease);
-  } else {
-    pendingToken = { lease };
-    loadSpotifySdk();
-  }
+  createPlayer(lease);
   startPolling();
 }
 
 export function disconnectSpotifyPlayer(): void {
   playerGeneration += 1;
-  pendingToken = null;
   const previous = player;
   player = null;
   playerLease = null;
@@ -162,8 +123,7 @@ function createPlayer(lease: AuthLease): void {
   let instance: Spotify.Player;
   const isCurrentInstance = () => player === instance && playerGeneration === generation && isCurrentLease(lease);
 
-  instance = new Spotify.Player({
-    name: "Lyrical Sync",
+  instance = createSpotifySdkPlayer({
     getOAuthToken: async (cb) => {
       if (!isCurrentLease(lease)) {
         cb("");
@@ -183,7 +143,6 @@ function createPlayer(lease: AuthLease): void {
         if (!isCurrentLease(lease)) disconnectOwnedPlayer(instance, generation);
       }
     },
-    volume: 1.0,
   });
   player = instance;
   playerLease = lease;
