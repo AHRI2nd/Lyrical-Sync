@@ -228,6 +228,30 @@ mod tests {
         let writer = tokio::spawn(async { Ok(()) });
         finish_stdin_writer(writer, Duration::from_secs(1)).await.unwrap();
     }
+
+    #[tokio::test]
+    async fn blocked_pipe_writer_times_out_and_owned_child_is_reaped() {
+        use tokio::io::AsyncWriteExt;
+
+        let mut child = child_with_stdin("silent");
+        let process_id = child.id().expect("child process must have a PID");
+        let mut stdin = child.stdin.take().expect("child stdin must be piped");
+        let writer = tokio::spawn(async move {
+            let input = vec![b'x'; 8 * 1024 * 1024];
+            stdin.write_all(&input).await.map_err(|error| error.to_string())
+        });
+
+        let result = finish_stdin_writer(writer, Duration::from_millis(50)).await;
+        assert_eq!(result.unwrap_err(), "Python stdin writer timed out");
+
+        terminate_process_tree(process_id).await;
+        let _ = child.kill().await;
+        let status = tokio::time::timeout(Duration::from_secs(2), child.wait())
+            .await
+            .expect("child termination must be bounded")
+            .unwrap();
+        assert!(!status.success());
+    }
     use std::io::Write;
     use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
     use std::time::{Duration, Instant};
@@ -294,6 +318,19 @@ mod tests {
     }
     fn child(mode: &str) -> tokio::process::Child {
         child_with_output_bytes(mode, None)
+    }
+    fn child_with_stdin(mode: &str) -> tokio::process::Child {
+        let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+        command
+            .args(["--exact", "alignment_process::tests::child_fixture", "--nocapture"])
+            .env("LYRICAL_PROCESS_FIXTURE", mode)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .kill_on_drop(true);
+        #[cfg(unix)]
+        command.process_group(0);
+        command.spawn().unwrap()
     }
     fn child_with_output_bytes(mode: &str, output_bytes: Option<usize>) -> tokio::process::Child {
         let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
