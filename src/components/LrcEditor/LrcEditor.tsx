@@ -510,7 +510,8 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     return () => { active = false; stopModel(); stopPip(); };
   }, [checkAiRequirements]);
 
-  const canRunAi = pythonReady && !modelInventoryError && missingModels.length === 0;
+  const canRunAi =
+    pythonReady && !pythonEnvironmentBusy && !modelInventoryError && missingModels.length === 0;
 
   useEffect(() => {
     if (!activeLineId) return;

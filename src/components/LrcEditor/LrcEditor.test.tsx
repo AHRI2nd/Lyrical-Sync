@@ -408,6 +408,7 @@ it("rechecks AI readiness after the package installer releases its environment l
   await vi.waitFor(() => expect(typeof pipHandler).toBe("function"));
 
   act(() => useBusyStore.getState().markBusy("python-packages"));
+  await vi.waitFor(() => expect(aiButton.hasAttribute("disabled")).toBe(true));
   act(() => pipHandler?.({ payload: { done: true } }));
   await new Promise((resolve) => setTimeout(resolve, 0));
   act(() => useBusyStore.getState().clearBusy("python-packages"));
