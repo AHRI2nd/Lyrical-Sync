@@ -289,11 +289,13 @@ async fn decode_audio_to_wav(
     if file.metadata().map_err(|e| e.to_string())?.len() > audio_resource::MAX_AUDIO_FILE_BYTES {
         return Err(audio_resource::AUDIO_RESOURCE_LIMIT_ERROR.into());
     }
-    if path
+    let is_aiff = path
         .extension()
         .and_then(|extension| extension.to_str())
-        .is_some_and(|extension| extension.eq_ignore_ascii_case("aif") || extension.eq_ignore_ascii_case("aiff"))
-    {
+        .is_some_and(|extension| {
+            extension.eq_ignore_ascii_case("aif") || extension.eq_ignore_ascii_case("aiff")
+        });
+    if is_aiff {
         validate_aiff_container_size(&mut file)?;
     }
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
@@ -328,6 +330,12 @@ async fn decode_audio_to_wav(
         channels_u8,
         codec_params.n_frames.unwrap_or(0),
     )?;
+    if is_aiff {
+        let frames = codec_params
+            .n_frames
+            .ok_or("AUDIO_METADATA_UNAVAILABLE")?;
+        audio_resource::validate_web_audio_pcm_frames(sample_rate, channels_u8, frames)?;
+    }
     let spec = hound::WavSpec {
         channels: u16::try_from(channels).map_err(|_| "채널 수가 너무 많습니다")?,
         sample_rate,
@@ -373,6 +381,13 @@ async fn decode_audio_to_wav(
             .checked_add(packet_frames)
             .ok_or(audio_resource::AUDIO_RESOURCE_LIMIT_ERROR)?;
         audio_resource::validate_pcm_frames(sample_rate, channels_u8, decoded_frames)?;
+        if is_aiff {
+            audio_resource::validate_web_audio_pcm_frames(
+                sample_rate,
+                channels_u8,
+                decoded_frames,
+            )?;
+        }
         let mut buf = SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
         buf.copy_interleaved_ref(decoded);
         for &sample in buf.samples() {

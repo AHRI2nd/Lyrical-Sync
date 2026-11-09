@@ -102,6 +102,29 @@ pub fn validate_pcm_frames(sample_rate: u32, channels: u8, frames: u64) -> Resul
     Ok(())
 }
 
+pub(crate) fn validate_web_audio_pcm_frames(
+    sample_rate: u32,
+    channels: u8,
+    frames: u64,
+) -> Result<(), String> {
+    validate_pcm_frames(sample_rate, channels, frames)?;
+
+    let effective_rate = sample_rate.max(WEBAUDIO_BASE_SAMPLE_RATE);
+    let estimated_frames = u128::from(frames)
+        .checked_mul(u128::from(effective_rate))
+        .and_then(|scaled| scaled.checked_add(u128::from(sample_rate) - 1))
+        .map(|scaled| scaled / u128::from(sample_rate))
+        .ok_or_else(|| AUDIO_RESOURCE_LIMIT_ERROR.to_string())?;
+    let estimated_pcm_bytes = estimated_frames
+        .checked_mul(u128::from(channels))
+        .and_then(|samples| samples.checked_mul(4))
+        .ok_or_else(|| AUDIO_RESOURCE_LIMIT_ERROR.to_string())?;
+    if estimated_pcm_bytes > u128::from(MAX_AUDIO_PCM_BYTES) {
+        return Err(AUDIO_RESOURCE_LIMIT_ERROR.into());
+    }
+    Ok(())
+}
+
 pub fn inspect_audio_file(path: &Path) -> Result<AudioResourceInfo, String> {
     let mut file = open_audio_file(path)?;
     inspect_audio_file_handle(&mut file)
@@ -846,6 +869,25 @@ mod tests {
         assert!(validate_pcm_frames(48_000, 2, 48_000 * 60).is_ok());
         assert_eq!(
             validate_pcm_frames(192_000, 2, 192_000 * 30 * 60).unwrap_err(),
+            AUDIO_RESOURCE_LIMIT_ERROR
+        );
+    }
+
+    #[test]
+    fn rejects_low_rate_audio_whose_web_audio_resampling_exceeds_the_pcm_budget() {
+        assert!(validate_web_audio_pcm_frames(8_000, 1, 8_000 * 60).is_ok());
+
+        let frames_at_budget = MAX_AUDIO_PCM_BYTES / 4 * 8_000 / 48_000;
+        assert!(validate_web_audio_pcm_frames(8_000, 1, frames_at_budget).is_ok());
+        assert_eq!(
+            validate_web_audio_pcm_frames(8_000, 1, frames_at_budget + 1).unwrap_err(),
+            AUDIO_RESOURCE_LIMIT_ERROR
+        );
+
+        let three_hours_at_8khz = 3 * 60 * 60 * 8_000;
+        assert!(validate_pcm_frames(8_000, 1, three_hours_at_8khz).is_ok());
+        assert_eq!(
+            validate_web_audio_pcm_frames(8_000, 1, three_hours_at_8khz).unwrap_err(),
             AUDIO_RESOURCE_LIMIT_ERROR
         );
     }
