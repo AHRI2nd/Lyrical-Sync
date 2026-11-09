@@ -292,24 +292,42 @@ fn save_refresh_token_value(app: &AppHandle, token: &str) -> Result<(), String> 
 }
 
 fn load_refresh_token_value(app: &AppHandle) -> Result<Option<String>, String> {
-    // 1순위: 키체인
-    if let Ok(entry) = keyring_entry() {
-        match entry.get_password() {
-            Ok(t) => {
-                let trimmed = t.trim().to_string();
-                return Ok(if trimmed.is_empty() { None } else { Some(trimmed) });
-            }
-            Err(keyring::Error::NoEntry) => {} // 키체인에 없음 → 레거시 파일 확인
-            Err(_) => {}                        // 키체인 사용 불가 → 파일 폴백
-        }
-    }
-    // 폴백/레거시: 평문 파일
-    let path = token_path(app)?;
-    let Some(token) = read_legacy_token_file(&path).map_err(|e| format!("토큰 읽기 실패: {e}"))? else {
-        return Ok(None);
+    let keyring_result = match keyring_entry() {
+        Ok(entry) => match entry.get_password() {
+            Ok(token) => Ok(Some(token)),
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(error) => Err(format!("Spotify keyring read failed: {error}")),
+        },
+        Err(error) => Err(format!("Spotify keyring unavailable: {error}")),
     };
-    let trimmed = token.trim().to_string();
-    Ok(if trimmed.is_empty() { None } else { Some(trimmed) })
+    resolve_refresh_token_sources(keyring_result, || {
+        let path = token_path(app)?;
+        read_legacy_token_file(&path).map_err(|error| format!("Legacy Spotify token read failed: {error}"))
+    })
+}
+
+fn resolve_refresh_token_sources(
+    keyring_result: Result<Option<String>, String>,
+    read_legacy: impl FnOnce() -> Result<Option<String>, String>,
+) -> Result<Option<String>, String> {
+    match keyring_result {
+        Ok(Some(token)) if !token.trim().is_empty() => Ok(Some(token.trim().to_string())),
+        Ok(_) => read_legacy().map(normalize_refresh_token),
+        Err(keyring_error) => match read_legacy() {
+            Ok(token) => match normalize_refresh_token(token) {
+                Some(token) => Ok(Some(token)),
+                None => Err(keyring_error),
+            },
+            Err(legacy_error) => Err(format!("{keyring_error}; {legacy_error}")),
+        },
+    }
+}
+
+fn normalize_refresh_token(token: Option<String>) -> Option<String> {
+    token.and_then(|value| {
+        let trimmed = value.trim().to_string();
+        (!trimmed.is_empty()).then_some(trimmed)
+    })
 }
 
 fn read_legacy_token_file(path: &Path) -> Result<Option<String>, String> {
@@ -433,7 +451,8 @@ pub fn clear_refresh_token(app: AppHandle) -> Result<(), String> {
 mod token_file_tests {
     use super::{
         active_oauth_state_matches, clear_pending_refresh_tokens, register_pending_refresh_token,
-        read_legacy_token_file, set_active_oauth_state, write_restricted_token_file,
+        read_legacy_token_file, resolve_refresh_token_sources, set_active_oauth_state,
+        write_restricted_token_file,
         TokenResponse, MAX_LEGACY_TOKEN_BYTES,
     };
 
@@ -463,6 +482,38 @@ mod token_file_tests {
         std::fs::write(&target, "legacy-refresh-token").unwrap();
         symlink(&target, &link).unwrap();
         assert!(read_legacy_token_file(&link).is_err());
+    }
+
+    #[test]
+    fn missing_legacy_token_does_not_mask_keyring_failure() {
+        let result = resolve_refresh_token_sources(
+            Err("Spotify keyring unavailable".into()),
+            || Ok(None),
+        );
+        assert_eq!(result.unwrap_err(), "Spotify keyring unavailable");
+    }
+
+    #[test]
+    fn legacy_token_remains_a_fallback_when_keyring_is_unavailable() {
+        let result = resolve_refresh_token_sources(
+            Err("Spotify keyring unavailable".into()),
+            || Ok(Some(" legacy-token\n".into())),
+        );
+        assert_eq!(result.unwrap().as_deref(), Some("legacy-token"));
+    }
+
+    #[test]
+    fn absent_keyring_and_legacy_credentials_remains_signed_out() {
+        let result = resolve_refresh_token_sources(Ok(None), || Ok(None));
+        assert_eq!(result.unwrap(), None);
+    }
+
+    #[test]
+    fn keyring_token_takes_precedence_without_reading_legacy_file() {
+        let result = resolve_refresh_token_sources(Ok(Some(" keyring-token ".into())), || {
+            panic!("legacy token must not be read when the keyring has a token")
+        });
+        assert_eq!(result.unwrap().as_deref(), Some("keyring-token"));
     }
 
     #[test]
