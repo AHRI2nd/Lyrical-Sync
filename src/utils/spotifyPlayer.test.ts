@@ -188,6 +188,7 @@ function spotifyResponse(trackName: string) {
       is_playing: false,
       progress_ms: 1200,
       item: {
+        type: "track",
         uri: `spotify:track:${trackName}`,
         name: trackName,
         artists: [{ name: "Artist" }],
@@ -198,6 +199,44 @@ function spotifyResponse(trackName: string) {
     }),
   } as Response;
 }
+
+it("clears stale track metadata when polling an unsupported Spotify item", async () => {
+  const response = {
+    status: 200,
+    ok: true,
+    json: async () => ({
+      is_playing: true,
+      progress_ms: 4200,
+      item: { type: "episode", uri: "spotify:episode:episode", name: "Podcast", duration_ms: 60000 },
+      device: { id: "remote-device", volume_percent: 45 },
+    }),
+  } as Response;
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
+  useSettingsStore.setState({ spotifyMode: true });
+  useServiceStore.setState({
+    trackUri: "spotify:track:previous",
+    trackName: "Previous Song",
+    artistName: "Previous Artist",
+    albumName: "Previous Album",
+    albumArtUrl: "https://example.test/previous.png",
+  });
+  initSpotifyPlayer();
+
+  await vi.waitFor(() => expect(useServiceStore.getState().activePlaybackDeviceId).toBe("remote-device"));
+
+  expect(useServiceStore.getState()).toMatchObject({
+    isPlaying: true,
+    positionMs: 4200,
+    durationMs: 60000,
+    trackUri: null,
+    trackName: "",
+    artistName: "",
+    albumName: "",
+    albumArtUrl: null,
+    activePlaybackVolumePercent: 45,
+  });
+  expect(useToastStore.getState().toasts).toHaveLength(0);
+});
 
 it("does not overlap Spotify polls and schedules the next request after settlement", async () => {
   const first = deferred<Response>();

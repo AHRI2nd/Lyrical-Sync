@@ -232,6 +232,32 @@ function stopPolling(): void {
   pollingAbortController = null;
 }
 
+function isSpotifyTrack(value: unknown): value is {
+  type: "track";
+  uri: string;
+  name: string;
+  duration_ms: number;
+  artists: { name: string }[];
+  album: { name: string; images: { url: string }[] };
+} {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Record<string, unknown>;
+  const artists = item.artists;
+  const album = item.album;
+  const isArtist = (artist: unknown): artist is { name: string } =>
+    !!artist && typeof artist === "object" && !Array.isArray(artist) &&
+    typeof (artist as Record<string, unknown>).name === "string";
+  const isImage = (image: unknown): image is { url: string } =>
+    !!image && typeof image === "object" && !Array.isArray(image) &&
+    typeof (image as Record<string, unknown>).url === "string";
+  return item.type === "track" && typeof item.uri === "string" && typeof item.name === "string" &&
+    typeof item.duration_ms === "number" && Number.isFinite(item.duration_ms) && item.duration_ms >= 0 &&
+    Array.isArray(artists) && artists.every(isArtist) &&
+    !!album && typeof album === "object" && !Array.isArray(album) && typeof (album as Record<string, unknown>).name === "string" &&
+    Array.isArray((album as Record<string, unknown>).images) &&
+    ((album as Record<string, unknown>).images as unknown[]).every(isImage);
+}
+
 function refreshPlaybackAfterUnknownSdkState(): void {
   if (!isPolling) return;
   pollRefreshRequested = true;
@@ -262,9 +288,9 @@ async function pollOnce(generation: number, lease: AuthLease): Promise<void> {
     const data = await spotifyApiRequest("https://api.spotify.com/v1/me/player", {
       signal: controller.signal,
     }, async (resp) => resp.status === 204 ? null : resp.json(), lease);
-    hasNotifiedPollFailure = false;
     if (!isCurrentPoll(generation, lease) || useServiceStore.getState()._playbackRevision !== playbackRevision) return;
     if (!data?.item) {
+      hasNotifiedPollFailure = false;
       const playbackDevice = data?.device;
       const acceptedRevision = playbackRevision + 1;
       useServiceStore.setState({
@@ -287,22 +313,53 @@ async function pollOnce(generation: number, lease: AuthLease): Promise<void> {
       return;
     }
 
-    const isPlaying = data.is_playing as boolean;
-    // progress_ms is already stale by the time the response arrives. Compensate by half the RTT, capped at 750ms.
-    const latencyComp = isPlaying ? Math.min(1500, Date.now() - t0) / 2 : 0;
-    const positionMs = Math.round((data.progress_ms as number) + latencyComp);
-    const track = data.item;
-    const artistName = (track.artists as { name: string }[]).map((a) => a.name).join(", ");
-
-    // Only update from poll if SDK isn't providing state (no SDK device active)
-    const { deviceId } = useServiceStore.getState();
     const playbackDevice = data.device;
-    const activeDeviceId = playbackDevice?.id as string | undefined;
+    const activeDeviceId = typeof playbackDevice?.id === "string" ? playbackDevice.id : undefined;
+    const { deviceId } = useServiceStore.getState();
     useServiceStore.setState({
       activePlaybackDeviceId: activeDeviceId ?? null,
       activePlaybackVolumePercent: typeof playbackDevice?.volume_percent === "number" ? playbackDevice.volume_percent : null,
     });
-    if (deviceId && activeDeviceId === deviceId) return; // SDK handles this
+    if (deviceId && activeDeviceId === deviceId) {
+      hasNotifiedPollFailure = false;
+      return; // SDK handles this device's playback state.
+    }
+
+    const isPlaying = data.is_playing === true;
+    // progress_ms is already stale by the time the response arrives. Compensate by half the RTT, capped at 750ms.
+    const latencyComp = isPlaying ? Math.min(1500, Date.now() - t0) / 2 : 0;
+    const progressMs = typeof data.progress_ms === "number" && Number.isFinite(data.progress_ms)
+      ? Math.max(0, data.progress_ms)
+      : 0;
+    const positionMs = Math.round(progressMs + latencyComp);
+    const track = data.item;
+    if (!isSpotifyTrack(track)) {
+      hasNotifiedPollFailure = false;
+      const durationMs = typeof track.duration_ms === "number" && Number.isFinite(track.duration_ms)
+        ? Math.max(0, track.duration_ms)
+        : 0;
+      const acceptedRevision = playbackRevision + 1;
+      useServiceStore.setState({
+        _playbackRevision: acceptedRevision,
+        isReady: true,
+        isPlaying,
+        positionMs,
+        durationMs,
+        trackUri: null,
+        trackName: "",
+        artistName: "",
+        albumName: "",
+        albumArtUrl: null,
+        _lastKnownPositionMs: positionMs,
+        _lastStateTimestamp: Date.now(),
+      });
+      useServiceStore.getState()._stopInterpolation();
+      if (useSettingsStore.getState().spotifyMode) useLrcStore.getState().setCurrentTime(positionMs / 1000);
+      return;
+    }
+
+    hasNotifiedPollFailure = false;
+    const artistName = track.artists.map((artist) => artist.name).join(", ");
 
     const acceptedRevision = playbackRevision + 1;
     useServiceStore.setState({
