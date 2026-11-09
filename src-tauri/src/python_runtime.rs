@@ -29,6 +29,10 @@ pub fn recover_runtime(destination: &Path) -> io::Result<()> {
         .parent()
         .ok_or_else(|| io::Error::other("Missing runtime parent"))?;
     match std::fs::symlink_metadata(destination) {
+        Ok(_) if runtime_complete(destination) => {
+            cleanup_stale_runtime_backups(parent)?;
+            return Ok(());
+        }
         Ok(_) => return Ok(()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(error) => return Err(error),
@@ -66,6 +70,18 @@ pub fn recover_runtime(destination: &Path) -> io::Result<()> {
     let (backup_dir, previous) = backups.pop().expect("one backup was checked");
     std::fs::rename(&previous, destination)?;
     std::fs::remove_dir(backup_dir)?;
+    Ok(())
+}
+
+fn cleanup_stale_runtime_backups(parent: &Path) -> io::Result<()> {
+    for entry in std::fs::read_dir(parent)? {
+        let entry = entry?;
+        if entry.file_name().to_string_lossy().starts_with(BACKUP_PREFIX)
+            && entry.file_type()?.is_dir()
+        {
+            std::fs::remove_dir_all(entry.path())?;
+        }
+    }
     Ok(())
 }
 
@@ -186,6 +202,47 @@ mod tests {
 
         let live = root.path().join("embedded-python");
         assert!(std::fs::symlink_metadata(&live).is_err());
+        recover_runtime(&live).unwrap();
+        assert!(runtime_complete(&live));
+        assert!(!std::fs::read_dir(root.path())
+            .unwrap()
+            .any(|entry| entry.unwrap().file_name().to_string_lossy().starts_with(BACKUP_PREFIX)));
+    }
+
+    #[test]
+    fn completed_publish_after_process_exit_cleans_stale_runtime_backup() {
+        if let Ok(root) = std::env::var("LYRICAL_RUNTIME_PUBLISH_CRASH_FIXTURE") {
+            let root = PathBuf::from(root);
+            let live = root.join("embedded-python");
+            let stage = root.join("stage");
+            ready_stage(&live);
+            ready_stage(&stage);
+            let mut calls = 0;
+            let _ = publish_with(&stage, &live, |from, to| {
+                calls += 1;
+                let result = std::fs::rename(from, to);
+                if calls == 2 {
+                    std::process::exit(43);
+                }
+                result
+            });
+            panic!("fixture must exit after publishing the complete runtime");
+        }
+
+        let root = tempfile::tempdir().unwrap();
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "python_runtime::tests::completed_publish_after_process_exit_cleans_stale_runtime_backup",
+                "--nocapture",
+            ])
+            .env("LYRICAL_RUNTIME_PUBLISH_CRASH_FIXTURE", root.path())
+            .status()
+            .unwrap();
+        assert_eq!(status.code(), Some(43));
+
+        let live = root.path().join("embedded-python");
+        assert!(runtime_complete(&live));
         recover_runtime(&live).unwrap();
         assert!(runtime_complete(&live));
         assert!(!std::fs::read_dir(root.path())
