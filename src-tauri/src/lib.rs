@@ -250,24 +250,106 @@ fn is_normal_audio_eof(error: &symphonia::core::errors::Error) -> bool {
         if err.kind() == std::io::ErrorKind::UnexpectedEof)
 }
 
-fn validate_aiff_container_size(file: &mut std::fs::File) -> Result<(), String> {
+fn inspect_aiff_container(file: &mut std::fs::File) -> Result<u64, String> {
     use std::io::{Read, Seek, SeekFrom};
 
-    file.seek(SeekFrom::Start(0)).map_err(|error| error.to_string())?;
+    file.seek(SeekFrom::Start(0))
+        .map_err(|error| error.to_string())?;
     let mut header = [0_u8; 12];
     file.read_exact(&mut header)
         .map_err(|error| format!("Invalid or truncated AIFF header: {error}"))?;
-    if &header[..4] != b"FORM" {
-        return Ok(()); // Let Symphonia report the unsupported or mismatched format.
+    if &header[..4] != b"FORM" || !matches!(&header[8..12], b"AIFF" | b"AIFC") {
+        return Err("Invalid AIFF container header".into());
     }
     let declared_form_bytes = u32::from_be_bytes(header[4..8].try_into().unwrap()) as u64;
-    let declared_file_bytes = declared_form_bytes + 8;
+    let declared_file_bytes = declared_form_bytes
+        .checked_add(8)
+        .ok_or_else(|| "Invalid AIFF container size".to_string())?;
     let actual_file_bytes = file.metadata().map_err(|error| error.to_string())?.len();
     if actual_file_bytes < declared_file_bytes {
         return Err("Truncated AIFF container".into());
     }
-    file.seek(SeekFrom::Start(0)).map_err(|error| error.to_string())?;
-    Ok(())
+
+    let mut common: Option<(u64, u64)> = None;
+    let mut sound_frames: Option<u64> = None;
+    let mut chunk_offset = 12_u64;
+    while chunk_offset < declared_file_bytes {
+        if declared_file_bytes - chunk_offset < 8 {
+            return Err("Truncated AIFF chunk header".into());
+        }
+        file.seek(SeekFrom::Start(chunk_offset))
+            .map_err(|error| error.to_string())?;
+        let mut chunk_header = [0_u8; 8];
+        file.read_exact(&mut chunk_header)
+            .map_err(|error| format!("Truncated AIFF chunk header: {error}"))?;
+        let chunk_size = u32::from_be_bytes(chunk_header[4..8].try_into().unwrap()) as u64;
+        let chunk_data_start = chunk_offset + 8;
+        let chunk_data_end = chunk_data_start
+            .checked_add(chunk_size)
+            .ok_or_else(|| "Invalid AIFF chunk size".to_string())?;
+        let padded_chunk_end = chunk_data_end
+            .checked_add(chunk_size % 2)
+            .ok_or_else(|| "Invalid AIFF chunk size".to_string())?;
+        if padded_chunk_end > declared_file_bytes {
+            return Err("Truncated AIFF chunk data".into());
+        }
+
+        match &chunk_header[..4] {
+            b"COMM" if chunk_size >= 18 => {
+                if common.is_some() {
+                    return Err("Duplicate AIFF COMM chunk".into());
+                }
+                file.seek(SeekFrom::Start(chunk_data_start))
+                    .map_err(|error| error.to_string())?;
+                let mut common_header = [0_u8; 8];
+                file.read_exact(&mut common_header)
+                    .map_err(|error| format!("Truncated AIFF COMM chunk: {error}"))?;
+                let channels = u16::from_be_bytes(common_header[..2].try_into().unwrap()) as u64;
+                let frames = u32::from_be_bytes(common_header[2..6].try_into().unwrap()) as u64;
+                let sample_bits =
+                    u16::from_be_bytes(common_header[6..8].try_into().unwrap()) as u64;
+                let block_align = channels
+                    .checked_mul(sample_bits / 8)
+                    .filter(|value| {
+                        channels > 0 && sample_bits > 0 && sample_bits % 8 == 0 && *value > 0
+                    })
+                    .ok_or_else(|| "Invalid AIFF sample layout".to_string())?;
+                common = Some((frames, block_align));
+            }
+            b"SSND" if chunk_size >= 8 => {
+                if sound_frames.is_some() {
+                    return Err("Duplicate AIFF SSND chunk".into());
+                }
+                file.seek(SeekFrom::Start(chunk_data_start))
+                    .map_err(|error| error.to_string())?;
+                let mut sound_header = [0_u8; 8];
+                file.read_exact(&mut sound_header)
+                    .map_err(|error| format!("Truncated AIFF SSND chunk: {error}"))?;
+                let offset = u32::from_be_bytes(sound_header[..4].try_into().unwrap()) as u64;
+                let block_size = u32::from_be_bytes(sound_header[4..].try_into().unwrap());
+                if offset != 0 || block_size != 0 {
+                    return Err("Unsupported AIFF sound offset or block size".into());
+                }
+                let (frames, block_align) = common.ok_or("AIFF COMM chunk must precede SSND")?;
+                let audio_bytes = chunk_size - 8;
+                if audio_bytes % block_align != 0 {
+                    return Err("Invalid AIFF sound data alignment".into());
+                }
+                let available_frames = audio_bytes / block_align;
+                if available_frames != frames {
+                    return Err("Truncated or inconsistent AIFF sound data".into());
+                }
+                sound_frames = Some(frames);
+            }
+            _ => {}
+        }
+        chunk_offset = padded_chunk_end;
+    }
+
+    let frames = sound_frames.ok_or("AIFF sound chunk is missing")?;
+    file.seek(SeekFrom::Start(0))
+        .map_err(|error| error.to_string())?;
+    Ok(frames)
 }
 
 /// AIFF 등 WebView2 미지원 포맷을 WAV 바이트로 트랜스코딩합니다.
@@ -276,6 +358,29 @@ async fn decode_audio_to_wav(
     path: String,
     window: tauri::WebviewWindow,
 ) -> Result<tauri::ipc::Response, String> {
+    let path = path_validation::validate_safe_path(&path)?;
+    authorize_window_path(&window, &path)?;
+    let mut file = std::fs::File::open(&path).map_err(|e| e.to_string())?;
+    if file.metadata().map_err(|e| e.to_string())?.len() > audio_resource::MAX_AUDIO_FILE_BYTES {
+        return Err(audio_resource::AUDIO_RESOURCE_LIMIT_ERROR.into());
+    }
+    let extension = path.extension().and_then(|value| value.to_str());
+    let is_aiff = extension.is_some_and(|value| {
+        value.eq_ignore_ascii_case("aif") || value.eq_ignore_ascii_case("aiff")
+    });
+    let declared_aiff_frames = if is_aiff {
+        Some(inspect_aiff_container(&mut file)?)
+    } else {
+        None
+    };
+    decode_audio_file_to_wav(file, extension, declared_aiff_frames).map(tauri::ipc::Response::new)
+}
+
+fn decode_audio_file_to_wav(
+    file: std::fs::File,
+    extension: Option<&str>,
+    declared_aiff_frames: Option<u64>,
+) -> Result<Vec<u8>, String> {
     use symphonia::core::audio::SampleBuffer;
     use symphonia::core::codecs::DecoderOptions;
     use symphonia::core::formats::FormatOptions;
@@ -283,28 +388,13 @@ async fn decode_audio_to_wav(
     use symphonia::core::meta::MetadataOptions;
     use symphonia::core::probe::Hint;
 
-    let path = path_validation::validate_safe_path(&path)?;
-    authorize_window_path(&window, &path)?;
-    let mut file = std::fs::File::open(&path).map_err(|e| e.to_string())?;
-    if file.metadata().map_err(|e| e.to_string())?.len() > audio_resource::MAX_AUDIO_FILE_BYTES {
-        return Err(audio_resource::AUDIO_RESOURCE_LIMIT_ERROR.into());
-    }
-    let is_aiff = path
-        .extension()
-        .and_then(|extension| extension.to_str())
-        .is_some_and(|extension| {
-            extension.eq_ignore_ascii_case("aif") || extension.eq_ignore_ascii_case("aiff")
-        });
-    if is_aiff {
-        validate_aiff_container_size(&mut file)?;
-    }
+    let is_aiff = extension.is_some_and(|value| {
+        value.eq_ignore_ascii_case("aif") || value.eq_ignore_ascii_case("aiff")
+    });
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
     let mut hint = Hint::new();
-    if let Some(ext) = path
-        .extension()
-        .and_then(|e| e.to_str())
-    {
+    if let Some(ext) = extension {
         hint.with_extension(ext);
     }
 
@@ -328,12 +418,9 @@ async fn decode_audio_to_wav(
     audio_resource::validate_pcm_frames(
         sample_rate,
         channels_u8,
-        codec_params.n_frames.unwrap_or(0),
+        declared_aiff_frames.or(codec_params.n_frames).unwrap_or(0),
     )?;
-    if is_aiff {
-        let frames = codec_params
-            .n_frames
-            .ok_or("AUDIO_METADATA_UNAVAILABLE")?;
+    if let Some(frames) = declared_aiff_frames {
         audio_resource::validate_web_audio_pcm_frames(sample_rate, channels_u8, frames)?;
     }
     let spec = hound::WavSpec {
@@ -355,6 +442,9 @@ async fn decode_audio_to_wav(
 
     let mut decoded_frames = 0u64;
     loop {
+        if declared_aiff_frames.is_some_and(|declared| decoded_frames >= declared) {
+            break;
+        }
         let packet = match format.next_packet() {
             Ok(packet) => packet,
             Err(error) if is_normal_audio_eof(&error) => break,
@@ -377,8 +467,14 @@ async fn decode_audio_to_wav(
         )?;
         let packet_frames = u64::try_from(decoded.frames())
             .map_err(|_| audio_resource::AUDIO_RESOURCE_LIMIT_ERROR)?;
+        let frames_to_write = declared_aiff_frames
+            .map(|declared| declared.saturating_sub(decoded_frames).min(packet_frames))
+            .unwrap_or(packet_frames);
+        if frames_to_write == 0 {
+            break;
+        }
         decoded_frames = decoded_frames
-            .checked_add(packet_frames)
+            .checked_add(frames_to_write)
             .ok_or(audio_resource::AUDIO_RESOURCE_LIMIT_ERROR)?;
         audio_resource::validate_pcm_frames(sample_rate, channels_u8, decoded_frames)?;
         if is_aiff {
@@ -390,17 +486,25 @@ async fn decode_audio_to_wav(
         }
         let mut buf = SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
         buf.copy_interleaved_ref(decoded);
-        for &sample in buf.samples() {
+        let samples_to_write = usize::try_from(frames_to_write)
+            .ok()
+            .and_then(|frames| frames.checked_mul(channels))
+            .ok_or(audio_resource::AUDIO_RESOURCE_LIMIT_ERROR)?;
+        for &sample in buf.samples().iter().take(samples_to_write) {
             writer
                 .write_sample(sample)
                 .map_err(|e| format!("WAV 쓰기 오류: {e}"))?;
         }
     }
 
+    if declared_aiff_frames.is_some_and(|declared| decoded_frames != declared) {
+        return Err("Truncated AIFF audio data".into());
+    }
+
     writer
         .finalize()
         .map_err(|e| format!("WAV 완료 오류: {e}"))?;
-    Ok(tauri::ipc::Response::new(output.into_inner()))
+    Ok(output.into_inner())
 }
 
 #[derive(serde::Serialize)]
@@ -589,8 +693,68 @@ mod audio_metadata_fallback_tests {
 
 #[cfg(test)]
 mod audio_decode_tests {
-    use super::{is_normal_audio_eof, validate_aiff_container_size};
+    use super::{decode_audio_file_to_wav, inspect_aiff_container, is_normal_audio_eof};
     use symphonia::core::errors::Error;
+
+    fn append_aiff_chunk(bytes: &mut Vec<u8>, id: &[u8; 4], payload: &[u8]) {
+        bytes.extend_from_slice(id);
+        bytes.extend_from_slice(&(payload.len() as u32).to_be_bytes());
+        bytes.extend_from_slice(payload);
+        if payload.len() % 2 != 0 {
+            bytes.push(0);
+        }
+    }
+
+    fn pcm_aiff(
+        channels: u16,
+        sample_frames: u32,
+        samples: &[u8],
+        trailing_chunk: Option<(&[u8; 4], &[u8])>,
+    ) -> Vec<u8> {
+        let mut bytes = b"FORM\0\0\0\0AIFF".to_vec();
+        let mut comm = Vec::new();
+        comm.extend_from_slice(&channels.to_be_bytes());
+        comm.extend_from_slice(&sample_frames.to_be_bytes());
+        comm.extend_from_slice(&16_u16.to_be_bytes());
+        comm.extend_from_slice(&[0x40, 0x0e, 0xac, 0x44, 0, 0, 0, 0, 0, 0]); // 44.1 kHz extended float.
+        append_aiff_chunk(&mut bytes, b"COMM", &comm);
+
+        let mut sound = vec![0_u8; 8]; // SSND offset and block size.
+        sound.extend_from_slice(samples);
+        append_aiff_chunk(&mut bytes, b"SSND", &sound);
+        if let Some((id, payload)) = trailing_chunk {
+            append_aiff_chunk(&mut bytes, id, payload);
+        }
+        let form_size = u32::try_from(bytes.len() - 8).unwrap();
+        bytes[4..8].copy_from_slice(&form_size.to_be_bytes());
+        bytes
+    }
+
+    fn decode_aiff(bytes: &[u8]) -> Result<Vec<u8>, String> {
+        let frames = inspect_aiff(bytes)?;
+        decode_aiff_with_frames(bytes, frames)
+    }
+
+    fn decode_aiff_with_frames(bytes: &[u8], frames: u64) -> Result<Vec<u8>, String> {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("fixture.aiff");
+        std::fs::write(&path, bytes).unwrap();
+        let file = std::fs::File::open(path).unwrap();
+        decode_audio_file_to_wav(file, Some("aiff"), Some(frames))
+    }
+
+    fn inspect_aiff(bytes: &[u8]) -> Result<u64, String> {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("fixture.aiff");
+        std::fs::write(&path, bytes).unwrap();
+        inspect_aiff_container(&mut std::fs::File::open(path).unwrap())
+    }
+
+    fn wav_frame_count(bytes: Vec<u8>) -> u32 {
+        hound::WavReader::new(std::io::Cursor::new(bytes))
+            .unwrap()
+            .duration()
+    }
 
     #[test]
     fn truncated_aiff_container_is_rejected_before_packet_eof_is_accepted() {
@@ -601,19 +765,19 @@ mod audio_decode_tests {
         bytes.extend_from_slice(b"AIFF");
         std::fs::write(&path, bytes).unwrap();
         let mut file = std::fs::File::open(path).unwrap();
-        assert!(validate_aiff_container_size(&mut file).unwrap_err().contains("Truncated AIFF"));
+        assert!(inspect_aiff_container(&mut file)
+            .unwrap_err()
+            .contains("Truncated AIFF"));
     }
 
     #[test]
     fn accepts_an_aiff_container_whose_declared_size_is_present() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("complete.aiff");
-        let mut bytes = b"FORM".to_vec();
-        bytes.extend_from_slice(&4_u32.to_be_bytes());
-        bytes.extend_from_slice(b"AIFF");
+        let bytes = pcm_aiff(1, 4, &[0, 1, 0, 2, 0, 3, 0, 4], None);
         std::fs::write(&path, bytes).unwrap();
         let mut file = std::fs::File::open(path).unwrap();
-        assert!(validate_aiff_container_size(&mut file).is_ok());
+        assert_eq!(inspect_aiff_container(&mut file).unwrap(), 4);
     }
 
     #[test]
@@ -624,6 +788,39 @@ mod audio_decode_tests {
         assert!(is_normal_audio_eof(&eof));
         assert!(!is_normal_audio_eof(&permission_error));
         assert!(!is_normal_audio_eof(&Error::DecodeError("bad packet")));
+    }
+
+    #[test]
+    fn decoded_aiff_frame_count_matches_the_comm_chunk() {
+        let complete = pcm_aiff(1, 4, &[0, 1, 0, 2, 0, 3, 0, 4], None);
+        assert_eq!(wav_frame_count(decode_aiff(&complete).unwrap()), 4);
+
+        let stereo = pcm_aiff(
+            2,
+            4,
+            &[0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0, 8],
+            None,
+        );
+        assert_eq!(wav_frame_count(decode_aiff(&stereo).unwrap()), 4);
+
+        let truncated = pcm_aiff(1, 4, &[0, 1, 0, 2], None);
+        assert!(inspect_aiff(&truncated)
+            .unwrap_err()
+            .contains("Truncated or inconsistent AIFF sound data"));
+        assert!(decode_aiff_with_frames(&truncated, 4)
+            .unwrap_err()
+            .contains("Truncated AIFF audio data"));
+    }
+
+    #[test]
+    fn valid_aiff_trailing_chunks_do_not_become_audio_frames() {
+        let with_annotation = pcm_aiff(
+            1,
+            4,
+            &[0, 1, 0, 2, 0, 3, 0, 4],
+            Some((b"ANNO", &[b'x', b'y', b'z'])),
+        );
+        assert_eq!(wav_frame_count(decode_aiff(&with_annotation).unwrap()), 4);
     }
 }
 
