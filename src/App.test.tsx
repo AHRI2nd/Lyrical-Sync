@@ -18,13 +18,15 @@ if (typeof globalThis.localStorage === "undefined") {
 
 // App.tsx가 마운트 시 건드리는 Tauri API 전부 스텁 — 이 테스트는 드래그앤드롭 충돌
 // 해소 로직(App.tsx 자체)만 검증하므로, 실제 IPC/OS 연동은 필요 없음.
-const { dragDropHandler, dialogOpen, closeRequestedHandler, closeWindow, eventListen, appMenuHandlers } = vi.hoisted(() => ({
+const { dragDropHandler, dialogOpen, closeRequestedHandler, closeWindow, eventListen, appMenuHandlers, appMenuContext, invokeMock } = vi.hoisted(() => ({
   dragDropHandler: { current: null as ((e: unknown) => void) | null },
   dialogOpen: vi.fn(),
   closeRequestedHandler: { current: null as ((event: { preventDefault: () => void }) => void) | null },
   closeWindow: vi.fn(() => Promise.resolve()),
   eventListen: vi.fn((..._args: unknown[]) => Promise.resolve(() => {})),
   appMenuHandlers: { current: null as Record<string, (() => void) | undefined> | null },
+  appMenuContext: { current: null as { ytdlpInstalled?: boolean } | null },
+  invokeMock: vi.fn((..._args: unknown[]): Promise<unknown> => Promise.resolve(undefined)),
 }));
 vi.mock("@tauri-apps/api/webview", () => ({
   getCurrentWebview: () => ({
@@ -35,7 +37,7 @@ vi.mock("@tauri-apps/api/webview", () => ({
   }),
 }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: (...args: unknown[]) => eventListen(...args) }));
-vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(() => Promise.resolve(undefined)) }));
+vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: dialogOpen, save: vi.fn() }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
 vi.mock("@tauri-apps/api/window", () => ({
@@ -58,7 +60,7 @@ vi.mock("./components/AppShell/RecentFilesMenu", () => ({ RecentFilesMenu: () =>
 vi.mock("./components/AppShell/LangDropdown", () => ({ LangDropdown: () => null }));
 vi.mock("./components/AppShell/HistoryPanel", () => ({ HistoryPanel: () => null }));
 vi.mock("./components/Update/UpdateModal", () => ({ UpdateModal: () => null }));
-vi.mock("./hooks/useMacMenu", () => ({ useMacMenu: (handlers: typeof appMenuHandlers.current) => { appMenuHandlers.current = handlers; } }));
+vi.mock("./hooks/useMacMenu", () => ({ useMacMenu: (handlers: typeof appMenuHandlers.current, context: typeof appMenuContext.current) => { appMenuHandlers.current = handlers; appMenuContext.current = context; } }));
 
 import App from "./App";
 import { useLrcStore } from "./stores/useLrcStore";
@@ -96,6 +98,8 @@ describe("App — drag-and-drop conflict resolution", () => {
     closeWindow.mockClear();
     dialogOpen.mockReset();
     eventListen.mockReset().mockResolvedValue(() => {});
+    invokeMock.mockReset().mockResolvedValue(undefined);
+    appMenuContext.current = null;
     useToastStore.setState({ toasts: [] });
     useServiceStore.setState({ oauthCallbackListenerReady: false });
     useSettingsStore.setState({ showElrcSaveNotice: true });
@@ -130,6 +134,38 @@ describe("App — drag-and-drop conflict resolution", () => {
     await waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1));
     expect(useServiceStore.getState().oauthCallbackListenerReady).toBe(false);
     expect(useToastStore.getState().toasts[0]?.message).toBe(useI18nStore.getState().t.toast.spotifyCallbackListenerUnavailable);
+  });
+
+  it("ignores an older yt-dlp check after the install event starts a newer check", async () => {
+    let resolveInitial!: (value: string | null) => void;
+    let resolveAfterInstall!: (value: string | null) => void;
+    let onInstallProgress: ((event: { payload: { done: boolean } }) => void) | null = null;
+    let checkCount = 0;
+    invokeMock.mockImplementation((command: unknown) => {
+      if (command !== "check_ytdlp") return Promise.resolve(undefined);
+      return new Promise<string | null>((resolve) => {
+        checkCount += 1;
+        if (checkCount === 1) resolveInitial = resolve;
+        else resolveAfterInstall = resolve;
+      });
+    });
+    eventListen.mockImplementation((event: unknown, handler: unknown) => {
+      if (event === "ytdlp-install-progress") {
+        onInstallProgress = handler as (event: { payload: { done: boolean } }) => void;
+      }
+      return Promise.resolve(() => {});
+    });
+    render(<App />);
+    await waitFor(() => expect(resolveInitial).toBeTypeOf("function"));
+    await waitFor(() => expect(onInstallProgress).toBeTypeOf("function"));
+
+    act(() => onInstallProgress?.({ payload: { done: true } }));
+    await waitFor(() => expect(resolveAfterInstall).toBeTypeOf("function"));
+    await act(async () => resolveAfterInstall("2026.11.10"));
+    await waitFor(() => expect(appMenuContext.current?.ytdlpInstalled).toBe(true));
+
+    await act(async () => resolveInitial(null));
+    expect(appMenuContext.current?.ytdlpInstalled).toBe(true);
   });
 
   it("asks for confirmation when dropping audio while audio is already loaded, and applies only on confirm", async () => {

@@ -636,16 +636,21 @@ function App() {
   // yt-dlp 설치 여부 (모드 메뉴의 YouTube 활성화 판단)
   useEffect(() => {
     let active = true;
-    const check = () =>
+    let checkId = 0;
+    const check = () => {
+      const requestId = ++checkId;
       invoke<string | null>("check_ytdlp")
-        .then((v) => { if (active) setYtdlpInstalled(v !== null); })
+        .then((v) => {
+          if (active && checkId === requestId) setYtdlpInstalled(v !== null);
+        })
         .catch(() => {});
+    };
     check();
     let unlisten: (() => void) | null = null;
     listen<{ done: boolean }>("ytdlp-install-progress", (e) => {
       if (active && e.payload.done) check();
     }).then((fn) => { unlisten = fn; if (!active) safeUnlisten(fn); }).catch(() => {});
-    return () => { active = false; safeUnlisten(unlisten); };
+    return () => { active = false; checkId += 1; safeUnlisten(unlisten); };
   }, []);
 
   // 모드 전환 (ModeSelectButton과 동일한 동작 — 전환 시 재생 정지)
