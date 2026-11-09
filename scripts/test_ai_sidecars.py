@@ -644,7 +644,7 @@ class PackageProbeTests(unittest.TestCase):
             dist = root / (name.replace("-", "_") + "-" + version + ".dist-info")
             dist.mkdir()
             (dist / "METADATA").write_text("Metadata-Version: 2.1\nName: " + name + "\nVersion: " + version + "\n", encoding="utf-8")
-        for name in ["onnxruntime", "unidecode", "demucs", "torch", "torchaudio"]:
+        for name in ["onnxruntime", "unidecode", "demucs", "torch", "torchaudio", "librosa"]:
             (root / (name + ".py")).write_text("", encoding="utf-8")
         (root / "torch.py").write_text(
             "from types import SimpleNamespace\nversion = SimpleNamespace(cuda=None)\n__version__ = " + repr(versions["torch"]) + "\n",
@@ -675,6 +675,16 @@ class PackageProbeTests(unittest.TestCase):
             result = self.run_probe(root)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("native library cannot load", result.stderr)
+
+    def test_unimportable_required_audio_dependency_is_not_ready(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            package = self.environment(root)
+            (package / "ctc_aligner.py").write_text("", encoding="utf-8")
+            (root / "librosa.py").write_text('raise ImportError("audio dependency unavailable")', encoding="utf-8")
+            result = self.run_probe(root)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("audio dependency unavailable", result.stderr)
 
     def test_optimized_python_cannot_skip_security_version_checks(self):
         with tempfile.TemporaryDirectory() as folder:

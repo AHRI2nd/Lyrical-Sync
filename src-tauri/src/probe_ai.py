@@ -1,7 +1,7 @@
 import importlib.metadata as metadata
 import sysconfig
 import sys
-import onnxruntime, unidecode, demucs
+import librosa, onnxruntime, unidecode, demucs
 # Public CTC exports load the native wrapper lazily during alignment.
 import ctc_forced_aligner.ctc_aligner
 from ctc_forced_aligner import load_audio, generate_emissions, preprocess_text, get_alignments, get_spans, postprocess_results, Tokenizer

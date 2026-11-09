@@ -14,7 +14,7 @@ ARM = {**COMMON,'numpy':'2.5.4','onnxruntime':'1.31.0','torch':'2.14.1+cpu','sox
 
 def run_probe(machine, versions, cuda=None, interpreter=None):
     source = '''import importlib.metadata as metadata, platform, runpy, sys, sysconfig, types
-for name in ['onnxruntime','unidecode','demucs','ctc_forced_aligner','ctc_forced_aligner.ctc_aligner','torch','torchaudio']:
+for name in ['librosa','onnxruntime','unidecode','demucs','ctc_forced_aligner','ctc_forced_aligner.ctc_aligner','torch','torchaudio']:
     sys.modules[name]=types.ModuleType(name)
 ctc=sys.modules['ctc_forced_aligner']
 for name in ['load_audio','generate_emissions','preprocess_text','get_alignments','get_spans','postprocess_results','Tokenizer']:
