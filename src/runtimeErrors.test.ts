@@ -47,9 +47,36 @@ describe("global runtime error containment", () => {
     const observe = ((event: CustomEvent) => { detail = event.detail; }) as EventListener;
     window.addEventListener("lyrical-runtime-error", observe);
     install();
+    window.dispatchEvent(new Event("lyrical-runtime-listener-ready"));
     window.dispatchEvent(new ErrorEvent("error", { message: "unexpected", error: new Error("unexpected") }));
     window.removeEventListener("lyrical-runtime-error", observe);
     expect(detail).toContain("unexpected");
     expect(document.querySelector("main")?.textContent).toBe("editor");
+  });
+  it("replays mounted runtime errors that occur before the app listener is ready", () => {
+    document.body.innerHTML = '<div id="root"><main>editor</main></div>';
+    install();
+    reject(new Error("startup task failed"));
+
+    const details: string[] = [];
+    const observe = ((event: CustomEvent) => {
+      details.push(String(event.detail));
+    }) as EventListener;
+    window.addEventListener("lyrical-runtime-error", observe);
+    window.dispatchEvent(new Event("lyrical-runtime-listener-ready"));
+
+    expect(details).toHaveLength(1);
+    expect(details[0]).toContain("startup task failed");
+    window.removeEventListener("lyrical-runtime-error", observe);
+  });
+  it("appends later startup failures to the existing startup panel", () => {
+    document.body.innerHTML = '<div id="root"></div>';
+    install();
+    reject(new Error("initial module failed"));
+    reject(new Error("follow-up startup failure"));
+
+    const details = document.querySelector("#root pre")?.textContent ?? "";
+    expect(details).toContain("initial module failed");
+    expect(details).toContain("follow-up startup failure");
   });
 });

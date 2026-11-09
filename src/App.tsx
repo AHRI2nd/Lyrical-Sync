@@ -284,6 +284,7 @@ function App() {
   useEffect(() => {
     const report = () => toast.error(useI18nStore.getState().t.toast.runtimeFailed);
     window.addEventListener("lyrical-runtime-error", report);
+    window.dispatchEvent(new Event("lyrical-runtime-listener-ready"));
     return () => window.removeEventListener("lyrical-runtime-error", report);
   }, []);
 
