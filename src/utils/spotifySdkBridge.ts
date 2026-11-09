@@ -1,4 +1,5 @@
-const SDK_FRAME_PATH = "/spotify-sdk-frame.html";
+const SDK_FRAME_DOCUMENT = `<!doctype html>
+<html><head><meta charset="utf-8"><script src="/spotify-sdk-frame.js"></script></head><body></body></html>`;
 const REQUEST_TIMEOUT_MS = 15_000;
 const PLAYER_EVENTS = new Set([
   "ready",
@@ -178,7 +179,8 @@ export class SpotifySdkBridge {
     frame.setAttribute("allow", "autoplay; encrypted-media");
     frame.referrerPolicy = "no-referrer";
     frame.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;border:0;";
-    frame.src = SDK_FRAME_PATH;
+    // Keep the document URL non-local so Tauri does not apply the app's local IPC capabilities to this sandboxed frame.
+    frame.srcdoc = SDK_FRAME_DOCUMENT;
     this.frame = frame;
     this.ready = false;
     this.hostDocument.body.appendChild(frame);

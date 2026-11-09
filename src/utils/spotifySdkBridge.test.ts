@@ -20,7 +20,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-it("loads the Spotify SDK only inside a sandboxed frame without same-origin access", () => {
+it("loads the Spotify SDK in an opaque-origin srcdoc frame without same-origin access", () => {
   const bridge = createBridge();
   bridge.createPlayer({ getOAuthToken: (callback) => callback("access-token") });
 
@@ -28,7 +28,8 @@ it("loads the Spotify SDK only inside a sandboxed frame without same-origin acce
   expect(frame).not.toBeNull();
   expect(frame?.getAttribute("sandbox")).toBe("allow-scripts");
   expect(frame?.getAttribute("allow")).toContain("encrypted-media");
-  expect(new URL(frame!.src).pathname).toBe("/spotify-sdk-frame.html");
+  expect(frame?.getAttribute("src")).toBeNull();
+  expect(frame?.srcdoc).toContain('<script src="/spotify-sdk-frame.js"></script>');
   expect(document.querySelector('script[src="https://sdk.scdn.co/spotify-player.js"]')).toBeNull();
 });
 
