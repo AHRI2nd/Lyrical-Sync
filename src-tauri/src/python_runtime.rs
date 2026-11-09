@@ -34,8 +34,13 @@ pub fn recover_runtime(destination: &Path) -> io::Result<()> {
         Err(error) => return Err(error),
     }
 
+    let entries = match std::fs::read_dir(parent) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    };
     let mut backups = Vec::new();
-    for entry in std::fs::read_dir(parent)? {
+    for entry in entries {
         let entry = entry?;
         if !entry.file_name().to_string_lossy().starts_with(BACKUP_PREFIX) {
             continue;
@@ -211,6 +216,29 @@ mod tests {
         assert!(backups
             .iter()
             .all(|backup| runtime_complete(&backup.path().join("previous"))));
+    }
+
+    #[test]
+    fn missing_runtime_parent_is_treated_as_no_recovery_entries() {
+        let root = tempfile::tempdir().unwrap();
+        let live = root.path().join("not-created").join("embedded-python");
+
+        recover_runtime(&live).unwrap();
+
+        assert!(!live.parent().unwrap().exists());
+        assert!(!live.exists());
+    }
+
+    #[test]
+    fn non_directory_runtime_parent_error_is_preserved() {
+        let root = tempfile::tempdir().unwrap();
+        let parent_file = root.path().join("not-a-directory");
+        std::fs::write(&parent_file, "file").unwrap();
+        let live = parent_file.join("embedded-python");
+
+        let error = recover_runtime(&live).unwrap_err();
+
+        assert_ne!(error.kind(), io::ErrorKind::NotFound);
     }
 
     #[test]
