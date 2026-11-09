@@ -1,5 +1,7 @@
 """Offline regressions for the AI dependency audit boundary."""
 import importlib.util
+import io
+import json
 from pathlib import Path
 import unittest
 
@@ -10,6 +12,132 @@ spec.loader.exec_module(audit)
 
 
 class AuditTests(unittest.TestCase):
+    def test_native_installer_audits_the_wheel_report_before_hash_locked_install(self):
+        source = (ROOT / 'src-tauri/src/python_env.rs').read_text(encoding='utf-8')
+        start = source.index('async fn install_python_packages_unlocked')
+        end = source.index('\n#[cfg(test)]', start)
+        flow = source[start:end]
+        resolve = flow.index('let mut resolution =')
+        audit = flow.index('let mut audit_command =')
+        audit_gate = flow.index('install_step(&app, &mut audit_command).await?;')
+        install = flow.index('"--require-hashes"')
+        pip_check = flow.index('"check"')
+        package_probe = flow.index('probe(&python, PACKAGE_PROBE)')
+        self.assertLess(resolve, audit)
+        self.assertLess(audit, audit_gate)
+        self.assertLess(audit_gate, install)
+        self.assertLess(install, pip_check)
+        self.assertLess(pip_check, package_probe)
+        self.assertIn('"--only-binary=:all:"', flow[:audit])
+
+    def test_install_report_requires_and_exports_every_resolved_artifact_hash(self):
+        report = {
+            'version': '1',
+            'install': [
+                {
+                    'metadata': {'name': 'numpy', 'version': '2.5.4'},
+                    'download_info': {
+                        'url': 'https://files.pythonhosted.org/numpy.whl',
+                        'archive_info': {'hashes': {'sha256': 'a' * 64}},
+                    },
+                },
+                {
+                    'metadata': {'name': 'torch', 'version': '2.14.1+cpu'},
+                    'download_info': {
+                        'url': 'https://files.pythonhosted.org/torch.whl',
+                        'archive_info': {'hashes': {'sha256': 'b' * 64}},
+                    },
+                },
+            ],
+        }
+        packages = audit.parse_install_report(report)
+        self.assertEqual(
+            audit.render_hashed_requirements(packages),
+            f'numpy==2.5.4 --hash=sha256:{"a" * 64}\n'
+            f'torch==2.14.1+cpu --hash=sha256:{"b" * 64}\n',
+        )
+
+    def test_install_report_fails_closed_on_missing_hash_or_conflicting_versions(self):
+        missing_hash = {
+            'version': '1',
+            'install': [{
+                'metadata': {'name': 'numpy', 'version': '2.5.4'},
+                'download_info': {'url': 'https://example.test/numpy.whl', 'archive_info': {}},
+            }],
+        }
+        with self.assertRaisesRegex(ValueError, 'SHA-256'):
+            audit.parse_install_report(missing_hash)
+
+        conflicting = {
+            'version': '1',
+            'install': [
+                {'metadata': {'name': 'numpy', 'version': '2.5.4'}, 'download_info': {'url': 'https://example.test/numpy.whl', 'archive_info': {'hashes': {'sha256': 'a' * 64}}}},
+                {'metadata': {'name': 'NumPy', 'version': '2.5.3'}, 'download_info': {'url': 'https://example.test/numpy.whl', 'archive_info': {'hashes': {'sha256': 'b' * 64}}}},
+            ],
+        }
+        with self.assertRaisesRegex(ValueError, 'conflicting'):
+            audit.parse_install_report(conflicting)
+
+        source_archive = {
+            'version': '1',
+            'install': [{
+                'metadata': {'name': 'numpy', 'version': '2.5.4'},
+                'download_info': {
+                    'url': 'https://files.pythonhosted.org/numpy.tar.gz',
+                    'archive_info': {'hashes': {'sha256': 'a' * 64}},
+                },
+            }],
+        }
+        with self.assertRaisesRegex(ValueError, 'must be wheels'):
+            audit.parse_install_report(source_archive)
+
+    def test_report_audit_writes_hash_lock_only_after_advisory_success(self):
+        import tempfile
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            report_path = root / 'report.json'
+            requirements_path = root / 'requirements.txt'
+            lock_path = root / 'resolved-requirements.txt'
+            report_path.write_text(json.dumps({'version': '1', 'install': [{
+                'metadata': {'name': 'numpy', 'version': '2.5.4'},
+                'download_info': {'url': 'https://example.test/numpy.whl', 'archive_info': {'hashes': {'sha256': 'c' * 64}}},
+            }]}), encoding='utf-8')
+            requirements_path.write_text('numpy==2.5.4\n', encoding='utf-8')
+            args = ['audit', '--report', str(report_path), '--source-requirements', str(requirements_path), '--lock-output', str(lock_path), '--extra-package', 'ctc-forced-aligner==1.0.2']
+            with patch('sys.argv', args), patch.object(audit, 'audit_packages', return_value={'vulnerabilities': []}) as check, patch('sys.stdout', new_callable=io.StringIO):
+                audit.main()
+            check.assert_called_once_with([('numpy', '2.5.4'), ('ctc-forced-aligner', '1.0.2')])
+            self.assertEqual(lock_path.read_text(encoding='utf-8'), f'numpy==2.5.4 --hash=sha256:{"c" * 64}\n')
+
+            lock_path.unlink()
+            with patch('sys.argv', args), patch.object(audit, 'audit_packages', side_effect=ValueError('advisory')), patch('sys.stdout', new_callable=io.StringIO):
+                with self.assertRaisesRegex(ValueError, 'advisory'):
+                    audit.main()
+            self.assertFalse(lock_path.exists())
+
+    def test_report_must_contain_every_direct_requirement(self):
+        import tempfile
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            report_path = root / 'report.json'
+            requirements_path = root / 'requirements.txt'
+            lock_path = root / 'resolved-requirements.txt'
+            report_path.write_text(json.dumps({'version': '1', 'install': [{
+                'metadata': {'name': 'numpy', 'version': '2.5.4'},
+                'download_info': {'url': 'https://example.test/numpy.whl', 'archive_info': {'hashes': {'sha256': 'd' * 64}}},
+            }]}), encoding='utf-8')
+            requirements_path.write_text('numpy==2.5.4\ntorch==2.14.1\n', encoding='utf-8')
+            args = ['audit', '--report', str(report_path), '--source-requirements', str(requirements_path), '--lock-output', str(lock_path)]
+            with patch('sys.argv', args), patch.object(audit, 'audit_packages') as check, patch('sys.stdout', new_callable=io.StringIO):
+                with self.assertRaisesRegex(ValueError, 'omitted direct requirements'):
+                    audit.main()
+            check.assert_not_called()
+            self.assertFalse(lock_path.exists())
+
     def test_requirements_file_uses_utf8_with_a_cp1252_default_locale(self):
         import io
         import tempfile

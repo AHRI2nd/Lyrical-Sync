@@ -423,6 +423,67 @@ async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> 
         tokio::fs::write(&requirements, REQUIREMENTS)
             .await
             .map_err(|e| e.to_string())?;
+        #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
+        let wheels = {
+            // Explicit local wheel inputs cannot be substituted by an index candidate.
+            let wheels = stage.path().join("verified-wheels");
+            crate::arm_ai::stage_bundled_wheels(&wheels)?;
+            let data = manifest()?;
+            let torch = wheels.join("torch-2.14.1+cpu-cp313-cp313-win_arm64.whl");
+            download_verified(&app, &data["windowsArm64Torch"], &torch, false).await?;
+            wheels
+        };
+        #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+        let aligner_archive = {
+            let archive = stage.path().join("ctc_forced_aligner-1.0.2.tar.gz");
+            download_verified(&app, &manifest()?["aligner"], &archive, false).await?;
+            archive
+        };
+
+        // Resolve only wheels and audit the complete graph before installing or importing it.
+        let report = stage.path().join("pip-install-report.json");
+        let mut resolution = python_cmd(&python);
+        resolution
+            .args([
+                "-m",
+                "pip",
+                "--isolated",
+                "install",
+                "--dry-run",
+                "--ignore-installed",
+                "--only-binary=:all:",
+                "--prefer-binary",
+                "--disable-pip-version-check",
+                "--report",
+            ])
+            .arg(&report)
+            .args(["-r"])
+            .arg(&requirements);
+        #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
+        resolution.args(["--find-links"]).arg(&wheels);
+        install_step(&app, &mut resolution).await?;
+
+        let audit = stage.path().join("audit_ai_dependencies.py");
+        tokio::fs::write(
+            &audit,
+            include_str!("../../scripts/audit_ai_dependencies.py"),
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+        let locked_requirements = stage.path().join("resolved-requirements.txt");
+        let mut audit_command = python_cmd(&python);
+        audit_command
+            .arg(&audit)
+            .args(["--report"])
+            .arg(&report)
+            .args(["--source-requirements"])
+            .arg(&requirements)
+            .args(["--lock-output"])
+            .arg(&locked_requirements);
+        #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+        audit_command.args(["--extra-package", "ctc-forced-aligner==1.0.2"]);
+        install_step(&app, &mut audit_command).await?;
+
         let mut packages = python_cmd(&python);
         packages
             .args([
@@ -430,26 +491,20 @@ async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> 
                 "pip",
                 "--isolated",
                 "install",
+                "--require-hashes",
+                "--only-binary=:all:",
                 "--prefer-binary",
                 "--disable-pip-version-check",
                 "-r",
             ])
-            .arg(&requirements);
+            .arg(&locked_requirements);
         #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
         {
-            // Explicit local wheel inputs cannot be substituted by an index candidate.
-            let wheels = stage.path().join("verified-wheels");
-            let bundled = crate::arm_ai::stage_bundled_wheels(&wheels)?;
-            let data = manifest()?;
-            let torch = wheels.join("torch-2.14.1+cpu-cp313-cp313-win_arm64.whl");
-            download_verified(&app, &data["windowsArm64Torch"], &torch, false).await?;
-            packages.args(&bundled).arg(&torch);
+            packages.args(["--find-links"]).arg(&wheels);
         }
         install_step(&app, &mut packages).await?;
         #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
         {
-            let archive = stage.path().join("ctc_forced_aligner-1.0.2.tar.gz");
-            download_verified(&app, &manifest()?["aligner"], &archive, false).await?;
             #[cfg(windows)]
             {
                 let patch = stage.path().join("install_ctc.py");
@@ -460,7 +515,7 @@ async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> 
                     &app,
                     python_cmd(&python)
                         .arg(&patch)
-                        .arg(&archive)
+                        .arg(&aligner_archive)
                         .arg(stage.path()),
                 )
                 .await?;
@@ -470,7 +525,7 @@ async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> 
                 &app,
                 python_cmd(&python)
                     .args(["-m", "pip", "install", "--no-build-isolation", "--no-deps"])
-                    .arg(&archive),
+                    .arg(&aligner_archive),
             )
             .await?;
         }
@@ -482,15 +537,6 @@ async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> 
         if !probe(&python, PACKAGE_PROBE).await {
             return Err("AI package validation failed; previous installation was retained".into());
         }
-        // Approve the complete resolved graph before replacing the live runtime.
-        let audit = stage.path().join("audit_ai_dependencies.py");
-        tokio::fs::write(
-            &audit,
-            include_str!("../../scripts/audit_ai_dependencies.py"),
-        )
-        .await
-        .map_err(|e| e.to_string())?;
-        install_step(&app, python_cmd(&python).arg(&audit).arg("--installed")).await?;
         let graph = tokio::time::timeout(
             INSTALL_STEP_TIMEOUT,
             python_cmd(&python)

@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 import re
 import sys
+import tempfile
+from urllib.parse import unquote, urlsplit
 import urllib.request
 
 
@@ -21,6 +23,65 @@ def parse_requirements(source):
     if not packages:
         raise ValueError('No AI packages to audit')
     return packages
+
+
+def normalize_name(name):
+    return re.sub(r'[-_.]+', '-', name).lower()
+
+
+def parse_install_report(report):
+    if not isinstance(report, dict) or report.get('version') != '1' or not isinstance(report.get('install'), list) or not report['install']:
+        raise ValueError('Invalid or empty pip install report')
+    packages = {}
+    for item in report['install']:
+        if not isinstance(item, dict):
+            raise ValueError('Invalid pip install report entry')
+        metadata = item.get('metadata')
+        download = item.get('download_info')
+        if not isinstance(metadata, dict) or not isinstance(download, dict):
+            raise ValueError('Incomplete pip install report entry')
+        url = download.get('url')
+        if not isinstance(url, str) or not unquote(urlsplit(url).path).lower().endswith('.whl'):
+            raise ValueError('Resolved AI dependencies must be wheels')
+        name = metadata.get('name')
+        version = metadata.get('version')
+        if not isinstance(name, str) or not re.fullmatch(r'[A-Za-z0-9_.-]+', name):
+            raise ValueError('Invalid package name in pip install report')
+        if not isinstance(version, str) or not re.fullmatch(r'[A-Za-z0-9_.+!-]+', version):
+            raise ValueError(f'Invalid version for {name} in pip install report')
+        archive = download.get('archive_info')
+        hashes = archive.get('hashes') if isinstance(archive, dict) else None
+        digest = hashes.get('sha256') if isinstance(hashes, dict) else None
+        if not isinstance(digest, str) or not re.fullmatch(r'[0-9a-fA-F]{64}', digest):
+            raise ValueError(f'Missing or invalid SHA-256 for {name}=={version}')
+        package_key = normalize_name(name)
+        record = (name, version, digest.lower())
+        previous = packages.get(package_key)
+        if previous and previous != record:
+            raise ValueError(f'Pip install report contains conflicting entries for {name}')
+        packages[package_key] = record
+    return sorted(packages.values(), key=lambda item: normalize_name(item[0]))
+
+
+def render_hashed_requirements(packages):
+    if not packages:
+        raise ValueError('No resolved AI packages to lock')
+    return ''.join(f'{name}=={version} --hash=sha256:{digest}\n' for name, version, digest in packages)
+
+
+def atomic_write(path, content):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile('w', encoding='utf-8', dir=path.parent, delete=False) as handle:
+            temporary = Path(handle.name)
+            handle.write(content)
+            handle.flush()
+        temporary.replace(path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def query_osv(payload):
@@ -59,12 +120,36 @@ def main():
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('--requirements', type=Path)
     group.add_argument('--installed', action='store_true')
+    group.add_argument('--report', type=Path)
+    parser.add_argument('--source-requirements', type=Path)
+    parser.add_argument('--extra-package', action='append', default=[])
+    parser.add_argument('--lock-output', type=Path)
     args = parser.parse_args()
     if args.requirements:
         packages = parse_requirements(args.requirements.read_text(encoding="utf-8"))
+        lock_packages = None
+    elif args.report:
+        if not args.source_requirements or not args.lock_output:
+            raise ValueError('Pip report audit requires --source-requirements and --lock-output')
+        report = json.loads(args.report.read_text(encoding='utf-8'))
+        lock_packages = parse_install_report(report)
+        direct = parse_requirements(args.source_requirements.read_text(encoding='utf-8'))
+        resolved = {(normalize_name(name), version) for name, version, _ in lock_packages}
+        missing = [(name, version) for name, version in direct if (normalize_name(name), version) not in resolved]
+        if missing:
+            raise ValueError('Pip report omitted direct requirements: ' + ', '.join(f'{name}=={version}' for name, version in missing))
+        packages = [(name, version) for name, version, _ in lock_packages]
+        for requirement in args.extra_package:
+            packages.extend(parse_requirements(requirement))
     else:
+        if args.source_requirements or args.extra_package or args.lock_output:
+            raise ValueError('Report-only options require --report')
         packages = sorted({(d.metadata['Name'], d.version) for d in importlib.metadata.distributions()})
-    print(json.dumps(audit_packages(packages)))
+        lock_packages = None
+    result = audit_packages(packages)
+    if lock_packages is not None:
+        atomic_write(args.lock_output, render_hashed_requirements(lock_packages))
+    print(json.dumps(result))
 
 
 if __name__ == '__main__':
