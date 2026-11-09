@@ -36,6 +36,8 @@ jobs:
         if: matrix.os == 'windows-11-arm'
         run: python -c "import sysconfig; assert sysconfig.get_platform() == 'win-arm64', sysconfig.get_platform()"
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # pinned commit
+        with:
+          toolchain: stable
       - uses: swatinem/rust-cache@f13886b937689c021905a6b90929199931d60db1 # v2.8.1
         with:
           workspaces: src-tauri -> target
