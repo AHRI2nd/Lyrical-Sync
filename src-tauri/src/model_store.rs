@@ -1,11 +1,93 @@
 //! Model filesystem authority is an opened directory, never an ambient joined path.
 use cap_std::fs::Dir;
+use serde::{Deserialize, Serialize};
 use std::ffi::OsString;
 use std::io;
 use std::path::Path;
 
 pub struct ModelStore {
     root: Dir,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase", tag = "platform")]
+pub enum DirectoryIdentity {
+    Unix { device: u64, inode: u64 },
+    Windows { volume_serial_number: u32, file_index: u64 },
+}
+
+impl DirectoryIdentity {
+    fn from_metadata(metadata: &std::fs::Metadata) -> io::Result<Self> {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            Ok(Self::Unix {
+                device: metadata.dev(),
+                inode: metadata.ino(),
+            })
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::MetadataExt;
+            Ok(Self::Windows {
+                volume_serial_number: metadata
+                    .volume_serial_number()
+                    .ok_or_else(|| {
+                        io::Error::other("Model directory volume identity is unavailable")
+                    })?,
+                file_index: metadata
+                    .file_index()
+                    .ok_or_else(|| {
+                        io::Error::other("Model directory file identity is unavailable")
+                    })?,
+            })
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            let _ = metadata;
+            Err(io::Error::other(
+                "Model directory identity is unsupported on this platform",
+            ))
+        }
+    }
+
+    pub fn at_path(path: &Path) -> io::Result<Self> {
+        Self::from_metadata(&std::fs::metadata(path)?)
+    }
+
+    fn from_open_metadata(metadata: &cap_std::fs::Metadata) -> io::Result<Self> {
+        #[cfg(unix)]
+        {
+            use cap_std::fs::MetadataExt;
+            Ok(Self::Unix {
+                device: metadata.dev(),
+                inode: metadata.ino(),
+            })
+        }
+        #[cfg(windows)]
+        {
+            use cap_std::fs::MetadataExt;
+            Ok(Self::Windows {
+                volume_serial_number: metadata
+                    .volume_serial_number()
+                    .ok_or_else(|| {
+                        io::Error::other("Model directory volume identity is unavailable")
+                    })?,
+                file_index: metadata
+                    .file_index()
+                    .ok_or_else(|| {
+                        io::Error::other("Model directory file identity is unavailable")
+                    })?,
+            })
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            let _ = metadata;
+            Err(io::Error::other(
+                "Model directory identity is unsupported on this platform",
+            ))
+        }
+    }
 }
 
 fn relative(name: &str) -> io::Result<&Path> {
@@ -38,6 +120,9 @@ impl ModelStore {
         Ok(Self {
             root: Dir::open_ambient_dir(root, cap_std::ambient_authority())?,
         })
+    }
+    pub fn directory_identity(&self) -> io::Result<DirectoryIdentity> {
+        DirectoryIdentity::from_open_metadata(&self.root.dir_metadata()?)
     }
     pub fn read(&self, name: &str) -> io::Result<std::fs::File> {
         let mut options = cap_std::fs::OpenOptions::new();
@@ -78,6 +163,15 @@ impl ModelStore {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    #[test]
+    fn opened_directory_identity_matches_the_selected_path() {
+        let root = tempfile::tempdir().unwrap();
+        let path_identity = DirectoryIdentity::at_path(root.path()).unwrap();
+        let store = ModelStore::open(root.path()).unwrap();
+        assert_eq!(store.directory_identity().unwrap(), path_identity);
+    }
+
     #[cfg(unix)]
     #[test]
     fn fifo_models_are_rejected_without_waiting_for_a_writer() {

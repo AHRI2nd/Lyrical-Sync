@@ -28,13 +28,26 @@ impl Default for DownloadState {
 
 /// 사용자가 지정한 커스텀 모델 저장 경로. None이면 앱 기본 경로를 사용합니다.
 pub struct ModelsDirState {
-    custom_path: Mutex<Option<PathBuf>>,
+    custom_root: Mutex<Option<AuthorizedModelRoot>>,
+}
+
+#[derive(Clone)]
+struct AuthorizedModelRoot {
+    path: PathBuf,
+    identity: crate::model_store::DirectoryIdentity,
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PersistedAuthorizedModelRoot {
+    path: PathBuf,
+    identity: Option<crate::model_store::DirectoryIdentity>,
 }
 
 impl Default for ModelsDirState {
     fn default() -> Self {
         Self {
-            custom_path: Mutex::new(None),
+            custom_root: Mutex::new(None),
         }
     }
 }
@@ -80,15 +93,30 @@ fn authorized_models_root_file(app: &AppHandle) -> Result<PathBuf, String> {
         .map_err(|error| error.to_string())
 }
 
-fn read_authorized_models_root(app: &AppHandle) -> Result<Option<PathBuf>, String> {
+fn read_authorized_models_root(
+    app: &AppHandle,
+) -> Result<Option<PersistedAuthorizedModelRoot>, String> {
     let path = authorized_models_root_file(app)?;
     let content = match std::fs::read_to_string(path) {
         Ok(content) => content,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error.to_string()),
     };
-    serde_json::from_str::<String>(&content)
-        .map(PathBuf::from)
+    parse_authorized_models_root(&content)
+}
+
+fn parse_authorized_models_root(
+    content: &str,
+) -> Result<Option<PersistedAuthorizedModelRoot>, String> {
+    let value: serde_json::Value =
+        serde_json::from_str(content).map_err(|error| error.to_string())?;
+    if let Some(legacy_path) = value.as_str() {
+        return Ok(Some(PersistedAuthorizedModelRoot {
+            path: PathBuf::from(legacy_path),
+            identity: None,
+        }));
+    }
+    serde_json::from_value(value)
         .map(Some)
         .map_err(|error| error.to_string())
 }
@@ -135,11 +163,11 @@ struct DownloadProgressEvent {
 
 pub fn models_dir(app: &AppHandle, dir_state: &ModelsDirState) -> Result<PathBuf, String> {
     let custom = dir_state
-        .custom_path
+        .custom_root
         .lock()
         .unwrap_or_else(|e| e.into_inner());
-    if let Some(ref p) = *custom {
-        return Ok(p.clone());
+    if let Some(root) = custom.as_ref() {
+        return Ok(root.path.clone());
     }
     app.path()
         .app_data_dir()
@@ -158,7 +186,7 @@ pub fn set_models_dir_override(
     use tauri_plugin_fs::FsExt;
 
     let mut custom = dir_state
-        .custom_path
+        .custom_root
         .lock()
         .unwrap_or_else(|e| e.into_inner());
     let selected_path = path.filter(|path| !path.is_empty());
@@ -172,10 +200,28 @@ pub fn set_models_dir_override(
         Some(canonical) => scope.is_allowed(canonical),
         None => false,
     };
+    let selected_identity = canonical_selected
+        .as_deref()
+        .map(crate::model_store::DirectoryIdentity::at_path)
+        .transpose()
+        .map_err(|error| error.to_string())?;
+    let previously_authorized_path = previously_authorized.as_ref().and_then(|saved| {
+        (saved.path == canonical_selected.as_deref()?
+            && saved.identity.as_ref() == selected_identity.as_ref())
+            .then_some(saved.path.as_path())
+    });
+    if !scope_is_allowed
+        && previously_authorized.as_ref().is_some_and(|saved| {
+            canonical_selected.as_ref() == Some(&saved.path)
+                && saved.identity.as_ref() != selected_identity.as_ref()
+        })
+    {
+        return Err("Select the model folder again to confirm its current location".into());
+    }
     let authorized = authorize_custom_models_root(
         canonical_selected.as_deref(),
         scope_is_allowed,
-        previously_authorized.as_deref(),
+        previously_authorized_path,
     )?;
 
     if let Some(root) = &authorized {
@@ -185,8 +231,11 @@ pub fn set_models_dir_override(
                 .parent()
                 .ok_or("Missing app configuration directory")?;
             std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-            let content = serde_json::to_string(&root.to_string_lossy().into_owned())
-                .map_err(|error| error.to_string())?;
+            let content = serde_json::to_string(&PersistedAuthorizedModelRoot {
+                path: root.clone(),
+                identity: selected_identity.clone(),
+            })
+            .map_err(|error| error.to_string())?;
             atomic_write::write_atomic(&auth_file, &content).map_err(|error| error.to_string())?;
         }
     } else if selected_path.is_none() {
@@ -198,7 +247,14 @@ pub fn set_models_dir_override(
         }
     }
 
-    *custom = authorized;
+    *custom = match authorized {
+        Some(path) => Some(AuthorizedModelRoot {
+            path,
+            identity: selected_identity
+                .ok_or_else(|| "Model directory identity is unavailable".to_string())?,
+        }),
+        None => None,
+    };
     Ok(())
 }
 
@@ -403,6 +459,21 @@ fn models_root_matches(current: &std::path::Path, expected_root: &str) -> bool {
     !expected_root.is_empty() && current == PathBuf::from(expected_root)
 }
 
+fn open_model_store_for_root(
+    path: &Path,
+    expected_identity: Option<&crate::model_store::DirectoryIdentity>,
+) -> Result<crate::model_store::ModelStore, String> {
+    let store = crate::model_store::ModelStore::open(path).map_err(|error| error.to_string())?;
+    if expected_identity.is_some_and(|expected| {
+        store
+            .directory_identity()
+            .map_or(true, |actual| &actual != expected)
+    }) {
+        return Err("Model directory identity changed before operation".into());
+    }
+    Ok(store)
+}
+
 fn remove_download_if_current(
     active: &mut HashMap<String, ActiveDownload>,
     model_id: &str,
@@ -593,7 +664,13 @@ pub async fn delete_model_files(
     if !models_root_matches(&base, &expected_root) {
         return Err("Model directory changed before deletion".into());
     }
-    let store = crate::model_store::ModelStore::open(&base).map_err(|e| e.to_string())?;
+    let expected_identity = dir_state
+        .custom_root
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .as_ref()
+        .map(|root| root.identity.clone());
+    let store = open_model_store_for_root(&base, expected_identity.as_ref())?;
     for spec in files {
         store.remove(&spec.filename).map_err(|e| e.to_string())?;
     }
@@ -715,6 +792,48 @@ mod integrity_tests {
 
         assert!(!safe.join("demucs/htdemucs.th").exists());
         assert_eq!(std::fs::read(outside.join("demucs/htdemucs.th")).unwrap(), b"preserve");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn replacing_canonical_model_root_does_not_redirect_model_deletion() {
+        let root = tempfile::tempdir().unwrap();
+        let approved = root.path().join("models");
+        let original = root.path().join("models-original");
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(approved.join("demucs")).unwrap();
+        std::fs::create_dir_all(outside.path().join("demucs")).unwrap();
+        std::fs::write(approved.join("demucs/htdemucs.th"), b"approved").unwrap();
+        std::fs::write(outside.path().join("demucs/htdemucs.th"), b"preserve").unwrap();
+        let approved = approved.canonicalize().unwrap();
+        let identity = crate::model_store::DirectoryIdentity::at_path(&approved).unwrap();
+
+        std::fs::rename(&approved, &original).unwrap();
+        std::os::unix::fs::symlink(outside.path(), &approved).unwrap();
+
+        assert!(models_root_matches(&approved, approved.to_str().unwrap()));
+        assert!(open_model_store_for_root(&approved, Some(&identity)).is_err());
+        let original_store = open_model_store_for_root(&original, Some(&identity)).unwrap();
+        assert_eq!(original_store.directory_identity().unwrap(), identity);
+
+        assert_eq!(
+            std::fs::read(outside.path().join("demucs/htdemucs.th")).unwrap_or_default(),
+            b"preserve",
+            "deletion must remain bound to the directory approved before path replacement"
+        );
+        assert_eq!(
+            std::fs::read(original.join("demucs/htdemucs.th")).unwrap(),
+            b"approved"
+        );
+    }
+
+    #[test]
+    fn legacy_saved_model_root_does_not_silently_authorize_a_directory() {
+        let saved = parse_authorized_models_root("\"/models/custom\"")
+            .unwrap()
+            .unwrap();
+        assert_eq!(saved.path, PathBuf::from("/models/custom"));
+        assert!(saved.identity.is_none());
     }
 
     #[test]
