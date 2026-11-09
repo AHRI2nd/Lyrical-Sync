@@ -263,7 +263,7 @@ async fn hash_model_file(file: std::fs::File) -> Result<String, std::io::Error> 
     use tokio::io::AsyncReadExt;
     let mut file = tokio::fs::File::from_std(file);
     let mut digest = Sha256::new();
-    let mut buffer = [0u8; 65536];
+    let mut buffer = vec![0u8; 65536];
     loop {
         let read = file.read(&mut buffer).await?;
         if read == 0 {
@@ -446,8 +446,8 @@ fn checked_model_download_bytes(current: u64, additional: u64) -> Result<u64, St
     Ok(total)
 }
 
-async fn download_files(
-    app: &AppHandle,
+async fn download_files<R: tauri::Runtime>(
+    app: &AppHandle<R>,
     base: &std::path::Path,
     model_id: &str,
     run_id: &str,
@@ -603,6 +603,38 @@ pub async fn delete_model_files(
 #[cfg(test)]
 mod integrity_tests {
     use super::*;
+
+    #[test]
+    fn hash_future_does_not_embed_a_large_buffer() {
+        let file = tempfile::tempfile().unwrap();
+        let future = hash_model_file(file);
+        let future_size = std::mem::size_of_val(&future);
+
+        assert!(
+            future_size <= 4 * 1024,
+            "model hash future occupies {future_size} bytes; large inline buffers must not be held across async boundaries"
+        );
+    }
+
+    #[test]
+    fn download_future_does_not_embed_large_hash_state() {
+        let app = tauri::test::mock_app();
+        let files = Vec::new();
+        let future = download_files(
+            app.handle(),
+            Path::new("."),
+            "ctc-mms-300m",
+            "run-1",
+            &files,
+            Arc::new(AtomicBool::new(false)),
+        );
+        let future_size = std::mem::size_of_val(&future);
+
+        assert!(
+            future_size <= 16 * 1024,
+            "model download future occupies {future_size} bytes; large inline buffers must not be held across async boundaries"
+        );
+    }
 
     #[test]
     fn model_ids_resolve_only_to_the_embedded_manifest_artifacts() {
@@ -882,6 +914,27 @@ mod integrity_tests {
             assert!(model_file_matches(&store, "model", None).await);
             assert!(std::fs::File::open(dir.path().join("missing")).is_err());
         });
+    }
+
+    #[tokio::test]
+    async fn hashes_empty_and_multi_chunk_files() {
+        use sha2::{Digest, Sha256};
+
+        for size in [0, 65_535, 65_536, 65_537, 131_072] {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join("model");
+            let contents = (0..size)
+                .map(|index| (index % 251) as u8)
+                .collect::<Vec<_>>();
+            std::fs::write(&path, &contents).unwrap();
+
+            let expected = format!("{:x}", Sha256::digest(&contents));
+            let actual = hash_model_file(std::fs::File::open(&path).unwrap())
+                .await
+                .unwrap();
+
+            assert_eq!(actual, expected, "incorrect hash for {size}-byte file");
+        }
     }
 
     #[tokio::test]
