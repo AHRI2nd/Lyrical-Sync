@@ -168,6 +168,23 @@ describe("App — drag-and-drop conflict resolution", () => {
     expect(appMenuContext.current?.ytdlpInstalled).toBe(true);
   });
 
+  it("reports a Spotify pause failure from the native menu mode switch", async () => {
+    const pausePlayback = vi.fn().mockRejectedValue(new Error("remote pause failed"));
+    useSettingsStore.setState({ spotifyMode: true, youtubeMode: false, deviceMode: false });
+    useServiceStore.setState({ isLoggedIn: true, pausePlayback });
+    render(<App />);
+
+    act(() => appMenuHandlers.current?.modeFile?.());
+
+    await waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1));
+    expect(pausePlayback).toHaveBeenCalledOnce();
+    expect(useSettingsStore.getState().spotifyMode).toBe(false);
+    expect(useToastStore.getState().toasts[0]).toMatchObject({
+      type: "error",
+      message: useI18nStore.getState().t.toast.spotifyActionFailed,
+    });
+  });
+
   it("asks for confirmation when dropping audio while audio is already loaded, and applies only on confirm", async () => {
     resetLrc({ audioPath: "/music/old.mp3" });
     const setAudioPathSpy = vi.spyOn(useLrcStore.getState(), "setAudioPath").mockImplementation(() => {});
