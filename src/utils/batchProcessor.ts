@@ -42,7 +42,6 @@ export function preflightBatch(entries: BatchFileEntry[], operation: BatchOperat
   const ids = new Set<string>();
   return entries.map((entry) => {
     const name = batchOutputName(entry.file.path, operation);
-    if (operation.kind === "tag" && entry.file.path.toLowerCase().endsWith(".srt")) throw new Error("Metadata tags require LRC input.");
     const key = name.normalize("NFC").toLowerCase();
     if (names.has(key)) throw new Error(`Duplicate output: ${name}`);
     if (ids.has(entry.id)) throw new Error("Duplicate batch entry ID.");
@@ -90,6 +89,8 @@ export async function runBatchOperation(
   const outputSnapshot = { ...output };
   const tasks = preflightBatch(entries, operationSnapshot, outputSnapshot);
   const summary: BatchSummary = { done: 0, error: 0, cancelled: 0 };
+  const resolvedOutputNames = new Set<string>();
+  const separator = outputSnapshot.path.includes("\\") && !outputSnapshot.path.includes("/") ? "\\" : "/";
   let next = 0;
   const concurrency = Number.isFinite(options.concurrency) ? Math.max(1, Math.min(4, Math.floor(options.concurrency!))) : 4;
   const worker = async () => {
@@ -100,13 +101,19 @@ export async function runBatchOperation(
       try {
         const result = await readLyrics(task.entry.file);
         refreshed = result.file;
-        const isSrt = task.entry.file.path.toLowerCase().endsWith(".srt");
+        const isSrt = result.file.path.toLowerCase().endsWith(".srt");
+        const name = batchOutputName(result.file.path, operationSnapshot);
+        if (operationSnapshot.kind === "tag" && isSrt) throw new Error("Metadata tags require LRC input.");
         const doc = transformDocument(isSrt ? parseSrt(result.value) : parseLrc(result.value), operationSnapshot);
         const format = operationSnapshot.kind === "convert" ? operationSnapshot.format : isSrt ? "srt" : "lrc";
         const content = format === "lrc" ? serializeLrc(doc) : format === "srt" ? serializeSrt(doc) : format === "vtt" ? serializeVtt(doc) : serializeAss(doc);
+        const outputNameKey = name.normalize("NFC").toLowerCase();
+        if (resolvedOutputNames.has(outputNameKey)) throw new Error(`Duplicate output: ${name}`);
+        resolvedOutputNames.add(outputNameKey);
+        const targetPath = outputSnapshot.path.replace(/[\\/]+$/, "") + separator + name;
         // An active file finishes even after cancellation. The native command never clobbers a destination.
-        await enqueuePathWrite(task.targetPath, () => invoke<void>("write_batch_output", {
-          outputDir: outputSnapshot.path, outputBookmark: outputSnapshot.bookmark, name: task.name, content,
+        await enqueuePathWrite(targetPath, () => invoke<void>("write_batch_output", {
+          outputDir: outputSnapshot.path, outputBookmark: outputSnapshot.bookmark, name, content,
         }));
         summary.done++;
         onStatus(task.entry.id, "done", undefined, refreshed);

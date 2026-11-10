@@ -40,6 +40,67 @@ describe("batch preflight", () => {
 });
 
 describe("batch output", () => {
+  it("uses the refreshed LRC extension and contents after a bookmarked SRT rename", async () => {
+    vi.mocked(readLyrics).mockResolvedValueOnce({
+      value: "[00:01.00]restored",
+      file: { path: "/renamed/song.lrc", bookmark: "fresh" },
+    });
+    const status = vi.fn();
+    const summary = await runBatchOperation(
+      [entry("/inputs/song.srt", "renamed")],
+      { kind: "offset", deltaSeconds: 1 },
+      output,
+      status,
+      { concurrency: 1 },
+    );
+
+    expect(summary).toEqual({ done: 1, error: 0, cancelled: 0 });
+    expect(status).toHaveBeenCalledWith("renamed", "done", undefined, { path: "/renamed/song.lrc", bookmark: "fresh" });
+    expect(invoke).toHaveBeenCalledWith("write_batch_output", expect.objectContaining({
+      name: "song.lrc", content: expect.stringContaining("[00:02.00]restored"),
+    }));
+  });
+
+  it("uses the refreshed SRT extension and contents after a bookmarked LRC rename", async () => {
+    vi.mocked(readLyrics).mockResolvedValueOnce({
+      value: "1\n00:00:01,000 --> 00:00:03,000\nrestored",
+      file: { path: "/renamed/song.srt", bookmark: "fresh" },
+    });
+    const status = vi.fn();
+    const summary = await runBatchOperation(
+      [entry("/inputs/song.lrc", "renamed")],
+      { kind: "offset", deltaSeconds: 1 },
+      output,
+      status,
+      { concurrency: 1 },
+    );
+
+    expect(summary).toEqual({ done: 1, error: 0, cancelled: 0 });
+    expect(invoke).toHaveBeenCalledWith("write_batch_output", expect.objectContaining({
+      name: "song.srt", content: expect.stringContaining("00:00:02,000 --> 00:00:04,000"),
+    }));
+  });
+
+  it("rejects duplicate output names after bookmark refresh without clobbering either output", async () => {
+    vi.mocked(readLyrics)
+      .mockResolvedValueOnce({ value: "[00:01.00]first", file: { path: "/renamed/same.lrc", bookmark: "first" } })
+      .mockResolvedValueOnce({ value: "[00:02.00]second", file: { path: "/other/same.lrc", bookmark: "second" } });
+    const status = vi.fn();
+    const summary = await runBatchOperation(
+      [entry("/inputs/first.lrc", "first"), entry("/inputs/second.lrc", "second")],
+      { kind: "offset", deltaSeconds: 1 },
+      output,
+      status,
+      { concurrency: 2 },
+    );
+
+    expect(summary.done).toBe(1);
+    expect(summary.error).toBe(1);
+    expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "write_batch_output")).toHaveLength(1);
+    expect(status).toHaveBeenCalledWith("first", "done", undefined, { path: "/renamed/same.lrc", bookmark: "first" });
+    expect(status).toHaveBeenCalledWith("second", "error", "Duplicate output: same.lrc", { path: "/other/same.lrc", bookmark: "second" });
+  });
+
   it("rejects an unrepresentable ASS cue before writing the target file", async () => {
     vi.mocked(readLyrics).mockResolvedValueOnce({
       value: "[00:02.00]literal {override}",
