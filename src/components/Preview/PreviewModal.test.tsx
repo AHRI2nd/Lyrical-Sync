@@ -29,6 +29,14 @@ it("does not rerender for unrelated store changes but reflects document, time an
   expect(container.querySelector('path[d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"]')).not.toBeNull();
 });
 
+it("uses an explicit SRT cue end for karaoke progress", () => {
+  useLrcStore.setState({ currentTime: 8, duration: 30, doc: { ...defaultDocument(), lines: [
+    { id: "srt", text: "AB", timestamp: 1, srtEndTime: 10, syllables: [{ text: "A", time: 1 }, { text: "B", time: 6 }] },
+  ] } });
+  const { getByText } = render(<PreviewModal onClose={() => {}} />);
+  expect(getByText("B").style.background).toContain("50%");
+});
+
 it("shows empty-audio guidance and removes it when an audio file is selected", () => {
   act(() => useLrcStore.setState({ audioPath: null }));
   const { container } = render(<PreviewModal onClose={() => {}} />);

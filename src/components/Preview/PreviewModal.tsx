@@ -55,9 +55,14 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
     const ends = new Array<number>(doc.lines.length);
     let nextStampedTs: number | null = null;
     for (let i = doc.lines.length - 1; i >= 0; i--) {
-      ends[i] = nextStampedTs !== null
-        ? nextStampedTs
-        : (playbackDuration > 0 ? playbackDuration : (doc.lines[i].timestamp ?? 0) + 4);
+      const line = doc.lines[i];
+      if (line.timestamp !== null && Number.isFinite(line.srtEndTime) && line.srtEndTime! > line.timestamp) {
+        ends[i] = playbackDuration > 0 ? Math.min(line.srtEndTime!, playbackDuration) : line.srtEndTime!;
+      } else {
+        ends[i] = nextStampedTs !== null
+          ? nextStampedTs
+          : (playbackDuration > 0 ? playbackDuration : (line.timestamp ?? 0) + 4);
+      }
       if (doc.lines[i].timestamp !== null) nextStampedTs = doc.lines[i].timestamp;
     }
     return ends;

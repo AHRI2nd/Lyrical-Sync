@@ -6,6 +6,10 @@ export function getLinePlaybackRange(lines: LrcLine[], id: string | null, durati
   const index = lines.findIndex(line => line.id === id);
   const start = lines[index]?.timestamp;
   if (start == null || !Number.isFinite(start) || start < 0 || start >= duration) return null;
+  const explicitEnd = lines[index].srtEndTime;
+  if (Number.isFinite(explicitEnd) && (explicitEnd as number) > start) {
+    return { start, end: Math.min(explicitEnd as number, duration) };
+  }
   let end = duration;
   for (let i = index + 1; i < lines.length; i++) {
     const time = lines[i].timestamp;
