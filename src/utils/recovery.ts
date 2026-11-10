@@ -21,6 +21,7 @@ function validDocument(value: unknown): value is LrcDocument {
   ))) return false;
   return value.lines.every((line: unknown) => isRecord(line) && typeof line.id === "string" && typeof line.text === "string" &&
     (line.timestamp === null || isFiniteNumber(line.timestamp)) &&
+    (line.srtEndTime === undefined || (line.timestamp !== null && isFiniteNumber(line.srtEndTime) && line.srtEndTime > line.timestamp)) &&
     (line.translation === undefined || typeof line.translation === "string") &&
     (line.syllables === undefined || (Array.isArray(line.syllables) && line.syllables.every((token: unknown) =>
       isRecord(token) && typeof token.text === "string" && (token.time === null || isFiniteNumber(token.time))))));

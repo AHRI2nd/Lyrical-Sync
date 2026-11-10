@@ -122,6 +122,47 @@ it.each(["metadata", "timestamp", "syllable", "extraTags", "bookmark", "savedAt"
   localStorage.setItem(KEY, JSON.stringify(snapshot));
   expect(loadRecoverySnapshot()).toBeNull();
 });
+it.each([
+  { timestamp: 1, srtEndTime: 0.5 },
+  { timestamp: 1, srtEndTime: Number.NaN },
+  { timestamp: 1, srtEndTime: "2" },
+  { timestamp: 1, srtEndTime: 1 },
+  { timestamp: null, srtEndTime: 2 },
+])("rejects an invalid recovered SRT end without deleting the snapshot: %j", (timing) => {
+  const invalid = doc();
+  Object.assign(invalid.lines[0], timing);
+  const raw = JSON.stringify({ doc: invalid, lrcPath: "/song.srt", audioPath: null, savedAt: 1 });
+  localStorage.setItem(KEY, raw);
+
+  expect(loadRecoverySnapshot()).toBeNull();
+  expect(localStorage.getItem(KEY)).toBe(raw);
+});
+it("rejects an SRT end when its cue start is missing without deleting the snapshot", () => {
+  const invalid = doc();
+  invalid.lines[0].srtEndTime = 2;
+  delete (invalid.lines[0] as Partial<typeof invalid.lines[number]>).timestamp;
+  const raw = JSON.stringify({ doc: invalid, lrcPath: "/song.srt", audioPath: null, savedAt: 1 });
+  localStorage.setItem(KEY, raw);
+
+  expect(loadRecoverySnapshot()).toBeNull();
+  expect(localStorage.getItem(KEY)).toBe(raw);
+});
+it("accepts a valid recovered SRT end and legacy lines without one", () => {
+  const valid = doc();
+  valid.lines[0].srtEndTime = 2;
+  localStorage.setItem(KEY, JSON.stringify({ doc: valid, lrcPath: "/song.srt", audioPath: null, savedAt: 1 }));
+
+  expect(loadRecoverySnapshot()?.doc.lines[0].srtEndTime).toBe(2);
+});
+it("does not replace an existing snapshot with an invalid SRT end", () => {
+  expect(saveRecoverySnapshot(doc(), "/old.srt", null)).toBe(true);
+  const existing = localStorage.getItem(KEY);
+  const invalid = doc();
+  invalid.lines[0].srtEndTime = Number.POSITIVE_INFINITY;
+
+  expect(saveRecoverySnapshot(invalid, "/new.srt", null)).toBe(false);
+  expect(localStorage.getItem(KEY)).toBe(existing);
+});
 it("loads a legacy snapshot without bookmark fields", () => {
   localStorage.setItem(KEY, JSON.stringify({ doc: doc(), lrcPath: null, audioPath: null, savedAt: 1 }));
   expect(loadRecoverySnapshot()?.lrcBookmark).toBeNull();
