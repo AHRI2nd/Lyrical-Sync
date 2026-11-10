@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { ScaleBar } from "./ScaleBar";
 import { TimeShiftBar } from "./TimeShiftBar";
 import { useI18nStore } from "../../stores/useI18nStore";
@@ -118,21 +119,27 @@ it.each([{ isComposing: true }, { keyCode: 229 }, { shiftKey: true }, { defaultP
   },
 );
 
-it("keeps decimal scale drafts intact and exposes a localized control name", () => {
+it("keeps sequential decimal scale input intact and exposes localized control names", async () => {
+  const user = userEvent.setup();
   const onApply = vi.fn();
   const { getByRole } = render(<ScaleBar onApply={onApply} onClose={vi.fn()} />);
   const label = useI18nStore.getState().t.tsScaleFactor;
   const input = getByRole("textbox", { name: label }) as HTMLInputElement;
+  expect(getByRole("button", { name: `${label} -0.01` })).toBeTruthy();
+  expect(getByRole("button", { name: `${label} +0.01` })).toBeTruthy();
+  expect(getByRole("button", { name: useI18nStore.getState().t.close })).toBeTruthy();
 
-  fireEvent.change(input, { target: { value: "0." } });
+  await user.clear(input);
+  await user.type(input, "0.");
   expect(input.value).toBe("0.");
-  fireEvent.change(input, { target: { value: "0.5" } });
+  await user.type(input, "5");
   fireEvent.keyDown(input, { key: "Enter" });
 
   expect(onApply).toHaveBeenCalledWith(0.5);
 });
 
-it("preserves a negative time-shift draft and names all timing controls", () => {
+it("preserves sequential negative time-shift input and names all timing controls", async () => {
+  const user = userEvent.setup();
   const onApply = vi.fn();
   const { getByRole } = render(<TimeShiftBar lineCount={4} defaultFrom={1} onApply={onApply} onClose={vi.fn()} />);
   const labels = useI18nStore.getState().t;
@@ -145,9 +152,10 @@ it("preserves a negative time-shift draft and names all timing controls", () => 
   expect(getByRole("button", { name: `${labels.timeShiftDelta} +0.1 ${labels.timeShiftSec}` })).toBeTruthy();
   expect(getByRole("button", { name: labels.close })).toBeTruthy();
 
-  fireEvent.change(delta, { target: { value: "-" } });
+  await user.clear(delta);
+  await user.type(delta, "-");
   expect(delta.value).toBe("-");
-  fireEvent.change(delta, { target: { value: "-1.5" } });
+  await user.type(delta, "1.5");
   fireEvent.keyDown(delta, { key: "Enter", ctrlKey: true });
 
   expect(onApply).toHaveBeenCalledWith(0, 3, -1.5);
