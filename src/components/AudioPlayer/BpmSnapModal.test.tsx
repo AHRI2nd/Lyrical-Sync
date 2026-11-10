@@ -174,3 +174,31 @@ it("computes Tap Tempo without audio and applies the resulting grid", () => {
   fireEvent.click(screen.getByRole("button", { name: "Apply" }));
   expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(1.5);
 });
+
+
+it("reports only rows whose timestamps changed when applying a beat grid", () => {
+  useLrcStore.setState({ audioPath: null, audioBookmark: null, doc: { ...defaultDocument(), lines: [
+    { id: "changed", text: "Changed", timestamp: 1.34 },
+    { id: "aligned", text: "Aligned", timestamp: 0.5 },
+    { id: "untimed", text: "Untimed", timestamp: null },
+  ] }, _history: [], _future: [], isDirty: false });
+  render(<BpmSnapModal onClose={() => {}} selectedIds={["changed", "aligned", "untimed"]} />);
+  fireEvent.change(screen.getByLabelText("Tempo"), { target: { value: "120" } });
+  fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+
+  expect(screen.getByText("1 applied")).toBeTruthy();
+  expect(useLrcStore.getState().doc.lines.map((line) => line.timestamp)).toEqual([1.5, 0.5, null]);
+});
+
+it("reports the actual changed count for an all-lines application", () => {
+  useLrcStore.setState({ audioPath: null, audioBookmark: null, doc: { ...defaultDocument(), lines: [
+    { id: "changed", text: "Changed", timestamp: 1.34 },
+    { id: "aligned", text: "Aligned", timestamp: 0.5 },
+    { id: "untimed", text: "Untimed", timestamp: null },
+  ] }, _history: [], _future: [], isDirty: false });
+  render(<BpmSnapModal onClose={() => {}} selectedIds={[]} />);
+  fireEvent.change(screen.getByLabelText("Tempo"), { target: { value: "120" } });
+  fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+
+  expect(screen.getByText("1 applied")).toBeTruthy();
+});

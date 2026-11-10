@@ -137,7 +137,7 @@ interface LrcStore {
   newLrc: () => Promise<void>;
   replaceInLines: (find: string, replace: string, caseSensitive: boolean) => number;
 
-  snapLinesToBeatGrid: (ids: string[], bpm: number, offsetSec: number) => void;
+  snapLinesToBeatGrid: (ids: string[], bpm: number, offsetSec: number) => number;
   shiftTimeRange: (fromIdx: number, toIdx: number, deltaSeconds: number) => void;
 }
 
@@ -597,24 +597,25 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
   },
 
   snapLinesToBeatGrid: (ids, bpm, offsetSec) => {
-    if (!Number.isFinite(bpm) || !(bpm > 0) || !Number.isFinite(60 / bpm) || !Number.isFinite(offsetSec)) return;
+    if (!Number.isFinite(bpm) || !(bpm > 0) || !Number.isFinite(60 / bpm) || !Number.isFinite(offsetSec)) return 0;
     const { doc } = get();
     const selected = ids.length ? new Set(ids) : null;
-    let changed = false;
+    let changedCount = 0;
     const lines = doc.lines.map(line => {
       if (line.timestamp === null || !Number.isFinite(line.timestamp) || (selected && !selected.has(line.id))) return line;
       const timestamp = nearestBeat(line.timestamp, bpm, offsetSec);
       if (timestamp === line.timestamp) return line;
-      changed = true;
+      changedCount++;
       const delta = timestamp - line.timestamp;
       // Keep glyph offsets relative to their line instead of discarding timed text.
       return { ...line, timestamp, srtEndTime: shiftSrtEnd(line, delta, timestamp), syllables: line.syllables?.map(s => ({ ...s,
         time: s.time === null ? null : Math.round(Math.max(0, s.time + delta) * 1000) / 1000 })) };
     });
-    if (changed) {
-      if (!hasFiniteLineTimes(lines)) { reportInvalidTime(); return; }
+    if (changedCount > 0) {
+      if (!hasFiniteLineTimes(lines)) { reportInvalidTime(); return 0; }
       set({ ...pushHistory(doc, null, "snapBeatGrid"), doc: { ...doc, lines }, isDirty: true });
     }
+    return changedCount;
   },
 
   stampCurrentLine: (id) => {

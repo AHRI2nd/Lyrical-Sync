@@ -752,6 +752,40 @@ describe("useLrcStore — addLinesFromSpeechSegments", () => {
   });
 });
 
+describe("useLrcStore — snapLinesToBeatGrid", () => {
+  beforeEach(() => reset([]));
+
+  it("returns the number of selected timed rows actually changed", () => {
+    reset([
+      { id: "changed", timestamp: 1.34, text: "Changed" },
+      { id: "already", timestamp: 0.5, text: "Already aligned" },
+      { id: "untimed", timestamp: null, text: "Untimed" },
+    ]);
+
+    const count = useLrcStore.getState().snapLinesToBeatGrid(["changed", "already", "untimed"], 120, 0);
+
+    expect(count).toBe(1);
+    expect(lines().map((line) => line.timestamp)).toEqual([1.5, 0.5, null]);
+    expect(useLrcStore.getState()._history).toHaveLength(1);
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
+  it("returns zero and leaves document, history, and dirty state untouched when nothing changes", () => {
+    reset([
+      { id: "aligned", timestamp: 0.5, text: "Aligned" },
+      { id: "untimed", timestamp: null, text: "Untimed" },
+    ]);
+    const before = useLrcStore.getState().doc;
+
+    const count = useLrcStore.getState().snapLinesToBeatGrid([], 120, 0);
+
+    expect(count).toBe(0);
+    expect(useLrcStore.getState().doc).toBe(before);
+    expect(useLrcStore.getState()._history).toHaveLength(0);
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+});
+
 describe("useLrcStore scoped file references", () => {
   beforeEach(() => {
     vi.mocked(invoke).mockReset();

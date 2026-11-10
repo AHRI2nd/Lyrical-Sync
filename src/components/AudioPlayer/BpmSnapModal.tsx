@@ -116,8 +116,8 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
 
   const handleApply = () => {
     if (!valid || !isCurrent()) return;
-    useLrcStore.getState().snapLinesToBeatGrid(selectedIds, bpm, offsetSec);
-    setSnappedCount(selectedIds.length > 0 ? selectedIds.length : -1);
+    const changedCount = useLrcStore.getState().snapLinesToBeatGrid(selectedIds, bpm, offsetSec);
+    setSnappedCount(changedCount);
   };
 
   return (
@@ -197,7 +197,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
               </div>
               {snappedCount !== null && (
                 <p className="text-xs text-emerald-400">
-                  {snappedCount === -1 ? t.bpmAppliedAll : `${snappedCount} ${t.bpmAppliedCount}`}
+                  {`${snappedCount} ${t.bpmAppliedCount}`}
                 </p>
               )}
             </>
