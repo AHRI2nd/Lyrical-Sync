@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn().mockRejectedValue(new Error("unavailable")) }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn().mockResolvedValue(() => {}) }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
@@ -811,6 +811,43 @@ it.each([false,true])('keeps replacement dollar text literal in the editor (all=
  fireEvent.change(getByPlaceholderText(t.replacePlaceholder),{target:{value:'$&'}});
  fireEvent.click(getByRole('button',{name:all?t.replaceAll:t.replaceBtn}));
  expect(useLrcStore.getState().doc.lines[0].text).toBe(all?'$& $&':'$& original');
+});
+
+it.each([
+  { ctrlKey: true, metaKey: false, shortcut: "Ctrl+F" },
+  { ctrlKey: false, metaKey: true, shortcut: "Cmd+F" },
+])("does not open Find or steal focus from an active dialog with $shortcut", async ({ ctrlKey, metaKey }) => {
+  const t = useI18nStore.getState().t;
+  useSettingsStore.setState({ showTranslationLines: true });
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "old lyric", translation: "old translation", timestamp: 1 }] } });
+  const { getByDisplayValue, getByRole, queryByPlaceholderText } = render(<LrcEditor onPreview={() => {}} />);
+  const lyricInput = getByDisplayValue("old lyric") as HTMLTextAreaElement;
+  lyricInput.setSelectionRange(0, lyricInput.value.length);
+  fireEvent.paste(lyricInput, { clipboardData: { getData: () => "new first\nnew second" } });
+
+  const dialog = getByRole("dialog", { name: t.translationPasteTitle });
+  const translationInput = dialog.querySelector("textarea")!;
+  translationInput.focus();
+  expect(dialog.contains(document.activeElement)).toBe(true);
+
+  fireEvent.keyDown(window, { code: "KeyF", key: "f", ctrlKey, metaKey });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  expect(queryByPlaceholderText(t.findPlaceholder)).toBeNull();
+  expect(dialog.contains(document.activeElement)).toBe(true);
+});
+
+it.each([
+  { ctrlKey: true, metaKey: false },
+  { ctrlKey: false, metaKey: true },
+])("opens Find with Ctrl/Cmd+F when no dialog is active", async ({ ctrlKey, metaKey }) => {
+  const t = useI18nStore.getState().t;
+  const { getByPlaceholderText } = render(<LrcEditor onPreview={() => {}} />);
+
+  fireEvent.keyDown(window, { code: "KeyF", key: "f", ctrlKey, metaKey });
+
+  const findInput = getByPlaceholderText(t.findPlaceholder);
+  await waitFor(() => expect(document.activeElement).toBe(findInput));
 });
 it("does not carry bulk selection into a replacement document", () => {
   const t = useI18nStore.getState().t;

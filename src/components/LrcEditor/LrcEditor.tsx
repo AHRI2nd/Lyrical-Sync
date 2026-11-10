@@ -16,6 +16,7 @@ import { MODEL_DEFS } from "../../utils/modelDefs";
 import { localizeAiSyncError } from "../../utils/aiSyncMessages";
 import { listenSafely } from "../../utils/safeListen";
 import { setModelsDirOverride } from "../../utils/modelsDirOverride";
+import { anyModalOpen } from "../../utils/modalGuard";
 import type { LrcLine, LrcSyllable } from "../../types/lrc";
 import { CurrentTimeFooter } from "./CurrentTimeFooter";
 import { MiniConfirm } from "./MiniConfirm";
@@ -740,7 +741,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   // Ctrl/Cmd+F 열기
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.code === "KeyF") {
+      if ((e.ctrlKey || e.metaKey) && e.code === "KeyF" && !anyModalOpen()) {
         e.preventDefault();
         setShowFR(true);
         setTimeout(() => findInputRef.current?.focus(), 0);
