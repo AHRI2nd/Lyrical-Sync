@@ -12,8 +12,6 @@
     "allow-write-lrc-file",
     "allow-write-lrc-file-if-unchanged",
     "allow-read-audio-file",
-    "allow-validate-audio-file",
-    "allow-get-audio-file-info",
     "allow-decode-audio-to-wav",
     "allow-read-audio-metadata",
     "allow-write-batch-output",

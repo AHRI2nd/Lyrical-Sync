@@ -43,6 +43,27 @@ class SignedCandidateTests(unittest.TestCase):
             commands = {item['command'] for item in permission.get('allow', [])}
             self.assertTrue(commands.issubset(registered), f'{path.name} grants unknown commands: {sorted(commands-registered)}')
 
+    def test_unused_audio_validation_commands_are_not_registered_or_granted(self):
+        unused = {'validate_audio_file', 'get_audio_file_info'}
+        build_source = (ROOT / 'src-tauri/build.rs').read_text(encoding='utf-8')
+        build_block = build_source.split('let commands = &[', 1)[1].split('];', 1)[0]
+        declared = set(re.findall(r'"([a-z_]+)"', build_block))
+
+        app_source = (ROOT / 'src-tauri/src/lib.rs').read_text(encoding='utf-8')
+        handler_block = app_source.split('tauri::generate_handler![', 1)[1].split('])', 1)[0]
+        registered = {
+            item.split('::')[-1]
+            for item in re.findall(r'(?m)^\s*([a-zA-Z_][a-zA-Z0-9_]*(?:::[a-zA-Z_][a-zA-Z0-9_]*)?)\s*,?\s*$', handler_block)
+        }
+        capability = json.loads((ROOT / 'src-tauri/capabilities/default.json').read_text(encoding='utf-8'))
+        permission_files = list((ROOT / 'src-tauri/permissions').rglob('*'))
+        permission_text = '\n'.join(path.read_text(encoding='utf-8') for path in permission_files if path.is_file())
+
+        self.assertTrue(unused.isdisjoint(declared))
+        self.assertTrue(unused.isdisjoint(registered))
+        self.assertFalse(any(command.replace('_', '-') in capability['permissions'] for command in unused))
+        self.assertNotRegex(permission_text, r'validate[_-]audio[_-]file|get[_-]audio[_-]file[_-]info')
+
     def test_signed_build_gate_runs_every_python_regression_script(self):
         workflow = (ROOT / '.github/workflows/test.yml').read_text(encoding='utf-8')
         configured = set(re.findall(r'(?m)^\s*- run: python scripts/([\w.-]+\.py)\s*$', workflow))

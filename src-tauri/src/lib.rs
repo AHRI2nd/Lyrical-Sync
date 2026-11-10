@@ -199,26 +199,7 @@ async fn read_audio_file(
         .map(|(bytes, _)| tauri::ipc::Response::new(bytes))
 }
 
-#[tauri::command]
-fn validate_audio_file(
-    path: String,
-    window: tauri::WebviewWindow,
-) -> Result<audio_resource::AudioResourceInfo, String> {
-    let path = path_validation::validate_safe_path(&path)?;
-    authorize_window_path(&window, &path)?;
-    audio_resource::inspect_audio_file(std::path::Path::new(&path))
-}
-
-#[tauri::command]
-fn get_audio_file_info(
-    path: String,
-    window: tauri::WebviewWindow,
-) -> Result<AudioFileInfo, String> {
-    let path = path_validation::validate_safe_path(&path)?;
-    authorize_window_path(&window, &path)?;
-    get_audio_file_info_impl(path)
-}
-
+#[cfg(test)]
 fn get_audio_file_info_impl(path: std::path::PathBuf) -> Result<AudioFileInfo, String> {
     let meta = std::fs::metadata(&path).map_err(|e| e.to_string())?;
     if !meta.is_file() {
@@ -238,6 +219,7 @@ fn get_audio_file_info_impl(path: std::path::PathBuf) -> Result<AudioFileInfo, S
     Ok(AudioFileInfo { size: meta.len(), mtime, file_id })
 }
 
+#[cfg(test)]
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct AudioFileInfo {
@@ -620,8 +602,6 @@ pub fn run() {
             write_lrc_file_if_unchanged,
             batch_output::write_batch_output,
             read_audio_file,
-            validate_audio_file,
-            get_audio_file_info,
             decode_audio_to_wav,
             read_audio_metadata,
             set_models_dir_override,
