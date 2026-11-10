@@ -112,6 +112,27 @@ describe("App document confirmation and keyboard boundaries", () => {
     expect(useLrcStore.getState().isDirty).toBe(false);
   });
 
+  it("reports malformed SRT timing without replacing the current document", async () => {
+    existingPair(false);
+    const originalDoc = useLrcStore.getState().doc;
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command === "prepare_file_ref") return Promise.resolve({ path: "/incoming.srt", bookmark: null });
+      if (command === "read_lrc_file") return Promise.resolve("1\n00:00:01,000 --> 00:00:02,000\nValid cue\n\n2\ninvalid --> 00:00:04,000\nBroken cue");
+      return Promise.resolve(null);
+    });
+    render(<App />);
+    drop(["/incoming.srt"]);
+
+    const t = useI18nStore.getState().t;
+    const confirmation = await screen.findByRole("dialog", { name: t.drop.replaceTitle });
+    fireEvent.click(within(confirmation).getByRole("button", { name: t.drop.replaceOk }));
+    await waitFor(() => expect(screen.getByText(t.toast.srtMalformedCue)).toBeTruthy());
+    expect(useLrcStore.getState().doc).toBe(originalDoc);
+    expect(useLrcStore.getState().lrcPath).toBe("/old.lrc");
+    expect(useLrcStore.getState().audioPath).toBe("/old.mp3");
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
   it.each(["lyrics", "both"] as const)("uses only the unsaved-document guard for dirty %s drop and preserves Cancel", async (kind) => {
     existingPair(true);
     render(<App />);

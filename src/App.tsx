@@ -28,7 +28,7 @@ import { IconBtn } from "./components/AppShell/IconBtn";
 import { NewFileIcon, OpenFolderIcon, SaveIcon, SaveAsIcon, UndoIcon, RedoIcon, GearIcon } from "./components/AppShell/icons";
 import { HistoryPanel } from "./components/AppShell/HistoryPanel";
 import { RecentFilesMenu } from "./components/AppShell/RecentFilesMenu";
-import { SrtLossyDocumentError, SrtUnrepresentableContentError } from "./utils/srtConverter";
+import { SRT_MALFORMED_CUE_CODE, SrtLossyDocumentError, SrtUnrepresentableContentError } from "./utils/srtConverter";
 import { AssUnrepresentableContentError, VttInvalidSyllableTimeError, VttUnrepresentableContentError } from "./utils/exportFormats";
 import { LrcInlineEscapeTagConflictError, LrcLineOrderTagConflictError, LrcMetadataLineBreakError, LrcTranslationTagConflictError, needsInlineTimestampEscape } from "./utils/lrcParser";
 
@@ -53,6 +53,13 @@ function saveErrorMessage(error: unknown, t: ReturnType<typeof useI18nStore.getS
   if (error instanceof LrcTranslationTagConflictError) return t.toast.lrcTranslationTagConflict;
   if (error instanceof LrcLineOrderTagConflictError) return t.toast.lrcLineOrderTagConflict;
   return t.toast.saveFailed;
+}
+
+function openErrorMessage(error: unknown, t: ReturnType<typeof useI18nStore.getState>["t"]): string {
+  if (typeof error === "object" && error !== null && "code" in error && error.code === SRT_MALFORMED_CUE_CODE) {
+    return t.toast.srtMalformedCue;
+  }
+  return t.toast.openFailed;
 }
 
 function useGlobalKeys() {
@@ -264,14 +271,14 @@ function App() {
     }
   };
 
-  const handleOpenLrc = () => openLrc().catch(() => toast.error(t.toast.openFailed));
+  const handleOpenLrc = () => openLrc().catch((error) => toast.error(openErrorMessage(error, t)));
 
   // 드롭된 파일을 실제로 연다 (오디오 → 오디오 경로, lrc/srt → 가사)
   const applyDrop = (d: { audio?: string; lyrics?: string }) => {
     const st = useLrcStore.getState();
     if (d.lyrics) void st.requestDocumentTransition({ kind: "file", file: { path: d.lyrics, bookmark: null },
       ...(d.audio ? { audio: { path: d.audio, bookmark: null } } : {})
-    }).catch(() => toast.error(t.toast.openFailed));
+    }).catch((error) => toast.error(openErrorMessage(error, t)));
     else if (d.audio) st.setAudioPath(d.audio);
   };
 

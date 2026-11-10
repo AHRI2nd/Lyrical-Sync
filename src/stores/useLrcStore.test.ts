@@ -829,6 +829,33 @@ describe("useLrcStore scoped file references", () => {
     expect(useSettingsStore.getState().recentFiles[0].lrcBookmark).toBe("fresh");
   });
 
+  it("rejects a malformed SRT cue without replacing unsaved document state or writing", async () => {
+    const originalDoc = { metadata: { title: "Unsaved", artist: "", album: "", by: "", offset: 0 },
+      lines: [{ id: "unsaved", timestamp: null, text: "keep this edit" }], extraTags: {} };
+    useLrcStore.setState({
+      doc: originalDoc,
+      lrcPath: "/existing.srt", audioPath: "/existing.wav", isDirty: true,
+      _history: [originalDoc], _future: [],
+    });
+    vi.mocked(invoke).mockImplementation((cmd) => {
+      if (cmd === "prepare_file_ref") return Promise.resolve({ path: "/incoming.srt", bookmark: "fresh" });
+      if (cmd === "read_lrc_file") return Promise.resolve(
+        "1\n00:00:01,000 --> 00:00:02,000\nfirst\n\n2\n00:00:xx,000 --> 00:00:03,000\nsecond\n",
+      );
+      return Promise.reject(new Error(`Unexpected command: ${String(cmd)}`));
+    });
+
+    await expect(useLrcStore.getState().loadLyricsPath("/incoming.srt")).rejects.toMatchObject({ code: "SRT_MALFORMED_CUE" });
+
+    const state = useLrcStore.getState();
+    expect(state.doc).toBe(originalDoc);
+    expect(state.lrcPath).toBe("/existing.srt");
+    expect(state.audioPath).toBe("/existing.wav");
+    expect(state.isDirty).toBe(true);
+    expect(state._history).toEqual([originalDoc]);
+    expect(vi.mocked(invoke).mock.calls.some(([command]) => command === "write_lrc_file")).toBe(false);
+  });
+
   it("writes a restored lyric file using its persisted bookmark", async () => {
     useLrcStore.setState({ lrcPath: "/song.lrc", lrcBookmark: "old", isDirty: true });
     vi.mocked(invoke).mockImplementation((cmd) => {

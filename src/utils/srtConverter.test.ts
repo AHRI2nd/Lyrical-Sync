@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseLrc, serializeLrc } from "./lrcParser";
-import { parseSrt, serializeSrt } from "./srtConverter";
+import { parseSrt, serializeSrt, SrtMalformedCueError } from "./srtConverter";
 import type { LrcDocument } from "../types/lrc";
 
 const emptyMeta = { title: "", artist: "", album: "", by: "", offset: 0 };
@@ -17,6 +17,14 @@ describe("parseSrt", () => {
       "2\n00:00:02,000 --> 00:00:05,000\nsecond\n";
 
     expect(serializeSrt(parseSrt(input))).toBe(input);
+  });
+
+  it.each([
+    ["invalid start", "2\n00:00:xx,000 --> 00:00:03,000\nsecond"],
+    ["invalid end", "2\n00:00:02,000 --> invalid\nsecond"],
+  ])("rejects a malformed second cue with %s instead of returning a partial document", (_label, secondCue) => {
+    const input = `1\n00:00:01,000 --> 00:00:02,000\nfirst\n\n${secondCue}\n`;
+    expect(() => parseSrt(input)).toThrow(SrtMalformedCueError);
   });
 
   it("parses cue start times and preserves multi-line text", () => {
@@ -185,7 +193,7 @@ it.each([100,1000])('round-trips subtitle starts and ends at %s hours', hours =>
  expect(restored.lines.map(l=>l.timestamp)).toEqual([start,start+4]);
 });
 it.each(['junk00:00:01,000','00:61:01,000','00:00:61,000','00:00:01,0000',`${'9'.repeat(400)}:00:01,000`])('rejects malformed or non-finite SRT start: %s', start => {
- expect(parseSrt(`1\n${start} --> 00:00:05,000\ninvalid`).lines).toEqual([]);
+ expect(() => parseSrt(`1\n${start} --> 00:00:05,000\ninvalid`)).toThrowError(/Malformed SRT cue timestamp/);
 });
 it('retains compatibility with whitespace-separated cue position settings', () => {
  expect(parseSrt('1\n00:00:01,250 --> 00:00:03,500 X1:10 X2:20\ntext').lines.map(l=>l.timestamp)).toEqual([1.25,3.5]);

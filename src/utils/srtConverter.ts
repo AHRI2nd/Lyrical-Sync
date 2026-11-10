@@ -2,6 +2,16 @@ import { LrcDocument, defaultDocument } from "../types/lrc";
 import { nextCueEnd } from "./exportFormats";
 
 export const SRT_UNREPRESENTABLE_CONTENT_CODE = "SRT_UNREPRESENTABLE_CONTENT";
+export const SRT_MALFORMED_CUE_CODE = "SRT_MALFORMED_CUE";
+
+export class SrtMalformedCueError extends Error {
+  readonly code = SRT_MALFORMED_CUE_CODE;
+
+  constructor(blockNumber: number) {
+    super(`Malformed SRT cue timestamp in block ${blockNumber}; import was cancelled to prevent data loss.`);
+    this.name = "SrtMalformedCueError";
+  }
+}
 
 export const SRT_LOSSY_DOCUMENT_CODE = "SRT_LOSSY_DOCUMENT";
 
@@ -124,22 +134,33 @@ export function parseSrt(raw: string): LrcDocument {
 
   // 1) cue(start, end, text) 수집
   const cues: { start: number; end: number; text: string }[] = [];
-  for (const block of blocks) {
+  for (const [blockIndex, block] of blocks.entries()) {
     const rows = block.split("\n");
     while (rows.length && rows[rows.length - 1] === "") rows.pop();
     if (rows.length === 0) continue;
 
-    // 시간 줄(--> 포함)을 찾음. 그 앞은 인덱스 번호(있으면), 그 뒤는 본문.
-    const arrowIdx = rows.findIndex((r) => r.includes("-->"));
+    const hasIndex = /^\d+$/.test(rows[0].trim());
+    const arrowIdx = rows.findIndex((row, index) => {
+      const arrow = row.indexOf("-->");
+      if (arrow < 0) return false;
+      const left = row.slice(0, arrow);
+      const right = row.slice(arrow + 3);
+      const shapedTimestamp = /^\s*\d+:[^\s:]*:[^\s:]*/;
+      return shapedTimestamp.test(left) || shapedTimestamp.test(right) ||
+        (hasIndex && /\d+:[^\s:]*:[^\s:]*/.test(left)) ||
+        (hasIndex && index === 1);
+    });
     if (arrowIdx === -1) continue;
 
-    const [startStr, endStr] = rows[arrowIdx].split("-->");
+    const pieces = rows[arrowIdx].split("-->");
+    if (pieces.length !== 2) throw new SrtMalformedCueError(blockIndex + 1);
+    const [startStr, endStr] = pieces;
     const start = parseSrtTime(startStr);
-    if (start === null) continue;
-    const end = parseSrtTime(endStr ?? "");
+    const end = parseSrtTime(endStr);
+    if (start === null || end === null) throw new SrtMalformedCueError(blockIndex + 1);
 
     const text = rows.slice(arrowIdx + 1).join("\n");
-    cues.push({ start, end: end ?? start, text });
+    cues.push({ start, end, text });
   }
 
   cues.sort((a, b) => a.start - b.start);
