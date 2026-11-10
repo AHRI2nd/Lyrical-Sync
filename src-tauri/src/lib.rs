@@ -580,6 +580,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(DownloadState::default())
         .manage(ModelsDirState::default())
+        .manage(ModelUseState::default())
         .manage(AlignmentState::default())
         .manage(YtdlpState::default())
         .manage(lrclib::PublishState::default())

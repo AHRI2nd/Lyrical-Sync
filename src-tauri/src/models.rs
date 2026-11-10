@@ -31,6 +31,87 @@ pub struct ModelsDirState {
     custom_root: Mutex<Option<AuthorizedModelRoot>>,
 }
 
+#[derive(Default)]
+pub struct ModelUseState {
+    active: Arc<Mutex<HashMap<ModelUseKey, ModelUseEntry>>>,
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct ModelUseKey {
+    root: PathBuf,
+    model_id: String,
+}
+
+#[derive(Default)]
+struct ModelUseEntry {
+    users: usize,
+    deleting: bool,
+}
+
+pub struct ModelUseLease {
+    active: Arc<Mutex<HashMap<ModelUseKey, ModelUseEntry>>>,
+    key: ModelUseKey,
+    deleting: bool,
+}
+
+impl ModelUseState {
+    pub fn begin_use(&self, root: &Path, model_id: &str) -> Result<ModelUseLease, String> {
+        let key = ModelUseKey {
+            root: root.to_path_buf(),
+            model_id: model_id.to_owned(),
+        };
+        let mut active = self.active.lock().unwrap_or_else(|error| error.into_inner());
+        let entry = active.entry(key.clone()).or_default();
+        if entry.deleting {
+            return Err("MODEL_OPERATION_IN_PROGRESS".into());
+        }
+        entry.users = entry
+            .users
+            .checked_add(1)
+            .ok_or("MODEL_OPERATION_IN_PROGRESS")?;
+        Ok(ModelUseLease {
+            active: Arc::clone(&self.active),
+            key,
+            deleting: false,
+        })
+    }
+
+    pub fn begin_delete(&self, root: &Path, model_id: &str) -> Result<ModelUseLease, String> {
+        let key = ModelUseKey {
+            root: root.to_path_buf(),
+            model_id: model_id.to_owned(),
+        };
+        let mut active = self.active.lock().unwrap_or_else(|error| error.into_inner());
+        let entry = active.entry(key.clone()).or_default();
+        if entry.deleting || entry.users > 0 {
+            return Err("MODEL_OPERATION_IN_PROGRESS".into());
+        }
+        entry.deleting = true;
+        Ok(ModelUseLease {
+            active: Arc::clone(&self.active),
+            key,
+            deleting: true,
+        })
+    }
+}
+
+impl Drop for ModelUseLease {
+    fn drop(&mut self) {
+        let mut active = self.active.lock().unwrap_or_else(|error| error.into_inner());
+        let Some(entry) = active.get_mut(&self.key) else {
+            return;
+        };
+        if self.deleting {
+            entry.deleting = false;
+        } else {
+            entry.users = entry.users.saturating_sub(1);
+        }
+        if entry.users == 0 && !entry.deleting {
+            active.remove(&self.key);
+        }
+    }
+}
+
 #[derive(Clone)]
 struct AuthorizedModelRoot {
     path: PathBuf,
@@ -656,6 +737,7 @@ pub fn cancel_model_download(
 pub async fn delete_model_files(
     app: AppHandle,
     dir_state: tauri::State<'_, ModelsDirState>,
+    model_use_state: tauri::State<'_, ModelUseState>,
     expected_root: String,
     model_id: String,
 ) -> Result<(), String> {
@@ -664,6 +746,7 @@ pub async fn delete_model_files(
     if !models_root_matches(&base, &expected_root) {
         return Err("Model directory changed before deletion".into());
     }
+    let _deletion = model_use_state.begin_delete(&base, &model_id)?;
     let expected_identity = dir_state
         .custom_root
         .lock()
@@ -680,6 +763,37 @@ pub async fn delete_model_files(
 #[cfg(test)]
 mod integrity_tests {
     use super::*;
+
+    #[test]
+    fn an_active_model_use_prevents_deletion_until_inference_finishes() {
+        let state = ModelUseState::default();
+        let root = Path::new("/tmp/models");
+        let usage = state.begin_use(root, "ctc-mms-300m").unwrap();
+        let second_usage = state.begin_use(root, "ctc-mms-300m").unwrap();
+
+        assert!(state.begin_delete(root, "ctc-mms-300m").is_err());
+        drop(usage);
+        assert!(state.begin_delete(root, "ctc-mms-300m").is_err());
+        drop(second_usage);
+
+        let deletion = state.begin_delete(root, "ctc-mms-300m").unwrap();
+        assert!(state.begin_use(root, "ctc-mms-300m").is_err());
+        drop(deletion);
+
+        assert!(state.begin_use(root, "ctc-mms-300m").is_ok());
+    }
+
+    #[test]
+    fn model_use_leases_are_scoped_by_root_and_model() {
+        let state = ModelUseState::default();
+        let usage = state
+            .begin_use(Path::new("/tmp/models-a"), "ctc-mms-300m")
+            .unwrap();
+
+        assert!(state.begin_delete(Path::new("/tmp/models-b"), "ctc-mms-300m").is_ok());
+        assert!(state.begin_delete(Path::new("/tmp/models-a"), "demucs-htdemucs").is_ok());
+        drop(usage);
+    }
 
     #[test]
     fn hash_future_does_not_embed_a_large_buffer() {

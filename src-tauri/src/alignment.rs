@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, WebviewWindow};
 
 use crate::alignment_process::run_child;
-use crate::models::{models_dir, ModelsDirState};
+use crate::models::{models_dir, ModelUseState, ModelsDirState};
 use crate::python_env::{embedded_python_exe, python_cmd_inference};
 
 // Python scripts embedded at compile time
@@ -134,6 +134,7 @@ pub async fn run_alignment(
     window: WebviewWindow,
     run_id: String,
     dir_state: tauri::State<'_, ModelsDirState>,
+    model_use_state: tauri::State<'_, ModelUseState>,
     al_state: tauri::State<'_, AlignmentState>,
     audio_path: String,
     lines_json: String,
@@ -194,6 +195,7 @@ pub async fn run_alignment(
     // ── Validate model readiness and coordinate lifecycle ─────────────────────
     // Check if required models are available and ready before starting alignment
     let models_dir_path = models_dir(&app, &dir_state)?;
+    let _ctc_model_use = model_use_state.begin_use(&models_dir_path, "ctc-mms-300m")?;
     let manifest: serde_json::Value = serde_json::from_str(crate::python_runtime::MANIFEST)
         .map_err(|e| e.to_string())?;
     
@@ -208,7 +210,15 @@ pub async fn run_alignment(
     
     // Check for Demucs model if separation requested
     let demucs_model = models_dir_path.join("demucs").join("htdemucs.th");
+    let mut _demucs_model_use = if use_separation {
+        Some(model_use_state.begin_use(&models_dir_path, "demucs-htdemucs")?)
+    } else {
+        None
+    };
     let demucs_available = demucs_model.exists();
+    if !demucs_available {
+        _demucs_model_use = None;
+    }
     let use_separation_effective = use_separation && demucs_available;
     if use_separation && !demucs_available {
         let warning_line = serde_json::json!({"status": "warning", "message": "보컬 분리 모델(htdemucs)이 없습니다. 설정 > AI 모델에서 다운로드 후 다시 시도하세요. 원본 오디오로 정렬을 진행합니다.", "percent": 0.0}).to_string();

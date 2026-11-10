@@ -131,3 +131,20 @@ it("binds deletion to the model root shown by the completed inventory", async ()
     modelId: model.id,
   }));
 });
+
+it("keeps a model installed and explains when deletion is rejected during AI use", async () => {
+  const model = MODEL_DEFS[0];
+  invoke.mockImplementation((command: string) => {
+    if (command === "get_models_dir") return Promise.resolve("/models/default");
+    if (command === "check_model_files") return Promise.resolve([true]);
+    if (command === "delete_model_files") return Promise.reject("MODEL_OPERATION_IN_PROGRESS");
+    return Promise.resolve(undefined);
+  });
+  const { findByText } = render(<ModelDownloadSection />);
+  const row = within((await screen.findByText(model.name)).parentElement!.parentElement!);
+  const deleteButton = await row.findByRole("button", { name: useI18nStore.getState().t.modelDelete });
+  deleteButton.click();
+
+  expect(await findByText((content) => content.includes(useI18nStore.getState().t.modelInUse))).toBeTruthy();
+  expect(await row.findByRole("button", { name: useI18nStore.getState().t.modelDelete })).toBeTruthy();
+});

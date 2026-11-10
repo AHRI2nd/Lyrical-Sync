@@ -115,8 +115,14 @@ export function ModelDownloadSection() {
       await invoke("delete_model_files", { modelId: model.id, expectedRoot });
       await refreshInstalled();
     } catch (e) {
+      const error = String(e);
       useModelDownloadStore.setState((state) => ({
-        models: { ...state.models, [model.id]: { status: "error", progress: 0, error: String(e) } },
+        models: {
+          ...state.models,
+          [model.id]: error.includes("MODEL_OPERATION_IN_PROGRESS")
+            ? { status: "installed", progress: 0, error: "MODEL_OPERATION_IN_PROGRESS" }
+            : { status: "error", progress: 0, error },
+        },
       }));
     }
   };
@@ -356,9 +362,11 @@ function ModelRow({
         </div>
       )}
 
-      {status === "error" && error && (
+      {error && (
         <p className="text-xs text-red-400 pl-4">
-          {t.modelErrorPrefix}: {error === "MODEL_DOWNLOAD_LIMIT" ? t.modelDownloadSizeLimit : error}
+          {t.modelErrorPrefix}: {error === "MODEL_DOWNLOAD_LIMIT"
+            ? t.modelDownloadSizeLimit
+            : error === "MODEL_OPERATION_IN_PROGRESS" ? t.modelInUse : error}
         </p>
       )}
     </div>
