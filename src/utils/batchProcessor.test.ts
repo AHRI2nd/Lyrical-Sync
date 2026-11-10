@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { readLyrics } from "./fileAccess";
 import { batchOutputName, preflightBatch, runBatchOperation, type BatchFileEntry } from "./batchProcessor";
 import { SRT_UNREPRESENTABLE_CONTENT_CODE } from "./srtConverter";
-import { VTT_INVALID_SYLLABLE_TIME_CODE, VTT_UNREPRESENTABLE_CONTENT_CODE } from "./exportFormats";
+import { SUBTITLE_TIMESTAMP_UNREPRESENTABLE_CODE, VTT_INVALID_SYLLABLE_TIME_CODE, VTT_UNREPRESENTABLE_CONTENT_CODE } from "./exportFormats";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("./fileAccess", () => ({ readLyrics: vi.fn() }));
@@ -209,6 +209,25 @@ describe("batch output", () => {
 
     expect(summary).toEqual({ done: 0, error: 1, cancelled: 0 });
     expect(status).toHaveBeenCalledWith("invalid-vtt", "error", VTT_INVALID_SYLLABLE_TIME_CODE, { path: "/inputs/song.lrc", bookmark: "fresh" });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+  it("rejects extreme subtitle timestamps before writing a VTT file", async () => {
+    vi.mocked(readLyrics).mockResolvedValueOnce({
+      value: "[999999999999:00.00]large timestamp",
+      file: { path: "/inputs/song.lrc", bookmark: "fresh" },
+    });
+    const status = vi.fn();
+
+    const summary = await runBatchOperation(
+      [entry("/inputs/song.lrc", "extreme-vtt")],
+      { kind: "convert", format: "vtt" },
+      output,
+      status,
+      { concurrency: 1 },
+    );
+
+    expect(summary).toEqual({ done: 0, error: 1, cancelled: 0 });
+    expect(status).toHaveBeenCalledWith("extreme-vtt", "error", SUBTITLE_TIMESTAMP_UNREPRESENTABLE_CODE, { path: "/inputs/song.lrc", bookmark: "fresh" });
     expect(invoke).not.toHaveBeenCalled();
   });
   it("localizes an unrepresentable translated VTT cue and does not write it", async () => {

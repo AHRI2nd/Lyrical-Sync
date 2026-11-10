@@ -7,6 +7,16 @@ interface Cue { start: number; end: number; line: LrcLine; }
 export const ASS_UNREPRESENTABLE_CONTENT_CODE = "ASS_UNREPRESENTABLE_CONTENT";
 export const VTT_UNREPRESENTABLE_CONTENT_CODE = "VTT_UNREPRESENTABLE_CONTENT";
 export const VTT_INVALID_SYLLABLE_TIME_CODE = "VTT_INVALID_SYLLABLE_TIME";
+export const SUBTITLE_TIMESTAMP_UNREPRESENTABLE_CODE = "SUBTITLE_TIMESTAMP_UNREPRESENTABLE";
+
+export class SubtitleTimestampUnrepresentableError extends Error {
+  readonly code = SUBTITLE_TIMESTAMP_UNREPRESENTABLE_CODE;
+
+  constructor() {
+    super("Subtitle timestamps must be finite, non-negative, and representable at the output precision.");
+    this.name = "SubtitleTimestampUnrepresentableError";
+  }
+}
 
 export class VttUnrepresentableContentError extends Error {
   readonly code = VTT_UNREPRESENTABLE_CONTENT_CODE;
@@ -75,7 +85,8 @@ const p3 = (n: number) => String(n).padStart(3, "0");
 
 // WebVTT 시간: HH:MM:SS.mmm
 function vttTime(seconds: number): string {
-  const ms = Math.max(0, Math.round(seconds * 1000));
+  const ms = Math.round(seconds * 1000);
+  if (!Number.isFinite(seconds) || seconds < 0 || !Number.isSafeInteger(ms)) throw new SubtitleTimestampUnrepresentableError();
   return `${p2(Math.floor(ms / 3600000))}:${p2(Math.floor(ms / 60000) % 60)}:${p2(Math.floor(ms / 1000) % 60)}.${p3(ms % 1000)}`;
 }
 
@@ -128,7 +139,8 @@ export function serializeVtt(doc: LrcDocument, lastCueEnd?: number): string {
 
 // ASS 시간: H:MM:SS.cc (센티초)
 function assTime(seconds: number): string {
-  const cs = Math.max(0, Math.round(seconds * 100));
+  const cs = Math.round(seconds * 100);
+  if (!Number.isFinite(seconds) || seconds < 0 || !Number.isSafeInteger(cs)) throw new SubtitleTimestampUnrepresentableError();
   return `${Math.floor(cs / 360000)}:${p2(Math.floor(cs / 6000) % 60)}:${p2(Math.floor(cs / 100) % 60)}.${p2(cs % 100)}`;
 }
 

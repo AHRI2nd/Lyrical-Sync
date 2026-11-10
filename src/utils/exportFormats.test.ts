@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { escapeVttText, serializeVtt, serializeAss } from "./exportFormats";
+import { escapeVttText, serializeVtt, serializeAss, SubtitleTimestampUnrepresentableError } from "./exportFormats";
 import type { LrcDocument } from "../types/lrc";
 
 const emptyMeta = { title: "Song", artist: "", album: "", by: "", offset: 0 };
@@ -31,6 +31,14 @@ describe("serializeVtt", () => {
     expect(out.startsWith("WEBVTT")).toBe(true);
     expect(out).toContain("00:00:01.000 --> 00:00:03.000\nfirst");
     expect(out).toContain("00:00:03.000 --> 00:00:10.000\nsecond"); // last uses lastCueEnd
+  });
+
+  it.each([-0.001, Number.MAX_VALUE])("rejects an unrepresentable cue timestamp %s", (timestamp) => {
+    expect(() => serializeVtt(docOf([{ id: "bad", timestamp, text: "bad" }]))).toThrow(SubtitleTimestampUnrepresentableError);
+  });
+
+  it("preserves valid millisecond boundaries", () => {
+    expect(serializeVtt(docOf([{ id: "edge", timestamp: 1.2345, text: "edge" }]))).toContain("00:00:01.235 --> 00:00:05.235");
   });
 
   it("emits inline timestamps for glyph-synced lines", () => {
@@ -79,6 +87,14 @@ describe("serializeVtt", () => {
 });
 
 describe("serializeAss", () => {
+  it.each([-0.001, Number.MAX_VALUE])("rejects an unrepresentable cue timestamp %s", (timestamp) => {
+    expect(() => serializeAss(docOf([{ id: "bad", timestamp, text: "bad" }]))).toThrow(SubtitleTimestampUnrepresentableError);
+  });
+
+  it("preserves valid centisecond boundaries", () => {
+    expect(serializeAss(docOf([{ id: "edge", timestamp: 1.2345, text: "edge" }]))).toContain("0:00:01.23,0:00:05.23");
+  });
+
   it("includes header sections and a Dialogue per cue", () => {
     const out = serializeAss(docOf([
       { id: "1", timestamp: 1, text: "first" },

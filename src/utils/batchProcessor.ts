@@ -5,7 +5,7 @@ import { readLyrics, type FileRef } from "./fileAccess";
 import { enqueuePathWrite } from "./pathWriteQueue";
 import { parseLrc, serializeLrc } from "./lrcParser";
 import { parseSrt, serializeSrt, SrtUnrepresentableContentError } from "./srtConverter";
-import { AssUnrepresentableContentError, VttInvalidSyllableTimeError, VttUnrepresentableContentError, serializeVtt, serializeAss } from "./exportFormats";
+import { AssUnrepresentableContentError, SubtitleTimestampUnrepresentableError, VttInvalidSyllableTimeError, VttUnrepresentableContentError, serializeVtt, serializeAss } from "./exportFormats";
 
 export interface BatchFileEntry {
   id: string;
@@ -120,7 +120,7 @@ export async function runBatchOperation(
         onStatus(task.entry.id, "done", undefined, refreshed);
       } catch (error) {
         summary.error++;
-        const message = error instanceof SrtUnrepresentableContentError || error instanceof VttUnrepresentableContentError || error instanceof VttInvalidSyllableTimeError || error instanceof AssUnrepresentableContentError
+        const message = error instanceof SrtUnrepresentableContentError || error instanceof VttUnrepresentableContentError || error instanceof VttInvalidSyllableTimeError || error instanceof AssUnrepresentableContentError || error instanceof SubtitleTimestampUnrepresentableError
           ? error.code
           : error instanceof Error ? error.message : String(error);
         onStatus(task.entry.id, "error", message, refreshed);
