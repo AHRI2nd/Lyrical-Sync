@@ -1,12 +1,15 @@
-import { useEffect, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "../../stores/useToastStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { normalizeKeybindings, keyLabel } from "../../utils/keybindings";
+import { useModalFocus } from "../../hooks/useModalFocus";
 
 export function HelpModal({ onClose }: { onClose: () => void }) {
   const { t, lang } = useI18nStore();
+  const dialog = useRef<HTMLDivElement>(null);
+  const titleId = useId();
   const [notices, setNotices] = useState<string | null>(null);
   const [loadingNotices, setLoadingNotices] = useState(false);
   const kb = normalizeKeybindings(useSettingsStore((s) => s.keybindings));
@@ -57,13 +60,7 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
     },
   ];
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { if (notices !== null) setNotices(null); else onClose(); }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose, notices]);
+  useModalFocus(dialog, () => { if (notices !== null) setNotices(null); else onClose(); }, true, 60);
 
   return (
     <div
@@ -71,14 +68,20 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
+        ref={dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[calc(100%-2rem)] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)] shrink-0">
-          <span className="font-semibold text-[var(--ls-text)]">{t.helpTitle}</span>
+          <span id={titleId} className="font-semibold text-[var(--ls-text)]">{t.helpTitle}</span>
           <button
             onClick={onClose}
+            aria-label={t.close}
             className="ls-button hover:text-white transition-colors text-lg leading-none"
           >
             ✕

@@ -116,10 +116,10 @@ it("ignores composition Enter and Escape while editing timestamps", () => {
 it("does not close the preview on composition Escape", () => {
   const close = vi.fn();
   render(<PreviewModal onClose={close} />);
-  fireEvent.keyDown(window, { key: "Escape", isComposing: true });
-  fireEvent.keyDown(window, { key: "Escape", keyCode: 229 });
+  fireEvent.keyDown(document.activeElement!, { key: "Escape", isComposing: true });
+  fireEvent.keyDown(document.activeElement!, { key: "Escape", keyCode: 229 });
   expect(close).not.toHaveBeenCalled();
-  fireEvent.keyDown(window, { key: "Escape" });
+  fireEvent.keyDown(document.activeElement!, { key: "Escape" });
   expect(close).toHaveBeenCalledTimes(1);
 });
 
@@ -200,4 +200,15 @@ it("makes timestamped lyric rows keyboard-seekable while keeping untimed rows ou
 
   expect(audioControls.seekTo).toHaveBeenCalledWith(3);
   expect(audioControls.togglePlay).toHaveBeenCalledOnce();
+});
+
+it("owns preview focus and leaves composing Escape to the text input method", () => {
+  const onClose = vi.fn();
+  const { getByRole } = render(<PreviewModal onClose={onClose} />);
+  const dialog = getByRole("dialog", { name: "song" });
+  expect(dialog.contains(document.activeElement)).toBe(true);
+  fireEvent.keyDown(document.activeElement!, { key: "Escape", isComposing: true });
+  expect(onClose).not.toHaveBeenCalled();
+  fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+  expect(onClose).toHaveBeenCalledOnce();
 });

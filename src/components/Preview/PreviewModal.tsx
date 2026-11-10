@@ -1,5 +1,5 @@
 import { isComposingKeyEvent } from "../../utils/keybindings";
-import { useEffect, useRef, useMemo, useCallback, useState } from "react";
+import { useEffect, useId, useRef, useMemo, useCallback, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -7,6 +7,7 @@ import { useI18nStore } from "../../stores/useI18nStore";
 import { audioControls } from "../../utils/audioControls";
 import { formatDisplayTime, parseTimestampInput, isStampable } from "../../utils/lrcParser";
 import type { LrcSyllable } from "../../types/lrc";
+import { useModalFocus } from "../../hooks/useModalFocus";
 
 export function PreviewModal({ onClose }: { onClose: () => void }) {
   const documentSession = useLrcStore((s) => s._documentSession);
@@ -19,6 +20,8 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
     previewFontScale: s.previewFontScale, previewActiveColor: s.previewActiveColor,
     previewAccentColor: s.previewAccentColor, previewGlowEnabled: s.previewGlowEnabled,
   })));
+  const dialog = useRef<HTMLDivElement>(null);
+  const dialogTitleId = useId();
   const activeLineRef = useRef<HTMLDivElement>(null);
   const controls = audioControls;
   const playbackTime = currentTime;
@@ -35,6 +38,14 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
   const [editValue, setEditValue] = useState("");
   const editInputRef = useRef<HTMLInputElement>(null);
   const editOwnerRef = useRef<{ session: number; timestamp: number | null } | null>(null);
+  useModalFocus(dialog, () => {
+    if (editingId) {
+      editOwnerRef.current = null;
+      setEditingId(null);
+    } else {
+      onClose();
+    }
+  }, true, 60);
 
   useEffect(() => {
     if (editOwnerRef.current && editOwnerRef.current.session !== documentSession) {
@@ -86,23 +97,6 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     if (editingId) editInputRef.current?.focus();
   }, [editingId]);
-
-  // ESC: 편집 중이면 편집 취소, 아니면 모달 닫기
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (isComposingKeyEvent(e)) return;
-      if (e.key === "Escape") {
-        if (editingId) {
-          editOwnerRef.current = null;
-          setEditingId(null);
-        } else {
-          onClose();
-        }
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose, editingId]);
 
   const togglePlay = useCallback(() => controls.togglePlay(), [controls]);
   const skip = useCallback((d: number) => controls.skip(d), [controls]);
@@ -242,7 +236,7 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
   }, [controls, playbackDuration]);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[var(--ls-canvas)]">
+    <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby={dialogTitleId} tabIndex={-1} className="fixed inset-0 z-50 flex flex-col bg-[var(--ls-canvas)]">
       {/* 진행 상태바 */}
       <div
         role="slider"
@@ -269,7 +263,7 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
       {/* 상단 바 */}
       <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-[var(--ls-border-subtle)]/60">
         <div className="flex flex-col gap-0.5 min-w-0">
-          <span className="text-white font-semibold text-base truncate leading-tight">
+          <span id={dialogTitleId} className="text-white font-semibold text-base truncate leading-tight">
             {doc.metadata.title || t.previewUntitled}
           </span>
           {doc.metadata.artist && (

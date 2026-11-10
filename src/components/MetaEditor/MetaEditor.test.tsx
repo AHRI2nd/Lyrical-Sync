@@ -11,13 +11,16 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 it("keeps metadata and local raw lyrics editing available without online lookup", () => {
   const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
   useLrcStore.setState({ doc: defaultDocument(), isDirty: false, _history: [], _future: [] });
-  const { container, getByTitle, getAllByRole, getByLabelText } = render(<MetaEditor />);
+  const { container, getByTitle, getAllByRole, getByLabelText, getByRole } = render(<MetaEditor />);
   expect(container.textContent).not.toContain("LRCLIB");
   fireEvent.change(getAllByRole("textbox")[0], { target: { value: "Local song" } });
   expect(useLrcStore.getState().doc.metadata.title).toBe("Local song");
   expect(() => getByLabelText(useI18nStore.getState().t.metaTitle.label)).not.toThrow();
   fireEvent.click(getByTitle(useI18nStore.getState().t.viewAll));
   expect(container.querySelector("textarea")?.value).toContain("Local song");
+  const dialog = getByRole("dialog", { name: useI18nStore.getState().t.rawEditorTitle });
+  expect(dialog.contains(document.activeElement)).toBe(true);
+  expect(getByRole("textbox", { name: useI18nStore.getState().t.rawEditorTitle })).toBeTruthy();
   expect(fetch).not.toHaveBeenCalled();
 });
 
@@ -70,6 +73,6 @@ it.each([{ isComposing: true }, { keyCode: 229 }])("keeps the raw editor open wh
   useLrcStore.setState({ doc: defaultDocument(), _history: [], _future: [] });
   const { container, getByTitle } = render(<MetaEditor />);
   fireEvent.click(getByTitle(useI18nStore.getState().t.viewAll));
-  fireEvent.keyDown(window, { key: "Escape", ...composition });
+  fireEvent.keyDown(container.querySelector("textarea")!, { key: "Escape", ...composition });
   expect(container.querySelector("textarea")).not.toBeNull();
 });

@@ -22,6 +22,16 @@ beforeEach(() => {
   vi.mocked(runBatchOperation).mockResolvedValue({ done: 1, error: 0, cancelled: 0 });
 });
 afterEach(cleanup);
+it("owns batch dialog focus and ignores composing Escape", () => {
+  const onClose = vi.fn();
+  render(<BatchToolModal t={t} onClose={onClose} />);
+  const dialog = screen.getByRole("dialog", { name: t.batchTitle });
+  expect(dialog.contains(document.activeElement)).toBe(true);
+  fireEvent.keyDown(document.activeElement!, { key: "Escape", isComposing: true });
+  expect(onClose).not.toHaveBeenCalled();
+  fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+  expect(onClose).toHaveBeenCalledOnce();
+});
 async function selectInputsAndOutput() {
   vi.mocked(open).mockResolvedValueOnce(["/inputs/song.lrc"]);
   fireEvent.click(screen.getByRole("button", { name: "Select files" }));
@@ -130,13 +140,13 @@ it("blocks closing and duplicate dialogs until file selection settles", async ()
   const close = vi.fn();
   render(<BatchToolModal t={t} onClose={close} />);
   fireEvent.click(screen.getByRole("button", { name: "Select files" }));
-  fireEvent.keyDown(window, { key: "Escape" });
+  fireEvent.keyDown(document.activeElement!, { key: "Escape" });
   fireEvent.click(screen.getByRole("button", { name: "Output folder" }));
   expect(close).not.toHaveBeenCalled();
   expect(open).toHaveBeenCalledTimes(1);
   await act(async () => { finish(["/inputs/song.lrc"]); });
   expect(await screen.findByText("song.lrc")).toBeDefined();
-  fireEvent.keyDown(window, { key: "Escape" });
+  fireEvent.keyDown(document.activeElement!, { key: "Escape" });
   expect(close).toHaveBeenCalledTimes(1);
 });
 

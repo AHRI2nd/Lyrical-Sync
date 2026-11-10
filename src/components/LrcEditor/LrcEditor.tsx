@@ -16,6 +16,7 @@ import { ScaleBar } from "./ScaleBar";
 import { isComposingKeyEvent } from "../../utils/keybindings";
 import { LrcLineRowImpl as LrcLineRow } from "./LrcLineRow";
 import { BulkActionsBar } from "./BulkActionsBar";
+import { useModalFocus } from "../../hooks/useModalFocus";
 // 글자 동기화 뷰·자동 스팟팅 모달은 각각 모드 전환/버튼 클릭 시에만 필요 → 지연 로드
 const CharSyncView = lazy(() => import("./CharSyncView").then((m) => ({ default: m.CharSyncView })));
 const BpmSnapModal = lazy(() => import("../AudioPlayer/BpmSnapModal").then((m) => ({ default: m.BpmSnapModal })));
@@ -108,6 +109,8 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     id: string; caret: number; session: number; text: string; translation: string;
     syllables: LrcSyllable[] | undefined; first: string; second: string;
   } | null>(null);
+  const translationSplitDialog = useRef<HTMLDivElement>(null);
+  useModalFocus(translationSplitDialog, () => setPendingSplit(null), !!pendingSplit, 90);
   useEffect(() => {
     setSelection({ session: documentSession, ids: new Set() });
     selAnchorRef.current = null;
@@ -120,14 +123,6 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     setPendingUnit(null);
     setPendingSplit(null);
   }, [documentSession]);
-  useEffect(() => {
-    if (!pendingSplit) return;
-    const cancel = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !isComposingKeyEvent(event)) setPendingSplit(null);
-    };
-    window.addEventListener("keydown", cancel);
-    return () => window.removeEventListener("keydown", cancel);
-  }, [pendingSplit]);
   const applyTranslationSplit = () => {
     if (!pendingSplit) return;
     const current = useLrcStore.getState();
@@ -753,7 +748,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
       {pendingSplit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setPendingSplit(null)}>
-          <div role="dialog" aria-modal="true" aria-label={t.translationSplitTitle}
+          <div ref={translationSplitDialog} role="dialog" aria-modal="true" aria-label={t.translationSplitTitle} tabIndex={-1}
             className="w-full max-w-md mx-4 p-5 rounded-xl border border-[var(--ls-border-subtle)] bg-[var(--ls-surface)] flex flex-col gap-3"
             onClick={(e) => e.stopPropagation()}>
             <h3 className="font-semibold text-white">{t.translationSplitTitle}</h3>

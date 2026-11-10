@@ -1,13 +1,41 @@
 // @vitest-environment jsdom
+import { useState } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 import { invoke } from "@tauri-apps/api/core";
 import { HelpModal } from "./HelpModal";
+import { SettingsModal } from "../Settings/SettingsModal";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { translations } from "../../i18n/translations";
 import { useToastStore } from "../../stores/useToastStore";
 afterEach(() => { cleanup(); vi.resetAllMocks(); useToastStore.setState({ toasts: [] }); });
+it("owns Help focus and ignores composing Escape", () => {
+  const close = vi.fn();
+  const t = useI18nStore.getState().t;
+  render(<HelpModal onClose={close} />);
+  const dialog = screen.getByRole("dialog", { name: t.helpTitle });
+  expect(dialog.contains(document.activeElement)).toBe(true);
+  fireEvent.keyDown(document.activeElement!, { key: "Escape", isComposing: true });
+  expect(close).not.toHaveBeenCalled();
+  fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+  expect(close).toHaveBeenCalledOnce();
+});
+it("gives Help focus above an already-open Settings dialog and restores Settings afterward", () => {
+  const settingsClose = vi.fn();
+  function Harness() {
+    const [helpOpen, setHelpOpen] = useState(true);
+    return <><SettingsModal onClose={settingsClose} />{helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}</>;
+  }
+  render(<Harness />);
+  const help = screen.getByRole("dialog", { name: useI18nStore.getState().t.helpTitle });
+  const settings = screen.getByRole("dialog", { name: useI18nStore.getState().t.settingsTitle });
+  expect(help.contains(document.activeElement)).toBe(true);
+  fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+  expect(screen.queryByRole("dialog", { name: useI18nStore.getState().t.helpTitle })).toBeNull();
+  expect(settingsClose).not.toHaveBeenCalled();
+  expect(settings.contains(document.activeElement)).toBe(true);
+});
 it.each(["ko", "en", "ja"] as const)("opens the %s policy through the native browser command", async lang => {
   useI18nStore.setState({ lang, t: translations[lang] });
   vi.mocked(invoke).mockResolvedValue(undefined);

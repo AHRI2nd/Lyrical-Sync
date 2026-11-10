@@ -8,7 +8,7 @@ vi.mock("../../stores/useI18nStore", () => ({ useI18nStore: () => ({ t: {
   bpmTitle: "Beat grid", bpmDetecting: "Detecting", bpmHint: "Check the estimate", bpmDetectFailed: "No tempo found",
   bpmDecodeError: "Decode failed", bpmLabel: "Tempo", bpmOffset: "Offset", bpmTapTempo: "Tap tempo",
   bpmScopeSelected: "Selected", bpmScopeAll: "All", bpmConfidence: "Confidence", bpmAppliedAll: "Applied all",
-  bpmAppliedCount: "applied", bpmManualHint: "Without audio, enter a BPM or use Tap Tempo", cancelLabel: "Cancel", applyLabel: "Apply",
+  bpmAppliedCount: "applied", bpmManualHint: "Without audio, enter a BPM or use Tap Tempo", cancelLabel: "Cancel", applyLabel: "Apply", close: "Close",
 } }) }));
 import { decodeAudioSamples } from "../../utils/decodeAudioSamples";
 import { useLrcStore } from "../../stores/useLrcStore";
@@ -80,7 +80,12 @@ it("cancels a pending decode when dismissed", async () => {
   const onClose = vi.fn();
   render(<BpmSnapModal onClose={onClose} selectedIds={[]} />);
   const signal = vi.mocked(decodeAudioSamples).mock.calls[0][2];
-  fireEvent.keyDown(window, { key: "Escape" });
+  const dialog = screen.getByRole("dialog", { name: "Beat grid" });
+  expect(dialog.contains(document.activeElement)).toBe(true);
+  fireEvent.keyDown(document.activeElement!, { key: "Escape", isComposing: true });
+  expect(signal?.aborted).toBe(false);
+  expect(onClose).not.toHaveBeenCalled();
+  fireEvent.keyDown(document.activeElement!, { key: "Escape" });
   expect(signal?.aborted).toBe(true);
   expect(onClose).toHaveBeenCalledOnce();
 });

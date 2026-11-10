@@ -4,7 +4,7 @@ import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { serializeLrc } from "../../utils/lrcParser";
-import { isComposingKeyEvent } from "../../utils/keybindings";
+import { useModalFocus } from "../../hooks/useModalFocus";
 
 export function MetaEditor() {
   // currentTime 등에 리렌더되지 않도록 필요한 필드만 구독
@@ -151,20 +151,14 @@ function RawEditorModal({
   const { t } = useI18nStore();
   const [value, setValue] = useState(initialValue);
   const [stale, setStale] = useState(false);
+  const dialog = useRef<HTMLDivElement>(null);
+  const titleId = useId();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  useModalFocus(dialog, onClose, true, 80);
 
   useEffect(() => {
     textareaRef.current?.focus();
   }, []);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (isComposingKeyEvent(e)) return;
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
 
   return (
     <div
@@ -172,12 +166,17 @@ function RawEditorModal({
       onClick={onClose}
     >
       <div
+        ref={dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl flex flex-col w-full max-w-2xl mx-4"
         style={{ height: "70%", maxHeight: "calc(100% - 2rem)" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)] shrink-0">
-          <span className="font-semibold text-[var(--ls-text)]">{t.rawEditorTitle}</span>
+          <span id={titleId} className="font-semibold text-[var(--ls-text)]">{t.rawEditorTitle}</span>
           <button
             onClick={onClose}
             aria-label={t.close}
@@ -189,6 +188,7 @@ function RawEditorModal({
 
         <textarea
           ref={textareaRef}
+          aria-label={t.rawEditorTitle}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           spellCheck={false}

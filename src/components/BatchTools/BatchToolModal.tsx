@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import type { Translations } from "../../i18n/translations";
@@ -6,6 +6,7 @@ import type { FileRef } from "../../utils/fileAccess";
 import { runBatchOperation, type BatchFileEntry, type BatchOperation, type BatchSummary } from "../../utils/batchProcessor";
 import { BatchFileList } from "./BatchFileList";
 import { BatchOperationPicker } from "./BatchOperationPicker";
+import { useModalFocus } from "../../hooks/useModalFocus";
 
 export function BatchToolModal({ t, onClose }: { t: Translations; onClose: () => void }) {
   const [entries, setEntries] = useState<BatchFileEntry[]>([]);
@@ -17,6 +18,8 @@ export function BatchToolModal({ t, onClose }: { t: Translations; onClose: () =>
   const [summary, setSummary] = useState<BatchSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const mounted = useRef(true);
+  const dialog = useRef<HTMLDivElement>(null);
+  const titleId = useId();
   const selectingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const busy = running || selecting;
@@ -25,15 +28,8 @@ export function BatchToolModal({ t, onClose }: { t: Translations; onClose: () =>
     mounted.current = true;
     return () => { mounted.current = false; abortRef.current?.abort(); };
   }, []);
-  useEffect(() => {
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !abortRef.current && !selectingRef.current) onClose();
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [onClose]);
-
   const close = () => { if (!abortRef.current && !selectingRef.current) onClose(); };
+  useModalFocus(dialog, close, true, 60);
   const select = async (folder: boolean) => {
     if (abortRef.current || selectingRef.current) return;
     selectingRef.current = true;
@@ -93,9 +89,9 @@ export function BatchToolModal({ t, onClose }: { t: Translations; onClose: () =>
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={close}>
-      <div role="dialog" aria-modal="true" aria-label={t.batchTitle} className="mx-4 flex max-h-[calc(100%-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-[var(--ls-border-subtle)] bg-[var(--ls-surface)] shadow-2xl" onClick={(event) => event.stopPropagation()}>
+      <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className="mx-4 flex max-h-[calc(100%-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-[var(--ls-border-subtle)] bg-[var(--ls-surface)] shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-[var(--ls-border-subtle)] px-5 py-3">
-          <h2 className="text-sm font-semibold text-[var(--ls-text)]">{t.batchTitle}</h2>
+          <h2 id={titleId} className="text-sm font-semibold text-[var(--ls-text)]">{t.batchTitle}</h2>
           <button type="button" aria-label={t.confirmNewCancel} disabled={busy} onClick={close} className="ls-button hover:text-white disabled:opacity-40">✕</button>
         </div>
         <div className="flex flex-col gap-4 overflow-y-auto p-5">

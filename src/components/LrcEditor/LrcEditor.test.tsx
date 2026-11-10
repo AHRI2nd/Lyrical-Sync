@@ -268,6 +268,18 @@ it("cancels a pending translation split when its document is replaced", () => {
   expect(queryByRole("dialog", { name: t.translationSplitTitle })).toBeNull();
   expect(useLrcStore.getState().doc.lines).toEqual([]);
 });
+it("keeps translation splitting in a focused dialog and ignores composing Escape", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "original", translation: "translated", timestamp: 1 }] } });
+  const { getByDisplayValue, getByRole, queryByRole } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.keyDown(getByDisplayValue("original"), { key: "Enter", shiftKey: true });
+  const dialog = getByRole("dialog", { name: t.translationSplitTitle });
+  expect(dialog.contains(document.activeElement)).toBe(true);
+  fireEvent.keyDown(document.activeElement!, { key: "Escape", isComposing: true });
+  expect(queryByRole("dialog", { name: t.translationSplitTitle })).toBeTruthy();
+  fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+  expect(queryByRole("dialog", { name: t.translationSplitTitle })).toBeNull();
+});
 it("keeps ordinary Enter available for multiline cue editing instead of inserting a lyric row", () => {
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "first\nsecond", timestamp: 1 }] } });
   const { getByRole } = render(<LrcEditor onPreview={() => {}} />);

@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { useModalFocus } from "../../hooks/useModalFocus";
+import { isComposingKeyEvent } from "../../utils/keybindings";
 
 export function ELrcNoticeModal({
   onConfirm, onCancel,
@@ -8,16 +10,10 @@ export function ELrcNoticeModal({
   onCancel: () => void;
 }) {
   const { t } = useI18nStore();
+  const dialog = useRef<HTMLDivElement>(null);
+  const titleId = useId();
   const [dontShowAgain, setDontShowAgain] = useState(false);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
-      else if (e.key === "Enter") onConfirm(dontShowAgain);
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onCancel, onConfirm, dontShowAgain]);
+  useModalFocus(dialog, onCancel, true, 60);
 
   return (
     <div
@@ -25,11 +21,21 @@ export function ELrcNoticeModal({
       onClick={onCancel}
     >
       <div
+        ref={dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if (isComposingKeyEvent(e.nativeEvent) || e.key !== "Enter" || e.target instanceof HTMLButtonElement) return;
+          e.preventDefault();
+          onConfirm(dontShowAgain);
+        }}
       >
         <div className="px-5 py-4 border-b border-[var(--ls-border-subtle)]">
-          <span className="font-semibold text-[var(--ls-text)]">{t.elrcNotice.title}</span>
+          <span id={titleId} className="font-semibold text-[var(--ls-text)]">{t.elrcNotice.title}</span>
         </div>
         <div className="px-5 py-4">
           <p className="text-sm text-[var(--ls-text-secondary)] leading-relaxed">{t.elrcNotice.message}</p>
