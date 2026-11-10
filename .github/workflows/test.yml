@@ -48,6 +48,8 @@ jobs:
       - run: python scripts/test_ai_sidecars.py
       - run: python scripts/test_alignment_stdin.py
       - run: python scripts/test_ai_profiles.py
+      - run: python scripts/test_ai_common_wheel.py
+      - run: python scripts/test_ai_profile_locks.py
       - run: python scripts/test_python_runtime.py
       - run: python scripts/test_build_windows_arm64_ai.py
       - run: python scripts/test_arm_ai_artifacts.py
@@ -56,6 +58,9 @@ jobs:
       - run: python scripts/test_minisign_verifier.py
       - run: python scripts/audit_ai_dependencies.py --requirements src-tauri/requirements-ai.txt
       - run: python scripts/audit_ai_dependencies.py --requirements src-tauri/requirements-ai-windows-arm64.txt
+      - run: python scripts/audit_ai_dependencies.py --locked-requirements src-tauri/requirements-lock/macos-arm64.txt --source-requirements src-tauri/requirements-ai.txt --extra-package ctc-forced-aligner==1.0.2
+      - run: python scripts/audit_ai_dependencies.py --locked-requirements src-tauri/requirements-lock/windows-x64.txt --source-requirements src-tauri/requirements-ai.txt --extra-package ctc-forced-aligner==1.0.2
+      - run: python scripts/audit_ai_dependencies.py --locked-requirements src-tauri/requirements-lock/windows-arm64.txt --source-requirements src-tauri/requirements-ai-windows-arm64.txt
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
       - run: python scripts/test_updater_security.py
       - run: python scripts/test_release_manifest.py

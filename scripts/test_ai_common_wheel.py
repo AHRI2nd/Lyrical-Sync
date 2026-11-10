@@ -30,12 +30,12 @@ class CommonAIWheelTests(unittest.TestCase):
         self.assertIn("Version: 4.0.1\n", metadata)
         self.assertEqual(tags, ["py3-none-any"])
 
-    def test_runtime_stages_the_verified_wheel_for_every_platform_resolution(self):
+    def test_runtime_stages_the_verified_wheel_for_every_platform_install(self):
         source = (ROOT / "src-tauri/src/python_env.rs").read_text(encoding="utf-8")
         installer = source[source.index("async fn install_python_packages_unlocked"):]
         self.assertIn("stage_common_ai_wheels", installer)
-        self.assertIn('resolution.args(["--find-links"]).arg(&wheels);', installer)
         self.assertIn('packages.args(["--find-links"]).arg(&wheels);', installer)
+        self.assertIn('"--require-hashes"', installer)
 
 
 if __name__ == "__main__":

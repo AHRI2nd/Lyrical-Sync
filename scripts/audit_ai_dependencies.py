@@ -69,6 +69,35 @@ def render_hashed_requirements(packages):
     return ''.join(f'{name}=={version} --hash=sha256:{digest}\n' for name, version, digest in packages)
 
 
+def parse_hashed_requirements(source):
+    packages = []
+    names = set()
+    pattern = re.compile(r'([A-Za-z0-9_.-]+)==([A-Za-z0-9_.+!-]+)\s+--hash=sha256:([0-9a-fA-F]{64})')
+    for line in source.splitlines():
+        line = line.strip()
+        if not line or line.startswith('#'):
+            continue
+        match = pattern.fullmatch(line)
+        if not match:
+            raise ValueError('AI lock entries must pin one exact version and SHA-256 hash')
+        name, version, digest = match.groups()
+        key = normalize_name(name)
+        if key in names:
+            raise ValueError(f'duplicate package in AI lock: {name}')
+        names.add(key)
+        packages.append((name, version, digest.lower()))
+    if not packages:
+        raise ValueError('No locked AI packages to audit')
+    return packages
+
+
+def require_direct_requirements(lock_packages, requirements):
+    resolved = {(normalize_name(name), version) for name, version, _ in lock_packages}
+    missing = [(name, version) for name, version in requirements if (normalize_name(name), version) not in resolved]
+    if missing:
+        raise ValueError('AI lock omitted direct requirements: ' + ', '.join(f'{name}=={version}' for name, version in missing))
+
+
 def atomic_write(path, content):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -121,33 +150,42 @@ def main():
     group.add_argument('--requirements', type=Path)
     group.add_argument('--installed', action='store_true')
     group.add_argument('--report', type=Path)
+    group.add_argument('--locked-requirements', type=Path)
     parser.add_argument('--source-requirements', type=Path)
     parser.add_argument('--extra-package', action='append', default=[])
     parser.add_argument('--lock-output', type=Path)
     args = parser.parse_args()
     if args.requirements:
+        if args.source_requirements or args.extra_package or args.lock_output:
+            raise ValueError('Report/lock options require --report or --locked-requirements')
         packages = parse_requirements(args.requirements.read_text(encoding="utf-8"))
         lock_packages = None
+    elif args.locked_requirements:
+        if not args.source_requirements or args.lock_output:
+            raise ValueError('Static lock audit requires --source-requirements and forbids --lock-output')
+        lock_packages = parse_hashed_requirements(args.locked_requirements.read_text(encoding='utf-8'))
+        direct = parse_requirements(args.source_requirements.read_text(encoding='utf-8'))
+        require_direct_requirements(lock_packages, direct)
+        packages = [(name, version) for name, version, _ in lock_packages]
+        for requirement in args.extra_package:
+            packages.extend(parse_requirements(requirement))
     elif args.report:
         if not args.source_requirements or not args.lock_output:
             raise ValueError('Pip report audit requires --source-requirements and --lock-output')
         report = json.loads(args.report.read_text(encoding='utf-8'))
         lock_packages = parse_install_report(report)
         direct = parse_requirements(args.source_requirements.read_text(encoding='utf-8'))
-        resolved = {(normalize_name(name), version) for name, version, _ in lock_packages}
-        missing = [(name, version) for name, version in direct if (normalize_name(name), version) not in resolved]
-        if missing:
-            raise ValueError('Pip report omitted direct requirements: ' + ', '.join(f'{name}=={version}' for name, version in missing))
+        require_direct_requirements(lock_packages, direct)
         packages = [(name, version) for name, version, _ in lock_packages]
         for requirement in args.extra_package:
             packages.extend(parse_requirements(requirement))
     else:
         if args.source_requirements or args.extra_package or args.lock_output:
-            raise ValueError('Report-only options require --report')
+            raise ValueError('Report/lock options require --report or --locked-requirements')
         packages = sorted({(d.metadata['Name'], d.version) for d in importlib.metadata.distributions()})
         lock_packages = None
     result = audit_packages(packages)
-    if lock_packages is not None:
+    if args.report and lock_packages is not None:
         atomic_write(args.lock_output, render_hashed_requirements(lock_packages))
     print(json.dumps(result))
 

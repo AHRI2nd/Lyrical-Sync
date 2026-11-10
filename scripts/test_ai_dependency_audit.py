@@ -12,23 +12,57 @@ spec.loader.exec_module(audit)
 
 
 class AuditTests(unittest.TestCase):
-    def test_native_installer_audits_the_wheel_report_before_hash_locked_install(self):
+    def test_native_installer_audits_the_selected_static_lock_before_hash_locked_install(self):
         source = (ROOT / 'src-tauri/src/python_env.rs').read_text(encoding='utf-8')
         start = source.index('async fn install_python_packages_unlocked')
         end = source.index('\n#[cfg(test)]', start)
         flow = source[start:end]
-        resolve = flow.index('let mut resolution =')
-        audit = flow.index('let mut audit_command =')
+        audit = flow.index('--locked-requirements')
         audit_gate = flow.index('install_step(&app, &mut audit_command).await?;')
         install = flow.index('"--require-hashes"')
         pip_check = flow.index('"check"')
         package_probe = flow.index('probe(&python, PACKAGE_PROBE)')
-        self.assertLess(resolve, audit)
         self.assertLess(audit, audit_gate)
         self.assertLess(audit_gate, install)
         self.assertLess(install, pip_check)
         self.assertLess(pip_check, package_probe)
-        self.assertIn('"--only-binary=:all:"', flow[:audit])
+        self.assertNotIn('"--dry-run"', flow)
+        self.assertNotIn('"--report"', flow)
+        self.assertIn('"--only-binary=:all:"', flow)
+
+    def test_hashed_lock_parser_requires_one_exact_version_and_sha256_per_package(self):
+        parsed = audit.parse_hashed_requirements(
+            'numpy==2.5.4 --hash=sha256:' + 'a' * 64 + '\n'
+            'torch==2.14.1+cpu --hash=sha256:' + 'b' * 64 + '\n'
+        )
+        self.assertEqual(parsed, [('numpy', '2.5.4', 'a' * 64), ('torch', '2.14.1+cpu', 'b' * 64)])
+        with self.assertRaisesRegex(ValueError, 'SHA-256'):
+            audit.parse_hashed_requirements('numpy==2.5.4\n')
+        with self.assertRaisesRegex(ValueError, 'duplicate'):
+            audit.parse_hashed_requirements(
+                'NumPy==2.5.4 --hash=sha256:' + 'a' * 64 + '\n'
+                'numpy==2.5.4 --hash=sha256:' + 'a' * 64 + '\n'
+            )
+
+    def test_static_lock_audit_fails_when_any_direct_requirement_is_missing(self):
+        import tempfile
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            lock_path = root / 'lock.txt'
+            source_path = root / 'requirements.txt'
+            lock_path.write_text('numpy==2.5.4 --hash=sha256:' + 'a' * 64 + '\n', encoding='utf-8')
+            source_path.write_text('numpy==2.5.4\ntorch==2.14.1\n', encoding='utf-8')
+            args = ['audit', '--locked-requirements', str(lock_path), '--source-requirements', str(source_path)]
+            with patch('sys.argv', args), patch.object(audit, 'audit_packages') as check, patch('sys.stderr', new_callable=io.StringIO):
+                with self.assertRaisesRegex(ValueError, 'omitted direct requirements'):
+                    audit.main()
+            check.assert_not_called()
+
+    def test_ci_runs_the_common_wheel_and_profile_lock_regressions(self):
+        workflow = (ROOT / '.github/workflows/test.yml').read_text(encoding='utf-8')
+        self.assertIn('python scripts/test_ai_common_wheel.py', workflow)
+        self.assertIn('python scripts/test_ai_profile_locks.py', workflow)
 
     def test_install_report_requires_and_exports_every_resolved_artifact_hash(self):
         report = {

@@ -119,6 +119,17 @@ const REQUIREMENTS: &str = include_str!("../requirements-ai.txt");
 #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
 const REQUIREMENTS: &str = include_str!("../requirements-ai-windows-arm64.txt");
 #[cfg(target_os = "macos")]
+const PROFILE_REQUIREMENTS_LOCK: &str = include_str!("../requirements-lock/macos-arm64.txt");
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+const PROFILE_REQUIREMENTS_LOCK: &str = include_str!("../requirements-lock/windows-x64.txt");
+#[cfg(all(target_os = "windows", target_arch = "aarch64"))]
+const PROFILE_REQUIREMENTS_LOCK: &str = include_str!("../requirements-lock/windows-arm64.txt");
+#[cfg(not(any(
+    target_os = "macos",
+    all(target_os = "windows", any(target_arch = "x86_64", target_arch = "aarch64"))
+)))]
+const PROFILE_REQUIREMENTS_LOCK: &str = "";
+#[cfg(target_os = "macos")]
 const RUNTIME_PROBE: &str = concat!("EXPECTED_PLATFORM = 'macos-arm64'\n", include_str!("probe_runtime.py"));
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 const RUNTIME_PROBE: &str = concat!("EXPECTED_PLATFORM = 'win-amd64'\n", include_str!("probe_runtime.py"));
@@ -441,6 +452,10 @@ async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> 
         tokio::fs::write(&requirements, REQUIREMENTS)
             .await
             .map_err(|e| e.to_string())?;
+        let locked_requirements = stage.path().join("resolved-requirements.txt");
+        tokio::fs::write(&locked_requirements, PROFILE_REQUIREMENTS_LOCK)
+            .await
+            .map_err(|e| e.to_string())?;
         let wheels = stage.path().join("verified-wheels");
         crate::ai_common::stage_common_ai_wheels(&wheels)?;
         #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
@@ -458,28 +473,7 @@ async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> 
             archive
         };
 
-        // Resolve only wheels and audit the complete graph before installing or importing it.
-        let report = stage.path().join("pip-install-report.json");
-        let mut resolution = python_cmd(&python);
-        resolution
-            .args([
-                "-m",
-                "pip",
-                "--isolated",
-                "install",
-                "--dry-run",
-                "--ignore-installed",
-                "--only-binary=:all:",
-                "--prefer-binary",
-                "--disable-pip-version-check",
-                "--report",
-            ])
-            .arg(&report)
-            .args(["-r"])
-            .arg(&requirements);
-        resolution.args(["--find-links"]).arg(&wheels);
-        install_step(&app, &mut resolution).await?;
-
+        // Audit the immutable profile graph before installing or importing any AI package.
         let audit = stage.path().join("audit_ai_dependencies.py");
         tokio::fs::write(
             &audit,
@@ -487,16 +481,13 @@ async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> 
         )
         .await
         .map_err(|e| e.to_string())?;
-        let locked_requirements = stage.path().join("resolved-requirements.txt");
         let mut audit_command = python_cmd(&python);
         audit_command
             .arg(&audit)
-            .args(["--report"])
-            .arg(&report)
+            .args(["--locked-requirements"])
+            .arg(&locked_requirements)
             .args(["--source-requirements"])
-            .arg(&requirements)
-            .args(["--lock-output"])
-            .arg(&locked_requirements);
+            .arg(&requirements);
         #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
         audit_command.args(["--extra-package", "ctc-forced-aligner==1.0.2"]);
         install_step(&app, &mut audit_command).await?;
