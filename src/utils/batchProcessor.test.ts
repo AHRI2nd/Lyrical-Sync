@@ -60,6 +60,26 @@ describe("batch output", () => {
     expect(invoke).not.toHaveBeenCalled();
   });
 
+  it("rejects a composed SRT translation separator before writing the target file", async () => {
+    vi.mocked(readLyrics).mockResolvedValueOnce({
+      value: "[x-lyrical-translations:1]\n[00:01.00]original\\n\n[00:01.00]/translated",
+      file: { path: "/inputs/song.lrc", bookmark: "fresh" },
+    });
+    const status = vi.fn();
+
+    const summary = await runBatchOperation(
+      [entry("/inputs/song.lrc", "translation-separator")],
+      convert,
+      output,
+      status,
+      { concurrency: 1 },
+    );
+
+    expect(summary).toEqual({ done: 0, error: 1, cancelled: 0 });
+    expect(status).toHaveBeenCalledWith("translation-separator", "error", SRT_UNREPRESENTABLE_CONTENT_CODE, { path: "/inputs/song.lrc", bookmark: "fresh" });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
   it("fails only SRT files with blank paragraph rows and continues the batch", async () => {
     vi.mocked(readLyrics)
       .mockResolvedValueOnce({ value: "[00:01.00]first\n[x-lyrical-translations:1]\n[00:01.00]/translated\\n\\nparagraph", file: { path: "/inputs/bad.lrc", bookmark: "fresh" } })

@@ -62,6 +62,12 @@ describe("serializeSrt", () => {
     expect(() => serializeSrt(docOf([{ id: "1", timestamp: 1, text, translation }]))).toThrow("SRT cannot preserve blank paragraph rows");
   });
 
+  it("rejects a blank separator created when trailing source text is combined with a translation", () => {
+    expect(() => serializeSrt(docOf([{
+      id: "combined", timestamp: 1, text: "original\n", translation: "translated",
+    }]))).toThrow("SRT cannot preserve blank paragraph rows");
+  });
+
   it("uses the next line's time as each cue's end", () => {
     const out = serializeSrt(
       docOf([

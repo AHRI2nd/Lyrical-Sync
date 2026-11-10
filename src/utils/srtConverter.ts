@@ -91,14 +91,14 @@ export function serializeSrt(doc: LrcDocument, lastCueEnd?: number): string {
   for (let i = 0; i < timed.length; i++) {
     const line = timed[i];
     if (line.text.trim() === "" && !line.translation?.trim()) continue; // Empty rows provide boundaries only.
-    assertSrtBodyRepresentable(line.text);
-    assertSrtBodyRepresentable(line.translation);
+    const text = line.text.trim() === "" ? (line.translation ?? "") : line.translation ? `${line.text}\n${line.translation}` : line.text;
+    assertSrtBodyRepresentable(text);
     const start = line.timestamp as number;
     const importedEnd = line.srtEndTime;
     const end = Number.isFinite(importedEnd) && (importedEnd as number) > start
       ? importedEnd as number
       : nextCueEnd(timed, i, start, lastCueEnd);
-    cues.push({ start, end, text: line.text.trim() === "" ? (line.translation ?? "") : line.translation ? `${line.text}\n${line.translation}` : line.text });
+    cues.push({ start, end, text });
   }
 
   return (
