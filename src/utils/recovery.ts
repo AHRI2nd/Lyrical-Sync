@@ -11,6 +11,16 @@ export interface RecoverySnapshot {
   sessionId?: string;
 }
 
+function validSyllables(value: unknown, lineText: string): boolean {
+  if (!Array.isArray(value)) return false;
+  let combinedText = "";
+  for (const token of value) {
+    if (!isRecord(token) || typeof token.text !== "string" || (token.time !== null && !isFiniteNumber(token.time))) return false;
+    combinedText += token.text;
+  }
+  return combinedText === lineText;
+}
+
 function validDocument(value: unknown): value is LrcDocument {
   if (!isRecord(value) || !isRecord(value.metadata) || !isRecord(value.extraTags) || !Array.isArray(value.lines)) return false;
   const metadata = value.metadata;
@@ -23,8 +33,7 @@ function validDocument(value: unknown): value is LrcDocument {
     (line.timestamp === null || isFiniteNumber(line.timestamp)) &&
     (line.srtEndTime === undefined || (line.timestamp !== null && isFiniteNumber(line.srtEndTime) && line.srtEndTime > line.timestamp)) &&
     (line.translation === undefined || typeof line.translation === "string") &&
-    (line.syllables === undefined || (Array.isArray(line.syllables) && line.syllables.every((token: unknown) =>
-      isRecord(token) && typeof token.text === "string" && (token.time === null || isFiniteNumber(token.time))))));
+    (line.syllables === undefined || validSyllables(line.syllables, line.text)));
 }
 
 export function saveRecoverySnapshot(doc: LrcDocument, lrcPath: string | null, audioPath: string | null,

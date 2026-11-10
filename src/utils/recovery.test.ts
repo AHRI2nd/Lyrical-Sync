@@ -163,6 +163,37 @@ it("does not replace an existing snapshot with an invalid SRT end", () => {
   expect(saveRecoverySnapshot(invalid, "/new.srt", null)).toBe(false);
   expect(localStorage.getItem(KEY)).toBe(existing);
 });
+it("rejects recovered timed text that differs from the visible lyric and retains the snapshot", () => {
+  const invalid = doc();
+  invalid.lines[0].syllables = [{ text: "other", time: 1.5 }];
+  const raw = JSON.stringify({ doc: invalid, lrcPath: "/song.lrc", audioPath: null, savedAt: 1 });
+  localStorage.setItem(KEY, raw);
+
+  expect(loadRecoverySnapshot()).toBeNull();
+  expect(localStorage.getItem(KEY)).toBe(raw);
+});
+it("does not replace an existing snapshot with mismatched timed text", () => {
+  expect(saveRecoverySnapshot(doc(), "/old.lrc", null)).toBe(true);
+  const existing = localStorage.getItem(KEY);
+  const invalid = doc();
+  invalid.lines[0].syllables = [{ text: "other", time: 1.5 }];
+
+  expect(saveRecoverySnapshot(invalid, "/new.lrc", null)).toBe(false);
+  expect(localStorage.getItem(KEY)).toBe(existing);
+});
+it.each([
+  { text: "hello", syllables: [{ text: "hel", time: 1 }, { text: "lo", time: null }] },
+  { text: "", syllables: [] },
+  { text: "ordinary", syllables: undefined },
+])("accepts a recovery line when timed token text matches or is absent: %j", ({ text, syllables }) => {
+  const valid = doc();
+  valid.lines[0].text = text;
+  if (syllables !== undefined) valid.lines[0].syllables = syllables;
+  const raw = JSON.stringify({ doc: valid, lrcPath: "/song.lrc", audioPath: null, savedAt: 1 });
+  localStorage.setItem(KEY, raw);
+
+  expect(loadRecoverySnapshot()?.doc.lines[0]).toMatchObject({ text });
+});
 it("loads a legacy snapshot without bookmark fields", () => {
   localStorage.setItem(KEY, JSON.stringify({ doc: doc(), lrcPath: null, audioPath: null, savedAt: 1 }));
   expect(loadRecoverySnapshot()?.lrcBookmark).toBeNull();
@@ -178,6 +209,7 @@ it("cannot discard a newer session with an old snapshot", () => {
 it("restores rich document data from stored bytes after recreating the module", async () => {
   const rich = doc();
   rich.extraTags = { language: "ko" };
+  rich.lines[0].text = "hello ";
   rich.lines[0].syllables = [{ text: "hello", time: 1.5 }, { text: " ", time: null }];
   expect(saveRecoverySnapshot(rich, "/a.lrc", null, "grant", null, "restart")).toBe(true);
   expect(JSON.parse(localStorage.getItem(KEY)!).doc).toEqual(rich);
