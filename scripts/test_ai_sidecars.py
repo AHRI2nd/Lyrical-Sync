@@ -1,6 +1,7 @@
 """Standard-library regressions for sidecar boundaries; no ML runtime required."""
 import importlib.util
 import hashlib
+import io
 import json
 import math
 import tempfile
@@ -20,6 +21,17 @@ spec.loader.exec_module(align)
 
 
 class VocalActivityTests(unittest.TestCase):
+    def test_progress_error_uses_stable_code_and_does_not_serialize_diagnostic(self):
+        output = io.StringIO()
+        with patch("sys.stderr", output):
+            align.progress("error", "model load failed at /private/user/model.onnx", code="model")
+
+        payload = json.loads(output.getvalue())
+        self.assertEqual(payload["status"], "error")
+        self.assertEqual(payload["code"], "model")
+        self.assertNotIn("message", payload)
+        self.assertNotIn("/private/user", output.getvalue())
+
     def test_digital_silence_has_no_vocal_segments_and_a_pulse_remains_detectable(self):
         class AudioArray(list):
             @property
@@ -206,13 +218,13 @@ def postprocess_results(text, spans, stride, scores):
         result = self.run_alignment(short_audio=True)
         self.assertNotEqual(result.returncode, 0)
         events = [json.loads(line) for line in result.stderr.splitlines()]
-        self.assertTrue(any("오디오가 너무 짧습니다" in event["message"] for event in events))
+        self.assertTrue(any(event.get("code") == "audio_too_short" for event in events))
 
     def test_nonfinite_sidecar_results_rejected(self):
         result = self.run_alignment(bad_timestamps=True)
         self.assertNotEqual(result.returncode, 0)
         events = [json.loads(line) for line in result.stderr.splitlines()]
-        self.assertTrue(any("유효하지 않은 타임스탬프" in event["message"] for event in events))
+        self.assertTrue(any(event.get("code") == "general" for event in events))
 
 
 class EmbeddedAlignmentExecutionTests(unittest.TestCase):
@@ -239,7 +251,10 @@ class EmbeddedAlignmentExecutionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             result = self.run_alignment(folder, "{invalid json")
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("Invalid lines JSON", result.stderr)
+            payload = json.loads(result.stderr.strip().splitlines()[0])
+            self.assertEqual(payload["status"], "error")
+            self.assertEqual(payload["code"], "general")
+            self.assertNotIn("message", payload)
 
     def test_normal_alignment_generates_emissions_before_native_ctc(self):
         import json
@@ -353,7 +368,7 @@ class EmbeddedAlignmentExecutionTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             events = [json.loads(line) for line in result.stderr.splitlines()]
             self.assertTrue(any(
-                "empty normalized token" in event.get("message", "")
+                event.get("code") == "general"
                 for event in events
             ))
             self.assertNotIn("AssertionError: native CTC must not run", result.stderr)
@@ -402,7 +417,7 @@ class EmbeddedAlignmentExecutionTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             events = [json.loads(line) for line in result.stderr.splitlines()]
             self.assertTrue(any(
-                "정규화되어 원문 줄과 대응하지 않습니다" in event.get("message", "")
+                event.get("code") == "general"
                 for event in events
             ))
             self.assertEqual(result.stdout, "")
@@ -449,7 +464,7 @@ class EmbeddedAlignmentExecutionTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             events = [json.loads(line) for line in result.stderr.splitlines()]
             self.assertTrue(any(
-                "정규화되어 원문 줄과 대응하지 않습니다" in event.get("message", "")
+                event.get("code") == "general"
                 for event in events
             ))
             self.assertEqual(result.stdout, "")
@@ -501,7 +516,7 @@ class EmbeddedAlignmentExecutionTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             events = [json.loads(line) for line in result.stderr.splitlines()]
             self.assertTrue(any(
-                "지원하지 않는 문자" in event.get("message", "") for event in events
+                event.get("code") == "unsupported_lyrics" for event in events
             ))
             self.assertEqual(result.stdout, "")
 

@@ -51,7 +51,7 @@ interface AlignmentResult {
 interface AlignmentProgressEvent {
   runId: number;
   status: string;
-  message: string;
+  code?: string;
   percent: number;
 }
 
@@ -1227,7 +1227,12 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     try {
       unlisten = await listen<AlignmentProgressEvent>("alignment-progress", (e) => {
         if (isCurrentOwner() && e.payload.runId === runId) {
-          set({ aiSyncProgressStatus: e.payload.status, aiSyncMessage: e.payload.message });
+          set({
+            aiSyncProgressStatus: e.payload.status,
+            aiSyncMessage: e.payload.status === "error"
+              ? `AI_SYNC_ERROR:${e.payload.code ?? "general"}`
+              : "",
+          });
         }
       });
 

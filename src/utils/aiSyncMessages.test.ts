@@ -3,6 +3,13 @@ import { translations } from "../i18n/translations";
 import { localizeAiSyncError } from "./aiSyncMessages";
 
 describe("localizeAiSyncError", () => {
+  it.each(["en", "ja"] as const)("maps stable sidecar error codes to the %s locale", (lang) => {
+    const t = translations[lang];
+    expect(localizeAiSyncError("AI_SYNC_ERROR:audio_too_short", t)).toBe(t.aiSyncErrorAudioTooShort);
+    expect(localizeAiSyncError("AI_SYNC_ERROR:unsupported_lyrics", t)).toBe(t.aiSyncErrorUnsupported);
+    expect(localizeAiSyncError("AI_SYNC_ERROR:unrecognized_code", t)).toBe(t.aiSyncErrorGeneral);
+  });
+
   it.each(["en", "ja"] as const)("maps sidecar failures to the %s locale without exposing raw diagnostics", (lang) => {
     const t = translations[lang];
     expect(localizeAiSyncError("Error: 패키지 임포트 실패: /private/user/path", t)).toBe(t.aiSyncErrorPackages);

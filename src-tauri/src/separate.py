@@ -12,9 +12,13 @@ import numpy as np
 import torch
 
 
-def progress(status: str, message: str = "", percent: float = 0.0):
-    print(json.dumps({"status": status, "message": message, "percent": percent}),
-          file=sys.stderr, flush=True)
+def progress(status: str, message: str = "", percent: float = 0.0, code: str | None = None):
+    payload = {"status": status, "percent": percent}
+    if status == "error":
+        payload["code"] = code or "general"
+    elif message:
+        payload["message"] = message
+    print(json.dumps(payload), file=sys.stderr, flush=True)
 
 
 def load_audio(path: str) -> tuple:
@@ -74,7 +78,7 @@ def main():
         from demucs.apply import apply_model
         from demucs.audio import convert_audio
     except ImportError as e:
-        progress("error", f"demucs 패키지 미설치: {e}")
+        progress("error", f"demucs 패키지 미설치: {e}", code="packages")
         sys.exit(1)
 
     try:
@@ -87,7 +91,7 @@ def main():
             model = pkg
         model.eval()
     except Exception as e:
-        progress("error", f"모델 로드 실패: {e}")
+        progress("error", f"모델 로드 실패: {e}", code="model")
         sys.exit(1)
 
     progress("separating", "오디오 로딩 중...", 0.10)
@@ -96,7 +100,7 @@ def main():
         wav = convert_audio(wav, sr, model.samplerate, model.audio_channels)
         wav = wav.unsqueeze(0)
     except Exception as e:
-        progress("error", f"오디오 로드 실패: {e}")
+        progress("error", f"오디오 로드 실패: {e}", code="audio")
         sys.exit(1)
 
     device = "cpu"
@@ -115,7 +119,7 @@ def main():
         vocals_idx = model.sources.index("vocals")
         vocals = sources[0, vocals_idx].cpu()
     except Exception as e:
-        progress("error", f"보컬 분리 실패: {e}")
+        progress("error", f"보컬 분리 실패: {e}", code="audio")
         sys.exit(1)
 
     progress("separating", "보컬 파일 저장 중...", 0.90)
@@ -124,7 +128,7 @@ def main():
         audio_np = vocals.numpy().T  # (samples, channels)
         write_vocal_audio(sf, args.output, audio_np, model.samplerate)
     except Exception as e:
-        progress("error", f"저장 실패: {e}")
+        progress("error", f"저장 실패: {e}", code="audio")
         sys.exit(1)
 
     progress("done", "보컬 분리 완료", 1.0)

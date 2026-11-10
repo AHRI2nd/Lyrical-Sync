@@ -849,7 +849,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     warning: t.aiSyncWarning,
   };
 
-  const displayMessage = aiSyncStatus === "error"
+  const displayMessage = aiSyncStatus === "error" || aiSyncProgressStatus === "error"
     ? localizeAiSyncError(aiSyncMessage, t)
     : (PROGRESS_STATUS_MAP[aiSyncProgressStatus] ?? aiSyncMessage);
 

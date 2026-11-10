@@ -851,6 +851,40 @@ describe("useLrcStore — runAiSync blank-line timestamp placement", () => {
     vi.mocked(invoke).mockReset();
   });
 
+  it("stores only the stable AI error code from the sidecar progress event", async () => {
+    reset([{ id: "line", timestamp: null, text: "hello" }]);
+    useLrcStore.setState({ audioPath: "/song.mp3" });
+    let receiveProgress!: (event: { payload: { runId: number; status: string; code?: string; message?: string; percent: number } }) => void;
+    let rejectAlignment!: (error: Error) => void;
+    vi.mocked(listen).mockImplementationOnce((_event, callback) => {
+      receiveProgress = callback as typeof receiveProgress;
+      return Promise.resolve(vi.fn());
+    });
+    vi.mocked(invoke).mockImplementation((command: unknown) => {
+      if (command === "run_alignment") {
+        return new Promise<string>((_resolve, reject) => { rejectAlignment = reject; });
+      }
+      return Promise.resolve(undefined);
+    });
+
+    const running = useLrcStore.getState().runAiSync("ko", 0.5, false, false);
+    await vi.waitFor(() => expect(receiveProgress).toBeTypeOf("function"));
+    const args = vi.mocked(invoke).mock.calls.find(([command]) => command === "run_alignment")?.[1] as { runId: number };
+    receiveProgress({ payload: {
+      runId: args.runId,
+      status: "error",
+      code: "model",
+      message: "모델 로드 실패: /private/user/model.onnx",
+      percent: 0,
+    } });
+
+    expect(useLrcStore.getState().aiSyncMessage).toBe("AI_SYNC_ERROR:model");
+    rejectAlignment(new Error("AI_SYNC_ERROR:model"));
+    await running;
+    expect(useLrcStore.getState().aiSyncStatus).toBe("error");
+    expect(useLrcStore.getState().aiSyncMessage).toBe("Error: AI_SYNC_ERROR:model");
+  });
+
   it("places blank lines via prevEnd+offset/nextStart clamp, including a run of consecutive blanks and a trailing unbounded blank", async () => {
     reset([
       { id: "b0", timestamp: null, text: "" }, // 정렬 결과 이전 → prevEnd 기본값 0

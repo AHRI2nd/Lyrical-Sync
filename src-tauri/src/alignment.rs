@@ -1,8 +1,8 @@
+use serde::Serialize;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, WebviewWindow};
-use serde::Serialize;
 
 use crate::alignment_process::run_child;
 use crate::models::{models_dir, ModelsDirState};
@@ -49,8 +49,20 @@ impl Drop for AlignmentRun<'_> {
 struct AlignmentProgressEvent {
     run_id: u64,
     status: String,
-    message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    code: Option<String>,
     percent: f32,
+}
+
+fn canonical_ai_error_code(code: Option<&str>) -> &'static str {
+    match code {
+        Some("packages") => "packages",
+        Some("model") => "model",
+        Some("audio") => "audio",
+        Some("audio_too_short") => "audio_too_short",
+        Some("unsupported_lyrics") => "unsupported_lyrics",
+        _ => "general",
+    }
 }
 
 async fn wait_for_package_probe(
@@ -109,12 +121,24 @@ pub async fn run_alignment(
     let progress = |line: &str| -> Result<(), String> {
         if let Ok(val) = serde_json::from_str::<serde_json::Value>(line) {
             let status = val["status"].as_str().unwrap_or("").to_string();
-            let message = val["message"].as_str().unwrap_or("").to_string();
+            let code = if status == "error" {
+                Some(canonical_ai_error_code(val["code"].as_str()).to_string())
+            } else {
+                None
+            };
             let percent = val["percent"].as_f64().unwrap_or(0.0) as f32;
-            let _ = app.emit("alignment-progress", AlignmentProgressEvent {
-                run_id, status: status.clone(), message: message.clone(), percent,
-            });
-            if status == "error" { return Err(message); }
+            let _ = app.emit(
+                "alignment-progress",
+                AlignmentProgressEvent {
+                    run_id,
+                    status: status.clone(),
+                    code: code.clone(),
+                    percent,
+                },
+            );
+            if status == "error" {
+                return Err(format!("AI_SYNC_ERROR:{}", code.as_deref().unwrap_or("general")));
+            }
         }
         Ok(())
     };
@@ -260,6 +284,40 @@ pub fn cancel_alignment(al_state: tauri::State<'_, AlignmentState>, run_id: u64)
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ai_error_codes_are_allowlisted_and_unknown_values_fail_closed() {
+        assert_eq!(canonical_ai_error_code(Some("packages")), "packages");
+        assert_eq!(canonical_ai_error_code(Some("model")), "model");
+        assert_eq!(canonical_ai_error_code(Some("audio")), "audio");
+        assert_eq!(
+            canonical_ai_error_code(Some("audio_too_short")),
+            "audio_too_short"
+        );
+        assert_eq!(
+            canonical_ai_error_code(Some("unsupported_lyrics")),
+            "unsupported_lyrics"
+        );
+        assert_eq!(
+            canonical_ai_error_code(Some("path=/private/user")),
+            "general"
+        );
+        assert_eq!(canonical_ai_error_code(None), "general");
+    }
+
+    #[test]
+    fn alignment_progress_event_serializes_the_code_without_sidecar_diagnostics() {
+        let event = AlignmentProgressEvent {
+            run_id: 7,
+            status: "error".to_string(),
+            code: Some("model".to_string()),
+            percent: 0.0,
+        };
+
+        let value = serde_json::to_value(event).unwrap();
+        assert_eq!(value["code"], "model");
+        assert!(value.get("message").is_none());
+    }
 
     #[test]
     fn ai_audio_validation_enforces_the_shared_file_resource_budget() {

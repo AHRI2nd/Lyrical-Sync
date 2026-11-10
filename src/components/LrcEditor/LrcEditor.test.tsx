@@ -108,6 +108,19 @@ it.each(["en", "ja"] as const)("shows Korean sidecar package errors in the selec
   act(() => useI18nStore.getState().setLang("ko"));
 });
 
+it.each(["en", "ja"] as const)("localizes sidecar error progress before the command rejection in %s", (lang) => {
+  useI18nStore.getState().setLang(lang);
+  useLrcStore.setState({
+    aiSyncStatus: "running",
+    aiSyncProgressStatus: "error",
+    aiSyncMessage: "AI_SYNC_ERROR:audio_too_short",
+  });
+  const { getByText, queryByText } = render(<LrcEditor onPreview={() => {}} />);
+  expect(getByText(useI18nStore.getState().t.aiSyncErrorAudioTooShort)).toBeTruthy();
+  expect(queryByText(/AI_SYNC_ERROR|오디오가 CTC/)).toBeNull();
+  act(() => useI18nStore.getState().setLang("ko"));
+});
+
 it("lets the user choose the AI language separately from the interface language", () => {
   const { getByLabelText } = render(<LrcEditor onPreview={() => {}} />);
   fireEvent.change(getByLabelText(useI18nStore.getState().t.aiLanguageLabel), { target: { value: "jpn" } });

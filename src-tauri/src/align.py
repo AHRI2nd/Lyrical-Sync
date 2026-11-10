@@ -14,9 +14,13 @@ import hashlib
 import tempfile
 
 
-def progress(status: str, message: str = "", percent: float = 0.0):
-    print(json.dumps({"status": status, "message": message, "percent": percent}),
-          file=sys.stderr, flush=True)
+def progress(status: str, message: str = "", percent: float = 0.0, code: str | None = None):
+    payload = {"status": status, "percent": percent}
+    if status == "error":
+        payload["code"] = code or "general"
+    elif message:
+        payload["message"] = message
+    print(json.dumps(payload), file=sys.stderr, flush=True)
 
 
 def detect_vocal_segments(waveform, sr=16000, hop=0.01, win=0.025,
@@ -159,7 +163,7 @@ def main():
     try:
         lines = read_lines_input(args.lines, args.lines_stdin)
     except json.JSONDecodeError as e:
-        progress("error", f"Invalid lines JSON: {e}")
+        progress("error", f"Invalid lines JSON: {e}", code="general")
         sys.exit(1)
 
     if not lines:
@@ -182,7 +186,7 @@ def main():
             Tokenizer,
         )
     except ImportError as e:
-        progress("error", f"패키지 임포트 실패: {e}. 설정 > AI 모델에서 패키지를 다시 설치하세요.")
+        progress("error", f"패키지 임포트 실패: {e}. 설정 > AI 모델에서 패키지를 다시 설치하세요.", code="packages")
         sys.exit(1)
 
     # ── Load / auto-download ONNX model ─────────────────────────────────────
@@ -205,7 +209,7 @@ def main():
         if inputs[0].name != expected_input:
             progress("warning", f"예상치 못한 모델 입력 이름: {inputs[0].name} (기대: {expected_input})")
     except Exception as e:
-        progress("error", f"모델 로드 실패: {e}")
+        progress("error", f"모델 로드 실패: {e}", code="model")
         sys.exit(1)
 
     # ── Load audio ───────────────────────────────────────────────────────────
@@ -215,7 +219,7 @@ def main():
         # load_audio returns 1D numpy float32 array in v1.x
         audio_waveform = load_audio(args.audio, ret_type='np')
     except Exception as e:
-        progress("error", f"오디오 로드 실패: {e}")
+        progress("error", f"오디오 로드 실패: {e}", code="audio")
         sys.exit(1)
 
     # ── Validate CTC boundary conditions before heavy processing ──────────────
@@ -252,7 +256,7 @@ def main():
     sample_rate = 16000  # load_audio uses 16kHz
     is_valid, error_msg = validate_ctc_boundary(audio_waveform, sample_rate, token_count)
     if not is_valid:
-        progress("error", error_msg)
+        progress("error", error_msg, code="audio_too_short")
         sys.exit(1)
 
     def sanitize_line_text(text):
@@ -300,7 +304,7 @@ def main():
     try:
         emissions, stride = generate_emissions(session, audio_waveform, batch_size=1)
     except Exception as e:
-        progress("error", f"emissions 생성 실패: {e}")
+        progress("error", f"emissions 생성 실패: {e}", code="audio")
         sys.exit(1)
 
     # ── Preprocess text (word-level) ─────────────────────────────────────────
@@ -371,10 +375,10 @@ def main():
             try:
                 unsupported = unsupported_alignment_characters(tokens_starred, tokenizer)
             except Exception as e:
-                progress("error", f"정렬 모델 문자 사전 확인 실패: {e}")
+                progress("error", f"정렬 모델 문자 사전 확인 실패: {e}", code="model")
                 sys.exit(1)
             if unsupported:
-                progress("error", "정렬 모델이 지원하지 않는 문자가 포함되어 있습니다")
+                progress("error", "정렬 모델이 지원하지 않는 문자가 포함되어 있습니다", code="unsupported_lyrics")
                 sys.exit(1)
             alignment_tokens = [token for token in tokens_starred if token != "<star>"]
             if len(alignment_tokens) != sum(tokens_per_line):
@@ -383,7 +387,7 @@ def main():
                 raise ValueError("가사 정규화 후 빈 정렬 토큰이 있습니다 (empty normalized token)")
             safe_shape, shape_error = validate_ctc_native_boundary(emissions, tokens_starred)
             if not safe_shape:
-                progress("error", shape_error)
+                progress("error", shape_error, code="audio_too_short")
                 sys.exit(1)
             # Wrap C ABI calls with exception handling to catch native crashes
             try:
@@ -399,10 +403,10 @@ def main():
                 error_msg = f"CTC 정렬 중 네이티브 오류 발생: {e}"
                 if "segfault" in str(e).lower() or "segmentation" in str(e).lower() or "abort" in str(e).lower():
                     error_msg += " (C ABI 크래시 감지 - 오디오가 너무 짧거나 토큰이 너무 많을 수 있음)"
-                progress("error", error_msg)
+                progress("error", error_msg, code="general")
                 sys.exit(1)
     except Exception as e:
-        progress("error", f"정렬 실패: {e}")
+        progress("error", f"정렬 실패: {e}", code="general")
         sys.exit(1)
 
     # ── Map word/char timestamps → lyric-line timestamps ─────────────────────
@@ -488,7 +492,7 @@ def main():
     audio_duration = len(audio_waveform) / 16000.0
     is_valid, error_msg, corrected_results = validate_timestamps(results, audio_duration)
     if not is_valid:
-        progress("error", error_msg)
+        progress("error", error_msg, code="general")
         sys.exit(1)
     results = corrected_results
 
