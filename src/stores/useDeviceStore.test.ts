@@ -224,6 +224,19 @@ describe("useDeviceStore — failure notification", () => {
     expect(useDeviceStore.getState().positionMs).toBe(5000);
   });
 
+  it("ignores non-finite seek positions without mutating state or calling native code", () => {
+    useDeviceStore.setState({ hasSession: true, positionMs: 1250, _lastKnownPositionMs: 1200 });
+
+    deviceControls.seekTo(Number.NaN);
+    deviceControls.seekTo(Number.POSITIVE_INFINITY);
+    deviceControls.seekTo(Number.NEGATIVE_INFINITY);
+    deviceControls.seekTo(Number.MAX_SAFE_INTEGER);
+
+    expect(useDeviceStore.getState()).toMatchObject({ positionMs: 1250, _lastKnownPositionMs: 1200 });
+    expect(invoke).not.toHaveBeenCalled();
+    expect(pushErrorToast).not.toHaveBeenCalled();
+  });
+
   it("does not roll back a newer polled track position when an old seek fails", async () => {
     useSettingsStore.getState().setDeviceMode(true);
     useDeviceStore.setState({

@@ -39,9 +39,11 @@ async function deviceTogglePlay(): Promise<void> {
 async function deviceSeekTo(seconds: number): Promise<void> {
   const store = useDeviceStore.getState();
   if (!store.hasSession) return;
+  const requestedPositionMs = Math.round(seconds * 1000);
+  if (!Number.isSafeInteger(requestedPositionMs)) return;
   const lyricSnapshot = useLrcStore.getState();
   const updateLyricTime = useSettingsStore.getState().deviceMode;
-  const posMs = Math.max(0, Math.round(seconds * 1000));
+  const posMs = Math.max(0, requestedPositionMs);
   const commandRevision = markDeviceCommand();
   useDeviceStore.setState({
     positionMs: posMs,
