@@ -323,6 +323,7 @@ function App() {
   const pendingSaveRef = useRef<(() => Promise<boolean>) | null>(null);
   const pendingSaveSuccessRef = useRef<(() => void | Promise<void>) | null>(null);
   const pendingSaveSessionRef = useRef<number | null>(null);
+  const formatChooserSessionRef = useRef<number | null>(null);
   const pendingDocumentOpenSession = useRef<number | null>(null);
   const dropConflictSession = useRef<number | null>(null);
   const [showSpotifySearch, setShowSpotifySearch] = useState(false);
@@ -354,6 +355,11 @@ function App() {
     pendingSaveSuccessRef.current = null;
     pendingSaveSessionRef.current = null;
     setShowElrcNotice(false);
+  }, [appDocumentSession]);
+  useEffect(() => {
+    if (formatChooserSessionRef.current === null || formatChooserSessionRef.current === appDocumentSession) return;
+    formatChooserSessionRef.current = null;
+    setShowFormatChooser(false);
   }, [appDocumentSession]);
   useEffect(() => {
     if (pendingSrtCueEndLossRef.current?.session === appDocumentSession) return;
@@ -536,12 +542,17 @@ function App() {
     }
   };
 
+  const openFormatChooser = () => {
+    formatChooserSessionRef.current = useLrcStore.getState()._documentSession;
+    setShowFormatChooser(true);
+  };
+
   const handleSave = () => {
     if (lrcPath) {
       if (lrcPath.toLowerCase().endsWith(".lrc")) requestSaveLrc(() => saveLrc(), undefined, () => saveLrc(true));
       else runSave(saveLrc());
     } else {
-      setShowFormatChooser(true);
+      openFormatChooser();
     }
   };
 
@@ -744,7 +755,7 @@ function App() {
           <IconBtn onClick={handleOpenLrc} title={t.openLrc}><OpenFolderIcon /></IconBtn>
           <RecentFilesMenu onOpen={handleRecentOpen} />
           <IconBtn onClick={handleSave} accent title={t.save} tooltipAlign="right"><SaveIcon /></IconBtn>
-          <IconBtn onClick={() => setShowFormatChooser(true)} title={t.saveAs} tooltipAlign="right"><SaveAsIcon /></IconBtn>
+          <IconBtn onClick={openFormatChooser} title={t.saveAs} tooltipAlign="right"><SaveAsIcon /></IconBtn>
           <div className="w-px h-5 bg-[var(--ls-control)] mx-0.5" />
           <LangDropdown />
         </div>
@@ -889,14 +900,20 @@ function App() {
           onCancel={() => { setPendingDocumentOpen(null); pendingDocumentOpenSession.current = null; }}
         />
       )}
-      {showFormatChooser && (
+      {showFormatChooser && formatChooserSessionRef.current === appDocumentSession && (
         <SaveFormatModal
           onSelect={(format) => {
             setShowFormatChooser(false);
+            const ownerSession = formatChooserSessionRef.current;
+            formatChooserSessionRef.current = null;
+            if (ownerSession !== useLrcStore.getState()._documentSession) return;
             if (format === "lrc") requestSaveLrc(() => saveLrcAs("lrc"), undefined, () => saveLrcAs("lrc", undefined, true));
             else runSave(saveLrcAs(format));
           }}
-          onCancel={() => setShowFormatChooser(false)}
+          onCancel={() => {
+            formatChooserSessionRef.current = null;
+            setShowFormatChooser(false);
+          }}
         />
       )}
       {showElrcNotice && pendingSaveSessionRef.current === appDocumentSession && (

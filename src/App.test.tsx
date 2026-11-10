@@ -269,6 +269,21 @@ describe("App — drag-and-drop conflict resolution", () => {
     useLrcStore.setState({ saveLrc: originalSave });
   });
 
+  it("dismisses a pending Save As format choice and drops its action when the document changes", async () => {
+    const t = useI18nStore.getState().t;
+    const saveAs = vi.spyOn(useLrcStore.getState(), "saveLrcAs").mockResolvedValue(true);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: t.saveAs }));
+    expect(await screen.findByRole("dialog", { name: t.saveFormatTitle })).toBeTruthy();
+
+    act(() => useLrcStore.getState().newLrc());
+
+    expect(screen.queryByRole("dialog", { name: t.saveFormatTitle })).toBeNull();
+    expect(saveAs).not.toHaveBeenCalled();
+  });
+
   it("asks before saving an LRC document that contains unrepresentable SRT cue ends", async () => {
     const t = useI18nStore.getState().t;
     const originalSave = useLrcStore.getState().saveLrc;
