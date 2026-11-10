@@ -441,16 +441,16 @@ async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> 
         tokio::fs::write(&requirements, REQUIREMENTS)
             .await
             .map_err(|e| e.to_string())?;
+        let wheels = stage.path().join("verified-wheels");
+        crate::ai_common::stage_common_ai_wheels(&wheels)?;
         #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
-        let wheels = {
+        {
             // Explicit local wheel inputs cannot be substituted by an index candidate.
-            let wheels = stage.path().join("verified-wheels");
             crate::arm_ai::stage_bundled_wheels(&wheels)?;
             let data = manifest()?;
             let torch = wheels.join("torch-2.14.1+cpu-cp313-cp313-win_arm64.whl");
             download_verified(&app, &data["windowsArm64Torch"], &torch, false).await?;
-            wheels
-        };
+        }
         #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
         let aligner_archive = {
             let archive = stage.path().join("ctc_forced_aligner-1.0.2.tar.gz");
@@ -477,7 +477,6 @@ async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> 
             .arg(&report)
             .args(["-r"])
             .arg(&requirements);
-        #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
         resolution.args(["--find-links"]).arg(&wheels);
         install_step(&app, &mut resolution).await?;
 
@@ -516,10 +515,7 @@ async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> 
                 "-r",
             ])
             .arg(&locked_requirements);
-        #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
-        {
-            packages.args(["--find-links"]).arg(&wheels);
-        }
+        packages.args(["--find-links"]).arg(&wheels);
         install_step(&app, &mut packages).await?;
         #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
         {

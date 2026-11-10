@@ -1,0 +1,20 @@
+{
+  "wheel": {
+    "file": "demucs-4.0.1-py3-none-any.whl",
+    "sha256": "ce6aa7ea6ad5acd739f6c6bc3f6a6d023c034124f9bb3bb9f484911ae99183dd"
+  },
+  "source": {
+    "url": "https://files.pythonhosted.org/packages/87/38/55f835ebd9f443465087a6954ede19d4a41aebdf5e28567e89b99d6d2f57/demucs-4.0.1.tar.gz",
+    "sha256": "e45a5a788bae79767c37bbf6e69aae03862ddcca05550fb79b926346a177d713"
+  },
+  "build": {
+    "python": "3.14.10",
+    "pip": "26.2.2",
+    "setuptools": "84.2.1",
+    "wheel": "0.48.0",
+    "packaging": "26.3",
+    "sourceDateEpoch": 315532800,
+    "installBuildTools": "python -m pip install --target <pinned-build-env> setuptools==84.2.1 wheel==0.48.0 packaging==26.3",
+    "buildWheel": "SOURCE_DATE_EPOCH=315532800 PYTHONPATH=<pinned-build-env> python -m pip wheel --isolated --no-build-isolation --no-deps --wheel-dir <output> <verified-sdist>"
+  }
+}
