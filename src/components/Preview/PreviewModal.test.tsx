@@ -4,10 +4,14 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
+vi.mock("../../utils/audioControls", () => ({ audioControls: {
+  togglePlay: vi.fn(), pause: vi.fn(), skip: vi.fn(), stopAndReset: vi.fn(), seekTo: vi.fn(), getPeaks: () => null,
+} }));
 import { PreviewModal } from "./PreviewModal";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { defaultDocument } from "../../types/lrc";
+import { audioControls } from "../../utils/audioControls";
 beforeEach(() => {
   Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
   useLrcStore.setState({ doc: { ...defaultDocument(), metadata: { ...defaultDocument().metadata, title: "song" },
@@ -158,4 +162,42 @@ it("names the preview playback control and exposes playback state", async () => 
   expect(play.getAttribute("aria-pressed")).toBe("false");
   act(() => useLrcStore.setState({ isPlaying: true }));
   expect(play.getAttribute("aria-pressed")).toBe("true");
+});
+
+it("exposes the preview timeline as a named slider and clamps keyboard seeking", () => {
+  const { getByRole } = render(<PreviewModal onClose={() => {}} />);
+  const slider = getByRole("slider", { name: useI18nStore.getState().t.tooltipViewSeekBar });
+
+  expect(slider.getAttribute("aria-orientation")).toBe("horizontal");
+  expect(slider.getAttribute("aria-valuemin")).toBe("0");
+  expect(slider.getAttribute("aria-valuemax")).toBe("10");
+  expect(slider.getAttribute("aria-valuenow")).toBe("1");
+
+  fireEvent.keyDown(slider, { key: "ArrowRight" });
+  fireEvent.keyDown(slider, { key: "End" });
+  fireEvent.keyDown(slider, { key: "ArrowRight" });
+  fireEvent.keyDown(slider, { key: "Home" });
+  fireEvent.keyDown(slider, { key: "ArrowLeft" });
+
+  expect(audioControls.seekTo).toHaveBeenNthCalledWith(1, 2);
+  expect(audioControls.seekTo).toHaveBeenNthCalledWith(2, 10);
+  expect(audioControls.seekTo).toHaveBeenNthCalledWith(3, 10);
+  expect(audioControls.seekTo).toHaveBeenNthCalledWith(4, 0);
+  expect(audioControls.seekTo).toHaveBeenNthCalledWith(5, 0);
+});
+
+it("makes timestamped lyric rows keyboard-seekable while keeping untimed rows out of the tab order", () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+    { id: "timed", text: "timed lyric", timestamp: 3 },
+    { id: "untimed", text: "untimed lyric", timestamp: null },
+  ] } });
+  const { getByRole, queryByRole } = render(<PreviewModal onClose={() => {}} />);
+  const timedRow = getByRole("button", { name: "timed lyric" });
+
+  expect(timedRow.getAttribute("tabindex")).toBe("0");
+  expect(queryByRole("button", { name: "untimed lyric" })).toBeNull();
+  fireEvent.keyDown(timedRow, { key: "Enter" });
+
+  expect(audioControls.seekTo).toHaveBeenCalledWith(3);
+  expect(audioControls.togglePlay).toHaveBeenCalledOnce();
 });

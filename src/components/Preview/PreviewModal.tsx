@@ -24,6 +24,11 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
   const playbackTime = currentTime;
   const playbackDuration = duration;
   const playbackIsPlaying = isPlaying;
+  const requestedSeekRef = useRef(playbackTime);
+
+  useEffect(() => {
+    requestedSeekRef.current = playbackTime;
+  }, [playbackTime]);
 
   // 인라인 타임스탬프 편집 상태
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -123,6 +128,7 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
 
   // 줄 클릭 시 시크(+정지 상태면 재생). 재생 상태는 fresh로 읽어 목록 메모 의존성에서 제외
   const seekToLine = useCallback((ts: number) => {
+    requestedSeekRef.current = ts;
     controls.seekTo(ts);
     const playing = useLrcStore.getState().isPlaying;
     if (!playing) controls.togglePlay();
@@ -178,7 +184,15 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div
-          className={`flex-1 leading-snug ${fontWeightClass} ${line.timestamp !== null ? "cursor-pointer" : "select-none"}`}
+          role={line.timestamp !== null ? "button" : undefined}
+          tabIndex={line.timestamp !== null ? 0 : undefined}
+          onKeyDown={(e) => {
+            if (line.timestamp === null || (e.key !== "Enter" && e.key !== " ")) return;
+            e.preventDefault();
+            e.stopPropagation();
+            seekToLine(line.timestamp);
+          }}
+          className={`flex-1 leading-snug ${fontWeightClass} ${line.timestamp !== null ? "cursor-pointer focus-visible:outline focus-visible:outline-[var(--ls-accent)]" : "select-none"}`}
           style={{ fontSize: `${fontRem}rem`, whiteSpace: "pre-wrap",
             textShadow: isActive && previewGlowEnabled ? `0 0 26px ${hexToRgba(previewAccentColor, 0.28)}` : undefined,
           }}
@@ -207,20 +221,42 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
   const hasTimestamps = doc.lines.some((l) => l.timestamp !== null);
 
   const progress = playbackDuration > 0 ? playbackTime / playbackDuration : 0;
+  const seekValue = Math.max(0, Math.min(playbackDuration, playbackTime));
 
   const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!playbackDuration) return;
+    if (playbackDuration <= 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0) return;
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     controls.seekTo(ratio * playbackDuration);
+  }, [controls, playbackDuration]);
+
+  const handleSeekKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (playbackDuration <= 0) return;
+    const target = e.key === "Home" ? 0 : e.key === "End" ? playbackDuration
+      : e.key === "ArrowLeft" ? requestedSeekRef.current - 1 : e.key === "ArrowRight" ? requestedSeekRef.current + 1 : null;
+    if (target === null) return;
+    e.preventDefault();
+    requestedSeekRef.current = Math.max(0, Math.min(playbackDuration, target));
+    controls.seekTo(requestedSeekRef.current);
   }, [controls, playbackDuration]);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[var(--ls-canvas)]">
       {/* 진행 상태바 */}
       <div
-        className="shrink-0 h-1 bg-[var(--ls-control)] cursor-pointer group"
+        role="slider"
+        tabIndex={playbackDuration > 0 ? 0 : -1}
+        aria-label={t.tooltipViewSeekBar}
+        aria-orientation="horizontal"
+        aria-valuemin={0}
+        aria-valuemax={playbackDuration}
+        aria-valuenow={seekValue}
+        aria-valuetext={formatDisplayTime(seekValue)}
+        aria-disabled={playbackDuration <= 0}
+        className="shrink-0 h-1 bg-[var(--ls-control)] cursor-pointer group focus-visible:outline focus-visible:outline-[var(--ls-accent)]"
         onClick={handleSeek}
+        onKeyDown={handleSeekKeyDown}
       >
         <div
           className="h-full bg-[var(--ls-accent)] group-hover:bg-[var(--ls-accent)] transition-colors relative"
