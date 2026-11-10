@@ -42,6 +42,24 @@ fn python_cmd(python: impl AsRef<std::ffi::OsStr>) -> tokio::process::Command {
     cmd
 }
 
+fn ctc_archive_install_command(
+    python: &std::path::Path,
+    archive: &std::path::Path,
+) -> tokio::process::Command {
+    let mut command = python_cmd(python);
+    command
+        .args([
+            "-m",
+            "pip",
+            "--isolated",
+            "install",
+            "--no-build-isolation",
+            "--no-deps",
+        ])
+        .arg(archive);
+    command
+}
+
 /// Like `python_cmd`, but additionally sets ABOVE_NORMAL_PRIORITY_CLASS on Windows.
 /// On Intel hybrid CPUs (Alder Lake+), the Windows 11 scheduler and Intel Thread Director
 /// use priority class as a hint: ABOVE_NORMAL causes P-cores to be preferred over E-cores,
@@ -521,13 +539,10 @@ async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> 
                 .await?;
             }
             #[cfg(not(windows))]
-            install_step(
-                &app,
-                python_cmd(&python)
-                    .args(["-m", "pip", "install", "--no-build-isolation", "--no-deps"])
-                    .arg(&aligner_archive),
-            )
-            .await?;
+            {
+                let mut command = ctc_archive_install_command(&python, &aligner_archive);
+                install_step(&app, &mut command).await?;
+            }
         }
         install_step(
             &app,
@@ -588,7 +603,7 @@ mod progress_line_tests {
 
 #[cfg(test)]
 mod isolated_python_environment_tests {
-    use super::{python_cmd, python_cmd_inference};
+    use super::{ctc_archive_install_command, python_cmd, python_cmd_inference};
 
     #[test]
     fn embedded_python_commands_remove_inherited_python_paths() {
@@ -612,6 +627,32 @@ mod isolated_python_environment_tests {
                 name == "PYTHONSAFEPATH" && value == Some("1".as_ref())
             }));
         }
+    }
+
+    #[test]
+    fn macos_ctc_archive_install_uses_isolated_pip_configuration() {
+        let command = ctc_archive_install_command(
+            std::path::Path::new("python"),
+            std::path::Path::new("ctc.tar.gz"),
+        );
+        let args: Vec<_> = command
+            .as_std()
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect();
+
+        assert_eq!(
+            args,
+            [
+                "-m",
+                "pip",
+                "--isolated",
+                "install",
+                "--no-build-isolation",
+                "--no-deps",
+                "ctc.tar.gz"
+            ]
+        );
     }
 }
 
