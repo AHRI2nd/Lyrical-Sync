@@ -738,7 +738,16 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
               }, true);
             }}
             onDuplicate={(e) => { e.stopPropagation(); const nid = duplicateLine(line.id); setActiveLineId(nid); pendingFocusId.current = nid; }}
-            onDelete={(e) => { e.stopPropagation(); deleteLine(line.id); }}
+            onDelete={(e) => {
+              e.stopPropagation();
+              deleteLine(line.id);
+              changeSelection((previous) => {
+                if (!previous.has(line.id)) return previous;
+                const next = new Set(previous);
+                next.delete(line.id);
+                return next;
+              });
+            }}
             inputRef={setInputRef(line.id)} rowRef={setRowRef(line.id)} />
         ))}
       </div>

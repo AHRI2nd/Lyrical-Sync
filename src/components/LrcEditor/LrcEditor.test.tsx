@@ -16,6 +16,26 @@ beforeEach(() => {
     syncMode: "line", activeLineId: "a", isDirty: false, _history: [], _future: [] });
 });
 afterEach(() => { cleanup(); delete (HTMLElement.prototype as unknown as { scrollIntoView?: unknown }).scrollIntoView; vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+it("removes an individually deleted lyric from bulk selection", () => {
+  const t = useI18nStore.getState().t;
+  const { container, queryByText, getByText } = render(<LrcEditor onPreview={() => {}} />);
+  const rowA = container.querySelector('[data-line-id="a"]')!;
+  const rowB = container.querySelector('[data-line-id="b"]')!;
+  fireEvent.click(rowA, { ctrlKey: true });
+  fireEvent.click(rowB, { ctrlKey: true });
+  expect(getByText(`2 ${t.bulkSelected}`)).toBeTruthy();
+
+  fireEvent.click(rowA.querySelector(`button[aria-label="${t.deleteLine}"]`)!);
+
+  expect(useLrcStore.getState().doc.lines.map((line) => line.id)).toEqual(["b", "c", "d"]);
+  expect(queryByText(`2 ${t.bulkSelected}`)).toBeNull();
+  expect(getByText(`1 ${t.bulkSelected}`)).toBeTruthy();
+
+  fireEvent.click(getByText(t.bulkDelete));
+  expect(useLrcStore.getState().doc.lines.map((line) => line.id)).toEqual(["c", "d"]);
+  useLrcStore.getState().undo();
+  expect(useLrcStore.getState().doc.lines.map((line) => line.id)).toEqual(["b", "c", "d"]);
+});
 const setup = () => {
   const result = render(<LrcEditor onPreview={() => {}} />);
   const handles = Array.from(result.container.querySelectorAll('[data-reorder-handle], [draggable="true"]'));
