@@ -28,6 +28,8 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
   const [minSpeechMs, setMinSpeechMs] = useState("300");
   const [paddingMs, setPaddingMs] = useState("100");
   const [addedCount, setAddedCount] = useState<number | null>(null);
+  const appliedPreviewRef = useRef<string | null>(null);
+  const [appliedPreviewIdentity, setAppliedPreviewIdentity] = useState<string | null>(null);
 
   const close = useCallback(() => {
     activeControllerRef.current?.abort();
@@ -79,8 +81,27 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
     );
   }, [samples, sampleRate, thresholdDb, minSilenceMs, minSpeechMs, paddingMs]);
 
+  const previewIdentity = useMemo(() => JSON.stringify([
+    audioPath,
+    documentSession,
+    audioSelection,
+    parseThresholdDb(thresholdDb),
+    Math.max(0, Number(minSilenceMs) || 0) / 1000,
+    Math.max(0, Number(minSpeechMs) || 0) / 1000,
+    Math.max(0, Number(paddingMs) || 0) / 1000,
+    preview,
+  ]), [audioPath, documentSession, audioSelection, thresholdDb, minSilenceMs, minSpeechMs, paddingMs, preview]);
+
+  useEffect(() => {
+    appliedPreviewRef.current = null;
+    setAppliedPreviewIdentity(null);
+    setAddedCount(null);
+  }, [audioPath, documentSession, audioSelection]);
+
   const handleApply = () => {
-    if (preview.length === 0) return;
+    if (preview.length === 0 || appliedPreviewRef.current === previewIdentity) return;
+    appliedPreviewRef.current = previewIdentity;
+    setAppliedPreviewIdentity(previewIdentity);
     setAddedCount(addLinesFromSpeechSegments(preview));
   };
 
@@ -94,6 +115,8 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
           inputMode="numeric"
           value={value}
           onChange={(e) => {
+            appliedPreviewRef.current = null;
+            setAppliedPreviewIdentity(null);
             setAddedCount(null);
             onChange(e.target.value);
           }}
@@ -166,7 +189,7 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
             {audioPath && !loading && !error && (
               <button
                 onClick={handleApply}
-                disabled={preview.length === 0}
+                disabled={preview.length === 0 || appliedPreviewIdentity === previewIdentity}
                 className="ls-button text-sm bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors ls-button--primary"
               >
                 {t.autoSpotApply}

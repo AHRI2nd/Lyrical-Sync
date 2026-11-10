@@ -142,3 +142,45 @@ it("keeps focus inside Auto Spot and restores the opener after normal Escape", a
   opener.remove();
   outside.remove();
 });
+
+it("applies an unchanged Auto Spot preview only once as one undoable insertion", async () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [] }, _history: [], _future: [] });
+  vi.mocked(decodeAudioSamples).mockResolvedValue({
+    samples: new Float32Array(500).fill(0.1), sampleRate: 1000, file: { path: "/song.mp3", bookmark: "grant" },
+  });
+  const t = useI18nStore.getState().t;
+  render(<AutoSpotModal onClose={vi.fn()} />);
+  const apply = await screen.findByRole("button", { name: t.autoSpotApply }) as HTMLButtonElement;
+
+  fireEvent.click(apply);
+  expect(useLrcStore.getState().doc.lines).toHaveLength(1);
+  expect(useLrcStore.getState()._history).toHaveLength(1);
+  expect(apply.disabled).toBe(true);
+  fireEvent.click(apply);
+  expect(useLrcStore.getState().doc.lines).toHaveLength(1);
+  expect(useLrcStore.getState()._history).toHaveLength(1);
+
+  fireEvent.change(screen.getByDisplayValue("100"), { target: { value: "101" } });
+  expect(apply.disabled).toBe(false);
+
+  act(() => useLrcStore.getState().undo());
+  expect(useLrcStore.getState().doc.lines).toHaveLength(0);
+});
+
+it("clears the prior Apply result when a new audio selection is analyzed", async () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [] }, _history: [], _future: [] });
+  const decoded = (path: string) => ({
+    samples: new Float32Array(500).fill(0.1), sampleRate: 1000, file: { path, bookmark: "grant" },
+  });
+  vi.mocked(decodeAudioSamples).mockResolvedValueOnce(decoded("/song.mp3")).mockResolvedValueOnce(decoded("/next.mp3"));
+  const t = useI18nStore.getState().t;
+  render(<AutoSpotModal onClose={vi.fn()} />);
+  const apply = await screen.findByRole("button", { name: t.autoSpotApply }) as HTMLButtonElement;
+  fireEvent.click(apply);
+  expect(apply.disabled).toBe(true);
+
+  act(() => useLrcStore.setState({ audioPath: "/next.mp3", audioBookmark: "grant", _audioSelection: 2 }));
+  await waitFor(() => expect(decodeAudioSamples).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(screen.queryByText(`1 ${t.autoSpotAddedLabel}`)).toBeNull());
+  expect((screen.getByRole("button", { name: t.autoSpotApply }) as HTMLButtonElement).disabled).toBe(false);
+});
