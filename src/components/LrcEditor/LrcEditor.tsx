@@ -14,6 +14,7 @@ import { TimeShiftBar } from "./TimeShiftBar";
 import { ValidationPanel } from "./ValidationPanel";
 import { ScaleBar } from "./ScaleBar";
 import { isComposingKeyEvent } from "../../utils/keybindings";
+import { anyModalOpen } from "../../utils/modalGuard";
 import { LrcLineRowImpl as LrcLineRow } from "./LrcLineRow";
 import { BulkActionsBar } from "./BulkActionsBar";
 import { useModalFocus } from "../../hooks/useModalFocus";
@@ -497,7 +498,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   // Ctrl/Cmd+F 열기
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.code === "KeyF") {
+      if ((e.ctrlKey || e.metaKey) && e.code === "KeyF" && !anyModalOpen()) {
         e.preventDefault();
         setShowFR(true);
         setTimeout(() => findInputRef.current?.focus(), 0);

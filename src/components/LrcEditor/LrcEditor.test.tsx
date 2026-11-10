@@ -16,6 +16,37 @@ beforeEach(() => {
     syncMode: "line", activeLineId: "a", isDirty: false, _history: [], _future: [] });
 });
 afterEach(() => { cleanup(); delete (HTMLElement.prototype as unknown as { scrollIntoView?: unknown }).scrollIntoView; vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+it.each([
+  ["Ctrl", { ctrlKey: true }],
+  ["Cmd", { metaKey: true }],
+] as const)("does not open or focus editor Find from a dialog with %s+F", (_name, modifier) => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "original", translation: "translated", timestamp: 1 }] } });
+  const { getByDisplayValue, getByRole, queryByPlaceholderText } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.keyDown(getByDisplayValue("original"), { key: "Enter", shiftKey: true });
+  const dialog = getByRole("dialog", { name: t.translationSplitTitle });
+  const activeElement = document.activeElement;
+  expect(dialog.contains(activeElement)).toBe(true);
+
+  const eventWasNotCancelled = fireEvent.keyDown(window, { key: "f", code: "KeyF", ...modifier });
+
+  expect(eventWasNotCancelled).toBe(true);
+  expect(queryByPlaceholderText(t.findPlaceholder)).toBeNull();
+  expect(document.activeElement).toBe(activeElement);
+});
+
+it.each([
+  ["Ctrl", { ctrlKey: true }],
+  ["Cmd", { metaKey: true }],
+] as const)("keeps editor Find available without a dialog with %s+F", (_name, modifier) => {
+  const t = useI18nStore.getState().t;
+  const { getByPlaceholderText } = render(<LrcEditor onPreview={() => {}} />);
+
+  const eventWasNotCancelled = fireEvent.keyDown(window, { key: "f", code: "KeyF", ...modifier });
+
+  expect(eventWasNotCancelled).toBe(false);
+  expect(getByPlaceholderText(t.findPlaceholder)).toBeTruthy();
+});
 it("removes an individually deleted lyric from bulk selection", () => {
   const t = useI18nStore.getState().t;
   const { container, queryByText, getByText } = render(<LrcEditor onPreview={() => {}} />);
