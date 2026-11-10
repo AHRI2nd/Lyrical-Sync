@@ -58,7 +58,7 @@ interface SettingsState {
   addRecentFile: (entry: {
     lrcPath: string | null; audioPath: string | null;
     lrcBookmark: string | null; audioBookmark: string | null;
-  }) => void;
+  }) => number | null;
   clearRecentFiles: () => void;
   setKeybinding: (action: KeyAction, code: string) => void;
   resetKeybindings: () => void;
@@ -73,6 +73,7 @@ export interface RecentFileEntry {
 }
 
 const MAX_RECENT_FILES = 8;
+let latestRecentOpenedAt = 0;
 
 function sanitizeSettings(value: unknown, current: SettingsState): SettingsState {
   if (!isRecord(value)) return current;
@@ -167,13 +168,19 @@ export const useSettingsStore = create<SettingsState>()(
       setLyricsFontScale: (v) => set({ lyricsFontScale: v }),
       setShowGlyphTimeMarkers: (v) => set({ showGlyphTimeMarkers: v }),
       setShowSpectrogram: (v) => set({ showSpectrogram: v }),
-      addRecentFile: (entry) =>
+      addRecentFile: (entry) => {
+        if (!entry.lrcPath && !entry.audioPath) return null;
+        let openedAt = 0;
         set((s) => {
-          if (!entry.lrcPath && !entry.audioPath) return s;
+          const newestStored = s.recentFiles.reduce((newest, file) => Math.max(newest, file.openedAt), 0);
+          openedAt = Math.max(Date.now(), latestRecentOpenedAt + 1, newestStored + 1);
+          latestRecentOpenedAt = openedAt;
           const sameEntry = (f: RecentFileEntry) => f.lrcPath === entry.lrcPath && f.audioPath === entry.audioPath;
-          const next = [{ ...entry, openedAt: Date.now() }, ...s.recentFiles.filter((f) => !sameEntry(f))];
+          const next = [{ ...entry, openedAt }, ...s.recentFiles.filter((f) => !sameEntry(f))];
           return { recentFiles: next.slice(0, MAX_RECENT_FILES) };
-        }),
+        });
+        return openedAt;
+      },
       clearRecentFiles: () => set({ recentFiles: [] }),
       setKeybinding: (action, code) =>
         set((s) => ({ keybindings: { ...s.keybindings, [action]: code } })),

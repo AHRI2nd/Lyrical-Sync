@@ -125,7 +125,7 @@ interface LrcStore {
   ) => Promise<void>;
 
   setAudioPath: (path: string | null, bookmark?: string | null) => void;
-  refreshFileReference: (kind: "lyrics" | "audio", previous: FileRef, next: FileRef, owner?: { session: number; selection: number; target?: number }) => void;
+  refreshFileReference: (kind: "lyrics" | "audio", previous: FileRef, next: FileRef, owner?: { session: number; selection: number; target?: number; recentOpenedAt?: number }) => void;
   openAudio: () => Promise<void>;
   openLrc: () => Promise<void>;
   loadLyricsPath: (path: string, bookmark?: string | null) => Promise<void>;
@@ -211,7 +211,8 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
   let audioDialogRequest = 0;
   const recordRecent = () => {
     const { lrcPath, audioPath, lrcBookmark, audioBookmark } = get();
-    if (lrcPath || audioPath) useSettingsStore.getState().addRecentFile({ lrcPath, audioPath, lrcBookmark, audioBookmark });
+    if (lrcPath || audioPath) return useSettingsStore.getState().addRecentFile({ lrcPath, audioPath, lrcBookmark, audioBookmark });
+    return null;
   };
   return ({
   doc: defaultDocument(),
@@ -630,29 +631,39 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     const current = get();
     const pathKey = kind === "audio" ? "audioPath" : "lrcPath";
     const bookmarkKey = kind === "audio" ? "audioBookmark" : "lrcBookmark";
+    if (previous.path === next.path && previous.bookmark === next.bookmark) return;
+    if (owner?.recentOpenedAt !== undefined) {
+      useSettingsStore.setState((settings) => ({
+        recentFiles: settings.recentFiles.map((entry) =>
+          entry.openedAt === owner.recentOpenedAt && entry[pathKey] === previous.path && entry[bookmarkKey] === previous.bookmark
+            ? { ...entry, [pathKey]: next.path, [bookmarkKey]: next.bookmark }
+            : entry),
+      }));
+    }
     if (owner?.target !== undefined && kind === "lyrics" && current._saveTarget !== owner.target) return;
     if (owner && (current._documentSession !== owner.session ||
         (kind === "audio" && current._audioSelection !== owner.selection))) return;
     if (current[pathKey] !== previous.path ||
         current[bookmarkKey] !== previous.bookmark) return;
-    if (previous.path === next.path && previous.bookmark === next.bookmark) return;
     set({ [pathKey]: next.path, [bookmarkKey]: next.bookmark });
-    useSettingsStore.setState((settings) => ({
-      recentFiles: settings.recentFiles.map((entry) =>
-        entry[pathKey] === previous.path && entry[bookmarkKey] === previous.bookmark
-          ? { ...entry, [pathKey]: next.path, [bookmarkKey]: next.bookmark }
-          : entry),
-    }));
+    if (owner?.recentOpenedAt === undefined) {
+      useSettingsStore.setState((settings) => ({
+        recentFiles: settings.recentFiles.map((entry) =>
+          entry[pathKey] === previous.path && entry[bookmarkKey] === previous.bookmark
+            ? { ...entry, [pathKey]: next.path, [bookmarkKey]: next.bookmark }
+            : entry),
+      }));
+    }
   },
 
   setAudioPath: (path, bookmark = null) => {
     const selection = get()._audioSelection + 1;
     const session = get()._documentSession;
     set({ audioPath: path, audioBookmark: bookmark, _audioSelection: selection });
-    recordRecent();
+    const recentOpenedAt = recordRecent();
     if (path && !bookmark) {
       createBookmark(path).then((fresh) => {
-        get().refreshFileReference("audio", { path, bookmark: null }, { path, bookmark: fresh }, { session, selection });
+        get().refreshFileReference("audio", { path, bookmark: null }, { path, bookmark: fresh }, { session, selection, ...(recentOpenedAt === null ? {} : { recentOpenedAt }) });
       });
     }
   },
@@ -730,10 +741,13 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
           _documentSession: session, _editRevision: 0, _audioSelection: selection, _saveTarget: target,
           isDirty: dirty, activeLineId: doc.lines[0]?.id ?? null, loopLineId: null,
           ...(intent.kind === "raw" ? pushHistory(previous.doc, null, "loadDoc") : { _history: [], _future: [] }) });
-        if (intent.kind === "file" || intent.kind === "recent" || intent.kind === "recovery") recordRecent();
+        const recentOpenedAt = intent.kind === "file" || intent.kind === "recent" || intent.kind === "recovery"
+          ? recordRecent() : null;
         const ensureGrant = (kind: "lyrics" | "audio", file: FileRef | null) => {
           if (file && !file.bookmark) void createBookmark(file.path).then((bookmark) => {
-            get().refreshFileReference(kind, file, { ...file, bookmark }, { session, selection, target });
+            get().refreshFileReference(kind, file, { ...file, bookmark }, {
+              session, selection, target, ...(recentOpenedAt === null ? {} : { recentOpenedAt }),
+            });
           });
         };
         if (intent.kind !== "new") ensureGrant("lyrics", lyrics);
@@ -815,9 +829,11 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
       if (format === "lrc" && isCurrentRequest()) {
         const target = get()._saveTarget + 1;
         set({ lrcPath: path, lrcBookmark: null, _saveTarget: target, isDirty: get()._editRevision !== revision });
-        recordRecent();
+        const recentOpenedAt = recordRecent();
         createBookmark(path).then((bookmark) => {
-          get().refreshFileReference("lyrics", { path, bookmark: null }, { path, bookmark }, { session, selection: get()._audioSelection, target });
+          get().refreshFileReference("lyrics", { path, bookmark: null }, { path, bookmark }, {
+            session, selection: get()._audioSelection, target, ...(recentOpenedAt === null ? {} : { recentOpenedAt }),
+          });
         });
       }
       return true;

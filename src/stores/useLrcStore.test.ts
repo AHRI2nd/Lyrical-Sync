@@ -729,6 +729,59 @@ describe("useLrcStore scoped file references", () => {
 
 });
 
+describe("delayed recent-file bookmark ownership", () => {
+  beforeEach(() => {
+    vi.mocked(invoke).mockReset();
+    useSettingsStore.setState({ recentFiles: [] });
+    reset([]);
+  });
+
+  it("persists a former document bookmark without changing the active document", async () => {
+    const grants = new Map<string, (bookmark: string) => void>();
+    vi.mocked(invoke).mockImplementation((command, args) => {
+      if (command === "read_lrc_file") return Promise.resolve(`[00:01.00]${(args as { path?: string } | undefined)?.path}`);
+      if (command === "create_security_bookmark") return new Promise<string>((resolve) => grants.set(String((args as { path?: string } | undefined)?.path), resolve));
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await useLrcStore.getState().loadLyricsPath("/A.lrc");
+    await useLrcStore.getState().loadLyricsPath("/B.lrc");
+    grants.get("/B.lrc")!("grant-B");
+    await vi.waitFor(() => expect(useLrcStore.getState().lrcBookmark).toBe("grant-B"));
+    grants.get("/A.lrc")!("grant-A");
+    await vi.waitFor(() => expect(useSettingsStore.getState().recentFiles.find((entry) => entry.lrcPath === "/A.lrc")?.lrcBookmark).toBe("grant-A"));
+
+    expect(useLrcStore.getState()).toMatchObject({ lrcPath: "/B.lrc", lrcBookmark: "grant-B" });
+    const persisted = JSON.parse(localStorage.getItem("lyrical-sync-settings") ?? "{}");
+    expect(persisted.state.recentFiles.find((entry: { lrcPath: string }) => entry.lrcPath === "/A.lrc").lrcBookmark).toBe("grant-A");
+  });
+
+  it("does not restore a cleared entry or apply an old grant to a reopened path", async () => {
+    const grants: Array<{ path: string; resolve: (bookmark: string) => void }> = [];
+    vi.mocked(invoke).mockImplementation((command, args) => {
+      if (command === "read_lrc_file") return Promise.resolve(`[00:01.00]${(args as { path?: string } | undefined)?.path}`);
+      if (command === "create_security_bookmark") return new Promise<string>((resolve) => grants.push({ path: String((args as { path?: string } | undefined)?.path), resolve }));
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await useLrcStore.getState().loadLyricsPath("/same.lrc");
+    const firstEntry = useSettingsStore.getState().recentFiles[0];
+    useSettingsStore.getState().clearRecentFiles();
+    grants[0].resolve("cleared-grant");
+    await Promise.resolve();
+    expect(useSettingsStore.getState().recentFiles).toEqual([]);
+
+    await useLrcStore.getState().loadLyricsPath("/same.lrc");
+    const reopenedEntry = useSettingsStore.getState().recentFiles[0];
+    expect(reopenedEntry.openedAt).not.toBe(firstEntry.openedAt);
+    grants[1].resolve("new-grant");
+    await vi.waitFor(() => expect(useSettingsStore.getState().recentFiles[0].lrcBookmark).toBe("new-grant"));
+    grants[0].resolve("stale-grant");
+    await Promise.resolve();
+    expect(useSettingsStore.getState().recentFiles[0].lrcBookmark).toBe("new-grant");
+  });
+});
+
 describe("useLrcStore SRT save policy", () => {
   beforeEach(() => {
     vi.mocked(invoke).mockReset().mockResolvedValue(undefined);
