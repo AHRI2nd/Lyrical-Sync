@@ -63,7 +63,7 @@ it("keeps files with valid bookmarks when another selected file cannot be author
   await screen.findByText("/output");
   fireEvent.click(screen.getByRole("button", { name: "Run" }));
   await waitFor(() => expect(runBatchOperation).toHaveBeenCalled());
-  expect(runBatchOperation.mock.calls[0][0].map((entry) => entry.file.path)).toEqual(["/inputs/good.lrc"]);
+  expect(vi.mocked(runBatchOperation).mock.calls[0][0].map((entry) => entry.file.path)).toEqual(["/inputs/good.lrc"]);
 });
 
 it("adds nothing when every bookmark fails and allows a denied file to be retried", async () => {
