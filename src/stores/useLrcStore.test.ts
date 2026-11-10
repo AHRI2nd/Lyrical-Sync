@@ -854,7 +854,7 @@ describe("useLrcStore — runAiSync blank-line timestamp placement", () => {
   it("stores only the stable AI error code from the sidecar progress event", async () => {
     reset([{ id: "line", timestamp: null, text: "hello" }]);
     useLrcStore.setState({ audioPath: "/song.mp3" });
-    let receiveProgress!: (event: { payload: { runId: number; status: string; code?: string; message?: string; percent: number } }) => void;
+    let receiveProgress!: (event: { payload: { runId: string; status: string; code?: string; message?: string; percent: number } }) => void;
     let rejectAlignment!: (error: Error) => void;
     vi.mocked(listen).mockImplementationOnce((_event, callback) => {
       receiveProgress = callback as typeof receiveProgress;
@@ -869,7 +869,7 @@ describe("useLrcStore — runAiSync blank-line timestamp placement", () => {
 
     const running = useLrcStore.getState().runAiSync("ko", 0.5, false, false);
     await vi.waitFor(() => expect(receiveProgress).toBeTypeOf("function"));
-    const args = vi.mocked(invoke).mock.calls.find(([command]) => command === "run_alignment")?.[1] as { runId: number };
+    const args = vi.mocked(invoke).mock.calls.find(([command]) => command === "run_alignment")?.[1] as { runId: string };
     receiveProgress({ payload: {
       runId: args.runId,
       status: "error",

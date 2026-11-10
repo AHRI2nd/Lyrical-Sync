@@ -49,7 +49,7 @@ interface AlignmentResult {
 }
 
 interface AlignmentProgressEvent {
-  runId: number;
+  runId: string;
   status: string;
   code?: string;
   percent: number;
@@ -218,7 +218,7 @@ function selectionForDocument(
 }
 
 // 비동기 정렬 결과가 새 문서나 이후 수동 편집을 덮어쓰지 않도록 실행 세대를 관리한다.
-let aiRunId = 0;
+let aiRunId: string | null = null;
 
 function playbackSourceModeKey(): string {
   const settings = useSettingsStore.getState();
@@ -312,8 +312,8 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
 
   const invalidateAiRun = () => {
     const cancelledRunId = aiRunId;
-    aiRunId += 1;
-    if (get().aiSyncStatus === "running") {
+    aiRunId = null;
+    if (get().aiSyncStatus === "running" && cancelledRunId) {
       void invoke("cancel_alignment", { runId: cancelledRunId }).catch(() => {});
     }
     return resetAiState();
@@ -1203,7 +1203,8 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
       return;
     }
 
-    const runId = ++aiRunId;
+    const runId = crypto.randomUUID();
+    aiRunId = runId;
     const owner = {
       session: initial._documentSession,
       audioSelection: initial._audioSelection,

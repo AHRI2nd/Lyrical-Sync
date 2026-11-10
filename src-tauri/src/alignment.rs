@@ -1,4 +1,5 @@
 use serde::Serialize;
+use std::collections::VecDeque;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -21,33 +22,77 @@ fn validate_alignment_audio(path: &Path) -> Result<(), String> {
 }
 
 /// The active run owns its cancellation flag until its child has been reaped.
+const MAX_PENDING_ALIGNMENT_CANCELLATIONS: usize = 64;
+
+#[derive(Default)]
+struct AlignmentStateInner {
+    active: Option<(String, Arc<AtomicBool>)>,
+    pending_cancellations: VecDeque<String>,
+}
+
 #[derive(Default)]
 pub struct AlignmentState {
-    active: Mutex<Option<(u64, Arc<AtomicBool>)>>,
+    inner: Mutex<AlignmentStateInner>,
 }
-struct AlignmentRun<'a> { state: &'a AlignmentState, cancel: Arc<AtomicBool> }
+struct AlignmentRun<'a> {
+    state: &'a AlignmentState,
+    cancel: Arc<AtomicBool>,
+}
 impl AlignmentState {
-    fn begin(&self, id: u64) -> Result<AlignmentRun<'_>, String> {
-        let mut active = self.active.lock().unwrap_or_else(|e| e.into_inner());
-        if active.is_some() { return Err("Alignment is still running or cancelling".into()); }
-        let cancel = Arc::new(AtomicBool::new(false));
-        *active = Some((id, cancel.clone()));
-        Ok(AlignmentRun { state: self, cancel })
-    }
-    fn cancel(&self, id: u64) {
-        if let Some((active_id, flag)) = &*self.active.lock().unwrap_or_else(|e| e.into_inner()) {
-            if *active_id == id { flag.store(true, Ordering::Relaxed); }
+    fn begin(&self, id: String) -> Result<AlignmentRun<'_>, String> {
+        let mut inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        if inner.active.is_some() {
+            return Err("Alignment is still running or cancelling".into());
         }
+        let cancelled_early = inner
+            .pending_cancellations
+            .iter()
+            .any(|pending_id| pending_id == &id);
+        inner
+            .pending_cancellations
+            .retain(|pending_id| pending_id != &id);
+        let cancel = Arc::new(AtomicBool::new(cancelled_early));
+        inner.active = Some((id, cancel.clone()));
+        Ok(AlignmentRun {
+            state: self,
+            cancel,
+        })
+    }
+    fn cancel(&self, id: &str) {
+        let mut inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some((active_id, flag)) = &inner.active {
+            if active_id == id {
+                flag.store(true, Ordering::Relaxed);
+                return;
+            }
+        }
+        if inner
+            .pending_cancellations
+            .iter()
+            .any(|pending_id| pending_id == id)
+        {
+            return;
+        }
+        if inner.pending_cancellations.len() == MAX_PENDING_ALIGNMENT_CANCELLATIONS {
+            inner.pending_cancellations.pop_front();
+        }
+        inner.pending_cancellations.push_back(id.to_owned());
     }
 }
 impl Drop for AlignmentRun<'_> {
-    fn drop(&mut self) { *self.state.active.lock().unwrap_or_else(|e| e.into_inner()) = None; }
+    fn drop(&mut self) {
+        self.state
+            .inner
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .active = None;
+    }
 }
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct AlignmentProgressEvent {
-    run_id: u64,
+    run_id: String,
     status: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     code: Option<String>,
@@ -87,7 +132,7 @@ async fn wait_for_package_probe(
 pub async fn run_alignment(
     app: AppHandle,
     window: WebviewWindow,
-    run_id: u64,
+    run_id: String,
     dir_state: tauri::State<'_, ModelsDirState>,
     al_state: tauri::State<'_, AlignmentState>,
     audio_path: String,
@@ -100,8 +145,11 @@ pub async fn run_alignment(
     crate::authorize_window_path(&window, &audio_path)?;
     validate_alignment_audio(&audio_path)?;
     let audio_path = audio_path.to_string_lossy().into_owned();
-    let run = al_state.begin(run_id)?;
+    let run = al_state.begin(run_id.clone())?;
     let cancel = run.cancel.clone();
+    if cancel.load(Ordering::Relaxed) {
+        return Err("cancelled".into());
+    }
     let runtime_root = crate::python_env::embedded_python_dir(&app)?;
     let _environment = crate::python_runtime::try_lock_environment(&runtime_root)?;
     crate::python_runtime::recover_runtime(&runtime_root)
@@ -130,7 +178,7 @@ pub async fn run_alignment(
             let _ = app.emit(
                 "alignment-progress",
                 AlignmentProgressEvent {
-                    run_id,
+                    run_id: run_id.clone(),
                     status: status.clone(),
                     code: code.clone(),
                     percent,
@@ -277,8 +325,8 @@ pub async fn run_alignment(
 }
 
 #[tauri::command]
-pub fn cancel_alignment(al_state: tauri::State<'_, AlignmentState>, run_id: u64) {
-    al_state.cancel(run_id);
+pub fn cancel_alignment(al_state: tauri::State<'_, AlignmentState>, run_id: String) {
+    al_state.cancel(&run_id);
 }
 
 #[cfg(test)]
@@ -308,7 +356,7 @@ mod tests {
     #[test]
     fn alignment_progress_event_serializes_the_code_without_sidecar_diagnostics() {
         let event = AlignmentProgressEvent {
-            run_id: 7,
+            run_id: "run-7".into(),
             status: "error".to_string(),
             code: Some("model".to_string()),
             percent: 0.0,
@@ -350,14 +398,60 @@ mod tests {
     #[test]
     fn cancelled_run_retains_ownership_until_reaped_and_stale_cancels_are_ignored() {
         let state = AlignmentState::default();
-        let first = state.begin(1).unwrap();
-        state.cancel(1);
+        let first = state.begin("run-1".into()).unwrap();
+        state.cancel("run-1");
         assert!(first.cancel.load(Ordering::Relaxed));
-        assert!(state.begin(2).is_err());
+        assert!(state.begin("run-2".into()).is_err());
         drop(first);
-        let second = state.begin(2).unwrap();
-        state.cancel(1);
+        let second = state.begin("run-2".into()).unwrap();
+        state.cancel("run-1");
         assert!(!second.cancel.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn cancellation_before_native_run_registration_is_applied_when_run_begins() {
+        let state = AlignmentState::default();
+        state.cancel("run-a");
+
+        let run = state.begin("run-a".into()).unwrap();
+
+        assert!(run.cancel.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn early_cancellation_is_kept_for_its_run_without_cancelling_another_run() {
+        let state = AlignmentState::default();
+        state.cancel("run-b");
+
+        let first = state.begin("run-a".into()).unwrap();
+        assert!(!first.cancel.load(Ordering::Relaxed));
+        drop(first);
+
+        let second = state.begin("run-b".into()).unwrap();
+        assert!(second.cancel.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn stale_cancellation_does_not_cancel_a_later_unique_run() {
+        let state = AlignmentState::default();
+        drop(state.begin("run-old".into()).unwrap());
+        state.cancel("run-old");
+
+        let current = state.begin("run-current".into()).unwrap();
+        assert!(!current.cancel.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn pending_cancellation_memory_is_bounded() {
+        let state = AlignmentState::default();
+        for index in 0..100 {
+            state.cancel(&format!("run-{index}"));
+        }
+
+        assert_eq!(
+            state.inner.lock().unwrap().pending_cancellations.len(),
+            MAX_PENDING_ALIGNMENT_CANCELLATIONS
+        );
     }
 
     #[test]
