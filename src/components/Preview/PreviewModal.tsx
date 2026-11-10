@@ -42,30 +42,33 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
   // 현재 시각 기준으로 활성 줄 인덱스 계산
   const activeIdx = useMemo(() => {
     let idx = -1;
+    let activeTimestamp = Number.NEGATIVE_INFINITY;
     for (let i = 0; i < doc.lines.length; i++) {
       const ts = doc.lines[i].timestamp;
-      if (ts !== null && ts <= playbackTime) idx = i;
+      if (ts !== null && ts <= playbackTime && ts >= activeTimestamp) {
+        idx = i;
+        activeTimestamp = ts;
+      }
     }
     return idx;
   }, [doc.lines, playbackTime]);
 
-  // 각 줄의 가라오케 종료 시각을 1회 O(n) 패스로 미리 계산
+  // 각 줄의 가라오케 종료 시각을 타임스탬프 순서로 계산
   // (기존엔 줄마다 앞쪽 스캔 → 렌더당 O(n²)이 매 프레임 실행됐음)
   const lineEnds = useMemo(() => {
-    const ends = new Array<number>(doc.lines.length);
-    let nextStampedTs: number | null = null;
-    for (let i = doc.lines.length - 1; i >= 0; i--) {
-      const line = doc.lines[i];
-      if (line.timestamp !== null && Number.isFinite(line.srtEndTime) && line.srtEndTime! > line.timestamp) {
-        ends[i] = playbackDuration > 0 ? Math.min(line.srtEndTime!, playbackDuration) : line.srtEndTime!;
-      } else {
-        ends[i] = nextStampedTs !== null
-          ? nextStampedTs
-          : (playbackDuration > 0 ? playbackDuration : (line.timestamp ?? 0) + 4);
-      }
-      if (doc.lines[i].timestamp !== null) nextStampedTs = doc.lines[i].timestamp;
+    const timestamps = [...new Set(doc.lines.flatMap((line) => line.timestamp === null ? [] : [line.timestamp]))].sort((a, b) => a - b);
+    const nextByTimestamp = new Map<number, number>();
+    for (let i = 0; i < timestamps.length; i++) {
+      const timestamp = timestamps[i];
+      nextByTimestamp.set(timestamp, timestamps[i + 1] ?? (playbackDuration > 0 ? playbackDuration : timestamp + 4));
     }
-    return ends;
+    return doc.lines.map((line) => {
+      if (line.timestamp === null) return playbackDuration > 0 ? playbackDuration : 4;
+      if (Number.isFinite(line.srtEndTime) && line.srtEndTime! > line.timestamp) {
+        return playbackDuration > 0 ? Math.min(line.srtEndTime!, playbackDuration) : line.srtEndTime!;
+      }
+      return nextByTimestamp.get(line.timestamp) ?? (playbackDuration > 0 ? playbackDuration : line.timestamp + 4);
+    });
   }, [doc.lines, playbackDuration]);
 
   // 활성 줄이 바뀔 때 스크롤 (편집 중이 아닐 때만)

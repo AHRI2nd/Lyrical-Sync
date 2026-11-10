@@ -37,6 +37,26 @@ it("uses an explicit SRT cue end for karaoke progress", () => {
   expect(getByText("B").style.background).toContain("50%");
 });
 
+it("selects the latest timestamp and chronological karaoke end in out-of-order rows", () => {
+  useLrcStore.setState({ currentTime: 4, duration: 10, doc: { ...defaultDocument(), lines: [
+    { id: "later", text: "later", timestamp: 3, syllables: [{ text: "later", time: 3 }] },
+    { id: "earlier", text: "earlier", timestamp: 1 },
+  ] } });
+  const { getByText } = render(<PreviewModal onClose={() => {}} />);
+  expect(getByText("later").closest(".relative")?.querySelector(".absolute")).not.toBeNull();
+  expect(getByText("later").style.background).toContain("14.285714285714285%");
+});
+
+it("keeps the last document-order row active for equal timestamps", () => {
+  useLrcStore.setState({ currentTime: 2, duration: 10, doc: { ...defaultDocument(), lines: [
+    { id: "first", text: "first duplicate", timestamp: 2 },
+    { id: "last", text: "last duplicate", timestamp: 2 },
+  ] } });
+  const { getByText } = render(<PreviewModal onClose={() => {}} />);
+  expect(getByText("first duplicate").className).not.toContain("relative");
+  expect(getByText("last duplicate").className).toContain("relative");
+});
+
 it("shows empty-audio guidance and removes it when an audio file is selected", () => {
   act(() => useLrcStore.setState({ audioPath: null }));
   const { container } = render(<PreviewModal onClose={() => {}} />);
