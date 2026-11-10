@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 // Supply controlled engine events; test the component's loop policy, not decoding.
 const { handlers, seekTo, play, load, engines, spectrogramCreated, spectrogramDestroyed } = vi.hoisted(() => ({
@@ -104,6 +104,14 @@ describe("AudioPlayer loop-line boundaries", () => {
     await waitFor(() => expect(useWaveformStore.getState().path).toBe("/replacement.wav"));
     unmount();
     expect(useWaveformStore.getState().source).toBeNull();
+  });
+
+  it("names the volume and waveform zoom sliders for assistive technology", () => {
+    render(<AudioPlayer />);
+    const labels = translations[useI18nStore.getState().lang];
+
+    expect(screen.getByRole("slider", { name: labels.volume })).toBeTruthy();
+    expect(screen.getByRole("slider", { name: labels.zoom })).toBeTruthy();
   });
 
   it("explains when an audio file exceeds the resource limit", async () => {
