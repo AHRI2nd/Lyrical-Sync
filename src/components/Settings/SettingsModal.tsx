@@ -159,6 +159,7 @@ export function SettingsModal({ onClose, initialTab = "general" }: { onClose: ()
                 </div>
                 <input
                   type="range"
+                  aria-label={t.settingsUiScale}
                   min={0.7}
                   max={1.3}
                   step={0.05}
@@ -195,6 +196,7 @@ export function SettingsModal({ onClose, initialTab = "general" }: { onClose: ()
                 </div>
                 <input
                   type="range"
+                  aria-label={t.settingsLyricsFontSize}
                   min={0.8}
                   max={1.5}
                   step={0.05}

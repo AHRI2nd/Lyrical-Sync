@@ -25,6 +25,18 @@ it("lets users opt in to spell check from general settings", () => {
   expect(toggle.getAttribute("aria-checked")).toBe("true");
 });
 
+it("names both general settings sliders and preserves their values", () => {
+  render(<SettingsModal onClose={() => {}} />);
+  const uiScale = screen.getByRole("slider", { name: translations.en.settingsUiScale });
+  const lyricsFontSize = screen.getByRole("slider", { name: translations.en.settingsLyricsFontSize });
+
+  expect((uiScale as HTMLInputElement).value).toBe("1");
+  expect((lyricsFontSize as HTMLInputElement).value).toBe("1");
+  fireEvent.change(uiScale, { target: { value: "1.1" } });
+  fireEvent.change(lyricsFontSize, { target: { value: "1.2" } });
+  expect(useSettingsStore.getState()).toMatchObject({ uiScale: 1.1, lyricsFontScale: 1.2 });
+});
+
 it("updates preview settings using labeled controls in the preview tab", () => {
   render(<SettingsModal onClose={() => {}} />);
   fireEvent.click(screen.getByRole("button", { name: "Preview" }));
