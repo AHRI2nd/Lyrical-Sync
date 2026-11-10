@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
+import { invoke } from "@tauri-apps/api/core";
 import { useLrcStore } from "../stores/useLrcStore";
 import { configureRecovery, clearLocalData } from "./localPrivacy";
 import { useSettingsStore } from "../stores/useSettingsStore";
 import { loadRecoverySnapshot, saveRecoverySnapshot } from "./recovery";
 import { defaultDocument } from "../types/lrc";
+vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 beforeEach(() => { localStorage.clear(); useSettingsStore.setState({ recoveryEnabled: true }); });
 afterEach(() => vi.restoreAllMocks());
 it("disables recovery durably and deletes existing app-owned snapshots", async () => {
@@ -69,4 +71,35 @@ it("retains durable opt-outs if the final minimal settings write fails", async (
   expect(useSettingsStore.getState().recoveryEnabled).toBe(false);
   expect(useSettingsStore.getState().autoSave).toBe(false);
   expect(useSettingsStore.getState().recentFiles).toEqual([]);
+});
+
+it("prevents a queued save from starting after local data is cleared", async () => {
+  let finishFirstWrite!: () => void;
+  vi.mocked(invoke).mockImplementation((command) => {
+    if (command === "write_lrc_file") {
+      if (vi.mocked(invoke).mock.calls.filter(([name]) => name === "write_lrc_file").length === 1) {
+        return new Promise<void>((resolve) => { finishFirstWrite = resolve; });
+      }
+      return Promise.resolve(undefined);
+    }
+    return Promise.resolve(undefined);
+  });
+  useSettingsStore.setState({ autoSave: true, recoveryEnabled: false });
+  useLrcStore.setState({
+    doc: { ...defaultDocument(), lines: [{ id: "line", timestamp: 1, text: "before" }] },
+    lrcPath: "/original.lrc", lrcBookmark: null, isDirty: true,
+  });
+
+  const firstSave = useLrcStore.getState().saveLrc({ autoSaveOnly: true });
+  await vi.waitFor(() => expect(invoke).toHaveBeenCalledTimes(1));
+  useLrcStore.getState().updateLine("line", { text: "after" });
+  const queuedSave = useLrcStore.getState().saveLrc({ autoSaveOnly: true });
+  expect(clearLocalData()).toBe(true);
+
+  finishFirstWrite();
+  await firstSave;
+  await queuedSave;
+
+  expect(invoke).toHaveBeenCalledTimes(1);
+  expect(useSettingsStore.getState().autoSave).toBe(false);
 });

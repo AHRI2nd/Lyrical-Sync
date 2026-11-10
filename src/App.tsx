@@ -146,7 +146,7 @@ function useAutoSave() {
     const needsExtensionNotice = lrcPath.toLowerCase().endsWith(".lrc") && needsInlineTimestampEscape(doc);
     const id = setTimeout(() => {
       // 자동저장: 성공은 조용히, 실패만 토스트로 알림
-      useLrcStore.getState().saveLrc()
+      useLrcStore.getState().saveLrc({ autoSaveOnly: true })
         .then((written) => {
           if (!written || useLrcStore.getState()._documentSession !== session) return;
           shownError.current = null;

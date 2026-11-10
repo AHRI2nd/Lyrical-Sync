@@ -131,7 +131,7 @@ interface LrcStore {
   openLrc: () => Promise<void>;
   loadLyricsPath: (path: string, bookmark?: string | null) => Promise<void>;
   // 반환값: 실제로 파일을 썼으면 true, 사용자가 저장 다이얼로그를 취소하면 false
-  saveLrc: () => Promise<boolean>;
+  saveLrc: (options?: { autoSaveOnly?: boolean }) => Promise<boolean>;
   // enhanced: 이번 저장에만 적용하는 일회성 override(미지정 시 글자 데이터 있으면 E-LRC)
   saveLrcAs: (format: "lrc" | "srt" | "vtt" | "ass", enhanced?: boolean) => Promise<boolean>;
   newLrc: () => Promise<void>;
@@ -824,7 +824,9 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     if (get()._openRequest === request && typeof selected === "string") await get().loadLyricsPath(selected);
   },
 
-  saveLrc: async () => {
+  saveLrc: async (options) => {
+    const autoSaveOnly = options?.autoSaveOnly === true;
+    if (autoSaveOnly && !useSettingsStore.getState().autoSave) return false;
     set({ _lastEditKey: null });
     const { lrcPath, lrcBookmark, doc, duration, _documentSession: session, _editRevision: revision, _saveTarget: target } = get();
     if (!lrcPath) return get().saveLrcAs("lrc");
@@ -838,7 +840,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
       () => {
         const current = get();
         return current._documentSession === session && current._saveTarget === target &&
-          current.lrcPath === lrcPath;
+          current.lrcPath === lrcPath && (!autoSaveOnly || useSettingsStore.getState().autoSave);
       },
     ));
     if (!result.written) return false;
