@@ -34,6 +34,7 @@ import { LrcInlineEscapeTagConflictError, LrcLineOrderTagConflictError, LrcMetad
 
 const AUDIO_EXTS = ["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff", "aif"];
 const LYRICS_EXTS = ["lrc", "srt"];
+const AUTOSAVE_RETRY_DELAYS_MS = [3000, 6000, 12000] as const;
 const fileExt = (p: string) => p.split(".").pop()?.toLowerCase() ?? "";
 
 function serializationErrorCode(error: unknown): string | null {
@@ -130,7 +131,7 @@ function useGlobalKeys() {
 function useAutoSave() {
   const isDirty = useLrcStore((s) => s.isDirty);
   const lrcPath = useLrcStore((s) => s.lrcPath);
-  const doc = useLrcStore((s) => s.doc);
+  const editRevision = useLrcStore((s) => s._editRevision);
   const autoSave = useSettingsStore((s) => s.autoSave);
   const shownError = useRef<string | null>(null);
   const inlineEscapeNoticeSession = useRef<number | null>(null);
@@ -143,27 +144,62 @@ function useAutoSave() {
 
   useEffect(() => {
     if (!autoSave || !lrcPath || !isDirty) return;
-    const needsExtensionNotice = lrcPath.toLowerCase().endsWith(".lrc") && needsInlineTimestampEscape(doc);
-    const id = setTimeout(() => {
-      // 자동저장: 성공은 조용히, 실패만 토스트로 알림
-      useLrcStore.getState().saveLrc({ autoSaveOnly: true })
-        .then((written) => {
-          if (!written || useLrcStore.getState()._documentSession !== session) return;
-          shownError.current = null;
-          if (needsExtensionNotice && inlineEscapeNoticeSession.current !== session) {
-            inlineEscapeNoticeSession.current = session;
-            toast.info(useI18nStore.getState().t.toast.lrcInlineEscapeNotice);
-          }
-        })
-        .catch((error) => {
-          const code = serializationErrorCode(error);
-          if (!code || shownError.current !== code) toast.error(saveErrorMessage(error, useI18nStore.getState().t));
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    let retryIndex = 0;
+    let genericErrorShown = false;
+    const ownsDocument = () => {
+      const current = useLrcStore.getState();
+      return !cancelled && useSettingsStore.getState().autoSave &&
+        current._documentSession === session && current.lrcPath === lrcPath && current._editRevision === editRevision;
+    };
+    const ownsSavedDocument = () => {
+      const current = useLrcStore.getState();
+      return current._documentSession === session && current.lrcPath === lrcPath &&
+        current._editRevision === editRevision && !current.isDirty;
+    };
+    const scheduleRetry = () => {
+      if (!ownsDocument() || !useLrcStore.getState().isDirty || retryIndex >= AUTOSAVE_RETRY_DELAYS_MS.length) return;
+      timer = setTimeout(() => { void attemptSave(); }, AUTOSAVE_RETRY_DELAYS_MS[retryIndex++]);
+    };
+    const reportTransientFailure = () => {
+      shownError.current = null;
+      if (!genericErrorShown) {
+        toast.error(useI18nStore.getState().t.toast.saveFailed);
+        genericErrorShown = true;
+      }
+      scheduleRetry();
+    };
+    const attemptSave = async () => {
+      if (!ownsDocument() || !useLrcStore.getState().isDirty) return;
+      const current = useLrcStore.getState();
+      const needsExtensionNotice = lrcPath.toLowerCase().endsWith(".lrc") && needsInlineTimestampEscape(current.doc);
+      try {
+        const written = await current.saveLrc({ autoSaveOnly: true });
+        // A successful save clears dirty state and triggers this effect's cleanup before
+        // the promise continuation runs. Permit that exact saved revision to finish.
+        if (!ownsDocument() && !(written && ownsSavedDocument())) return;
+        if (!written) { reportTransientFailure(); return; }
+        shownError.current = null;
+        if (needsExtensionNotice && inlineEscapeNoticeSession.current !== session) {
+          inlineEscapeNoticeSession.current = session;
+          toast.info(useI18nStore.getState().t.toast.lrcInlineEscapeNotice);
+        }
+      } catch (error: unknown) {
+        if (!ownsDocument()) return;
+        const code = serializationErrorCode(error);
+        if (code) {
+          if (shownError.current !== code) toast.error(saveErrorMessage(error, useI18nStore.getState().t));
           shownError.current = code;
-        });
-    }, 1500);
-    return () => clearTimeout(id);
+          return;
+        }
+        reportTransientFailure();
+      }
+    };
+    timer = setTimeout(() => { void attemptSave(); }, 1500);
+    return () => { cancelled = true; clearTimeout(timer); };
     // doc 변경마다 타이머 리셋 → 입력이 멈춘 뒤에만 저장(디바운스)
-  }, [autoSave, lrcPath, isDirty, doc, session]);
+  }, [autoSave, lrcPath, isDirty, editRevision, session]);
 }
 
 function App() {
