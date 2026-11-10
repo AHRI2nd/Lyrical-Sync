@@ -13,6 +13,7 @@ export interface BatchFileEntry {
   status: "pending" | "processing" | "done" | "error" | "cancelled";
   error?: string;
 }
+export const BATCH_OUTPUT_DURABILITY_UNCERTAIN_CODE = "BATCH_OUTPUT_DURABILITY_UNCERTAIN";
 export type BatchOperation =
   | { kind: "offset"; deltaSeconds: number }
   | { kind: "convert"; format: "srt" | "vtt" | "ass" }

@@ -1,5 +1,9 @@
-use std::io::Write;
+#[cfg(unix)]
+use std::fs::File;
+use std::io::{self, Write};
 use std::path::Path;
+
+const OUTPUT_DURABILITY_UNCERTAIN_CODE: &str = "BATCH_OUTPUT_DURABILITY_UNCERTAIN";
 
 #[tauri::command]
 pub async fn write_batch_output(
@@ -13,6 +17,15 @@ pub async fn write_batch_output(
 }
 
 fn write_new_output(output_dir: &Path, name: &str, content: &str) -> Result<(), String> {
+    write_new_output_with_directory_sync(output_dir, name, content, sync_output_directory)
+}
+
+fn write_new_output_with_directory_sync(
+    output_dir: &Path,
+    name: &str,
+    content: &str,
+    sync_directory: impl FnOnce(&Path) -> io::Result<()>,
+) -> Result<(), String> {
     let stem = name
         .split('.')
         .next()
@@ -55,7 +68,21 @@ fn write_new_output(output_dir: &Path, name: &str, content: &str) -> Result<(), 
     temporary
         .persist_noclobber(output_dir.join(name))
         .map_err(|error| error.to_string())?;
+    sync_directory(output_dir)
+        .map_err(|error| format!("{OUTPUT_DURABILITY_UNCERTAIN_CODE}: {error}"))?;
     Ok(())
+}
+
+fn sync_output_directory(output_dir: &Path) -> io::Result<()> {
+    #[cfg(unix)]
+    {
+        File::open(output_dir)?.sync_all()
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = output_dir;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -80,6 +107,42 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(folder.path().join("new.srt")).unwrap(),
             "first"
+        );
+        assert_eq!(std::fs::read_dir(folder.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn successful_publication_waits_for_directory_sync() {
+        let folder = tempfile::tempdir().unwrap();
+        let mut synced = false;
+        write_new_output_with_directory_sync(folder.path(), "song.lrc", "lyrics", |path| {
+            assert_eq!(path, folder.path());
+            synced = true;
+            Ok(())
+        })
+        .unwrap();
+
+        assert!(synced);
+        assert_eq!(
+            std::fs::read_to_string(folder.path().join("song.lrc")).unwrap(),
+            "lyrics"
+        );
+        assert_eq!(std::fs::read_dir(folder.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn directory_sync_failure_reports_uncertain_durability_after_publication() {
+        let folder = tempfile::tempdir().unwrap();
+        let error =
+            write_new_output_with_directory_sync(folder.path(), "song.lrc", "lyrics", |_| {
+                Err(io::Error::other("injected sync failure"))
+            })
+            .unwrap_err();
+
+        assert!(error.starts_with(OUTPUT_DURABILITY_UNCERTAIN_CODE));
+        assert_eq!(
+            std::fs::read_to_string(folder.path().join("song.lrc")).unwrap(),
+            "lyrics"
         );
         assert_eq!(std::fs::read_dir(folder.path()).unwrap().count(), 1);
     }

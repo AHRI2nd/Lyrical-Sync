@@ -43,3 +43,15 @@ it("localizes an unrepresentable VTT paragraph in the batch row", () => {
 
   expect(screen.getByText(t.toast.vttBlankRowsUnsupported)).toBeTruthy();
 });
+
+it("explains that a batch output may exist when directory durability is uncertain", () => {
+  const t = useI18nStore.getState().t;
+  render(<BatchFileList
+    t={t}
+    entries={[{ id: "file", file: { path: "/output/song.lrc", bookmark: "" }, status: "error", error: "BATCH_OUTPUT_DURABILITY_UNCERTAIN: sync failed" }]}
+    onRemove={() => {}}
+    disabled={false}
+  />);
+
+  expect(screen.getByText(t.toast.batchOutputDurabilityUncertain)).toBeTruthy();
+});
