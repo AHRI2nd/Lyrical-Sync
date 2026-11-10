@@ -31,7 +31,7 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     requestedSeekRef.current = playbackTime;
-  }, [playbackTime]);
+  }, [playbackTime, audioPath, documentSession]);
 
   // 인라인 타임스탬프 편집 상태
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -222,7 +222,8 @@ export function PreviewModal({ onClose }: { onClose: () => void }) {
     const rect = e.currentTarget.getBoundingClientRect();
     if (rect.width <= 0) return;
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    controls.seekTo(ratio * playbackDuration);
+    requestedSeekRef.current = ratio * playbackDuration;
+    controls.seekTo(requestedSeekRef.current);
   }, [controls, playbackDuration]);
 
   const handleSeekKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {

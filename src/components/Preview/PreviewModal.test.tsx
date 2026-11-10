@@ -13,6 +13,7 @@ import { useI18nStore } from "../../stores/useI18nStore";
 import { defaultDocument } from "../../types/lrc";
 import { audioControls } from "../../utils/audioControls";
 beforeEach(() => {
+  vi.clearAllMocks();
   Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
   useLrcStore.setState({ doc: { ...defaultDocument(), metadata: { ...defaultDocument().metadata, title: "song" },
     lines: [{ id: "a", text: "first", timestamp: 1 }, { id: "b", text: "second", timestamp: 3 }] },
@@ -184,6 +185,34 @@ it("exposes the preview timeline as a named slider and clamps keyboard seeking",
   expect(audioControls.seekTo).toHaveBeenNthCalledWith(3, 10);
   expect(audioControls.seekTo).toHaveBeenNthCalledWith(4, 0);
   expect(audioControls.seekTo).toHaveBeenNthCalledWith(5, 0);
+});
+
+it("accumulates repeated arrow seeks while the playback position is unchanged", () => {
+  const { getByRole } = render(<PreviewModal onClose={() => {}} />);
+  const slider = getByRole("slider", { name: useI18nStore.getState().t.tooltipViewSeekBar });
+
+  fireEvent.keyDown(slider, { key: "ArrowRight" });
+  fireEvent.keyDown(slider, { key: "ArrowRight" });
+
+  expect(audioControls.seekTo).toHaveBeenNthCalledWith(1, 2);
+  expect(audioControls.seekTo).toHaveBeenNthCalledWith(2, 3);
+});
+
+it("continues keyboard seeking from a pointer seek and resets the pending target on source change", () => {
+  const { getByRole } = render(<PreviewModal onClose={() => {}} />);
+  const slider = getByRole("slider", { name: useI18nStore.getState().t.tooltipViewSeekBar });
+  vi.spyOn(slider, "getBoundingClientRect").mockReturnValue({
+    x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 4, width: 100, height: 4, toJSON: () => ({}),
+  } as DOMRect);
+
+  fireEvent.click(slider, { clientX: 50 });
+  fireEvent.keyDown(slider, { key: "ArrowRight" });
+  expect(audioControls.seekTo).toHaveBeenNthCalledWith(1, 5);
+  expect(audioControls.seekTo).toHaveBeenNthCalledWith(2, 6);
+
+  act(() => useLrcStore.setState({ audioPath: "/replacement.mp3" }));
+  fireEvent.keyDown(slider, { key: "ArrowRight" });
+  expect(audioControls.seekTo).toHaveBeenNthCalledWith(3, 2);
 });
 
 it("makes timestamped lyric rows keyboard-seekable while keeping untimed rows out of the tab order", () => {
