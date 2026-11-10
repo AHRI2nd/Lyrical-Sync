@@ -133,6 +133,22 @@ describe("App document confirmation and keyboard boundaries", () => {
     expect(useLrcStore.getState().isDirty).toBe(false);
   });
 
+  it("explains when a bookmarked lyric file changes format and leaves it unsaved", async () => {
+    useLrcStore.setState({ lrcPath: "/old/song.lrc", lrcBookmark: "old", isDirty: true });
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command === "prepare_file_ref") return Promise.resolve({ path: "/moved/song.srt", bookmark: "fresh" });
+      return Promise.resolve(null);
+    });
+    const t = useI18nStore.getState().t;
+    render(<App />);
+    await userEvent.setup().click(screen.getByRole("button", { name: t.save }));
+
+    await waitFor(() => expect(screen.getByText(t.toast.saveFormatChanged)).toBeTruthy());
+    expect(useLrcStore.getState().isDirty).toBe(true);
+    expect(useLrcStore.getState().lrcPath).toBe("/old/song.lrc");
+    expect(vi.mocked(invoke).mock.calls.some(([command]) => command === "write_lrc_file")).toBe(false);
+  });
+
   it.each(["lyrics", "both"] as const)("uses only the unsaved-document guard for dirty %s drop and preserves Cancel", async (kind) => {
     existingPair(true);
     render(<App />);

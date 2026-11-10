@@ -5,7 +5,7 @@ import { LrcEditor } from "./components/LrcEditor/LrcEditor";
 // 모달은 시작 시 불필요 → 지연 로드(초기 번들·파싱 절감)
 const PreviewModal = lazy(() => import("./components/Preview/PreviewModal").then((m) => ({ default: m.PreviewModal })));
 const SettingsModal = lazy(() => import("./components/Settings/SettingsModal").then((m) => ({ default: m.SettingsModal })));
-import { useLrcStore } from "./stores/useLrcStore";
+import { LyricSaveFormatChangedError, useLrcStore } from "./stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "./stores/useI18nStore";
 import { useSettingsStore } from "./stores/useSettingsStore";
@@ -37,11 +37,13 @@ const LYRICS_EXTS = ["lrc", "srt"];
 const fileExt = (p: string) => p.split(".").pop()?.toLowerCase() ?? "";
 
 function serializationErrorCode(error: unknown): string | null {
+  if (error instanceof LyricSaveFormatChangedError) return error.code;
   if (error instanceof SrtUnrepresentableContentError || error instanceof SrtLossyDocumentError || error instanceof VttUnrepresentableContentError || error instanceof VttInvalidSyllableTimeError || error instanceof AssUnrepresentableContentError || error instanceof LrcInlineEscapeTagConflictError || error instanceof LrcMetadataLineBreakError || error instanceof LrcTranslationTagConflictError || error instanceof LrcLineOrderTagConflictError) return error.code;
   return null;
 }
 
 function saveErrorMessage(error: unknown, t: ReturnType<typeof useI18nStore.getState>["t"]): string {
+  if (error instanceof LyricSaveFormatChangedError) return t.toast.saveFormatChanged;
   if (String(error).includes("ATOMIC_STAGE_PERMISSION_DENIED")) return t.toast.atomicSaveNeedsFolderWriteAccess;
   if (error instanceof SrtUnrepresentableContentError) return t.toast.srtBlankRowsUnsupported;
   if (error instanceof SrtLossyDocumentError) return t.toast.srtLossyDocument;

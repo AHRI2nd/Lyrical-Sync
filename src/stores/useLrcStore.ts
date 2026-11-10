@@ -155,6 +155,23 @@ function serializeForPath(path: string, doc: LrcDocument, duration: number): str
   return serializeLrc(doc, true);
 }
 
+function lyricFormatForPath(path: string): "lrc" | "srt" | "vtt" | "ass" {
+  const lower = path.toLowerCase();
+  if (lower.endsWith(".srt")) return "srt";
+  if (lower.endsWith(".vtt")) return "vtt";
+  if (lower.endsWith(".ass")) return "ass";
+  return "lrc";
+}
+
+export class LyricSaveFormatChangedError extends Error {
+  readonly code = "LYRIC_SAVE_FORMAT_CHANGED";
+
+  constructor() {
+    super("The bookmarked lyric file now has a different format. Save As in the intended format before continuing.");
+    this.name = "LyricSaveFormatChangedError";
+  }
+}
+
 const MAX_HISTORY = 50;
 function selectionForDocument(
   doc: LrcDocument,
@@ -811,11 +828,13 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     set({ _lastEditKey: null });
     const { lrcPath, lrcBookmark, doc, duration, _documentSession: session, _editRevision: revision, _saveTarget: target } = get();
     if (!lrcPath) return get().saveLrcAs("lrc");
-    if (lrcPath.toLowerCase().endsWith(".srt")) assertSrtDocumentLossless(doc);
-    const content = serializeForPath(lrcPath, doc, duration);
     const result = await enqueuePathWrite(lrcPath, () => writeLyrics(
       { path: lrcPath, bookmark: lrcBookmark },
-      content,
+      (resolvedFile) => {
+        if (lyricFormatForPath(resolvedFile.path) !== lyricFormatForPath(lrcPath)) throw new LyricSaveFormatChangedError();
+        if (lyricFormatForPath(resolvedFile.path) === "srt") assertSrtDocumentLossless(doc);
+        return serializeForPath(resolvedFile.path, doc, duration);
+      },
       () => {
         const current = get();
         return current._documentSession === session && current._saveTarget === target &&

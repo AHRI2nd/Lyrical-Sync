@@ -29,10 +29,15 @@ export async function readLyrics(file: FileRef): Promise<FileResult<string>> {
   return { value, file: prepared };
 }
 
-export async function writeLyrics(file: FileRef, content: string, isCurrent: () => boolean = () => true): Promise<FileWriteResult> {
+export async function writeLyrics(
+  file: FileRef,
+  content: string | ((prepared: FileRef) => string),
+  isCurrent: () => boolean = () => true,
+): Promise<FileWriteResult> {
   const prepared = await prepareFileRef(file);
   if (!isCurrent()) return { value: undefined, file: prepared, written: false };
-  await invoke("write_lrc_file", { ...prepared, content });
+  const resolvedContent = typeof content === "function" ? content(prepared) : content;
+  await invoke("write_lrc_file", { ...prepared, content: resolvedContent });
   return { value: undefined, file: prepared, written: true };
 }
 

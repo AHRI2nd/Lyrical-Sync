@@ -877,6 +877,46 @@ describe("useLrcStore scoped file references", () => {
     }));
     expect(useLrcStore.getState().lrcBookmark).toBe("fresh");
   });
+
+  it("saves a bookmark-resolved same-format rename using the refreshed destination", async () => {
+    useLrcStore.setState({
+      lrcPath: "/old/song.lrc", lrcBookmark: "old", isDirty: true,
+      doc: { ...useLrcStore.getState().doc, lines: [{ id: "saved", timestamp: 1, text: "hello" }] },
+    });
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command === "prepare_file_ref") return Promise.resolve({ path: "/moved/song.lrc", bookmark: "fresh" });
+      if (command === "write_lrc_file") return Promise.resolve(undefined);
+      return Promise.reject(new Error(`Unexpected command: ${String(command)}`));
+    });
+    expect(await useLrcStore.getState().saveLrc()).toBe(true);
+    expect(invoke).toHaveBeenCalledWith("write_lrc_file", expect.objectContaining({
+      path: "/moved/song.lrc", bookmark: "fresh", content: expect.stringContaining("[00:01.00]"),
+    }));
+    expect(useLrcStore.getState().lrcPath).toBe("/moved/song.lrc");
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
+  it.each([
+    { source: "/old/song.lrc", resolved: "/moved/song.srt", title: "LRC to SRT" },
+    { source: "/old/song.srt", resolved: "/moved/song.lrc", title: "SRT to LRC" },
+  ])("does not save after bookmark resolution changes format ($title)", async ({ source, resolved }) => {
+    useLrcStore.setState({ lrcPath: source, lrcBookmark: "old", isDirty: true });
+    if (source.endsWith(".srt")) {
+      useLrcStore.setState({ doc: { ...useLrcStore.getState().doc, metadata: { ...useLrcStore.getState().doc.metadata, title: "Must remain LRC" } } });
+    }
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command === "prepare_file_ref") return Promise.resolve({ path: resolved, bookmark: "fresh" });
+      if (command === "write_lrc_file") return Promise.resolve(undefined);
+      return Promise.reject(new Error(`Unexpected command: ${String(command)}`));
+    });
+
+    await expect(useLrcStore.getState().saveLrc()).rejects.toMatchObject({ code: "LYRIC_SAVE_FORMAT_CHANGED" });
+
+    expect(vi.mocked(invoke).mock.calls.some(([command]) => command === "write_lrc_file")).toBe(false);
+    expect(useLrcStore.getState().lrcPath).toBe(source);
+    expect(useLrcStore.getState().lrcBookmark).toBe("old");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
   it("retains a newly selected file grant while its lyrics are edited", async () => {
     let finish!: (bookmark: string) => void;
     vi.mocked(invoke).mockImplementation((cmd) => {
