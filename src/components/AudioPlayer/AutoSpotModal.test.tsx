@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { useState } from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 vi.mock("../../utils/decodeAudioSamples", () => ({ decodeAudioSamples: vi.fn() }));
@@ -90,4 +91,54 @@ it("uses the displayed zero dB threshold for preview and inserted segments", asy
   await waitFor(() => expect(count(1)).toBeTruthy());
   fireEvent.click(screen.getByRole("button", { name: t.autoSpotApply }));
   expect(useLrcStore.getState().doc.lines).toHaveLength(1);
+});
+
+it("isolates Auto Spot as a named dialog, labels its fields and ignores composing Escape", async () => {
+  vi.mocked(decodeAudioSamples).mockResolvedValue({
+    samples: new Float32Array([0]), sampleRate: 1, file: { path: "/song.mp3", bookmark: "grant" },
+  });
+  const closed = vi.fn();
+  const t = useI18nStore.getState().t;
+  render(<AutoSpotModal onClose={closed} />);
+
+  const dialog = await screen.findByRole("dialog", { name: t.autoSpotTitle });
+  expect(dialog.getAttribute("aria-modal")).toBe("true");
+  const close = screen.getByRole("button", { name: t.close });
+  const threshold = screen.getByRole("textbox", { name: t.autoSpotThreshold });
+  expect(screen.getByRole("textbox", { name: t.autoSpotMinSilence })).toBeTruthy();
+  expect(screen.getByRole("textbox", { name: t.autoSpotMinSpeech })).toBeTruthy();
+  expect(screen.getByRole("textbox", { name: t.autoSpotPadding })).toBeTruthy();
+  expect(document.activeElement).toBe(close);
+
+  fireEvent.keyDown(threshold, { key: "Escape", isComposing: true });
+  expect(closed).not.toHaveBeenCalled();
+  expect(screen.getByRole("dialog", { name: t.autoSpotTitle })).toBeTruthy();
+});
+
+it("keeps focus inside Auto Spot and restores the opener after normal Escape", async () => {
+  vi.mocked(decodeAudioSamples).mockResolvedValue({
+    samples: new Float32Array([0]), sampleRate: 1, file: { path: "/song.mp3", bookmark: "grant" },
+  });
+  const opener = document.createElement("button");
+  opener.textContent = "Open Auto Spot";
+  document.body.append(opener);
+  opener.focus();
+
+  function Harness() {
+    const [open, setOpen] = useState(true);
+    return open ? <AutoSpotModal onClose={() => setOpen(false)} /> : null;
+  }
+  render(<Harness />);
+  const t = useI18nStore.getState().t;
+  const threshold = await screen.findByRole("textbox", { name: t.autoSpotThreshold });
+  const outside = document.createElement("button");
+  document.body.append(outside);
+  outside.focus();
+  expect(screen.getByRole("dialog", { name: t.autoSpotTitle }).contains(document.activeElement)).toBe(true);
+
+  fireEvent.keyDown(threshold, { key: "Escape" });
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: t.autoSpotTitle })).toBeNull());
+  expect(document.activeElement).toBe(opener);
+  opener.remove();
+  outside.remove();
 });

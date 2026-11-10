@@ -1,11 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { decodeAudioSamples } from "../../utils/decodeAudioSamples";
 import { detectSpeechSegments, parseThresholdDb } from "../../utils/autoSpot";
+import { useModalFocus } from "../../hooks/useModalFocus";
 
 export function AutoSpotModal({ onClose }: { onClose: () => void }) {
   const { t } = useI18nStore();
+  const dialog = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const fieldIdPrefix = useId();
   const audioPath = useLrcStore((s) => s.audioPath);
   const audioBookmark = useLrcStore((s) => s.audioBookmark);
   const addLinesFromSpeechSegments = useLrcStore((s) => s.addLinesFromSpeechSegments);
@@ -29,6 +33,7 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
     activeControllerRef.current?.abort();
     onClose();
   }, [onClose]);
+  useModalFocus(dialog, close, true, 60);
 
   useEffect(() => {
     if (!audioPath) return;
@@ -62,12 +67,6 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audioPath, audioBookmark, documentSession, audioSelection]);
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [close]);
-
   const preview = useMemo(() => {
     if (!samples) return [];
     return detectSpeechSegments(
@@ -85,11 +84,12 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
     setAddedCount(addLinesFromSpeechSegments(preview));
   };
 
-  const field = (label: string, value: string, onChange: (v: string) => void, suffix: string) => (
+  const field = (id: string, label: string, value: string, onChange: (v: string) => void, suffix: string) => (
     <div className="flex items-center justify-between gap-3">
-      <span className="text-xs text-[var(--ls-text-secondary)]">{label}</span>
+      <label htmlFor={id} className="text-xs text-[var(--ls-text-secondary)]">{label}</label>
       <div className="flex items-center gap-1.5">
         <input
+          id={id}
           type="text"
           inputMode="numeric"
           value={value}
@@ -110,13 +110,19 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
       onClick={close}
     >
       <div
+        ref={dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-sm mx-4 max-h-[calc(100%-2rem)] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)]">
-          <span className="font-semibold text-[var(--ls-text)] text-sm">{t.autoSpotTitle}</span>
+          <span id={titleId} className="font-semibold text-[var(--ls-text)] text-sm">{t.autoSpotTitle}</span>
           <button
             onClick={close}
+            aria-label={t.close}
             className="ls-button hover:text-white transition-colors text-lg leading-none"
           >
             ✕
@@ -134,10 +140,10 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
             <>
               <p className="text-[11px] leading-relaxed text-[var(--ls-text-secondary)]">{t.autoSpotHint}</p>
 
-              {field(t.autoSpotThreshold, thresholdDb, setThresholdDb, "dB")}
-              {field(t.autoSpotMinSilence, minSilenceMs, setMinSilenceMs, "ms")}
-              {field(t.autoSpotMinSpeech, minSpeechMs, setMinSpeechMs, "ms")}
-              {field(t.autoSpotPadding, paddingMs, setPaddingMs, "ms")}
+              {field(`${fieldIdPrefix}-threshold`, t.autoSpotThreshold, thresholdDb, setThresholdDb, "dB")}
+              {field(`${fieldIdPrefix}-min-silence`, t.autoSpotMinSilence, minSilenceMs, setMinSilenceMs, "ms")}
+              {field(`${fieldIdPrefix}-min-speech`, t.autoSpotMinSpeech, minSpeechMs, setMinSpeechMs, "ms")}
+              {field(`${fieldIdPrefix}-padding`, t.autoSpotPadding, paddingMs, setPaddingMs, "ms")}
 
               <div className="border-t border-[var(--ls-border-subtle)] pt-3 flex items-center justify-between text-xs">
                 <span className={preview.length > 0 ? "text-[var(--ls-accent)]" : "text-[var(--ls-text-secondary)]"}>
