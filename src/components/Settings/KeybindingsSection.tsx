@@ -37,7 +37,7 @@ export function KeybindingsSection({ focusCharacterSync = false }: { focusCharac
       e.stopPropagation();
       if (e.code === "Escape") { setCapturing(null); setError(""); return; }
       // Wait for an unmodified key rather than a modifier or chord.
-      if (e.ctrlKey || e.metaKey || e.altKey || MODIFIER_CODES.has(e.code)) return;
+      if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || MODIFIER_CODES.has(e.code)) return;
       if (RESERVED_CODES.has(e.code)) { setError(t.keys.reserved); return; }
       const conflict = conflictingAction(e.code, capturing, kb);
       if (conflict) {

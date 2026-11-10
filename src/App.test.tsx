@@ -345,6 +345,22 @@ describe("App document confirmation and keyboard boundaries", () => {
     expect(useLrcStore.getState().doc.lines).toEqual(original);
   });
 
+  it("ignores shifted custom bindings while preserving Ctrl+Shift+Z redo", () => {
+    useLrcStore.setState({ activeLineId: "draft" });
+    render(<App />);
+    fireEvent.keyDown(window, { code: "Space", shiftKey: true });
+    expect(useLrcStore.getState().doc.lines[0].timestamp).toBeNull();
+    useSettingsStore.getState().setKeybinding("stamp", "KeyT");
+    fireEvent.keyDown(window, { code: "KeyT", shiftKey: true });
+    expect(useLrcStore.getState().doc.lines[0].timestamp).toBeNull();
+
+    useLrcStore.getState().updateLine("draft", { text: "edited" });
+    fireEvent.keyDown(window, { code: "KeyZ", ctrlKey: true });
+    expect(useLrcStore.getState().doc.lines[0].text).toBe("Keep this draft");
+    fireEvent.keyDown(window, { code: "KeyZ", ctrlKey: true, shiftKey: true });
+    expect(useLrcStore.getState().doc.lines[0].text).toBe("edited");
+  });
+
 });
 
 

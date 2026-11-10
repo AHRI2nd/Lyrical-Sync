@@ -45,6 +45,9 @@ describe("KeybindingsSection", () => {
     const t = useI18nStore.getState().t;
     const { getByRole, getByText } = render(<KeybindingsSection />);
     fireEvent.click(getByRole("button", { name: `${t.charSync.stampHint} Space` }));
+    fireEvent.keyDown(window, { code: "KeyT", shiftKey: true });
+    expect(useSettingsStore.getState().keybindings.stamp).toBe("Space");
+    expect(getByText(t.keys.capturing)).toBeTruthy();
     fireEvent.keyDown(window, { code: "KeyT", ctrlKey: true });
     expect(useSettingsStore.getState().keybindings.stamp).toBe("Space");
     fireEvent.keyDown(window, { code: "Tab" });

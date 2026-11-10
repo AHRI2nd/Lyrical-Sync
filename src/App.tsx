@@ -94,7 +94,7 @@ function useGlobalKeys() {
         return;
       }
       // 수식자 조합은 사용자 단축키 대상 아님
-      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
 
       const action = matchAction(e.code, kb);
       if (!action || inInteractiveControl) return;
