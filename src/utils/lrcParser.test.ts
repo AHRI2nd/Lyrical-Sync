@@ -283,6 +283,36 @@ it("round-trips inherited-property metadata names without changing object protot
   expect(Object.getOwnPropertyDescriptor(parseLrc(output).extraTags, "constructor")?.value).toBe("second");
 });
 
+it.each(["12oops", "1.5", "", "9007199254740992", "-9007199254740992", "1e2"])(
+  "preserves an invalid offset token without coercion: %s", (value) => {
+    const parsed = parseLrc(`[offset:${value}]\n[00:01.00]lyric`);
+    expect(parsed.metadata.offset).toBe(0);
+    expect(Object.getOwnPropertyDescriptor(parsed.extraTags, "offset")?.value).toBe(value);
+    const serialized = serializeLrc(parsed);
+    expect(serialized).toContain(`[offset:${value}]`);
+    const reparsed = parseLrc(serialized);
+    expect(reparsed.metadata.offset).toBe(0);
+    expect(Object.getOwnPropertyDescriptor(reparsed.extraTags, "offset")?.value).toBe(value);
+  },
+);
+
+it.each([["+12", 12], ["-12", -12], ["0", 0], [" 34 ", 34]])(
+  "accepts complete signed safe integer offsets %s", (value, offset) => {
+    const parsed = parseLrc(`[offset:${value}]\n[00:01.00]lyric`);
+    expect(parsed.metadata.offset).toBe(offset);
+    expect(parsed.extraTags).not.toHaveProperty("offset");
+  },
+);
+
+it("preserves an invalid final repeated offset after a valid occurrence", () => {
+  const parsed = parseLrc("[offset:-25]\n[offset:12oops]\n[00:01.00]lyric");
+  expect(parsed.metadata.offset).toBe(-25);
+  const output = serializeLrc(parsed);
+  expect(output).toContain("[offset:-25]\n[offset:12oops]");
+  expect(parseLrc(output).metadata.offset).toBe(-25);
+  expect(Object.getOwnPropertyDescriptor(parseLrc(output).extraTags, "offset")?.value).toBe("12oops");
+});
+
 describe("Enhanced LRC (A2) — char/word sync", () => {
   it("parses inline <mm:ss.xx> tags into syllables", () => {
     const d = parseLrc("[00:12.00]<00:12.00>너<00:12.24>의 손");

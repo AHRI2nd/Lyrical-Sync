@@ -353,8 +353,8 @@ export function parseLrc(raw: string): LrcDocument {
           else doc.extraTags[key] = value;
         }
         else if (field === "offset") {
-          const offset = Number.parseInt(value, 10);
-          if (Number.isFinite(offset)) doc.metadata.offset = offset;
+          const offset = /^[+-]?\d+$/.test(value) ? Number(value) : Number.NaN;
+          if (Number.isSafeInteger(offset)) doc.metadata.offset = offset;
           else Object.defineProperty(doc.extraTags, key, { value, configurable: true, enumerable: true, writable: true });
         }
         else if (field) (doc.metadata as unknown as Record<string, string>)[field] = value;
