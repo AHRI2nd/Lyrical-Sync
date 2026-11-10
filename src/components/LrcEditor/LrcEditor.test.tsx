@@ -400,3 +400,30 @@ it.each([false,true])('keeps replacement dollar text literal in the editor (all=
  fireEvent.click(getByRole('button',{name:all?t.replaceAll:t.replaceBtn}));
  expect(useLrcStore.getState().doc.lines[0].text).toBe(all?'$& $&':'$& original');
 });
+
+it.each([
+  { text: "İstanbul", query: "i", matches: false },
+  { text: "Kelvin", query: "k", matches: false },
+  { text: "café", query: "é", matches: true },
+  { text: "café", query: "e", matches: false },
+  { text: "axby", query: "a.b", matches: false },
+  { text: "Apple apple", query: "apple", matches: true },
+])("uses the same case-insensitive matching for find and replace: $query in $text", ({ text, query, matches }) => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "unicode", text, timestamp: null }] } });
+  const { getByPlaceholderText, getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.keyDown(window, { code: "KeyF", ctrlKey: true });
+  fireEvent.change(getByPlaceholderText(t.findPlaceholder), { target: { value: query } });
+  const count = getByPlaceholderText(t.findPlaceholder).parentElement?.querySelector("span.font-mono")?.textContent;
+
+  if (!matches) {
+    expect(count).toBe(t.noMatches);
+    expect(getByRole("button", { name: t.replaceBtn }).hasAttribute("disabled")).toBe(true);
+    return;
+  }
+
+  expect(count).toBe("1 / 1");
+  fireEvent.change(getByPlaceholderText(t.replacePlaceholder), { target: { value: "matched" } });
+  fireEvent.click(getByRole("button", { name: t.replaceBtn }));
+  expect(useLrcStore.getState().doc.lines[0].text).toBe(text.replace(new RegExp(query, "i"), "matched"));
+});

@@ -479,9 +479,10 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   // 매칭 줄 id 목록
   const matchIds = useMemo(() => {
     if (!findText) return [];
-    const needle = caseSensitive ? findText : findText.toLowerCase();
+    const escaped = findText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(escaped, caseSensitive ? "" : "i");
     return lines
-      .filter((l) => (caseSensitive ? l.text : l.text.toLowerCase()).includes(needle))
+      .filter((l) => re.test(l.text))
       .map((l) => l.id);
   }, [lines, findText, caseSensitive]);
 
