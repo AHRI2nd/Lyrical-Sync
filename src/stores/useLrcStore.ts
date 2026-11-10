@@ -90,6 +90,7 @@ interface LrcStore {
   setLines: (lines: LrcLine[]) => void;
   addLine: (text?: string) => void;
   insertLinesAfter: (afterId: string, texts: string[]) => string;
+  applyMultilinePaste: (lineId: string, firstText: string, followingTexts: string[]) => string | null;
   /** 무음 기반 자동 스팟팅: 감지된 구간마다 빈 텍스트 stamped line을 시간순으로 삽입.
    *  타임스탬프 없는(=아직 안 찍은) 기존 줄은 정렬 기준에서 제외되어 위치가 바뀌지 않음.
    *  반환값: 삽입된 줄 수 */
@@ -408,6 +409,20 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     const lines = [...doc.lines];
     lines.splice(idx + 1, 0, ...newLines);
     set({ ...pushHistory(doc, null, "insertLines"), doc: { ...doc, lines }, isDirty: true });
+    return lastId;
+  },
+
+  applyMultilinePaste: (lineId, firstText, followingTexts) => {
+    const { doc } = get();
+    const idx = doc.lines.findIndex((line) => line.id === lineId);
+    if (idx < 0 || followingTexts.length === 0) return null;
+    const source = doc.lines[idx];
+    const first = { ...source, text: firstText, syllables: undefined };
+    const inserted = followingTexts.map((text) => ({ id: genId(), timestamp: null as null, text }));
+    const lastId = inserted[inserted.length - 1].id;
+    const lines = [...doc.lines];
+    lines.splice(idx, 1, first, ...inserted);
+    set({ ...pushHistory(doc, null, "multilinePaste"), doc: { ...doc, lines }, isDirty: true });
     return lastId;
   },
 

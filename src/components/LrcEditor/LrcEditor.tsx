@@ -26,7 +26,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   // currentTime은 푸터에서만 쓰므로 구독에서 제외 → 재생 중 줄 목록이 매 프레임 리렌더되지 않음
   const {
     doc, activeLineId, documentSession,
-    addLine, insertLinesAfter, updateLine, deleteLine,
+    addLine, insertLinesAfter, applyMultilinePaste, updateLine, deleteLine,
     duplicateLine, mergeLineUp, splitLine, moveLine, scaleTimestamps,
     deleteLines, shiftLines, clearTimestamps,
     stampCurrentLine, setActiveLineId,
@@ -36,7 +36,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   } = useLrcStore(
     useShallow((s) => ({
       doc: s.doc, activeLineId: s.activeLineId, documentSession: s._documentSession,
-      addLine: s.addLine, insertLinesAfter: s.insertLinesAfter, updateLine: s.updateLine, deleteLine: s.deleteLine,
+      addLine: s.addLine, insertLinesAfter: s.insertLinesAfter, applyMultilinePaste: s.applyMultilinePaste, updateLine: s.updateLine, deleteLine: s.deleteLine,
       duplicateLine: s.duplicateLine, mergeLineUp: s.mergeLineUp, splitLine: s.splitLine, moveLine: s.moveLine, scaleTimestamps: s.scaleTimestamps,
       deleteLines: s.deleteLines, shiftLines: s.shiftLines, clearTimestamps: s.clearTimestamps,
       stampCurrentLine: s.stampCurrentLine, setActiveLineId: s.setActiveLineId,
@@ -401,8 +401,8 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     const restTexts = pasteLines.slice(1);
     restTexts[restTexts.length - 1] += after;
     const apply = () => {
-      updateLine(id, { text: before + pasteLines[0], syllables: undefined });
-      const newId = insertLinesAfter(id, restTexts);
+      const newId = applyMultilinePaste(id, before + pasteLines[0], restTexts);
+      if (!newId) return;
       setActiveLineId(newId);
       pendingFocusId.current = newId;
     };

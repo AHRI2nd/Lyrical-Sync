@@ -157,6 +157,30 @@ it("keeps imported multiline subtitle bodies intact while editing", () => {
   expect(useLrcStore.getState().doc.lines[0].text).toBe("first\nchanged");
 });
 
+it("undoes multiline paste as one action and preserves the translated source row", () => {
+  const original = { id: "a", text: "old lyric", translation: "translated", timestamp: null };
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [original] }, _history: [], _future: [], isDirty: false });
+  const { getByDisplayValue } = render(<LrcEditor onPreview={() => {}} />);
+  const input = getByDisplayValue("old lyric") as HTMLTextAreaElement;
+  input.setSelectionRange(0, input.value.length);
+
+  fireEvent.paste(input, { clipboardData: { getData: () => "first\nsecond" } });
+
+  const pasted = useLrcStore.getState();
+  expect(pasted.doc.lines.map(({ text, translation }) => ({ text, translation }))).toEqual([
+    { text: "first", translation: "translated" },
+    { text: "second", translation: undefined },
+  ]);
+  expect(pasted._history).toHaveLength(1);
+  pasted.undo();
+  expect(useLrcStore.getState().doc.lines).toEqual([original]);
+  useLrcStore.getState().redo();
+  expect(useLrcStore.getState().doc.lines.map(({ text, translation }) => ({ text, translation }))).toEqual([
+    { text: "first", translation: "translated" },
+    { text: "second", translation: undefined },
+  ]);
+});
+
 it("asks before multiline paste replaces timed glyphs and preserves the line on cancel", () => {
   const t = useI18nStore.getState().t;
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "old lyric", timestamp: 1,
