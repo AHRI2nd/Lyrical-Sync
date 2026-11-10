@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync, lstatSync, readdirSync, copyFil
 import { resolve, join, dirname, relative, isAbsolute, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import { assertMachine } from './windows-pe.mjs';
+import { assertMachine, assertOptionalMachine } from './windows-pe.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 function requireValue(args, key) {
@@ -77,6 +77,7 @@ try {
   }
   assertMachine(binary, architecture); assertMachine(join(runtime, 'msedgewebview2.exe'), architecture);
   const runtimeFiles = sourceFiles(runtime);
+  for (const file of runtimeFiles) assertOptionalMachine(file, architecture);
   const logos = [['StoreLogo.png', 50, 50], ['Square44x44Logo.png', 44, 44], ['Square150x150Logo.png', 150, 150]];
   for (const [name, w, h] of logos) png(join(assets, name), w, h);
   const values = { ARCHITECTURE: architecture, NAME: config.name, PUBLISHER: config.publisher, PUBLISHER_DISPLAY_NAME: config.publisherDisplayName, VERSION: version, MIN_VERSION: config.minVersion, MAX_VERSION_TESTED: tested };

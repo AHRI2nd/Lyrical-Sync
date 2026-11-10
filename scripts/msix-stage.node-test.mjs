@@ -102,3 +102,41 @@ test('rejects ARM runtime in an x64 package', t => {
 test('rejects unsupported package architecture before creating staging', t => {
   const f = fixture(t); const r = f.run(['--architecture', 'any']); assert.notEqual(r.status, 0); assert.match(r.stderr, /architecture/i); assert.equal(existsSync(f.stage), false);
 });
+
+test('rejects a foreign-architecture nested runtime DLL before staging', t => {
+  const f = fixture(t);
+  const nested = join(f.runtime, 'Subprocess', 'browser_helper.dll');
+  mkdirSync(join(f.runtime, 'Subprocess'));
+  const pe = Buffer.alloc(256); pe.write('MZ'); pe.writeUInt32LE(128, 60); pe.write('PE\0\0', 128); pe.writeUInt16LE(0xaa64, 132);
+  writeFileSync(nested, pe);
+  const r = f.run();
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /architecture/i);
+  assert.equal(existsSync(f.stage), false);
+});
+
+test('rejects a foreign-architecture nested runtime executable in an ARM64 package', t => {
+  const f = fixture(t);
+  machine(f.binary, 0xaa64);
+  machine(join(f.runtime, 'msedgewebview2.exe'), 0xaa64);
+  const nested = join(f.runtime, 'Subprocess', 'browser_helper.exe');
+  mkdirSync(join(f.runtime, 'Subprocess'));
+  const pe = Buffer.alloc(256); pe.write('MZ'); pe.writeUInt32LE(128, 60); pe.write('PE\0\0', 128); pe.writeUInt16LE(0x8664, 132);
+  writeFileSync(nested, pe);
+  const r = f.run(['--architecture', 'arm64']);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /architecture/i);
+  assert.equal(existsSync(f.stage), false);
+});
+
+test('rejects malformed PE-looking runtime data but preserves ordinary non-PE runtime files', t => {
+  const f = fixture(t);
+  const nested = join(f.runtime, 'Subprocess', 'broken.dll');
+  mkdirSync(join(f.runtime, 'Subprocess'));
+  const malformed = Buffer.alloc(64); malformed.write('MZ'); malformed.writeUInt32LE(0xfffffff0, 60);
+  writeFileSync(nested, malformed);
+  const r = f.run();
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /PE/i);
+  assert.equal(existsSync(f.stage), false);
+});
