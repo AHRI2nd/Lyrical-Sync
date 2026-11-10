@@ -34,3 +34,9 @@ it('describes the one-GiB audio file and decoded PCM limits in every language', 
     expect(translations[lang].toast.audioResourceLimit).toContain('1 GiB');
   }
 });
+
+it('explains that AI alignment is available in File and YouTube modes', () => {
+  expect(translations.ko.aiSyncModeUnsupported).toBe('AI 자동 동기화는 파일 또는 YouTube 모드에서만 사용할 수 있습니다');
+  expect(translations.en.aiSyncModeUnsupported).toBe('AI auto sync is available only in File and YouTube modes');
+  expect(translations.ja.aiSyncModeUnsupported).toBe('AI自動同期はファイルモードまたはYouTubeモードでのみ使用できます');
+});

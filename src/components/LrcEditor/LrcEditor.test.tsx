@@ -126,6 +126,20 @@ it("lets the user choose the AI language separately from the interface language"
   fireEvent.change(getByLabelText(useI18nStore.getState().t.aiLanguageLabel), { target: { value: "jpn" } });
   expect(useSettingsStore.getState().aiAlignmentLanguage).toBe("jpn");
 });
+it.each(["spotify", "device"] as const)("explains File and YouTube support while AI is disabled in %s mode", (mode) => {
+  useSettingsStore.setState({ spotifyMode: mode === "spotify", deviceMode: mode === "device" });
+  useLrcStore.setState({ aiSyncStatus: "idle", aiSyncProgressStatus: "idle" });
+  try {
+    const t = useI18nStore.getState().t;
+    const { getByRole, getByText } = render(<LrcEditor onPreview={() => {}} />);
+    expect(getByRole("button", { name: t.aiAutoSync }).hasAttribute("disabled")).toBe(true);
+    expect(getByText(t.aiSyncModeUnsupported)).toBeTruthy();
+    expect(t.aiSyncModeUnsupported).toContain("YouTube");
+  } finally {
+    cleanup();
+    act(() => useSettingsStore.setState({ spotifyMode: false, deviceMode: false }));
+  }
+});
 it("edits translation text without altering enhanced original timing and obeys spellcheck", () => {
   useSettingsStore.setState({ showTranslationLines: true, showSpellCheck: true });
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "original", timestamp: 1,
