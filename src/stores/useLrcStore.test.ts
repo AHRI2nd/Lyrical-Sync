@@ -770,6 +770,29 @@ describe("useLrcStore — snapLinesToBeatGrid", () => {
     expect(useLrcStore.getState().isDirty).toBe(true);
   });
 
+  it("returns zero without changing an all-untimed document", () => {
+    reset([{ id: "untimed", timestamp: null, text: "Untimed" }]);
+    const before = useLrcStore.getState().doc;
+
+    expect(useLrcStore.getState().snapLinesToBeatGrid([], 120, 0)).toBe(0);
+    expect(useLrcStore.getState().doc).toBe(before);
+    expect(useLrcStore.getState()._history).toHaveLength(0);
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
+  it.each([
+    { bpm: 0, offset: 0 },
+    { bpm: 120, offset: Number.NaN },
+  ])("rejects invalid grid inputs without mutation ($bpm, $offset)", ({ bpm, offset }) => {
+    reset([{ id: "timed", timestamp: 1.34, text: "Timed" }]);
+    const before = useLrcStore.getState().doc;
+
+    expect(useLrcStore.getState().snapLinesToBeatGrid([], bpm, offset)).toBe(0);
+    expect(useLrcStore.getState().doc).toBe(before);
+    expect(useLrcStore.getState()._history).toHaveLength(0);
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
   it("returns zero and leaves document, history, and dirty state untouched when nothing changes", () => {
     reset([
       { id: "aligned", timestamp: 0.5, text: "Aligned" },
