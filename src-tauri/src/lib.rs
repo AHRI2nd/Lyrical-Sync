@@ -47,7 +47,7 @@ async fn decode_audio_to_wav(path: String, bookmark: Option<String>) -> Result<t
     tauri::async_runtime::spawn_blocking(move || {
         let access = file_access::FileAccess::open(path, bookmark)?;
         let resolved_path = access.path();
-        let file = std::fs::File::open(&resolved_path).map_err(|e| e.to_string())?;
+        let file = audio_decode::open_audio_file(&resolved_path)?;
         if file.metadata().map_err(|e| e.to_string())?.len() > audio_decode::MAX_AUDIO_FILE_BYTES {
             return Err(audio_decode::AUDIO_RESOURCE_LIMIT_ERROR.into());
         }
@@ -75,7 +75,8 @@ fn read_audio_metadata(path: String, bookmark: Option<String>) -> Result<AudioMe
     use lofty::file::TaggedFileExt;
     use lofty::tag::Accessor;
     let access = file_access::FileAccess::open(path, bookmark)?;
-    let tagged = lofty::read_from_path(access.path()).map_err(|e| e.to_string())?;
+    let mut file = audio_decode::open_audio_file(&access.path())?;
+    let tagged = lofty::read_from(&mut file).map_err(|e| e.to_string())?;
     let tag = tagged.primary_tag().or_else(|| tagged.first_tag());
     let s = |o: Option<std::borrow::Cow<str>>| o.map(|c| c.trim().to_string()).unwrap_or_default();
     Ok(match tag {
