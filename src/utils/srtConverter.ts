@@ -28,7 +28,7 @@ export function assertSrtDocumentLossless(doc: LrcDocument): void {
   const { metadata } = doc;
   if (metadata.title || metadata.artist || metadata.album || metadata.by || metadata.offset !== 0 ||
       Object.keys(doc.extraTags).length > 0 ||
-      doc.lines.some((line) => line.timestamp === null || line.translation !== undefined ||
+      doc.lines.some((line) => line.timestamp === null || (line.translation !== undefined && line.translation !== "") ||
         line.syllables?.some((syllable) => syllable.time !== null))) {
     throw new SrtLossyDocumentError();
   }

@@ -1064,6 +1064,33 @@ describe("useLrcStore SRT save policy", () => {
     expect(useLrcStore.getState()).toMatchObject({ lrcPath: "/working.srt", lrcBookmark: "srt-grant", isDirty: true });
   });
 
+  it("lets a translated SRT cue be saved after the translation is removed", async () => {
+    vi.mocked(invoke).mockResolvedValue("b".repeat(64));
+    const imported = parseSrt("1\n00:00:01,000 --> 00:00:02,000\nlyric");
+    imported.lines[0].id = "srt-cue";
+    useLrcStore.setState({ doc: imported, lrcPath: "/tmp/song.srt", lrcBookmark: null, isDirty: false });
+    const lineId = useLrcStore.getState().doc.lines[0].id;
+    useLrcStore.getState().updateLine(lineId, { translation: "translated" });
+
+    await expect(useLrcStore.getState().saveLrc()).rejects.toMatchObject({ code: "SRT_LOSSY_DOCUMENT" });
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+
+    useLrcStore.getState().updateLine(lineId, { translation: "" });
+    await expect(useLrcStore.getState().saveLrc()).resolves.toBe(true);
+    expect(invoke).toHaveBeenCalledWith("write_lrc_file", expect.objectContaining({
+      path: "/tmp/song.srt",
+      content: expect.stringContaining("\nlyric\n"),
+    }));
+    expect(useLrcStore.getState().isDirty).toBe(false);
+
+    useLrcStore.getState().undo();
+    expect(useLrcStore.getState().doc.lines[0].translation).toBe("translated");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+    useLrcStore.getState().redo();
+    expect(useLrcStore.getState().doc.lines[0].translation).toBe("");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
   it("exports rich lyrics to SRT without changing the working document", async () => {
     useLrcStore.setState({ lrcPath: "/working.lrc", lrcBookmark: "working-grant", isDirty: true });
     vi.mocked(save).mockResolvedValue("/exports/lyrics.srt");
