@@ -11,7 +11,7 @@ Optionally, Demucs vocal separation can be used as a preprocessing step to impro
 |------|---------|
 | OS | macOS 14+ (Apple Silicon), Windows 10+ (x64), Windows ARM64 |
 | RAM | 8 GB (16 GB recommended) |
-| Storage | Required models only: ~3 GB / Full: ~5 GB |
+| Storage | Required alignment model: 1.18 GiB / Optional Demucs model: 83.0 MiB (Python environment and package storage is additional) |
 | Internet | Required for initial setup |
 
 > **GPU Acceleration**: The current version uses CPU inference. Performance depends on your CPU speed.
@@ -20,21 +20,21 @@ Optionally, Demucs vocal separation can be used as a preprocessing step to impro
 
 ---
 
-## Step 1 — Install Python Environment
+## Step 1 — Install or Update the Python Environment
 
 The AI feature uses bundled CPython 3.13.17 (build 20261021) — no separate Python installation required.
 
 1. Click the **⚙ Settings** button at the bottom-left of the app.
 2. Select the **AI Environment** tab.
-3. Click **"Download Python"**.
-   - macOS: Downloads the CPython 3.13.17 Apple Silicon distribution.
-   - Windows x64: Downloads the CPython 3.13.17 x64 distribution.
-   - Windows ARM64: Installs the CPython 3.13.17 ARM64 distribution in a separate directory.
-4. After the download completes, click **"Install Packages"**.
-   - Installs `torch`, `unidecode`, `demucs`, `ctc-forced-aligner`, and more.
-   - Windows x64 may build `ctc-forced-aligner` from source and may require Visual Studio C++ build tools.
+3. If Python is not installed, click **"Install / update AI environment"**. This prepares the bundled CPython runtime and AI packages together.
+   - macOS uses the CPython 3.13.17 Apple Silicon distribution.
+   - Windows x64 uses the CPython 3.13.17 x64 distribution.
+   - Windows ARM64 uses the CPython 3.13.17 ARM64 distribution in a separate directory.
+4. If Python is ready but packages are missing, click **"Auto-install packages"**.
+   - This installs the supported platform's pinned package set and runs its security audit.
+   - Windows x64 builds `ctc-forced-aligner` from source and may require Visual Studio C++ build tools.
    - Windows ARM64 uses verified native CPU packages and does not build `ctc-forced-aligner` from source.
-5. When the installation log shows **"Installation complete"**, you're done.
+5. Finish when the status changes to ready. If installation fails, review the displayed error and confirm that the previous environment was retained.
 
 > **Windows x64 note**: Source builds may fail without Visual Studio Build Tools (C++ build tools). Install [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) if needed. ARM64 uses verified native packages.
 
@@ -47,9 +47,8 @@ The AI feature uses bundled CPython 3.13.17 (build 20261021) — no separate Pyt
 
 | Model | Purpose | Size | Required |
 |-------|---------|------|----------|
-| **ctc-mms-300m** | Forced timestamp alignment (1,100+ languages) | 1.2 GB | ✅ Required |
-| demucs-htdemucs | Vocal/accompaniment separation preprocessing | 83 MB | Optional |
-| wav2vec2-base-960h | English ASR auxiliary model | 380 MB | Optional |
+| **ctc-mms-300m** | Forced timestamp alignment | 1.18 GiB | ✅ Required |
+| **demucs-htdemucs** | Vocal/accompaniment separation preprocessing | 83.0 MiB | Optional |
 
 3. Model files are stored in the app data directory by default.  
    To specify a custom path, change it under **"Model Storage Path"**.
@@ -62,13 +61,8 @@ The AI feature uses bundled CPython 3.13.17 (build 20261021) — no separate Pyt
 
 1. Open an audio file (MP3, WAV, FLAC, M4A, etc.).
 2. Enter lyrics in the LRC editor.
-3. Click **"AI Auto-Sync"** at the top of the editor.
-4. Select the language:
-   - Korean: `kor`
-   - English: `eng`
-   - Japanese: `jpn`
-   - 1,100+ other languages supported (ISO 639-3 codes)
-5. Click **"Run"**.
+3. Choose Auto, English, Korean, or Japanese from the language list. The alignment model supports 1,130 languages, but the app currently exposes only these choices.
+4. Click **"AI Auto-Sync"** at the top of the editor to start alignment. If existing character or word timestamps are present, confirm before they are cleared.
 
 ### Progress States
 
@@ -115,12 +109,6 @@ A. Check for typos or unnecessary symbols (brackets, chorus markers, etc.) in th
 
 **Q. I see a "Python is not ready" error.**  
 A. Check the Python installation status under Settings → AI Environment. If it shows as installed but the error persists, try restarting the app.
-
-**Q. macOS shows a "damaged file" warning.**  
-A. The app automatically removes the quarantine attribute, but if it fails, run the following in Terminal:  
-```bash
-xattr -rd com.apple.quarantine "$HOME/Library/Application Support/com.arisair.lyricalsync/embedded_python"
-```
 
 **Q. Package installation fails on Windows.**  
 A. Install the "Desktop development with C++" workload from Visual Studio Build Tools, then try again.

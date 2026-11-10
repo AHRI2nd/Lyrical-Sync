@@ -11,7 +11,7 @@ Lyrical Sync의 AI 자동 싱크 기능은 음성 인식(CTC Forced Aligner)을 
 |------|-----------|
 | OS | macOS 14+ (Apple Silicon), Windows 10+ (x64), Windows ARM64 |
 | RAM | 8 GB (16 GB 권장) |
-| 저장 공간 | 필수 모델만: 약 3 GB / 전체: 약 5 GB |
+| 저장 공간 | 필수 정렬 모델: 1.18 GiB / 선택 Demucs 모델: 83.0 MiB (Python 환경 및 패키지용 공간은 별도 필요) |
 | 인터넷 | 최초 설치 시 필요 |
 
 > **GPU 가속**: 현재 버전은 CPU 추론을 사용합니다. 성능은 CPU 속도에 따라 다릅니다.
@@ -20,21 +20,21 @@ Lyrical Sync의 AI 자동 싱크 기능은 음성 인식(CTC Forced Aligner)을 
 
 ---
 
-## 1단계 — Python 환경 설치
+## 1단계 — Python 환경 설치 및 업데이트
 
 AI 기능은 별도의 Python 설치 없이 앱 내장 Python(CPython 3.13.17, 빌드 20261021)을 사용합니다.
 
 1. 앱 좌측 하단의 **⚙ 설정** 버튼을 클릭합니다.
 2. **AI 환경** 탭을 선택합니다.
-3. **"Python 다운로드"** 버튼을 클릭합니다.
-   - macOS: CPython 3.13.17 Apple Silicon 배포판이 다운로드됩니다.
-   - Windows x64: CPython 3.13.17 x64 배포판이 다운로드됩니다.
-   - Windows ARM64: CPython 3.13.17 ARM64 배포판이 별도 디렉터리에 설치됩니다.
-4. 다운로드 완료 후 **"패키지 설치"** 버튼을 클릭합니다.
-   - `torch`, `unidecode`, `demucs`, `ctc-forced-aligner` 등이 설치됩니다.
-   - Windows x64에서는 `ctc-forced-aligner`를 소스에서 빌드할 수 있어 Visual Studio C++ 빌드 도구가 필요합니다.
+3. Python 환경이 없으면 **"AI 환경 설치 / 업데이트"** 버튼을 클릭합니다. 이 작업은 앱 내장 CPython과 AI 패키지를 함께 준비합니다.
+   - macOS: CPython 3.13.17 Apple Silicon 배포판을 사용합니다.
+   - Windows x64: CPython 3.13.17 x64 배포판을 사용합니다.
+   - Windows ARM64: CPython 3.13.17 ARM64 배포판을 별도 디렉터리에서 사용합니다.
+4. Python은 준비됐지만 패키지가 없다고 표시되면 **"패키지 자동 설치"**를 클릭합니다.
+   - 지원되는 플랫폼용 고정 패키지 목록을 설치하고 보안 검사를 수행합니다.
+   - Windows x64에서는 `ctc-forced-aligner`를 소스에서 빌드하므로 Visual Studio C++ 빌드 도구가 필요할 수 있습니다.
    - Windows ARM64에서는 검증된 네이티브 CPU 패키지를 사용하며 `ctc-forced-aligner`를 소스에서 빌드하지 않습니다.
-5. 설치 로그에 **"설치 완료"** 메시지가 표시되면 완료입니다.
+5. 상태가 준비 완료로 바뀌면 설정을 마칩니다. 설치 중 실패하면 화면의 오류를 확인하고 이전 환경이 유지됐는지 확인하세요.
 
 > **Windows x64 주의**: Visual Studio Build Tools(C++ 빌드 도구)가 없으면 소스 빌드가 실패할 수 있습니다. 오류 발생 시 [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)를 먼저 설치하세요. ARM64에서는 앱이 검증된 네이티브 패키지를 사용합니다.
 
@@ -47,9 +47,8 @@ AI 기능은 별도의 Python 설치 없이 앱 내장 Python(CPython 3.13.17, �
 
 | 모델 | 용도 | 크기 | 필수 여부 |
 |------|------|------|-----------|
-| **ctc-mms-300m** | 타임스탬프 강제 정렬 (1,100개 언어 지원) | 1.2 GB | ✅ 필수 |
-| demucs-htdemucs | 보컬/반주 분리 전처리 | 83 MB | 선택 |
-| wav2vec2-base-960h | 영어 ASR 보조 모델 | 380 MB | 선택 |
+| **ctc-mms-300m** | 타임스탬프 강제 정렬 | 1.18 GiB | ✅ 필수 |
+| **demucs-htdemucs** | 보컬/반주 분리 전처리 | 83.0 MiB | 선택 |
 
 3. 모델 파일은 기본적으로 앱 데이터 디렉터리에 저장됩니다.  
    커스텀 경로를 지정하려면 **"모델 저장 경로"** 항목에서 변경할 수 있습니다.
@@ -62,13 +61,8 @@ AI 기능은 별도의 Python 설치 없이 앱 내장 Python(CPython 3.13.17, �
 
 1. 오디오 파일을 엽니다 (MP3, WAV, FLAC, M4A 등).
 2. LRC 에디터에 가사를 입력합니다.
-3. 에디터 상단의 **"AI 자동 싱크"** 버튼을 클릭합니다.
-4. 언어를 선택합니다.
-   - 한국어: `kor`
-   - 영어: `eng`
-   - 일본어: `jpn`
-   - 그 외 1,100개 언어 지원 (ISO 639-3 코드)
-5. **"실행"** 버튼을 클릭합니다.
+3. 언어 목록에서 자동, 영어, 한국어 또는 일본어를 선택합니다. 정렬 모델은 1,130개 언어를 지원하지만 현재 앱에서 직접 선택할 수 있는 언어는 이 목록으로 제한됩니다.
+4. 에디터 상단의 **"AI 자동 싱크"** 버튼을 클릭하면 정렬이 시작됩니다. 기존 글자/단어 타임스탬프가 있으면 이를 지울 수 있다는 확인 창이 먼저 표시됩니다.
 
 ### 진행 상태
 
@@ -115,12 +109,6 @@ A. 가사에 오타나 불필요한 기호(괄호, 코러스 표시 등)가 없�
 
 **Q. "Python이 준비되지 않았습니다" 오류가 떠요.**  
 A. 설정 → AI 환경에서 Python 설치 상태를 확인하세요. 설치가 완료됐는데도 오류가 지속되면 앱을 재시작해보세요.
-
-**Q. macOS에서 "손상된 파일" 경고가 떠요.**  
-A. 앱이 자동으로 quarantine 속성을 제거하지만, 실패할 경우 터미널에서 아래 명령을 실행하세요:  
-```bash
-xattr -rd com.apple.quarantine "$HOME/Library/Application Support/com.arisair.lyricalsync/embedded_python"
-```
 
 **Q. Windows에서 패키지 설치가 실패해요.**  
 A. Visual Studio Build Tools의 "C++를 사용한 데스크톱 개발" 워크로드를 설치한 후 다시 시도하세요.
