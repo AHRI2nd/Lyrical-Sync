@@ -187,6 +187,24 @@ describe("AudioPlayer loop-line boundaries", () => {
     expect(load).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps playback when a refreshed bookmark refers to the same audio selection", async () => {
+    const file = { path: "/song.mp3", bookmark: "old-grant" };
+    vi.mocked(readAudioBytes).mockResolvedValue({ file, bytes: new Uint8Array([1]), transcoded: false });
+    useLrcStore.setState({ audioPath: file.path, audioBookmark: file.bookmark });
+    render(<AudioPlayer />);
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+    act(() => { handlers.get("ready")?.(); handlers.get("play")?.(); handlers.get("audioprocess")?.(35); });
+    expect(useLrcStore.getState()).toMatchObject({ duration: 100, currentTime: 35, isPlaying: true });
+
+    act(() => useLrcStore.setState({ audioBookmark: "fresh-grant" }));
+
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(engines).toHaveLength(1);
+    expect(useLrcStore.getState()).toMatchObject({
+      audioPath: file.path, audioBookmark: "fresh-grant", duration: 100, currentTime: 35, isPlaying: true,
+    });
+  });
+
   it("rejects metadata from the previous document session", async () => {
     let resolveOld!: (value: { title: string; artist: string; album: string }) => void;
     const oldMetadata = new Promise((resolve) => { resolveOld = resolve; });

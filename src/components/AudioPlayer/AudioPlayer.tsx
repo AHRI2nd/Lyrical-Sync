@@ -76,8 +76,12 @@ export function AudioPlayer() {
   useEffect(() => {
     if (!containerRef.current) return;
     const owner = engineOwnerRef.current;
-    // A lyric-only replacement retains already loaded audio, but restarts a pending load.
-    if (readyRef.current && owner?.path === audioPath && owner.bookmark === audioBookmark && owner.selection === audioSelection) return;
+    // A refreshed bookmark updates file access, not the identity of ready media.
+    // Preserve the current engine and playback state while the path and selection stay the same.
+    if (readyRef.current && owner?.path === audioPath && owner.selection === audioSelection) {
+      owner.bookmark = audioBookmark;
+      return;
+    }
     const previous = wsRef.current;
     wsRef.current = null;
     previous?.destroy();
