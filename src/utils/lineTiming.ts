@@ -18,7 +18,7 @@ export function retimeLine(line: LrcLine, timestamp: number | null): LrcLine {
     timestamp,
     srtEndTime: Number.isFinite(line.srtEndTime) ? Math.max(timestamp, (line.srtEndTime as number) + lineDelta) : line.srtEndTime,
   };
-  const delta = timestamp - earliest;
+  const delta = line.timestamp === null || earliest < line.timestamp ? timestamp - earliest : lineDelta;
   return { ...line, timestamp, syllables: line.syllables?.map(s => ({
     ...s, time: s.time === null ? null : Math.max(0, s.time + delta),
   })), srtEndTime: Number.isFinite(line.srtEndTime) ? Math.max(timestamp, (line.srtEndTime as number) + lineDelta) : line.srtEndTime };

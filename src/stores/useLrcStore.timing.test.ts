@@ -17,6 +17,19 @@ it('restamps calibrated glyphs together with the line onset', () => {
  expect(useLrcStore.getState().doc.lines[0].syllables?.map(s=>s.time)).toEqual([30,null,31]);
  expect(serializeLrc(useLrcStore.getState().doc)).toContain('[00:30.00]<00:30.00>a <00:31.00>b');
 });
+it('preserves a delayed first glyph when restamping an enhanced line', () => {
+ useLrcStore.setState({
+  doc: { ...defaultDocument(), lines: [{ id: 'a', text: 'ab', timestamp: 1, syllables: [{ text: 'a', time: 1.2 }, { text: 'b', time: 1.5 }] }] },
+  activeLineId: 'a', currentTime: 2,
+ });
+
+ useLrcStore.getState().stampCurrentLine('a');
+
+ expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(2);
+ expect(useLrcStore.getState().doc.lines[0].syllables?.map(s => s.time)).toEqual([2.2, 2.5]);
+ useLrcStore.getState().undo();
+ expect(useLrcStore.getState().doc.lines[0]).toMatchObject({ timestamp: 1, syllables: [{ text: 'a', time: 1.2 }, { text: 'b', time: 1.5 }] });
+});
 it('moves glyph timestamps with a direct row stamp and keeps export and undo consistent', () => {
  useLrcStore.getState().stampCurrentLine('a');
  const doc = useLrcStore.getState().doc;
