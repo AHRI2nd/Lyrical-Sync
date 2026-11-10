@@ -323,6 +323,8 @@ export interface Translations {
   bpmTitle: string;
   bpmHint: string;
   bpmDetecting: string;
+  bpmAnalyzeAudio: string;
+  bpmDecodeCostNotice: string;
   bpmDetectFailed: string;
   bpmDecodeError: string;
   bpmLabel: string;
@@ -730,6 +732,8 @@ const ko: Translations = {
   bpmTitle: "BPM 감지 + 비트 그리드 스냅",
   bpmHint: "오디오에서 박자(BPM)를 추정합니다. 실제 음악 전체에 대한 자동 감지는 배박/절반박 오류가 흔하니, 값을 확인하거나 아래 탭 템포로 직접 보정한 뒤 적용하세요.",
   bpmDetecting: "박자 감지 중...",
+  bpmAnalyzeAudio: "오디오 분석 시작",
+  bpmDecodeCostNotice: "분석은 처음 2분만 사용하지만, BPM을 계산하는 동안 전체 녹음이 메모리에 디코드될 수 있습니다.",
   bpmDetectFailed: "박자를 감지하지 못했습니다. 탭 템포로 직접 입력해주세요.",
   bpmDecodeError: "오디오 디코드에 실패했습니다.",
   bpmLabel: "BPM",
@@ -1139,6 +1143,8 @@ const en: Translations = {
   bpmTitle: "BPM Detection + Beat Grid Snap",
   bpmHint: "Estimates the track's tempo (BPM). Automatic detection on a full music mix is prone to half/double-tempo errors — check the value or correct it with tap tempo below before applying.",
   bpmDetecting: "Detecting tempo...",
+  bpmAnalyzeAudio: "Analyze audio",
+  bpmDecodeCostNotice: "BPM analysis uses only the first two minutes, but the full recording may be decoded into memory.",
   bpmDetectFailed: "Couldn't detect a tempo. Try tap tempo instead.",
   bpmDecodeError: "Failed to decode audio.",
   bpmLabel: "BPM",
@@ -1547,6 +1553,8 @@ const ja: Translations = {
   bpmTitle: "BPM検出 + ビートグリッドスナップ",
   bpmHint: "音源からテンポ(BPM)を推定します。楽曲全体への自動検出は倍テンポ・半テンポの誤りが起きやすいので、値を確認するか下のタップテンポで補正してから適用してください。",
   bpmDetecting: "テンポを検出中...",
+  bpmAnalyzeAudio: "音声を分析",
+  bpmDecodeCostNotice: "BPM分析には最初の2分のみを使いますが、分析中に音源全体がメモリへデコードされる場合があります。",
   bpmDetectFailed: "テンポを検出できませんでした。タップテンポで入力してください。",
   bpmDecodeError: "音声のデコードに失敗しました。",
   bpmLabel: "BPM",

@@ -13,17 +13,20 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
   const audioBookmark = useLrcStore((s) => s.audioBookmark);
   const session = useLrcStore((s) => s._documentSession);
   const selection = useLrcStore((s) => s._audioSelection);
-  const [loading, setLoading] = useState(Boolean(audioPath));
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bpmStr, setBpmStr] = useState("");
   const [offsetStr, setOffsetStr] = useState("0.00");
   const [confidence, setConfidence] = useState<number | null>(null);
   const [snappedCount, setSnappedCount] = useState<number | null>(null);
+  const [analysisRequest, setAnalysisRequest] = useState<string | null>(null);
   const tapTimesRef = useRef<number[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const dismissedRef = useRef(false);
   const [owner, setOwner] = useState({ session, selection, path: audioPath, bookmark: audioBookmark });
   const ownerRef = useRef(owner);
+  const selectionKey = `${session}:${selection}`;
+  const analysisAuthorized = analysisRequest === selectionKey;
 
   const isCurrent = () => {
     const state = useLrcStore.getState();
@@ -52,8 +55,8 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
     setSnappedCount(null);
     setError(null);
     tapTimesRef.current = [];
-    setLoading(Boolean(owner.path));
-    if (owner.path) {
+    setLoading(Boolean(owner.path && analysisAuthorized));
+    if (owner.path && analysisAuthorized) {
       decodeAudioSamples(owner.path, owner.bookmark, controller.signal)
         .then(({ samples, sampleRate, file }) => {
           if (controller.signal.aborted || !isCurrent()) return;
@@ -83,7 +86,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
     // Audio selection/session generations change even for same-path replacements.
     // FileRef refreshes retain those generations and must preserve the estimate.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, selection]);
+  }, [session, selection, analysisAuthorized]);
 
   const bpm = Number(bpmStr);
   const offsetSec = Number(offsetStr);
@@ -148,6 +151,17 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
           ) : (
             <>
               {!audioPath && <p className="text-sm text-[var(--ls-playhead)]">{t.bpmManualHint}</p>}
+              {audioPath && !analysisAuthorized && (
+                <div className="flex flex-col gap-3">
+                  <p className="text-sm text-[var(--ls-text-secondary)]">{t.bpmDecodeCostNotice}</p>
+                  <button
+                    onClick={() => setAnalysisRequest(selectionKey)}
+                    className="ls-button w-full text-sm transition-colors"
+                  >
+                    {t.bpmAnalyzeAudio}
+                  </button>
+                </div>
+              )}
               <p className="text-[11px] leading-relaxed text-[var(--ls-text-secondary)]">{t.bpmHint}</p>
               {error && <p className="text-xs text-[var(--ls-playhead)]">{error}</p>}
 
@@ -213,7 +227,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
             >
               {t.cancelLabel}
             </button>
-            {sourceCurrent && !loading && (
+            {sourceCurrent && !loading && (!audioPath || analysisAuthorized || bpmStr.trim() !== "") && (
               <button
                 onClick={handleApply}
                 disabled={!valid}

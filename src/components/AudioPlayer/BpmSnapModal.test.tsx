@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render as baseRender, screen, waitFor } from "@testing-library/react";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn().mockResolvedValue(null) }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 vi.mock("../../utils/decodeAudioSamples", () => ({ decodeAudioSamples: vi.fn() }));
 vi.mock("../../stores/useI18nStore", () => ({ useI18nStore: () => ({ t: {
   bpmTitle: "Beat grid", bpmDetecting: "Detecting", bpmHint: "Check the estimate", bpmDetectFailed: "No tempo found",
   bpmDecodeError: "Decode failed", bpmLabel: "Tempo", bpmOffset: "Offset", bpmTapTempo: "Tap tempo",
+  bpmAnalyzeAudio: "Analyze audio", bpmDecodeCostNotice: "The full recording may be decoded into memory, although BPM analysis uses only the first two minutes.",
   bpmScopeSelected: "Selected", bpmScopeAll: "All", bpmConfidence: "Confidence", bpmAppliedAll: "Applied all",
   bpmAppliedCount: "applied", bpmManualHint: "Without audio, enter a BPM or use Tap Tempo", cancelLabel: "Cancel", applyLabel: "Apply", close: "Close",
 } }) }));
@@ -18,6 +19,45 @@ import { BpmSnapModal } from "./BpmSnapModal";
 const pulse = new Float32Array(12000);
 for (let start = 100; start < pulse.length; start += 500) pulse.fill(1, start, start + 20);
 const decoded = (path = "/song.mp3", bookmark: string | null = "grant") => ({ samples: pulse, sampleRate: 1000, file: { path, bookmark } });
+const render = (ui: Parameters<typeof baseRender>[0]) => {
+  const view = baseRender(ui);
+  const startButton = screen.queryByRole("button", { name: "Analyze audio" });
+  if (startButton) fireEvent.click(startButton);
+  return view;
+};
+
+it("requires explicit consent before decoding the full recording for BPM analysis", async () => {
+  baseRender(<BpmSnapModal onClose={() => {}} selectedIds={["a"]} />);
+
+  expect(screen.getByText("The full recording may be decoded into memory, although BPM analysis uses only the first two minutes.")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Analyze audio" })).toBeTruthy();
+  expect(decodeAudioSamples).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByRole("button", { name: "Analyze audio" }));
+  await waitFor(() => expect(decodeAudioSamples).toHaveBeenCalledOnce());
+});
+
+it("keeps manual BPM entry available without granting full-recording decode", () => {
+  baseRender(<BpmSnapModal onClose={() => {}} selectedIds={["a"]} />);
+
+  fireEvent.change(screen.getByLabelText("Tempo"), { target: { value: "120" } });
+  fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+
+  expect(decodeAudioSamples).not.toHaveBeenCalled();
+  expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(1.5);
+});
+
+it("does not carry decode consent to a newly selected audio source", () => {
+  baseRender(<BpmSnapModal onClose={() => {}} selectedIds={["a"]} />);
+  fireEvent.click(screen.getByRole("button", { name: "Analyze audio" }));
+  expect(decodeAudioSamples).toHaveBeenCalledOnce();
+
+  vi.mocked(decodeAudioSamples).mockClear().mockReturnValue(new Promise(() => {}));
+  act(() => useLrcStore.setState({ _audioSelection: 1 }));
+
+  expect(decodeAudioSamples).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: "Analyze audio" })).toBeTruthy();
+});
 
 beforeEach(() => {
   vi.mocked(decodeAudioSamples).mockReset().mockResolvedValue(decoded());
