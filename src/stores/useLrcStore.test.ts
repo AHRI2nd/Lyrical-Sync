@@ -695,6 +695,57 @@ describe("useLrcStore — addLinesFromSpeechSegments", () => {
     expect(lines().map((l) => l.text)).toEqual(["typed first", "typed second", ""]);
   });
 
+  it("preserves existing order, untimed placement, and stable ties while merging", () => {
+    reset([
+      { id: "late", timestamp: 10, text: "late" },
+      { id: "untimed", timestamp: null, text: "typed" },
+      { id: "tie-a", timestamp: 5, text: "tie a" },
+      { id: "tie-b", timestamp: 5, text: "tie b" },
+      { id: "early", timestamp: 2, text: "early" },
+    ]);
+
+    const count = useLrcStore.getState().addLinesFromSpeechSegments([
+      { start: 5, end: 5.5 },
+      { start: 2, end: 2.5 },
+      { start: 5, end: 5.25 },
+      { start: 4.9996, end: 5.1 },
+    ]);
+
+    expect(count).toBe(4);
+    const result = lines();
+    expect(result.filter((line) => ["late", "untimed", "tie-a", "tie-b", "early"].includes(line.id))).toEqual([
+      { id: "late", timestamp: 10, text: "late" },
+      { id: "untimed", timestamp: null, text: "typed" },
+      { id: "tie-a", timestamp: 5, text: "tie a" },
+      { id: "tie-b", timestamp: 5, text: "tie b" },
+      { id: "early", timestamp: 2, text: "early" },
+    ]);
+    expect(result.map((line) => line.timestamp)).toEqual([2, 5, 5, 5, 10, null, 5, 5, 2]);
+    const inserted = result.filter((line) => line.text === "");
+    expect(inserted.map((line) => line.timestamp)).toEqual([2, 5, 5, 5]);
+    expect(inserted.slice(1).map((line) => Number(line.id))).toEqual(
+      inserted.slice(1).map((line) => Number(line.id)).sort((a, b) => a - b),
+    );
+    expect(new Set(result.map((line) => line.id)).size).toBe(result.length);
+    expect(useLrcStore.getState()._history).toHaveLength(1);
+  });
+
+  it("handles a large batch with one history entry", () => {
+    const segments = Array.from({ length: 10_000 }, (_, index) => ({
+      start: (10_000 - index) / 10,
+      end: (10_000 - index) / 10 + 0.25,
+    }));
+
+    const count = useLrcStore.getState().addLinesFromSpeechSegments(segments);
+
+    expect(count).toBe(10_000);
+    expect(lines()).toHaveLength(10_000);
+    expect(lines().map((line) => line.timestamp)).toEqual(
+      Array.from({ length: 10_000 }, (_, index) => (index + 1) / 10),
+    );
+    expect(useLrcStore.getState()._history).toHaveLength(1);
+  });
+
   it("returns 0 and does not touch history for an empty segment list", () => {
     useLrcStore.getState().addLinesFromSpeechSegments([]);
     expect(lines()).toEqual([]);

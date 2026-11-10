@@ -429,15 +429,34 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
   addLinesFromSpeechSegments: (segments) => {
     if (segments.length === 0) return 0;
     const { doc } = get();
-    let lines = doc.lines;
-    for (const seg of segments) {
-      const ts = Math.round(seg.start * 1000) / 1000;
-      const newLine: LrcLine = { id: genId(), timestamp: ts, text: "" };
-      // 이미 타임스탬프가 찍힌 줄만 정렬 기준으로 삼음 — 미입력 줄은 건너뛰어 위치 유지
-      const idx = lines.findIndex((l) => l.timestamp !== null && (l.timestamp as number) > ts);
-      const insertAt = idx === -1 ? lines.length : idx;
-      lines = [...lines.slice(0, insertAt), newLine, ...lines.slice(insertAt)];
+    const newLines = segments.map((segment) => ({
+      id: genId(),
+      timestamp: Math.round(segment.start * 1000) / 1000,
+      text: "",
+    }));
+    newLines.sort((left, right) => {
+      const leftTime = left.timestamp as number;
+      const rightTime = right.timestamp as number;
+      if (Number.isNaN(leftTime)) return Number.isNaN(rightTime) ? 0 : 1;
+      if (Number.isNaN(rightTime)) return -1;
+      return leftTime - rightTime;
+    });
+
+    const lines: LrcLine[] = [];
+    let segmentIndex = 0;
+    for (const line of doc.lines) {
+      // Match the prior insertion rule: only a strictly later stamped row is an anchor.
+      while (
+        segmentIndex < newLines.length &&
+        line.timestamp !== null &&
+        (newLines[segmentIndex].timestamp as number) < line.timestamp
+      ) {
+        lines.push(newLines[segmentIndex++]);
+      }
+      lines.push(line);
     }
+    lines.push(...newLines.slice(segmentIndex));
+
     set({ ...pushHistory(doc, null), doc: { ...doc, lines }, isDirty: true });
     return segments.length;
   },
