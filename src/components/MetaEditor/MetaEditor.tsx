@@ -93,6 +93,10 @@ export function MetaEditor() {
             const owner = { session: rawEditorSnapshot.session, revision: rawEditorSnapshot.revision };
             const current = useLrcStore.getState();
             if (current._documentSession !== owner.session || current._editRevision !== owner.revision) return false;
+            if (raw === rawEditorSnapshot.text) {
+              setRawEditorSnapshot(null);
+              return true;
+            }
             try {
               const result = await useLrcStore.getState().requestDocumentTransition({ kind: "raw", text: raw, owner });
               if (result === "applied") setRawEditorSnapshot(null);

@@ -69,6 +69,28 @@ it("applies an unchanged raw draft and keeps it undoable", async () => {
   expect(useLrcStore.getState().doc.lines.map((line) => line.text)).toEqual(["A original"]);
 });
 
+it("preserves overlapping SRT cue ends when unchanged raw text is applied", async () => {
+  const doc = {
+    ...defaultDocument(),
+    lines: [
+      { id: "first", timestamp: 1, srtEndTime: 4, text: "first" },
+      { id: "second", timestamp: 3, srtEndTime: 5, text: "second" },
+    ],
+  };
+  useLrcStore.setState({ doc, lrcPath: "/tmp/song.srt", lrcBookmark: null, isDirty: false });
+  const history = useLrcStore.getState()._history;
+  const { container, getByTitle, getByText } = render(<MetaEditor />);
+
+  fireEvent.click(getByTitle(useI18nStore.getState().t.viewAll));
+  fireEvent.click(getByText(useI18nStore.getState().t.rawEditorApply));
+  await waitFor(() => expect(container.querySelector("textarea")).toBeNull());
+
+  expect(useLrcStore.getState().doc).toBe(doc);
+  expect(useLrcStore.getState().doc.lines.map((line) => line.srtEndTime)).toEqual([4, 5]);
+  expect(useLrcStore.getState()._history).toBe(history);
+  expect(useLrcStore.getState().isDirty).toBe(false);
+});
+
 it.each([{ isComposing: true }, { keyCode: 229 }])("keeps the raw editor open when Escape belongs to IME composition (%j)", (composition) => {
   useLrcStore.setState({ doc: defaultDocument(), _history: [], _future: [] });
   const { container, getByTitle } = render(<MetaEditor />);
