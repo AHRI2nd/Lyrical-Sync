@@ -233,6 +233,41 @@ describe("parseLrc — line level", () => {
   });
 });
 
+it("preserves repeated known and custom metadata in source order", () => {
+  const input = "[ar:First Artist]\n[x-origin:First Source]\n[ar:Second Artist]\n[x-origin:Second Source]\n[00:01.00]lyric";
+  const doc = parseLrc(input);
+  expect(doc.metadata.artist).toBe("Second Artist");
+  expect(doc.extraTags["x-origin"]).toBe("Second Source");
+  expect(doc.metadataTagSequence).toEqual([
+    { key: "ar", value: "First Artist" },
+    { key: "x-origin", value: "First Source" },
+    { key: "ar", value: "Second Artist" },
+    { key: "x-origin", value: "Second Source" },
+  ]);
+  const output = serializeLrc(doc);
+  expect(output).toContain("[ar:First Artist]\n[x-origin:First Source]\n[ar:Second Artist]\n[x-origin:Second Source]");
+  expect(serializeLrc(parseLrc(output))).toBe(output);
+});
+
+it("updates only the final repeated metadata value and preserves an empty final value", () => {
+  const doc = parseLrc("[ar:Early]\n[x-origin:Old]\n[ar:Latest]\n[x-origin:Recent]\n[00:01.00]hi");
+  const edited = { ...doc, metadata: { ...doc.metadata, artist: "Changed", title: "New Title" },
+    extraTags: { ...doc.extraTags, "x-origin": "New Source" } };
+  const output = serializeLrc(edited);
+  expect(output).toContain("[ar:Early]\n[x-origin:Old]\n[ar:Changed]\n[x-origin:New Source]");
+  expect(output).toContain("[ti:New Title]");
+  edited.metadata.artist = "";
+  expect(serializeLrc(edited)).toContain("[ar:Early]\n[x-origin:Old]\n[ar:]\n[x-origin:New Source]");
+});
+
+it("keeps active reserved control tags out of the ordinary metadata sequence", () => {
+  const doc = parseLrc("[ar:Earlier]\n[x-lyrical-translations:1]\n[ar:Artist]\n[00:01.00]original\n[00:01.00]/translated");
+  expect(doc.metadataTagSequence).toEqual([{ key: "ar", value: "Earlier" }, { key: "ar", value: "Artist" }]);
+  const output = serializeLrc(doc);
+  expect(output.match(/\[x-lyrical-translations:1\]/g)).toHaveLength(1);
+  expect(parseLrc(output).lines[0].translation).toBe("translated");
+});
+
 describe("Enhanced LRC (A2) — char/word sync", () => {
   it("parses inline <mm:ss.xx> tags into syllables", () => {
     const d = parseLrc("[00:12.00]<00:12.00>너<00:12.24>의 손");

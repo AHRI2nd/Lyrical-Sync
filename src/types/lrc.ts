@@ -28,6 +28,8 @@ export interface LrcDocument {
   metadata: LrcMetadata;
   lines: LrcLine[];
   extraTags: Record<string, string>;
+  /** Original ordinary metadata entries, retained when a key occurs more than once. */
+  metadataTagSequence?: { key: string; value: string }[];
 }
 
 export const defaultMetadata = (): LrcMetadata => ({

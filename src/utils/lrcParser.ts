@@ -303,6 +303,9 @@ function unescapeTranslationText(text: string): string {
 
 export function parseLrc(raw: string): LrcDocument {
   const doc = defaultDocument();
+  const metadataEntries: { key: string; value: string }[] = [];
+  const metadataKeys = new Set<string>();
+  let repeatedMetadata = false;
   let lineId = 0;
   let translationMode = false;
   let inlineEscapeMode = false;
@@ -331,6 +334,12 @@ export function parseLrc(raw: string): LrcDocument {
         const key = metaMatch[1].toLowerCase();
         const value = metaMatch[2].trim();
         const field = META_TAGS[key];
+        const isControlTag = [TRANSLATION_TAG, INLINE_ESCAPE_TAG, LINE_ORDER_TAG].includes(key);
+        if (!isControlTag) {
+          if (metadataKeys.has(key)) repeatedMetadata = true;
+          metadataKeys.add(key);
+          metadataEntries.push({ key, value });
+        }
         if (key === TRANSLATION_TAG) {
           if (value === "1") translationMode = true;
           else doc.extraTags[key] = value;
@@ -346,9 +355,10 @@ export function parseLrc(raw: string): LrcDocument {
         else if (field === "offset") {
           const offset = Number.parseInt(value, 10);
           if (Number.isFinite(offset)) doc.metadata.offset = offset;
+          else Object.defineProperty(doc.extraTags, key, { value, configurable: true, enumerable: true, writable: true });
         }
         else if (field) (doc.metadata as unknown as Record<string, string>)[field] = value;
-        else doc.extraTags[key] = value;
+        else Object.defineProperty(doc.extraTags, key, { value, configurable: true, enumerable: true, writable: true });
         previous = [];
         continue;
       }
@@ -387,19 +397,28 @@ export function parseLrc(raw: string): LrcDocument {
       return a.timestamp - b.timestamp;
     });
   }
+  if (repeatedMetadata) doc.metadataTagSequence = metadataEntries;
   return doc;
 }
 
 // enhanced=false면 글자/단어 동기화 태그를 제거하고 일반 LRC로 출력
 export function serializeLrc(doc: LrcDocument, enhanced = true): string {
   const { metadata, lines, extraTags } = doc;
+  const sequence = doc.metadataTagSequence;
+  if (sequence !== undefined && (!Array.isArray(sequence) || sequence.some((entry) =>
+    !entry || typeof entry.key !== "string" || typeof entry.value !== "string" ||
+    !/^[\w-]+$/.test(entry.key) || /[\r\n\u2028\u2029]/.test(entry.value) ||
+    [TRANSLATION_TAG, INLINE_ESCAPE_TAG, LINE_ORDER_TAG].includes(entry.key)))) {
+    throw new LrcMetadataLineBreakError();
+  }
   if (!Number.isFinite(metadata.offset) || !Number.isSafeInteger(metadata.offset) ||
       !lines.every((line) => (line.timestamp === null || (Number.isFinite(line.timestamp) && line.timestamp >= 0)) &&
         (line.srtEndTime === undefined || (Number.isFinite(line.srtEndTime) && line.srtEndTime >= 0)) &&
         (line.syllables?.every((syllable) => syllable.time === null || (Number.isFinite(syllable.time) && syllable.time >= 0)) ?? true))) {
     throw new LrcInvalidTimestampError();
   }
-  if ([metadata.title, metadata.artist, metadata.album, metadata.by, ...Object.entries(extraTags).flat()].some((value) => /[\r\n]/.test(String(value)))) {
+  if ([metadata.title, metadata.artist, metadata.album, metadata.by, ...Object.entries(extraTags).flat(),
+    ...(sequence?.flatMap(({ key, value }) => [key, value]) ?? [])].some((value) => /[\r\n\u2028\u2029]/.test(String(value)))) {
     throw new LrcMetadataLineBreakError();
   }
   const parts: string[] = [];
@@ -425,12 +444,28 @@ export function serializeLrc(doc: LrcDocument, enhanced = true): string {
     return inlineEscapeMode ? escapeInlineTimestampText(translated) : translated;
   };
 
-  if (metadata.title) parts.push(`[ti:${metadata.title}]`);
-  if (metadata.artist) parts.push(`[ar:${metadata.artist}]`);
-  if (metadata.album) parts.push(`[al:${metadata.album}]`);
-  if (metadata.by) parts.push(`[by:${metadata.by}]`);
-  if (metadata.offset !== 0) parts.push(`[offset:${metadata.offset}]`);
+  const lastEntry = new Map<string, number>();
+  sequence?.forEach(({ key }, index) => lastEntry.set(key, index));
+  sequence?.forEach(({ key, value: original }, index) => {
+    const field = Object.prototype.hasOwnProperty.call(META_TAGS, key) ? META_TAGS[key] : undefined;
+    if (!field && !Object.prototype.hasOwnProperty.call(extraTags, key)) return;
+    let value = original;
+    if (lastEntry.get(key) === index) {
+      if (field === "offset") {
+        if (!Number.isFinite(Number(original)) && Object.prototype.hasOwnProperty.call(extraTags, key)) value = extraTags[key];
+        else if (Number(original) !== metadata.offset) value = String(metadata.offset);
+      } else if (field) value = metadata[field];
+      else value = extraTags[key];
+    }
+    parts.push(`[${key}:${value}]`);
+  });
+  if (!lastEntry.has("ti") && metadata.title) parts.push(`[ti:${metadata.title}]`);
+  if (!lastEntry.has("ar") && metadata.artist) parts.push(`[ar:${metadata.artist}]`);
+  if (!lastEntry.has("al") && metadata.album) parts.push(`[al:${metadata.album}]`);
+  if (!lastEntry.has("by") && metadata.by) parts.push(`[by:${metadata.by}]`);
+  if (!lastEntry.has("offset") && metadata.offset !== 0) parts.push(`[offset:${metadata.offset}]`);
   for (const [key, val] of Object.entries(extraTags)) {
+    if (lastEntry.has(key)) continue;
     if (key.toLowerCase() === TRANSLATION_TAG && val === "1") continue;
     if (key.toLowerCase() === INLINE_ESCAPE_TAG && val === "1") continue;
     parts.push(`[${key}:${val}]`);

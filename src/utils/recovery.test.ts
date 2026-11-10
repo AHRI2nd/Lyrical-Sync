@@ -36,6 +36,19 @@ describe("recovery snapshot round-trip", () => {
     expect(typeof loaded!.savedAt).toBe("number");
   });
 
+  it("persists repeated metadata order in a recovery snapshot", () => {
+    const repeated = { ...doc(), metadataTagSequence: [
+      { key: "ar", value: "Earlier" }, { key: "ar", value: "Artist" },
+    ] };
+    expect(saveRecoverySnapshot(repeated, "/tmp/song.lrc", null)).toBe(true);
+    expect(loadRecoverySnapshot()?.doc.metadataTagSequence).toEqual(repeated.metadataTagSequence);
+  });
+
+  it("rejects malformed repeated-metadata recovery data", () => {
+    const malformed = { ...doc(), metadataTagSequence: [{ key: "ar", value: 4 }] };
+    expect(saveRecoverySnapshot(malformed as unknown as LrcDocument, "/tmp/song.lrc", null)).toBe(false);
+  });
+
   it("supports null paths (unsaved new document)", () => {
     saveRecoverySnapshot(doc(), null, null);
     const loaded = loadRecoverySnapshot();

@@ -27,7 +27,7 @@ import { saveRecoverySnapshot, loadRecoverySnapshot, clearRecoverySnapshot } fro
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useSettingsStore } from "./useSettingsStore";
-import { serializeLrc } from "../utils/lrcParser";
+import { parseLrc, serializeLrc } from "../utils/lrcParser";
 import { enqueuePathWrite } from "../utils/pathWriteQueue";
 
 const reset = (lines: LrcLine[], offset = 0) =>
@@ -43,6 +43,14 @@ const reset = (lines: LrcLine[], offset = 0) =>
 const lines = () => useLrcStore.getState().doc.lines;
 
 describe("useLrcStore — line actions", () => {
+  it("serializes repeated metadata after the actual metadata edit action", () => {
+    const doc = parseLrc("[ar:Earlier]\n[x-origin:Old]\n[ar:Latest]\n[x-origin:Recent]\n[00:01.00]lyric");
+    useLrcStore.setState({ doc, _history: [], _future: [], isDirty: false });
+    useLrcStore.getState().setMetadata({ artist: "Edited" });
+    const output = serializeLrc(useLrcStore.getState().doc);
+    expect(output).toContain("[ar:Earlier]\n[x-origin:Old]\n[ar:Edited]\n[x-origin:Recent]");
+  });
+
   beforeEach(() => reset([]));
 
   it("addLine appends a line", () => {
