@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseLrc, serializeLrc } from "./lrcParser";
-import { parseSrt, serializeSrt, SrtMalformedCueError } from "./srtConverter";
+import { assertSrtDocumentLossless, parseSrt, serializeSrt, SrtLossyDocumentError, SrtMalformedCueError } from "./srtConverter";
 import type { LrcDocument } from "../types/lrc";
 
 const emptyMeta = { title: "", artist: "", album: "", by: "", offset: 0 };
@@ -109,6 +109,22 @@ describe("serializeSrt", () => {
     const back = serializeSrt(parseSrt(srt), 7);
     expect(back).toContain("00:00:01,000 --> 00:00:03,000");
     expect(back).toContain("00:00:05,000 --> 00:00:07,000");
+  });
+
+  it("rejects a trailing blank boundary that cannot survive an SRT round trip", () => {
+    const doc = parseSrt("1\n00:00:01,000 --> 00:00:02,000\nfirst\n");
+    doc.lines.push({ id: "new-end", timestamp: 10, text: "" });
+
+    expect(() => assertSrtDocumentLossless(doc)).toThrow(SrtLossyDocumentError);
+  });
+
+  it("accepts imported blank boundaries represented by cue ends", () => {
+    const doc = parseSrt(
+      "1\n00:00:01,000 --> 00:00:03,000\nfirst\n\n" +
+      "2\n00:00:05,000 --> 00:00:07,000\nsecond\n"
+    );
+
+    expect(() => assertSrtDocumentLossless(doc)).not.toThrow();
   });
 });
 

@@ -32,6 +32,17 @@ export function assertSrtDocumentLossless(doc: LrcDocument): void {
         line.syllables?.some((syllable) => syllable.time !== null))) {
     throw new SrtLossyDocumentError();
   }
+
+  const expectedBoundaries = doc.lines
+    .filter((line) => line.timestamp !== null && line.text.trim() === "" && !line.translation?.trim())
+    .map((line) => Math.round((line.timestamp as number) * 1000));
+  if (expectedBoundaries.length > 0) {
+    const roundTripped = parseSrt(serializeSrt(doc));
+    const representedTimes = new Set(roundTripped.lines
+      .filter((line) => line.timestamp !== null)
+      .map((line) => Math.round((line.timestamp as number) * 1000)));
+    if (expectedBoundaries.some((time) => !representedTimes.has(time))) throw new SrtLossyDocumentError();
+  }
 }
 
 export class SrtUnrepresentableContentError extends Error {

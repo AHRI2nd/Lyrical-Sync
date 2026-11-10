@@ -28,6 +28,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useSettingsStore } from "./useSettingsStore";
 import { parseLrc, serializeLrc } from "../utils/lrcParser";
+import { parseSrt } from "../utils/srtConverter";
 import { enqueuePathWrite } from "../utils/pathWriteQueue";
 
 const reset = (lines: LrcLine[], offset = 0) =>
@@ -1011,6 +1012,20 @@ describe("useLrcStore SRT save policy", () => {
     expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
     expect(useLrcStore.getState().lrcPath).toBe("/existing.srt");
     expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
+  it("rejects a trailing SRT boundary loss without writing or marking the document clean", async () => {
+    vi.mocked(invoke).mockImplementation((command) => command === "prepare_file_ref"
+      ? Promise.resolve({ path: "/working.srt", bookmark: "srt-grant" })
+      : Promise.resolve(undefined));
+    const doc = parseSrt("1\n00:00:01,000 --> 00:00:02,000\nfirst\n");
+    doc.lines.push({ id: "new-end", timestamp: 10, text: "" });
+    useLrcStore.setState({ doc, lrcPath: "/working.srt", lrcBookmark: "srt-grant", isDirty: true });
+
+    await expect(useLrcStore.getState().saveLrc()).rejects.toThrow("SRT cannot preserve");
+
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState()).toMatchObject({ lrcPath: "/working.srt", lrcBookmark: "srt-grant", isDirty: true });
   });
 
   it("exports rich lyrics to SRT without changing the working document", async () => {
