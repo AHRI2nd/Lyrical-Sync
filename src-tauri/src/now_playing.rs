@@ -31,7 +31,10 @@ pub struct NowPlayingInfo {
 
 #[cfg(test)]
 mod tests {
-    use super::{milliseconds_to_100ns_ticks, valid_unix_timestamp, with_device_timeout};
+    use super::{
+        milliseconds_to_100ns_ticks, milliseconds_to_microseconds, valid_unix_timestamp,
+        with_device_timeout,
+    };
     use std::time::Duration;
 
     #[test]
@@ -54,6 +57,19 @@ mod tests {
         );
     }
 
+    #[test]
+    fn macos_seek_positions_reject_microsecond_overflow() {
+        assert_eq!(milliseconds_to_microseconds(-1).unwrap(), 0);
+        assert_eq!(
+            milliseconds_to_microseconds(i64::MAX / 1_000).unwrap(),
+            (i64::MAX / 1_000) * 1_000
+        );
+        assert_eq!(
+            milliseconds_to_microseconds(i64::MAX / 1_000 + 1).unwrap_err(),
+            "seek_position_out_of_range"
+        );
+    }
+
     #[tokio::test]
     async fn native_device_operation_has_a_bounded_wait() {
         let result = with_device_timeout(
@@ -67,6 +83,13 @@ mod tests {
 
 fn valid_unix_timestamp(value: i64) -> Option<i64> {
     (value > 0).then_some(value)
+}
+
+fn milliseconds_to_microseconds(position_ms: i64) -> Result<i64, String> {
+    position_ms
+        .max(0)
+        .checked_mul(1_000)
+        .ok_or_else(|| "seek_position_out_of_range".into())
 }
 
 fn milliseconds_to_100ns_ticks(position_ms: i64) -> Result<i64, String> {
@@ -196,7 +219,7 @@ mod platform {
 // App Store 경량판에서는 비공식 API 우회로 간주돼 리뷰를 통과하지 못하므로 제외 대상.
 #[cfg(target_os = "macos")]
 mod platform {
-    use super::NowPlayingInfo;
+    use super::{milliseconds_to_microseconds, NowPlayingInfo};
     use serde::Deserialize;
     use std::path::PathBuf;
     use tauri::{AppHandle, Manager};
@@ -387,7 +410,7 @@ mod platform {
     }
 
     pub async fn seek(app: &AppHandle, position_ms: i64) -> Result<(), String> {
-        let micros = position_ms.max(0) * 1000;
+        let micros = milliseconds_to_microseconds(position_ms)?;
         let micros_str = micros.to_string();
         run_adapter(app, &["seek", &micros_str]).await.map(|_| ())
     }
