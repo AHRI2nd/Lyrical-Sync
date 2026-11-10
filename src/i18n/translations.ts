@@ -267,6 +267,7 @@ export interface Translations {
   toast: {
     saved: string;
     saveFailed: string;
+    atomicSaveNeedsFolderWriteAccess: string;
     srtBlankRowsUnsupported: string;
     vttBlankRowsUnsupported: string;
     vttInvalidSyllableTime: string;
@@ -646,6 +647,7 @@ const ko: Translations = {
   toast: {
     saved: "저장되었습니다",
     saveFailed: "저장에 실패했습니다",
+    atomicSaveNeedsFolderWriteAccess: "안전한 저장에 필요한 임시 파일을 이 폴더에 만들 수 없습니다. 폴더 쓰기 권한을 허용하거나 쓰기 가능한 위치에 다른 이름으로 저장하세요.",
     srtBlankRowsUnsupported: "SRT는 빈 문단을 보존할 수 없습니다. 빈 줄을 제거하거나 다른 형식으로 저장하세요.",
     vttBlankRowsUnsupported: "VTT는 빈 문단을 보존할 수 없습니다. 빈 줄을 제거하거나 다른 형식으로 저장하세요.",
     vttInvalidSyllableTime: "VTT 자막 구간 안에 담을 수 없는 글자별 타이밍이 있습니다. 타이밍을 조정하거나 다른 형식으로 저장하세요.",
@@ -1050,6 +1052,7 @@ const en: Translations = {
   toast: {
     saved: "Saved",
     saveFailed: "Failed to save",
+    atomicSaveNeedsFolderWriteAccess: "This folder does not allow the temporary file needed for a safe save. Grant write access to the folder or use Save As to choose a writable location.",
     srtBlankRowsUnsupported: "SRT cannot preserve blank paragraph rows. Remove the blank rows or save in another format.",
     vttBlankRowsUnsupported: "VTT cannot preserve blank paragraph rows. Remove the blank rows or save in another format.",
     vttInvalidSyllableTime: "Some syllable timings do not fit inside their VTT cue. Adjust the timings or save in another format.",
@@ -1453,6 +1456,7 @@ const ja: Translations = {
   toast: {
     saved: "保存しました",
     saveFailed: "保存に失敗しました",
+    atomicSaveNeedsFolderWriteAccess: "安全に保存するための一時ファイルをこのフォルダーに作成できません。フォルダーへの書き込みを許可するか、書き込み可能な場所に名前を付けて保存してください。",
     srtBlankRowsUnsupported: "SRTでは空の段落を保持できません。空行を削除するか、別の形式で保存してください。",
     vttBlankRowsUnsupported: "VTTでは空の段落を保持できません。空行を削除するか、別の形式で保存してください。",
     vttInvalidSyllableTime: "文字ごとのタイミングがVTT字幕区間に収まりません。タイミングを調整するか、別の形式で保存してください。",

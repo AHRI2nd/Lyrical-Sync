@@ -42,6 +42,7 @@ function serializationErrorCode(error: unknown): string | null {
 }
 
 function saveErrorMessage(error: unknown, t: ReturnType<typeof useI18nStore.getState>["t"]): string {
+  if (String(error).includes("ATOMIC_STAGE_PERMISSION_DENIED")) return t.toast.atomicSaveNeedsFolderWriteAccess;
   if (error instanceof SrtUnrepresentableContentError) return t.toast.srtBlankRowsUnsupported;
   if (error instanceof SrtLossyDocumentError) return t.toast.srtLossyDocument;
   if (error instanceof VttUnrepresentableContentError) return t.toast.vttBlankRowsUnsupported;

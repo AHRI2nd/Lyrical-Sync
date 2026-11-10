@@ -53,7 +53,7 @@ fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> i
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
-    let mut stage = tempfile::NamedTempFile::new_in(parent)?;
+    let mut stage = tempfile::NamedTempFile::new_in(parent).map_err(staging_creation_error)?;
     write(stage.as_file_mut())?;
     if let Some(permissions) = permissions.clone() {
         stage.as_file().set_permissions(permissions)?;
@@ -73,6 +73,18 @@ fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> i
     #[cfg(unix)]
     File::open(parent)?.sync_all()?;
     Ok(())
+}
+
+fn staging_creation_error(error: io::Error) -> io::Error {
+    if error.kind() == io::ErrorKind::PermissionDenied {
+        return io::Error::new(
+            error.kind(),
+            format!(
+                "ATOMIC_STAGE_PERMISSION_DENIED: Cannot save atomically because the containing folder does not allow creating a temporary file. Grant write access to the folder or use Save As to a writable location. ({error})"
+            ),
+        );
+    }
+    error
 }
 
 #[cfg(target_os = "macos")]
@@ -172,6 +184,31 @@ fn persist_windows(
 mod tests {
     use super::*;
     use std::io::Write;
+
+    #[cfg(unix)]
+    #[test]
+    fn parent_without_create_permission_reports_guidance_and_preserves_existing_bytes() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("song.lrc");
+        std::fs::write(&path, "original").unwrap();
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o500)).unwrap();
+
+        let result = write_atomic(&path, "updated");
+
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let error = result.expect_err("staging must fail without parent create permission");
+        assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
+        assert!(error
+            .to_string()
+            .contains("does not allow creating a temporary file"));
+        assert!(error
+            .to_string()
+            .contains("use Save As to a writable location"));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "original");
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
 
     #[test]
     fn interrupted_write_preserves_original_and_removes_stage() {

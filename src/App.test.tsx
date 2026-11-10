@@ -341,3 +341,30 @@ describe("Store shared recovery and error regression coverage", () => {
     expect(useLrcStore.getState().isDirty).toBe(true);
   });
 });
+
+describe("App save permission guidance", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.mocked(invoke).mockReset().mockResolvedValue(undefined);
+    useSettingsStore.setState({ autoSave: false, recentFiles: [] });
+    useLrcStore.setState({
+      doc: { ...defaultDocument(), lines: [{ id: "line", timestamp: 1, text: "Keep these bytes" }] },
+      lrcPath: "/restricted/song.lrc", lrcBookmark: null, isDirty: true,
+    });
+  });
+
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+
+  it("shows localized folder-write guidance for an atomic-stage permission failure", async () => {
+    vi.mocked(invoke).mockImplementation((command) => command === "write_lrc_file"
+      ? Promise.reject(new Error("ATOMIC_STAGE_PERMISSION_DENIED: Permission denied"))
+      : Promise.resolve(undefined));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: useI18nStore.getState().t.save }));
+
+    expect(await screen.findByText("This folder does not allow the temporary file needed for a safe save. Grant write access to the folder or use Save As to choose a writable location.")).toBeTruthy();
+    expect(useLrcStore.getState().isDirty).toBe(true);
+    expect(useLrcStore.getState().doc.lines[0].text).toBe("Keep these bytes");
+  });
+});
