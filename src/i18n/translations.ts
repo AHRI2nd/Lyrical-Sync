@@ -332,6 +332,7 @@ export interface Translations {
   bpmAppliedCount: string;
   batchOutputFolder: string;
   batchOutputFolderEmpty: string;
+  batchBookmarkPartialFailure: string;
   batchStatusCancelled: string;
   batchSummaryCancelled: string;
   batchStopping: string;
@@ -735,6 +736,7 @@ const ko: Translations = {
   bpmAppliedCount: "줄에 적용했습니다",
   batchOutputFolder: "출력 폴더",
   batchOutputFolderEmpty: "출력 폴더를 선택하세요",
+  batchBookmarkPartialFailure: "일부 파일에 접근할 수 없습니다. 접근 권한을 얻은 파일만 추가했습니다.",
   batchStatusCancelled: "취소됨",
   batchSummaryCancelled: "취소 {count}개",
   batchStopping: "현재 파일 저장 후 중단합니다…",
@@ -1140,6 +1142,7 @@ const en: Translations = {
   bpmAppliedCount: "line(s) snapped",
   batchOutputFolder: "Output folder",
   batchOutputFolderEmpty: "Select an output folder",
+  batchBookmarkPartialFailure: "Some files could not be accessed. Only files with granted access were added.",
   batchStatusCancelled: "Cancelled",
   batchSummaryCancelled: "{count} cancelled",
   batchStopping: "Stopping after active saves…",
@@ -1544,6 +1547,7 @@ const ja: Translations = {
   bpmAppliedCount: "行に適用しました",
   batchOutputFolder: "出力フォルダー",
   batchOutputFolderEmpty: "出力フォルダーを選択してください",
+  batchBookmarkPartialFailure: "一部のファイルにアクセスできません。アクセス権を取得できたファイルのみ追加しました。",
   batchStatusCancelled: "キャンセル済み",
   batchSummaryCancelled: "{count}件キャンセル",
   batchStopping: "保存中のファイルの完了後に停止します…",

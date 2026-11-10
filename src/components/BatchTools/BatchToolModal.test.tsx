@@ -45,6 +45,41 @@ it("requires an explicitly selected folder and uses bookmarked file references",
   expect(open).toHaveBeenCalledWith(expect.objectContaining({ directory: true, multiple: false }));
 });
 
+it("keeps files with valid bookmarks when another selected file cannot be authorized", async () => {
+  vi.mocked(open).mockResolvedValueOnce(["/inputs/good.lrc", "/inputs/denied.lrc"]);
+  vi.mocked(invoke).mockImplementation(async (_cmd, args) => {
+    const path = (args as { path: string }).path;
+    if (path.endsWith("denied.lrc")) throw new Error("permission denied");
+    return `bookmark:${path}`;
+  });
+  render(<BatchToolModal t={t} onClose={vi.fn()} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Select files" }));
+
+  expect(await screen.findByText("good.lrc")).toBeDefined();
+  expect(screen.queryByText("denied.lrc")).toBeNull();
+  vi.mocked(open).mockResolvedValueOnce("/output");
+  fireEvent.click(screen.getByRole("button", { name: "Output folder" }));
+  await screen.findByText("/output");
+  fireEvent.click(screen.getByRole("button", { name: "Run" }));
+  await waitFor(() => expect(runBatchOperation).toHaveBeenCalled());
+  expect(runBatchOperation.mock.calls[0][0].map((entry) => entry.file.path)).toEqual(["/inputs/good.lrc"]);
+});
+
+it("adds nothing when every bookmark fails and allows a denied file to be retried", async () => {
+  vi.mocked(open).mockResolvedValue(["/inputs/retry.lrc"]);
+  vi.mocked(invoke).mockRejectedValueOnce(new Error("permission denied"));
+  render(<BatchToolModal t={t} onClose={vi.fn()} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Select files" }));
+  expect(await screen.findByRole("alert")).toHaveProperty("textContent", t.batchBookmarkPartialFailure);
+  expect(screen.queryByText("retry.lrc")).toBeNull();
+
+  fireEvent.click(screen.getByRole("button", { name: "Select files" }));
+  expect(await screen.findByText("retry.lrc")).toBeDefined();
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
 it("freezes list and settings during execution and waits for active work after stopping", async () => {
   let finish!: (summary: BatchSummary) => void;
   vi.mocked(runBatchOperation).mockImplementation(() => new Promise((resolve) => { finish = resolve; }));

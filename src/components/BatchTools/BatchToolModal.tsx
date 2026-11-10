@@ -45,8 +45,11 @@ export function BatchToolModal({ t, onClose }: { t: Translations; onClose: () =>
         : await open({ multiple: true, filters: [{ name: "Lyrics", extensions: ["lrc", "srt"] }] });
       if (!selection || !mounted.current) return;
       const paths = Array.isArray(selection) ? selection : [selection];
-      const refs = await Promise.all(paths.map(async (path): Promise<FileRef> => ({ path, bookmark: (await invoke<string | null>("create_security_bookmark", { path })) ?? null })));
+      const results = await Promise.allSettled(paths.map(async (path): Promise<FileRef> => ({ path, bookmark: (await invoke<string | null>("create_security_bookmark", { path })) ?? null })));
       if (!mounted.current) return;
+      const refs = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+      if (results.some((result) => result.status === "rejected")) setError(t.batchBookmarkPartialFailure);
+      if (refs.length === 0) return;
       setSummary(null);
       if (folder) setOutput(refs[0]);
       else setEntries((current) => {
