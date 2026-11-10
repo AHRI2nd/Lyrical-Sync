@@ -504,6 +504,75 @@ it("continues to the next matching row after replacing the current row", () => {
   expect(getByText("1 / 2")).toBeTruthy();
 });
 
+it("counts and navigates each occurrence within and across lyric rows", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+    { id: "a", text: "x x x", timestamp: null },
+    { id: "b", text: "x", timestamp: null },
+  ] } });
+  const { getByRole, getByPlaceholderText, getByText, container } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getByRole("button", { name: t.editorTools }));
+  fireEvent.click(getByRole("button", { name: t.findReplace }));
+  fireEvent.change(getByPlaceholderText(t.findPlaceholder), { target: { value: "x" } });
+
+  expect(getByText("1 / 4")).toBeTruthy();
+  const first = container.querySelector<HTMLInputElement>('[data-line-id="a"] .ls-lyric-input')!;
+  expect([first.selectionStart, first.selectionEnd]).toEqual([0, 1]);
+
+  fireEvent.click(getByRole("button", { name: `${t.findNext} (Enter)` }));
+  expect(getByText("2 / 4")).toBeTruthy();
+  expect([first.selectionStart, first.selectionEnd]).toEqual([2, 3]);
+
+  fireEvent.click(getByRole("button", { name: `${t.findNext} (Enter)` }));
+  expect(getByText("3 / 4")).toBeTruthy();
+  expect([first.selectionStart, first.selectionEnd]).toEqual([4, 5]);
+
+  fireEvent.click(getByRole("button", { name: `${t.findNext} (Enter)` }));
+  expect(getByText("4 / 4")).toBeTruthy();
+  const last = container.querySelector<HTMLInputElement>('[data-line-id="b"] .ls-lyric-input')!;
+  expect([last.selectionStart, last.selectionEnd]).toEqual([0, 1]);
+
+  fireEvent.click(getByRole("button", { name: `${t.findNext} (Enter)` }));
+  expect(getByText("1 / 4")).toBeTruthy();
+});
+
+it("replaces only the selected occurrence and advances to the next original match", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "x x x", timestamp: null }] } });
+  const { getByRole, getByPlaceholderText, getByText, container } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getByRole("button", { name: t.editorTools }));
+  fireEvent.click(getByRole("button", { name: t.findReplace }));
+  fireEvent.change(getByPlaceholderText(t.findPlaceholder), { target: { value: "x" } });
+  fireEvent.change(getByPlaceholderText(t.replacePlaceholder), { target: { value: "yy" } });
+  fireEvent.click(getByRole("button", { name: t.replaceBtn }));
+
+  expect(useLrcStore.getState().doc.lines[0].text).toBe("yy x x");
+  expect(getByText("1 / 2")).toBeTruthy();
+  const input = container.querySelector<HTMLInputElement>('[data-line-id="a"] .ls-lyric-input')!;
+  expect([input.selectionStart, input.selectionEnd]).toEqual([3, 4]);
+});
+
+it("keeps replace-all occurrence-wide and reports no matches for an empty query", () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [
+    { id: "a", text: "x x", timestamp: null },
+    { id: "b", text: "x", timestamp: null },
+  ] } });
+  const { getByRole, getByPlaceholderText, getByText } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getByRole("button", { name: t.editorTools }));
+  fireEvent.click(getByRole("button", { name: t.findReplace }));
+  const findInput = getByPlaceholderText(t.findPlaceholder);
+  fireEvent.change(findInput, { target: { value: "x" } });
+  expect(getByText("1 / 3")).toBeTruthy();
+  fireEvent.change(getByPlaceholderText(t.replacePlaceholder), { target: { value: "z" } });
+  fireEvent.click(getByRole("button", { name: t.replaceAll }));
+
+  expect(useLrcStore.getState().doc.lines.map((line) => line.text)).toEqual(["z z", "z"]);
+  expect(getByText(t.noMatches)).toBeTruthy();
+  fireEvent.change(findInput, { target: { value: "" } });
+  expect(useLrcStore.getState().doc.lines.map((line) => line.text)).toEqual(["z z", "z"]);
+});
+
 it("uses the same Unicode case-folding for find and replacement", () => {
   const t = useI18nStore.getState().t;
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "İstanbul", timestamp: null }] } });

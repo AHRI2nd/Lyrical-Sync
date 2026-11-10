@@ -36,6 +36,8 @@ const BpmSnapModal = lazy(() => import("../AudioPlayer/BpmSnapModal").then((m) =
 // ISO 639-3 codes used by ctc-forced-aligner / MMS model
 const LANG_CODE: Record<string, AlignmentLanguage> = { ko: "kor", en: "eng", ja: "jpn" };
 
+type FindMatch = { id: string; start: number; end: number };
+
 export function resolveAlignmentLanguage(language: AlignmentLanguage, uiLanguage: string): Exclude<AlignmentLanguage, "auto"> {
   if (language !== "auto") return language;
   const uiCode = LANG_CODE[uiLanguage];
@@ -656,7 +658,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
   // 줄 클릭: Shift=범위 선택, Ctrl/⌘=토글, 일반=단일 선택+시크(기존 동작).
   // LrcLineRow가 React.memo로 감싸여 있어 안 건드린 줄은 오래 리렌더되지 않을 수 있으므로,
-  // 이 핸들러는 useCallback으로 참조를 고정하고 매 렌더 바뀌는 값(lines/selAnchor/matchIds)은
+  // 이 핸들러는 useCallback으로 참조를 고정하고 매 렌더 바뀌는 값(lines/selAnchor/matches)은
   // ref나 getState()로 그때그때 최신값을 읽는다 — 그래야 오래된 줄에 붙은 낡은 클로저를
   // 클릭해도 항상 최신 선택/검색 상태를 참조한다.
   const handleRowClick = useCallback((e: React.MouseEvent, id: string, idx: number) => {
@@ -694,49 +696,53 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
       seekControls.seekTo(ln.timestamp);
     }
     if (showFR) {
-      const mi = matchIdsRef.current.indexOf(id);
+      const mi = matchesRef.current.findIndex((match) => match.id === id);
       if (mi !== -1) setMatchPos(mi);
     }
   }, [showFR, seekControls, setActiveLineId]);
 
-  // 매칭 줄 id 목록
-  const matchIds = useMemo(() => {
+  // Find counts and navigates individual non-overlapping text occurrences in document order.
+  const matches = useMemo<FindMatch[]>(() => {
     if (!findText) return [];
     const escaped = findText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const re = new RegExp(escaped, caseSensitive ? "" : "i");
-    return lines
-      .filter((line) => re.test(line.text))
-      .map((l) => l.id);
+    const re = new RegExp(escaped, caseSensitive ? "g" : "gi");
+    return lines.flatMap((line) => Array.from(line.text.matchAll(re), (match) => ({
+      id: line.id,
+      start: match.index!,
+      end: match.index! + match[0].length,
+    })));
   }, [lines, findText, caseSensitive]);
-  // handleRowClick을 안정된 참조로 유지하려고 matchIds를 의존성에 넣지 않는 대신 ref로 미러링
-  // (매 키 입력마다 lines가 바뀌어 matchIds도 매번 새 배열이 되므로, 그대로 의존성에 넣으면
-  // handleRowClick도 매번 바뀌어 모든 줄이 다시 렌더되는 원래 문제가 되풀이됨)
-  const matchIdsRef = useRef<string[]>(matchIds);
-  const previousMatchIdsRef = useRef<string[]>(matchIds);
-  const pendingReplaceNextMatchRef = useRef<string | null>(null);
-  useEffect(() => { matchIdsRef.current = matchIds; }, [matchIds]);
+  const matchedLineIds = useMemo(() => new Set(matches.map((match) => match.id)), [matches]);
+  // Keep occurrence data out of handleRowClick's dependencies so a keystroke does not
+  // recreate that callback and rerender every memoized row.
+  const matchesRef = useRef<FindMatch[]>(matches);
+  const previousMatchesRef = useRef<FindMatch[]>(matches);
+  const pendingReplaceNextMatchRef = useRef<{ id: string; start: number } | null>(null);
+  useEffect(() => { matchesRef.current = matches; }, [matches]);
 
-  // Preserve the next match by row identity when replacing the current row changes the result list.
+  // Preserve the next original occurrence when replacing text changes the result list.
   useEffect(() => {
-    const previous = previousMatchIdsRef.current;
-    previousMatchIdsRef.current = matchIds;
-    if (pendingReplaceNextMatchRef.current && previous !== matchIds) {
-      const nextId = pendingReplaceNextMatchRef.current;
+    const previous = previousMatchesRef.current;
+    previousMatchesRef.current = matches;
+    if (pendingReplaceNextMatchRef.current && previous !== matches) {
+      const nextMatch = pendingReplaceNextMatchRef.current;
       pendingReplaceNextMatchRef.current = null;
-      const nextIndex = matchIds.indexOf(nextId);
+      const nextIndex = matches.findIndex((match) => match.id === nextMatch.id && match.start === nextMatch.start);
       setMatchPos(nextIndex >= 0 ? nextIndex : 0);
       return;
     }
-    if (matchIds.length === 0) { setMatchPos(0); return; }
-    setMatchPos((p) => Math.min(p, matchIds.length - 1));
-  }, [matchIds]);
+    if (matches.length === 0) { setMatchPos(0); return; }
+    setMatchPos((p) => Math.min(p, matches.length - 1));
+  }, [matches]);
 
-  // 현재 매치로 스크롤 (포커스는 찾기 입력창에 유지)
+  // Scroll to the current occurrence and select its exact text without stealing Find focus.
   useEffect(() => {
-    if (!showFR || !findText || matchIds.length === 0) return;
-    const id = matchIds[matchPos];
-    rowRefs.current.get(id)?.scrollIntoView({ block: "nearest" });
-  }, [matchPos, matchIds, findText, caseSensitive, showFR]);
+    if (!showFR || !findText || matches.length === 0) return;
+    const match = matches[matchPos];
+    if (!match) return;
+    rowRefs.current.get(match.id)?.scrollIntoView({ block: "nearest" });
+    inputRefs.current.get(match.id)?.setSelectionRange(match.start, match.end);
+  }, [matchPos, matches, findText, showFR]);
 
   // Ctrl/Cmd+F 열기
   useEffect(() => {
@@ -768,30 +774,33 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   }, []);
 
   const handleFRPrev = useCallback(() => {
-    setMatchPos((p) => (p > 0 ? p - 1 : matchIds.length - 1));
-  }, [matchIds.length]);
+    setMatchPos((p) => (p > 0 ? p - 1 : matches.length - 1));
+  }, [matches.length]);
 
   const handleFRNext = useCallback(() => {
-    setMatchPos((p) => (p < matchIds.length - 1 ? p + 1 : 0));
-  }, [matchIds.length]);
+    setMatchPos((p) => (p < matches.length - 1 ? p + 1 : 0));
+  }, [matches.length]);
 
   const handleReplace = useCallback(() => {
-    if (!matchIds.length || !findText) return;
-    const id = matchIds[matchPos];
-    const line = lines.find((l) => l.id === id);
+    const currentMatch = matches[matchPos];
+    if (!currentMatch || !findText) return;
+    const line = lines.find((l) => l.id === currentMatch.id);
     if (!line) return;
-    const escaped = findText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const re = new RegExp(escaped, caseSensitive ? "" : "i");
-    const newText = line.text.replace(re, () => replaceText);
-    const nextId = matchIds[(matchPos + 1) % matchIds.length];
+    const newText = line.text.slice(0, currentMatch.start) + replaceText + line.text.slice(currentMatch.end);
+    const nextMatch = matches[(matchPos + 1) % matches.length];
     if (newText !== line.text) {
-      pendingReplaceNextMatchRef.current = nextId;
-      handleTextChange(id, newText);
+      const delta = replaceText.length - (currentMatch.end - currentMatch.start);
+      pendingReplaceNextMatchRef.current = {
+        id: nextMatch.id,
+        start: nextMatch.id === currentMatch.id && nextMatch.start > currentMatch.start
+          ? nextMatch.start + delta
+          : nextMatch.start,
+      };
+      handleTextChange(currentMatch.id, newText);
     } else {
-      const nextIndex = matchIds.indexOf(nextId);
-      setMatchPos(nextIndex >= 0 ? nextIndex : 0);
+      setMatchPos((matchPos + 1) % matches.length);
     }
-  }, [matchIds, matchPos, findText, replaceText, caseSensitive, lines, handleTextChange]);
+  }, [matches, matchPos, findText, replaceText, lines, handleTextChange]);
 
   const handleReplaceAll = useCallback(() => {
     if (!findText) return;
@@ -1036,7 +1045,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
           findText={findText}
           replaceText={replaceText}
           caseSensitive={caseSensitive}
-          matchCount={matchIds.length}
+          matchCount={matches.length}
           matchPos={matchPos}
           onFindChange={(v) => { pendingReplaceNextMatchRef.current = null; setFindText(v); setMatchPos(0); }}
           onReplaceChange={setReplaceText}
@@ -1067,8 +1076,8 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
         {lines.map((line, idx) => {
           const isActive = line.id === activeLineId;
           const confidence = aiDraftConfidence?.[line.id];
-          const isMatch = showFR && matchIds.includes(line.id);
-          const isCurrentMatch = showFR && matchIds[matchPos] === line.id;
+          const isMatch = showFR && matchedLineIds.has(line.id);
+          const isCurrentMatch = showFR && matches[matchPos]?.id === line.id;
           const warning = warnings.get(line.id);
 
           return (
