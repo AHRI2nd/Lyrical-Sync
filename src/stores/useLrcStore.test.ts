@@ -149,6 +149,37 @@ describe("useLrcStore — offset / shift carry syllable times", () => {
     expect(lines()[0].text).toBe("dog");
     expect(lines()[0].syllables).toBeUndefined();
   });
+
+  it("preserves glyph timing on case-insensitive rows whose replacement leaves text unchanged", () => {
+    const unchanged = { id: "unchanged", timestamp: 1, text: "cat", syllables: [{ text: "cat", time: 1 }] };
+    const changed = { id: "changed", timestamp: 2, text: "CAT", syllables: [{ text: "CAT", time: 2 }] };
+    reset([unchanged, changed]);
+
+    expect(useLrcStore.getState().replaceInLines("cat", "cat", false)).toBe(2);
+
+    expect(lines()).toEqual([
+      unchanged,
+      { id: "changed", timestamp: 2, text: "cat", syllables: undefined },
+    ]);
+    useLrcStore.getState().undo();
+    expect(lines()).toEqual([unchanged, changed]);
+    useLrcStore.getState().redo();
+    expect(lines()).toEqual([
+      unchanged,
+      { id: "changed", timestamp: 2, text: "cat", syllables: undefined },
+    ]);
+  });
+
+  it("does not add history or mark dirty when replacements match but change no text", () => {
+    const unchanged = { id: "same", timestamp: 1, text: "cat", syllables: [{ text: "cat", time: 1 }] };
+    reset([unchanged]);
+
+    expect(useLrcStore.getState().replaceInLines("cat", "cat", false)).toBe(1);
+
+    expect(lines()).toEqual([unchanged]);
+    expect(useLrcStore.getState()._history).toHaveLength(0);
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
 });
 
 describe("useLrcStore — syllable actions", () => {

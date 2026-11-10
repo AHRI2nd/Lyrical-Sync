@@ -869,14 +869,18 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     const escaped = find.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const re = new RegExp(escaped, caseSensitive ? "g" : "gi");
     let count = 0;
+    let changed = false;
     const newLines = doc.lines.map((l) => {
       const matches = l.text.match(re);
       if (!matches) return l;
       count += matches.length;
+      const text = l.text.replace(re, () => replace);
+      if (text === l.text) return l;
+      changed = true;
       // 텍스트가 바뀌면 옛 토큰 경계가 무효 → 글자 동기화 해제
-      return { ...l, text: l.text.replace(re, () => replace), syllables: undefined };
+      return { ...l, text, syllables: undefined };
     });
-    if (count === 0) return 0;
+    if (!changed) return count;
     set({ ...pushHistory(doc, null, "replaceAll", count), doc: { ...doc, lines: newLines }, isDirty: true });
     return count;
   },
