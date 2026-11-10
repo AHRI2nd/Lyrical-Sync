@@ -104,6 +104,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   const [pythonReady, setPythonReady] = useState(false);
   const [missingModels, setMissingModels] = useState<string[]>([]);
   const [modelInventoryError, setModelInventoryError] = useState(false);
+  const [modelInventoryRetrying, setModelInventoryRetrying] = useState(false);
   const aiRequirementsRequest = useRef(0);
   const aiRequirementsMounted = useRef(true);
 
@@ -489,6 +490,15 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
       setModelInventoryError(inventoryFailed);
     }
   }, [modelsDir]);
+
+  const retryModelInventory = async () => {
+    setModelInventoryRetrying(true);
+    try {
+      await checkAiRequirements();
+    } finally {
+      if (aiRequirementsMounted.current) setModelInventoryRetrying(false);
+    }
+  };
 
   useEffect(() => {
     if (pythonEnvironmentBusy) {
@@ -882,20 +892,33 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
             <option value="jpn">{t.aiLanguageJapanese}</option>
           </select>
           <div className="relative group">
-            <button
-              onClick={isRunning ? undefined : handleAiSync}
-              disabled={isRunning || !canRunAi || !audioPath || aiSyncModeUnsupported}
-              className={`ls-button ${[
-                "px-3 py-1 text-xs rounded-lg transition-colors",
-                isRunning
-                  ? "bg-[var(--ls-primary)] text-[var(--ls-accent)] cursor-not-allowed"
-                  : canRunAi && audioPath && !aiSyncModeUnsupported
-                  ? "bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] text-white"
-                  : "bg-[var(--ls-control)] text-[var(--ls-text-secondary)] cursor-not-allowed",
-              ].join(" ")}`}
-            >
-              {isRunning ? t.aiSyncRunning : t.aiAutoSync}
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={isRunning ? undefined : handleAiSync}
+                disabled={isRunning || !canRunAi || !audioPath || aiSyncModeUnsupported}
+                className={`ls-button ${[
+                  "px-3 py-1 text-xs rounded-lg transition-colors",
+                  isRunning
+                    ? "bg-[var(--ls-primary)] text-[var(--ls-accent)] cursor-not-allowed"
+                    : canRunAi && audioPath && !aiSyncModeUnsupported
+                    ? "bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] text-white"
+                    : "bg-[var(--ls-control)] text-[var(--ls-text-secondary)] cursor-not-allowed",
+                ].join(" ")}`}
+              >
+                {isRunning ? t.aiSyncRunning : t.aiAutoSync}
+              </button>
+              {modelInventoryError && (
+                <button
+                  type="button"
+                  onClick={() => void retryModelInventory()}
+                  disabled={modelInventoryRetrying}
+                  aria-busy={modelInventoryRetrying}
+                  className="ls-button px-2 py-1 text-xs rounded-lg text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-[var(--ls-text)] disabled:opacity-60"
+                >
+                  {modelInventoryRetrying ? t.aiSyncCheckingModel : t.aiSyncRetryModelCheck}
+                </button>
+              )}
+            </div>
             {!isRunning && (aiSyncModeUnsupported || !canRunAi || !audioPath) && (
               <div className="absolute top-full right-0 mt-1.5 hidden group-hover:block z-20 w-60 bg-[var(--ls-control)] border border-[var(--ls-border-control)] text-xs text-[var(--ls-text-secondary)] rounded-lg px-3 py-2 shadow-xl pointer-events-none">
                 {aiSyncModeUnsupported ? (

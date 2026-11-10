@@ -497,6 +497,8 @@ export interface Translations {
   aiSyncClear: string;
   aiSyncNoModel: string;
   aiSyncModelInventoryError: string;
+  aiSyncRetryModelCheck: string;
+  aiSyncCheckingModel: string;
   aiSyncGlyphWarnTitle: string;
   aiSyncGlyphWarnMsg: string;
   aiSyncGlyphWarnOk: string;
@@ -1179,7 +1181,9 @@ const ko: Translations = {
   aiSyncCancel: "취소",
   aiSyncClear: "초안 지우기",
   aiSyncNoModel: "다음 필수 항목이 설치되지 않았습니다:",
-  aiSyncModelInventoryError: "AI 모델 상태를 확인하지 못했습니다. 모델 폴더 권한을 확인한 뒤 편집기를 다시 열어주세요.",
+  aiSyncModelInventoryError: "AI 모델 상태를 확인하지 못했습니다. 모델 폴더 권한을 확인한 뒤 다시 확인해 주세요.",
+  aiSyncRetryModelCheck: "다시 확인",
+  aiSyncCheckingModel: "확인 중…",
   aiSyncGlyphWarnTitle: "글자 동기화가 삭제됩니다",
   aiSyncGlyphWarnMsg: "AI 정렬은 줄 단위로 다시 정렬하므로 기존 글자/단어 동기화가 모두 삭제됩니다. 계속할까요?",
   aiSyncGlyphWarnOk: "계속",
@@ -1862,7 +1866,9 @@ const en: Translations = {
   aiSyncCancel: "Cancel",
   aiSyncClear: "Clear Draft",
   aiSyncNoModel: "Required items not installed:",
-  aiSyncModelInventoryError: "Could not verify AI model files. Check the model folder permissions and reopen the editor to retry.",
+  aiSyncModelInventoryError: "Could not verify AI model files. Check the model folder permissions, then retry the check.",
+  aiSyncRetryModelCheck: "Retry check",
+  aiSyncCheckingModel: "Checking…",
   aiSyncGlyphWarnTitle: "Character sync will be cleared",
   aiSyncGlyphWarnMsg: "AI alignment re-aligns line by line, so all existing character/word sync will be removed. Continue?",
   aiSyncGlyphWarnOk: "Continue",
@@ -2544,7 +2550,9 @@ const ja: Translations = {
   aiSyncCancel: "キャンセル",
   aiSyncClear: "下書きを消去",
   aiSyncNoModel: "以下の必須項目がインストールされていません:",
-  aiSyncModelInventoryError: "AI モデルを確認できませんでした。モデルフォルダーのアクセス権を確認し、エディターを開き直して再試行してください。",
+  aiSyncModelInventoryError: "AI モデルを確認できませんでした。モデルフォルダーのアクセス権を確認してから、もう一度確認してください。",
+  aiSyncRetryModelCheck: "再確認",
+  aiSyncCheckingModel: "確認中…",
   aiSyncGlyphWarnTitle: "文字同期が削除されます",
   aiSyncGlyphWarnMsg: "AI 整列は行単位で再整列するため、既存の文字/単語同期がすべて削除されます。続行しますか？",
   aiSyncGlyphWarnOk: "続行",

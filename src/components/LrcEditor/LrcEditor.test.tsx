@@ -857,3 +857,51 @@ it("does not describe a failed model inventory check as a missing model", async 
   expect(queryByText(t.aiSyncNoModel)).toBeNull();
   expect(getByRole("button", { name: t.aiAutoSync }).hasAttribute("disabled")).toBe(true);
 });
+
+it("retries a failed model inventory check from the editor", async () => {
+  const t = useI18nStore.getState().t;
+  useSettingsStore.setState({ modelsDir: "", deviceMode: false, spotifyMode: false });
+  useBusyStore.setState({ reasons: new Set() });
+  let checks = 0;
+  vi.mocked(invoke).mockImplementation((command: unknown) => {
+    if (command === "get_python_env_info") return Promise.resolve({ packagesReady: true });
+    if (command === "get_models_dir") return Promise.resolve("/models");
+    if (command === "check_model_files") {
+      checks += 1;
+      return checks < 3 ? Promise.reject(new Error("access denied")) : Promise.resolve([true]);
+    }
+    return Promise.resolve(undefined);
+  });
+  useLrcStore.setState({ audioPath: "/tmp/audio.wav" });
+  const { findByText, getByRole, queryByText } = render(<LrcEditor onPreview={() => {}} />);
+
+  await findByText(t.aiSyncModelInventoryError);
+  fireEvent.click(getByRole("button", { name: t.aiSyncRetryModelCheck }));
+  await vi.waitFor(() => expect(getByRole("button", { name: t.aiSyncRetryModelCheck }).hasAttribute("disabled")).toBe(false));
+  expect(queryByText(t.aiSyncModelInventoryError)).toBeTruthy();
+
+  fireEvent.click(getByRole("button", { name: t.aiSyncRetryModelCheck }));
+
+  await vi.waitFor(() => expect(getByRole("button", { name: t.aiAutoSync }).hasAttribute("disabled")).toBe(false));
+  expect(queryByText(t.aiSyncModelInventoryError)).toBeNull();
+  expect(checks).toBe(3);
+});
+
+it("reports a successful empty model inventory as missing instead of an inventory error", async () => {
+  const t = useI18nStore.getState().t;
+  useSettingsStore.setState({ modelsDir: "", deviceMode: false, spotifyMode: false });
+  useBusyStore.setState({ reasons: new Set() });
+  vi.mocked(invoke).mockImplementation((command: unknown) => {
+    if (command === "get_python_env_info") return Promise.resolve({ packagesReady: true });
+    if (command === "get_models_dir") return Promise.resolve("/models");
+    if (command === "check_model_files") return Promise.resolve([false]);
+    return Promise.resolve(undefined);
+  });
+  useLrcStore.setState({ audioPath: "/tmp/audio.wav" });
+  const { findByText, getByRole, queryByText } = render(<LrcEditor onPreview={() => {}} />);
+
+  await findByText(t.aiSyncNoModel);
+  expect(queryByText(t.aiSyncModelInventoryError)).toBeNull();
+  expect(queryByText(t.aiSyncRetryModelCheck)).toBeNull();
+  expect(getByRole("button", { name: t.aiAutoSync }).hasAttribute("disabled")).toBe(true);
+});
