@@ -9,6 +9,7 @@ interface LrcLineRowProps {
   t: Translations;
   line: LrcLine;
   idx: number;
+  virtualizedTotalCount?: number;
   isActive: boolean;
   isSelected: boolean;
   confidence: number | undefined;
@@ -56,7 +57,7 @@ interface LrcLineRowProps {
 // 상호작용 상태(드래그·타임스탬프 편집 등)는 LrcEditor가 소유하고 이벤트 핸들러로 전달 —
 // 이 컴포넌트는 순수 렌더링(+ line 자체에서 파생되는 hasGlyphSync/tsClass만 내부 계산).
 export function LrcLineRowImpl({
-  t, line, idx, isActive, isSelected, confidence, isMatch, isCurrentMatch, warning,
+  t, line, idx, virtualizedTotalCount, isActive, isSelected, confidence, isMatch, isCurrentMatch, warning,
   loopLineId, lyricsFontScale, showSpellCheck, showTranslationLines,
   dragIdx, showInsertionBefore, showInsertionAfter, onReorderPointerDown,
   editingTsId, editTsValue, onEditTsChange, onStartTsEdit, onCommitTsEdit, onCancelTsEdit, onStampCurrentLine,
@@ -81,9 +82,13 @@ export function LrcLineRowImpl({
   return (
     <div
       ref={rowRef}
+      role={virtualizedTotalCount === undefined ? undefined : "listitem"}
+      aria-setsize={virtualizedTotalCount}
+      aria-posinset={virtualizedTotalCount === undefined ? undefined : idx + 1}
       data-line-id={line.id}
+      data-line-index={idx}
       onClick={(e) => onRowClick(e, line.id, idx)}
-      className={`ls-line-row group/row relative rounded-lg transition-colors cursor-pointer ${
+      className={`ls-line-row group/row relative rounded-lg transition-colors cursor-pointer mb-1 ${
         isSelected
           ? "bg-sky-900/30 ring-1 ring-sky-600/60"
           : isCurrentMatch
@@ -295,6 +300,7 @@ function areEqual(prev: LrcLineRowProps, next: LrcLineRowProps): boolean {
     prev.t !== next.t ||
     prev.line !== next.line ||
     prev.idx !== next.idx ||
+    prev.virtualizedTotalCount !== next.virtualizedTotalCount ||
     prev.isActive !== next.isActive ||
     prev.isSelected !== next.isSelected ||
     prev.confidence !== next.confidence ||

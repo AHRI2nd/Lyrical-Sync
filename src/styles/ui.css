@@ -85,6 +85,7 @@
 
 @layer components {
   .ls-line-list { container-type: inline-size; }
+  .ls-line-virtual-spacer { flex: 0 0 auto; pointer-events: none; }
   .ls-line-row {
     display: grid;
     grid-template-columns: 1rem 1.25rem 6.75rem 4.5rem minmax(0, 1fr) 4.75rem;

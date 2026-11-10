@@ -1038,3 +1038,116 @@ it("reports a successful empty model inventory as missing instead of an inventor
   expect(queryByText(t.aiSyncRetryModelCheck)).toBeNull();
   expect(getByRole("button", { name: t.aiAutoSync }).hasAttribute("disabled")).toBe(true);
 });
+
+it("keeps large lyric documents to a bounded mounted row window", () => {
+  useLrcStore.setState({
+    doc: {
+      ...defaultDocument(),
+      lines: Array.from({ length: 1_000 }, (_, index) => ({
+        id: `large-${index}`,
+        text: `Lyric row ${index}`,
+        timestamp: index,
+      })),
+    },
+    activeLineId: null,
+  });
+
+  const { container } = render(<LrcEditor onPreview={() => {}} />);
+  const mountedRows = container.querySelectorAll(".ls-line-list [data-line-id]");
+
+  expect(mountedRows.length).toBeLessThan(100);
+  expect(container.querySelector('[data-line-id="large-999"]')).toBeNull();
+
+  act(() => useLrcStore.setState({ activeLineId: "large-999" }));
+  expect(container.querySelector('[data-line-id="large-999"]')?.getAttribute("aria-posinset")).toBe("1000");
+  expect(container.querySelectorAll(".ls-line-list [data-line-id]").length).toBeLessThan(100);
+});
+
+it("moves the rendered window when the large lyric list scrolls", async () => {
+  useLrcStore.setState({
+    doc: {
+      ...defaultDocument(),
+      lines: Array.from({ length: 1_000 }, (_, index) => ({
+        id: `scroll-${index}`,
+        text: `Lyric row ${index}`,
+        timestamp: index,
+      })),
+    },
+    activeLineId: null,
+  });
+
+  const { container } = render(<LrcEditor onPreview={() => {}} />);
+  const list = container.querySelector<HTMLElement>(".ls-line-list")!;
+  list.scrollTop = 20_000;
+  fireEvent.scroll(list);
+
+  await waitFor(() => {
+    const renderedIndices = Array.from(list.querySelectorAll<HTMLElement>("[data-line-index]"))
+      .map((row) => Number(row.dataset.lineIndex));
+    expect(Math.min(...renderedIndices)).toBeGreaterThan(400);
+    expect(Math.max(...renderedIndices)).toBeLessThan(600);
+  });
+});
+
+it("reveals and selects a find occurrence in an unmounted large-document row", async () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({
+    doc: {
+      ...defaultDocument(),
+      lines: Array.from({ length: 600 }, (_, index) => ({
+        id: `search-${index}`,
+        text: index === 599 ? "needle at the end" : `Lyric row ${index}`,
+        timestamp: index,
+      })),
+    },
+    activeLineId: null,
+  });
+
+  const { container, getByRole, getByPlaceholderText } = render(<LrcEditor onPreview={() => {}} />);
+  expect(container.querySelector('[data-line-id="search-599"]')).toBeNull();
+  fireEvent.click(getByRole("button", { name: t.editorTools }));
+  fireEvent.click(getByRole("button", { name: t.findReplace }));
+  fireEvent.change(getByPlaceholderText(t.findPlaceholder), { target: { value: "needle" } });
+  fireEvent.click(getByRole("button", { name: `${t.findNext} (Enter)` }));
+
+  await waitFor(() => {
+    const row = container.querySelector('[data-line-id="search-599"]');
+    expect(row).not.toBeNull();
+    const input = row?.querySelector("input");
+    expect(input?.selectionStart).toBe(0);
+    expect(input?.selectionEnd).toBe(6);
+  });
+});
+
+it("keeps Tab navigation in document order across an unmounted virtual row", async () => {
+  useLrcStore.setState({
+    doc: {
+      ...defaultDocument(),
+      lines: Array.from({ length: 1_000 }, (_, index) => ({
+        id: `tab-${index}`,
+        text: `Lyric row ${index}`,
+        timestamp: index,
+      })),
+    },
+    activeLineId: null,
+  });
+
+  const { container } = render(<LrcEditor onPreview={() => {}} />);
+  const list = container.querySelector<HTMLElement>(".ls-line-list")!;
+  const rows = Array.from(list.querySelectorAll<HTMLElement>("[data-line-index]"));
+  const lastRenderedIndex = Number(rows[rows.length - 1].dataset.lineIndex);
+  const nextIndex = lastRenderedIndex + 1;
+  expect(list.querySelector(`[data-line-index="${nextIndex}"]`)).toBeNull();
+  const rowControls = Array.from(rows[rows.length - 1].querySelectorAll<HTMLElement>(
+    "button:not(:disabled), input:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex='-1'])",
+  ));
+  const lastControl = rowControls[rowControls.length - 1];
+  lastControl.focus();
+
+  expect(fireEvent.keyDown(lastControl, { key: "Tab" })).toBe(false);
+  await waitFor(() => {
+    const nextRow = list.querySelector<HTMLElement>(`[data-line-index="${nextIndex}"]`);
+    expect(nextRow).not.toBeNull();
+    expect(document.activeElement?.closest("[data-line-index]")).toBe(nextRow);
+  });
+});

@@ -1,5 +1,5 @@
 import { isComposingKeyEvent } from "../../utils/keybindings";
-import { useRef, useEffect, useCallback, useState, useMemo, lazy, Suspense } from "react";
+import { Fragment, useRef, useEffect, useCallback, useState, useMemo, lazy, Suspense } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useLrcStore } from "../../stores/useLrcStore";
@@ -29,6 +29,7 @@ import { LrcLineRow } from "./LrcLineRow";
 import { SyncModeToggle } from "./SyncModeToggle";
 import { EditorToolsMenu } from "./EditorToolsMenu";
 import { BulkActionsBar } from "./BulkActionsBar";
+import { useVirtualLineWindow } from "./useVirtualLineWindow";
 // 글자 동기화 뷰는 모드 전환 시에만 필요 → 지연 로드
 const CharSyncView = lazy(() => import("./CharSyncView").then((m) => ({ default: m.CharSyncView })));
 const BpmSnapModal = lazy(() => import("../AudioPlayer/BpmSnapModal").then((m) => ({ default: m.BpmSnapModal })));
@@ -102,7 +103,11 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
   const inputRefs = useRef<Map<string, HTMLInputElement | HTMLTextAreaElement>>(new Map());
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const rowRefCallbacks = useRef(new Map<string, { line: LrcLine; callback: (el: HTMLDivElement | null) => void }>());
   const pendingFocusId = useRef<string | null>(null);
+  const pendingTabFocus = useRef<{ id: string; direction: 1 | -1 } | null>(null);
+  const pendingFindSelection = useRef<FindMatch | null>(null);
+  const [focusedLineId, setFocusedLineId] = useState<string | null>(null);
 
   const [pythonReady, setPythonReady] = useState(false);
   const [missingModels, setMissingModels] = useState<string[]>([]);
@@ -247,6 +252,17 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dropGapIdx, setDropGapIdx] = useState<number | null>(null);
   const reorderRef = useRef<{ lineId: string; pointerId: number; startX: number; startY: number; active: boolean; gap: number | null } | null>(null);
+  const virtualLines = useVirtualLineWindow(
+    lines,
+    `${documentSession}:${showTranslationLines}:${lyricsFontScale}`,
+    [activeLineId, focusedLineId],
+    dragIdx,
+  );
+
+  const scrollToLine = (id: string, align: "nearest" | "center" | "start" = "nearest") => {
+    const index = virtualLines.lineIndices.get(id);
+    if (index !== undefined) virtualLines.scrollToIndex(index, align);
+  };
 
   const clearReorder = () => {
     reorderRef.current = null;
@@ -278,9 +294,40 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     const rows = list.querySelectorAll<HTMLElement>("[data-line-id]");
     for (let index = 0; index < rows.length; index++) {
       const rect = rows[index].getBoundingClientRect();
-      if (y < rect.top + rect.height / 2) return index;
+      const lineIndex = Number(rows[index].dataset.lineIndex);
+      if (!Number.isInteger(lineIndex)) continue;
+      if (y < rect.top + rect.height / 2) return lineIndex;
     }
-    return rows.length;
+    const lastIndex = Number(rows[rows.length - 1]?.dataset.lineIndex);
+    return Number.isInteger(lastIndex) ? lastIndex + 1 : null;
+  };
+
+  const handleVirtualTab = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!virtualLines.isVirtualized || event.key !== "Tab" || isComposingKeyEvent(event.nativeEvent)) return;
+    const active = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>(
+      "button:not(:disabled), input:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex='-1'])",
+    ) : null;
+    const row = active?.closest<HTMLElement>("[data-line-index]");
+    if (!active || !row) return;
+    const controls = Array.from(row.querySelectorAll<HTMLElement>(
+      "button:not(:disabled), input:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex='-1'])",
+    ));
+    const activePosition = controls.indexOf(active);
+    const direction = event.shiftKey ? -1 : 1;
+    const atRowBoundary = direction > 0
+      ? activePosition === controls.length - 1
+      : activePosition === 0;
+    if (!atRowBoundary) return;
+    const rowIndex = Number(row.dataset.lineIndex);
+    const nextIndex = rowIndex + direction;
+    if (!Number.isInteger(rowIndex) || nextIndex < 0 || nextIndex >= lines.length) return;
+    const nextLine = lines[nextIndex];
+    if (rowRefs.current.has(nextLine.id)) return;
+
+    event.preventDefault();
+    pendingTabFocus.current = { id: nextLine.id, direction };
+    setActiveLineId(nextLine.id);
+    scrollToLine(nextLine.id);
   };
 
   const handleReorderMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -528,13 +575,33 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
   useEffect(() => {
     if (!activeLineId) return;
-    rowRefs.current.get(activeLineId)?.scrollIntoView({ block: "nearest" });
+    scrollToLine(activeLineId);
   }, [activeLineId]);
 
   useEffect(() => {
-    if (pendingFocusId.current) {
-      inputRefs.current.get(pendingFocusId.current)?.focus();
-      pendingFocusId.current = null;
+    const pendingId = pendingFocusId.current;
+    if (pendingId) {
+      const input = inputRefs.current.get(pendingId);
+      if (input) {
+        input.focus();
+        pendingFocusId.current = null;
+      } else if (virtualLines.lineIndices.has(pendingId)) {
+        scrollToLine(pendingId);
+      } else {
+        pendingFocusId.current = null;
+      }
+    }
+    const tabTarget = pendingTabFocus.current;
+    if (tabTarget) {
+      const row = rowRefs.current.get(tabTarget.id);
+      const controls = row ? Array.from(row.querySelectorAll<HTMLElement>(
+        "button:not(:disabled), input:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex='-1'])",
+      )) : [];
+      const target = tabTarget.direction > 0 ? controls[0] : controls[controls.length - 1];
+      if (target) {
+        target.focus();
+        pendingTabFocus.current = null;
+      }
     }
   });
 
@@ -543,10 +610,18 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     else inputRefs.current.delete(id);
   }, []);
 
-  const setRowRef = useCallback((id: string) => (el: HTMLDivElement | null) => {
-    if (el) rowRefs.current.set(id, el);
-    else rowRefs.current.delete(id);
-  }, []);
+  const setRowRef = useCallback((line: LrcLine) => {
+    const previous = rowRefCallbacks.current.get(line.id);
+    if (previous?.line === line) return previous.callback;
+    const callback = (el: HTMLDivElement | null) => {
+      if (el) rowRefs.current.set(line.id, el);
+      else rowRefs.current.delete(line.id);
+      virtualLines.registerRow(line, el);
+      if (!el && rowRefCallbacks.current.get(line.id)?.callback === callback) rowRefCallbacks.current.delete(line.id);
+    };
+    rowRefCallbacks.current.set(line.id, { line, callback });
+    return callback;
+  }, [virtualLines.registerRow]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>, id: string) => {
     if (isComposingKeyEvent(e.nativeEvent)) return;
@@ -652,7 +727,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
   const jumpToLine = (id: string) => {
     setActiveLineId(id);
-    rowRefs.current.get(id)?.scrollIntoView({ block: "center" });
+    scrollToLine(id, "center");
     setShowValidation(false);
   };
 
@@ -740,9 +815,26 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     if (!showFR || !findText || matches.length === 0) return;
     const match = matches[matchPos];
     if (!match) return;
-    rowRefs.current.get(match.id)?.scrollIntoView({ block: "nearest" });
-    inputRefs.current.get(match.id)?.setSelectionRange(match.start, match.end);
+    setActiveLineId(match.id);
+    const input = inputRefs.current.get(match.id);
+    if (input) {
+      pendingFindSelection.current = null;
+      scrollToLine(match.id);
+      input.setSelectionRange(match.start, match.end);
+      return;
+    }
+    pendingFindSelection.current = match;
+    scrollToLine(match.id);
   }, [matchPos, matches, findText, showFR]);
+
+  useEffect(() => {
+    const pending = pendingFindSelection.current;
+    if (!pending) return;
+    const input = inputRefs.current.get(pending.id);
+    if (!input) return;
+    input.setSelectionRange(pending.start, pending.end);
+    pendingFindSelection.current = null;
+  }, [virtualLines.indices]);
 
   // Ctrl/Cmd+F 열기
   useEffect(() => {
@@ -1060,7 +1152,19 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
       )}
 
       <div
-        className="ls-line-list flex-1 min-w-0 overflow-y-auto flex flex-col gap-1 px-1 py-1"
+        ref={virtualLines.containerRef}
+        role={virtualLines.isVirtualized ? "list" : undefined}
+        className="ls-line-list flex-1 min-w-0 overflow-y-auto flex flex-col gap-0 px-1 py-1"
+        onScroll={virtualLines.onScroll}
+        onKeyDownCapture={handleVirtualTab}
+        onFocusCapture={(event) => {
+          const row = (event.target as HTMLElement).closest<HTMLElement>("[data-line-id]");
+          if (row?.dataset.lineId) setFocusedLineId(row.dataset.lineId);
+        }}
+        onBlurCapture={(event) => {
+          const next = event.relatedTarget;
+          if (!(next instanceof Node) || !event.currentTarget.contains(next)) setFocusedLineId(null);
+        }}
         onPointerMove={handleReorderMove}
         onPointerUp={handleReorderUp}
         onPointerCancel={clearReorder}
@@ -1073,7 +1177,12 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
             onDoubleClick={handleAddLine}
           >{t.noLines}</p>
         )}
-        {lines.map((line, idx) => {
+        {virtualLines.indices.map((idx, renderedPosition) => {
+          const line = lines[idx];
+          const previousIndex = virtualLines.indices[renderedPosition - 1];
+          const spacerHeight = previousIndex === undefined
+            ? virtualLines.rowOffsets[idx]
+            : virtualLines.rowOffsets[idx] - virtualLines.rowOffsets[previousIndex + 1];
           const isActive = line.id === activeLineId;
           const confidence = aiDraftConfidence?.[line.id];
           const isMatch = showFR && matchedLineIds.has(line.id);
@@ -1081,11 +1190,13 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
           const warning = warnings.get(line.id);
 
           return (
+            <Fragment key={`line-group-${line.id}`}>
+            {spacerHeight > 0 && <div aria-hidden="true" className="ls-line-virtual-spacer" style={{ height: spacerHeight }} />}
             <LrcLineRow
-              key={line.id}
               t={t}
               line={line}
               idx={idx}
+              virtualizedTotalCount={virtualLines.isVirtualized ? lines.length : undefined}
               isActive={isActive}
               isSelected={selectedIds.has(line.id)}
               confidence={confidence}
@@ -1127,7 +1238,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
               onTranslationChange={(value) => updateLine(line.id, { translation: value })}
               onKeyDown={(e) => handleKeyDown(e, line.id)}
               onPaste={(e) => handlePaste(e, line.id, line.text)}
-              onFocus={() => setActiveLineId(line.id)}
+              onFocus={() => { setActiveLineId(line.id); setFocusedLineId(line.id); }}
               onMergeUp={(e) => {
                 e.stopPropagation();
                 if (idx === 0) return;
@@ -1156,10 +1267,18 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
                 });
               }}
               inputRef={setInputRef(line.id)}
-              rowRef={setRowRef(line.id)}
+              rowRef={setRowRef(line)}
             />
+            </Fragment>
           );
         })}
+        {virtualLines.isVirtualized && virtualLines.indices.length > 0 && (() => {
+          const lastIndex = virtualLines.indices[virtualLines.indices.length - 1];
+          const remainingHeight = virtualLines.rowOffsets[lines.length] - virtualLines.rowOffsets[lastIndex + 1];
+          return remainingHeight > 0
+            ? <div aria-hidden="true" className="ls-line-virtual-spacer" style={{ height: remainingHeight }} />
+            : null;
+        })()}
       </div>
       </>)}
 
