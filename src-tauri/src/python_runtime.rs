@@ -238,6 +238,15 @@ fn publish_with(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, MutexGuard};
+
+    static ENVIRONMENT_LOCK_TEST_SERIALIZER: Mutex<()> = Mutex::new(());
+
+    fn serialize_environment_lock_test() -> MutexGuard<'static, ()> {
+        ENVIRONMENT_LOCK_TEST_SERIALIZER
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
     #[test]
     fn incomplete_stage_never_replaces_an_existing_runtime() {
         let root = tempfile::tempdir().unwrap();
@@ -260,6 +269,7 @@ mod tests {
 
     #[test]
     fn environment_lock_is_shared_with_child_processes() {
+        let _serial = serialize_environment_lock_test();
         if let Ok(root) = std::env::var("LYRICAL_ENV_LOCK_CHILD") {
             match try_lock_environment(&PathBuf::from(root)) {
                 Ok(_) => std::process::exit(24),
@@ -283,6 +293,7 @@ mod tests {
 
     #[test]
     fn environment_lock_is_released_when_process_exits_abruptly() {
+        let _serial = serialize_environment_lock_test();
         if let Ok(root) = std::env::var("LYRICAL_ENV_LOCK_CRASH_CHILD") {
             match try_lock_environment(&PathBuf::from(root)) {
                 Ok(_guard) => std::process::exit(42),
@@ -306,6 +317,7 @@ mod tests {
 
     #[test]
     fn environment_lock_does_not_create_runtime_data_directories() {
+        let _serial = serialize_environment_lock_test();
         let base = tempfile::tempdir().unwrap();
         let runtime_root = base.path().join("not-created/runtime");
         let _guard = try_lock_environment(&runtime_root).unwrap();
@@ -315,6 +327,7 @@ mod tests {
 
     #[test]
     fn environment_lock_rejects_a_second_guard_in_the_same_process() {
+        let _serial = serialize_environment_lock_test();
         let root = tempfile::tempdir().unwrap();
         let _guard = try_lock_environment(root.path()).unwrap();
         assert!(matches!(
