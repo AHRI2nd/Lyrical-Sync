@@ -16,7 +16,11 @@ it("applies scaling only from its own unmodified input and never double-applies 
   const onApply = vi.fn((factor: number) => { timestamps = timestamps.map((time) => time * factor); });
   const onClose = vi.fn();
   const { getByRole } = render(<ScaleBar onApply={onApply} onClose={onClose} />);
-  const input = getByRole("spinbutton");
+  const scaleLabel = useI18nStore.getState().t.tsScaleFactor;
+  const input = getByRole("textbox", { name: scaleLabel });
+  expect(getByRole("button", { name: `${scaleLabel} -0.01` })).toBeTruthy();
+  expect(getByRole("button", { name: `${scaleLabel} +0.01` })).toBeTruthy();
+  expect(getByRole("button", { name: useI18nStore.getState().t.close })).toBeTruthy();
   fireEvent.change(input, { target: { value: "2" } });
 
   const search = document.createElement("input");
@@ -43,7 +47,7 @@ it.each([{ isComposing: true }, { keyCode: 229 }, { shiftKey: true }, { defaultP
   (modifiers) => {
     const onApply = vi.fn();
     const { getByRole } = render(<ScaleBar onApply={onApply} onClose={vi.fn()} />);
-    const input = getByRole("spinbutton");
+    const input = getByRole("textbox", { name: useI18nStore.getState().t.tsScaleFactor });
     fireEvent.change(input, { target: { value: "2" } });
     if (modifiers.defaultPrevented) input.addEventListener("keydown", (event) => event.preventDefault(), { once: true });
     if (modifiers.isComposing) {
@@ -61,7 +65,7 @@ it("does not let scale Enter apply while a higher modal is open and preserves Es
   const onApply = vi.fn();
   const onClose = vi.fn();
   const { getByRole } = render(<ScaleBar onApply={onApply} onClose={onClose} />);
-  const input = getByRole("spinbutton");
+  const input = getByRole("textbox", { name: useI18nStore.getState().t.tsScaleFactor });
   fireEvent.change(input, { target: { value: "2" } });
   const modal = document.createElement("div");
   modal.className = "fixed inset-0";
@@ -76,7 +80,7 @@ it("does not let scale Enter apply while a higher modal is open and preserves Es
 it("applies time shift only for Ctrl/Cmd+Enter inside its own controls", () => {
   const onApply = vi.fn();
   render(<TimeShiftBar lineCount={4} defaultFrom={1} onApply={onApply} onClose={vi.fn()} />);
-  const deltaInput = document.querySelectorAll('input[type="number"]')[2] as HTMLInputElement;
+  const deltaInput = document.querySelector('input[type="text"]') as HTMLInputElement;
   fireEvent.change(deltaInput, { target: { value: "2" } });
 
   const search = document.createElement("input");
@@ -100,7 +104,7 @@ it.each([{ isComposing: true }, { keyCode: 229 }, { shiftKey: true }, { defaultP
   (modifiers) => {
     const onApply = vi.fn();
     render(<TimeShiftBar lineCount={4} defaultFrom={1} onApply={onApply} onClose={vi.fn()} />);
-    const deltaInput = document.querySelectorAll('input[type="number"]')[2] as HTMLInputElement;
+    const deltaInput = document.querySelector('input[type="text"]') as HTMLInputElement;
     fireEvent.change(deltaInput, { target: { value: "2" } });
     if (modifiers.defaultPrevented) deltaInput.addEventListener("keydown", (event) => event.preventDefault(), { once: true });
     if (modifiers.isComposing) {
@@ -113,3 +117,58 @@ it.each([{ isComposing: true }, { keyCode: 229 }, { shiftKey: true }, { defaultP
     expect(onApply).not.toHaveBeenCalled();
   },
 );
+
+it("keeps decimal scale drafts intact and exposes a localized control name", () => {
+  const onApply = vi.fn();
+  const { getByRole } = render(<ScaleBar onApply={onApply} onClose={vi.fn()} />);
+  const label = useI18nStore.getState().t.tsScaleFactor;
+  const input = getByRole("textbox", { name: label }) as HTMLInputElement;
+
+  fireEvent.change(input, { target: { value: "0." } });
+  expect(input.value).toBe("0.");
+  fireEvent.change(input, { target: { value: "0.5" } });
+  fireEvent.keyDown(input, { key: "Enter" });
+
+  expect(onApply).toHaveBeenCalledWith(0.5);
+});
+
+it("preserves a negative time-shift draft and names all timing controls", () => {
+  const onApply = vi.fn();
+  const { getByRole } = render(<TimeShiftBar lineCount={4} defaultFrom={1} onApply={onApply} onClose={vi.fn()} />);
+  const labels = useI18nStore.getState().t;
+  const from = getByRole("spinbutton", { name: labels.timeShiftFrom });
+  const to = getByRole("spinbutton", { name: labels.timeShiftTo });
+  const delta = getByRole("textbox", { name: labels.timeShiftDelta }) as HTMLInputElement;
+  expect(from).toBeTruthy();
+  expect(to).toBeTruthy();
+  expect(getByRole("button", { name: `${labels.timeShiftDelta} -0.1 ${labels.timeShiftSec}` })).toBeTruthy();
+  expect(getByRole("button", { name: `${labels.timeShiftDelta} +0.1 ${labels.timeShiftSec}` })).toBeTruthy();
+  expect(getByRole("button", { name: labels.close })).toBeTruthy();
+
+  fireEvent.change(delta, { target: { value: "-" } });
+  expect(delta.value).toBe("-");
+  fireEvent.change(delta, { target: { value: "-1.5" } });
+  fireEvent.keyDown(delta, { key: "Enter", ctrlKey: true });
+
+  expect(onApply).toHaveBeenCalledWith(0, 3, -1.5);
+});
+
+it("does not apply invalid time ranges or scale drafts", () => {
+  const scaleApply = vi.fn();
+  const scale = render(<ScaleBar onApply={scaleApply} onClose={vi.fn()} />);
+  const scaleInput = scale.getByRole("textbox", { name: useI18nStore.getState().t.tsScaleFactor });
+  fireEvent.change(scaleInput, { target: { value: "." } });
+  expect(scale.getByRole("button", { name: useI18nStore.getState().t.timeShiftApply })).toHaveProperty("disabled", true);
+  fireEvent.click(scale.getByRole("button", { name: useI18nStore.getState().t.timeShiftApply }));
+  expect(scaleApply).not.toHaveBeenCalled();
+  scale.unmount();
+
+  const shiftApply = vi.fn();
+  const shift = render(<TimeShiftBar lineCount={4} defaultFrom={1} onApply={shiftApply} onClose={vi.fn()} />);
+  const labels = useI18nStore.getState().t;
+  fireEvent.change(shift.getByRole("spinbutton", { name: labels.timeShiftFrom }), { target: { value: "" } });
+  fireEvent.change(shift.getByRole("textbox", { name: labels.timeShiftDelta }), { target: { value: "1" } });
+  expect(shift.getByRole("button", { name: labels.timeShiftApply })).toHaveProperty("disabled", true);
+  fireEvent.click(shift.getByRole("button", { name: labels.timeShiftApply }));
+  expect(shiftApply).not.toHaveBeenCalled();
+});
