@@ -148,3 +148,56 @@ it("keeps a model installed and explains when deletion is rejected during AI use
   expect(await findByText((content) => content.includes(useI18nStore.getState().t.modelInUse))).toBeTruthy();
   expect(await row.findByRole("button", { name: useI18nStore.getState().t.modelDelete })).toBeTruthy();
 });
+
+it("offers an inventory retry instead of installing after a model check fails", async () => {
+  const model = MODEL_DEFS[0];
+  let checks = 0;
+  invoke.mockImplementation((command: string, args?: { modelId?: string }) => {
+    if (command === "get_models_dir") return Promise.resolve("/models/default");
+    if (command === "check_model_files" && args?.modelId === model.id) {
+      checks += 1;
+      return checks === 1
+        ? Promise.reject(new Error("access denied"))
+        : Promise.resolve(Array(model.files.length).fill(true));
+    }
+    if (command === "check_model_files") return Promise.resolve([false]);
+    return Promise.resolve(undefined);
+  });
+  render(<ModelDownloadSection />);
+
+  const t = useI18nStore.getState().t;
+  const row = within((await screen.findByText(model.name)).parentElement!.parentElement!);
+  const retryButton = await row.findByRole("button", { name: t.aiSyncRetryModelCheck });
+  expect(screen.getByText(t.aiSyncModelInventoryError)).toBeTruthy();
+  expect(row.queryByRole("button", { name: t.modelInstall })).toBeNull();
+
+  retryButton.click();
+
+  await waitFor(() => expect(row.getByRole("button", { name: t.modelDelete })).toBeTruthy());
+  expect(checks).toBe(2);
+});
+
+it("keeps a retry available when resolving the model directory fails", async () => {
+  let directoryChecks = 0;
+  invoke.mockImplementation((command: string) => {
+    if (command === "get_models_dir") {
+      directoryChecks += 1;
+      return directoryChecks === 1
+        ? Promise.reject(new Error("permission denied"))
+        : Promise.resolve("/models/default");
+    }
+    if (command === "check_model_files") return Promise.resolve([false]);
+    return Promise.resolve(undefined);
+  });
+  render(<ModelDownloadSection />);
+
+  const t = useI18nStore.getState().t;
+  const row = within((await screen.findByText(MODEL_DEFS[0].name)).parentElement!.parentElement!);
+  expect(await row.findByRole("button", { name: t.aiSyncRetryModelCheck })).toBeTruthy();
+  expect(row.getByText(t.aiSyncModelInventoryError)).toBeTruthy();
+
+  row.getByRole("button", { name: t.aiSyncRetryModelCheck }).click();
+
+  await waitFor(() => expect(directoryChecks).toBe(2));
+  await waitFor(() => expect(row.getByRole("button", { name: t.modelInstall })).toBeTruthy());
+});

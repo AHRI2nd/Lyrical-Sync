@@ -201,6 +201,30 @@ it("does not let an earlier inventory overwrite the selected model directory", a
   expect(useModelDownloadStore.getState().models[model.id].status).toBe("installed");
 });
 
+it("keeps failed model checks distinct from a successful missing-model result", async () => {
+  const [unreadableModel, missingModel] = MODEL_DEFS;
+  invoke.mockImplementation((command: string, args?: { modelId?: string }) => {
+    if (command === "get_models_dir") return Promise.resolve("/models/default");
+    if (command === "check_model_files" && args?.modelId === unreadableModel.id) {
+      return Promise.reject(new Error("access denied"));
+    }
+    if (command === "check_model_files") return Promise.resolve([false]);
+    return Promise.resolve(undefined);
+  });
+
+  await useModelDownloadStore.getState().refreshInstalled();
+
+  expect(useModelDownloadStore.getState().models[unreadableModel.id]).toMatchObject({
+    status: "error",
+    progress: 0,
+    error: "MODEL_INVENTORY_CHECK_FAILED",
+  });
+  expect(useModelDownloadStore.getState().models[missingModel.id]).toMatchObject({
+    status: "not-installed",
+    progress: 0,
+  });
+});
+
 it("does not let an old run progress event mutate a replacement run", async () => {
   const pending = deferred<void>();
   invoke.mockImplementation((command: string) => {

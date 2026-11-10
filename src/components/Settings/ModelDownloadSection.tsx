@@ -37,19 +37,33 @@ const CATEGORY_LABEL_KEY: Record<ModelCategory, keyof Translations> = {
 
 function ActionButton({
   status,
+  error,
   modelsPath,
   onInstall,
   onCancel,
   onDelete,
+  onRetryInventory,
   t,
 }: {
   status: ModelStatus;
+  error?: string;
   modelsPath: string;
   onInstall: () => void;
   onCancel: () => void;
   onDelete: () => void;
+  onRetryInventory: () => void;
   t: Translations;
 }) {
+  if (status === "error" && error === "MODEL_INVENTORY_CHECK_FAILED") {
+    return (
+      <button
+        onClick={onRetryInventory}
+        className="ls-button text-xs transition-colors shrink-0"
+      >
+        {t.aiSyncRetryModelCheck}
+      </button>
+    );
+  }
   if (status === "checking" || status === "preparing" || (status !== "downloading" && !modelsPath)) {
     return <span className="text-xs text-[var(--ls-text-secondary)] w-14 text-right">…</span>;
   }
@@ -102,6 +116,7 @@ export function ModelDownloadSection() {
 
   const handleInstall = (model: ModelDef) => { void installModel(model); };
   const handleCancel = (id: string) => { void cancelModel(id); };
+  const handleRetryInventory = () => { void refreshInstalled(); };
 
   const handleDelete = async (model: ModelDef) => {
     if (useModelDownloadStore.getState().operations[model.id]) return;
@@ -265,6 +280,7 @@ export function ModelDownloadSection() {
                 onInstall={() => handleInstall(model)}
                 onCancel={() => handleCancel(model.id)}
                 onDelete={() => handleDelete(model)}
+                onRetryInventory={handleRetryInventory}
               />
             ))}
           </div>
@@ -285,6 +301,7 @@ function ModelRow({
   onInstall,
   onCancel,
   onDelete,
+  onRetryInventory,
 }: {
   model: ModelDef;
   state: ModelState;
@@ -294,6 +311,7 @@ function ModelRow({
   onInstall: () => void;
   onCancel: () => void;
   onDelete: () => void;
+  onRetryInventory: () => void;
 }) {
   const desc = model.description[lang as "ko" | "en" | "ja"] ?? model.description.en;
   const { status, progress, error } = state;
@@ -338,10 +356,12 @@ function ModelRow({
         </span>
         <ActionButton
           status={status}
+          error={error}
           modelsPath={modelsPath}
           onInstall={onInstall}
           onCancel={onCancel}
           onDelete={onDelete}
+          onRetryInventory={onRetryInventory}
           t={t}
         />
       </div>
@@ -364,9 +384,11 @@ function ModelRow({
 
       {error && (
         <p className="text-xs text-red-400 pl-4">
-          {t.modelErrorPrefix}: {error === "MODEL_DOWNLOAD_LIMIT"
+          {error === "MODEL_INVENTORY_CHECK_FAILED"
+            ? t.aiSyncModelInventoryError
+            : <>{t.modelErrorPrefix}: {error === "MODEL_DOWNLOAD_LIMIT"
             ? t.modelDownloadSizeLimit
-            : error === "MODEL_OPERATION_IN_PROGRESS" ? t.modelInUse : error}
+            : error === "MODEL_OPERATION_IN_PROGRESS" ? t.modelInUse : error}</>}
         </p>
       )}
     </div>

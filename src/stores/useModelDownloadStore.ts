@@ -141,7 +141,7 @@ async function refreshInventory(): Promise<void> {
         });
         return { model, installed: files.length === model.files.length && files.every(Boolean) };
       } catch {
-        return { model, installed: false };
+        return { model, error: "MODEL_INVENTORY_CHECK_FAILED" };
       }
     }));
     if (generation !== inventoryGeneration || (useSettingsStore.getState().modelsDir || null) !== configuredRoot) return;
@@ -149,17 +149,19 @@ async function refreshInventory(): Promise<void> {
       const models = { ...state.models };
       for (const result of results) {
         if (!result || activeOperations.has(result.model.id)) continue;
-        models[result.model.id] = { status: result.installed ? "installed" : "not-installed", progress: 0 };
+        models[result.model.id] = "error" in result
+          ? { status: "error", progress: 0, error: result.error }
+          : { status: result.installed ? "installed" : "not-installed", progress: 0 };
       }
       return { models };
     });
-  } catch (error) {
+  } catch {
     if (generation !== inventoryGeneration) return;
     useModelDownloadStore.setState((state) => ({
       modelsPath: "",
       models: Object.fromEntries(Object.entries(state.models).map(([id, model]) => [
         id,
-        activeOperations.has(id) ? model : { status: "error" as const, progress: 0, error: String(error) },
+        activeOperations.has(id) ? model : { status: "error" as const, progress: 0, error: "MODEL_INVENTORY_CHECK_FAILED" },
       ])),
     }));
   }
