@@ -1037,7 +1037,7 @@ const ko: Translations = {
   closeUnsavedMessage: "닫기 전에 변경 사항을 저장하시겠습니까?",
   closeWithoutSaving: "저장하지 않고 닫기",
   srtOnlyDataLossTitle: "SRT 전용 정보 손실",
-  srtOnlyDataLossMessage: "LRC 형식은 SRT 자막의 종료 시각과 위치 설정을 저장할 수 없습니다. 계속하면 보존할 수 없는 SRT 정보가 제거됩니다. 변환 후 실행 취소로 복원할 수 있습니다.",
+  srtOnlyDataLossMessage: "LRC 형식은 SRT 자막의 종료 시각, 위치 설정 또는 인라인 서식을 저장할 수 없습니다. 계속하면 보존할 수 없는 SRT 정보가 제거됩니다. 변환 후 실행 취소로 복원할 수 있습니다.",
   srtOnlyDataLossConfirm: "SRT 전용 정보를 제거하고 저장",
   updater: {
     title: "업데이트 알림",
@@ -1723,7 +1723,7 @@ const en: Translations = {
   closeUnsavedMessage: "Would you like to save your changes before closing?",
   closeWithoutSaving: "Close without saving",
   srtOnlyDataLossTitle: "SRT-only data will be lost",
-  srtOnlyDataLossMessage: "LRC cannot store SRT cue end times or positioning settings. Continuing removes this SRT-only data from the working document. You can restore it with Undo after conversion.",
+  srtOnlyDataLossMessage: "LRC cannot store SRT cue end times, positioning settings, or inline styles. Continuing removes this SRT-only data from the working document. You can restore it with Undo after conversion.",
   srtOnlyDataLossConfirm: "Remove SRT-only data and save",
   updater: {
     title: "Update Available",
@@ -2408,7 +2408,7 @@ const ja: Translations = {
   closeUnsavedMessage: "閉じる前に変更を保存しますか？",
   closeWithoutSaving: "保存せずに閉じる",
   srtOnlyDataLossTitle: "SRT固有情報が失われます",
-  srtOnlyDataLossMessage: "LRC形式ではSRT字幕の終了時刻や位置設定を保存できません。続行すると作業中の文書から保存できないSRT情報が削除されます。変換後に取り消して復元できます。",
+  srtOnlyDataLossMessage: "LRC形式ではSRT字幕の終了時刻、位置設定、インライン書式を保存できません。続行すると作業中の文書から保存できないSRT情報が削除されます。変換後に取り消して復元できます。",
   srtOnlyDataLossConfirm: "SRT固有情報を削除して保存",
   updater: {
     title: "アップデート通知",

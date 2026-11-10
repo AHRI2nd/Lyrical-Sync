@@ -1024,7 +1024,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     const normalizesSrtOnlyData = lrcPath.toLowerCase().endsWith(".lrc") && hasUnrepresentableSrtCueDataInLrc(doc);
     if (normalizesSrtOnlyData && !confirmSrtOnlyDataLoss) throw new Error("SRT_ONLY_DATA_NOT_REPRESENTABLE");
     const savedDoc = normalizesSrtOnlyData
-      ? { ...doc, lines: doc.lines.map(({ srtEndTime: _srtEndTime, srtCueSettings: _srtCueSettings, ...line }) => line) }
+      ? { ...doc, lines: doc.lines.map(({ srtEndTime: _srtEndTime, srtCueSettings: _srtCueSettings, srtInlineFormatting: _srtInlineFormatting, ...line }) => line) }
       : doc;
     const sameOwnerAndRevision = () =>
       documentSessionId === sessionId && get().lrcPath === lrcPath && get()._editRevision === revision;
@@ -1068,7 +1068,7 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     const normalizesSrtOnlyData = format === "lrc" && hasUnrepresentableSrtCueDataInLrc(doc);
     if (normalizesSrtOnlyData && !confirmSrtOnlyDataLoss) throw new Error("SRT_ONLY_DATA_NOT_REPRESENTABLE");
     const savedDoc = normalizesSrtOnlyData
-      ? { ...doc, lines: doc.lines.map(({ srtEndTime: _srtEndTime, srtCueSettings: _srtCueSettings, ...line }) => line) }
+      ? { ...doc, lines: doc.lines.map(({ srtEndTime: _srtEndTime, srtCueSettings: _srtCueSettings, srtInlineFormatting: _srtInlineFormatting, ...line }) => line) }
       : doc;
     const sessionId = documentSessionId;
     const requestId = ++saveAsGeneration;

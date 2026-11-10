@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { escapeVttText, nextCueEnds, serializeVtt, serializeAss } from "./exportFormats";
 import { parseLrc } from "./lrcParser";
+import { parseSrt } from "./srtConverter";
 import type { LrcDocument } from "../types/lrc";
 
 const emptyMeta = { title: "Song", artist: "", album: "", by: "", offset: 0 };
@@ -34,6 +35,27 @@ describe("serializeVtt", () => {
       { id: "1", timestamp: 1, text: "A <b>bold</b> &amp; B > <00:02.00>" },
     ]));
     expect(out).toContain("A &lt;b&gt;bold&lt;/b&gt; &amp;amp; B &gt; &lt;00:02.00&gt;");
+  });
+
+  it("converts supported SRT inline styles while keeping unknown and malformed tags literal", () => {
+    const converted = serializeVtt(parseSrt(
+      "1\n00:00:01,000 --> 00:00:05,000\n<i>one <b>two</b></i> <u>three</u>\n",
+    ));
+    expect(converted).toContain("<i>one <b>two</b></i> <u>three</u>");
+
+    const unknown = serializeVtt(parseSrt(
+      "1\n00:00:01,000 --> 00:00:05,000\n<i>known</i><font color=red>literal</font>\n",
+    ));
+    expect(unknown).toContain("<i>known</i>&lt;font color=red&gt;literal&lt;/font&gt;");
+
+    const malformed = serializeVtt(parseSrt("1\n00:00:01,000 --> 00:00:05,000\n<i>unclosed\n"));
+    expect(malformed).toContain("&lt;i&gt;unclosed");
+    expect(malformed).not.toContain("<i>unclosed");
+
+    const mixed = serializeVtt(parseSrt(
+      "1\n00:00:01,000 --> 00:00:05,000\n<i>styled</i> &lt;b&gt;literal&lt;/b&gt;\n",
+    ));
+    expect(mixed).toContain("<i>styled</i> &lt;b&gt;literal&lt;/b&gt;");
   });
 
   it("emits a WEBVTT header and cues with .mmm times", () => {
@@ -130,6 +152,22 @@ describe("serializeVtt", () => {
 });
 
 describe("serializeAss", () => {
+  it("converts only supported SRT inline styles to ASS overrides", () => {
+    const converted = serializeAss(parseSrt(
+      "1\n00:00:01,000 --> 00:00:05,000\n<i>one <b>two</b></i> <u>three</u>\n",
+    ));
+    expect(converted).toContain("{\\i1}one {\\b1}two{\\b0}{\\i0} {\\u1}three{\\u0}");
+
+    const repeated = serializeAss(parseSrt(
+      "1\n00:00:01,000 --> 00:00:05,000\n<i>outer <i>inner</i> outer</i>\n",
+    ));
+    expect(repeated).toContain("{\\i1}outer inner outer{\\i0}");
+
+    const malformed = serializeAss(parseSrt("1\n00:00:01,000 --> 00:00:05,000\n<i>unclosed\n"));
+    expect(malformed).toContain("<i>unclosed");
+    expect(malformed).not.toContain("{\\i1}");
+  });
+
   it("includes header sections and a Dialogue per cue", () => {
     const out = serializeAss(docOf([
       { id: "1", timestamp: 1, text: "first" },

@@ -29,6 +29,22 @@ describe("parseSrt", () => {
     ]))).toBe(false);
   });
 
+  it("marks raw supported inline formatting but keeps entity-encoded literal tags as text", () => {
+    const styled = parseSrt("1\n00:00:01,000 --> 00:00:03,000\n<i>styled</i>\n");
+    const literal = parseSrt("1\n00:00:01,000 --> 00:00:03,000\n&lt;i&gt;literal&lt;/i&gt;\n");
+
+    expect(styled.lines[0]).toMatchObject({ text: "<i>styled</i>" });
+    expect(styled.lines[0].srtInlineFormatting).toHaveLength(2);
+    expect(literal.lines[0]).toMatchObject({ text: "<i>literal</i>" });
+    expect(literal.lines[0].srtInlineFormatting).toBeUndefined();
+  });
+
+  it("treats SRT inline style metadata as data that LRC cannot represent", () => {
+    expect(hasUnrepresentableSrtCueDataInLrc(parseSrt(
+      "1\n00:00:01,000 --> 00:00:03,000\n<i>styled</i>\n",
+    ))).toBe(true);
+  });
+
   it.each([
     ["start", "00:00:XX,000 --> 00:00:05,000"],
     ["end", "00:00:04,000 --> 00:00:XX,000"],

@@ -1540,6 +1540,29 @@ describe("useLrcStore — save completion races", () => {
     expect(useLrcStore.getState().isDirty).toBe(false);
   });
 
+  it("requires confirmation before dropping SRT inline style metadata when converting to LRC", async () => {
+    vi.mocked(save).mockClear();
+    const original = { ...useLrcStore.getState().doc, lines: [{
+      id: "styled", timestamp: 1, srtEndTime: 3, text: "<i>styled</i>",
+      srtInlineFormatting: [
+        { start: 0, end: 3, tag: "i" as const, closing: false },
+        { start: 9, end: 13, tag: "i" as const, closing: true },
+      ],
+    }] };
+    useLrcStore.setState({ doc: original, lrcPath: "/tmp/source.srt", isDirty: false });
+    vi.mocked(save).mockResolvedValue("/tmp/styled.lrc");
+    vi.mocked(invoke).mockResolvedValue("h".repeat(64));
+
+    await expect(useLrcStore.getState().saveLrcAs("lrc")).rejects.toThrow("SRT_ONLY_DATA_NOT_REPRESENTABLE");
+    expect(save).not.toHaveBeenCalled();
+    expect(useLrcStore.getState().doc).toBe(original);
+
+    await expect(useLrcStore.getState().saveLrcAs("lrc", undefined, true)).resolves.toBe(true);
+    expect(useLrcStore.getState().doc.lines[0].srtInlineFormatting).toBeUndefined();
+    expect(useLrcStore.getState().doc.lines[0].text).toBe("<i>styled</i>");
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
   it("normalizes cue ends after a confirmed SRT-to-LRC working-file conversion and keeps it undoable", async () => {
     const original = { ...useLrcStore.getState().doc, lines: [
       { id: "first", timestamp: 1, srtEndTime: 10, text: "first" },

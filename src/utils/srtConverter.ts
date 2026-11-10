@@ -52,6 +52,7 @@ export function hasUnrepresentableSrtCueDataInLrc(doc: LrcDocument): boolean {
   }
 
   return doc.lines.some((line) => {
+    if (line.srtInlineFormatting?.length) return true;
     if (line.srtCueSettings !== undefined) return true;
     if (line.timestamp === null || line.srtEndTime === undefined) return false;
     const nextStart = nextStarts.get(line.timestamp);
@@ -83,6 +84,25 @@ function decodeSrtEntities(value: string): string {
     if (entity === "&lt;") return "<";
     return ">";
   });
+}
+
+function decodeSrtCueText(value: string): { text: string; formatting: NonNullable<LrcDocument["lines"][number]["srtInlineFormatting"]> } {
+  const styleTag = /<\/?(b|i|u)>/gi;
+  const formatting: NonNullable<LrcDocument["lines"][number]["srtInlineFormatting"]> = [];
+  let text = "";
+  let cursor = 0;
+  for (const match of value.matchAll(styleTag)) {
+    const index = match.index!;
+    text += decodeSrtEntities(value.slice(cursor, index));
+    const rawTag = match[0];
+    const tag = match[1].toLowerCase() as "b" | "i" | "u";
+    const start = text.length;
+    text += rawTag;
+    formatting.push({ start, end: text.length, tag, closing: rawTag.startsWith("</") });
+    cursor = index + rawTag.length;
+  }
+  text += decodeSrtEntities(value.slice(cursor));
+  return { text, formatting };
 }
 
 // SubRip 시간 형식: HH:MM:SS,mmm
@@ -202,7 +222,13 @@ export function parseSrt(raw: string): LrcDocument {
   const blocks = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split(/\n\s*\n/);
 
   // 1) cue(start, end, text) 수집
-  const cues: { start: number; end: number; text: string; settings?: string }[] = [];
+  const cues: {
+    start: number;
+    end: number;
+    text: string;
+    formatting: NonNullable<LrcDocument["lines"][number]["srtInlineFormatting"]>;
+    settings?: string;
+  }[] = [];
   for (const [blockIndex, block] of blocks.entries()) {
     const rows = block.split("\n");
     while (rows.length && rows[rows.length - 1] === "") rows.pop();
@@ -235,8 +261,8 @@ export function parseSrt(raw: string): LrcDocument {
     const parsedEnd = parseSrtEnd(endStr);
     if (start === null || parsedEnd === null) throw new SrtMalformedCueError(blockIndex + 1);
 
-    const text = decodeSrtEntities(rows.slice(arrowIdx + 1).join("\n"));
-    cues.push({ start, end: parsedEnd.time, text, settings: parsedEnd.settings });
+    const { text, formatting } = decodeSrtCueText(rows.slice(arrowIdx + 1).join("\n"));
+    cues.push({ start, end: parsedEnd.time, text, formatting, settings: parsedEnd.settings });
   }
 
   cues.sort((a, b) => a.start - b.start);
@@ -245,6 +271,7 @@ export function parseSrt(raw: string): LrcDocument {
   for (let i = 0; i < cues.length; i++) {
     const cue = cues[i];
     doc.lines.push({ id: String(lineId++), timestamp: cue.start, srtEndTime: cue.end, text: cue.text,
+      ...(cue.formatting.length ? { srtInlineFormatting: cue.formatting } : {}),
       ...(cue.settings !== undefined ? { srtCueSettings: cue.settings } : {}) });
 
     // Keep gap boundaries and the final cue end so imports retain their duration.

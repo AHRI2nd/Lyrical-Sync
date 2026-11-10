@@ -20,6 +20,8 @@ export interface LrcLine {
   srtEndTime?: number;
   /** Bounded single-line SubRip cue settings, retained for same-format SRT saves. */
   srtCueSettings?: string;
+  /** Source offsets of raw, supported SRT inline style tags; encoded literal tags are excluded. */
+  srtInlineFormatting?: { start: number; end: number; tag: "b" | "i" | "u"; closing: boolean }[];
   text: string;
   // 존재하면 Enhanced LRC(글자/단어 동기화) 줄. 없으면 일반 줄 단위.
   syllables?: LrcSyllable[];
