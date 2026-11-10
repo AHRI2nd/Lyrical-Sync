@@ -91,3 +91,31 @@ describe("LrcLineRow timestamp input", () => {
     expect(onCancelTsEdit).not.toHaveBeenCalled();
   });
 });
+
+
+describe("LrcLineRow keyboard accessibility", () => {
+  afterEach(cleanup);
+
+  it("exposes warning detail through a focusable named control", () => {
+    render(<LrcLineRow {...makeProps({ warning: "duplicate" })} />);
+
+    const warning = screen.getByRole("button", { name: "Duplicate timestamp" });
+    expect(warning.getAttribute("type")).toBe("button");
+    expect(warning.getAttribute("aria-describedby")).toBeTruthy();
+    warning.focus();
+    const tooltip = document.getElementById(warning.getAttribute("aria-describedby")!);
+
+    expect(tooltip?.getAttribute("role")).toBe("tooltip");
+    expect(tooltip?.textContent).toBe("Duplicate timestamp");
+    expect(tooltip?.className).toContain("group-focus-within/warn:block");
+    expect(warning.className).toContain("focus-visible:outline");
+  });
+
+  it("keeps lyric, translation, and timestamp fields on the row input focus style", () => {
+    render(<LrcLineRow {...makeProps({ line: { id: "line-1", timestamp: 1, text: "First line", translation: "Translated" }, showTranslationLines: true, editingTsId: "line-1" })} />);
+
+    const fields = screen.getAllByRole("textbox");
+    expect(fields).toHaveLength(3);
+    for (const field of fields) expect(field.className).toContain("ls-row-input");
+  });
+});

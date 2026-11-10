@@ -64,6 +64,7 @@ export function LrcLineRowImpl({
   onMergeUp, onDuplicate, onDelete,
   inputRef, rowRef,
 }: LrcLineRowProps) {
+  const warningTooltipId = `line-warning-${line.id}`;
   const hasGlyphSync = !!line.syllables?.some((s) => s.time !== null);
 
   // Timestamp button colour varies by AI confidence
@@ -181,8 +182,15 @@ export function LrcLineRowImpl({
       <div className="ls-line-status-slot">
       {warning && (
         <div className="relative group/warn shrink-0">
-          <span className="text-[var(--ls-playhead)] text-sm leading-none cursor-help">⚠</span>
-          <div className={`ls-line-warning-tooltip pointer-events-none absolute hidden group-hover/warn:block z-30 ${idx < 2 ? "top-full mt-1.5" : "bottom-full mb-1.5"}`}>
+          <button
+            type="button"
+            aria-label={warning === "duplicate" ? t.warnDuplicate : t.warnOutOfOrder}
+            aria-describedby={warningTooltipId}
+            className="rounded text-[var(--ls-playhead)] text-sm leading-none cursor-help focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ls-accent)]"
+          >
+            ⚠
+          </button>
+          <div id={warningTooltipId} role="tooltip" className={`ls-line-warning-tooltip pointer-events-none absolute hidden group-hover/warn:block group-focus-within/warn:block z-30 ${idx < 2 ? "top-full mt-1.5" : "bottom-full mb-1.5"}`}>
             <div className="bg-[var(--ls-control)] border border-[var(--ls-playhead)]/60 text-[var(--ls-playhead)] text-xs rounded-lg px-2.5 py-1.5 shadow-xl break-words">
               {warning === "duplicate" ? t.warnDuplicate : t.warnOutOfOrder}
             </div>
