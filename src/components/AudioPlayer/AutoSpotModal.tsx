@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { decodeAudioSamples } from "../../utils/decodeAudioSamples";
-import { detectSpeechSegments } from "../../utils/autoSpot";
+import { detectSpeechSegments, parseThresholdDb } from "../../utils/autoSpot";
 
 export function AutoSpotModal({ onClose }: { onClose: () => void }) {
   const { t } = useI18nStore();
@@ -73,7 +73,7 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
     return detectSpeechSegments(
       samples,
       sampleRate,
-      Number(thresholdDb) || -35,
+      parseThresholdDb(thresholdDb),
       Math.max(0, Number(minSilenceMs) || 0) / 1000,
       Math.max(0, Number(minSpeechMs) || 0) / 1000,
       Math.max(0, Number(paddingMs) || 0) / 1000

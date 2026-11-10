@@ -12,6 +12,13 @@ export interface SpeechSegment {
   end: number;
 }
 
+export function parseThresholdDb(value: string, fallback = -35): number {
+  const trimmed = value.trim();
+  if (!trimmed) return fallback;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 /**
  * `samples`(모노, [-1, 1], `sampleRate`)에서 로컬 에너지가 `minSpeechSec` 이상
  * `thresholdDb`를 넘는 구간을 찾는다. `minSilenceSec`보다 짧은 무음 간격은 같은

@@ -1,7 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { detectSpeechSegments } from "./autoSpot";
+import { detectSpeechSegments, parseThresholdDb } from "./autoSpot";
 
 const SR = 1000; // 1kHz — 1 sample = 1ms, 20ms window = 20 samples
+
+describe("parseThresholdDb", () => {
+  it.each([["0", 0], ["-20", -20], ["+5", 5], ["  -12.5  ", -12.5]])("parses finite threshold %s", (input, expected) => {
+    expect(parseThresholdDb(input)).toBe(expected);
+  });
+  it.each(["", "   ", "-", "bad", "Infinity", "1e309"])("uses the default for empty or malformed threshold %s", (input) => {
+    expect(parseThresholdDb(input)).toBe(-35);
+  });
+});
 
 // -1..1 사인파 구간(=충분히 큰 RMS)을 만들어 "발화"를 흉내낸다.
 function tone(durationSec: number): number[] {
