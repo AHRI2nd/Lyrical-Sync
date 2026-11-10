@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { decodeAudioSamples } from "../../utils/decodeAudioSamples";
@@ -12,6 +12,8 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
 
   const documentSession = useLrcStore((s) => s._documentSession);
   const audioSelection = useLrcStore((s) => s._audioSelection);
+  const activeControllerRef = useRef<AbortController | null>(null);
+  const completedOwnerRef = useRef<{ session: number; selection: number } | null>(null);
   const [samples, setSamples] = useState<Float32Array | null>(null);
   const [sampleRate, setSampleRate] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -23,29 +25,48 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
   const [paddingMs, setPaddingMs] = useState("100");
   const [addedCount, setAddedCount] = useState<number | null>(null);
 
+  const close = useCallback(() => {
+    activeControllerRef.current?.abort();
+    onClose();
+  }, [onClose]);
+
   useEffect(() => {
     if (!audioPath) return;
+    const completedOwner = completedOwnerRef.current;
+    if (completedOwner?.session === documentSession && completedOwner.selection === audioSelection) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
+    const controller = new AbortController();
+    activeControllerRef.current = controller;
     setLoading(true);
     setError(null);
-    decodeAudioSamples(audioPath, audioBookmark)
+    decodeAudioSamples(audioPath, audioBookmark, controller.signal)
       .then(({ samples: s, sampleRate: sr, file }) => {
         if (cancelled || useLrcStore.getState()._documentSession !== documentSession || useLrcStore.getState()._audioSelection !== audioSelection) return;
+        completedOwnerRef.current = { session: documentSession, selection: audioSelection };
         useLrcStore.getState().refreshFileReference("audio", { path: audioPath, bookmark: audioBookmark }, file, { session: documentSession, selection: audioSelection });
         setSamples(s);
         setSampleRate(sr);
       })
-      .catch(() => { if (!cancelled) setError(t.autoSpotDecodeError); })
+      .catch((failure: unknown) => {
+        if (!cancelled && !(failure instanceof Error && failure.name === "AbortError")) setError(t.autoSpotDecodeError);
+      })
       .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      controller.abort();
+      if (activeControllerRef.current === controller) activeControllerRef.current = null;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audioPath, audioBookmark, documentSession, audioSelection]);
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
+  }, [close]);
 
   const preview = useMemo(() => {
     if (!samples) return [];
@@ -86,7 +107,7 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
+      onClick={close}
     >
       <div
         className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-sm mx-4 max-h-[calc(100%-2rem)] overflow-y-auto"
@@ -95,7 +116,7 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--ls-border-subtle)]">
           <span className="font-semibold text-[var(--ls-text)] text-sm">{t.autoSpotTitle}</span>
           <button
-            onClick={onClose}
+            onClick={close}
             className="ls-button hover:text-white transition-colors text-lg leading-none"
           >
             ✕
@@ -131,7 +152,7 @@ export function AutoSpotModal({ onClose }: { onClose: () => void }) {
 
           <div className="flex justify-end gap-2">
             <button
-              onClick={onClose}
+              onClick={close}
               className="ls-button text-sm transition-colors"
             >
               {t.autoSpotCancel}
