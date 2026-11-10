@@ -25,7 +25,7 @@ import { useLrcStore } from "./useLrcStore";
 import type { LrcLine, LrcDocument } from "../types/lrc";
 import { saveRecoverySnapshot, loadRecoverySnapshot, clearRecoverySnapshot } from "../utils/recovery";
 import { invoke } from "@tauri-apps/api/core";
-import { save } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { useSettingsStore } from "./useSettingsStore";
 import { parseLrc, serializeLrc } from "../utils/lrcParser";
 import { parseSrt } from "../utils/srtConverter";
@@ -408,7 +408,43 @@ describe("useLrcStore — security-scoped bookmarks (App Sandbox)", () => {
     reset([]);
     useLrcStore.setState({ audioPath: null, audioBookmark: null, lrcPath: null, lrcBookmark: null });
     vi.mocked(invoke).mockReset();
+    vi.mocked(open).mockReset();
     vi.mocked(save).mockReset();
+  });
+
+  it("ignores an older audio picker after a newer picker selection", async () => {
+    let resolveOlder!: (path: string | null) => void;
+    let resolveNewer!: (path: string | null) => void;
+    vi.mocked(open)
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveOlder = resolve; }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveNewer = resolve; }));
+
+    const older = useLrcStore.getState().openAudio();
+    const newer = useLrcStore.getState().openAudio();
+    resolveNewer("/newer.wav");
+    await newer;
+    expect(useLrcStore.getState().audioPath).toBe("/newer.wav");
+
+    resolveOlder("/older.wav");
+    await older;
+    expect(useLrcStore.getState().audioPath).toBe("/newer.wav");
+  });
+
+  it("ignores an audio picker result after a newer selection and preserves cancel", async () => {
+    let resolvePicker!: (path: string | null) => void;
+    vi.mocked(open)
+      .mockImplementationOnce(() => new Promise((resolve) => { resolvePicker = resolve; }))
+      .mockResolvedValueOnce(null);
+
+    const pending = useLrcStore.getState().openAudio();
+    useLrcStore.getState().setAudioPath("/selected.wav");
+    resolvePicker("/stale.wav");
+    await pending;
+    expect(useLrcStore.getState().audioPath).toBe("/selected.wav");
+
+    useLrcStore.getState().setAudioPath(null);
+    await useLrcStore.getState().openAudio();
+    expect(useLrcStore.getState().audioPath).toBeNull();
   });
 
   it("setAudioPath sets the path immediately and resolves the bookmark asynchronously", async () => {
