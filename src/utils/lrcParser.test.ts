@@ -268,6 +268,21 @@ it("keeps active reserved control tags out of the ordinary metadata sequence", (
   expect(parseLrc(output).lines[0].translation).toBe("translated");
 });
 
+it("round-trips inherited-property metadata names without changing object prototypes", () => {
+  const before = (Object.prototype as unknown as Record<string, unknown>).polluted;
+  const input = "[constructor:first]\n[__proto__:first]\n[toString:method]\n[constructor:second]\n[00:01.00]lyric";
+  const parsed = parseLrc(input);
+  expect(Object.getPrototypeOf(parsed.extraTags)).toBe(Object.prototype);
+  expect(Object.getPrototypeOf(parsed.metadata)).toBe(Object.prototype);
+  expect((Object.prototype as unknown as Record<string, unknown>).polluted).toBe(before);
+  expect(Object.getOwnPropertyDescriptor(parsed.extraTags, "constructor")?.value).toBe("second");
+  expect(Object.getOwnPropertyDescriptor(parsed.extraTags, "__proto__")?.value).toBe("first");
+  expect(Object.getOwnPropertyDescriptor(parsed.extraTags, "tostring")?.value).toBe("method");
+  const output = serializeLrc(parsed);
+  expect(output).toContain("[constructor:first]\n[__proto__:first]\n[tostring:method]\n[constructor:second]");
+  expect(Object.getOwnPropertyDescriptor(parseLrc(output).extraTags, "constructor")?.value).toBe("second");
+});
+
 describe("Enhanced LRC (A2) — char/word sync", () => {
   it("parses inline <mm:ss.xx> tags into syllables", () => {
     const d = parseLrc("[00:12.00]<00:12.00>너<00:12.24>의 손");

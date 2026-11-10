@@ -333,7 +333,7 @@ export function parseLrc(raw: string): LrcDocument {
       if (metaMatch) {
         const key = metaMatch[1].toLowerCase();
         const value = metaMatch[2].trim();
-        const field = META_TAGS[key];
+        const field = Object.prototype.hasOwnProperty.call(META_TAGS, key) ? META_TAGS[key] : undefined;
         const isControlTag = [TRANSLATION_TAG, INLINE_ESCAPE_TAG, LINE_ORDER_TAG].includes(key);
         if (!isControlTag) {
           if (metadataKeys.has(key)) repeatedMetadata = true;
