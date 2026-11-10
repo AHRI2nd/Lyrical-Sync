@@ -385,6 +385,26 @@ describe("Store shared recovery and error regression coverage", () => {
     await waitFor(() => expect(useLrcStore.getState().doc.metadata.title).toBe("metadata-only draft"));
     expect(useLrcStore.getState().isDirty).toBe(true);
   });
+  it("keeps recovery open and stored when discard cannot remove its snapshot", async () => {
+    const draft = { ...defaultDocument(), metadata: { ...defaultDocument().metadata, title: "preserve this draft" } };
+    saveRecoverySnapshot(draft, null, null);
+    const storedSnapshot = localStorage.getItem("lyrical-sync-recovery");
+    const originalRemove = localStorage.removeItem;
+    localStorage.removeItem = () => { throw new Error("storage unavailable"); };
+    render(<App />);
+    const t = useI18nStore.getState().t;
+
+    fireEvent.click(await screen.findByRole("button", { name: t.recovery.discard }));
+
+    expect(await screen.findByText(t.recovery.storageFailed)).toBeTruthy();
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(localStorage.getItem("lyrical-sync-recovery")).toBe(storedSnapshot);
+
+    localStorage.removeItem = originalRemove;
+    fireEvent.click(screen.getByRole("button", { name: t.recovery.discard }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(localStorage.getItem("lyrical-sync-recovery")).toBeNull();
+  });
   it("keeps the current document editable after a background error", () => {
     render(<App />);
     act(() => useLrcStore.getState().addLine("saved from runtime error"));
