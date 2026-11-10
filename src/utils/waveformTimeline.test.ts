@@ -15,6 +15,16 @@ describe("waveform timeline", () => {
     expect(getTimeTicks(11.2, 14.2, 280).map(t => t.time)).toEqual([12, 13]);
     expect(getTimeTicks(0, 0, 600)).toEqual([]);
   });
+  it("returns promptly when finite tick indices exceed safe integer precision", () => {
+    expect(getTimeTicks(1e16, 1e16 + 2, 4096)).toEqual([]);
+    expect(getTimeTicks(-1e16, -1e16 + 2, 4096)).toEqual([]);
+  });
+  it("bounds tick allocation for an extremely wide finite viewport", () => {
+    const ticks = getTimeTicks(0, 10, 1_000_000);
+    expect(ticks.length).toBeGreaterThan(0);
+    expect(ticks.length).toBeLessThanOrEqual(512);
+    expect(ticks.every(({ time, percent }) => Number.isFinite(time) && Number.isFinite(percent))).toBe(true);
+  });
   it("packs markers into two reserved rows and groups dense times without losing glyphs", () => {
     const syllables: LrcSyllable[] = Array.from({ length: 10 }, (_, i) => ({ text: String(i), time: 1 + i * .015 }));
     syllables.push({ text: "untimed", time: null });
