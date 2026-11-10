@@ -11,6 +11,26 @@ import sys
 import tarfile
 import tempfile
 
+HASH_CHUNK_SIZE = 1024 * 1024
+
+
+def sha256_file(path):
+    """Hash a release file with bounded memory use."""
+    digest = hashlib.sha256()
+    with path.open('rb') as stream:
+        while chunk := stream.read(HASH_CHUNK_SIZE):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def has_non_whitespace(path):
+    whitespace = b' \t\r\n\v\f'
+    with path.open('rb') as stream:
+        while chunk := stream.read(HASH_CHUNK_SIZE):
+            if any(byte not in whitespace for byte in chunk):
+                return True
+    return False
+
 
 def dmg_app_version(path):
     """Read the single app's version from a read-only mounted DMG on macOS."""
@@ -49,13 +69,13 @@ def record(root, target, source_sha, version):
     installers=[]
     def add(path,kind,require_signature=True):
         row={'path':path.relative_to(root).as_posix(),'kind':kind,'bytes':path.stat().st_size,
-             'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
+             'sha256':sha256_file(path)}
         if require_signature:
             sig=Path(str(path)+'.sig')
-            if not sig.is_file() or not sig.read_text().strip():
+            if not sig.is_file() or not has_non_whitespace(sig):
                 raise ValueError(f'Missing candidate updater signature: {path.name}')
             row['signaturePath']=sig.relative_to(root).as_posix()
-            row['signatureSha256']=hashlib.sha256(sig.read_bytes()).hexdigest()
+            row['signatureSha256']=sha256_file(sig)
             row['signatureVerification']='Presence and hash only; cryptographic verification is not performed here'
         installers.append(row)
     if target=='aarch64-apple-darwin':

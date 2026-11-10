@@ -330,6 +330,29 @@ if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
             with self.assertRaisesRegex(ValueError,'MSI'):
                 self.recorder().record(root,'x86_64-pc-windows-msvc','b'*40,'0.7.0')
 
+    def test_candidate_record_hashing_streams_artifacts_and_signatures(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            payload=b'candidate artifact data'*100000
+            signature=b'fixture updater signature'
+            for name in ['Lyrical Sync_0.7.0_x64-setup.exe','Lyrical Sync_0.7.0_x64_en-US.msi']:
+                (root/name).write_bytes(payload)
+                (root/(name+'.sig')).write_bytes(signature)
+            with patch.object(Path,'read_bytes',side_effect=AssertionError('whole-file read')):
+                row=self.recorder().record(root,'x86_64-pc-windows-msvc','b'*40,'0.7.0')
+            self.assertTrue(all(item['sha256']==hashlib.sha256(payload).hexdigest() for item in row['installers']))
+            self.assertTrue(all(item['signatureSha256']==hashlib.sha256(signature).hexdigest() for item in row['installers']))
+
+    def test_candidate_record_rejects_whitespace_only_signature_without_whole_file_read(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            for name in ['Lyrical Sync_0.7.0_x64-setup.exe','Lyrical Sync_0.7.0_x64_en-US.msi']:
+                (root/name).write_bytes(b'installer')
+                (root/(name+'.sig')).write_bytes(b' \t\n')
+            with patch.object(Path,'read_bytes',side_effect=AssertionError('whole-file read')):
+                with self.assertRaisesRegex(ValueError,'signature'):
+                    self.recorder().record(root,'x86_64-pc-windows-msvc','b'*40,'0.7.0')
+
     def mac_candidate(self, root, version, license_content=None):
         archive=root/'Lyrical Sync_aarch64.app.tar.gz'
         plist=plistlib.dumps({'CFBundleShortVersionString':version})
