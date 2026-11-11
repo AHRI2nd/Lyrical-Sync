@@ -340,6 +340,46 @@ describe("useLrcStore — line manipulation", () => {
     expect(pid).toBe("1");
   });
 
+  it("clears a merged repeat target and restores it only when undo restores the row", () => {
+    reset([mk("1", "first", 1), mk("2", "repeated", 2)]);
+    useLrcStore.setState({ activeLineId: "2", loopLineId: "2" });
+
+    useLrcStore.getState().mergeLineUp("2");
+    expect(useLrcStore.getState().loopLineId).toBeNull();
+
+    useLrcStore.getState().undo();
+    expect(lines().map((line) => line.id)).toEqual(["1", "2"]);
+    expect(useLrcStore.getState().loopLineId).toBe("2");
+    expect(useLrcStore.getState().activeLineId).toBe("2");
+
+    useLrcStore.getState().redo();
+    expect(lines().map((line) => line.id)).toEqual(["1"]);
+    expect(useLrcStore.getState().loopLineId).toBeNull();
+  });
+
+  it("restores a merged repeat target when jumping to the pre-merge history entry", () => {
+    reset([mk("1", "first", 1), mk("2", "repeated", 2)]);
+    useLrcStore.setState({ activeLineId: "2", loopLineId: "2" });
+    useLrcStore.getState().mergeLineUp("2");
+
+    useLrcStore.getState().jumpToHistory(0);
+
+    expect(lines().map((line) => line.id)).toEqual(["1", "2"]);
+    expect(useLrcStore.getState().activeLineId).toBe("2");
+    expect(useLrcStore.getState().loopLineId).toBe("2");
+  });
+
+  it("keeps an unrelated repeat target when merging another row", () => {
+    reset([mk("1", "first", 1), mk("2", "middle", 2), mk("3", "repeated", 3)]);
+    useLrcStore.setState({ activeLineId: "3", loopLineId: "1" });
+
+    useLrcStore.getState().mergeLineUp("3");
+    expect(useLrcStore.getState().loopLineId).toBe("1");
+
+    useLrcStore.getState().undo();
+    expect(useLrcStore.getState().loopLineId).toBe("1");
+  });
+
   it("mergeLineUp on the first line is a no-op", () => {
     reset([mk("1", "a"), mk("2", "b")]);
     expect(useLrcStore.getState().mergeLineUp("1")).toBeNull();

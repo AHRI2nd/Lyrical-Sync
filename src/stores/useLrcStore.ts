@@ -177,6 +177,7 @@ export class LyricSaveFormatChangedError extends Error {
 }
 
 const MAX_HISTORY = 50;
+const mergeRepeatTargets = new WeakMap<LrcDocument, { activeLineId: string | null; loopLineId: string }>();
 function selectionForDocument(
   doc: LrcDocument,
   selection: { activeLineId: string | null; loopLineId: string | null; activeSyllableIndex: number },
@@ -311,7 +312,12 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     const { doc, _savedDocument, _history, _future, activeLineId, loopLineId, activeSyllableIndex, syncUnit } = get();
     if (_history.length === 0) return;
     const prev = _history[_history.length - 1];
-    const selection = selectionForDocument(prev, { activeLineId, loopLineId, activeSyllableIndex }, syncUnit);
+    const mergeSelection = mergeRepeatTargets.get(doc);
+    const selection = selectionForDocument(prev, {
+      activeLineId: mergeSelection?.activeLineId ?? activeLineId,
+      loopLineId: mergeSelection?.loopLineId ?? loopLineId,
+      activeSyllableIndex,
+    }, syncUnit);
     set({
       doc: prev,
       ...selection,
@@ -346,9 +352,10 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     if (!Number.isInteger(index) || index < 0 || index >= timeline.length || index === past.length) return;
     const info = [...historyInfo(past, state._historyInfo), ...historyInfo(future, state._futureInfo)];
     const target = timeline[index];
+    const mergeSelection = timeline[index + 1] ? mergeRepeatTargets.get(timeline[index + 1]) : undefined;
     const selection = selectionForDocument(target, {
-      activeLineId: state.activeLineId,
-      loopLineId: state.loopLineId,
+      activeLineId: mergeSelection?.activeLineId ?? state.activeLineId,
+      loopLineId: mergeSelection?.loopLineId ?? state.loopLineId,
       activeSyllableIndex: state.activeSyllableIndex,
     }, state.syncUnit);
     set({ doc: target, _history: timeline.slice(0, index).slice(-MAX_HISTORY), _future: timeline.slice(index + 1).slice(0, MAX_HISTORY),
@@ -550,7 +557,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
   },
 
   mergeLineUp: (id) => {
-    const { doc } = get();
+    const { doc, loopLineId } = get();
     const idx = doc.lines.findIndex((l) => l.id === id);
     if (idx <= 0) return null;
     const prev = doc.lines[idx - 1];
@@ -560,7 +567,10 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     const merged: LrcLine = { ...prev, text: prev.text + sep + cur.text, translation: [prev.translation, cur.translation].filter((v): v is string => v !== undefined).join("\n") || (prev.translation !== undefined || cur.translation !== undefined ? "" : undefined), syllables: undefined };
     const lines = [...doc.lines];
     lines.splice(idx - 1, 2, merged);
-    set({ ...pushHistory(doc, null, "mergeLine"), doc: { ...doc, lines }, activeLineId: prev.id, isDirty: true });
+    const mergedDoc = { ...doc, lines };
+    if (loopLineId === id) mergeRepeatTargets.set(mergedDoc, { activeLineId: get().activeLineId, loopLineId: id });
+    set({ ...pushHistory(doc, null, "mergeLine"), doc: mergedDoc, activeLineId: prev.id,
+      loopLineId: loopLineId === id ? null : loopLineId, isDirty: true });
     return prev.id;
   },
 

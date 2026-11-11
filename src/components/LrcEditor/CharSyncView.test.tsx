@@ -308,6 +308,20 @@ it("shows a valid line repeat beside replay without starting playback and clears
   expect(useLrcStore.getState().loopLineId).toBeNull();
 });
 
+it("keeps the restored repeat target active after undoing a merge", () => {
+  useLrcStore.setState({ duration: 100, audioPath: "/song.mp3", activeLineId: "b", loopLineId: "b", doc: { ...defaultDocument(), lines: [
+    { id: "a", text: "first", timestamp: 10 }, { id: "b", text: "repeated", timestamp: 20 },
+  ] } });
+  render(<CharSyncView />);
+
+  act(() => useLrcStore.getState().mergeLineUp("b"));
+  expect(useLrcStore.getState().loopLineId).toBeNull();
+
+  act(() => useLrcStore.getState().undo());
+  expect(useLrcStore.getState().activeLineId).toBe("b");
+  expect(useLrcStore.getState().loopLineId).toBe("b");
+});
+
 it.each(["replay", "nudge"])("keeps waveform following disabled after explicit %s and manual navigation", action => {
   useLrcStore.setState({ duration: 100, audioPath: "/song.mp3", currentTime: 12, doc: { ...defaultDocument(), lines: [
     { id: "a", text: "ab", timestamp: 10, syllables: [{ text: "a", time: 10 }, { text: "b", time: 12 }] },
