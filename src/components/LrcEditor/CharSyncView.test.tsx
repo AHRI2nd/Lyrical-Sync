@@ -225,8 +225,24 @@ it("updates the actual waveform height and style from the view menu and dismisse
   expect(getByTestId("glyph-seek-lane").style.height).toBe("208px");
   fireEvent.change(getByRole("combobox"), { target: { value: "bars" } });
   expect(useSettingsStore.getState().glyphWaveformStyle).toBe("bars");
+  const height = getByRole("slider", { name: translations.en.charSync.waveformHeight });
+  fireEvent.focus(height);
   fireEvent.keyDown(document, { key: "Escape" });
   expect(menu.getAttribute("aria-expanded")).toBe("false");
+  expect(document.activeElement).toBe(menu);
+});
+
+it.each([{ isComposing: true }, { keyCode: 229 }])("keeps waveform settings open for composing Escape (%j)", composition => {
+  const { getByRole } = render(<CharSyncView />);
+  const menu = getByRole("button", { name: translations.en.charSync.waveformView });
+  fireEvent.click(menu);
+  const height = getByRole("slider", { name: translations.en.charSync.waveformHeight });
+  height.focus();
+
+  fireEvent.keyDown(document, { key: "Escape", ...composition });
+
+  expect(menu.getAttribute("aria-expanded")).toBe("true");
+  expect(document.activeElement).toBe(height);
 });
 
 it("shows a valid line repeat beside replay without starting playback and clears it on selection changes", () => {

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useI18nStore } from "../../stores/useI18nStore";
+import { isComposingKeyEvent } from "../../utils/keybindings";
 
 export function WaveformViewMenu() {
   const { t } = useI18nStore();
@@ -13,7 +14,11 @@ export function WaveformViewMenu() {
   useEffect(() => {
     if (!open) return;
     const outside = (e: PointerEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    const key = (e: KeyboardEvent) => { if (e.key === "Escape") { setOpen(false); trigger.current?.focus(); } };
+    const key = (e: KeyboardEvent) => {
+      if (isComposingKeyEvent(e) || e.key !== "Escape") return;
+      setOpen(false);
+      trigger.current?.focus();
+    };
     document.addEventListener("pointerdown", outside); document.addEventListener("keydown", key);
     return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", key); };
   }, [open]);
