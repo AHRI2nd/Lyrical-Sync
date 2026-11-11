@@ -143,6 +143,20 @@ it("reuses the current player for the same auth lease", async () => {
   expect(instance.disconnect).not.toHaveBeenCalled();
 });
 
+it("does not wait for SDK connection readiness during player initialization", async () => {
+  const connection = deferred<boolean>();
+  MockSpotifyPlayer.connectImplementation = () => connection.promise;
+
+  expect(initSpotifyPlayer()).toBeUndefined();
+  expect(MockSpotifyPlayer.instances).toHaveLength(1);
+  expect(useServiceStore.getState().playerError).toBeNull();
+
+  disconnectSpotifyPlayer();
+  connection.resolve(true);
+  await Promise.resolve();
+  expect(useServiceStore.getState().playerError).toBeNull();
+});
+
 it("reports an SDK connection that resolves false", async () => {
   MockSpotifyPlayer.connectImplementation = async () => false;
   initSpotifyPlayer();

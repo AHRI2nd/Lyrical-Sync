@@ -117,6 +117,18 @@ it("fails queued commands immediately when the vendor SDK cannot load", async ()
   await expect(connected).rejects.toThrow("spotify_sdk_load_failed");
 });
 
+it("times out queued commands when the SDK frame never becomes ready", async () => {
+  vi.useFakeTimers();
+  const bridge = createBridge();
+  const player = bridge.createPlayer({ getOAuthToken: (callback) => callback("access-token") });
+  const connected = player.connect();
+  const connectionFailure = expect(connected).rejects.toThrow("spotify_sdk_request_timeout");
+
+  await vi.advanceTimersByTimeAsync(15_000);
+
+  await connectionFailure;
+});
+
 it("drops malformed playback events sent by code running beside the vendor SDK", () => {
   const bridge = createBridge();
   const player = bridge.createPlayer({ getOAuthToken: (callback) => callback("access-token") });
