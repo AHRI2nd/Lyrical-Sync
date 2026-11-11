@@ -37,7 +37,15 @@ function normalizeCode(code: string): string {
 // 저장된 바인딩을 기본값으로 보정(키 누락 방지)
 export function normalizeKeybindings(kb?: Partial<Record<KeyAction, string>>): Record<KeyAction, string> {
   const out = { ...DEFAULT_KEYBINDINGS };
-  if (kb) for (const a of KEY_ACTIONS) if (kb[a]) out[a] = kb[a] as string;
+  if (kb) for (const action of KEY_ACTIONS) {
+    const saved = kb[action];
+    if (!saved) continue;
+    const candidate = normalizeCode(saved);
+    const conflictsWithAnotherAction = KEY_ACTIONS.some((other) =>
+      other !== action && normalizeCode(out[other]) === candidate,
+    );
+    if (!conflictsWithAnotherAction) out[action] = saved;
+  }
   return out;
 }
 

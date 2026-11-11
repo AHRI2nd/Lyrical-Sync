@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { createSafeJSONStorage, isRecord, isFiniteNumber, isNullableString } from "../utils/storage";
 import { persist } from "zustand/middleware";
-import { type KeyAction, DEFAULT_KEYBINDINGS, KEY_ACTIONS, RESERVED_CODES } from "../utils/keybindings";
+import { type KeyAction, DEFAULT_KEYBINDINGS, KEY_ACTIONS, RESERVED_CODES, normalizeKeybindings } from "../utils/keybindings";
 
 export function normalizeGlyphWaveformHeight(value: unknown): number {
   return isFiniteNumber(value)
@@ -91,11 +91,15 @@ function sanitizeSettings(value: unknown, current: SettingsState): SettingsState
   for (const field of ["previewActiveColor", "previewAccentColor"] as const)
     if (isPreviewColor(value[field])) next[field] = value[field];
   next.keybindings = { ...current.keybindings };
-  if (isRecord(value.keybindings)) for (const action of KEY_ACTIONS) {
-    const code = value.keybindings[action];
-    // Keyboard layouts may provide additional code names beyond the common keys.
-    if (typeof code === "string" && /^[A-Z][A-Za-z0-9]{0,39}$/.test(code) &&
-        !/^(Shift|Control|Alt|Meta)/.test(code) && !RESERVED_CODES.has(code)) next.keybindings[action] = code;
+  if (isRecord(value.keybindings)) {
+    const persistedKeybindings: Partial<Record<KeyAction, string>> = {};
+    for (const action of KEY_ACTIONS) {
+      const code = value.keybindings[action];
+      // Keyboard layouts may provide additional code names beyond the common keys.
+      if (typeof code === "string" && /^[A-Z][A-Za-z0-9]{0,39}$/.test(code) &&
+          !/^(Shift|Control|Alt|Meta)/.test(code) && !RESERVED_CODES.has(code)) persistedKeybindings[action] = code;
+    }
+    next.keybindings = normalizeKeybindings({ ...current.keybindings, ...persistedKeybindings });
   }
   if (Array.isArray(value.recentFiles)) {
     const seen = new Set<string>();

@@ -37,3 +37,28 @@ it("keeps legacy bookmarks and international-layout keyboard codes", async () =>
   expect(state.keybindings.stamp).toBe("IntlYen");
   expect(state.recentFiles[0].lrcBookmark).toBeNull();
 });
+it("restores shortcut settings without collisions against defaults or other saved actions", async () => {
+  localStorage.setItem("lyrical-sync-settings", JSON.stringify({ state: { keybindings: {
+    stamp: "Digit1",
+    skipBack1: "KeyQ",
+    playPause: "KeyQ",
+    skipFwd1: "Numpad1",
+  } }, version: 0 }));
+
+  const { DEFAULT_KEYBINDINGS, normalizeKeybindings } = await import("../utils/keybindings");
+  const restoredBindings = {
+    stamp: "Digit1",
+    skipBack1: "KeyQ",
+    playPause: "KeyQ",
+    skipFwd1: "Numpad1",
+  };
+  expect(normalizeKeybindings(restoredBindings)).toEqual({
+    ...DEFAULT_KEYBINDINGS,
+    skipBack1: "KeyQ",
+  });
+  const state = (await import("./useSettingsStore")).useSettingsStore.getState();
+  expect(state.keybindings).toEqual({
+    ...DEFAULT_KEYBINDINGS,
+    skipBack1: "KeyQ",
+  });
+});
