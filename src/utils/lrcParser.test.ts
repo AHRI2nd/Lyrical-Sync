@@ -266,6 +266,25 @@ describe("parseLrc — line level", () => {
     expect(d.metadata.artist).toBe("Artist");
     expect(d.extraTags.custom).toBe("x");
   });
+
+it.each(["\r", "\n", "\r\n"])("parses metadata and timed rows with %j line endings", (ending) => {
+  const doc = parseLrc(["[ti:Song]", "[00:01.00]first", "[00:02.00]second"].join(ending));
+  expect(doc.metadata.title).toBe("Song");
+  expect(doc.lines.map(({ timestamp, text }) => [timestamp, text])).toEqual([[1, "first"], [2, "second"]]);
+});
+
+it("normalizes mixed external endings without changing escaped carriage returns in translations", () => {
+  const mixed = parseLrc("[ti:Song]\r\n[00:01.00]first\r[00:02.00]second\n[00:03.00]third");
+  expect(mixed.lines.map(({ timestamp, text }) => [timestamp, text])).toEqual([
+    [1, "first"], [2, "second"], [3, "third"],
+  ]);
+
+  const original = docOf([{ id: "1", timestamp: 1, text: "lyric", translation: "first\rsecond" }]);
+  const serialized = serializeLrc(original);
+  expect(serialized).toContain("first\\rsecond");
+  expect(serialized).not.toContain("\r");
+  expect(parseLrc(serialized).lines[0].translation).toBe("first\rsecond");
+});
 });
 
 it("preserves repeated known and custom metadata in source order", () => {

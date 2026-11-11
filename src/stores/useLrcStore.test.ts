@@ -649,6 +649,28 @@ describe("useLrcStore — security-scoped bookmarks (App Sandbox)", () => {
     expect(files[0]).toMatchObject({ lrcPath: "/song.lrc", audioPath: null, lrcBookmark: "bm-lrc" });
   });
 
+  it("preserves CR-only LRC rows through load, edit, and save", async () => {
+    const source = "[ti:Song]\r[00:01.00]first\r[00:02.00]second";
+    let written = "";
+    vi.mocked(invoke).mockImplementation((command, args) => {
+      if (command === "read_lrc_file") return Promise.resolve(source);
+      if (command === "write_lrc_file") {
+        written = (args as { content: string }).content;
+        return Promise.resolve(undefined);
+      }
+      return Promise.resolve(null);
+    });
+    await useLrcStore.getState().loadLyricsPath("/legacy-cr-only.lrc");
+    useLrcStore.getState().updateLine(lines()[0].id, { text: "edited first" });
+    await useLrcStore.getState().saveLrc();
+
+    const restored = parseLrc(written);
+    expect(restored.metadata.title).toBe("Song");
+    expect(restored.lines.map(({ timestamp, text }) => [timestamp, text])).toEqual([
+      [1, "edited first"], [2, "second"],
+    ]);
+  });
+
   it("saveLrcAs resolves lrcBookmark for the newly saved lrc path", async () => {
     vi.mocked(save).mockResolvedValue("/new.lrc");
     vi.mocked(invoke).mockImplementation((cmd: unknown) => {

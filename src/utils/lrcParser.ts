@@ -322,7 +322,7 @@ export function parseLrc(raw: string): LrcDocument {
   let preserveLineOrder = false;
   let previous: LrcLine[] = [];
 
-  for (const rawLine of raw.split("\n")) {
+  for (const rawLine of raw.replace(/\r\n?/g, "\n").split("\n")) {
     const line = translationMode ? rawLine.replace(/\r$/, "") : rawLine.trim();
     if (line === "" || (!translationMode && !line.trim())) {
       if (translationMode && line === "" && doc.lines.length > 0) doc.lines.push({ id: String(lineId++), timestamp: null, text: "" });
