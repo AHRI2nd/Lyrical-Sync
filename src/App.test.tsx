@@ -516,6 +516,44 @@ describe("App — drag-and-drop conflict resolution", () => {
     await waitFor(() => expect(closeWindow).toHaveBeenCalledOnce());
     expect(useLrcStore.getState().isDirty).toBe(false);
   });
+
+  it("keeps a dirty document and restores the close guard when closing is rejected", async () => {
+    resetLrc({ isDirty: true, doc: { ...defaultDocument(), lines: [{ id: "1", text: "Unsaved", timestamp: 1 }] } });
+    closeWindow.mockRejectedValueOnce(new Error("close rejected"));
+    render(<App />);
+    await waitFor(() => expect(closeRequestedHandler.current).toBeTypeOf("function"));
+
+    act(() => closeRequestedHandler.current?.({ preventDefault: vi.fn() }));
+    fireEvent.click(await screen.findByRole("button", { name: useI18nStore.getState().t.closeWithoutSaving }));
+
+    expect(await screen.findByText(useI18nStore.getState().t.toast.runtimeFailed)).toBeTruthy();
+    expect(useLrcStore.getState().doc.lines[0].text).toBe("Unsaved");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+    expect(closeWindow).toHaveBeenCalledOnce();
+
+    const preventDefault = vi.fn();
+    act(() => closeRequestedHandler.current?.({ preventDefault }));
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(await screen.findByRole("dialog", { name: useI18nStore.getState().t.closeUnsavedTitle })).toBeTruthy();
+  });
+
+  it("keeps the unsaved-close prompt open for an unrelated runtime error", async () => {
+    resetLrc({ isDirty: true, doc: { ...defaultDocument(), lines: [{ id: "1", text: "Unsaved", timestamp: 1 }] } });
+    render(<App />);
+    await waitFor(() => expect(closeRequestedHandler.current).toBeTypeOf("function"));
+    const preventDefault = vi.fn();
+    act(() => closeRequestedHandler.current?.({ preventDefault }));
+    const prompt = await screen.findByRole("dialog", { name: useI18nStore.getState().t.closeUnsavedTitle });
+
+    fireEvent(window, new CustomEvent("lyrical-runtime-error", { detail: "unrelated background error" }));
+
+    expect(await screen.findByText(useI18nStore.getState().t.toast.runtimeFailed)).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: useI18nStore.getState().t.closeUnsavedTitle })).toBe(prompt);
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(closeWindow).not.toHaveBeenCalled();
+    expect(useLrcStore.getState().doc.lines[0].text).toBe("Unsaved");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
 });
 
 
