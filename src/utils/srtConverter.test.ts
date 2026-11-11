@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseLrc, serializeLrc } from "./lrcParser";
-import { assertSrtDocumentLossless, parseSrt, serializeSrt, SrtLossyDocumentError, SrtMalformedCueError } from "./srtConverter";
+import { assertSrtDocumentLossless, hasUnrepresentableSrtCueDataInLrc, parseSrt, serializeSrt, SrtLossyDocumentError, SrtMalformedCueError } from "./srtConverter";
 import type { LrcDocument } from "../types/lrc";
 
 const emptyMeta = { title: "", artist: "", album: "", by: "", offset: 0 };
@@ -16,6 +16,13 @@ describe("parseSrt", () => {
       "1\n00:00:01,000 --> 00:00:04,000\nfirst\n\n" +
       "2\n00:00:02,000 --> 00:00:05,000\nsecond\n";
 
+    expect(serializeSrt(parseSrt(input))).toBe(input);
+  });
+
+  it.each([
+    "1\n00:00:01,000 --> 00:00:03,000\n<i>styled</i>\n",
+    "1\n00:00:01,000 --> 00:00:03,000\n&lt;i&gt;literal&lt;/i&gt;\n",
+  ])("preserves raw style markup versus escaped literal tag text on SRT round trip", (input) => {
     expect(serializeSrt(parseSrt(input))).toBe(input);
   });
 
@@ -37,6 +44,28 @@ describe("parseSrt", () => {
 
   it("accepts both comma and dot fractional separators", () => {
     expect(parseSrt("1\n00:00:02.500 --> 00:00:03,000\nx\n").lines[0].timestamp).toBeCloseTo(2.5, 5);
+  });
+
+  it("records supported raw inline styles and distinguishes entity-encoded literal tags", () => {
+    const styled = parseSrt("1\n00:00:01,000 --> 00:00:03,000\n<i>styled</i>\n");
+    const literal = parseSrt("1\n00:00:01,000 --> 00:00:03,000\n&lt;i&gt;literal&lt;/i&gt;\n");
+
+    expect(styled.lines[0]).toMatchObject({ text: "<i>styled</i>" });
+    expect(styled.lines[0].srtInlineFormatting).toEqual([
+      { start: 0, end: 3, tag: "i", closing: false },
+      { start: 9, end: 13, tag: "i", closing: true },
+    ]);
+    expect(literal.lines[0]).toMatchObject({ text: "<i>literal</i>" });
+    expect(literal.lines[0].srtInlineFormatting).toBeUndefined();
+  });
+
+  it("treats valid SRT styles as data that requires consent before LRC conversion", () => {
+    expect(hasUnrepresentableSrtCueDataInLrc(parseSrt(
+      "1\n00:00:01,000 --> 00:00:03,000\n<b>styled</b>\n",
+    ))).toBe(true);
+    expect(hasUnrepresentableSrtCueDataInLrc(parseSrt(
+      "1\n00:00:01,000 --> 00:00:03,000\n&lt;b&gt;literal&lt;/b&gt;\n",
+    ))).toBe(false);
   });
 
   it("inserts a blank boundary line for a gap between cues", () => {

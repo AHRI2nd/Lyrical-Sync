@@ -3,7 +3,7 @@ import { nearestBeat } from "../utils/bpmDetect";
 import { create } from "zustand";
 import { LrcDocument, LrcLine, LrcMetadata, LrcSyllable, defaultDocument } from "../types/lrc";
 import { isStampable, parseLrc, serializeLrc, tokenizeText, type SyncUnit } from "../utils/lrcParser";
-import { assertSrtDocumentLossless, serializeSrt, parseSrt } from "../utils/srtConverter";
+import { assertSrtDocumentLossless, hasUnrepresentableSrtCueDataInLrc, normalizeSrtDocumentForLrc, serializeSrt, parseSrt } from "../utils/srtConverter";
 import { serializeVtt, serializeAss } from "../utils/exportFormats";
 import { prepareFileRef, readLyrics, writeLyrics, type FileRef } from "../utils/fileAccess";
 import { enqueuePathWrite } from "../utils/pathWriteQueue";
@@ -134,9 +134,9 @@ interface LrcStore {
   openLrc: () => Promise<void>;
   loadLyricsPath: (path: string, bookmark?: string | null) => Promise<void>;
   // 반환값: 실제로 파일을 썼으면 true, 사용자가 저장 다이얼로그를 취소하면 false
-  saveLrc: (options?: { autoSaveOnly?: boolean }) => Promise<boolean>;
+  saveLrc: (options?: { autoSaveOnly?: boolean; confirmSrtOnlyDataLoss?: boolean }) => Promise<boolean>;
   // enhanced: 이번 저장에만 적용하는 일회성 override(미지정 시 글자 데이터 있으면 E-LRC)
-  saveLrcAs: (format: "lrc" | "srt" | "vtt" | "ass", enhanced?: boolean) => Promise<boolean>;
+  saveLrcAs: (format: "lrc" | "srt" | "vtt" | "ass", enhanced?: boolean, confirmSrtOnlyDataLoss?: boolean) => Promise<boolean>;
   newLrc: () => Promise<void>;
   replaceInLines: (find: string, replace: string, caseSensitive: boolean) => number;
 
@@ -852,16 +852,23 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
 
   saveLrc: async (options) => {
     const autoSaveOnly = options?.autoSaveOnly === true;
+    const confirmSrtOnlyDataLoss = options?.confirmSrtOnlyDataLoss === true;
     if (autoSaveOnly && !useSettingsStore.getState().autoSave) return false;
     set({ _lastEditKey: null });
     const { lrcPath, lrcBookmark, doc, duration, _documentSession: session, _editRevision: revision, _saveTarget: target } = get();
-    if (!lrcPath) return get().saveLrcAs("lrc");
+    if (!lrcPath) return get().saveLrcAs("lrc", undefined, confirmSrtOnlyDataLoss);
+    const normalizesSrtOnlyData = lrcPath.toLowerCase().endsWith(".lrc") && hasUnrepresentableSrtCueDataInLrc(doc);
+    if (normalizesSrtOnlyData && !confirmSrtOnlyDataLoss) {
+      if (autoSaveOnly) return false;
+      throw new Error("SRT_ONLY_DATA_NOT_REPRESENTABLE");
+    }
+    const savedDoc = normalizesSrtOnlyData ? normalizeSrtDocumentForLrc(doc) : doc;
     const result = await enqueuePathWrite(lrcPath, () => writeLyrics(
       { path: lrcPath, bookmark: lrcBookmark },
       (resolvedFile) => {
         if (lyricFormatForPath(resolvedFile.path) !== lyricFormatForPath(lrcPath)) throw new LyricSaveFormatChangedError();
-        if (lyricFormatForPath(resolvedFile.path) === "srt") assertSrtDocumentLossless(doc);
-        return serializeForPath(resolvedFile.path, doc, duration);
+        if (lyricFormatForPath(resolvedFile.path) === "srt") assertSrtDocumentLossless(savedDoc);
+        return serializeForPath(resolvedFile.path, savedDoc, duration);
       },
       () => {
         const current = get();
@@ -872,16 +879,23 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     if (!result.written) return false;
     if (get()._documentSession === session) {
       get().refreshFileReference("lyrics", { path: lrcPath, bookmark: lrcBookmark }, result.file, { session, selection: get()._audioSelection, target });
-      if (get()._editRevision === revision && get()._saveTarget === target) set({ isDirty: false });
+      if (get()._editRevision === revision && get()._saveTarget === target) {
+        if (normalizesSrtOnlyData) set({ ...pushHistory(doc, null, "convertFormat"), doc: savedDoc, isDirty: false,
+          _editRevision: revision + 1, _lastEditKey: null });
+        else set({ isDirty: false });
+      }
     }
     return true;
   },
 
-  saveLrcAs: async (format, enhanced) => {
+  saveLrcAs: async (format, enhanced, confirmSrtOnlyDataLoss = false) => {
     set({ _lastEditKey: null });
     const request = get()._saveRequest + 1;
     set({ _saveRequest: request });
     const { doc, duration, _documentSession: session, _editRevision: revision } = get();
+    const normalizesSrtOnlyData = format === "lrc" && hasUnrepresentableSrtCueDataInLrc(doc);
+    if (normalizesSrtOnlyData && !confirmSrtOnlyDataLoss) throw new Error("SRT_ONLY_DATA_NOT_REPRESENTABLE");
+    const savedDoc = normalizesSrtOnlyData ? normalizeSrtDocumentForLrc(doc) : doc;
     const FILTERS: Record<string, { name: string; extensions: string[] }> = {
       lrc: { name: "LRC", extensions: ["lrc"] },
       srt: { name: "SubRip", extensions: ["srt"] },
@@ -900,7 +914,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
         format === "srt" ? serializeSrt(doc, end)
         : format === "vtt" ? serializeVtt(doc, end)
         : format === "ass" ? serializeAss(doc, end)
-        : serializeLrc(doc, enhanced ?? true);
+        : serializeLrc(savedDoc, enhanced ?? true);
       const written = await enqueuePathWrite(path, async () => {
         if (!isCurrentRequest()) return false;
         const result = await writeLyrics({ path, bookmark: null }, content, isCurrentRequest);
@@ -910,7 +924,11 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
       // 보조 포맷 저장 시엔 작업 파일 경로(lrcPath)·dirty 상태를 바꾸지 않음
       if (format === "lrc" && isCurrentRequest()) {
         const target = get()._saveTarget + 1;
-        set({ lrcPath: path, lrcBookmark: null, _saveTarget: target, isDirty: get()._editRevision !== revision });
+        const current = get();
+        const canNormalize = normalizesSrtOnlyData && current.doc === doc && current._editRevision === revision;
+        set({ ...(canNormalize ? { ...pushHistory(doc, null, "convertFormat"), doc: savedDoc, _editRevision: revision + 1 } : {}),
+          lrcPath: path, lrcBookmark: null, _saveTarget: target,
+          isDirty: canNormalize ? false : current._editRevision !== revision });
         const recentOpenedAt = recordRecent();
         createBookmark(path).then((bookmark) => {
           get().refreshFileReference("lyrics", { path, bookmark: null }, { path, bookmark }, {

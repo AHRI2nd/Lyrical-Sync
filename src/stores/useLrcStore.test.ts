@@ -1079,6 +1079,65 @@ describe("useLrcStore SRT save policy", () => {
     expect(useLrcStore.getState().isDirty).toBe(true);
   });
 
+  it("requires confirmation before converting supported SRT styles and preserves literal tag text", async () => {
+    vi.mocked(save).mockResolvedValue("/exports/styled.lrc");
+    let content = "";
+    vi.mocked(invoke).mockImplementation((command, args) => {
+      if (command === "write_lrc_file") content = (args as { content: string }).content;
+      return Promise.resolve(undefined);
+    });
+    const original = parseSrt("1\n00:00:01,000 --> 00:00:03,000\n<i>styled</i> &lt;b&gt;literal&lt;/b&gt;\n");
+    useLrcStore.setState({ doc: original, lrcPath: "/source.srt", isDirty: false });
+
+    await expect(useLrcStore.getState().saveLrcAs("lrc")).rejects.toThrow("SRT_ONLY_DATA_NOT_REPRESENTABLE");
+    expect(save).not.toHaveBeenCalled();
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState().doc).toBe(original);
+
+    await expect(useLrcStore.getState().saveLrcAs("lrc", undefined, true)).resolves.toBe(true);
+    expect(content).toContain("styled <b>literal</b>");
+    expect(content).not.toContain("<i>");
+    expect(useLrcStore.getState().doc.lines[0].text).toBe("styled <b>literal</b>");
+    expect(useLrcStore.getState().doc.lines[0].srtInlineFormatting).toBeUndefined();
+    useLrcStore.getState().undo();
+    expect(useLrcStore.getState().doc.lines[0].text).toBe("<i>styled</i> <b>literal</b>");
+    expect(useLrcStore.getState().doc.lines[0].srtInlineFormatting).toHaveLength(2);
+  });
+
+  it("does not autosave an SRT document into LRC while SRT-only data needs confirmation", async () => {
+    const original = parseSrt("1\n00:00:01,000 --> 00:00:03,000\n<b>styled</b>\n");
+    useLrcStore.setState({ doc: original, lrcPath: "/working.lrc", isDirty: true });
+    useSettingsStore.setState({ autoSave: true });
+
+    await expect(useLrcStore.getState().saveLrc({ autoSaveOnly: true })).resolves.toBe(false);
+
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState().doc).toBe(original);
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
+  it("requires confirmation before saving SRT-only styles to the working LRC path", async () => {
+    let content = "";
+    vi.mocked(invoke).mockImplementation((command, args) => {
+      if (command === "write_lrc_file") content = (args as { content: string }).content;
+      return Promise.resolve(undefined);
+    });
+    const original = parseSrt("1\n00:00:01,000 --> 00:00:03,000\n<u>styled</u>\n");
+    useLrcStore.setState({ doc: original, lrcPath: "/working.lrc", isDirty: true });
+
+    await expect(useLrcStore.getState().saveLrc()).rejects.toThrow("SRT_ONLY_DATA_NOT_REPRESENTABLE");
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+
+    await expect(useLrcStore.getState().saveLrc({ confirmSrtOnlyDataLoss: true })).resolves.toBe(true);
+    expect(content).toContain("styled");
+    expect(content).not.toContain("<u>");
+    expect(useLrcStore.getState().doc.lines[0].srtInlineFormatting).toBeUndefined();
+    expect(useLrcStore.getState().isDirty).toBe(false);
+    useLrcStore.getState().undo();
+    expect(useLrcStore.getState().doc.lines[0].text).toBe("<u>styled</u>");
+    expect(useLrcStore.getState().doc.lines[0].srtInlineFormatting).toHaveLength(2);
+  });
+
   it("rejects a trailing SRT boundary loss without writing or marking the document clean", async () => {
     vi.mocked(invoke).mockImplementation((command) => command === "prepare_file_ref"
       ? Promise.resolve({ path: "/working.srt", bookmark: "srt-grant" })

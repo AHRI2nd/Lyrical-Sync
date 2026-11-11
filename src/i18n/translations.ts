@@ -229,6 +229,9 @@ export interface Translations {
   confirmNewMessage: string;
   confirmNewOk: string;
   confirmNewCancel: string;
+  srtOnlyDataLossTitle: string;
+  srtOnlyDataLossMessage: string;
+  srtOnlyDataLossConfirm: string;
   // Settings modal
   settingsTitle: string;
   settingsRecovery: string;
@@ -618,6 +621,9 @@ const ko: Translations = {
   confirmNewMessage: "저장되지 않은 변경 사항이 있습니다. 계속하면 현재 내용이 삭제됩니다.",
   confirmNewOk: "새로 만들기",
   confirmNewCancel: "취소",
+  srtOnlyDataLossTitle: "SRT 전용 정보 손실",
+  srtOnlyDataLossMessage: "LRC 형식은 SRT 자막의 종료 시각이나 인라인 서식을 저장할 수 없습니다. 계속하면 지원되는 실제 서식 태그와 보존할 수 없는 종료 시각이 제거됩니다. 문자 그대로 입력된 태그 모양의 텍스트는 유지되며, 변환 후 실행 취소로 복원할 수 있습니다.",
+  srtOnlyDataLossConfirm: "SRT 전용 정보를 제거하고 저장",
   settingsTitle: "설정",
   settingsRecovery: "복구용 사본 저장",
   settingsRecoveryDesc: "저장하지 않은 편집 내용을 이 기기에 보관합니다. 원본 파일 자동 저장과는 별개입니다.",
@@ -1031,6 +1037,9 @@ const en: Translations = {
   confirmNewMessage: "You have unsaved changes. Continuing will discard the current content.",
   confirmNewOk: "New File",
   confirmNewCancel: "Cancel",
+  srtOnlyDataLossTitle: "SRT-only data will be lost",
+  srtOnlyDataLossMessage: "LRC cannot store SRT cue end times or inline styles. Continuing removes supported style tags and unrepresentable cue ends. Tag-shaped text entered literally is kept, and Undo can restore the document after conversion.",
+  srtOnlyDataLossConfirm: "Remove SRT-only data and save",
   settingsTitle: "Settings",
   settingsRecovery: "Save recovery copies",
   settingsRecoveryDesc: "Keep unsaved edits on this device. This is separate from saving changes to your original file.",
@@ -1443,6 +1452,9 @@ const ja: Translations = {
   confirmNewMessage: "保存されていない変更があります。続行すると現在の内容が削除されます。",
   confirmNewOk: "新規作成",
   confirmNewCancel: "キャンセル",
+  srtOnlyDataLossTitle: "SRT固有情報が失われます",
+  srtOnlyDataLossMessage: "LRC形式ではSRT字幕の終了時刻やインライン書式を保存できません。続行すると対応する書式タグと保存できない終了時刻が削除されます。文字どおり入力されたタグ状のテキストは保持され、変換後に取り消して復元できます。",
+  srtOnlyDataLossConfirm: "SRT固有情報を削除して保存",
   settingsTitle: "設定",
   settingsRecovery: "復元用コピーを保存",
   settingsRecoveryDesc: "未保存の編集をこの端末に保存します。元ファイルの自動保存とは別の設定です。",

@@ -1,11 +1,28 @@
 import { describe, it, expect } from "vitest";
 import { escapeVttText, serializeVtt, serializeAss, SubtitleTimestampUnrepresentableError } from "./exportFormats";
+import { parseSrt } from "./srtConverter";
 import type { LrcDocument } from "../types/lrc";
 
 const emptyMeta = { title: "Song", artist: "", album: "", by: "", offset: 0 };
 const docOf = (lines: LrcDocument["lines"]): LrcDocument => ({ metadata: emptyMeta, lines, extraTags: {} });
 
 describe("serializeVtt", () => {
+  it("renders only supported balanced SRT inline styles and escapes literal or malformed markup", () => {
+    const styled = serializeVtt(parseSrt(
+      "1\n00:00:01,000 --> 00:00:05,000\n<i>one <b>two</b></i> <u>three</u>\n",
+    ));
+    expect(styled).toContain("<i>one <b>two</b></i> <u>three</u>");
+
+    const literal = serializeVtt(parseSrt(
+      "1\n00:00:01,000 --> 00:00:05,000\n&lt;b&gt;literal&lt;/b&gt;\n",
+    ));
+    expect(literal).toContain("&lt;b&gt;literal&lt;/b&gt;");
+
+    const malformed = serializeVtt(parseSrt("1\n00:00:01,000 --> 00:00:05,000\n<i>unclosed\n"));
+    expect(malformed).toContain("&lt;i&gt;unclosed");
+    expect(malformed).not.toContain("<i>unclosed");
+  });
+
   it.each([
     { id: "combined", timestamp: 1, text: "original\r\n", translation: "translated" },
     { id: "paragraph", timestamp: 1, text: "first\n\nsecond" },
@@ -87,6 +104,22 @@ describe("serializeVtt", () => {
 });
 
 describe("serializeAss", () => {
+  it("converts only supported balanced SRT inline styles to ASS overrides", () => {
+    const styled = serializeAss(parseSrt(
+      "1\n00:00:01,000 --> 00:00:05,000\n<i>one <b>two</b></i> <u>three</u>\n",
+    ));
+    expect(styled).toContain("{\\i1}one {\\b1}two{\\b0}{\\i0} {\\u1}three{\\u0}");
+
+    const repeated = serializeAss(parseSrt(
+      "1\n00:00:01,000 --> 00:00:05,000\n<i>outer <i>inner</i> outer</i>\n",
+    ));
+    expect(repeated).toContain("{\\i1}outer inner outer{\\i0}");
+
+    const malformed = serializeAss(parseSrt("1\n00:00:01,000 --> 00:00:05,000\n<i>unclosed\n"));
+    expect(malformed).toContain("<i>unclosed");
+    expect(malformed).not.toContain("{\\i1}");
+  });
+
   it.each([-0.001, Number.MAX_VALUE])("rejects an unrepresentable cue timestamp %s", (timestamp) => {
     expect(() => serializeAss(docOf([{ id: "bad", timestamp, text: "bad" }]))).toThrow(SubtitleTimestampUnrepresentableError);
   });

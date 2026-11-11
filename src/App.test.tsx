@@ -28,6 +28,7 @@ import { useI18nStore } from "./stores/useI18nStore";
 import { DEFAULT_KEYBINDINGS } from "./utils/keybindings";
 import { audioControls } from "./utils/audioControls";
 import { defaultDocument } from "./types/lrc";
+import { parseSrt } from "./utils/srtConverter";
 
 describe("App document confirmation and keyboard boundaries", () => {
   beforeEach(() => {
@@ -131,6 +132,35 @@ describe("App document confirmation and keyboard boundaries", () => {
     expect(useLrcStore.getState().lrcPath).toBe("/old.lrc");
     expect(useLrcStore.getState().audioPath).toBe("/old.mp3");
     expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
+  it("requires explicit confirmation before Save As strips SRT formatting and does not write on Cancel", async () => {
+    vi.mocked(save).mockResolvedValue("/exports/styled.lrc");
+    vi.mocked(invoke).mockResolvedValue(undefined);
+    const doc = parseSrt("1\n00:00:01,000 --> 00:00:03,000\n<b>styled</b>\n");
+    useLrcStore.setState({ doc, lrcPath: "/source.srt", isDirty: true, _history: [], _future: [] });
+    render(<App />);
+    const t = useI18nStore.getState().t;
+
+    fireEvent.click(screen.getByRole("button", { name: t.saveAs }));
+    fireEvent.click(await screen.findByRole("button", { name: /LRC/ }));
+    let confirmation = await screen.findByRole("dialog", { name: t.srtOnlyDataLossTitle });
+    expect(save).not.toHaveBeenCalled();
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    fireEvent.click(within(confirmation).getByRole("button", { name: t.cancelLabel }));
+    expect(useLrcStore.getState().doc).toBe(doc);
+
+    fireEvent.click(screen.getByRole("button", { name: t.saveAs }));
+    fireEvent.click(await screen.findByRole("button", { name: /LRC/ }));
+    confirmation = await screen.findByRole("dialog", { name: t.srtOnlyDataLossTitle });
+    fireEvent.click(within(confirmation).getByRole("button", { name: t.srtOnlyDataLossConfirm }));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("write_lrc_file", expect.objectContaining({
+      path: "/exports/styled.lrc",
+      content: expect.stringContaining("styled"),
+    })));
+    const write = vi.mocked(invoke).mock.calls.find(([command]) => command === "write_lrc_file");
+    expect((write?.[1] as { content: string }).content).not.toContain("<b>");
+    expect(useLrcStore.getState().doc.lines[0].srtInlineFormatting).toBeUndefined();
   });
 
   it.each([

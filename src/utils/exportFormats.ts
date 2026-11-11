@@ -1,4 +1,5 @@
 import { LrcDocument, LrcLine } from "../types/lrc";
+import { renderSrtInlineFormatting } from "./srtInlineFormatting";
 
 // Blank timed lines mark cue ends without becoming subtitles themselves.
 // SRT, VTT and ASS share strictly later boundaries, valid duration, or a four-second fallback.
@@ -122,7 +123,9 @@ function vttText(line: LrcLine, cueStart: number, cueEnd: number): string {
     }
     return out;
   }
-  return escapeVttText(line.text);
+  return line.srtInlineFormatting
+    ? renderSrtInlineFormatting(line.text, line.srtInlineFormatting, "vtt", escapeVttText) ?? escapeVttText(line.text)
+    : escapeVttText(line.text);
 }
 
 export function serializeVtt(doc: LrcDocument, lastCueEnd?: number): string {
@@ -179,7 +182,9 @@ function assText(line: LrcLine, cueStart: number, cueEnd: number): string {
     }
     return out;
   }
-  return escapeAssText(line.text);
+  return line.srtInlineFormatting
+    ? renderSrtInlineFormatting(line.text, line.srtInlineFormatting, "ass", escapeAssText) ?? escapeAssText(line.text)
+    : escapeAssText(line.text);
 }
 
 export function serializeAss(doc: LrcDocument, lastCueEnd?: number): string {

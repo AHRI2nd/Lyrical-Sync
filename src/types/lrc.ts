@@ -18,6 +18,8 @@ export interface LrcLine {
   timestamp: number | null; // seconds
   /** Original SRT cue end, retained so overlapping cue intervals survive import/export. */
   srtEndTime?: number;
+  /** Source offsets of raw supported SRT inline style tags; entity-encoded literal tags are excluded. */
+  srtInlineFormatting?: { start: number; end: number; tag: "b" | "i" | "u"; closing: boolean }[];
   text: string;
   translation?: string;
   // 존재하면 Enhanced LRC(글자/단어 동기화) 줄. 없으면 일반 줄 단위.

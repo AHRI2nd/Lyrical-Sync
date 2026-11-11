@@ -1,5 +1,6 @@
 import { LrcDocument, defaultDocument } from "../types/lrc";
 import { nextCueEnd } from "./exportFormats";
+import { serializeSrtInlineFormatting, stripSrtInlineFormatting } from "./srtInlineFormatting";
 
 export const SRT_UNREPRESENTABLE_CONTENT_CODE = "SRT_UNREPRESENTABLE_CONTENT";
 export const SRT_MALFORMED_CUE_CODE = "SRT_MALFORMED_CUE";
@@ -43,6 +44,33 @@ export function assertSrtDocumentLossless(doc: LrcDocument): void {
       .map((line) => Math.round((line.timestamp as number) * 1000)));
     if (expectedBoundaries.some((time) => !representedTimes.has(time))) throw new SrtLossyDocumentError();
   }
+}
+
+export function hasUnrepresentableSrtCueDataInLrc(doc: LrcDocument): boolean {
+  const starts = [...new Set(doc.lines.flatMap((line) => line.timestamp === null ? [] : [line.timestamp]))]
+    .sort((left, right) => left - right);
+  const nextStarts = new Map<number, number>();
+  for (let index = 0; index < starts.length - 1; index += 1) {
+    nextStarts.set(starts[index], starts[index + 1]);
+  }
+
+  return doc.lines.some((line) => {
+    if (stripSrtInlineFormatting(line.text, line.srtInlineFormatting) !== null) return true;
+    if (line.timestamp === null || line.srtEndTime === undefined) return false;
+    const nextStart = nextStarts.get(line.timestamp);
+    return nextStart === undefined || Math.round(nextStart * 100) !== Math.round(line.srtEndTime * 100);
+  });
+}
+
+export function normalizeSrtDocumentForLrc(doc: LrcDocument): LrcDocument {
+  return {
+    ...doc,
+    lines: doc.lines.map((line) => {
+      const text = stripSrtInlineFormatting(line.text, line.srtInlineFormatting);
+      const { srtEndTime: _srtEndTime, srtInlineFormatting: _srtInlineFormatting, ...normalized } = line;
+      return { ...normalized, ...(text === null ? {} : { text }) };
+    }),
+  };
 }
 
 export class SrtUnrepresentableContentError extends Error {
@@ -93,6 +121,32 @@ function parseSrtTime(str: string): number | null {
   return Number.isFinite(seconds) ? seconds : null;
 }
 
+function decodeSrtEntities(value: string): string {
+  return value.replace(/&(lt|gt);/g, (entity) => entity === "&lt;" ? "<" : ">");
+}
+
+function decodeSrtCueText(value: string): {
+  text: string;
+  formatting: NonNullable<LrcDocument["lines"][number]["srtInlineFormatting"]>;
+} {
+  const styleTag = /<\/?(b|i|u)>/gi;
+  const formatting: NonNullable<LrcDocument["lines"][number]["srtInlineFormatting"]> = [];
+  let text = "";
+  let cursor = 0;
+  for (const match of value.matchAll(styleTag)) {
+    const index = match.index!;
+    text += decodeSrtEntities(value.slice(cursor, index));
+    const rawTag = match[0];
+    const tag = match[1].toLowerCase() as "b" | "i" | "u";
+    const start = text.length;
+    text += rawTag;
+    formatting.push({ start, end: text.length, tag, closing: rawTag.startsWith("</") });
+    cursor = index + rawTag.length;
+  }
+  text += decodeSrtEntities(value.slice(cursor));
+  return { text, formatting };
+}
+
 /**
  * Export text cues ending at the next strictly later timed line (including blanks),
  * a finite later audio duration, or a four-second fallback. Coincident starts share an end.
@@ -112,7 +166,11 @@ export function serializeSrt(doc: LrcDocument, lastCueEnd?: number): string {
   for (let i = 0; i < timed.length; i++) {
     const line = timed[i];
     if (line.text.trim() === "" && !line.translation?.trim()) continue; // Empty rows provide boundaries only.
-    const text = line.text.trim() === "" ? (line.translation ?? "") : line.translation ? `${line.text}\n${line.translation}` : line.text;
+    const text = line.text.trim() === ""
+      ? serializeSrtInlineFormatting(line.translation ?? "", undefined)
+      : line.translation
+        ? `${serializeSrtInlineFormatting(line.text, line.srtInlineFormatting)}\n${serializeSrtInlineFormatting(line.translation, undefined)}`
+        : serializeSrtInlineFormatting(line.text, line.srtInlineFormatting);
     assertSrtBodyRepresentable(text);
     const start = line.timestamp as number;
     const importedEnd = line.srtEndTime;
@@ -144,7 +202,12 @@ export function parseSrt(raw: string): LrcDocument {
   const blocks = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split(/\n\s*\n/);
 
   // 1) cue(start, end, text) 수집
-  const cues: { start: number; end: number; text: string }[] = [];
+  const cues: {
+    start: number;
+    end: number;
+    text: string;
+    formatting: NonNullable<LrcDocument["lines"][number]["srtInlineFormatting"]>;
+  }[] = [];
   for (const [blockIndex, block] of blocks.entries()) {
     const rows = block.split("\n");
     while (rows.length && rows[rows.length - 1] === "") rows.pop();
@@ -170,8 +233,8 @@ export function parseSrt(raw: string): LrcDocument {
     const end = parseSrtTime(endStr);
     if (start === null || end === null) throw new SrtMalformedCueError(blockIndex + 1);
 
-    const text = rows.slice(arrowIdx + 1).join("\n");
-    cues.push({ start, end, text });
+    const { text, formatting } = decodeSrtCueText(rows.slice(arrowIdx + 1).join("\n"));
+    cues.push({ start, end, text, formatting });
   }
 
   cues.sort((a, b) => a.start - b.start);
@@ -179,7 +242,8 @@ export function parseSrt(raw: string): LrcDocument {
   // 2) cue → 가사 줄 + 가사 사이 갭에 빈 줄(경계) 삽입
   for (let i = 0; i < cues.length; i++) {
     const cue = cues[i];
-    doc.lines.push({ id: String(lineId++), timestamp: cue.start, srtEndTime: cue.end, text: cue.text });
+    doc.lines.push({ id: String(lineId++), timestamp: cue.start, srtEndTime: cue.end, text: cue.text,
+      ...(cue.formatting.length ? { srtInlineFormatting: cue.formatting } : {}) });
 
     // Keep gap boundaries and the final cue end so imports retain their duration.
     const next = cues[i + 1];
