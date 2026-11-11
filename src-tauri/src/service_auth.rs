@@ -246,10 +246,7 @@ fn write_restricted_token_file(path: &Path, token: &str) -> Result<(), String> {
     #[cfg(windows)]
     {
         let path_str = temp.path().to_str().ok_or("토큰 경로를 Windows 형식으로 변환할 수 없습니다")?;
-        let user = std::env::var("USERNAME").map_err(|e| format!("현재 Windows 사용자를 확인할 수 없습니다: {e}"))?;
-        let domain = std::env::var("USERDOMAIN").unwrap_or_default();
-        let identity = if domain.is_empty() { user } else { format!("{domain}\\{user}") };
-        let grant_user = format!("{identity}:F");
+        let grant_user = current_windows_acl_grant_user()?;
         let output = std::process::Command::new("icacls")
             .args([path_str, "/inheritance:r", "/grant:r", grant_user.as_str(), "SYSTEM:F"])
             .output()
@@ -266,6 +263,70 @@ fn write_restricted_token_file(path: &Path, token: &str) -> Result<(), String> {
 
     temp.persist(path).map_err(|e| format!("토큰 파일 확정 실패: {}", e.error))?;
     Ok(())
+}
+
+#[cfg(any(windows, test))]
+fn windows_acl_grant_user(identity: &str) -> Result<String, String> {
+    let identity = identity.trim();
+    if identity.is_empty() || identity.chars().any(char::is_control) || identity.contains(':') {
+        return Err("현재 Windows 사용자를 확인할 수 없습니다".into());
+    }
+    Ok(format!("{identity}:F"))
+}
+
+#[cfg(windows)]
+fn current_windows_acl_grant_user() -> Result<String, String> {
+    use windows::core::PWSTR;
+    use windows::Win32::Security::Authentication::Identity::{GetUserNameExW, NameSamCompatible};
+
+    let mut length = 0u32;
+    unsafe {
+        GetUserNameExW(NameSamCompatible, None, &mut length);
+    }
+    if length == 0 {
+        return Err(format!(
+            "현재 Windows 사용자를 확인할 수 없습니다: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+
+    let mut buffer = vec![0u16; length as usize];
+    let succeeded = unsafe {
+        GetUserNameExW(
+            NameSamCompatible,
+            Some(PWSTR(buffer.as_mut_ptr())),
+            &mut length,
+        )
+    };
+    if !succeeded {
+        return Err(format!(
+            "현재 Windows 사용자를 확인할 수 없습니다: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+
+    let end = buffer.iter().position(|unit| *unit == 0).unwrap_or(buffer.len());
+    let identity = String::from_utf16(&buffer[..end])
+        .map_err(|error| format!("현재 Windows 사용자 이름을 읽을 수 없습니다: {error}"))?;
+    windows_acl_grant_user(&identity)
+}
+
+#[cfg(test)]
+mod windows_acl_identity_tests {
+    use super::windows_acl_grant_user;
+
+    #[test]
+    fn formats_the_sam_compatible_identity_for_icacls() {
+        assert_eq!(
+            windows_acl_grant_user("TSUKIMORI-AHRI\\ahri2nd").unwrap(),
+            "TSUKIMORI-AHRI\\ahri2nd:F"
+        );
+    }
+
+    #[test]
+    fn rejects_an_empty_windows_identity() {
+        assert!(windows_acl_grant_user(" ").is_err());
+    }
 }
 
 fn save_refresh_token_value(app: &AppHandle, token: &str) -> Result<(), String> {
@@ -560,6 +621,17 @@ mod token_file_tests {
         write_restricted_token_file(&path, "secret-token").unwrap();
 
         assert_eq!(std::fs::metadata(path).unwrap().permissions().mode() & 0o777, 0o600);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn refresh_token_file_uses_the_current_sam_identity_for_its_acl() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("token.dat");
+
+        write_restricted_token_file(&path, "synthetic-token").unwrap();
+
+        assert_eq!(std::fs::read_to_string(path).unwrap(), "synthetic-token");
     }
 
     #[test]
