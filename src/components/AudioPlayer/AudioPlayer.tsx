@@ -239,11 +239,15 @@ export function AudioPlayer() {
 
   // 오디오 열면 파일 태그(ID3 등)에서 메타데이터를 읽어 비어 있는 필드만 자동 채움
   useEffect(() => {
-    if (!audioPath) return;
+    const owner = engineOwnerRef.current;
+    if (!audioPath || !isAudioReady || !readyRef.current || owner?.path !== audioPath || owner.selection !== audioSelection) return;
     let cancelled = false;
     readAudioMetadata({ path: audioPath, bookmark: audioBookmark })
       .then(({ value: m, file }) => {
-        if (cancelled || useLrcStore.getState()._documentSession !== documentSession || useLrcStore.getState()._audioSelection !== audioSelection) return;
+        const state = useLrcStore.getState();
+        const currentOwner = engineOwnerRef.current;
+        if (cancelled || !readyRef.current || currentOwner?.path !== audioPath || currentOwner.selection !== audioSelection ||
+          state._documentSession !== documentSession || state._audioSelection !== audioSelection || state.audioPath !== audioPath) return;
         useLrcStore.getState().refreshFileReference("audio", { path: audioPath, bookmark: audioBookmark }, file, { session: documentSession, selection: audioSelection });
         const cur = useLrcStore.getState().doc.metadata;
         const patch: { title?: string; artist?: string; album?: string } = {};
@@ -254,7 +258,7 @@ export function AudioPlayer() {
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [audioPath, audioBookmark, documentSession, audioSelection]);
+  }, [audioPath, audioBookmark, documentSession, audioSelection, isAudioReady]);
 
   // 오디오 로드 완료 시 현재 zoom 값 적용 (슬라이더 조작 중 zoom은 debounce로 직접 처리)
   useEffect(() => {

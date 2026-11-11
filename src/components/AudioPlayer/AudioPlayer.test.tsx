@@ -124,6 +124,57 @@ describe("AudioPlayer loop-line boundaries", () => {
     expect(load).not.toHaveBeenCalled();
   });
 
+  it("does not import audio tags when the selected audio fails to load", async () => {
+    vi.mocked(readAudioBytes).mockRejectedValue("AUDIO_RESOURCE_LIMIT");
+    vi.mocked(invoke).mockResolvedValue({ title: "Tagged title", artist: "Tagged artist", album: "Tagged album" });
+    useLrcStore.setState({ audioPath: "/large.wav", audioBookmark: null, isDirty: false });
+
+    render(<AudioPlayer />);
+    await waitFor(() => expect(useToastStore.getState().toasts.length).toBeGreaterThan(0));
+
+    expect(invoke).not.toHaveBeenCalledWith("read_audio_metadata", { path: "/large.wav", bookmark: null });
+    expect(useLrcStore.getState().doc.metadata).toMatchObject({ title: "", artist: "", album: "" });
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
+  it("imports audio tags after the matching audio engine becomes ready", async () => {
+    const file = { path: "/song.mp3", bookmark: null };
+    vi.mocked(readAudioBytes).mockResolvedValue({ file, bytes: new Uint8Array([1]), transcoded: false });
+    vi.mocked(invoke).mockResolvedValue({ title: "Tagged title", artist: "Tagged artist", album: "Tagged album" });
+    useLrcStore.setState({ audioPath: file.path, audioBookmark: null, isDirty: false });
+
+    render(<AudioPlayer />);
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+    expect(invoke).not.toHaveBeenCalledWith("read_audio_metadata", { path: file.path, bookmark: null });
+
+    act(() => handlers.get("ready")?.());
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("read_audio_metadata", { path: file.path, bookmark: null }));
+    await waitFor(() => expect(useLrcStore.getState().doc.metadata.title).toBe("Tagged title"));
+    expect(useLrcStore.getState().doc.metadata).toMatchObject({ artist: "Tagged artist", album: "Tagged album" });
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
+  it("does not use the previous ready engine while a replacement audio fails to load", async () => {
+    vi.mocked(readAudioBytes).mockImplementation(async (path) => {
+      if (path === "/broken.mp3") throw "AUDIO_RESOURCE_LIMIT";
+      return { file: { path, bookmark: null }, bytes: new Uint8Array([1]), transcoded: false };
+    });
+    vi.mocked(invoke).mockResolvedValue({ title: "", artist: "", album: "" });
+    useLrcStore.setState({ audioPath: "/working.mp3", audioBookmark: null, isDirty: false });
+
+    render(<AudioPlayer />);
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+    act(() => handlers.get("ready")?.());
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("read_audio_metadata", { path: "/working.mp3", bookmark: null }));
+
+    act(() => useLrcStore.setState({ audioPath: "/broken.mp3", _audioSelection: 1 }));
+    await waitFor(() => expect(useToastStore.getState().toasts.length).toBeGreaterThan(0));
+
+    expect(invoke).not.toHaveBeenCalledWith("read_audio_metadata", { path: "/broken.mp3", bookmark: null });
+    expect(useLrcStore.getState().doc.metadata).toMatchObject({ title: "", artist: "", album: "" });
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
   afterEach(() => {
     cleanup();
     delete (URL as Partial<typeof URL>).createObjectURL;
@@ -227,6 +278,8 @@ describe("AudioPlayer loop-line boundaries", () => {
     vi.mocked(readAudioBytes).mockResolvedValue({ file, bytes: new Uint8Array([1]), transcoded: false });
     useLrcStore.setState({ audioPath: file.path, audioBookmark: null, isDirty: false });
     render(<AudioPlayer />);
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+    act(() => handlers.get("ready")?.());
     await waitFor(() => expect(requests).toBe(1));
     await act(async () => { await useLrcStore.getState().newLrc(); });
     await waitFor(() => expect(requests).toBe(2));
@@ -249,6 +302,8 @@ describe("AudioPlayer loop-line boundaries", () => {
       doc: { ...defaultDocument(), metadata: { ...defaultDocument().metadata, title: "Old title" } },
     });
     render(<AudioPlayer />);
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+    act(() => handlers.get("ready")?.());
     await waitFor(() => expect(invoke).toHaveBeenCalledWith("read_audio_metadata", { path: file.path, bookmark: null }));
 
     act(() => {
@@ -277,9 +332,13 @@ describe("AudioPlayer loop-line boundaries", () => {
     vi.mocked(readAudioBytes).mockResolvedValue({ file: { path: "/old.mp3", bookmark: null }, bytes: new Uint8Array([1]), transcoded: false });
     useLrcStore.setState({ audioPath: "/old.mp3", audioBookmark: null });
     render(<AudioPlayer />);
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+    act(() => handlers.get("ready")?.());
     await waitFor(() => expect(requests).toBe(1));
 
     act(() => useLrcStore.setState({ audioPath: "/new.mp3", _audioSelection: 1 }));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    act(() => handlers.get("ready")?.());
     await waitFor(() => expect(requests).toBe(2));
     await waitFor(() => expect(useLrcStore.getState().doc.metadata.title).toBe("New track"));
     await act(async () => {
