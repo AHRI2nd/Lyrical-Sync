@@ -196,6 +196,40 @@ it("does not complete a track selection after the modal is closed", async () => 
   expect(useSettingsStore.getState().spotifyMode).toBe(false);
 });
 
+it("ignores an older selection after a newer track selection takes ownership", async () => {
+  const firstPlay = deferred<void>();
+  const secondPlay = deferred<void>();
+  const playTrack = vi.fn()
+    .mockReturnValueOnce(firstPlay.promise)
+    .mockReturnValueOnce(secondPlay.promise);
+  const onClose = vi.fn();
+  useServiceStore.setState({ playTrack });
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ tracks: { items: [
+      { uri: "spotify:track:first", name: "First Track", artists: [{ name: "Artist" }], album: { name: "Album", images: [] }, duration_ms: 1000 },
+      { uri: "spotify:track:second", name: "Second Track", artists: [{ name: "Artist" }], album: { name: "Album", images: [] }, duration_ms: 1000 },
+    ], next: null } }),
+  } as Response));
+  render(<SpotifySearchModal onClose={onClose} />);
+  const t = useI18nStore.getState().t;
+  fireEvent.change(screen.getByPlaceholderText(t.spotifySearchPlaceholder), { target: { value: "track" } });
+  await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+
+  fireEvent.click(screen.getByRole("button", { name: /First Track/ }));
+  await vi.waitFor(() => expect(playTrack).toHaveBeenCalledWith("spotify:track:first"));
+  fireEvent.click(screen.getByRole("button", { name: /Second Track/ }));
+  await vi.waitFor(() => expect(playTrack).toHaveBeenCalledWith("spotify:track:second"));
+
+  await act(async () => { firstPlay.resolve(); await firstPlay.promise; });
+  expect(onClose).not.toHaveBeenCalled();
+  expect(useSettingsStore.getState().spotifyMode).toBe(false);
+
+  await act(async () => { secondPlay.resolve(); await secondPlay.promise; });
+  expect(onClose).toHaveBeenCalledOnce();
+  expect(useSettingsStore.getState().spotifyMode).toBe(true);
+});
+
 it("loads Spotify playlists incrementally through validated next pages", async () => {
   const first = deferred<Response>();
   const second = deferred<Response>();
