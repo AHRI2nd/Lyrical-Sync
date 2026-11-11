@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { isComposingKeyEvent } from "../../utils/keybindings";
 
@@ -18,6 +18,7 @@ export function FindReplaceBar({
   findInputRef: React.RefObject<HTMLInputElement | null>;
 }) {
   const { t } = useI18nStore();
+  const caseSensitiveTooltipId = useId();
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -53,7 +54,11 @@ export function FindReplaceBar({
         {/* 대소문자 구분 */}
         <div className="relative group/aa">
           <button
+            type="button"
             onClick={onCaseSensitiveToggle}
+            aria-label={t.caseSensitive}
+            aria-pressed={caseSensitive}
+            aria-describedby={caseSensitiveTooltipId}
             className={`ls-button ls-button--compact ${`  text-xs rounded-lg font-mono transition-colors ${
               caseSensitive
                 ? "bg-[var(--ls-playhead)] text-[var(--ls-canvas)]"
@@ -62,7 +67,7 @@ export function FindReplaceBar({
           >
             Aa
           </button>
-          <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-1.5 hidden group-hover/aa:block z-30">
+          <div id={caseSensitiveTooltipId} role="tooltip" className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-1.5 hidden group-hover/aa:block group-focus-within/aa:block z-30">
             <div className="bg-[var(--ls-control)] border border-[var(--ls-border-control)] text-[var(--ls-text)] text-xs rounded-lg px-2.5 py-1.5 shadow-xl whitespace-nowrap">
               {t.caseSensitive}
             </div>
