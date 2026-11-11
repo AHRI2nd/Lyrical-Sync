@@ -125,9 +125,59 @@ pub(crate) fn validate_web_audio_pcm_frames(
     Ok(())
 }
 
+#[cfg(test)]
 pub fn inspect_audio_file(path: &Path) -> Result<AudioResourceInfo, String> {
     let mut file = open_audio_file(path)?;
     inspect_audio_file_handle(&mut file)
+}
+
+/// Copies admitted audio into a private, bounded temporary file and validates the exact bytes
+/// that downstream AI sidecars will reopen. The returned path owns the snapshot lifetime.
+pub fn stage_bounded_audio_file(
+    path: &Path,
+) -> Result<(tempfile::TempPath, AudioResourceInfo), String> {
+    let mut source = open_audio_file(path)?;
+    let expected_bytes = source.metadata().map_err(|error| error.to_string())?.len();
+    if expected_bytes > MAX_AUDIO_FILE_BYTES {
+        return Err(AUDIO_RESOURCE_LIMIT_ERROR.into());
+    }
+
+    let suffix = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .filter(|extension| {
+            !extension.is_empty()
+                && extension.len() <= 16
+                && extension.bytes().all(|byte| byte.is_ascii_alphanumeric())
+        })
+        .map(|extension| format!(".{extension}"));
+    let mut builder = tempfile::Builder::new();
+    builder.prefix("lyrical_sync_ai_audio_");
+    if let Some(suffix) = suffix.as_deref() {
+        builder.suffix(suffix);
+    }
+    let mut staged = builder
+        .tempfile()
+        .map_err(|error| format!("Audio snapshot creation failed: {error}"))?;
+
+    let mut bounded_source = (&mut source).take(MAX_AUDIO_FILE_BYTES + 1);
+    let copied = std::io::copy(&mut bounded_source, staged.as_file_mut())
+        .map_err(|error| format!("Audio snapshot failed: {error}"))?;
+    if copied > MAX_AUDIO_FILE_BYTES {
+        return Err(AUDIO_RESOURCE_LIMIT_ERROR.into());
+    }
+    if copied != expected_bytes {
+        return Err("AUDIO_FILE_CHANGED".into());
+    }
+    std::io::Write::flush(staged.as_file_mut())
+        .map_err(|error| format!("Audio snapshot flush failed: {error}"))?;
+
+    let snapshot_info = inspect_audio_file_handle(staged.as_file_mut())?;
+    if snapshot_info.file_bytes != copied {
+        return Err("AUDIO_FILE_CHANGED".into());
+    }
+
+    Ok((staged.into_temp_path(), snapshot_info))
 }
 
 struct AacBitReader<'a> {
@@ -668,6 +718,50 @@ mod tests {
         assert_eq!(info.sample_rate, 48_000);
         assert_eq!(info.channels, 2);
         assert!(info.estimated_pcm_bytes <= MAX_AUDIO_PCM_BYTES);
+    }
+
+    #[test]
+    fn staged_audio_remains_the_admitted_input_after_the_source_path_is_replaced() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("audio.wav");
+        let replacement = dir.path().join("replacement.wav");
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: 48_000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut original = hound::WavWriter::create(&path, spec).unwrap();
+        for _ in 0..480 {
+            original.write_sample(0_i16).unwrap();
+        }
+        original.finalize().unwrap();
+        let admitted_bytes = std::fs::read(&path).unwrap();
+
+        let mut changed = hound::WavWriter::create(&replacement, spec).unwrap();
+        for _ in 0..480 {
+            changed.write_sample(1_000_i16).unwrap();
+        }
+        changed.finalize().unwrap();
+        let replacement_bytes = std::fs::read(&replacement).unwrap();
+        assert_ne!(admitted_bytes, replacement_bytes);
+
+        let (snapshot, info) = stage_bounded_audio_file(&path).unwrap();
+        assert_eq!(info.file_bytes, admitted_bytes.len() as u64);
+        assert!(snapshot
+            .extension()
+            .is_some_and(|extension| extension == "wav"));
+        let snapshot_path = snapshot.to_path_buf();
+        std::fs::remove_file(&path).unwrap();
+        std::fs::rename(&replacement, &path).unwrap();
+
+        let sidecar_bytes = std::fs::read(&snapshot).unwrap();
+        assert_eq!(sidecar_bytes, admitted_bytes);
+        drop(snapshot);
+        assert!(
+            !snapshot_path.exists(),
+            "temporary audio snapshot should be removed"
+        );
     }
 
     #[test]

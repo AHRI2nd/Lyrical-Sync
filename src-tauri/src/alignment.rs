@@ -1,6 +1,5 @@
 use serde::Serialize;
 use std::collections::VecDeque;
-use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, WebviewWindow};
@@ -12,14 +11,6 @@ use crate::python_env::{embedded_python_exe, python_cmd_inference};
 // Python scripts embedded at compile time
 const ALIGN_SCRIPT: &str = include_str!("align.py");
 const SEPARATE_SCRIPT: &str = include_str!("separate.py");
-
-fn validate_alignment_audio(path: &Path) -> Result<(), String> {
-    let metadata = std::fs::metadata(path).map_err(|error| error.to_string())?;
-    if !metadata.is_file() {
-        return Err(crate::audio_resource::AUDIO_RESOURCE_LIMIT_ERROR.into());
-    }
-    crate::audio_resource::inspect_audio_file(path).map(|_| ())
-}
 
 /// The active run owns its cancellation flag until its child has been reaped.
 const MAX_PENDING_ALIGNMENT_CANCELLATIONS: usize = 64;
@@ -144,8 +135,6 @@ pub async fn run_alignment(
 ) -> Result<String, String> {
     let audio_path = crate::path_validation::validate_safe_path(&audio_path)?;
     crate::authorize_window_path(&window, &audio_path)?;
-    validate_alignment_audio(&audio_path)?;
-    let audio_path = audio_path.to_string_lossy().into_owned();
     let run = al_state.begin(run_id.clone())?;
     let cancel = run.cancel.clone();
     if cancel.load(Ordering::Relaxed) {
@@ -198,12 +187,23 @@ pub async fn run_alignment(
     let _ctc_model_use = model_use_state.begin_use(&models_dir_path, "ctc-mms-300m")?;
     let manifest: serde_json::Value = serde_json::from_str(crate::python_runtime::MANIFEST)
         .map_err(|e| e.to_string())?;
-    
+
     let model_sha256 = manifest["model"]["sha256"].as_str().ok_or("Missing model checksum")?;
     let model_path = models_dir_path.join("ctc-forced-aligner.onnx");
     if !model_path.exists() {
         return Err("정렬 모델이 없습니다. 설정 > AI 모델에서 다운로드하세요.".to_string());
     }
+
+    let audio_source_path = audio_path.clone();
+    let (audio_snapshot, _) = tokio::task::spawn_blocking(move || {
+        crate::audio_resource::stage_bounded_audio_file(&audio_source_path)
+    })
+    .await
+    .map_err(|error| format!("Audio snapshot worker failed: {error}"))??;
+    if cancel.load(Ordering::Relaxed) {
+        return Err("cancelled".into());
+    }
+    let audio_path = audio_snapshot.to_string_lossy().into_owned();
     
     // Model checksum verification is done in align.py sidecar
     // The Python script will verify the model checksum before loading
@@ -382,10 +382,11 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("oversized-audio.wav");
         let file = std::fs::File::create(&path).unwrap();
-        file.set_len(crate::audio_resource::MAX_AUDIO_FILE_BYTES + 1).unwrap();
+        file.set_len(crate::audio_resource::MAX_AUDIO_FILE_BYTES + 1)
+            .unwrap();
 
         assert_eq!(
-            validate_alignment_audio(&path).unwrap_err(),
+            crate::audio_resource::stage_bounded_audio_file(&path).unwrap_err(),
             crate::audio_resource::AUDIO_RESOURCE_LIMIT_ERROR,
         );
     }
