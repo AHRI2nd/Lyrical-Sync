@@ -77,6 +77,7 @@ describe("AudioPlayer loop-line boundaries", () => {
         ],
       },
       audioPath: null, audioBookmark: null,
+      _manualMetadataFields: new Set(),
       _documentSession: 0, _audioSelection: 0, isDirty: false,
       loopLineId: "loop",
       activeLineId: null,
@@ -231,6 +232,62 @@ describe("AudioPlayer loop-line boundaries", () => {
     await waitFor(() => expect(requests).toBe(2));
     await act(async () => { resolveOld({ title: "Obsolete", artist: "", album: "" }); await oldMetadata; });
     expect(useLrcStore.getState().doc.metadata.title).toBe("");
+  });
+
+  it("does not restore cleared or edited metadata fields when delayed audio tags arrive", async () => {
+    let resolveMetadata!: (value: { title: string; artist: string; album: string }) => void;
+    const metadataRequest = new Promise<{ title: string; artist: string; album: string }>((resolve) => {
+      resolveMetadata = resolve;
+    });
+    vi.mocked(invoke).mockImplementation((command) => command === "read_audio_metadata"
+      ? metadataRequest : Promise.resolve(null));
+    const file = { path: "/song.mp3", bookmark: null };
+    vi.mocked(readAudioBytes).mockResolvedValue({ file, bytes: new Uint8Array([1]), transcoded: false });
+    useLrcStore.setState({
+      audioPath: file.path,
+      audioBookmark: null,
+      doc: { ...defaultDocument(), metadata: { ...defaultDocument().metadata, title: "Old title" } },
+    });
+    render(<AudioPlayer />);
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("read_audio_metadata", { path: file.path, bookmark: null }));
+
+    act(() => {
+      useLrcStore.getState().setMetadata({ title: "" });
+      useLrcStore.getState().setMetadata({ artist: "User artist" });
+    });
+    await act(async () => {
+      resolveMetadata({ title: "Tagged title", artist: "Tagged artist", album: "Tagged album" });
+      await metadataRequest;
+    });
+
+    expect(useLrcStore.getState().doc.metadata).toMatchObject({ title: "", artist: "User artist", album: "Tagged album" });
+  });
+
+  it("discards delayed metadata from a replaced audio source", async () => {
+    let resolveOld!: (value: { title: string; artist: string; album: string }) => void;
+    const oldMetadata = new Promise<{ title: string; artist: string; album: string }>((resolve) => {
+      resolveOld = resolve;
+    });
+    let requests = 0;
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command !== "read_audio_metadata") return Promise.resolve(null);
+      requests += 1;
+      return requests === 1 ? oldMetadata : Promise.resolve({ title: "New track", artist: "", album: "" });
+    });
+    vi.mocked(readAudioBytes).mockResolvedValue({ file: { path: "/old.mp3", bookmark: null }, bytes: new Uint8Array([1]), transcoded: false });
+    useLrcStore.setState({ audioPath: "/old.mp3", audioBookmark: null });
+    render(<AudioPlayer />);
+    await waitFor(() => expect(requests).toBe(1));
+
+    act(() => useLrcStore.setState({ audioPath: "/new.mp3", _audioSelection: 1 }));
+    await waitFor(() => expect(requests).toBe(2));
+    await waitFor(() => expect(useLrcStore.getState().doc.metadata.title).toBe("New track"));
+    await act(async () => {
+      resolveOld({ title: "Old track", artist: "", album: "" });
+      await oldMetadata;
+    });
+
+    expect(useLrcStore.getState().doc.metadata.title).toBe("New track");
   });
 
   it("resets replacement state and ignores events from the old engine", async () => {

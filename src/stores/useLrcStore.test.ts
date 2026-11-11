@@ -34,6 +34,7 @@ import { enqueuePathWrite } from "../utils/pathWriteQueue";
 const reset = (lines: LrcLine[], offset = 0) =>
   useLrcStore.setState({
     doc: { metadata: { title: "", artist: "", album: "", by: "", offset }, lines, extraTags: {} },
+    _manualMetadataFields: new Set(),
     _history: [],
     _future: [],
     currentTime: 0,
@@ -50,6 +51,34 @@ describe("useLrcStore — line actions", () => {
     useLrcStore.getState().setMetadata({ artist: "Edited" });
     const output = serializeLrc(useLrcStore.getState().doc);
     expect(output).toContain("[ar:Earlier]\n[x-origin:Old]\n[ar:Edited]\n[x-origin:Recent]");
+  });
+
+  it("keeps cleared and edited metadata fields while filling untouched fields from audio tags", () => {
+    useLrcStore.getState().setMetadata({ title: "Previous title" });
+    useLrcStore.getState().setMetadata({ title: "" });
+    useLrcStore.getState().setMetadata({ artist: "User artist" });
+
+    useLrcStore.getState().setAudioMetadata({ title: "Tagged title", artist: "Tagged artist", album: "Tagged album" });
+
+    expect(useLrcStore.getState().doc.metadata).toMatchObject({ title: "", artist: "User artist", album: "Tagged album" });
+  });
+
+  it("resets manual metadata ownership when a new document is created", async () => {
+    useLrcStore.getState().setMetadata({ title: "Previous title" });
+    useLrcStore.getState().setMetadata({ title: "" });
+
+    await useLrcStore.getState().newLrc();
+    useLrcStore.getState().setAudioMetadata({ title: "New track title" });
+
+    expect(useLrcStore.getState().doc.metadata.title).toBe("New track title");
+  });
+
+  it("does not import audio tags into SRT cue metadata", () => {
+    useLrcStore.setState({ lrcPath: "/lyrics.srt" });
+
+    useLrcStore.getState().setAudioMetadata({ title: "Track title" });
+
+    expect(useLrcStore.getState().doc.metadata.title).toBe("");
   });
 
   beforeEach(() => reset([]));

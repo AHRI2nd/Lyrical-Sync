@@ -33,8 +33,10 @@ async function createBookmark(path: string): Promise<string | null> {
 }
 
 interface HistoryInfo { label: string; timestamp: number; count?: number }
+type AudioMetadataField = "title" | "artist" | "album";
 interface LrcStore {
   doc: LrcDocument;
+  _manualMetadataFields: Set<AudioMetadataField>;
   _documentSession: number;
   _editRevision: number;
   _openRequest: number;
@@ -87,6 +89,7 @@ interface LrcStore {
   clearLineSyllables: (lineId: string) => void;
 
   setMetadata: (meta: Partial<LrcMetadata>, silent?: boolean) => void;
+  setAudioMetadata: (meta: Partial<Pick<LrcMetadata, AudioMetadataField>>) => void;
   setLines: (lines: LrcLine[]) => void;
   addLine: (text?: string) => void;
   insertLinesAfter: (afterId: string, texts: string[]) => string;
@@ -234,6 +237,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
   };
   return ({
   doc: defaultDocument(),
+  _manualMetadataFields: new Set(),
   _documentSession: 0, _editRevision: 0, _openRequest: 0, _audioSelection: 0, _saveTarget: 0, _saveRequest: 0,
   _lastEditKey: null,
   _history: [],
@@ -393,13 +397,34 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     if (idx > 0) set({ activeLineId: lines[idx - 1].id });
   },
 
+  setAudioMetadata: (meta) => {
+    const state = get();
+    if (state.lrcPath?.toLowerCase().endsWith(".srt")) return;
+    const changed = (Object.entries(meta) as [AudioMetadataField, string | undefined][])
+      .filter(([field, value]) => typeof value === "string" && value.trim() !== "" &&
+        !state.doc.metadata[field].trim() && !state._manualMetadataFields.has(field));
+    if (changed.length === 0) return;
+    const changedMeta = Object.fromEntries(changed) as Partial<Pick<LrcMetadata, AudioMetadataField>>;
+    const editKey = changed.length === 1 ? `metadata:${changed[0][0]}` : null;
+    set({ ...pushHistory(state.doc, editKey),
+      doc: { ...state.doc, metadata: { ...state.doc.metadata, ...changedMeta } }, isDirty: true });
+  },
+
   setMetadata: (meta, silent = false) => {
     const { doc, isDirty } = get();
     if (meta.offset !== undefined && (!Number.isFinite(meta.offset) || !Number.isSafeInteger(meta.offset))) { reportInvalidTime(); return; }
     const fields = (Object.keys(meta) as (keyof LrcMetadata)[]).filter((field) => !Object.is(doc.metadata[field], meta[field]));
     if (fields.length === 0) return;
     const editKey = fields.length === 1 ? `metadata:${fields[0]}` : null;
+    const manualFields = fields.filter((field): field is AudioMetadataField =>
+      field === "title" || field === "artist" || field === "album");
+    const updateManualMetadataFields = !silent && manualFields.length > 0;
+    const manualMetadataFields = updateManualMetadataFields ? new Set(get()._manualMetadataFields) : null;
+    if (manualMetadataFields) {
+      for (const field of manualFields) manualMetadataFields.add(field);
+    }
     set({ ...(silent ? { _lastEditKey: null, _future: [] } : pushHistory(doc, editKey)),
+      ...(manualMetadataFields ? { _manualMetadataFields: manualMetadataFields } : {}),
       doc: { ...doc, metadata: { ...doc.metadata, ...meta } }, isDirty: silent ? isDirty : true });
   },
 
@@ -790,6 +815,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
         const target = previous._saveTarget + 1;
         set({ doc, lrcPath: lyrics?.path ?? null, lrcBookmark: lyrics?.bookmark ?? null,
           ...(audio !== undefined ? { audioPath: audio?.path ?? null, audioBookmark: audio?.bookmark ?? null } : {}),
+          _manualMetadataFields: new Set(),
           _documentSession: session, _editRevision: 0, _audioSelection: selection, _saveTarget: target,
           isDirty: dirty, activeLineId: doc.lines[0]?.id ?? null, loopLineId: null,
           ...(intent.kind === "raw" ? pushHistory(previous.doc, null, "loadDoc") : { _history: [], _future: [] }) });

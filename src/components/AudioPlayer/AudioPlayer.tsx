@@ -250,7 +250,7 @@ export function AudioPlayer() {
         if (!cur.title.trim() && m.title) patch.title = m.title;
         if (!cur.artist.trim() && m.artist) patch.artist = m.artist;
         if (!cur.album.trim() && m.album) patch.album = m.album;
-        if (Object.keys(patch).length > 0) useLrcStore.getState().setMetadata(patch);
+        if (Object.keys(patch).length > 0) useLrcStore.getState().setAudioMetadata(patch);
       })
       .catch(() => {});
     return () => { cancelled = true; };
