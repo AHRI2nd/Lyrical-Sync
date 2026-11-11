@@ -6,6 +6,7 @@ import json
 import math
 import tempfile
 import subprocess
+import struct
 import sys
 import os
 import sysconfig
@@ -103,7 +104,32 @@ class ModelIntegrityTests(unittest.TestCase):
                 self.assertEqual(Path(verified_path).read_bytes(), b"trusted model")
                 return "loaded verified model"
 
-            self.assertEqual(align.load_verified_onnx_model(path, expected, loader), "loaded verified model")
+            model = align.load_verified_onnx_model(path, expected, loader)
+            self.assertEqual(model.session, "loaded verified model")
+            model.close()
+
+    def test_verified_model_keeps_staging_until_the_loader_releases_its_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / "model.onnx"
+            source.write_bytes(b"verified model")
+            expected = hashlib.sha256(b"verified model").hexdigest()
+            loaded_files = []
+
+            def loader(staged_path):
+                loaded_files.append(open(staged_path, "rb"))
+                return loaded_files[-1]
+
+            model = align.load_verified_onnx_model(source, expected, loader)
+            staged_path = Path(loaded_files[0].name)
+            try:
+                self.assertTrue(staged_path.exists(), "staged model must outlive an open loader handle")
+                self.assertEqual(model.session.read(), b"verified model")
+                model.close()
+                self.assertFalse(staged_path.exists(), "staged model must be removed after the handle closes")
+            finally:
+                for loaded_file in loaded_files:
+                    if not loaded_file.closed:
+                        loaded_file.close()
 
     def test_onnx_checksum_mismatch_never_reaches_loader(self):
         from unittest.mock import Mock
@@ -119,6 +145,47 @@ class ModelIntegrityTests(unittest.TestCase):
 
 
 class AudioArrayOwnershipTests(unittest.TestCase):
+    class Array:
+        def __init__(self, values, dtype, shape=None, base=None, transposed=False):
+            self.values = values
+            self.dtype = dtype
+            self.shape = shape or (len(values),)
+            self.base = base if base is not None else self
+            self.transposed = transposed
+
+        @property
+        def T(self):
+            return type(self)(
+                self.values,
+                self.dtype,
+                tuple(reversed(self.shape)),
+                base=self.base,
+                transposed=not self.transposed,
+            )
+
+        @property
+        def flags(self):
+            return types.SimpleNamespace(c_contiguous=not self.transposed)
+
+        def copy(self):
+            raise AssertionError("a full-size transpose copy is not allowed")
+
+        def astype(self, dtype):
+            return type(self)(list(self.values), dtype, self.shape)
+
+        def reshape(self, _rows, channels):
+            return type(self)(
+                self.values,
+                self.dtype,
+                (len(self.values) // channels, channels),
+                base=self.base,
+            )
+
+        def matrix(self):
+            rows, columns = self.shape
+            values = [self.values[row * columns:(row + 1) * columns] for row in range(rows)]
+            return [list(column) for column in zip(*values)] if self.transposed else values
+
     def load_separate(self, modules):
         separate_spec = importlib.util.spec_from_file_location(
             "lyrical_separate_test", ROOT / "src-tauri/src/separate.py"
@@ -129,24 +196,21 @@ class AudioArrayOwnershipTests(unittest.TestCase):
         return separate
 
     def test_soundfile_waveform_is_transposed_without_a_full_array_copy(self):
-        import numpy as np
-
-        source = np.arange(24, dtype=np.float32).reshape(12, 2)
+        source = self.Array(list(range(24)), "float32", (12, 2))
         fake_torch = types.SimpleNamespace(from_numpy=lambda value: value)
         soundfile = types.SimpleNamespace(read=lambda *args, **kwargs: (source, 48_000))
-        modules = {"torch": fake_torch, "soundfile": soundfile}
+        numpy = types.SimpleNamespace(float32="float32", int16="int16")
+        modules = {"torch": fake_torch, "numpy": numpy, "soundfile": soundfile}
         with patch.dict(sys.modules, modules):
             separate = self.load_separate(modules)
             waveform, sample_rate = separate.load_audio("audio.wav")
 
         self.assertEqual(sample_rate, 48_000)
         self.assertEqual(waveform.shape, (2, 12))
-        self.assertTrue(np.shares_memory(waveform, source))
+        self.assertIs(waveform.base, source.base)
         self.assertFalse(waveform.flags.c_contiguous)
 
     def test_audioread_waveform_reuses_one_float_array_for_the_tensor_view(self):
-        import numpy as np
-
         class Reader:
             samplerate = 48_000
             channels = 2
@@ -158,8 +222,27 @@ class AudioArrayOwnershipTests(unittest.TestCase):
                 return False
 
             def __iter__(self):
-                yield np.array([32767, -32768], dtype=np.int16).tobytes()
-                yield np.array([16384, -16384], dtype=np.int16).tobytes()
+                yield struct.pack("<hh", 32767, -32768)
+                yield struct.pack("<hh", 16384, -16384)
+
+        class Numpy:
+            float32 = "float32"
+            int16 = "int16"
+
+            @staticmethod
+            def frombuffer(value, dtype):
+                return AudioArrayOwnershipTests.Array(list(struct.unpack("<" + "h" * (len(value) // 2), value)), dtype)
+
+            @staticmethod
+            def concatenate(values):
+                combined = [sample for value in values for sample in value.values]
+                return AudioArrayOwnershipTests.Array(combined, "int16")
+
+            @staticmethod
+            def multiply(array, scalar, out):
+                for index, value in enumerate(array.values):
+                    out.values[index] = value * scalar
+                return out
 
         tensors = []
         fake_torch = types.SimpleNamespace(from_numpy=lambda value: tensors.append(value) or value)
@@ -167,6 +250,7 @@ class AudioArrayOwnershipTests(unittest.TestCase):
         audioread = types.SimpleNamespace(audio_open=lambda _path: Reader())
         modules = {
             "torch": fake_torch,
+            "numpy": Numpy,
             "soundfile": soundfile,
             "audioread": audioread,
         }
@@ -176,9 +260,12 @@ class AudioArrayOwnershipTests(unittest.TestCase):
 
         self.assertEqual(sample_rate, 48_000)
         self.assertEqual(waveform.shape, (2, 2))
-        self.assertTrue(np.allclose(waveform, [[32767 / 32768, 16384 / 32768], [-1, -16384 / 32768]]))
+        self.assertEqual(
+            waveform.matrix(),
+            [[32767 / 32768, 16384 / 32768], [-1, -16384 / 32768]],
+        )
         self.assertEqual(len(tensors), 1)
-        self.assertTrue(np.shares_memory(waveform, tensors[0]))
+        self.assertIs(waveform.base, tensors[0].base)
         self.assertFalse(waveform.flags.c_contiguous)
 
 

@@ -82,18 +82,54 @@ def verify_model_file(path, expected_sha256):
         raise ValueError("Model checksum mismatch. Download it again in Settings > AI Models.")
 
 
+class VerifiedOnnxSession:
+    """Keep verified model staging alive until the runtime releases its session."""
+
+    def __init__(self, session, staging_dir):
+        self.session = session
+        self._staging_dir = staging_dir
+
+    def close(self):
+        staging_dir, self._staging_dir = self._staging_dir, None
+        session, self.session = self.session, None
+        try:
+            close_session = getattr(session, "close", None)
+            if callable(close_session):
+                close_session()
+        finally:
+            del session
+            if staging_dir is not None:
+                staging_dir.cleanup()
+
+    def __getattr__(self, name):
+        session = self.session
+        if session is None:
+            raise AttributeError(name)
+        return getattr(session, name)
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
+
+
 def load_verified_onnx_model(path, expected_sha256, loader):
-    """Load a private copy of the exact ONNX bytes whose checksum was verified."""
+    """Load exact verified model bytes and retain staging for the session lifetime."""
     digest = hashlib.sha256()
-    with tempfile.TemporaryDirectory(prefix="lyrical-sync-onnx-") as staging_dir:
-        verified_path = os.path.join(staging_dir, "ctc-forced-aligner.onnx")
+    staging_dir = tempfile.TemporaryDirectory(prefix="lyrical-sync-onnx-")
+    try:
+        verified_path = os.path.join(staging_dir.name, "ctc-forced-aligner.onnx")
         with open(path, "rb") as source, open(verified_path, "xb") as verified:
             for chunk in iter(lambda: source.read(1024 * 1024), b""):
                 digest.update(chunk)
                 verified.write(chunk)
         if digest.hexdigest() != expected_sha256:
             raise ValueError("Model checksum mismatch. Download it again in Settings > AI Models.")
-        return loader(verified_path)
+        return VerifiedOnnxSession(loader(verified_path), staging_dir)
+    except BaseException:
+        staging_dir.cleanup()
+        raise
 
 
 def read_lines_input(lines_json, from_stdin):
@@ -305,8 +341,10 @@ def main():
     try:
         emissions, stride = generate_emissions(session, audio_waveform, batch_size=1)
     except Exception as e:
+        session.close()
         progress("error", f"emissions 생성 실패: {e}", code="audio")
         sys.exit(1)
+    session.close()
 
     # ── Preprocess text (word-level) ─────────────────────────────────────────
     #
