@@ -4,11 +4,13 @@
 // 그 외 플랫폼에서는 항상 빈 결과를 반환하는 스텁으로 컴파일된다.
 
 use serde::Serialize;
+#[cfg(any(not(target_os = "windows"), test))]
 use std::future::Future;
 use std::time::Duration;
 
 const DEVICE_COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
 
+#[cfg(any(not(target_os = "windows"), test))]
 async fn with_device_timeout<T>(future: impl Future<Output = Result<T, String>>, timeout: Duration) -> Result<T, String> {
     tokio::time::timeout(timeout, future)
         .await
@@ -85,6 +87,7 @@ fn valid_unix_timestamp(value: i64) -> Option<i64> {
     (value > 0).then_some(value)
 }
 
+#[cfg(any(target_os = "macos", test))]
 fn milliseconds_to_microseconds(position_ms: i64) -> Result<i64, String> {
     position_ms
         .max(0)
@@ -92,6 +95,7 @@ fn milliseconds_to_microseconds(position_ms: i64) -> Result<i64, String> {
         .ok_or_else(|| "seek_position_out_of_range".into())
 }
 
+#[cfg(any(target_os = "windows", test))]
 fn milliseconds_to_100ns_ticks(position_ms: i64) -> Result<i64, String> {
     position_ms
         .max(0)
@@ -102,112 +106,102 @@ fn milliseconds_to_100ns_ticks(position_ms: i64) -> Result<i64, String> {
 #[cfg(target_os = "windows")]
 mod platform {
     use super::{milliseconds_to_100ns_ticks, valid_unix_timestamp, NowPlayingInfo};
+    use crate::device_worker::{run_bounded_worker, ComApartment};
     use tauri::AppHandle;
     use windows::Media::Control::GlobalSystemMediaTransportControlsSessionManager;
-    use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
 
     // WinRT DateTime 기준시각(1601-01-01 UTC)과 Unix epoch(1970-01-01 UTC)의 차이(100ns 틱 단위).
     const EPOCH_DIFF_TICKS: i64 = 116_444_736_000_000_000;
 
-    // tokio 워커 스레드는 기본적으로 COM이 초기화돼 있지 않아 WinRT 호출 전 필요할 수 있음.
-    // 이미 초기화된 스레드에서 다시 불러도 안전(실패는 무시 — 대개 "이미 초기화됨" 의미).
-    fn ensure_com_initialized() {
-        unsafe {
-            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-        }
-    }
-
     pub async fn get_now_playing(_app: &AppHandle) -> Result<Option<NowPlayingInfo>, String> {
-        ensure_com_initialized();
-
-        let manager = GlobalSystemMediaTransportControlsSessionManager::RequestAsync()
+        run_bounded_worker(ComApartment::initialize, || async {
+            let manager = GlobalSystemMediaTransportControlsSessionManager::RequestAsync()
             .map_err(|e| e.to_string())?
             .await
             .map_err(|e| e.to_string())?;
 
-        let session = match manager.GetCurrentSession() {
-            Ok(s) => s,
-            Err(_) => return Ok(None), // 활성 세션 없음
-        };
+            let session = match manager.GetCurrentSession() {
+                Ok(s) => s,
+                Err(_) => return Ok(None), // 활성 세션 없음
+            };
 
-        let media_props = session
-            .TryGetMediaPropertiesAsync()
-            .map_err(|e| e.to_string())?
-            .await
-            .map_err(|e| e.to_string())?;
+            let media_props = session
+                .TryGetMediaPropertiesAsync()
+                .map_err(|e| e.to_string())?
+                .await
+                .map_err(|e| e.to_string())?;
 
-        let title = media_props.Title().map(|s| s.to_string()).unwrap_or_default();
-        let artist = media_props.Artist().map(|s| s.to_string()).unwrap_or_default();
-        let album = media_props.AlbumTitle().map(|s| s.to_string()).unwrap_or_default();
+            let title = media_props.Title().map(|s| s.to_string()).unwrap_or_default();
+            let artist = media_props.Artist().map(|s| s.to_string()).unwrap_or_default();
+            let album = media_props.AlbumTitle().map(|s| s.to_string()).unwrap_or_default();
 
-        // 제목·아티스트 둘 다 비었으면 실질적으로 "재생 중인 게 없음"으로 간주
-        if title.is_empty() && artist.is_empty() {
-            return Ok(None);
-        }
+            // 제목·아티스트 둘 다 비었으면 실질적으로 "재생 중인 게 없음"으로 간주
+            if title.is_empty() && artist.is_empty() {
+                return Ok(None);
+            }
 
-        let timeline = session.GetTimelineProperties().map_err(|e| e.to_string())?;
-        let playback_info = session.GetPlaybackInfo().map_err(|e| e.to_string())?;
+            let timeline = session.GetTimelineProperties().map_err(|e| e.to_string())?;
+            let playback_info = session.GetPlaybackInfo().map_err(|e| e.to_string())?;
 
-        let position_ticks = timeline.Position().map(|t| t.Duration).unwrap_or(0);
-        let end_ticks = timeline.EndTime().map(|t| t.Duration).unwrap_or(0);
-        let last_updated_unix_ms = timeline.LastUpdatedTime().ok()
-            .map(|d| (d.UniversalTime - EPOCH_DIFF_TICKS) / 10_000)
-            .and_then(valid_unix_timestamp);
+            let position_ticks = timeline.Position().map(|t| t.Duration).unwrap_or(0);
+            let end_ticks = timeline.EndTime().map(|t| t.Duration).unwrap_or(0);
+            let last_updated_unix_ms = timeline.LastUpdatedTime().ok()
+                .map(|d| (d.UniversalTime - EPOCH_DIFF_TICKS) / 10_000)
+                .and_then(valid_unix_timestamp);
 
-        let status_raw = playback_info.PlaybackStatus().map(|s| s.0).unwrap_or(0);
-        let is_playing = status_raw == 4; // GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing
+            let status_raw = playback_info.PlaybackStatus().map(|s| s.0).unwrap_or(0);
+            let is_playing = status_raw == 4; // GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing
 
-        let source_app = session.SourceAppUserModelId().map(|s| s.to_string()).unwrap_or_default();
+            let source_app = session.SourceAppUserModelId().map(|s| s.to_string()).unwrap_or_default();
 
-        Ok(Some(NowPlayingInfo {
-            title,
-            artist,
-            album,
-            position_ms: position_ticks / 10_000,
-            duration_ms: end_ticks / 10_000,
-            is_playing,
-            source_app,
-            last_updated_unix_ms,
-        }))
+            Ok(Some(NowPlayingInfo {
+                title,
+                artist,
+                album,
+                position_ms: position_ticks / 10_000,
+                duration_ms: end_ticks / 10_000,
+                is_playing,
+                source_app,
+                last_updated_unix_ms,
+            }))
+        }, super::DEVICE_COMMAND_TIMEOUT).await
     }
 
     pub async fn toggle_play_pause(_app: &AppHandle) -> Result<(), String> {
-        ensure_com_initialized();
-        let manager = GlobalSystemMediaTransportControlsSessionManager::RequestAsync()
+        run_bounded_worker(ComApartment::initialize, || async {
+            let manager = GlobalSystemMediaTransportControlsSessionManager::RequestAsync()
             .map_err(|e| e.to_string())?
             .await
             .map_err(|e| e.to_string())?;
-        let session = manager.GetCurrentSession().map_err(|e| e.to_string())?;
-        let accepted = session
-            .TryTogglePlayPauseAsync()
-            .map_err(|e| e.to_string())?
-            .await
-            .map_err(|e| e.to_string())?;
-        if accepted {
-            Ok(())
-        } else {
-            Err("The active media session rejected the play/pause command".into())
-        }
+            let session = manager.GetCurrentSession().map_err(|e| e.to_string())?;
+            let accepted = session
+                .TryTogglePlayPauseAsync()
+                .map_err(|e| e.to_string())?
+                .await
+                .map_err(|e| e.to_string())?;
+            if accepted { Ok(()) } else {
+                Err("The active media session rejected the play/pause command".into())
+            }
+        }, super::DEVICE_COMMAND_TIMEOUT).await
     }
 
     pub async fn seek(_app: &AppHandle, position_ms: i64) -> Result<(), String> {
-        ensure_com_initialized();
-        let manager = GlobalSystemMediaTransportControlsSessionManager::RequestAsync()
-            .map_err(|e| e.to_string())?
-            .await
-            .map_err(|e| e.to_string())?;
-        let session = manager.GetCurrentSession().map_err(|e| e.to_string())?;
         let ticks = milliseconds_to_100ns_ticks(position_ms)?;
-        let accepted = session
-            .TryChangePlaybackPositionAsync(ticks)
+        run_bounded_worker(ComApartment::initialize, move || async move {
+            let manager = GlobalSystemMediaTransportControlsSessionManager::RequestAsync()
             .map_err(|e| e.to_string())?
             .await
             .map_err(|e| e.to_string())?;
-        if accepted {
-            Ok(())
-        } else {
-            Err("The active media session rejected the seek command".into())
-        }
+            let session = manager.GetCurrentSession().map_err(|e| e.to_string())?;
+            let accepted = session
+                .TryChangePlaybackPositionAsync(ticks)
+                .map_err(|e| e.to_string())?
+                .await
+                .map_err(|e| e.to_string())?;
+            if accepted { Ok(()) } else {
+                Err("The active media session rejected the seek command".into())
+            }
+        }, super::DEVICE_COMMAND_TIMEOUT).await
     }
 }
 
@@ -487,15 +481,36 @@ mod platform {
 
 #[tauri::command]
 pub async fn get_now_playing(app: tauri::AppHandle) -> Result<Option<NowPlayingInfo>, String> {
-    with_device_timeout(platform::get_now_playing(&app), DEVICE_COMMAND_TIMEOUT).await
+    #[cfg(target_os = "windows")]
+    {
+        platform::get_now_playing(&app).await
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        with_device_timeout(platform::get_now_playing(&app), DEVICE_COMMAND_TIMEOUT).await
+    }
 }
 
 #[tauri::command]
 pub async fn now_playing_toggle_play_pause(app: tauri::AppHandle) -> Result<(), String> {
-    with_device_timeout(platform::toggle_play_pause(&app), DEVICE_COMMAND_TIMEOUT).await
+    #[cfg(target_os = "windows")]
+    {
+        platform::toggle_play_pause(&app).await
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        with_device_timeout(platform::toggle_play_pause(&app), DEVICE_COMMAND_TIMEOUT).await
+    }
 }
 
 #[tauri::command]
 pub async fn now_playing_seek(position_ms: i64, app: tauri::AppHandle) -> Result<(), String> {
-    with_device_timeout(platform::seek(&app, position_ms), DEVICE_COMMAND_TIMEOUT).await
+    #[cfg(target_os = "windows")]
+    {
+        platform::seek(&app, position_ms).await
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        with_device_timeout(platform::seek(&app, position_ms), DEVICE_COMMAND_TIMEOUT).await
+    }
 }

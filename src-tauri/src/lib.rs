@@ -10,6 +10,8 @@ mod alignment_process;
 mod atomic_write;
 mod audio_resource;
 mod batch_output;
+#[cfg(any(target_os = "windows", test))]
+mod device_worker;
 mod oauth_listener;
 mod path_validation;
 mod service_auth;
