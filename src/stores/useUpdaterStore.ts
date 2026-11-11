@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { Update } from "@tauri-apps/plugin-updater";
 import { useLrcStore } from "./useLrcStore";
 import { useI18nStore } from "./useI18nStore";
+import { useBusyStore } from "./useBusyStore";
 import { saveRecoverySnapshot } from "../utils/recovery";
 
 export type UpdaterStatus =
@@ -41,6 +42,10 @@ function closeUpdateOnce(update: Update | null | undefined): Promise<void> {
 
 function isCurrentCheck(generation: number): boolean {
   return checkGeneration === generation;
+}
+function hasBlockingAppOperation(): boolean {
+  return useBusyStore.getState().reasons.size > 0
+    || useLrcStore.getState().aiSyncStatus === "running";
 }
 async function preserveBefore(action: () => Promise<void>): Promise<void> {
   const lrc = useLrcStore.getState();
@@ -125,7 +130,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
 
   downloadAndInstall: async () => {
     const { _update } = get();
-    if (!_update || get().status !== "available" || updateOperationActive) return;
+    if (!_update || get().status !== "available" || updateOperationActive || hasBlockingAppOperation()) return;
     updateOperationActive = true;
     set({ status: "downloading", progress: 0, error: null });
     try {
@@ -183,7 +188,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
   },
 
   restart: async () => {
-    if (updateOperationActive) return;
+    if (updateOperationActive || hasBlockingAppOperation()) return;
     updateOperationActive = true;
     try {
       // Resolve the module before capturing the final document to protect.

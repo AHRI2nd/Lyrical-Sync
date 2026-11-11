@@ -28,6 +28,7 @@ vi.mock("../utils/recovery", () => ({ saveRecoverySnapshot: (...args: unknown[])
 
 import { useUpdaterStore } from "./useUpdaterStore";
 import { useLrcStore } from "./useLrcStore";
+import { useBusyStore } from "./useBusyStore";
 import type { Update } from "@tauri-apps/plugin-updater";
 
 const reset = () =>
@@ -118,12 +119,44 @@ describe("useUpdaterStore — downloadAndInstall", () => {
   beforeEach(() => {
     reset(); relaunch.mockReset(); invoke.mockReset(); invoke.mockResolvedValue(undefined);
     saveRecoverySnapshot.mockReset(); saveRecoverySnapshot.mockReturnValue(true);
-    useLrcStore.setState({ isDirty: false, lrcPath: null, audioPath: null, _lrcFileHash: "a".repeat(64) });
+    useLrcStore.setState({ isDirty: false, lrcPath: null, audioPath: null, aiSyncStatus: "idle", _lrcFileHash: "a".repeat(64) });
+    useBusyStore.setState({ reasons: new Set(), errors: {} });
   });
 
   it("is a no-op when there is no pending update", async () => {
     await useUpdaterStore.getState().downloadAndInstall();
     expect(useUpdaterStore.getState().status).toBe("idle");
+  });
+
+  it("does not start an update while another app operation holds a busy lease", async () => {
+    const update = { download: vi.fn(), close: vi.fn() } as unknown as Update;
+    useBusyStore.setState({ reasons: new Set(["python-packages"]), errors: {} });
+    useUpdaterStore.setState({ status: "available", _update: update });
+
+    await useUpdaterStore.getState().downloadAndInstall();
+
+    expect(update.download).not.toHaveBeenCalled();
+    expect(useUpdaterStore.getState().status).toBe("available");
+  });
+
+  it("does not start an update while AI alignment is running", async () => {
+    const update = { download: vi.fn(), close: vi.fn() } as unknown as Update;
+    useLrcStore.setState({ aiSyncStatus: "running" });
+    useUpdaterStore.setState({ status: "available", _update: update });
+
+    await useUpdaterStore.getState().downloadAndInstall();
+
+    expect(update.download).not.toHaveBeenCalled();
+    expect(useUpdaterStore.getState().status).toBe("available");
+  });
+
+  it("does not relaunch while another app operation is active", async () => {
+    useBusyStore.setState({ reasons: new Set(["model-download"]), errors: {} });
+    useUpdaterStore.setState({ status: "ready" });
+
+    await useUpdaterStore.getState().restart();
+
+    expect(relaunch).not.toHaveBeenCalled();
   });
 
   it("tracks progress from Started/Progress/Finished events and ends ready", async () => {
