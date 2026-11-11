@@ -194,6 +194,28 @@ describe("AudioPlayer loop-line boundaries", () => {
     expect(useLrcStore.getState().isDirty).toBe(true);
   });
 
+  it("does not let automatic audio tags make an SRT working document unsavable", async () => {
+    const file = { path: "/song.mp3", bookmark: null };
+    const originalDoc = useLrcStore.getState().doc;
+    vi.mocked(readAudioBytes).mockResolvedValue({ file, bytes: new Uint8Array([1]), transcoded: false });
+    vi.mocked(invoke).mockResolvedValue({ title: "Tagged title", artist: "Tagged artist", album: "Tagged album" });
+    useLrcStore.setState({ audioPath: file.path, audioBookmark: null, lrcPath: "/working.SRT", isDirty: false });
+
+    render(<AudioPlayer />);
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+    act(() => handlers.get("ready")?.());
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("read_audio_metadata", { path: file.path, bookmark: null }));
+    await waitFor(() => expect(useLrcStore.getState().doc).toBe(originalDoc));
+
+    expect(useLrcStore.getState()).toMatchObject({ lrcPath: "/working.SRT", isDirty: false });
+    expect(useLrcStore.getState().doc.metadata).toMatchObject({ title: "", artist: "", album: "" });
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+
+    act(() => useLrcStore.getState().setMetadata({ title: "User title" }));
+    expect(useLrcStore.getState().doc.metadata.title).toBe("User title");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
   it("does not use the previous ready engine while a replacement audio fails to load", async () => {
     vi.mocked(readAudioBytes).mockImplementation(async (path) => {
       if (path === "/broken.mp3") throw "AUDIO_RESOURCE_LIMIT";
