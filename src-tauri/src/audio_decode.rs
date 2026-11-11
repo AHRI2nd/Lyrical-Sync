@@ -81,7 +81,18 @@ pub fn validate_pcm_frames(sample_rate: u32, channels: u8, frames: u64) -> Resul
         .checked_mul(1_000_000_000)
         .map(|nanos| nanos / u128::from(sample_rate))
         .ok_or_else(|| AUDIO_RESOURCE_LIMIT_ERROR.to_string())?;
+    let effective_rate = sample_rate.max(WEBAUDIO_BASE_SAMPLE_RATE);
+    let effective_frames = u128::from(frames)
+        .checked_mul(u128::from(effective_rate))
+        .and_then(|samples| samples.checked_add(u128::from(sample_rate) - 1))
+        .map(|samples| samples / u128::from(sample_rate))
+        .ok_or_else(|| AUDIO_RESOURCE_LIMIT_ERROR.to_string())?;
+    let estimated_web_audio_pcm_bytes = effective_frames
+        .checked_mul(u128::from(channels))
+        .and_then(|samples| samples.checked_mul(4))
+        .ok_or_else(|| AUDIO_RESOURCE_LIMIT_ERROR.to_string())?;
     if pcm_bytes > u128::from(MAX_AUDIO_PCM_BYTES)
+        || estimated_web_audio_pcm_bytes > u128::from(MAX_AUDIO_PCM_BYTES)
         || pcm_bytes
             .checked_add(128)
             .map_or(true, |bytes| bytes > u128::from(MAX_AUDIO_FILE_BYTES))
@@ -819,6 +830,16 @@ mod tests {
             validate_pcm_frames(192_000, 2, 192_000 * 30 * 60).unwrap_err(),
             AUDIO_RESOURCE_LIMIT_ERROR
         );
+    }
+
+    #[test]
+    fn accounts_for_web_audio_upsampling_before_accepting_decoded_frames() {
+        let one_hour_of_8khz_stereo = 8_000 * 60 * 60;
+        assert_eq!(
+            validate_pcm_frames(8_000, 2, one_hour_of_8khz_stereo).unwrap_err(),
+            AUDIO_RESOURCE_LIMIT_ERROR
+        );
+        assert!(validate_pcm_frames(8_000, 2, 8_000 * 30 * 60).is_ok());
     }
 
     #[test]

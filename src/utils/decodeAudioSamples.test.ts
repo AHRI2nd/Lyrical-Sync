@@ -23,6 +23,26 @@ it("uses the persistent grant for a separate audio analysis read", async () => {
   expect(close).toHaveBeenCalledOnce();
 });
 
+it("requests the 48 kHz context rate used by the native PCM resource budget", async () => {
+  vi.mocked(readAudioBytes).mockResolvedValue({
+    bytes: new Uint8Array([1]),
+    file: { path: "/song.aiff", bookmark: null },
+    transcoded: true,
+  });
+  let options: AudioContextOptions | undefined;
+  vi.stubGlobal("AudioContext", class {
+    constructor(value?: AudioContextOptions) { options = value; }
+    close = vi.fn();
+    async decodeAudioData() {
+      return { numberOfChannels: 1, length: 1, sampleRate: 48000, getChannelData: () => new Float32Array([0.5]) };
+    }
+  });
+
+  await decodeAudioSamples("C:/song.aiff", null);
+
+  expect(options?.sampleRate).toBe(48000);
+});
+
 it("does not begin file access for an already cancelled analysis", async () => {
   const controller = new AbortController();
   controller.abort();

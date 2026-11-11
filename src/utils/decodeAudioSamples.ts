@@ -9,7 +9,8 @@ export async function decodeAudioSamples(audioPath: string, bookmark: string | n
   checkCancelled();
   const { bytes, file } = await readAudioBytes(audioPath, bookmark);
   checkCancelled();
-  const ctx = new AudioContext();
+  // Keep decodeAudioData aligned with the native 48-kHz PCM resource estimate.
+  const ctx = new AudioContext({ sampleRate: 48_000 });
   try {
     const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
     const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
