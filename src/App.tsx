@@ -62,6 +62,9 @@ function openErrorMessage(error: unknown, t: ReturnType<typeof useI18nStore.getS
   if (typeof error === "object" && error !== null && "code" in error && error.code === SRT_MALFORMED_CUE_CODE) {
     return t.toast.srtMalformedCue;
   }
+  const message = String(error);
+  if (message.includes("Unsupported lyric encoding")) return t.toast.unsupportedLyricEncoding;
+  if (message.includes("LYRIC_RESOURCE_LIMIT")) return t.toast.lyricFileTooLarge;
   return t.toast.openFailed;
 }
 

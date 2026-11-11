@@ -284,6 +284,8 @@ export interface Translations {
     runtimeFailed: string;
     openFailed: string;
     srtMalformedCue: string;
+    unsupportedLyricEncoding: string;
+    lyricFileTooLarge: string;
     audioLoadFailed: string;
     audioResourceLimit: string;
   };
@@ -670,6 +672,8 @@ const ko: Translations = {
     runtimeFailed: "오류가 발생했습니다. 현재 작업을 저장한 뒤 다시 시도해 주세요.",
     openFailed: "파일을 열지 못했습니다",
     srtMalformedCue: "SRT 자막의 시간 형식이 잘못되어 파일을 열지 않았습니다. 파일을 확인해 주세요.",
+    unsupportedLyricEncoding: "UTF-16 가사는 직접 열 수 없습니다. 원본을 보존하고 UTF-8 사본으로 변환한 뒤 다시 열어 주세요.",
+    lyricFileTooLarge: "가사 파일이 64 MiB 제한을 초과했습니다.",
     audioLoadFailed: "오디오를 불러오지 못했습니다",
     audioResourceLimit: "오디오 파일이 지원 가능한 1GiB 또는 디코딩 메모리 한도를 초과했습니다",
   },
@@ -1081,6 +1085,8 @@ const en: Translations = {
     runtimeFailed: "An error occurred. Save your current work before trying again.",
     openFailed: "Couldn't open file",
     srtMalformedCue: "The SRT contains an invalid cue time, so it was not opened. Check the file and try again.",
+    unsupportedLyricEncoding: "UTF-16 lyric files aren't supported. Keep the original and convert a copy to UTF-8 before opening.",
+    lyricFileTooLarge: "This lyric file exceeds the 64 MiB limit.",
     audioLoadFailed: "Couldn't load audio",
     audioResourceLimit: "The audio file exceeds the 1 GiB file or decoded-memory limit.",
   },
@@ -1491,6 +1497,8 @@ const ja: Translations = {
     runtimeFailed: "エラーが発生しました。作業を保存してから再試行してください。",
     openFailed: "ファイルを開けませんでした",
     srtMalformedCue: "SRTの字幕時間形式が正しくないため、ファイルを開きませんでした。ファイルを確認してください。",
+    unsupportedLyricEncoding: "UTF-16形式の歌詞ファイルは開けません。元のファイルを保持し、UTF-8のコピーに変換してから開いてください。",
+    lyricFileTooLarge: "歌詞ファイルが64 MiBの上限を超えています。",
     audioLoadFailed: "オーディオを読み込めませんでした",
     audioResourceLimit: "オーディオファイルが1GiBのファイルまたはデコードメモリ上限を超えています",
   },

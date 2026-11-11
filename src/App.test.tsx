@@ -133,6 +133,25 @@ describe("App document confirmation and keyboard boundaries", () => {
     expect(useLrcStore.getState().isDirty).toBe(false);
   });
 
+  it.each([
+    ["Unsupported lyric encoding: UTF-16 is not supported", "unsupportedLyricEncoding"],
+    ["LYRIC_RESOURCE_LIMIT", "lyricFileTooLarge"],
+  ] as const)("shows actionable lyric-read feedback for %s", async (error, messageKey) => {
+    existingPair(false);
+    const originalDoc = useLrcStore.getState().doc;
+    vi.mocked(invoke).mockImplementation((command) => command === "read_lrc_file"
+      ? Promise.reject(error) : Promise.resolve(null));
+    render(<App />);
+    drop(["/incoming.lrc"]);
+
+    const t = useI18nStore.getState().t;
+    const confirmation = await screen.findByRole("dialog", { name: t.drop.replaceTitle });
+    fireEvent.click(within(confirmation).getByRole("button", { name: t.drop.replaceOk }));
+    await screen.findByText(t.toast[messageKey]);
+    expect(useLrcStore.getState().doc).toBe(originalDoc);
+    expect(useLrcStore.getState().lrcPath).toBe("/old.lrc");
+  });
+
   it("explains when a bookmarked lyric file changes format and leaves it unsaved", async () => {
     useLrcStore.setState({ lrcPath: "/old/song.lrc", lrcBookmark: "old", isDirty: true });
     vi.mocked(invoke).mockImplementation((command) => {

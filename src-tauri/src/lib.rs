@@ -18,13 +18,47 @@ use bookmark::{create_security_bookmark, resolve_security_bookmark};
 
 // ─── LRC / audio commands ────────────────────────────────────────
 
+const MAX_LYRIC_FILE_BYTES: u64 = 64 * 1024 * 1024;
+
+fn read_lyric_file(path: &std::path::Path) -> Result<String, String> {
+    use std::io::Read;
+
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NONBLOCK);
+    }
+    let file = options.open(path).map_err(|error| error.to_string())?;
+    let metadata = file.metadata().map_err(|error| error.to_string())?;
+    if !metadata.is_file() {
+        return Err("Lyrics path is not a regular file".into());
+    }
+    if metadata.len() > MAX_LYRIC_FILE_BYTES {
+        return Err("LYRIC_RESOURCE_LIMIT".into());
+    }
+
+    let mut bytes = Vec::new();
+    file.take(MAX_LYRIC_FILE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| error.to_string())?;
+    if bytes.len() as u64 > MAX_LYRIC_FILE_BYTES {
+        return Err("LYRIC_RESOURCE_LIMIT".into());
+    }
+    if bytes.starts_with(&[0xFF, 0xFE]) || bytes.starts_with(&[0xFE, 0xFF]) || bytes.contains(&0) {
+        return Err(
+            "Unsupported lyric encoding: UTF-16 is not supported; convert a copy to UTF-8 before editing."
+                .into(),
+        );
+    }
+    String::from_utf8(bytes).map_err(|_| "Unsupported lyric encoding: expected UTF-8; convert a copy to UTF-8 before editing.".into())
+}
+
 #[tauri::command]
 async fn read_lrc_file(path: String, bookmark: Option<String>) -> Result<String, String> {
     let access = file_access::FileAccess::open(path, bookmark)?;
-    let mut file = audio_decode::open_audio_file(&access.path())?;
-    let mut content = String::new();
-    std::io::Read::read_to_string(&mut file, &mut content).map_err(|error| error.to_string())?;
-    Ok(content)
+    read_lyric_file(&access.path())
 }
 
 #[tauri::command]
@@ -142,6 +176,53 @@ mod tests {
             .unwrap(),
             "[00:01.00]A line\n"
         );
+    }
+
+    #[test]
+    fn lyric_read_reports_unsupported_utf16_without_modifying_the_source() {
+        let dir = tempfile::tempdir().unwrap();
+        for (name, bytes) in [
+            ("utf16le.lrc", b"\xff\xfe[00:01.00]line".to_vec()),
+            (
+                "utf16be.lrc",
+                b"\xfe\xff\x00[\x000\x000\x00:\x000\x001\x00.\x000\x000\x00]".to_vec(),
+            ),
+            (
+                "utf16-no-bom.lrc",
+                b"[\x000\x000\x00:\x000\x001\x00.\x000\x000\x00]".to_vec(),
+            ),
+        ] {
+            let path = dir.path().join(name);
+            std::fs::write(&path, &bytes).unwrap();
+            let error = tauri::async_runtime::block_on(read_lrc_file(
+                path.to_string_lossy().into_owned(),
+                None,
+            ))
+            .unwrap_err();
+
+            assert!(
+                error.contains("UTF-16"),
+                "unexpected error for {name}: {error}"
+            );
+            assert_eq!(std::fs::read(path).unwrap(), bytes);
+        }
+    }
+
+    #[test]
+    fn lyric_read_rejects_oversized_input_before_reading_contents() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("oversized.lrc");
+        std::fs::File::create(&path)
+            .unwrap()
+            .set_len(MAX_LYRIC_FILE_BYTES + 1)
+            .unwrap();
+
+        let result = tauri::async_runtime::block_on(read_lrc_file(
+            path.to_string_lossy().into_owned(),
+            None,
+        ));
+
+        assert!(matches!(result, Err(error) if error == "LYRIC_RESOURCE_LIMIT"));
     }
 
     #[test]
