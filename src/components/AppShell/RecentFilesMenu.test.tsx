@@ -1,16 +1,19 @@
 // @vitest-environment jsdom
 import { beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn().mockResolvedValue(null) }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 import { RecentFilesMenu } from "./RecentFilesMenu";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useLrcStore } from "../../stores/useLrcStore";
+import { useToastStore } from "../../stores/useToastStore";
+import { DocumentTransitionSaveError } from "../../utils/documentTransition";
 
 beforeEach(() => {
   cleanup();
   useSettingsStore.setState({ recentFiles: [{ lrcPath: "/songs/one.lrc", audioPath: null, lrcBookmark: null, audioBookmark: null, openedAt: 1 }] });
+  useToastStore.setState({ toasts: [] });
 });
 
 it("exposes the expanded state and closes on Escape with focus returned to the trigger", () => {
@@ -55,4 +58,19 @@ it("keeps selecting and clearing recent files available", () => {
   fireEvent.click(screen.getByRole("button", { name: t.recentFiles }));
   fireEvent.click(screen.getByRole("button", { name: t.clearRecentFiles }));
   expect(useSettingsStore.getState().recentFiles).toEqual([]);
+});
+
+it("reports a failed save before opening a recent document", async () => {
+  const t = useI18nStore.getState().t;
+  useLrcStore.setState({
+    requestDocumentTransition: vi.fn().mockRejectedValue(new DocumentTransitionSaveError(new Error("disk full"))),
+  });
+  render(<RecentFilesMenu />);
+  fireEvent.click(screen.getByRole("button", { name: t.recentFiles }));
+  fireEvent.click(screen.getByRole("button", { name: "one.lrc" }));
+
+  await waitFor(() => {
+    const toasts = useToastStore.getState().toasts;
+    expect(toasts[toasts.length - 1]?.message).toBe(t.toast.saveFailed);
+  });
 });

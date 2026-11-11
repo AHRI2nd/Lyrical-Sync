@@ -152,6 +152,47 @@ describe("App document confirmation and keyboard boundaries", () => {
     expect(useLrcStore.getState().lrcPath).toBe("/old.lrc");
   });
 
+  it("reports a failed save separately and preserves the dirty document during replacement", async () => {
+    existingPair(true);
+    const originalDoc = useLrcStore.getState().doc;
+    vi.mocked(invoke).mockImplementation((command) => command === "write_lrc_file"
+      ? Promise.reject("simulated disk write failure")
+      : command === "read_lrc_file" ? Promise.resolve("[00:03.00]Incoming lyric") : Promise.resolve(null));
+    render(<App />);
+    drop(["/incoming.lrc"]);
+
+    const t = useI18nStore.getState().t;
+    const confirmation = await screen.findByRole("dialog", { name: t.replaceDocumentTitle });
+    fireEvent.click(within(confirmation).getByRole("button", { name: t.save }));
+
+    await screen.findByText(t.toast.saveFailed);
+    expect(useLrcStore.getState().doc).toBe(originalDoc);
+    expect(useLrcStore.getState().lrcPath).toBe("/old.lrc");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
+  it("keeps serialization errors distinct from replacement read failures", async () => {
+    existingPair(true);
+    const originalDoc = useLrcStore.getState().doc;
+    useLrcStore.setState({
+      lrcPath: "/old.srt",
+      doc: { ...originalDoc, metadata: { ...originalDoc.metadata, title: "Song metadata" } },
+    });
+    const docWithMetadata = useLrcStore.getState().doc;
+    render(<App />);
+    drop(["/incoming.lrc"]);
+
+    const t = useI18nStore.getState().t;
+    const confirmation = await screen.findByRole("dialog", { name: t.replaceDocumentTitle });
+    fireEvent.click(within(confirmation).getByRole("button", { name: t.save }));
+
+    await screen.findByText(t.toast.srtLossyDocument);
+    expect(useLrcStore.getState().doc).toBe(docWithMetadata);
+    expect(useLrcStore.getState().lrcPath).toBe("/old.srt");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+    expect(vi.mocked(invoke).mock.calls.some(([command]) => command === "write_lrc_file")).toBe(false);
+  });
+
   it("explains when a bookmarked lyric file changes format and leaves it unsaved", async () => {
     useLrcStore.setState({ lrcPath: "/old/song.lrc", lrcBookmark: "old", isDirty: true });
     vi.mocked(invoke).mockImplementation((command) => {

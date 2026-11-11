@@ -3,6 +3,7 @@ import { useLrcStore } from "../../stores/useLrcStore";
 import { useSettingsStore, type RecentFileEntry } from "../../stores/useSettingsStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { toast } from "../../stores/useToastStore";
+import { DocumentTransitionSaveError } from "../../utils/documentTransition";
 import { HistoryIcon } from "./icons";
 
 const basename = (path: string) => path.split(/[\\/]/).pop() ?? path;
@@ -43,9 +44,9 @@ export function RecentFilesMenu() {
 
     try {
       await st.requestDocumentTransition({ kind: "recent", entry });
-    } catch {
+    } catch (error) {
       // Invalid grants require explicit reselection, not an unscoped path retry.
-      toast.error(t.toast.openFailed);
+      toast.error(error instanceof DocumentTransitionSaveError ? t.toast.saveFailed : t.toast.openFailed);
     }
   };
 

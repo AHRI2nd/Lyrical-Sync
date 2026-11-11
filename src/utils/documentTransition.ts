@@ -10,6 +10,12 @@ export type DocumentIntent =
   | { kind: "recovery"; doc: LrcDocument; lyrics: FileRef | null; audio: FileRef | null };
 export type TransitionChoice = "save" | "discard" | "cancel";
 export interface DocumentSnapshot { session: number; revision: number; dirty: boolean }
+export class DocumentTransitionSaveError extends Error {
+  constructor(readonly cause: unknown) {
+    super("Could not save the current document before replacement.");
+    this.name = "DocumentTransitionSaveError";
+  }
+}
 type Confirm = () => Promise<TransitionChoice>;
 let dismiss = () => {};
 export const cancelDocumentConfirmation = () => dismiss();
@@ -38,7 +44,13 @@ export async function runDocumentTransition<T>(options: {
       if (!options.isCurrent() || choice === "cancel") return null;
       if (!unchanged(before, options.snapshot())) continue;
       if (choice === "save") {
-        if (!await options.save()) return null;
+        let saved: boolean;
+        try {
+          saved = await options.save();
+        } catch (error) {
+          throw new DocumentTransitionSaveError(error);
+        }
+        if (!saved) return null;
         if (!options.isCurrent()) return null;
         if (!unchanged(before, options.snapshot()) || options.snapshot().dirty) continue;
       }

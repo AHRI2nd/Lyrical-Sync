@@ -19,7 +19,7 @@ import { type RecoverySnapshot, loadRecoverySnapshot, clearRecoverySnapshot } fr
 import { useRecoverySnapshots } from "./hooks/useRecoverySnapshots";
 import { useMacMenu } from "./hooks/useMacMenu";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { setDocumentConfirmation, type TransitionChoice } from "./utils/documentTransition";
+import { DocumentTransitionSaveError, setDocumentConfirmation, type TransitionChoice } from "./utils/documentTransition";
 const HelpModal = lazy(() => import("./components/AppShell/HelpModal").then((m) => ({ default: m.HelpModal })));
 import { ConfirmModal } from "./components/AppShell/ConfirmModal";
 import { SaveFormatModal } from "./components/AppShell/SaveFormatModal";
@@ -59,6 +59,7 @@ function saveErrorMessage(error: unknown, t: ReturnType<typeof useI18nStore.getS
 }
 
 function openErrorMessage(error: unknown, t: ReturnType<typeof useI18nStore.getState>["t"]): string {
+  if (error instanceof DocumentTransitionSaveError) return saveErrorMessage(error.cause, t);
   if (typeof error === "object" && error !== null && "code" in error && error.code === SRT_MALFORMED_CUE_CODE) {
     return t.toast.srtMalformedCue;
   }
@@ -270,7 +271,7 @@ function App() {
   // Clear any zoom set by a previous version of the app
   useEffect(() => { document.documentElement.style.zoom = ""; }, []);
 
-  const handleNewLrc = () => { void newLrc().catch(() => toast.error(t.toast.openFailed)); };
+  const handleNewLrc = () => { void newLrc().catch((error) => toast.error(openErrorMessage(error, t))); };
 
   // 저장 결과를 토스트로 알림(취소 시 무알림, 실패 시 에러)
   const runSave = (p: Promise<boolean>, workingFile = true, isLrcExport = false) => {
@@ -450,7 +451,7 @@ function App() {
                 if ((recovery.lrcPath && !current.lrcPath) || (recovery.audioPath && !current.audioPath)) toast.error(t.toast.openFailed);
                 setRecovery(null);
               }
-            } catch { toast.error(t.toast.openFailed); }
+            } catch (error) { toast.error(openErrorMessage(error, t)); }
           }}
           onCancel={() => {
             if (clearRecoverySnapshot(recovery)) setRecovery(null);

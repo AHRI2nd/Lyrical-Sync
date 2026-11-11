@@ -7,6 +7,8 @@ import { MetaEditor } from "./MetaEditor";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { defaultDocument } from "../../types/lrc";
+import { setDocumentConfirmation } from "../../utils/documentTransition";
+import { useToastStore } from "../../stores/useToastStore";
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 it("keeps metadata and local raw lyrics editing available without online lookup", () => {
   const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
@@ -67,6 +69,29 @@ it("applies an unchanged raw draft and keeps it undoable", async () => {
   expect(useLrcStore.getState().doc.lines.map((line) => line.text)).toEqual(["A updated"]);
   useLrcStore.getState().undo();
   expect(useLrcStore.getState().doc.lines.map((line) => line.text)).toEqual(["A original"]);
+});
+
+it("keeps the raw editor and draft after saving before apply fails", async () => {
+  const t = useI18nStore.getState().t;
+  const unregister = setDocumentConfirmation(async () => "save");
+  useLrcStore.setState({
+    doc: defaultDocument(), isDirty: true, _history: [], _future: [], _documentSession: 24, _editRevision: 1,
+    saveLrc: vi.fn().mockRejectedValue(new Error("disk full")),
+  });
+  useToastStore.setState({ toasts: [] });
+  const { container, getByTitle, getByText } = render(<MetaEditor />);
+  fireEvent.click(getByTitle(t.viewAll));
+  const draft = "[00:01.00]draft";
+  fireEvent.change(container.querySelector("textarea")!, { target: { value: draft } });
+  fireEvent.click(getByText(t.rawEditorApply));
+
+  await waitFor(() => {
+    const toasts = useToastStore.getState().toasts;
+    expect(toasts[toasts.length - 1]?.message).toBe(t.toast.saveFailed);
+  });
+  expect(container.querySelector("textarea")?.value).toBe(draft);
+  expect(useLrcStore.getState().doc.lines).toHaveLength(0);
+  unregister();
 });
 
 it("preserves overlapping SRT cue ends when unchanged raw text is applied", async () => {

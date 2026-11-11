@@ -5,6 +5,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { serializeLrc } from "../../utils/lrcParser";
 import { useModalFocus } from "../../hooks/useModalFocus";
+import { DocumentTransitionSaveError } from "../../utils/documentTransition";
 
 export function MetaEditor() {
   // currentTime 등에 리렌더되지 않도록 필요한 필드만 구독
@@ -102,7 +103,10 @@ export function MetaEditor() {
               if (result === "applied") setRawEditorSnapshot(null);
               const after = useLrcStore.getState();
               return result === "applied" || (after._documentSession === owner.session && after._editRevision === owner.revision);
-            } catch { toast.error(t.toast.openFailed); return true; }
+            } catch (error) {
+              toast.error(error instanceof DocumentTransitionSaveError ? t.toast.saveFailed : t.toast.openFailed);
+              return false;
+            }
           }}
           onClose={() => setRawEditorSnapshot(null)}
         />
