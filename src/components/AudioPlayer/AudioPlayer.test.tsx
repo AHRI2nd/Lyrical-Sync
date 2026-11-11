@@ -3,11 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 // Supply controlled engine events; test the component's loop policy, not decoding.
-const { handlers, seekTo, play, load, engines, spectrogramCreated, spectrogramDestroyed } = vi.hoisted(() => ({
+const { handlers, seekTo, play, playPause, load, engines, spectrogramCreated, spectrogramDestroyed } = vi.hoisted(() => ({
   spectrogramCreated: vi.fn(), spectrogramDestroyed: vi.fn(),
   handlers: new Map<string, (...args: unknown[]) => void>(),
   engines: [] as Map<string, (...args: unknown[]) => void>[],
-  seekTo: vi.fn(), play: vi.fn(), load: vi.fn().mockResolvedValue(undefined),
+  seekTo: vi.fn(), play: vi.fn(), playPause: vi.fn(), load: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("wavesurfer.js", () => ({
   default: {
@@ -20,7 +20,7 @@ vi.mock("wavesurfer.js", () => ({
       getDuration: () => 100,
       getDecodedData: () => ({ length: 4, numberOfChannels: 1, sampleRate: 2, duration: 2,
         getChannelData: () => new Float32Array([0, .5, -.5, 0]) }),
-      seekTo, play, load, loadBlob: load,
+      seekTo, play, playPause, load, loadBlob: load,
       pause: vi.fn(), zoom: vi.fn(), setPlaybackRate: vi.fn(),
       exportPeaks: () => [[0.5]],
       setVolume: () => {},
@@ -85,6 +85,46 @@ describe("AudioPlayer loop-line boundaries", () => {
       duration: 0,
       isPlaying: false,
     });
+  });
+
+  it("gates shared play-pause on current selected audio readiness", async () => {
+    vi.mocked(readAudioBytes).mockImplementation(async (path) => {
+      if (path === "/broken.wav") throw "AUDIO_RESOURCE_LIMIT";
+      return { bytes: new Uint8Array([1]), transcoded: false, file: { path, bookmark: null } };
+    });
+    const { unmount } = render(<AudioPlayer />);
+
+    act(() => audioControls.togglePlay());
+    expect(playPause).not.toHaveBeenCalled();
+
+    act(() => useLrcStore.setState({ audioPath: "/broken.wav", _audioSelection: 1 }));
+    await waitFor(() => expect(useToastStore.getState().toasts.length).toBeGreaterThan(0));
+    act(() => audioControls.togglePlay());
+    expect(playPause).not.toHaveBeenCalled();
+
+    act(() => useLrcStore.setState({ audioPath: "/song.wav", _audioSelection: 2 }));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+    act(() => audioControls.togglePlay());
+    expect(playPause).not.toHaveBeenCalled();
+
+    const firstEngine = engines[engines.length - 1];
+    act(() => firstEngine.get("ready")?.());
+    act(() => audioControls.togglePlay());
+    expect(playPause).toHaveBeenCalledTimes(1);
+
+    act(() => useLrcStore.setState({ audioPath: "/replacement.wav", _audioSelection: 3 }));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    act(() => audioControls.togglePlay());
+    expect(playPause).toHaveBeenCalledTimes(1);
+    act(() => firstEngine.get("ready")?.());
+    act(() => audioControls.togglePlay());
+    expect(playPause).toHaveBeenCalledTimes(1);
+
+    const replacementEngine = engines[engines.length - 1];
+    act(() => replacementEngine.get("ready")?.());
+    act(() => audioControls.togglePlay());
+    expect(playPause).toHaveBeenCalledTimes(2);
+    unmount();
   });
 
   it("publishes decoded detail only for the current ready engine and clears it on replacement", async () => {

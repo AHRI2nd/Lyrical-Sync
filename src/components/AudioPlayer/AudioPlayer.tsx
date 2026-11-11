@@ -207,7 +207,12 @@ export function AudioPlayer() {
   }, [setCurrentTime, setDuration, setIsPlaying]);
 
   useEffect(() => {
-    audioControls.togglePlay = () => wsRef.current?.playPause();
+    audioControls.togglePlay = () => {
+      const selected = useLrcStore.getState();
+      const owner = engineOwnerRef.current;
+      if (!selected.audioPath || !readyRef.current || owner?.path !== selected.audioPath || owner.selection !== selected._audioSelection) return;
+      wsRef.current?.playPause();
+    };
     audioControls.pause = () => wsRef.current?.pause();
     audioControls.skip = (delta: number) => {
       const ws = wsRef.current;
