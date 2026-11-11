@@ -1004,6 +1004,50 @@ describe("useLrcStore — runAiSync blank-line timestamp placement", () => {
     expect(onUnhandled).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["alignment failure", false],
+    ["alignment cancellation", true],
+  ])("releases the progress listener once without leaking on %s", async (_label, cancelled) => {
+    reset([{ id: "line", timestamp: null, text: "hello" }]);
+    useLrcStore.setState({ audioPath: "/song.mp3" });
+    const cleanup = vi.fn(() => Promise.reject(new Error("listener cleanup failed")));
+    vi.mocked(listen).mockResolvedValueOnce(cleanup as never);
+    let rejectAlignment!: (reason: unknown) => void;
+    vi.mocked(invoke).mockImplementation((command: unknown) => {
+      if (command === "run_alignment") {
+        return new Promise((_resolve, reject) => { rejectAlignment = reject; });
+      }
+      return Promise.resolve(undefined);
+    });
+    const onUnhandled = vi.fn();
+    const nodeProcess = (globalThis as unknown as {
+      process: {
+        on: (event: "unhandledRejection", handler: (reason: unknown, promise: Promise<unknown>) => void) => void;
+        off: (event: "unhandledRejection", handler: (reason: unknown, promise: Promise<unknown>) => void) => void;
+      };
+    }).process;
+    nodeProcess.on("unhandledRejection", onUnhandled);
+
+    try {
+      const running = useLrcStore.getState().runAiSync("ko", 0.5, false, false);
+      await vi.waitFor(() => expect(rejectAlignment).toBeTypeOf("function"));
+      if (cancelled) {
+        useLrcStore.getState().cancelAiSync();
+        rejectAlignment("cancelled");
+      } else {
+        rejectAlignment(new Error("alignment failed"));
+      }
+      await running;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    } finally {
+      nodeProcess.off("unhandledRejection", onUnhandled);
+    }
+
+    expect(cleanup).toHaveBeenCalledOnce();
+    expect(onUnhandled).not.toHaveBeenCalled();
+    expect(useLrcStore.getState().aiSyncStatus).toBe(cancelled ? "idle" : "error");
+  });
+
   it("does not cancel AI alignment for an untimed range shift", async () => {
     reset([{ id: "untimed", timestamp: null, text: "hello" }]);
     useLrcStore.setState({ audioPath: "/song.mp3" });
