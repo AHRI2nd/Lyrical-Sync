@@ -6,24 +6,25 @@ interface I18nState {
   t: Translations;
 }
 
-// 기기(OS) 언어를 기준으로 한국어/일본어만 매칭하고, 그 외는 전부 영어로 표시.
-// 수동 전환 UI는 없음 — App Store 심사 대상 경량판은 시스템 언어를 그대로 따른다.
-function detectLang(): Lang {
-  const candidates =
-    typeof navigator !== "undefined"
-      ? navigator.languages && navigator.languages.length > 0
-        ? navigator.languages
-        : [navigator.language]
-      : [];
+// Prefer the first supported OS language; unsupported preferences fall through to English.
+// There is no manual language selector in the App Store review build.
+export function detectLang(languages?: readonly string[] | null, language?: string): Lang {
+  const candidates = languages && languages.length > 0 ? languages : language ? [language] : [];
   for (const raw of candidates) {
-    const lower = raw?.toLowerCase() ?? "";
-    if (lower.startsWith("ko")) return "ko";
-    if (lower.startsWith("ja")) return "ja";
+    const primary = typeof raw === "string"
+      ? /^([a-z]{2,3})(?:-[a-z0-9]{1,8})*$/i.exec(raw.trim())?.[1].toLowerCase()
+      : undefined;
+    if (primary === "ko") return "ko";
+    if (primary === "ja") return "ja";
+    if (primary === "en") return "en";
   }
   return "en";
 }
 
-const detected = detectLang();
+const detected = detectLang(
+  typeof navigator === "undefined" ? [] : navigator.languages,
+  typeof navigator === "undefined" ? undefined : navigator.language,
+);
 
 export const useI18nStore = create<I18nState>()(() => ({
   lang: detected,
