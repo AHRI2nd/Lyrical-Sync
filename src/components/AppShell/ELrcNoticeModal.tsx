@@ -13,6 +13,12 @@ export function ELrcNoticeModal({
   const dialog = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const [dontShowAgain, setDontShowAgain] = useState(false);
+  const confirmed = useRef(false);
+  const confirm = () => {
+    if (confirmed.current) return;
+    confirmed.current = true;
+    onConfirm(dontShowAgain);
+  };
   useModalFocus(dialog, onCancel, true, 60);
 
   return (
@@ -29,9 +35,9 @@ export function ELrcNoticeModal({
         className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
-          if (isComposingKeyEvent(e.nativeEvent) || e.key !== "Enter" || e.target instanceof HTMLButtonElement) return;
+          if (isComposingKeyEvent(e.nativeEvent) || e.repeat || e.key !== "Enter" || e.target instanceof HTMLButtonElement) return;
           e.preventDefault();
-          onConfirm(dontShowAgain);
+          confirm();
         }}
       >
         <div className="px-5 py-4 border-b border-[var(--ls-border-subtle)]">
@@ -51,7 +57,7 @@ export function ELrcNoticeModal({
             {t.elrcNotice.dontShowAgain}
           </label>
           <button
-            onClick={() => onConfirm(dontShowAgain)}
+            onClick={confirm}
             className="ls-button text-sm bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] text-white font-medium transition-colors ls-button--primary"
           >
             {t.elrcNotice.confirm}

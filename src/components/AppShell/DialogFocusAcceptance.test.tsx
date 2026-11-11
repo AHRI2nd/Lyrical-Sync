@@ -31,6 +31,34 @@ it("preserves a single Enter confirmation for the focused legacy notice", () => 
   expect(onConfirm).toHaveBeenCalledWith(false);
 });
 
+it("ignores composing and repeated Enter, and confirms at most once", () => {
+  const onConfirm = vi.fn();
+  const t = useI18nStore.getState().t;
+  render(<ELrcNoticeModal onConfirm={onConfirm} onCancel={vi.fn()} />);
+  const dialog = screen.getByRole("dialog", { name: t.elrcNotice.title });
+
+  fireEvent.keyDown(dialog, { key: "Enter", isComposing: true });
+  fireEvent.keyDown(dialog, { key: "Enter", keyCode: 229 });
+  expect(onConfirm).not.toHaveBeenCalled();
+
+  fireEvent.keyDown(dialog, { key: "Enter" });
+  fireEvent.keyDown(dialog, { key: "Enter", repeat: true });
+  fireEvent.click(screen.getByRole("button", { name: t.elrcNotice.confirm }));
+  expect(onConfirm).toHaveBeenCalledOnce();
+});
+
+it("lets Enter on the focused confirm button use only its native click", () => {
+  const onConfirm = vi.fn();
+  const t = useI18nStore.getState().t;
+  render(<ELrcNoticeModal onConfirm={onConfirm} onCancel={vi.fn()} />);
+  const button = screen.getByRole("button", { name: t.elrcNotice.confirm });
+
+  fireEvent.keyDown(button, { key: "Enter" });
+  fireEvent.click(button);
+
+  expect(onConfirm).toHaveBeenCalledOnce();
+});
+
 it("gives format selection a named focus scope and closes only on normal Escape", () => {
   const onCancel = vi.fn();
   const t = useI18nStore.getState().t;
