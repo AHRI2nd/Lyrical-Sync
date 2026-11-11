@@ -36,6 +36,7 @@ interface HistoryInfo { label: string; timestamp: number; count?: number }
 type AudioMetadataField = "title" | "artist" | "album";
 interface LrcStore {
   doc: LrcDocument;
+  _savedDocument: LrcDocument | null;
   _manualMetadataFields: Set<AudioMetadataField>;
   _documentSession: number;
   _editRevision: number;
@@ -235,8 +236,10 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     if (lrcPath || audioPath) return useSettingsStore.getState().addRecentFile({ lrcPath, audioPath, lrcBookmark, audioBookmark });
     return null;
   };
+  const initialDocument = defaultDocument();
   return ({
-  doc: defaultDocument(),
+  doc: initialDocument,
+  _savedDocument: initialDocument,
   _manualMetadataFields: new Set(),
   _documentSession: 0, _editRevision: 0, _openRequest: 0, _audioSelection: 0, _saveTarget: 0, _saveRequest: 0,
   _lastEditKey: null,
@@ -305,7 +308,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
   },
 
   undo: () => {
-    const { doc, _history, _future, activeLineId, loopLineId, activeSyllableIndex, syncUnit } = get();
+    const { doc, _savedDocument, _history, _future, activeLineId, loopLineId, activeSyllableIndex, syncUnit } = get();
     if (_history.length === 0) return;
     const prev = _history[_history.length - 1];
     const selection = selectionForDocument(prev, { activeLineId, loopLineId, activeSyllableIndex }, syncUnit);
@@ -316,12 +319,12 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
       _future: [doc, ..._future].slice(0, MAX_HISTORY),
       _historyInfo: historyInfo(_history, get()._historyInfo).slice(0, -1),
       _futureInfo: [historyInfo(_history, get()._historyInfo)[_history.length - 1], ...historyInfo(_future, get()._futureInfo)].slice(0, MAX_HISTORY),
-      isDirty: true,
+      isDirty: prev !== _savedDocument,
     });
   },
 
   redo: () => {
-    const { doc, _history, _future, activeLineId, loopLineId, activeSyllableIndex, syncUnit } = get();
+    const { doc, _savedDocument, _history, _future, activeLineId, loopLineId, activeSyllableIndex, syncUnit } = get();
     if (_future.length === 0) return;
     const next = _future[0];
     const selection = selectionForDocument(next, { activeLineId, loopLineId, activeSyllableIndex }, syncUnit);
@@ -332,7 +335,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
       _future: _future.slice(1),
       _historyInfo: [...historyInfo(_history, get()._historyInfo), historyInfo(_future, get()._futureInfo)[0]].slice(-MAX_HISTORY),
       _futureInfo: historyInfo(_future, get()._futureInfo).slice(1),
-      isDirty: true,
+      isDirty: next !== _savedDocument,
     });
   },
 
@@ -350,7 +353,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     }, state.syncUnit);
     set({ doc: target, _history: timeline.slice(0, index).slice(-MAX_HISTORY), _future: timeline.slice(index + 1).slice(0, MAX_HISTORY),
       _historyInfo: info.slice(0, index).slice(-MAX_HISTORY), _futureInfo: info.slice(index).slice(0, MAX_HISTORY),
-      isDirty: true, _lastEditKey: null, ...selection });
+      isDirty: target !== state._savedDocument, _lastEditKey: null, ...selection });
   },
 
   setIsPlaying: (v) => set({ isPlaying: v }),
@@ -814,6 +817,7 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
         const selection = previous._audioSelection + (audio !== undefined ? 1 : 0);
         const target = previous._saveTarget + 1;
         set({ doc, lrcPath: lyrics?.path ?? null, lrcBookmark: lyrics?.bookmark ?? null,
+          _savedDocument: intent.kind === "recovery" ? null : intent.kind === "raw" ? previous._savedDocument : doc,
           ...(audio !== undefined ? { audioPath: audio?.path ?? null, audioBookmark: audio?.bookmark ?? null } : {}),
           _manualMetadataFields: new Set(),
           _documentSession: session, _editRevision: 0, _audioSelection: selection, _saveTarget: target,
@@ -879,10 +883,15 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     if (!result.written) return false;
     if (get()._documentSession === session) {
       get().refreshFileReference("lyrics", { path: lrcPath, bookmark: lrcBookmark }, result.file, { session, selection: get()._audioSelection, target });
-      if (get()._editRevision === revision && get()._saveTarget === target) {
-        if (normalizesSrtOnlyData) set({ ...pushHistory(doc, null, "convertFormat"), doc: savedDoc, isDirty: false,
-          _editRevision: revision + 1, _lastEditKey: null });
-        else set({ isDirty: false });
+      const current = get();
+      if (current._saveTarget === target && current.lrcPath === result.file.path) {
+        set({ _savedDocument: savedDoc });
+        if (normalizesSrtOnlyData && current.doc === doc && current._editRevision === revision) {
+          set({ ...pushHistory(doc, null, "convertFormat"), doc: savedDoc, _savedDocument: savedDoc, isDirty: false,
+            _editRevision: revision + 1, _lastEditKey: null });
+        } else {
+          set({ isDirty: get().doc !== savedDoc });
+        }
       }
     }
     return true;
@@ -927,8 +936,9 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
         const current = get();
         const canNormalize = normalizesSrtOnlyData && current.doc === doc && current._editRevision === revision;
         set({ ...(canNormalize ? { ...pushHistory(doc, null, "convertFormat"), doc: savedDoc, _editRevision: revision + 1 } : {}),
+          _savedDocument: savedDoc,
           lrcPath: path, lrcBookmark: null, _saveTarget: target,
-          isDirty: canNormalize ? false : current._editRevision !== revision });
+          isDirty: canNormalize ? false : current.doc !== savedDoc });
         const recentOpenedAt = recordRecent();
         createBookmark(path).then((bookmark) => {
           get().refreshFileReference("lyrics", { path, bookmark: null }, { path, bookmark }, {

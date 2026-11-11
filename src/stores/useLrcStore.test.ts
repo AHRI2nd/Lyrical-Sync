@@ -31,9 +31,11 @@ import { parseLrc, serializeLrc } from "../utils/lrcParser";
 import { parseSrt } from "../utils/srtConverter";
 import { enqueuePathWrite } from "../utils/pathWriteQueue";
 
-const reset = (lines: LrcLine[], offset = 0) =>
+const reset = (lines: LrcLine[], offset = 0) => {
+  const doc: LrcDocument = { metadata: { title: "", artist: "", album: "", by: "", offset }, lines, extraTags: {} };
   useLrcStore.setState({
-    doc: { metadata: { title: "", artist: "", album: "", by: "", offset }, lines, extraTags: {} },
+    doc,
+    _savedDocument: doc,
     _manualMetadataFields: new Set(),
     _history: [],
     _future: [],
@@ -41,6 +43,7 @@ const reset = (lines: LrcLine[], offset = 0) =>
     activeLineId: null,
     isDirty: false,
   });
+};
 
 const lines = () => useLrcStore.getState().doc.lines;
 
@@ -1176,6 +1179,143 @@ describe("useLrcStore SRT save policy", () => {
     expect(useLrcStore.getState().isDirty).toBe(true);
     useLrcStore.getState().redo();
     expect(useLrcStore.getState().doc.lines[0].translation).toBe("");
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
+  it("clears dirty when undo returns to the last successfully saved document", async () => {
+    vi.mocked(invoke).mockResolvedValue(undefined);
+    reset([{ id: "saved", timestamp: 1, text: "saved line" }]);
+    useLrcStore.setState({ lrcPath: "/working.lrc" });
+    const savedDocument = useLrcStore.getState().doc;
+
+    useLrcStore.getState().setMetadata({ title: "Edited title" });
+    useLrcStore.getState().setLines([
+      { id: "saved", timestamp: 1.5, srtEndTime: 2.5, text: "edited line", translation: "translated",
+        syllables: [{ text: "edited", time: 1.5 }] },
+      { id: "next", timestamp: 2.5, text: "next line" },
+    ]);
+    expect(useLrcStore.getState().isDirty).toBe(true);
+
+    await expect(useLrcStore.getState().saveLrc()).resolves.toBe(true);
+    const lastSaved = useLrcStore.getState().doc;
+    expect(lastSaved).not.toBe(savedDocument);
+    expect(useLrcStore.getState().isDirty).toBe(false);
+
+    useLrcStore.getState().setMetadata({ title: "Later title" });
+    useLrcStore.getState().updateLine("saved", { translation: "later translation" });
+    useLrcStore.getState().undo();
+    useLrcStore.getState().undo();
+
+    expect(useLrcStore.getState().doc).toBe(lastSaved);
+    expect(useLrcStore.getState().doc.lines[0]).toMatchObject({
+      timestamp: 1.5, srtEndTime: 2.5, text: "edited line", translation: "translated",
+      syllables: [{ text: "edited", time: 1.5 }],
+    });
+    expect(useLrcStore.getState().doc.metadata.title).toBe("Edited title");
+    expect(useLrcStore.getState().isDirty).toBe(false);
+
+    useLrcStore.getState().redo();
+    expect(useLrcStore.getState().isDirty).toBe(true);
+  });
+
+  it("does not replace the saved baseline after cancelled or failed Save As", async () => {
+    reset([{ id: "saved", timestamp: 1, text: "saved line" }]);
+    const savedDocument = useLrcStore.getState().doc;
+    useLrcStore.getState().updateLine("saved", { text: "cancelled draft" });
+    vi.mocked(save).mockResolvedValueOnce(null);
+    await expect(useLrcStore.getState().saveLrcAs("lrc")).resolves.toBe(false);
+    expect(useLrcStore.getState().isDirty).toBe(true);
+    useLrcStore.getState().undo();
+    expect(useLrcStore.getState().doc).toBe(savedDocument);
+    expect(useLrcStore.getState().isDirty).toBe(false);
+
+    useLrcStore.getState().updateLine("saved", { text: "failed draft" });
+    vi.mocked(save).mockResolvedValueOnce("/exports/failed.lrc");
+    vi.mocked(invoke).mockRejectedValue(new Error("simulated write failure"));
+    await expect(useLrcStore.getState().saveLrcAs("lrc")).rejects.toThrow("simulated write failure");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+    useLrcStore.getState().undo();
+    expect(useLrcStore.getState().doc).toBe(savedDocument);
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
+  it("tracks a successful Save As LRC snapshot as the new undo-clean point", async () => {
+    reset([{ id: "saved", timestamp: 1, text: "original" }]);
+    useLrcStore.getState().updateLine("saved", { text: "exported snapshot" });
+    vi.mocked(save).mockResolvedValue("/exports/saved.lrc");
+    vi.mocked(invoke).mockResolvedValue(undefined);
+
+    await expect(useLrcStore.getState().saveLrcAs("lrc")).resolves.toBe(true);
+    const savedDocument = useLrcStore.getState().doc;
+    expect(useLrcStore.getState().lrcPath).toBe("/exports/saved.lrc");
+    expect(useLrcStore.getState().isDirty).toBe(false);
+
+    useLrcStore.getState().setMetadata({ title: "later edit" });
+    useLrcStore.getState().undo();
+    expect(useLrcStore.getState().doc).toBe(savedDocument);
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
+  it("uses loaded documents as saved baselines and preserves that baseline across raw edits", async () => {
+    reset([]);
+    vi.mocked(invoke).mockImplementation((command) => command === "read_lrc_file"
+      ? Promise.resolve("[00:01.00]loaded lyric") : Promise.resolve(undefined));
+
+    await useLrcStore.getState().loadLyricsPath("/loaded.lrc");
+    const loadedDocument = useLrcStore.getState().doc;
+    expect(useLrcStore.getState()._savedDocument).toBe(loadedDocument);
+    expect(useLrcStore.getState().isDirty).toBe(false);
+
+    await useLrcStore.getState().loadFromRawText("[00:02.00]raw replacement");
+    expect(useLrcStore.getState().isDirty).toBe(true);
+    useLrcStore.getState().undo();
+    expect(useLrcStore.getState().doc).toBe(loadedDocument);
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
+  it("reconciles a successful in-flight save when undo returns to its exact snapshot", async () => {
+    reset([{ id: "saved", timestamp: 1, text: "original" }]);
+    useLrcStore.setState({ lrcPath: "/working.lrc" });
+    useLrcStore.getState().updateLine("saved", { text: "written snapshot" });
+    const writtenSnapshot = useLrcStore.getState().doc;
+    let finishWrite: (() => void) | undefined;
+    vi.mocked(invoke).mockImplementation((command) => command === "write_lrc_file"
+      ? new Promise<void>((resolve) => { finishWrite = resolve; })
+      : Promise.resolve(undefined));
+
+    const savePromise = useLrcStore.getState().saveLrc();
+    await vi.waitFor(() => expect(finishWrite).toBeTypeOf("function"));
+    useLrcStore.getState().updateLine("saved", { text: "newer edit" });
+    useLrcStore.getState().undo();
+    expect(useLrcStore.getState().doc).toBe(writtenSnapshot);
+    expect(useLrcStore.getState().isDirty).toBe(true);
+
+    finishWrite?.();
+    await expect(savePromise).resolves.toBe(true);
+    expect(useLrcStore.getState().doc).toBe(writtenSnapshot);
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
+  it("does not apply a completed old save baseline after the document is replaced", async () => {
+    reset([{ id: "old", timestamp: 1, text: "old document" }]);
+    const oldSavedBaseline = useLrcStore.getState()._savedDocument;
+    useLrcStore.setState({ lrcPath: "/old.lrc" });
+    useLrcStore.getState().updateLine("old", { text: "old edit" });
+    let finishWrite: (() => void) | undefined;
+    vi.mocked(invoke).mockImplementation((command) => command === "write_lrc_file"
+      ? new Promise<void>((resolve) => { finishWrite = resolve; })
+      : command === "read_lrc_file" ? Promise.resolve("[00:02.00]new document") : Promise.resolve(undefined));
+
+    const savePromise = useLrcStore.getState().saveLrc();
+    await vi.waitFor(() => expect(finishWrite).toBeTypeOf("function"));
+    await useLrcStore.getState().loadFromRawText("[00:03.00]replacement document");
+    const replacement = useLrcStore.getState().doc;
+    expect(useLrcStore.getState().isDirty).toBe(true);
+
+    finishWrite?.();
+    await expect(savePromise).resolves.toBe(true);
+    expect(useLrcStore.getState().doc).toBe(replacement);
+    expect(useLrcStore.getState()._savedDocument).toBe(oldSavedBaseline);
     expect(useLrcStore.getState().isDirty).toBe(true);
   });
 
