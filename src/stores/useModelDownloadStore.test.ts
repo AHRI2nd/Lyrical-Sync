@@ -201,6 +201,39 @@ it("does not let an earlier inventory overwrite the selected model directory", a
   expect(useModelDownloadStore.getState().models[model.id].status).toBe("installed");
 });
 
+it("does not let a late inventory failure overwrite the selected model directory", async () => {
+  const oldCheck = deferred<boolean[]>();
+  let selectedRoot = "/models/old";
+  const model = MODEL_DEFS[0];
+  invoke.mockImplementation((command: string, args?: { path?: string; expectedRoot?: string; modelId?: string }) => {
+    if (command === "set_models_dir_override") {
+      selectedRoot = args?.path || "/models/default";
+      return Promise.resolve(undefined);
+    }
+    if (command === "get_models_dir") return Promise.resolve(selectedRoot);
+    if (command === "check_model_files" && args?.expectedRoot === "/models/old" && args.modelId === model.id) return oldCheck.promise;
+    if (command === "check_model_files" && args?.expectedRoot === "/models/new" && args.modelId === model.id) return Promise.resolve([true]);
+    if (command === "check_model_files") return Promise.resolve([false]);
+    return Promise.resolve(undefined);
+  });
+  useSettingsStore.setState({ modelsDir: "/models/old" });
+  const oldRefresh = useModelDownloadStore.getState().refreshInstalled();
+  await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("check_model_files", expect.objectContaining({
+    expectedRoot: "/models/old",
+    modelId: model.id,
+  })));
+
+  useSettingsStore.setState({ modelsDir: "/models/new" });
+  await useModelDownloadStore.getState().refreshInstalled();
+  expect(useModelDownloadStore.getState().modelsPath).toBe("/models/new");
+  expect(useModelDownloadStore.getState().models[model.id].status).toBe("installed");
+
+  oldCheck.reject(new Error("access denied"));
+  await oldRefresh;
+  expect(useModelDownloadStore.getState().modelsPath).toBe("/models/new");
+  expect(useModelDownloadStore.getState().models[model.id].status).toBe("installed");
+});
+
 it("keeps failed model checks distinct from a successful missing-model result", async () => {
   const [unreadableModel, missingModel] = MODEL_DEFS;
   invoke.mockImplementation((command: string, args?: { modelId?: string }) => {
