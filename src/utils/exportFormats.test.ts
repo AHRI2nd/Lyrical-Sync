@@ -121,6 +121,27 @@ describe("serializeAss", () => {
     }]), 2);
     expect(out).toContain("{\\k25}{\\k25}a{\\k50}b");
   });
+
+  it.each([0.104, 0.106])("keeps long karaoke timing within the rounded cue end at %s seconds per glyph", (step) => {
+    const syllables = Array.from({ length: 100 }, (_, index) => ({ text: "a", time: index * step }));
+    const out = serializeAss(docOf([{ id: "long-fractional", timestamp: 0, text: "a".repeat(100), syllables }]), 100 * step);
+    const event = out.split("\n").find((line) => line.startsWith("Dialogue:"))!;
+    const durations = [...event.matchAll(/\\k(\d+)/g)].map((match) => Number(match[1]));
+
+    expect(durations).toHaveLength(100);
+    expect(durations.reduce((sum, duration) => sum + duration, 0)).toBe(Math.round(100 * step * 100));
+    expect(durations.every((duration) => duration >= 0)).toBe(true);
+  });
+
+  it("preserves centiseconds across sub-centisecond glyph boundaries", () => {
+    const syllables = [0, 0.001, 0.004, 0.006].map((time, index) => ({ text: String(index), time }));
+    const out = serializeAss(docOf([{ id: "small-boundaries", timestamp: 0, text: "0123", syllables }]), 0.01);
+    const event = out.split("\n").find((line) => line.startsWith("Dialogue:"))!;
+    const durations = [...event.matchAll(/\\k(\d+)/g)].map((match) => Number(match[1]));
+
+    expect(durations).toEqual([0, 0, 1, 0]);
+    expect(durations.reduce((sum, duration) => sum + duration, 0)).toBe(1);
+  });
 });
 
 

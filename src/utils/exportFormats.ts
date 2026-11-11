@@ -165,14 +165,16 @@ function assText(line: LrcLine, cueStart: number, cueEnd: number): string {
       const s = syl[i];
       if (s.time === null) { out += escapeAssText(s.text); continue; }
       if (firstTimed && s.time > cueStart) {
-        out += `{\\k${Math.round((s.time - cueStart) * 100)}}`;
+        out += `{\\k${Math.round(s.time * 100) - Math.round(cueStart * 100)}}`;
       }
       firstTimed = false;
       let nextT = cueEnd;
       for (let j = i + 1; j < syl.length; j++) {
         if (syl[j].time !== null) { nextT = syl[j].time as number; break; }
       }
-      const durCs = Math.max(0, Math.round((nextT - (s.time as number)) * 100));
+      const startCs = Math.round((s.time as number) * 100);
+      const endCs = Math.round(nextT * 100);
+      const durCs = Math.max(0, endCs - startCs);
       out += `{\\k${durCs}}${escapeAssText(s.text)}`;
     }
     return out;
