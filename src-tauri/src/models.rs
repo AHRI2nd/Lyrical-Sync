@@ -589,13 +589,72 @@ fn cancel_download_if_current(
 }
 
 fn checked_model_download_bytes(current: u64, additional: u64) -> Result<u64, String> {
+    checked_model_download_bytes_with_limit(current, additional, MAX_MODEL_DOWNLOAD_BYTES)
+}
+
+fn checked_model_download_bytes_with_limit(
+    current: u64,
+    additional: u64,
+    limit: u64,
+) -> Result<u64, String> {
     let total = current
         .checked_add(additional)
         .ok_or_else(|| "MODEL_DOWNLOAD_LIMIT".to_string())?;
-    if total > MAX_MODEL_DOWNLOAD_BYTES {
+    if total > limit {
         return Err("MODEL_DOWNLOAD_LIMIT".into());
     }
     Ok(total)
+}
+
+async fn stage_model_response<'d, F>(
+    mut response: reqwest::Response,
+    parent: &'d cap_std::fs::Dir,
+    total_downloaded: &mut u64,
+    limit: u64,
+    cancel: &AtomicBool,
+    mut on_progress: F,
+) -> Result<(cap_tempfile::TempFile<'d>, u64, String), String>
+where
+    F: FnMut(u64, u64),
+{
+    use sha2::{Digest, Sha256};
+    use std::io::Write;
+
+    let declared_total = response.content_length().unwrap_or(0);
+    if declared_total > limit
+        || (declared_total > 0
+            && checked_model_download_bytes_with_limit(*total_downloaded, declared_total, limit)
+                .is_err())
+    {
+        return Err("MODEL_DOWNLOAD_LIMIT".into());
+    }
+
+    let mut stage = cap_tempfile::TempFile::new(parent).map_err(|e| e.to_string())?;
+    let mut downloaded = 0_u64;
+    let mut digest = Sha256::new();
+    while let Some(chunk) = wait_for_download_io(response.chunk(), cancel).await? {
+        if cancel.load(Ordering::Relaxed) {
+            return Err("cancelled".into());
+        }
+        let chunk_bytes = chunk.len() as u64;
+        let next_downloaded =
+            checked_model_download_bytes_with_limit(downloaded, chunk_bytes, limit)?;
+        let next_total =
+            checked_model_download_bytes_with_limit(*total_downloaded, chunk_bytes, limit)?;
+        stage.write_all(&chunk).map_err(|e| e.to_string())?;
+        digest.update(&chunk);
+        downloaded = next_downloaded;
+        *total_downloaded = next_total;
+        on_progress(downloaded, declared_total);
+    }
+    if cancel.load(Ordering::Relaxed) {
+        return Err("cancelled".into());
+    }
+    if declared_total > 0 && declared_total != downloaded {
+        return Err("Incomplete model download".into());
+    }
+
+    Ok((stage, downloaded, format!("{:x}", digest.finalize())))
 }
 
 async fn download_files<R: tauri::Runtime>(
@@ -606,8 +665,6 @@ async fn download_files<R: tauri::Runtime>(
     files: &[FileSpec],
     cancel: Arc<AtomicBool>,
 ) -> Result<(), String> {
-    use sha2::{Digest, Sha256};
-    use std::io::Write;
     std::fs::create_dir_all(&base).map_err(|e| e.to_string())?;
     let store = crate::model_store::ModelStore::open(base).map_err(|e| e.to_string())?;
     let client = reqwest::Client::builder()
@@ -653,54 +710,36 @@ async fn download_files<R: tauri::Runtime>(
                 continue;
             }
         }
-        let mut response = wait_for_download_io(client.get(&spec.url).send(), &cancel)
+        let response = wait_for_download_io(client.get(&spec.url).send(), &cancel)
             .await?
             .error_for_status()
             .map_err(|e| e.to_string())?;
-        let total = response.content_length().unwrap_or(0);
-        if total > MAX_MODEL_DOWNLOAD_BYTES {
-            return Err("MODEL_DOWNLOAD_LIMIT".into());
-        }
-        if total > 0 {
-            checked_model_download_bytes(total_downloaded, total)?;
-        }
-        let mut downloaded = 0u64;
-        let mut digest = Sha256::new();
         // Unique staging remains owned by this operation and is removed on every failure.
         // All publication paths are relative to the already-open destination directory.
-        let mut stage = cap_tempfile::TempFile::new(&parent).map_err(|e| e.to_string())?;
-        while let Some(chunk) = wait_for_download_io(response.chunk(), &cancel).await? {
-            if cancel.load(Ordering::Relaxed) {
-                return Err("cancelled".into());
-            }
-            let chunk_bytes = chunk.len() as u64;
-            downloaded = checked_model_download_bytes(downloaded, chunk_bytes)?;
-            total_downloaded = checked_model_download_bytes(total_downloaded, chunk_bytes)?;
-            stage.write_all(&chunk).map_err(|e| e.to_string())?;
-            digest.update(&chunk);
-            let _ = app.emit(
-                "model-download-progress",
-                DownloadProgressEvent {
-                    model_id: model_id.into(),
-                    run_id: run_id.into(),
-                    file_index: i,
-                    file_count: files.len(),
-                    downloaded,
-                    total,
-                    done: false,
-                    error: None,
-                },
-            );
-        }
-        if cancel.load(Ordering::Relaxed) {
-            return Err("cancelled".into());
-        }
-        if total > 0 && total != downloaded {
-            return Err("Incomplete model download".into());
-        }
-        if verify.is_some_and(|expected| {
-            !format!("{:x}", digest.finalize()).eq_ignore_ascii_case(expected)
-        }) {
+        let (stage, _downloaded, digest) = stage_model_response(
+            response,
+            &parent,
+            &mut total_downloaded,
+            MAX_MODEL_DOWNLOAD_BYTES,
+            &cancel,
+            |downloaded, total| {
+                let _ = app.emit(
+                    "model-download-progress",
+                    DownloadProgressEvent {
+                        model_id: model_id.into(),
+                        run_id: run_id.into(),
+                        file_index: i,
+                        file_count: files.len(),
+                        downloaded,
+                        total,
+                        done: false,
+                        error: None,
+                    },
+                );
+            },
+        )
+        .await?;
+        if verify.is_some_and(|expected| !digest.eq_ignore_ascii_case(expected)) {
             return Err(format!("Model checksum mismatch: {}", spec.filename));
         }
         stage.as_file().sync_all().map_err(|e| e.to_string())?;
@@ -763,6 +802,28 @@ pub async fn delete_model_files(
 #[cfg(test)]
 mod integrity_tests {
     use super::*;
+
+    async fn local_model_response(response: &'static [u8]) -> reqwest::Response {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = [0; 4096];
+            let _ = stream.read(&mut request).await;
+            stream.write_all(response).await.unwrap();
+        });
+
+        reqwest::Client::builder()
+            .no_proxy()
+            .build()
+            .unwrap()
+            .get(format!("http://{address}/model"))
+            .send()
+            .await
+            .unwrap()
+    }
 
     #[test]
     fn an_active_model_use_prevents_deletion_until_inference_finishes() {
@@ -1040,6 +1101,135 @@ mod integrity_tests {
         );
         assert!(checked_model_download_bytes(MAX_MODEL_DOWNLOAD_BYTES, 1).is_err());
         assert!(checked_model_download_bytes(u64::MAX, 1).is_err());
+    }
+
+    #[tokio::test]
+    async fn declared_model_response_over_limit_preserves_existing_file_without_staging() {
+        let root = tempfile::tempdir().unwrap();
+        let store = crate::model_store::ModelStore::open(root.path()).unwrap();
+        let (parent, _) = store.destination("model.bin").unwrap();
+        let path = root.path().join("model.bin");
+        std::fs::write(&path, b"previous-valid-model").unwrap();
+        let response = local_model_response(
+            b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\nConnection: close\r\n\r\n123456",
+        )
+        .await;
+        let mut total_downloaded = 0;
+
+        let result = stage_model_response(
+            response,
+            &parent,
+            &mut total_downloaded,
+            5,
+            &AtomicBool::new(false),
+            |_, _| {},
+        )
+        .await;
+
+        assert_eq!(result.unwrap_err(), "MODEL_DOWNLOAD_LIMIT");
+        assert_eq!(std::fs::read(path).unwrap(), b"previous-valid-model");
+        assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 1);
+    }
+
+    #[tokio::test]
+    async fn chunked_model_response_over_limit_cleans_stage_and_preserves_existing_file() {
+        let root = tempfile::tempdir().unwrap();
+        let store = crate::model_store::ModelStore::open(root.path()).unwrap();
+        let (parent, _) = store.destination("model.bin").unwrap();
+        let path = root.path().join("model.bin");
+        std::fs::write(&path, b"previous-valid-model").unwrap();
+        let response = local_model_response(
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n3\r\n123\r\n2\r\n45\r\n0\r\n\r\n",
+        )
+        .await;
+        let mut total_downloaded = 0;
+        let progress_events = std::sync::atomic::AtomicUsize::new(0);
+
+        let result = stage_model_response(
+            response,
+            &parent,
+            &mut total_downloaded,
+            4,
+            &AtomicBool::new(false),
+            |_, _| {
+                progress_events.fetch_add(1, Ordering::Relaxed);
+            },
+        )
+        .await;
+
+        assert_eq!(result.unwrap_err(), "MODEL_DOWNLOAD_LIMIT");
+        assert_eq!(progress_events.load(Ordering::Relaxed), 1);
+        assert_eq!(std::fs::read(path).unwrap(), b"previous-valid-model");
+        assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 1);
+    }
+
+    #[tokio::test]
+    async fn declared_model_response_over_remaining_job_budget_is_rejected_before_staging() {
+        let root = tempfile::tempdir().unwrap();
+        let store = crate::model_store::ModelStore::open(root.path()).unwrap();
+        let (parent, _) = store.destination("model.bin").unwrap();
+        let path = root.path().join("model.bin");
+        std::fs::write(&path, b"previous-valid-model").unwrap();
+        let response = local_model_response(
+            b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n12",
+        )
+        .await;
+        let mut total_downloaded = 4;
+
+        let result = stage_model_response(
+            response,
+            &parent,
+            &mut total_downloaded,
+            5,
+            &AtomicBool::new(false),
+            |_, _| {},
+        )
+        .await;
+
+        assert_eq!(result.unwrap_err(), "MODEL_DOWNLOAD_LIMIT");
+        assert_eq!(total_downloaded, 4);
+        assert_eq!(std::fs::read(path).unwrap(), b"previous-valid-model");
+        assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 1);
+    }
+
+    #[tokio::test]
+    async fn exact_limit_chunked_model_response_can_be_published() {
+        let root = tempfile::tempdir().unwrap();
+        let store = crate::model_store::ModelStore::open(root.path()).unwrap();
+        let (parent, filename) = store.destination("model.bin").unwrap();
+        let response = local_model_response(
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n3\r\n123\r\n2\r\n45\r\n0\r\n\r\n",
+        )
+        .await;
+        let mut total_downloaded = 0;
+
+        let (stage, downloaded, digest) = stage_model_response(
+            response,
+            &parent,
+            &mut total_downloaded,
+            5,
+            &AtomicBool::new(false),
+            |_, _| {},
+        )
+        .await
+        .unwrap();
+        stage.as_file().sync_all().unwrap();
+        stage.replace(&filename).unwrap();
+
+        assert_eq!(downloaded, 5);
+        assert_eq!(total_downloaded, 5);
+        assert_eq!(
+            digest,
+            "5994471abb01112afcc18159f6cc74b4f511b99806da59b3caf5a9c173cacfc5"
+        );
+        assert_eq!(
+            store.read("model.bin").unwrap().metadata().unwrap().len(),
+            5
+        );
+        assert_eq!(
+            std::fs::read(root.path().join("model.bin")).unwrap(),
+            b"12345"
+        );
     }
 
     #[test]
