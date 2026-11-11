@@ -28,7 +28,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { useSettingsStore } from "./useSettingsStore";
 import { parseLrc, serializeLrc } from "../utils/lrcParser";
-import { parseSrt } from "../utils/srtConverter";
+import { parseSrt, serializeSrt } from "../utils/srtConverter";
 import { enqueuePathWrite } from "../utils/pathWriteQueue";
 
 const reset = (lines: LrcLine[], offset = 0) => {
@@ -405,6 +405,48 @@ describe("useLrcStore — line manipulation", () => {
     expect(ls[0].timestamp).toBe(5);
     expect(ls[1].timestamp).toBeNull();
     expect(ls[1].id).toBe(nid);
+  });
+
+  it.each([
+    { stamp: 3, firstEnd: 3, secondEnd: 6 },
+    { stamp: 5, firstEnd: 3.5, secondEnd: 6 },
+    { stamp: 8, firstEnd: 3.5, secondEnd: 12 },
+  ])("keeps split SRT halves non-overlapping when the second half is stamped at $stamp", async ({ stamp, firstEnd, secondEnd }) => {
+    const source = "1\n00:00:01,000 --> 00:00:06,000\nfirstsecond\n\n2\n00:00:04,000 --> 00:00:07,000\nintentional neighbor overlap\n";
+    let written = "";
+    vi.mocked(invoke).mockImplementation((command, args) => {
+      if (command === "read_lrc_file") return Promise.resolve(source);
+      if (command === "write_lrc_file") {
+        written = (args as { content: string }).content;
+        return Promise.resolve(undefined);
+      }
+      return Promise.resolve(null);
+    });
+    await useLrcStore.getState().loadLyricsPath("/split.srt");
+
+    const firstId = lines()[0].id;
+    const secondId = useLrcStore.getState().splitLine(firstId, 5);
+    useLrcStore.getState().updateLine(secondId, { timestamp: stamp });
+    let srtOutput: string;
+    if (stamp === 3) {
+      await useLrcStore.getState().saveLrc();
+      srtOutput = written;
+    } else {
+      srtOutput = serializeSrt(useLrcStore.getState().doc);
+    }
+
+    const output = parseSrt(srtOutput).lines.filter((line) => line.text.trim()).sort((left, right) => left.timestamp! - right.timestamp!);
+    expect(output.map(({ text, timestamp, srtEndTime }) => [text, timestamp, srtEndTime])).toEqual([
+      ["first", 1, firstEnd],
+      ...(stamp < 4
+        ? [["second", stamp, secondEnd], ["intentional neighbor overlap", 4, 7]]
+        : [["intentional neighbor overlap", 4, 7], ["second", stamp, secondEnd]]),
+    ]);
+
+    useLrcStore.getState().undo();
+    expect(lines().slice(0, 2).map(({ timestamp, srtEndTime }) => [timestamp, srtEndTime])).toEqual([[1, 3.5], [null, 6]]);
+    useLrcStore.getState().redo();
+    expect(lines().slice(0, 2).map(({ timestamp, srtEndTime }) => [timestamp, srtEndTime])).toEqual([[1, firstEnd], [stamp, Math.max(stamp, 6)]]);
   });
 
   it("moveLine reorders lines", () => {

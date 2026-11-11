@@ -530,7 +530,17 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     const updatedLine = { ...(normalizedPatch.timestamp !== undefined ? retimeLine(line, normalizedPatch.timestamp) : line), ...normalizedPatch };
     if (!hasFiniteLineTimes([updatedLine])) { reportInvalidTime(); return; }
     const key = fields.length === 1 && (fields[0] === "text" || fields[0] === "translation") ? `line:${id}:${fields[0]}` : null;
-    set({ ...pushHistory(doc, key), doc: { ...doc, lines: doc.lines.map((item) => item.id === id ? updatedLine : item) }, isDirty: true });
+    const lines = doc.lines.map((item) => item.id === id ? updatedLine : item);
+    const timestamp = normalizedPatch.timestamp;
+    if (timestamp !== undefined && timestamp !== null && Number.isFinite(timestamp) && line.srtSplitPeerId) {
+      const peerIndex = lines.findIndex((item) => item.id === line.srtSplitPeerId);
+      const peer = lines[peerIndex];
+      if (peer && Number.isFinite(line.srtSplitBoundary) && peer.timestamp !== null &&
+          Number.isFinite(peer.srtEndTime) && timestamp > peer.timestamp) {
+        lines[peerIndex] = { ...peer, srtEndTime: Math.min(line.srtSplitBoundary as number, timestamp) };
+      }
+    }
+    set({ ...pushHistory(doc, key), doc: { ...doc, lines }, isDirty: true });
   },
 
   deleteLine: (id) => {
@@ -580,9 +590,24 @@ export const useLrcStore = create<LrcStore>((baseSet, get) => {
     if (idx < 0) return id;
     const cur = doc.lines[idx];
     const newId = genId();
+    const splitSource = { ...cur, srtSplitPeerId: undefined, srtSplitBoundary: undefined };
     // 앞부분: 타임스탬프 유지 / 뒷부분: 새 줄(타임스탬프 없음). 둘 다 글자 동기화 무효화
-    const first: LrcLine = { ...cur, text: cur.text.slice(0, caretPos), ...(translations ? { translation: translations.first } : {}), syllables: undefined };
-    const second: LrcLine = { id: newId, timestamp: null, text: cur.text.slice(caretPos), ...(translations ? { translation: translations.second } : {}) };
+    const hasSrtInterval = cur.timestamp !== null && Number.isFinite(cur.srtEndTime) && cur.srtEndTime! > cur.timestamp;
+    const splitBoundary = hasSrtInterval ? cur.timestamp! + (cur.srtEndTime! - cur.timestamp!) / 2 : undefined;
+    const first: LrcLine = {
+      ...splitSource,
+      text: cur.text.slice(0, caretPos),
+      ...(translations ? { translation: translations.first } : {}),
+      ...(hasSrtInterval ? { srtEndTime: splitBoundary } : {}),
+      syllables: undefined,
+    };
+    const second: LrcLine = {
+      id: newId,
+      timestamp: null,
+      text: cur.text.slice(caretPos),
+      ...(translations ? { translation: translations.second } : {}),
+      ...(hasSrtInterval ? { srtEndTime: cur.srtEndTime, srtSplitPeerId: id, srtSplitBoundary: splitBoundary } : {}),
+    };
     const lines = [...doc.lines];
     lines.splice(idx, 1, first, second);
     set({ ...pushHistory(doc, null, "splitLine"), doc: { ...doc, lines }, activeLineId: newId, isDirty: true });

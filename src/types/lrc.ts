@@ -18,6 +18,9 @@ export interface LrcLine {
   timestamp: number | null; // seconds
   /** Original SRT cue end, retained so overlapping cue intervals survive import/export. */
   srtEndTime?: number;
+  /** Internal link used only while the two halves of a split SRT cue remain in the working document. */
+  srtSplitPeerId?: string;
+  srtSplitBoundary?: number;
   /** Source offsets of raw supported SRT inline style tags; entity-encoded literal tags are excluded. */
   srtInlineFormatting?: { start: number; end: number; tag: "b" | "i" | "u"; closing: boolean }[];
   text: string;
