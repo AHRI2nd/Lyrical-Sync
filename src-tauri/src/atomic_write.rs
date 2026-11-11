@@ -12,7 +12,7 @@ pub fn write_atomic(path: &Path, content: &str) -> io::Result<()> {
     write_with(path, |file| file.write_all(content.as_bytes()))
 }
 
-fn destination(path: &Path) -> io::Result<(PathBuf, Option<fs::Permissions>)> {
+fn destination(path: &Path) -> io::Result<(PathBuf, Option<fs::Metadata>)> {
     // Follow an existing symlink, as the previous direct write did, but never
     // replace a dangling link or bypass a read-only destination by renaming.
     match fs::symlink_metadata(path) {
@@ -38,7 +38,7 @@ fn destination(path: &Path) -> io::Result<(PathBuf, Option<fs::Permissions>)> {
                     ));
                 }
             }
-            Ok((target, Some(metadata.permissions())))
+            Ok((target, Some(metadata)))
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok((PathBuf::from(path), None)),
         Err(error) => Err(error),
@@ -46,15 +46,20 @@ fn destination(path: &Path) -> io::Result<(PathBuf, Option<fs::Permissions>)> {
 }
 
 fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> io::Result<()> {
-    let (target, permissions) = destination(path)?;
+    let (target, original_metadata) = destination(path)?;
+    let permissions = original_metadata.as_ref().map(fs::Metadata::permissions);
     #[cfg(windows)]
-    let replace_existing = permissions.is_some();
+    let replace_existing = original_metadata.is_some();
     let parent = target
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
     let mut stage = tempfile::NamedTempFile::new_in(parent).map_err(staging_creation_error)?;
     write(stage.as_file_mut())?;
+    #[cfg(unix)]
+    if let Some(metadata) = original_metadata.as_ref() {
+        ensure_target_identity(&target, metadata)?;
+    }
     if let Some(permissions) = permissions.clone() {
         stage.as_file().set_permissions(permissions)?;
     }
@@ -64,14 +69,36 @@ fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> i
     }
     stage.as_file_mut().flush()?;
     stage.as_file().sync_all()?;
+    #[cfg(unix)]
+    if let Some(metadata) = original_metadata.as_ref() {
+        ensure_target_identity(&target, metadata)?;
+    }
     #[cfg(windows)]
     persist_windows(stage, &target, replace_existing)?;
     #[cfg(not(windows))]
-    stage.persist(&target).map_err(|error| error.error)?;
+    if original_metadata.is_some() {
+        stage.persist(&target).map_err(|error| error.error)?;
+    } else {
+        stage
+            .persist_noclobber(&target)
+            .map_err(|error| error.error)?;
+    }
     // A successful return includes directory durability on Unix. A sync failure
     // after the rename is reported as uncertain durability, never as success.
     #[cfg(unix)]
     File::open(parent)?.sync_all()?;
+    Ok(())
+}
+
+#[cfg(unix)]
+fn ensure_target_identity(target: &Path, expected: &fs::Metadata) -> io::Result<()> {
+    use std::os::unix::fs::MetadataExt;
+
+    let current =
+        fs::metadata(target).map_err(|_| io::Error::other("Destination changed while staging"))?;
+    if !current.is_file() || current.dev() != expected.dev() || current.ino() != expected.ino() {
+        return Err(io::Error::other("Destination changed while staging"));
+    }
     Ok(())
 }
 
@@ -222,6 +249,34 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "original");
         assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_to_publish_when_existing_target_is_replaced_during_staging() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("song.lrc");
+        let original = dir.path().join("song.original.lrc");
+        std::fs::write(&path, "original target").unwrap();
+
+        let error = write_with(&path, |_| {
+            std::fs::rename(&path, &original)?;
+            std::fs::write(&path, "replacement target")?;
+            Ok(())
+        })
+        .unwrap_err();
+
+        assert!(error
+            .to_string()
+            .contains("Destination changed while staging"));
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "replacement target"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&original).unwrap(),
+            "original target"
+        );
     }
 
     #[test]
