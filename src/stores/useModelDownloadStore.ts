@@ -7,6 +7,7 @@ import { useSettingsStore } from "./useSettingsStore";
 import { setModelsDirOverride } from "../utils/modelsDirOverride";
 import { toast } from "./useToastStore";
 import { MODEL_DEFS, type ModelDef } from "../utils/modelDefs";
+import { checkModelFiles } from "../utils/modelInventory";
 
 export type ModelStatus = "checking" | "preparing" | "installed" | "not-installed" | "downloading" | "error";
 
@@ -135,10 +136,7 @@ async function refreshInventory(): Promise<void> {
     const results = await Promise.all(MODEL_DEFS.map(async (model) => {
       if (activeOperations.has(model.id)) return null;
       try {
-        const files = await invoke<boolean[]>("check_model_files", {
-          expectedRoot: root,
-          modelId: model.id,
-        });
+        const files = await checkModelFiles(root, model.id);
         return { model, installed: files.length === model.files.length && files.every(Boolean) };
       } catch {
         return { model, error: "MODEL_INVENTORY_CHECK_FAILED" };

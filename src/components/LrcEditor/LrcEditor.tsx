@@ -13,6 +13,7 @@ import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
 import { deviceControls } from "../../utils/deviceControls";
 import { MODEL_DEFS } from "../../utils/modelDefs";
+import { checkModelFiles } from "../../utils/modelInventory";
 import { localizeAiSyncError } from "../../utils/aiSyncMessages";
 import { listenSafely } from "../../utils/safeListen";
 import { setModelsDirOverride } from "../../utils/modelsDirOverride";
@@ -524,10 +525,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     let inventoryFailed = false;
     for (const model of MODEL_DEFS.filter((m) => m.required)) {
       try {
-        const results = await invoke<boolean[]>("check_model_files", {
-          expectedRoot,
-          modelId: model.id,
-        });
+        const results = await checkModelFiles(expectedRoot, model.id);
         if (!isCurrent()) return;
         if (!results.every(Boolean)) missing.push(model.name);
       } catch {

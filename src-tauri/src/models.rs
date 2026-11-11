@@ -1340,6 +1340,21 @@ mod integrity_tests {
     }
 
     #[tokio::test]
+    async fn inventory_rechecks_content_after_a_previous_check_settles() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("model");
+        std::fs::write(&path, b"abc").unwrap();
+        let store = crate::model_store::ModelStore::open(dir.path()).unwrap();
+        let original_checksum = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+
+        assert!(model_file_matches(&store, "model", Some(original_checksum)).await);
+        std::fs::write(&path, b"xyz").unwrap();
+        assert!(!model_file_matches(&store, "model", Some(original_checksum)).await);
+        std::fs::remove_file(&path).unwrap();
+        assert!(!model_file_matches(&store, "model", Some(original_checksum)).await);
+    }
+
+    #[tokio::test]
     async fn hashes_empty_and_multi_chunk_files() {
         use sha2::{Digest, Sha256};
 
