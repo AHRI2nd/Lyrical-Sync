@@ -111,6 +111,24 @@ mod tests {
         assert_eq!(std::fs::read_dir(folder.path()).unwrap().count(), 1);
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn published_batch_output_keeps_owner_only_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let folder = tempfile::tempdir().unwrap();
+        let output = folder.path().join("private.lrc");
+
+        write_new_output(folder.path(), "private.lrc", "private lyrics").unwrap();
+
+        assert_eq!(std::fs::read_to_string(&output).unwrap(), "private lyrics");
+        assert_eq!(
+            std::fs::metadata(&output).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert_eq!(std::fs::read_dir(folder.path()).unwrap().count(), 1);
+    }
+
     #[test]
     fn successful_publication_waits_for_directory_sync() {
         let folder = tempfile::tempdir().unwrap();
