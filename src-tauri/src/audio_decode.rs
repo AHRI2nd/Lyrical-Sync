@@ -1,4 +1,4 @@
-use lofty::file::AudioFile;
+use lofty::file::{AudioFile, FileType, TaggedFileExt};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
@@ -349,6 +349,10 @@ fn inspect_audio_file_handle(file: &mut File) -> Result<u64, String> {
     file.seek(SeekFrom::Start(0))
         .map_err(|error| error.to_string())?;
     let tagged = lofty::read_from(file).map_err(|error| error.to_string())?;
+    if tagged.file_type() == FileType::Flac {
+        inspect_flac_frame_budget(file)?;
+        return Ok(file_bytes);
+    }
     let properties = tagged.properties();
     let sample_rate = properties
         .sample_rate()
@@ -358,6 +362,77 @@ fn inspect_audio_file_handle(file: &mut File) -> Result<u64, String> {
         .ok_or_else(|| "AUDIO_METADATA_UNAVAILABLE".to_string())?;
     validate_audio_properties(file_bytes, properties.duration(), sample_rate, channels)?;
     Ok(file_bytes)
+}
+
+fn inspect_flac_frame_budget(file: &mut File) -> Result<(), String> {
+    use std::io::ErrorKind;
+    use symphonia::core::{
+        codecs::DecoderOptions, errors::Error, formats::FormatOptions, io::MediaSourceStream,
+        meta::MetadataOptions, probe::Hint,
+    };
+
+    file.seek(SeekFrom::Start(0))
+        .map_err(|error| error.to_string())?;
+    let source = file.try_clone().map_err(|error| error.to_string())?;
+    let mut hint = Hint::new();
+    hint.with_extension("flac");
+    let mut format = symphonia::default::get_probe()
+        .format(
+            &hint,
+            MediaSourceStream::new(Box::new(source), Default::default()),
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        )
+        .map_err(|error| format!("Unsupported or invalid FLAC audio: {error}"))?
+        .format;
+    let track = format.default_track().ok_or("No FLAC audio track")?;
+    let params = track.codec_params.clone();
+    let track_id = track.id;
+    let sample_rate = params
+        .sample_rate
+        .filter(|rate| *rate > 0)
+        .ok_or("Missing FLAC sample rate")?;
+    let channels = params.channels.ok_or("Missing FLAC channels")?.count();
+    let channels = u8::try_from(channels).map_err(|_| AUDIO_RESOURCE_LIMIT_ERROR)?;
+    validate_pcm_frames(sample_rate, channels, 0)?;
+    let mut decoder = symphonia::default::get_codecs()
+        .make(&params, &DecoderOptions::default())
+        .map_err(|error| format!("Unsupported FLAC codec: {error}"))?;
+    let mut frames = 0u64;
+
+    loop {
+        let packet = match format.next_packet() {
+            Ok(packet) => packet,
+            Err(Error::IoError(error)) if error.kind() == ErrorKind::UnexpectedEof => break,
+            Err(error) => return Err(format!("FLAC frame scan failed: {error}")),
+        };
+        if packet.track_id() != track_id {
+            continue;
+        }
+        let decoded = decoder
+            .decode(&packet)
+            .map_err(|error| format!("FLAC frame scan failed: {error}"))?;
+        if decoded.spec().rate != sample_rate
+            || decoded.spec().channels.count() != channels as usize
+        {
+            return Err("FLAC audio format changed during decode".into());
+        }
+        let packet_frames = decoded.frames() as u64;
+        if packet_frames == 0 {
+            return Err("AUDIO_METADATA_UNAVAILABLE".into());
+        }
+        frames = frames
+            .checked_add(packet_frames)
+            .ok_or(AUDIO_RESOURCE_LIMIT_ERROR)?;
+        validate_pcm_frames(sample_rate, channels, frames)?;
+    }
+
+    if frames == 0 {
+        return Err("AUDIO_METADATA_UNAVAILABLE".into());
+    }
+    file.seek(SeekFrom::Start(0))
+        .map_err(|error| error.to_string())?;
+    Ok(())
 }
 
 pub fn read_bounded_audio_file(path: &Path) -> Result<Vec<u8>, String> {
@@ -768,6 +843,31 @@ mod tests {
 
         let result = read_bounded_audio_file(&path);
         assert!(result.is_ok(), "{result:?}");
+    }
+
+    #[test]
+    fn checks_actual_flac_frames_when_streaminfo_understates_duration() {
+        let dir = tempfile::tempdir().unwrap();
+        let underreported = dir.path().join("underreported.flac");
+        std::fs::write(
+            &underreported,
+            include_bytes!("../tests/fixtures/flac-understated-streaminfo.flac"),
+        )
+        .unwrap();
+        let metadata = lofty::read_from_path(&underreported).unwrap();
+        assert_eq!(metadata.properties().duration(), Duration::from_secs(1));
+        assert_eq!(
+            read_bounded_audio_file(&underreported).unwrap_err(),
+            AUDIO_RESOURCE_LIMIT_ERROR
+        );
+
+        let valid = dir.path().join("valid.flac");
+        std::fs::write(
+            &valid,
+            include_bytes!("../tests/fixtures/flac-valid-30m.flac"),
+        )
+        .unwrap();
+        assert!(read_bounded_audio_file(&valid).is_ok());
     }
 
     #[test]
