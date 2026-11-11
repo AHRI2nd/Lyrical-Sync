@@ -1,7 +1,9 @@
 """Execute the package probe with controlled interpreter/package metadata."""
 from pathlib import Path
+import os
 import subprocess
 import sys
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,7 +29,9 @@ sysconfig.get_platform=lambda:INTERPRETER
 sys.platform='win32'
 runpy.run_path(PROBE)
 '''.replace('CUDA',repr(cuda)).replace('VERSIONS',repr(versions)).replace('MACHINE',repr(machine)).replace('INTERPRETER',repr(interpreter or ('win-arm64' if machine == 'ARM64' else 'win-amd64'))).replace('PROBE',repr(str(ROOT/'src-tauri/src/probe_ai.py')))
-    return subprocess.run([sys.executable,'-c',source],capture_output=True,text=True)
+    with tempfile.TemporaryDirectory() as folder:
+        env = {**os.environ, 'LYRICAL_INSTALLED_PACKAGES': str(Path(folder) / 'installed-packages.txt')}
+        return subprocess.run([sys.executable,'-c',source],env=env,capture_output=True,text=True)
 
 
 class AIProfileTests(unittest.TestCase):

@@ -833,8 +833,22 @@ class PackageProbeTests(unittest.TestCase):
         (package / "__init__.py").write_text("\n".join(name + " = None" for name in exports), encoding="utf-8")
         return package
 
-    def run_probe(self, root):
-        return subprocess.run([sys.executable, "-S", str(ROOT / "src-tauri/src/probe_ai.py")], env={**os.environ, "PYTHONPATH": str(root)}, capture_output=True, text=True, timeout=10)
+    def run_probe(self, root, optimize=False):
+        command = [sys.executable]
+        if optimize:
+            command.append("-O")
+        command.extend(["-S", str(ROOT / "src-tauri/src/probe_ai.py")])
+        return subprocess.run(
+            command,
+            env={
+                **os.environ,
+                "PYTHONPATH": str(root),
+                "LYRICAL_INSTALLED_PACKAGES": str(root / "installed-packages.txt"),
+            },
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
 
     def test_missing_native_extension_is_not_ready_despite_valid_metadata(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -869,7 +883,7 @@ class PackageProbeTests(unittest.TestCase):
             package = self.environment(root)
             (package / "ctc_aligner.py").write_text("", encoding="utf-8")
             (next(root.glob("torch-*.dist-info")) / "METADATA").write_text("Metadata-Version: 2.1\nName: torch\nVersion: 2.5.1\n", encoding="utf-8")
-            result = subprocess.run([sys.executable, "-O", "-S", str(ROOT / "src-tauri/src/probe_ai.py")], env={**os.environ, "PYTHONPATH": str(root)}, capture_output=True, text=True, timeout=10)
+            result = self.run_probe(root, optimize=True)
             self.assertNotEqual(result.returncode, 0)
 
     def test_valid_native_loader_and_versions_are_ready(self):
@@ -879,6 +893,95 @@ class PackageProbeTests(unittest.TestCase):
             (package / "ctc_aligner.py").write_text("", encoding="utf-8")
             result = self.run_probe(root)
             self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_installed_snapshot_rejects_transitive_package_version_drift(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            package = self.environment(root)
+            (package / "ctc_aligner.py").write_text("", encoding="utf-8")
+            transitive = root / "model_transitive-1.0.dist-info"
+            transitive.mkdir()
+            (transitive / "METADATA").write_text(
+                "Metadata-Version: 2.1\nName: model_transitive\nVersion: 1.0\n",
+                encoding="utf-8",
+            )
+            snapshot = []
+            for metadata_file in root.glob("*.dist-info/METADATA"):
+                values = dict(
+                    line.split(": ", 1)
+                    for line in metadata_file.read_text(encoding="utf-8").splitlines()
+                    if line.startswith("Name: ") or line.startswith("Version: ")
+                )
+                snapshot.append(f"{values['Name']}=={values['Version']}")
+            (root / "installed-packages.txt").write_text("\n".join(snapshot) + "\n", encoding="utf-8")
+            (transitive / "METADATA").write_text(
+                "Metadata-Version: 2.1\nName: model_transitive\nVersion: 2.0\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_probe(root)
+            self.assertNotEqual(result.returncode, 0)
+
+    def test_matching_installed_snapshot_accepts_normalized_names_and_ctc_archive_reference(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            package = self.environment(root)
+            (package / "ctc_aligner.py").write_text("", encoding="utf-8")
+            transitive = root / "model_transitive-1.0.dist-info"
+            transitive.mkdir()
+            (transitive / "METADATA").write_text(
+                "Metadata-Version: 2.1\nName: model_transitive\nVersion: 1.0\n",
+                encoding="utf-8",
+            )
+            snapshot = []
+            for metadata_file in root.glob("*.dist-info/METADATA"):
+                values = dict(
+                    line.split(": ", 1)
+                    for line in metadata_file.read_text(encoding="utf-8").splitlines()
+                    if line.startswith("Name: ") or line.startswith("Version: ")
+                )
+                if values["Name"] == "ctc-forced-aligner":
+                    snapshot.append("CTC_FORCED.ALIGNER @ file:///staging/ctc_forced_aligner.tar.gz")
+                else:
+                    snapshot.append(f"{values['Name']}=={values['Version']}")
+            (root / "installed-packages.txt").write_text("\n".join(snapshot) + "\n", encoding="utf-8")
+
+            result = self.run_probe(root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_installed_snapshot_rejects_unrecorded_distribution(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            package = self.environment(root)
+            (package / "ctc_aligner.py").write_text("", encoding="utf-8")
+            snapshot = []
+            for metadata_file in root.glob("*.dist-info/METADATA"):
+                values = dict(
+                    line.split(": ", 1)
+                    for line in metadata_file.read_text(encoding="utf-8").splitlines()
+                    if line.startswith("Name: ") or line.startswith("Version: ")
+                )
+                snapshot.append(f"{values['Name']}=={values['Version']}")
+            (root / "installed-packages.txt").write_text("\n".join(snapshot) + "\n", encoding="utf-8")
+            extra = root / "unrecorded-1.0.dist-info"
+            extra.mkdir()
+            (extra / "METADATA").write_text(
+                "Metadata-Version: 2.1\nName: unrecorded\nVersion: 1.0\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_probe(root)
+            self.assertNotEqual(result.returncode, 0)
+
+    def test_installed_snapshot_rejects_oversized_input(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            package = self.environment(root)
+            (package / "ctc_aligner.py").write_text("", encoding="utf-8")
+            (root / "installed-packages.txt").write_bytes(b"#" * (256 * 1024 + 1))
+
+            result = self.run_probe(root)
+            self.assertNotEqual(result.returncode, 0)
 
 
 if __name__ == "__main__":

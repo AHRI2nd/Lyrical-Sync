@@ -170,8 +170,8 @@ pub struct PythonEnvInfo {
     python_path: String,
 }
 
-pub async fn packages_ready(python: &Path) -> bool {
-    probe(python, RUNTIME_PROBE).await && probe(python, PACKAGE_PROBE).await
+pub async fn packages_ready(python: &Path, runtime_root: &Path) -> bool {
+    probe(python, RUNTIME_PROBE).await && probe_packages(python, runtime_root).await
 }
 
 async fn probe(python: &Path, source: &str) -> bool {
@@ -182,6 +182,27 @@ async fn probe(python: &Path, source: &str) -> bool {
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null());
+    let child = match command.spawn() {
+        Ok(child) => child,
+        Err(_) => return false,
+    };
+    wait_probe_child(child, Duration::from_secs(90)).await
+}
+
+fn package_probe_command(python: &Path, runtime_root: &Path) -> tokio::process::Command {
+    let mut command = python_cmd(python);
+    command
+        .args(["-c", PACKAGE_PROBE])
+        .env(
+            "LYRICAL_INSTALLED_PACKAGES",
+            runtime_root.join("installed-packages.txt"),
+        );
+    command
+}
+
+async fn probe_packages(python: &Path, runtime_root: &Path) -> bool {
+    let mut command = package_probe_command(python, runtime_root);
+    command.kill_on_drop(true);
     let child = match command.spawn() {
         Ok(child) => child,
         Err(_) => return false,
@@ -212,7 +233,7 @@ pub async fn get_python_env_info(app: AppHandle) -> Result<PythonEnvInfo, String
     let python = embedded_python_exe(&app)?;
     // Legacy runtimes must prove they work; executable existence alone is insufficient.
     let python_ready = python.is_file() && probe(&python, RUNTIME_PROBE).await;
-    let packages_ready = python_ready && probe(&python, PACKAGE_PROBE).await;
+    let packages_ready = python_ready && probe_packages(&python, &runtime_root).await;
     Ok(PythonEnvInfo {
         python_ready,
         packages_ready,
@@ -536,9 +557,6 @@ async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> 
             python_cmd(&python).args(["-m", "pip", "--isolated", "check"]),
         )
         .await?;
-        if !probe(&python, PACKAGE_PROBE).await {
-            return Err("AI package validation failed; previous installation was retained".into());
-        }
         let graph = tokio::time::timeout(
             INSTALL_STEP_TIMEOUT,
             python_cmd(&python)
@@ -555,6 +573,9 @@ async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> 
         tokio::fs::write(stage.path().join("installed-packages.txt"), graph.stdout)
             .await
             .map_err(|e| e.to_string())?;
+        if !probe_packages(&python, stage.path()).await {
+            return Err("AI package validation failed; previous installation was retained".into());
+        }
         publish_runtime(stage.path(), &destination).map_err(|e| e.to_string())
     }
     .await;
@@ -590,7 +611,7 @@ mod progress_line_tests {
 
 #[cfg(test)]
 mod isolated_python_environment_tests {
-    use super::{ctc_archive_install_command, python_cmd, python_cmd_inference};
+    use super::{ctc_archive_install_command, package_probe_command, python_cmd, python_cmd_inference};
 
     #[test]
     fn embedded_python_commands_remove_inherited_python_paths() {
@@ -614,6 +635,22 @@ mod isolated_python_environment_tests {
                 name == "PYTHONSAFEPATH" && value == Some("1".as_ref())
             }));
         }
+    }
+
+    #[test]
+    fn package_probe_uses_the_runtime_owned_snapshot_path() {
+        let root = std::path::Path::new("runtime-root");
+        let command = package_probe_command(std::path::Path::new("python"), root);
+        let args: Vec<_> = command
+            .as_std()
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(args.first().map(String::as_str), Some("-c"));
+        assert!(command.as_std().get_envs().any(|(name, value)| {
+            name == "LYRICAL_INSTALLED_PACKAGES"
+                && value == Some(root.join("installed-packages.txt").as_os_str())
+        }));
     }
 
     #[test]
