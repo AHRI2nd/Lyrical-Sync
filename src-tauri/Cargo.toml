@@ -41,7 +41,7 @@ url = "2.5"
 tauri = { version = "2", features = ["test"] }
 
 [target."cfg(windows)".dependencies]
-windows = { version = "0.62.2", features = ["Media_Control", "Foundation", "Foundation_Collections", "Win32_System_Com"] }
+windows = { version = "0.62.2", features = ["Media_Control", "Foundation", "Foundation_Collections", "Win32_Storage_FileSystem", "Win32_System_Com"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 xattr = "=1.6.1"

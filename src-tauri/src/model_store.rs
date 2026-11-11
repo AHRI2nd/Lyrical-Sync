@@ -12,81 +12,84 @@ pub struct ModelStore {
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase", tag = "platform")]
 pub enum DirectoryIdentity {
-    Unix { device: u64, inode: u64 },
-    Windows { volume_serial_number: u32, file_index: u64 },
+    Unix {
+        device: u64,
+        inode: u64,
+    },
+    Windows {
+        volume_serial_number: u32,
+        file_index: u64,
+    },
 }
 
 impl DirectoryIdentity {
+    #[cfg(unix)]
     fn from_metadata(metadata: &std::fs::Metadata) -> io::Result<Self> {
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::MetadataExt;
-            Ok(Self::Unix {
-                device: metadata.dev(),
-                inode: metadata.ino(),
-            })
-        }
-        #[cfg(windows)]
-        {
-            use std::os::windows::fs::MetadataExt;
-            Ok(Self::Windows {
-                volume_serial_number: metadata
-                    .volume_serial_number()
-                    .ok_or_else(|| {
-                        io::Error::other("Model directory volume identity is unavailable")
-                    })?,
-                file_index: metadata
-                    .file_index()
-                    .ok_or_else(|| {
-                        io::Error::other("Model directory file identity is unavailable")
-                    })?,
-            })
-        }
-        #[cfg(not(any(unix, windows)))]
-        {
-            let _ = metadata;
-            Err(io::Error::other(
-                "Model directory identity is unsupported on this platform",
-            ))
-        }
+        use std::os::unix::fs::MetadataExt;
+        Ok(Self::Unix {
+            device: metadata.dev(),
+            inode: metadata.ino(),
+        })
     }
 
     pub fn at_path(path: &Path) -> io::Result<Self> {
-        Self::from_metadata(&std::fs::metadata(path)?)
-    }
-
-    fn from_open_metadata(metadata: &cap_std::fs::Metadata) -> io::Result<Self> {
         #[cfg(unix)]
         {
-            use cap_std::fs::MetadataExt;
-            Ok(Self::Unix {
-                device: metadata.dev(),
-                inode: metadata.ino(),
-            })
+            Self::from_metadata(&std::fs::metadata(path)?)
         }
         #[cfg(windows)]
         {
-            use cap_std::fs::MetadataExt;
-            Ok(Self::Windows {
-                volume_serial_number: metadata
-                    .volume_serial_number()
-                    .ok_or_else(|| {
-                        io::Error::other("Model directory volume identity is unavailable")
-                    })?,
-                file_index: metadata
-                    .file_index()
-                    .ok_or_else(|| {
-                        io::Error::other("Model directory file identity is unavailable")
-                    })?,
-            })
+            let dir = Dir::open_ambient_dir(path, cap_std::ambient_authority())?;
+            Self::from_open_directory(&dir)
         }
         #[cfg(not(any(unix, windows)))]
         {
-            let _ = metadata;
+            let _ = path;
             Err(io::Error::other(
                 "Model directory identity is unsupported on this platform",
             ))
         }
+    }
+
+    #[cfg(windows)]
+    fn from_open_directory(dir: &Dir) -> io::Result<Self> {
+        use std::os::windows::io::AsRawHandle;
+        use windows::Win32::Foundation::HANDLE;
+        use windows::Win32::Storage::FileSystem::{
+            GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION,
+        };
+
+        let mut information = BY_HANDLE_FILE_INFORMATION::default();
+        // Query the exact handle held by cap-std so path replacement cannot change
+        // which directory this identity describes.
+        unsafe {
+            GetFileInformationByHandle(
+                HANDLE(dir.as_raw_handle() as *mut core::ffi::c_void),
+                &mut information,
+            )
+        }
+        .map_err(io::Error::other)?;
+        Ok(Self::Windows {
+            volume_serial_number: information.dwVolumeSerialNumber,
+            file_index: (u64::from(information.nFileIndexHigh) << 32)
+                | u64::from(information.nFileIndexLow),
+        })
+    }
+
+    #[cfg(unix)]
+    fn from_open_metadata(metadata: &cap_std::fs::Metadata) -> io::Result<Self> {
+        use cap_std::fs::MetadataExt;
+        Ok(Self::Unix {
+            device: metadata.dev(),
+            inode: metadata.ino(),
+        })
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    fn from_open_metadata(_: &cap_std::fs::Metadata) -> io::Result<Self> {
+        Err(io::Error::other(
+            "Model directory identity is unsupported on this platform",
+        ))
     }
 }
 
@@ -122,7 +125,14 @@ impl ModelStore {
         })
     }
     pub fn directory_identity(&self) -> io::Result<DirectoryIdentity> {
-        DirectoryIdentity::from_open_metadata(&self.root.dir_metadata()?)
+        #[cfg(windows)]
+        {
+            DirectoryIdentity::from_open_directory(&self.root)
+        }
+        #[cfg(not(windows))]
+        {
+            DirectoryIdentity::from_open_metadata(&self.root.dir_metadata()?)
+        }
     }
     pub fn read(&self, name: &str) -> io::Result<std::fs::File> {
         let mut options = cap_std::fs::OpenOptions::new();
@@ -170,6 +180,27 @@ mod tests {
         let path_identity = DirectoryIdentity::at_path(root.path()).unwrap();
         let store = ModelStore::open(root.path()).unwrap();
         assert_eq!(store.directory_identity().unwrap(), path_identity);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn replacing_selected_directory_changes_its_handle_identity() {
+        let root = tempfile::tempdir().unwrap();
+        let selected = root.path().join("models");
+        let replacement = root.path().join("replacement");
+        let displaced = root.path().join("models-old");
+        std::fs::create_dir(&selected).unwrap();
+        std::fs::create_dir(&replacement).unwrap();
+        let approved_identity = DirectoryIdentity::at_path(&selected).unwrap();
+
+        std::fs::rename(&selected, &displaced).unwrap();
+        std::fs::rename(&replacement, &selected).unwrap();
+
+        assert_ne!(
+            DirectoryIdentity::at_path(&selected).unwrap(),
+            approved_identity,
+            "a replacement directory must not inherit the prior approval"
+        );
     }
 
     #[cfg(unix)]
