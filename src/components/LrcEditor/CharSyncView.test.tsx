@@ -112,6 +112,20 @@ it("resumes consecutive glyph stamps after returning from a button to the glyph 
   expect(useLrcStore.getState().doc.lines[0].syllables?.map((token) => token.time)).toEqual([12, 13, null]);
 });
 
+it("stamps only once when the configured stamp key repeats while held", () => {
+  render(<CharSyncView />);
+  fireEvent.keyDown(window, { code: "Space", repeat: false });
+  const repeat = new KeyboardEvent("keydown", { code: "Space", bubbles: true, cancelable: true, repeat: true });
+  fireEvent(window, repeat);
+
+  expect(repeat.defaultPrevented).toBe(true);
+  expect(useLrcStore.getState().doc.lines[0].syllables?.map((token) => token.time)).toEqual([12, null, null]);
+  expect(useLrcStore.getState().activeSyllableIndex).toBe(1);
+
+  fireEvent.keyDown(window, { code: "Backspace", repeat: true });
+  expect(useLrcStore.getState().activeSyllableIndex).toBe(0);
+});
+
 it.each(["ko", "en", "ja"] as const)("uses the configured stamp key in the %s typing button and glyph stamping", (lang) => {
   useI18nStore.setState({ lang, t: translations[lang] });
   useSettingsStore.setState({ keybindings: { ...DEFAULT_KEYBINDINGS, stamp: "KeyS" } });

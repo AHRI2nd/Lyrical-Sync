@@ -193,7 +193,7 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const kb = normalizeKeybindings(useSettingsStore.getState().keybindings);
       const action = matchAction(e.code, kb);
-      if (action === "stamp") { e.preventDefault(); stampActive(); }
+      if (action === "stamp") { e.preventDefault(); if (!e.repeat) stampActive(); }
       else if (action === "prevLine") { e.preventDefault(); moveActive(-1); }
     };
     window.addEventListener("keydown", onKey);
