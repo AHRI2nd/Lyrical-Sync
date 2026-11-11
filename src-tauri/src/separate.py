@@ -29,7 +29,7 @@ def load_audio(path: str) -> tuple:
     try:
         import soundfile as sf
         data, sr = sf.read(path, always_2d=True, dtype="float32")
-        wav = torch.from_numpy(data.T.copy())  # (channels, samples)
+        wav = torch.from_numpy(data.T)  # (channels, samples), shares the decoded array
         return wav, sr
     except Exception:
         pass
@@ -40,8 +40,12 @@ def load_audio(path: str) -> tuple:
         sr = f.samplerate
         channels = f.channels
         blocks = [np.frombuffer(b, dtype=np.int16) for b in f]
-    raw = np.concatenate(blocks).astype(np.float32) / 32768.0
-    wav = torch.from_numpy(raw.reshape(-1, channels).T.copy())  # (channels, samples)
+    raw_pcm = np.concatenate(blocks)
+    del blocks
+    audio = raw_pcm.astype(np.float32)
+    del raw_pcm
+    np.multiply(audio, 1.0 / 32768.0, out=audio)
+    wav = torch.from_numpy(audio.reshape(-1, channels).T)  # (channels, samples)
     return wav, sr
 
 

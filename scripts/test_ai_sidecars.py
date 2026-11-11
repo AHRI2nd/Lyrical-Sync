@@ -118,6 +118,70 @@ class ModelIntegrityTests(unittest.TestCase):
             loader.assert_not_called()
 
 
+class AudioArrayOwnershipTests(unittest.TestCase):
+    def load_separate(self, modules):
+        separate_spec = importlib.util.spec_from_file_location(
+            "lyrical_separate_test", ROOT / "src-tauri/src/separate.py"
+        )
+        separate = importlib.util.module_from_spec(separate_spec)
+        with patch.dict(sys.modules, modules):
+            separate_spec.loader.exec_module(separate)
+        return separate
+
+    def test_soundfile_waveform_is_transposed_without_a_full_array_copy(self):
+        import numpy as np
+
+        source = np.arange(24, dtype=np.float32).reshape(12, 2)
+        fake_torch = types.SimpleNamespace(from_numpy=lambda value: value)
+        soundfile = types.SimpleNamespace(read=lambda *args, **kwargs: (source, 48_000))
+        modules = {"torch": fake_torch, "soundfile": soundfile}
+        with patch.dict(sys.modules, modules):
+            separate = self.load_separate(modules)
+            waveform, sample_rate = separate.load_audio("audio.wav")
+
+        self.assertEqual(sample_rate, 48_000)
+        self.assertEqual(waveform.shape, (2, 12))
+        self.assertTrue(np.shares_memory(waveform, source))
+        self.assertFalse(waveform.flags.c_contiguous)
+
+    def test_audioread_waveform_reuses_one_float_array_for_the_tensor_view(self):
+        import numpy as np
+
+        class Reader:
+            samplerate = 48_000
+            channels = 2
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def __iter__(self):
+                yield np.array([32767, -32768], dtype=np.int16).tobytes()
+                yield np.array([16384, -16384], dtype=np.int16).tobytes()
+
+        tensors = []
+        fake_torch = types.SimpleNamespace(from_numpy=lambda value: tensors.append(value) or value)
+        soundfile = types.SimpleNamespace(read=lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError()))
+        audioread = types.SimpleNamespace(audio_open=lambda _path: Reader())
+        modules = {
+            "torch": fake_torch,
+            "soundfile": soundfile,
+            "audioread": audioread,
+        }
+        with patch.dict(sys.modules, modules):
+            separate = self.load_separate(modules)
+            waveform, sample_rate = separate.load_audio("audio.mp3")
+
+        self.assertEqual(sample_rate, 48_000)
+        self.assertEqual(waveform.shape, (2, 2))
+        self.assertTrue(np.allclose(waveform, [[32767 / 32768, 16384 / 32768], [-1, -16384 / 32768]]))
+        self.assertEqual(len(tensors), 1)
+        self.assertTrue(np.shares_memory(waveform, tensors[0]))
+        self.assertFalse(waveform.flags.c_contiguous)
+
+
 class CtcBoundaryTests(unittest.TestCase):
     def test_rejects_the_pinned_native_near_boundary_frame_window(self):
         tokens = list(range(60))
@@ -148,6 +212,11 @@ class InferenceSession:
 ''', encoding="utf-8")
             # No heavy numpy or ONNX runtime is necessary for this smoke test.
             (root / "numpy.py").write_text("", encoding="utf-8")
+            (root / "librosa.py").write_text('''
+def load(path, sr=None, mono=False):
+    assert sr == 16000 and mono is True
+    return range(16 if "short" in path else 32000), sr
+''', encoding="utf-8")
             (root / "ctc_forced_aligner.py").write_text('''
 class Tokenizer:
     def encode(self, text): return [ord(c) for c in text]
@@ -244,6 +313,12 @@ class EmbeddedAlignmentExecutionTests(unittest.TestCase):
         env = {**os.environ}
         if mock_dependencies is not None:
             env["PYTHONPATH"] = str(mock_dependencies)
+            (Path(mock_dependencies) / "librosa.py").write_text(
+                "def load(path, sr=None, mono=False):\n"
+                " assert sr == 16000 and mono is True\n"
+                " return range(32000), sr\n",
+                encoding="utf-8",
+            )
         return subprocess.run(command, input=payload, capture_output=True, text=True,
                               env=env, timeout=10)
 

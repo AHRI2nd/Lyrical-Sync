@@ -175,9 +175,9 @@ def main():
     progress("loading_model", "Loading dependencies...", 0.0)
 
     try:
+        import librosa
         import onnxruntime  # noqa: F401
         from ctc_forced_aligner import (
-            load_audio,
             generate_emissions,
             preprocess_text,
             get_alignments,
@@ -216,8 +216,9 @@ def main():
 
     progress("loading_audio", "Loading audio…", 0.10)
     try:
-        # load_audio returns 1D numpy float32 array in v1.x
-        audio_waveform = load_audio(args.audio, ret_type='np')
+        # The pinned aligner wrapper copies librosa's already-float32 array.
+        # Call the same decoder settings directly to keep one waveform allocation.
+        audio_waveform, _ = librosa.load(args.audio, sr=16000, mono=True)
     except Exception as e:
         progress("error", f"오디오 로드 실패: {e}", code="audio")
         sys.exit(1)
