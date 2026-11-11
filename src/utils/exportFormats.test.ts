@@ -222,6 +222,14 @@ it("rejects unrepresentable text in translations and timed syllables", () => {
   expect(() => serializeAss(docOf([{ id: "a", timestamp: 1, text: "safe", translation: "{literal}" }]))).toThrow(/ASS cannot preserve this text/);
   expect(() => serializeAss(docOf([{ id: "a", timestamp: 1, text: "safe", syllables: [{ text: "\\N", time: 1 }] }]))).toThrow(/ASS cannot preserve this text/);
 });
+it.each(["N", "n", "h"])("rejects an ASS control escape split across a timed token and literal %s", (control) => {
+  const doc = docOf([{
+    id: "split-escape", timestamp: 1, text: `\\${control}`,
+    syllables: [{ text: "\\", time: 1 }, { text: control, time: null }],
+  }]);
+  expect(() => serializeAss(doc, 3)).toThrow(/ASS cannot preserve this text/);
+});
+
 it("rejects line breaks in the ASS title header", () => {
   const doc = { ...docOf([{ id: "a", timestamp: 1, text: "safe" }]), metadata: { ...emptyMeta, title: "title\n[Events]" } };
   expect(() => serializeAss(doc)).toThrow(/ASS cannot preserve this text/);

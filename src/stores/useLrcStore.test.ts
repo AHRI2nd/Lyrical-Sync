@@ -703,6 +703,18 @@ describe("useLrcStore — security-scoped bookmarks (App Sandbox)", () => {
     expect(useLrcStore.getState()).toMatchObject({ lrcPath: "/working.lrc", isDirty: true });
   });
 
+  it("rejects an ASS escape assembled across timed syllable tokens before writing", async () => {
+    vi.mocked(save).mockResolvedValue("/export.ass");
+    const doc: LrcDocument = { metadata: { title: "", artist: "", album: "", by: "", offset: 0 }, extraTags: {},
+      lines: [{ id: "split", timestamp: 1, text: "\\N", syllables: [{ text: "\\", time: 1 }, { text: "N", time: null }] }] };
+    useLrcStore.setState({ doc, lrcPath: "/working.lrc", isDirty: true });
+
+    await expect(useLrcStore.getState().saveLrcAs("ass")).rejects.toMatchObject({ code: "ASS_UNREPRESENTABLE_CONTENT" });
+
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState()).toMatchObject({ doc, lrcPath: "/working.lrc", isDirty: true });
+  });
+
   it("rejects a conflicting LRC escape marker before writing", async () => {
     vi.mocked(save).mockResolvedValue("/export.lrc");
     useLrcStore.setState({
