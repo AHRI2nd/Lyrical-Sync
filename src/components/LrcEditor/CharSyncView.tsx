@@ -334,7 +334,7 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
     <div className="shrink-0 min-w-0">
       <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--ls-text-secondary)] mb-3">
         <span>{t.charSync.currentLine}</span><span title={t.charSync.glyphProgress} className="font-mono tabular-nums">{glyphDone}/{glyphTotal}</span>
-        <div className="ml-auto"><ClearGlyphTimings lineId={line.id} /></div>
+        <div className="ml-auto"><ClearGlyphTimings lineId={line.id} onExpiryFocus={focusGlyphEditor} /></div>
       </div>
       <div ref={textRef} tabIndex={-1} className="min-h-16 leading-relaxed select-none break-words"
         style={{ whiteSpace: "pre-wrap", fontSize: `${1.875 * lyricsFontScale}rem` }}>

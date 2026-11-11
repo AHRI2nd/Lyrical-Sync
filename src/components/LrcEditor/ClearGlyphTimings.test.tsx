@@ -48,6 +48,28 @@ it("keeps Undo during playback but expires it after seven seconds", () => {
   act(() => vi.advanceTimersByTime(7000));
   expect(screen.queryByRole("status")).toBeNull();
 });
+it("restores focus to the editor fallback when focused Undo expires, but never steals moved focus", () => {
+  vi.useFakeTimers();
+  const fallbackFocus = vi.fn(() => screen.getByRole("button", { name: "Editor text" }).focus());
+  const { rerender } = render(<><ClearGlyphTimings lineId="line" onExpiryFocus={fallbackFocus} />
+    <button type="button">Editor text</button><button type="button">Other control</button></>);
+  open(); confirm();
+  expect(document.activeElement).toBe(screen.getByRole("button", { name: labels().undoClear }));
+  act(() => vi.advanceTimersByTime(7000));
+  expect(fallbackFocus).toHaveBeenCalledOnce();
+  expect(document.activeElement).toBe(screen.getByRole("button", { name: "Editor text" }));
+
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "line", text: "ab", timestamp: 10,
+    syllables: [{ text: "a", time: 10 }, { text: "b", time: 11 }] }] }, activeLineId: "line", _history: [], _future: [] });
+  rerender(<><ClearGlyphTimings lineId="line" onExpiryFocus={fallbackFocus} />
+    <button type="button">Editor text</button><button type="button">Other control</button></>);
+  open(); confirm();
+  const other = screen.getByRole("button", { name: "Other control" });
+  other.focus();
+  act(() => vi.advanceTimersByTime(7000));
+  expect(fallbackFocus).toHaveBeenCalledOnce();
+  expect(document.activeElement).toBe(other);
+});
 it("cancels safely and ignores an IME Escape", () => {
   render(<ClearGlyphTimings lineId="line" />); open();
   fireEvent.keyDown(screen.getByRole("dialog"),{key:"Escape",isComposing:true});

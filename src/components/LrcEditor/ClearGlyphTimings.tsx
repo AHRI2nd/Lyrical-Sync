@@ -13,7 +13,7 @@ function isCurrent(snapshot: Snapshot) {
     state._audioSelection === snapshot.audio && state.activeLineId === snapshot.lineId;
 }
 
-export function ClearGlyphTimings({ lineId }: { lineId: string }) {
+export function ClearGlyphTimings({ lineId, onExpiryFocus }: { lineId: string; onExpiryFocus?: () => void }) {
   const { t } = useI18nStore();
   const context = useLrcStore(useShallow(s => ({ doc: s.doc, session: s._documentSession, audio: s._audioSelection, active: s.activeLineId })));
   const [pending, setPending] = useState<Snapshot | null>(null);
@@ -22,6 +22,7 @@ export function ClearGlyphTimings({ lineId }: { lineId: string }) {
   const cancel = useRef<HTMLButtonElement>(null);
   const undoButton = useRef<HTMLButtonElement>(null);
   const restoreAfterUndo = useRef(false);
+  const restoreAfterExpiry = useRef(false);
   const titleId = useId();
   const messageId = useId();
   const count = context.doc.lines.find(line => line.id === lineId)?.syllables?.filter(s => s.time !== null).length ?? 0;
@@ -34,7 +35,10 @@ export function ClearGlyphTimings({ lineId }: { lineId: string }) {
   }, [context, pending, cleared]);
   useEffect(() => {
     if (!cleared) return;
-    const timer = window.setTimeout(() => setCleared(null), 7000);
+    const timer = window.setTimeout(() => {
+      restoreAfterExpiry.current = document.activeElement === undoButton.current;
+      setCleared(null);
+    }, 7000);
     return () => window.clearTimeout(timer);
   }, [cleared]);
   useLayoutEffect(() => {
@@ -49,8 +53,11 @@ export function ClearGlyphTimings({ lineId }: { lineId: string }) {
     else if (restoreAfterUndo.current) {
       trigger.current?.focus({ preventScroll: true });
       restoreAfterUndo.current = false;
+    } else if (restoreAfterExpiry.current) {
+      onExpiryFocus?.();
+      restoreAfterExpiry.current = false;
     }
-  }, [cleared]);
+  }, [cleared, onExpiryFocus]);
 
   const clear = () => {
     if (!pending || !isCurrent(pending)) { setPending(null); return; }

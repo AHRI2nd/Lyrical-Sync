@@ -38,7 +38,7 @@ beforeEach(() => {
     isPlaying: false, isDirty: false, audioPath: null, duration: 0, _history: [], _future: [] });
   useLrcStore.setState({ loopLineId: null });
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); document.querySelectorAll("[data-test-control]").forEach((node) => node.remove()); localStorage.clear(); useI18nStore.setState(originalLanguage); });
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); document.querySelectorAll("[data-test-control]").forEach((node) => node.remove()); localStorage.clear(); useI18nStore.setState(originalLanguage); });
 
 it("keeps unrelated line buttons memoized during playback updates", () => {
   const otherLine = { id: "b", timestamp: 20, get text() { return "next"; } };
@@ -127,6 +127,22 @@ it("stamps one complete emoji grapheme and advances past it as a single unit", (
   act(() => useLrcStore.setState({ currentTime: 13 }));
   fireEvent.keyDown(window, { code: "Space" });
   expect(useLrcStore.getState().doc.lines[0].syllables?.map((token) => token.time)).toEqual([12, 13]);
+});
+
+it("returns focus to the glyph editor when the clear-timing Undo expires", () => {
+  vi.useFakeTimers();
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "abc", timestamp: 0,
+    syllables: [{ text: "a", time: 1 }, { text: "b", time: 2 }, { text: "c", time: null }] }] } });
+  const { container, getByRole } = render(<CharSyncView />);
+  fireEvent.click(getByRole("button", { name: translations.en.charSync.clearTimingButton }));
+  fireEvent.click(getByRole("button", { name: translations.en.charSync.clearTimingConfirm }));
+  expect(document.activeElement).toBe(getByRole("button", { name: translations.en.charSync.undoClear }));
+
+  act(() => vi.advanceTimersByTime(7000));
+
+  const editor = container.querySelector<HTMLElement>("[tabindex='-1']");
+  expect(editor).not.toBeNull();
+  expect(document.activeElement).toBe(editor);
 });
 
 it("stamps only once when the configured stamp key repeats while held", () => {
