@@ -72,10 +72,13 @@ it("records overlapping startup and Models-tab inventory calls and repeated tab 
 
   await act(async () => { finishInitialInventory([true]); await inventoryGate; });
   inventoryGate = Promise.resolve([true]);
+  await waitFor(() => expect(inventoryCalls).toHaveLength(3));
+  expect(inventoryCalls.filter((call) => call.modelId === ctc.id)).toHaveLength(2);
+  expect(inventoryCalls.filter((call) => call.modelId === demucs.id)).toHaveLength(1);
 
   fireEvent.click(screen.getByRole("button", { name: "Toggle Models tab" }));
   fireEvent.click(screen.getByRole("button", { name: "Toggle Models tab" }));
-  await waitFor(() => expect(inventoryCalls).toHaveLength(4));
-  expect(inventoryCalls.filter((call) => call.modelId === ctc.id)).toHaveLength(2);
+  await waitFor(() => expect(inventoryCalls).toHaveLength(6));
+  expect(inventoryCalls.filter((call) => call.modelId === ctc.id)).toHaveLength(4);
   expect(inventoryCalls.filter((call) => call.modelId === demucs.id)).toHaveLength(2);
 });
