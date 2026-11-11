@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import {
-  type KeyAction, PLAYBACK_ACTIONS, RESERVED_CODES,
+  type KeyAction, PLAYBACK_ACTIONS, RESERVED_CODES, FIXED_SHORTCUT_CODES,
   keyLabel, conflictingAction, normalizeKeybindings,
 } from "../../utils/keybindings";
 
@@ -38,7 +38,7 @@ export function KeybindingsSection({ focusCharacterSync = false }: { focusCharac
       if (e.code === "Escape") { setCapturing(null); setError(""); return; }
       // Wait for an unmodified key rather than a modifier or chord.
       if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || MODIFIER_CODES.has(e.code)) return;
-      if (RESERVED_CODES.has(e.code)) { setError(t.keys.reserved); return; }
+      if (RESERVED_CODES.has(e.code) || FIXED_SHORTCUT_CODES.has(e.code)) { setError(t.keys.reserved); return; }
       const conflict = conflictingAction(e.code, capturing, kb);
       if (conflict) {
         const label = conflict === "stamp" ? t.charSync.stampHint

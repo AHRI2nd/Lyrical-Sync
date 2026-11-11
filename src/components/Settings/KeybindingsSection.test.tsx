@@ -55,6 +55,15 @@ describe("KeybindingsSection", () => {
     expect(useSettingsStore.getState().keybindings.stamp).toBe("Space");
   });
 
+  it("rejects fixed Arrow navigation keys during shortcut capture", () => {
+    const t = useI18nStore.getState().t;
+    const { getByRole, getByText } = render(<KeybindingsSection />);
+    fireEvent.click(getByRole("button", { name: `${t.charSync.stampHint} Space` }));
+    fireEvent.keyDown(window, { code: "ArrowRight" });
+    expect(getByText(t.keys.reserved)).toBeTruthy();
+    expect(useSettingsStore.getState().keybindings.stamp).toBe("Space");
+  });
+
   it("keeps capture, conflict detection, cancellation, and reset working", () => {
     const t = useI18nStore.getState().t;
     const { getByRole, getByText } = render(<KeybindingsSection />);

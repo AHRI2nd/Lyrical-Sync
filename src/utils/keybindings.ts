@@ -27,6 +27,7 @@ export const DEFAULT_KEYBINDINGS: Record<KeyAction, string> = {
 
 // 바인딩 불가(시스템 예약) 키
 export const RESERVED_CODES = new Set(["Escape", "Tab"]);
+export const FIXED_SHORTCUT_CODES = new Set(["ArrowLeft", "ArrowRight"]);
 
 // 넘패드 숫자를 일반 숫자와 동일 취급(기존 동작 유지)
 function normalizeCode(code: string): string {
@@ -41,6 +42,7 @@ export function normalizeKeybindings(kb?: Partial<Record<KeyAction, string>>): R
     const saved = kb[action];
     if (!saved) continue;
     const candidate = normalizeCode(saved);
+    if (RESERVED_CODES.has(candidate) || FIXED_SHORTCUT_CODES.has(candidate)) continue;
     const conflictsWithAnotherAction = KEY_ACTIONS.some((other) =>
       other !== action && normalizeCode(out[other]) === candidate,
     );
@@ -52,6 +54,7 @@ export function normalizeKeybindings(kb?: Partial<Record<KeyAction, string>>): R
 // 키 코드가 어느 동작인지(없으면 null). 넘패드 정규화 적용.
 export function matchAction(code: string, kb: Record<KeyAction, string>): KeyAction | null {
   const c = normalizeCode(code);
+  if (FIXED_SHORTCUT_CODES.has(c)) return null;
   for (const a of KEY_ACTIONS) {
     if (normalizeCode(kb[a]) === c) return a;
   }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  matchAction, conflictingAction, normalizeKeybindings, keyLabel, DEFAULT_KEYBINDINGS, isInteractiveKeyTarget,
+  matchAction, conflictingAction, normalizeKeybindings, keyLabel, DEFAULT_KEYBINDINGS, FIXED_SHORTCUT_CODES, isInteractiveKeyTarget,
 } from "./keybindings";
 
 describe("keybindings — matching", () => {
@@ -29,6 +29,14 @@ describe("keybindings — conflict detection", () => {
 });
 
 describe("keybindings — normalize & labels", () => {
+  it("normalizes fixed navigation keys back to action defaults", () => {
+    const kb = normalizeKeybindings({ stamp: "ArrowRight", prevLine: "ArrowLeft" });
+    expect(FIXED_SHORTCUT_CODES.has("ArrowRight")).toBe(true);
+    expect(kb.stamp).toBe(DEFAULT_KEYBINDINGS.stamp);
+    expect(kb.prevLine).toBe(DEFAULT_KEYBINDINGS.prevLine);
+    expect(matchAction("ArrowRight", kb)).toBeNull();
+  });
+
   it("fills missing actions from defaults", () => {
     const kb = normalizeKeybindings({ stamp: "KeyS" });
     expect(kb.stamp).toBe("KeyS");

@@ -200,7 +200,7 @@ export const useSettingsStore = create<SettingsState>()(
       },
       clearRecentFiles: () => set({ recentFiles: [] }),
       setKeybinding: (action, code) =>
-        set((s) => ({ keybindings: { ...s.keybindings, [action]: code } })),
+        set((s) => ({ keybindings: normalizeKeybindings({ ...s.keybindings, [action]: code }) })),
       resetKeybindings: () => set({ keybindings: { ...DEFAULT_KEYBINDINGS } }),
     }),
     { name: "lyrical-sync-settings", storage: createSafeJSONStorage<SettingsState>(

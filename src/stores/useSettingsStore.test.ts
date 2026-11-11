@@ -72,6 +72,18 @@ describe("useSettingsStore — recent files (App Sandbox bookmarks)", () => {
 });
 
 
+describe("useSettingsStore — keybinding normalization", () => {
+  it("rejects fixed navigation keys through direct setters and persisted settings", async () => {
+    useSettingsStore.getState().setKeybinding("stamp", "ArrowRight");
+    expect(useSettingsStore.getState().keybindings.stamp).toBe("Space");
+
+    localStorage.setItem("lyrical-sync-settings", JSON.stringify({ state: { keybindings: { stamp: "ArrowRight" } }, version: 0 }));
+    await useSettingsStore.persist.rehydrate();
+    expect(useSettingsStore.getState().keybindings.stamp).toBe("Space");
+    localStorage.removeItem("lyrical-sync-settings");
+  });
+});
+
 describe("useSettingsStore — persistence failures", () => {
   const replaceStorage = () => {
     const previous = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
