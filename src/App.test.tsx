@@ -23,7 +23,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { saveRecoverySnapshot } from "./utils/recovery";
 import App from "./App";
 import { useLrcStore } from "./stores/useLrcStore";
-import { useSettingsStore } from "./stores/useSettingsStore";
+import { useSettingsPersistenceStore, useSettingsStore } from "./stores/useSettingsStore";
 import { useI18nStore } from "./stores/useI18nStore";
 import { DEFAULT_KEYBINDINGS } from "./utils/keybindings";
 import { audioControls } from "./utils/audioControls";
@@ -460,6 +460,7 @@ describe("Store shared recovery and error regression coverage", () => {
     localStorage.clear();
     vi.mocked(invoke).mockReset().mockResolvedValue(null);
     useSettingsStore.setState({ autoSave: false, recoveryEnabled: true });
+    useSettingsPersistenceStore.setState({ failureCount: 0 });
     useLrcStore.setState({ doc: defaultDocument(), isDirty: false, lrcPath: null, audioPath: null, lrcBookmark: null, audioBookmark: null, _history: [], _future: [] });
   });
   afterEach(() => { cleanup(); vi.restoreAllMocks(); localStorage.clear(); });
@@ -495,6 +496,17 @@ describe("Store shared recovery and error regression coverage", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(localStorage.getItem("lyrical-sync-recovery")).toBeNull();
   });
+  it("shows a localized error when saving settings to local storage fails", async () => {
+    render(<App />);
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("quota exceeded"); });
+
+    act(() => useSettingsStore.getState().setUiScale(1.1));
+
+    expect(useSettingsStore.getState().uiScale).toBe(1.1);
+    expect(await screen.findByText(useI18nStore.getState().t.toast.settingsSaveFailed)).toBeTruthy();
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
   it("keeps the current document editable after a background error", () => {
     render(<App />);
     act(() => useLrcStore.getState().addLine("saved from runtime error"));

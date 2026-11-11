@@ -4,7 +4,7 @@ export const isFiniteNumber = (value: unknown): value is number => typeof value 
 export const isNullableString = (value: unknown) => value === null || typeof value === "string";
 
 // Resolve storage at operation time; unavailable storage must not block editing.
-export function createSafeJSONStorage<S>(): PersistStorage<S> {
+export function createSafeJSONStorage<S>(onWriteFailure?: () => void): PersistStorage<S> {
   return {
     getItem: (name) => {
       try {
@@ -15,7 +15,13 @@ export function createSafeJSONStorage<S>(): PersistStorage<S> {
         return { state: parsed.state as S, version: isFiniteNumber(parsed.version) ? parsed.version : 0 };
       } catch { return null; }
     },
-    setItem: (name, value) => { try { globalThis.localStorage.setItem(name, JSON.stringify(value)); } catch { /* Keep in-memory settings usable. */ } },
-    removeItem: (name) => { try { globalThis.localStorage.removeItem(name); } catch { /* Storage may be unavailable. */ } },
+    setItem: (name, value) => {
+      try { globalThis.localStorage.setItem(name, JSON.stringify(value)); }
+      catch { onWriteFailure?.(); }
+    },
+    removeItem: (name) => {
+      try { globalThis.localStorage.removeItem(name); }
+      catch { onWriteFailure?.(); }
+    },
   };
 }

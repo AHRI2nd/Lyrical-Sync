@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 
 // zustand persist용 최소 localStorage 폴리필 (node 환경)
 if (typeof globalThis.localStorage === "undefined") {
@@ -13,7 +13,7 @@ if (typeof globalThis.localStorage === "undefined") {
   } as Storage;
 }
 
-import { useSettingsStore } from "./useSettingsStore";
+import { useSettingsPersistenceStore, useSettingsStore } from "./useSettingsStore";
 
 describe("useSettingsStore — recent files (App Sandbox bookmarks)", () => {
   beforeEach(() => useSettingsStore.setState({ recentFiles: [] }));
@@ -68,5 +68,54 @@ describe("useSettingsStore — recent files (App Sandbox bookmarks)", () => {
     useSettingsStore.getState().addRecentFile({ lrcPath: "/a.lrc", audioPath: null, lrcBookmark: null, audioBookmark: null });
     useSettingsStore.getState().clearRecentFiles();
     expect(useSettingsStore.getState().recentFiles).toEqual([]);
+  });
+});
+
+
+describe("useSettingsStore — persistence failures", () => {
+  const replaceStorage = () => {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+    const storage = new Storage();
+    Object.defineProperty(globalThis, "localStorage", { configurable: true, value: storage });
+    return { storage, restore: () => previous && Object.defineProperty(globalThis, "localStorage", previous) };
+  };
+
+  it("keeps the current session value, reports a failed write, and persists on a later retry", () => {
+    const { storage, restore } = replaceStorage();
+    const originalSetItem = storage.setItem.bind(storage);
+    const previouslyPersisted = JSON.stringify({ state: { uiScale: 0.9 }, version: 0 });
+    storage.setItem("lyrical-sync-settings", previouslyPersisted);
+    const failuresBefore = useSettingsPersistenceStore.getState().failureCount;
+    vi.spyOn(storage, "setItem")
+      .mockImplementationOnce(() => { throw new Error("quota exceeded"); })
+      .mockImplementation((key, value) => originalSetItem(key, value));
+    try {
+      useSettingsStore.getState().setUiScale(1.1);
+      expect(useSettingsStore.getState().uiScale).toBe(1.1);
+      expect(useSettingsPersistenceStore.getState().failureCount).toBe(failuresBefore + 1);
+      expect(JSON.parse(storage.getItem("lyrical-sync-settings")!).state.uiScale).toBe(0.9);
+
+      useSettingsStore.getState().setUiScale(1.2);
+      expect(JSON.parse(storage.getItem("lyrical-sync-settings")!).state.uiScale).toBe(1.2);
+      expect(useSettingsPersistenceStore.getState().failureCount).toBe(failuresBefore + 1);
+    } finally {
+      vi.restoreAllMocks();
+      restore();
+    }
+  });
+
+  it("reports a blocked recovery preference write without changing the preference", () => {
+    const { storage, restore } = replaceStorage();
+    vi.spyOn(storage, "setItem").mockImplementation(() => { throw new Error("storage blocked"); });
+    const previous = useSettingsStore.getState().recoveryEnabled;
+    const failuresBefore = useSettingsPersistenceStore.getState().failureCount;
+    try {
+      expect(useSettingsStore.getState().setRecoveryEnabled(!previous)).toBe(false);
+      expect(useSettingsStore.getState().recoveryEnabled).toBe(previous);
+      expect(useSettingsPersistenceStore.getState().failureCount).toBe(failuresBefore + 1);
+    } finally {
+      vi.restoreAllMocks();
+      restore();
+    }
   });
 });

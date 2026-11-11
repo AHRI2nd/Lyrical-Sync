@@ -72,6 +72,16 @@ export interface RecentFileEntry {
   openedAt: number;
 }
 
+interface SettingsPersistenceState {
+  failureCount: number;
+  reportFailure: () => void;
+}
+
+export const useSettingsPersistenceStore = create<SettingsPersistenceState>((set) => ({
+  failureCount: 0,
+  reportFailure: () => set((state) => ({ failureCount: state.failureCount + 1 })),
+}));
+
 const MAX_RECENT_FILES = 8;
 let latestRecentOpenedAt = 0;
 
@@ -164,7 +174,10 @@ export const useSettingsStore = create<SettingsState>()(
           localStorage.setItem("lyrical-sync-settings", JSON.stringify({ state, version: 0 }));
           set({ recoveryEnabled: v });
           return JSON.parse(localStorage.getItem("lyrical-sync-settings")!).state.recoveryEnabled === v;
-        } catch { return false; }
+        } catch {
+          useSettingsPersistenceStore.getState().reportFailure();
+          return false;
+        }
       },
       setAutoSave: (v) => set({ autoSave: v }),
       setUiScale: (v) => set({ uiScale: v }),
@@ -190,7 +203,8 @@ export const useSettingsStore = create<SettingsState>()(
         set((s) => ({ keybindings: { ...s.keybindings, [action]: code } })),
       resetKeybindings: () => set({ keybindings: { ...DEFAULT_KEYBINDINGS } }),
     }),
-    { name: "lyrical-sync-settings", storage: createSafeJSONStorage<SettingsState>(),
+    { name: "lyrical-sync-settings", storage: createSafeJSONStorage<SettingsState>(
+        () => useSettingsPersistenceStore.getState().reportFailure()),
       merge: (persisted, current) => sanitizeSettings(persisted, current) }
   )
 );

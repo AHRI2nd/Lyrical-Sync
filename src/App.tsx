@@ -8,7 +8,7 @@ const SettingsModal = lazy(() => import("./components/Settings/SettingsModal").t
 import { LyricSaveFormatChangedError, useLrcStore } from "./stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "./stores/useI18nStore";
-import { useSettingsStore } from "./stores/useSettingsStore";
+import { useSettingsPersistenceStore, useSettingsStore } from "./stores/useSettingsStore";
 import { audioControls } from "./utils/audioControls";
 import { anyModalOpen } from "./utils/modalGuard";
 import { safeUnlisten } from "./utils/safeUnlisten";
@@ -210,6 +210,13 @@ function useAutoSave(recoveryPending: boolean) {
 
 function App() {
   useGlobalKeys();
+  const settingsPersistenceFailureCount = useSettingsPersistenceStore((state) => state.failureCount);
+  const lastReportedSettingsFailure = useRef(0);
+  useEffect(() => {
+    if (settingsPersistenceFailureCount <= lastReportedSettingsFailure.current) return;
+    lastReportedSettingsFailure.current = settingsPersistenceFailureCount;
+    toast.error(useI18nStore.getState().t.toast.settingsSaveFailed);
+  }, [settingsPersistenceFailureCount]);
   useEffect(() => {
     const report = () => toast.error(useI18nStore.getState().t.toast.runtimeFailed);
     window.addEventListener("lyrical-runtime-error", report);
