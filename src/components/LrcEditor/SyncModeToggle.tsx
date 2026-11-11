@@ -17,14 +17,14 @@ export function SyncModeToggle({
     <>
       <div className="inline-flex bg-[var(--ls-control)] rounded-lg p-0.5">
         <button
-          onClick={(e) => { onSetSyncMode("line"); e.currentTarget.blur(); }}
+          onClick={(e) => { onSetSyncMode("line"); if (e.detail !== 0) e.currentTarget.blur(); }}
           aria-pressed={!charMode}
           className={`ls-button ls-button--compact ${`  text-xs rounded-md transition-colors ${!charMode ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
         >
           {t.charSync.modeLine}
         </button>
         <button
-          onClick={(e) => { onSetSyncMode("char"); e.currentTarget.blur(); }}
+          onClick={(e) => { onSetSyncMode("char"); if (e.detail !== 0) e.currentTarget.blur(); }}
           aria-pressed={charMode}
           disabled={isRunning}
           title={isRunning ? runningTitle : undefined}
@@ -39,14 +39,14 @@ export function SyncModeToggle({
           <span className="text-xs text-[var(--ls-text-secondary)]">{t.charSync.unitLabel}</span>
           <div className="inline-flex bg-[var(--ls-control)] rounded-lg p-0.5">
             <button
-              onClick={(e) => { onUnitChange("char"); e.currentTarget.blur(); }}
+              onClick={(e) => { onUnitChange("char"); if (e.detail !== 0) e.currentTarget.blur(); }}
               aria-pressed={syncUnit === "char"}
               className={`ls-button ls-button--compact ${`  text-xs rounded-md transition-colors ${syncUnit === "char" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
             >
               {t.charSync.unitChar}
             </button>
             <button
-              onClick={(e) => { onUnitChange("word"); e.currentTarget.blur(); }}
+              onClick={(e) => { onUnitChange("word"); if (e.detail !== 0) e.currentTarget.blur(); }}
               aria-pressed={syncUnit === "word"}
               className={`ls-button ls-button--compact ${`  text-xs rounded-md transition-colors ${syncUnit === "word" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
             >

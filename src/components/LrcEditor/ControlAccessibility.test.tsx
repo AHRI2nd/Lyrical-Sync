@@ -42,3 +42,32 @@ it("exposes the selected sync mode and unit while preserving disabled transition
   fireEvent.click(getByRole("button", { name: t.charSync.unitChar }));
   expect(onUnitChange).toHaveBeenCalledExactlyOnceWith("char");
 });
+
+it.each([
+  ["line mode", false, "modeLine", "mode", "line"],
+  ["character mode", false, "modeChar", "mode", "char"],
+  ["character unit", true, "unitChar", "unit", "char"],
+  ["word unit", true, "unitWord", "unit", "word"],
+] as const)("keeps focus for keyboard activation and blurs after pointer activation of %s", (_name, charMode, label, kind, value) => {
+  const t = translations.en;
+  const onSetSyncMode = vi.fn();
+  const onUnitChange = vi.fn();
+  const { getByRole } = render(<SyncModeToggle t={t} charMode={charMode} syncUnit="char"
+    onSetSyncMode={onSetSyncMode} onUnitChange={onUnitChange} isRunning={false} />);
+  const name = t.charSync[label];
+  const control = getByRole("button", { name });
+  control.focus();
+
+  fireEvent.click(control, { detail: 0 });
+
+  expect(document.activeElement).toBe(control);
+  if (kind === "mode") expect(onSetSyncMode).toHaveBeenCalledExactlyOnceWith(value);
+  else expect(onUnitChange).toHaveBeenCalledExactlyOnceWith(value);
+
+  control.focus();
+  fireEvent.click(control, { detail: 1 });
+
+  expect(document.activeElement).not.toBe(control);
+  if (kind === "mode") expect(onSetSyncMode).toHaveBeenCalledTimes(2);
+  else expect(onUnitChange).toHaveBeenCalledTimes(2);
+});
