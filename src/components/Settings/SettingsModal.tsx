@@ -1,6 +1,6 @@
 import { SettingsTabBar, TabBtn } from "./SettingsTabs";
 import { useModalFocus } from "../../hooks/useModalFocus";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useServiceStore } from "../../stores/useServiceStore";
@@ -38,12 +38,19 @@ export function SettingsModal({
   const [checkState, setCheckState] = useState<CheckState>("idle");
   const [tab, setTab] = useState<Tab>(initialTab);
   const dialog = useRef<HTMLDivElement>(null);
+  const mounted = useRef(false);
   const titleId = useId();
   useModalFocus(dialog, onClose, true, modalPriority);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   const handleCheckNow = async () => {
     setCheckState("checking");
     await useUpdaterStore.getState().checkForUpdate(false);
+    if (!mounted.current) return;
     const status = useUpdaterStore.getState().status;
     if (status === "available") {
       onClose();

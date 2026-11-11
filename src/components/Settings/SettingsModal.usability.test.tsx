@@ -42,6 +42,18 @@ it('closes settings for an available update without a false success label',async
  check.mockResolvedValue({version:'0.8.0',body:'Test release'});const close=vi.fn(),found=vi.fn();render(<SettingsModal onClose={close} onUpdateFound={found}/>);await userEvent.setup().click(screen.getByRole('button',{name:'Check Now'}));expect(close).toHaveBeenCalledOnce();expect(found).toHaveBeenCalledOnce();expect(screen.queryByText("You're up to date.")).toBeNull();
 });
 
+it('does not let a dismissed update check close a reopened settings dialog',async()=>{
+ let resolveCheck!: (update: {version:string;body:string}) => void;
+ check.mockReturnValueOnce(new Promise(resolve=>{resolveCheck=resolve;}));
+ function Fixture(){const[open,setOpen]=useState(true);return <><button onClick={()=>setOpen(true)}>Open settings again</button>{open&&<SettingsModal onClose={()=>setOpen(false)} onUpdateFound={()=>{}}/>}</>;}
+ render(<Fixture/>);const user=userEvent.setup();
+ await user.click(screen.getByRole('button',{name:'Check Now'}));
+ await user.click(screen.getByRole('button',{name:useI18nStore.getState().t.close}));
+ await user.click(screen.getByRole('button',{name:'Open settings again'}));
+ await act(async()=>{resolveCheck({version:'0.8.0',body:'Test release'});});
+ expect(screen.getByRole('dialog',{name:'Settings'})).toBeTruthy();
+});
+
 it('keeps the real updater dialog focused across download and result transitions',()=>{
  useUpdaterStore.setState({status:'available'});render(<UpdateModal/>);const t=useI18nStore.getState().t;
  screen.getByRole('button',{name:t.updater.update}).focus();act(()=>useUpdaterStore.setState({status:'downloading'}));expect(document.activeElement).toBe(screen.getByRole('dialog'));
