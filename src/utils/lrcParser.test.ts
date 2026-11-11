@@ -145,6 +145,15 @@ describe("parseLrc — line level", () => {
     expect(() => serializeLrc(doc)).toThrow("line breaks");
   });
 
+  it.each(["\u2028", "\u2029"])("preserves imported metadata containing Unicode line separator %s", (separator) => {
+    const imported = parseLrc(`[ti:safe${separator}[00:02.00]injected]\n[x-origin:source${separator}detail]\n[00:01.00]lyric`);
+
+    expect(imported.metadata.title).toBe(`safe${separator}[00:02.00]injected`);
+    expect(imported.extraTags["x-origin"]).toBe(`source${separator}detail`);
+    expect(imported.lines.map((line) => [line.timestamp, line.text])).toEqual([[1, "lyric"]]);
+    expect(() => serializeLrc(imported)).toThrow(expect.objectContaining({ code: "LRC_METADATA_LINE_BREAK" }));
+  });
+
   it("round-trips literal inline timestamp text without treating it as Enhanced LRC timing", () => {
     const original = docOf([{ id: "literal", timestamp: 1, text: "Look <00:02.00> here" }]);
     const serialized = serializeLrc(original);

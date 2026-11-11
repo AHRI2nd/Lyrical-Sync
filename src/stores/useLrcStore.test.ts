@@ -76,6 +76,17 @@ describe("useLrcStore — line actions", () => {
     expect(useLrcStore.getState().doc.metadata.title).toBe("New track title");
   });
 
+  it.each(["\u2028", "\u2029"])("rejects unsafe imported metadata separator %s before writing", async (separator) => {
+    const doc = parseLrc(`[ti:safe${separator}[00:02.00]injected]\n[00:01.00]lyric`);
+    useLrcStore.setState({ doc, lrcPath: "/working.lrc", isDirty: true });
+    vi.mocked(invoke).mockResolvedValue(undefined);
+
+    await expect(useLrcStore.getState().saveLrc()).rejects.toMatchObject({ code: "LRC_METADATA_LINE_BREAK" });
+
+    expect(invoke).not.toHaveBeenCalledWith("write_lrc_file", expect.anything());
+    expect(useLrcStore.getState()).toMatchObject({ doc, lrcPath: "/working.lrc", isDirty: true });
+  });
+
   it("does not import audio tags into SRT cue metadata", () => {
     useLrcStore.setState({ lrcPath: "/lyrics.srt" });
 
