@@ -1677,6 +1677,59 @@ mod tests {
         .expect("dropped yt-dlp operation should terminate its descendant");
     }
 
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn terminating_process_tree_closes_a_pipe_held_by_a_child_grandchild() {
+        use tokio::io::AsyncReadExt;
+
+        let temp = tempfile::tempdir().unwrap();
+        let marker = temp.path().join("grandchild.pid");
+        let mut command = tokio::process::Command::new("sh");
+        command
+            .arg("-c")
+            .arg("sleep 60 & echo $! > \"$1\"")
+            .arg("ytdlp-pipe-fixture")
+            .arg(&marker)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .kill_on_drop(true)
+            .process_group(0);
+        let mut child = command.spawn().unwrap();
+        let pid = child.id().unwrap();
+        let stdout = child.stdout.take().unwrap();
+        let mut reader = BufReader::new(stdout);
+        let mut guard = YtdlpProcessTreeGuard::new(Some(pid));
+
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            while !marker.exists() {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+            child.wait().await.unwrap();
+        })
+        .await
+        .expect("direct child should exit while its descendant keeps stdout open");
+        let _grandchild: i32 = std::fs::read_to_string(marker)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(100), reader.read_u8(),)
+                .await
+                .is_err(),
+            "descendant should keep the pipe open before cleanup"
+        );
+
+        guard.terminate().await;
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            let mut byte = [0u8; 1];
+            assert_eq!(reader.read(&mut byte).await.unwrap(), 0);
+        })
+        .await
+        .expect("terminating the process group should release the inherited pipe");
+    }
+
     #[test]
     fn bounded_response_byte_count_rejects_limit_plus_one_and_overflow() {
         assert_eq!(checked_limited_bytes(4, 6, 10).unwrap(), 10);
@@ -1697,6 +1750,42 @@ mod tests {
         let next = read_bounded_line(&mut reader, 8).await.unwrap().unwrap();
         assert!(!next.truncated);
         assert_eq!(next.bytes, b"next");
+    }
+
+    #[tokio::test]
+    async fn child_output_line_reader_bounds_a_large_newline_free_stream() {
+        use tokio::io::AsyncWriteExt;
+
+        let (mut writer, stream) = tokio::io::duplex(8 * 1024);
+        let writer_task = tokio::spawn(async move {
+            let block = [b'x'; 16 * 1024];
+            let mut total = 0usize;
+            loop {
+                match writer.write_all(&block).await {
+                    Ok(()) => total += block.len(),
+                    Err(_) => return total,
+                }
+            }
+        });
+
+        let mut reader = BufReader::new(stream);
+        let line = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            read_bounded_line(&mut reader, MAX_YTDLP_STDOUT_LINE_BYTES),
+        )
+        .await
+        .expect("newline-free output should hit the byte cap promptly")
+        .unwrap()
+        .unwrap();
+        assert!(line.truncated);
+        assert_eq!(line.bytes.len(), MAX_YTDLP_STDOUT_LINE_BYTES);
+
+        drop(reader);
+        let written = tokio::time::timeout(std::time::Duration::from_secs(2), writer_task)
+            .await
+            .expect("writer should stop after the bounded reader is dropped")
+            .unwrap();
+        assert!(written < MAX_YTDLP_STDOUT_LINE_BYTES + 8 * 1024 + 16 * 1024);
     }
 
     #[tokio::test]
