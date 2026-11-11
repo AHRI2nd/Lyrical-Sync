@@ -4,6 +4,7 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useLrcStore } from "./useLrcStore";
+import { DocumentTransitionSaveError } from "../utils/documentTransition";
 import { useSettingsStore } from "./useSettingsStore";
 import { defaultDocument } from "../types/lrc";
 import { setDocumentConfirmation } from "../utils/documentTransition";
@@ -114,7 +115,10 @@ it("cancelled or failed save blocks dirty replacement", async () => {
   expect(useLrcStore.getState().doc).toBe(doc);
   useLrcStore.setState({ lrcPath: "/song.lrc" });
   vi.mocked(invoke).mockRejectedValue(new Error("disk full"));
-  await expect(useLrcStore.getState().requestDocumentTransition({ kind: "new" })).rejects.toThrow("disk full");
+  await expect(useLrcStore.getState().requestDocumentTransition({ kind: "new" })).rejects.toMatchObject({
+    name: "DocumentTransitionSaveError",
+    cause: expect.objectContaining({ message: "disk full" }),
+  } satisfies Partial<DocumentTransitionSaveError>);
   expect(useLrcStore.getState().doc).toBe(doc);
   expect(useLrcStore.getState().isDirty).toBe(true);
 });
