@@ -13,6 +13,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useDeviceStore } from "../../stores/useDeviceStore";
 import { useBusyStore } from "../../stores/useBusyStore";
+import { useModelDownloadStore } from "../../stores/useModelDownloadStore";
+import { MODEL_DEFS } from "../../utils/modelDefs";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { serviceControls } from "../../utils/serviceControls";
 import { deviceControls } from "../../utils/deviceControls";
@@ -441,6 +443,43 @@ it("rechecks AI readiness after the package installer releases its environment l
   act(() => useBusyStore.getState().clearBusy("python-packages"));
 
   await vi.waitFor(() => expect(readinessCalls).toBe(2));
+  await vi.waitFor(() => expect(aiButton.hasAttribute("disabled")).toBe(false));
+});
+it("rechecks model readiness when inventory confirms installation despite missing progress events", async () => {
+  const requiredModel = MODEL_DEFS.find((model) => model.required)!;
+  let modelChecks = 0;
+  vi.mocked(listen).mockImplementation(async (event) => {
+    if (event === "model-download-progress" || event === "pip-install-progress") {
+      throw new Error("progress listener unavailable");
+    }
+    return () => {};
+  });
+  vi.mocked(invoke).mockImplementation((command: unknown) => {
+    if (command === "set_models_dir_override") return Promise.resolve(undefined);
+    if (command === "get_python_env_info") return Promise.resolve({ packagesReady: true });
+    if (command === "get_models_dir") return Promise.resolve("/models/default");
+    if (command === "check_model_files") {
+      modelChecks += 1;
+      return Promise.resolve([modelChecks > 1]);
+    }
+    return Promise.resolve(undefined);
+  });
+  useSettingsStore.setState({ modelsDir: "", deviceMode: false, spotifyMode: false });
+  useLrcStore.setState({ audioPath: "/song.mp3" });
+  useModelDownloadStore.setState((state) => ({
+    models: { ...state.models, [requiredModel.id]: { status: "not-installed", progress: 0 } },
+  }));
+
+  const { getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  const aiButton = getByRole("button", { name: useI18nStore.getState().t.aiAutoSync });
+  await vi.waitFor(() => expect(modelChecks).toBe(1));
+  expect(aiButton.hasAttribute("disabled")).toBe(true);
+
+  act(() => useModelDownloadStore.setState((state) => ({
+    models: { ...state.models, [requiredModel.id]: { status: "installed", progress: 100 } },
+  })));
+
+  await vi.waitFor(() => expect(modelChecks).toBe(2));
   await vi.waitFor(() => expect(aiButton.hasAttribute("disabled")).toBe(false));
 });
 it("routes line seeking to the device controller when device mode is selected", () => {

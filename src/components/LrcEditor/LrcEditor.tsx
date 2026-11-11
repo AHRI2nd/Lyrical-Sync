@@ -7,6 +7,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore, type AlignmentLanguage } from "../../stores/useSettingsStore";
 import { useBusyStore } from "../../stores/useBusyStore";
+import { useModelDownloadStore } from "../../stores/useModelDownloadStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { formatDisplayTime, parseTimestampInput, validateTimestamps, type SyncUnit } from "../../utils/lrcParser";
 import { audioControls } from "../../utils/audioControls";
@@ -37,6 +38,7 @@ const BpmSnapModal = lazy(() => import("../AudioPlayer/BpmSnapModal").then((m) =
 
 // ISO 639-3 codes used by ctc-forced-aligner / MMS model
 const LANG_CODE: Record<string, AlignmentLanguage> = { ko: "kor", en: "eng", ja: "jpn" };
+const REQUIRED_MODEL_ID = MODEL_DEFS.find((model) => model.required)!.id;
 
 type FindMatch = { id: string; start: number; end: number };
 
@@ -90,6 +92,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   const { t, lang } = useI18nStore();
   const { blankLineOffset, aiAlignmentLanguage, setAiAlignmentLanguage, modelsDir, spotifyMode, deviceMode, lyricsFontScale, useVocalSeparation, useVad, showSpellCheck, showTranslationLines } = useSettingsStore();
   const serviceLoggedIn = useServiceStore((s) => s.isLoggedIn);
+  const requiredModelStatus = useModelDownloadStore((state) => state.models[REQUIRED_MODEL_ID]?.status);
   const pythonEnvironmentBusy = useBusyStore((state) => [...state.reasons].some((reason) => reason === "python-download" || reason === "python-packages"));
   // 실제 Spotify 모드(로그인 + spotifyMode 활성)일 때만 서비스 모드로 간주.
   // 단순 계정 연결만으로 AI 싱크를 막지 않도록 isReady 대신 spotifyMode 기준 사용.
@@ -567,6 +570,10 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     const stopPip = listenSafely(() => register("pip-install-progress"));
     return () => { active = false; stopModel(); stopPip(); };
   }, [checkAiRequirements]);
+
+  useEffect(() => {
+    if (requiredModelStatus === "installed") checkAiRequirements();
+  }, [checkAiRequirements, requiredModelStatus]);
 
   const canRunAi =
     pythonReady && !pythonEnvironmentBusy && !modelInventoryError && missingModels.length === 0;
