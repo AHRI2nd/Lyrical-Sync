@@ -132,7 +132,7 @@ function useGlobalKeys() {
 
 // 저장 경로(lrcPath)가 지정된 파일에 한해, 변경 후 일정 시간 멈추면 자동 저장.
 // 새 문서(lrcPath 없음)는 저장 위치가 없으므로 자동 저장하지 않음.
-function useAutoSave() {
+function useAutoSave(recoveryPending: boolean) {
   const isDirty = useLrcStore((s) => s.isDirty);
   const lrcPath = useLrcStore((s) => s.lrcPath);
   const editRevision = useLrcStore((s) => s._editRevision);
@@ -147,7 +147,7 @@ function useAutoSave() {
   }, [session]);
 
   useEffect(() => {
-    if (!autoSave || !lrcPath || !isDirty) return;
+    if (recoveryPending || !autoSave || !lrcPath || !isDirty) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
     let retryIndex = 0;
@@ -203,7 +203,7 @@ function useAutoSave() {
     timer = setTimeout(() => { void attemptSave(); }, 1500);
     return () => { cancelled = true; clearTimeout(timer); };
     // doc 변경마다 타이머 리셋 → 입력이 멈춘 뒤에만 저장(디바운스)
-  }, [autoSave, lrcPath, isDirty, editRevision, session]);
+  }, [autoSave, lrcPath, isDirty, editRevision, recoveryPending, session]);
 }
 
 function App() {
@@ -213,7 +213,6 @@ function App() {
     window.addEventListener("lyrical-runtime-error", report);
     return () => window.removeEventListener("lyrical-runtime-error", report);
   }, []);
-  useAutoSave();
 
   // Capture startup recovery before any backup effect starts.
   const [recovery, setRecovery] = useState<RecoverySnapshot | null>(() => {
@@ -221,6 +220,7 @@ function App() {
     return snap;
   });
   const recoveryFailed = useRecoverySnapshots(recovery !== null);
+  useAutoSave(recovery !== null);
   const [showHelp, setShowHelp] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showSettings, setShowSettings] = useState(false);

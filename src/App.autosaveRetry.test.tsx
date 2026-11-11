@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
@@ -22,7 +22,7 @@ import { useLrcStore } from "./stores/useLrcStore";
 import { useSettingsStore } from "./stores/useSettingsStore";
 import { useToastStore } from "./stores/useToastStore";
 import { defaultDocument } from "./types/lrc";
-import { clearRecoverySnapshot, loadRecoverySnapshot } from "./utils/recovery";
+import { clearRecoverySnapshot, loadRecoverySnapshot, saveRecoverySnapshot } from "./utils/recovery";
 
 const path = "/tmp/autosave-retry.lrc";
 const writes = () => invokeMock.mock.calls.filter(([command]) => command === "write_lrc_file");
@@ -76,6 +76,34 @@ it("retries the unchanged dirty document after a transient native write failure"
   expect(useLrcStore.getState().isDirty).toBe(false);
   await advance(60_000);
   expect(writes()).toHaveLength(2);
+});
+
+it("holds autosave while startup recovery is unresolved and resumes after discard", async () => {
+  useLrcStore.setState({
+    doc: { ...defaultDocument(), metadata: { ...defaultDocument().metadata }, lines: [] },
+    lrcPath: path,
+    audioPath: "/tmp/dropped-audio.mp3",
+    isDirty: false,
+  });
+  const recovered = { ...defaultDocument(), lines: [{ id: "recovery", text: "Recovered lyrics", timestamp: 1 }] };
+  saveRecoverySnapshot(recovered, null, null);
+  render(<App />);
+
+  expect(screen.getByRole("dialog")).toBeTruthy();
+  act(() => useLrcStore.getState().setAudioMetadata({ title: "Dropped audio tag" }));
+  expect(useLrcStore.getState().isDirty).toBe(true);
+
+  await advance(1_500);
+  expect(writes()).toHaveLength(0);
+  expect(screen.getByRole("dialog")).toBeTruthy();
+
+  fireEvent.click(screen.getByRole("button", { name: useI18nStore.getState().t.recovery.discard }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  await advance(1_499);
+  expect(writes()).toHaveLength(0);
+  await advance(1);
+  expect(writes()).toHaveLength(1);
+  expect(writes()[0][1].content).toContain("Dropped audio tag");
 });
 
 it.each([true, false])("caps permanent failures and preserves dirty data with recovery enabled=%s", async (recoveryEnabled) => {
