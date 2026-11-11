@@ -2,12 +2,22 @@ import { LrcDocument, LrcLine, LrcMetadata, LrcSyllable, defaultDocument } from 
 
 export type SyncUnit = "char" | "word";
 
+type GraphemeSegmenter = { segment: (text: string) => Iterable<{ segment: string }> };
+type GraphemeSegmenterConstructor = new (
+  locale?: string | string[],
+  options?: { granularity: "grapheme" },
+) => GraphemeSegmenter;
+const Segmenter = (Intl as typeof Intl & { Segmenter?: GraphemeSegmenterConstructor }).Segmenter;
+const GRAPHEME_SEGMENTER = Segmenter ? new Segmenter(undefined, { granularity: "grapheme" }) : null;
+
 // 줄 텍스트를 글자/단어 토큰으로 분할. 공백도 토큰으로 보존(연결 시 원문 복원).
 export function tokenizeText(text: string, unit: SyncUnit): LrcSyllable[] {
   if (text === "") return [];
   const pieces =
     unit === "char"
-      ? Array.from(text)
+      ? GRAPHEME_SEGMENTER
+        ? Array.from(GRAPHEME_SEGMENTER.segment(text), (part) => part.segment)
+        : Array.from(text)
       : text.split(/(\s+)/).filter((s) => s !== "");
   return pieces.map((p) => ({ text: p, time: null }));
 }

@@ -23,6 +23,32 @@ describe("tokenizeText", () => {
   it("splits by character, preserving spaces as tokens", () => {
     expect(tokenizeText("너의 손", "char").map((s) => s.text)).toEqual(["너", "의", " ", "손"]);
   });
+  it.each([
+    ["decomposed accent", "e\u0301", ["e\u0301"]],
+    ["Hangul jamo", "가", ["가"]],
+    ["emoji ZWJ sequence", "👩‍🎤", ["👩‍🎤"]],
+    ["skin-tone emoji", "👩🏽", ["👩🏽"]],
+    ["regional-indicator flag", "🇰🇷", ["🇰🇷"]],
+    ["mixed graphemes and spaces", "e\u0301 👨‍👩‍👧‍👦🇯🇵", ["e\u0301", " ", "👨‍👩‍👧‍👦", "🇯🇵"]],
+  ])("keeps each $0 as one stampable grapheme", (_name, input, expected) => {
+    const tokens = tokenizeText(input as string, "char");
+    expect(tokens.map((token) => token.text)).toEqual(expected);
+    expect(tokens.map((token) => token.text).join("")).toBe(input);
+    expect(tokens.every((token) => token.time === null)).toBe(true);
+  });
+  it("round-trips timed grapheme tokens through Enhanced LRC without normalizing source text", () => {
+    const text = "e\u0301 👨‍👩‍👧‍👦🇰🇷";
+    const syllables = tokenizeText(text, "char").map((syllable, index) => ({
+      ...syllable,
+      time: 1.25 + index * 0.1,
+    }));
+    const original = docOf([{ id: "unicode", timestamp: 1.25, text, syllables }]);
+
+    const restored = parseLrc(serializeLrc(original));
+
+    expect(restored.lines[0].text).toBe(text);
+    expect(restored.lines[0].syllables).toEqual(syllables);
+  });
   it("splits by word, keeping whitespace runs as separate tokens", () => {
     expect(tokenizeText("hello world", "word").map((s) => s.text)).toEqual(["hello", " ", "world"]);
   });

@@ -112,6 +112,23 @@ it("resumes consecutive glyph stamps after returning from a button to the glyph 
   expect(useLrcStore.getState().doc.lines[0].syllables?.map((token) => token.time)).toEqual([12, 13, null]);
 });
 
+it("stamps one complete emoji grapheme and advances past it as a single unit", () => {
+  const family = "👨‍👩‍👧‍👦";
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: `${family}x`, timestamp: 0 }] } });
+  render(<CharSyncView />);
+
+  fireEvent.keyDown(window, { code: "Space" });
+
+  expect(useLrcStore.getState().doc.lines[0].syllables?.map(({ text, time }) => [text, time])).toEqual([
+    [family, 12], ["x", null],
+  ]);
+  expect(useLrcStore.getState().activeSyllableIndex).toBe(1);
+
+  act(() => useLrcStore.setState({ currentTime: 13 }));
+  fireEvent.keyDown(window, { code: "Space" });
+  expect(useLrcStore.getState().doc.lines[0].syllables?.map((token) => token.time)).toEqual([12, 13]);
+});
+
 it("stamps only once when the configured stamp key repeats while held", () => {
   render(<CharSyncView />);
   fireEvent.keyDown(window, { code: "Space", repeat: false });
