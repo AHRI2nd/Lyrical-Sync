@@ -60,7 +60,7 @@ export function ToastContainer() {
           onClick={() => dismiss(t.id)}
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") dismiss(t.id); }}
           tabIndex={0}
-          className={`pointer-events-auto cursor-pointer flex items-start gap-2 px-3.5 py-2.5 rounded-lg shadow-xl border text-sm max-w-xs animate-[toastIn_.18s_ease-out] backdrop-blur-sm ${STYLE[t.type]}`}
+          className={`pointer-events-auto cursor-pointer flex items-start gap-2 px-3.5 py-2.5 rounded-lg shadow-xl border text-sm max-w-xs animate-[toastIn_.18s_ease-out] motion-reduce:animate-none backdrop-blur-sm ${STYLE[t.type]}`}
         >
           <span className="shrink-0 mt-0.5"><Icon type={t.type} /></span>
           <span className="flex-1 leading-snug break-words">{t.message}</span>

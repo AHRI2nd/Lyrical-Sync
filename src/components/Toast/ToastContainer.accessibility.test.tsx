@@ -15,6 +15,12 @@ it("announces error toasts through an assertive live region", () => {
   expect(screen.getByRole("alert").textContent).toContain("Save failed");
 });
 
+it("disables the entrance animation for reduced-motion users", () => {
+  useToastStore.setState({ toasts: [{ id: 1, type: "success", message: "Saved" }] });
+  render(<ToastContainer />);
+  expect(screen.getByRole("status").className.split(/\s+/)).toContain("motion-reduce:animate-none");
+});
+
 it("dismisses the oldest toast with Escape after the notification region receives focus", () => {
   useToastStore.setState({ toasts: [
     { id: 1, type: "error", message: "Save failed" },
