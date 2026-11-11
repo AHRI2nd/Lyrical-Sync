@@ -32,14 +32,33 @@ it("owns batch dialog focus and ignores composing Escape", () => {
   fireEvent.keyDown(document.activeElement!, { key: "Escape" });
   expect(onClose).toHaveBeenCalledOnce();
 });
-async function selectInputsAndOutput() {
+async function selectInputsAndOutput(labels: Translations = t) {
   vi.mocked(open).mockResolvedValueOnce(["/inputs/song.lrc"]);
-  fireEvent.click(screen.getByRole("button", { name: "Select files" }));
+  fireEvent.click(screen.getByRole("button", { name: labels.batchSelectFiles }));
   await screen.findByText("song.lrc");
   vi.mocked(open).mockResolvedValueOnce("/output");
-  fireEvent.click(screen.getByRole("button", { name: "Output folder" }));
+  fireEvent.click(screen.getByRole("button", { name: labels.batchOutputFolder }));
   await screen.findByText("/output");
 }
+
+it.each(["ko", "en", "ja"] as const)("formats zero and nonzero cancellation counts in production %s", async (lang) => {
+  const labels = translations[lang];
+  render(<BatchToolModal t={labels} onClose={vi.fn()} />);
+  await selectInputsAndOutput(labels);
+
+  for (const cancelled of [0, 3]) {
+    vi.mocked(runBatchOperation).mockResolvedValueOnce({ done: 2, error: 1, cancelled });
+    fireEvent.click(screen.getByRole("button", { name: labels.batchRun }));
+    const expectedCancelled = labels.batchSummaryCancelled.replace("{count}", String(cancelled));
+    await waitFor(() => {
+      const status = screen.getByRole("status");
+      expect(status.textContent).toContain(expectedCancelled);
+      expect(status.textContent).toContain(`2 ${labels.batchSummaryDone}`);
+      expect(status.textContent).toContain(`1 ${labels.batchSummaryError}`);
+      expect(status.textContent).not.toContain("{count}");
+    });
+  }
+});
 
 it("requires an explicitly selected folder and uses bookmarked file references", async () => {
   render(<BatchToolModal t={t} onClose={vi.fn()} />);
