@@ -76,6 +76,14 @@ fn read_audio_metadata(path: String, bookmark: Option<String>) -> Result<AudioMe
     use lofty::tag::Accessor;
     let access = file_access::FileAccess::open(path, bookmark)?;
     let mut file = audio_decode::open_audio_file(&access.path())?;
+    if file
+        .metadata()
+        .map_err(|error| error.to_string())?
+        .len()
+        > audio_decode::MAX_AUDIO_FILE_BYTES
+    {
+        return Err(audio_decode::AUDIO_RESOURCE_LIMIT_ERROR.into());
+    }
     let tagged = lofty::read_from(&mut file).map_err(|e| e.to_string())?;
     let tag = tagged.primary_tag().or_else(|| tagged.first_tag());
     let s = |o: Option<std::borrow::Cow<str>>| o.map(|c| c.trim().to_string()).unwrap_or_default();
@@ -111,4 +119,91 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn metadata_lookup_still_reads_tags_from_a_normal_sized_file() {
+        use lofty::file::{AudioFile, TaggedFileExt};
+        use lofty::tag::{ItemKey, Tag, TagType};
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("tagged.wav");
+        let mut writer = hound::WavWriter::create(
+            &path,
+            hound::WavSpec {
+                channels: 1,
+                sample_rate: 8_000,
+                bits_per_sample: 16,
+                sample_format: hound::SampleFormat::Int,
+            },
+        )
+        .unwrap();
+        writer.write_sample(1_i16).unwrap();
+        writer.finalize().unwrap();
+        let mut tagged = lofty::read_from_path(&path).unwrap();
+        let mut tag = Tag::new(TagType::Id3v2);
+        tag.insert_text(ItemKey::TrackTitle, "Example title".into());
+        tagged.insert_tag(tag);
+        tagged
+            .save_to_path(&path, lofty::config::WriteOptions::default())
+            .unwrap();
+
+        let metadata = read_audio_metadata(path.to_string_lossy().into_owned(), None).unwrap();
+
+        assert_eq!(metadata.title, "Example title");
+    }
+
+    #[test]
+    fn metadata_lookup_returns_an_error_for_a_truncated_tag() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("truncated.mp3");
+        std::fs::write(&path, b"ID3\x04\0\0\0\0\x7f\x7f").unwrap();
+
+        assert!(read_audio_metadata(path.to_string_lossy().into_owned(), None).is_err());
+    }
+
+    #[test]
+    fn metadata_lookup_rejects_oversized_audio_before_tag_parsing() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("oversized.mp3");
+        std::fs::File::create(&path)
+            .unwrap()
+            .set_len(audio_decode::MAX_AUDIO_FILE_BYTES + 1)
+            .unwrap();
+
+        let result = read_audio_metadata(path.to_string_lossy().into_owned(), None);
+        assert!(matches!(
+            result,
+            Err(error) if error == audio_decode::AUDIO_RESOURCE_LIMIT_ERROR
+        ));
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn metadata_lookup_rejects_fifo_without_blocking() {
+        use std::ffi::CString;
+        use std::os::unix::ffi::OsStrExt;
+        use std::sync::mpsc;
+        use std::time::Duration;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("audio.pipe");
+        let c_path = CString::new(path.as_os_str().as_bytes()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(c_path.as_ptr(), 0o600) }, 0);
+
+        let metadata_path = path.to_string_lossy().into_owned();
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(read_audio_metadata(metadata_path, None));
+        });
+        let result = rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("metadata lookup must not block on a FIFO");
+
+        assert!(matches!(result, Err(error) if error.contains("regular file")));
+    }
 }
