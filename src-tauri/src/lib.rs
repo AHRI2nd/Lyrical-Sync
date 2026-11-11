@@ -21,7 +21,10 @@ use bookmark::{create_security_bookmark, resolve_security_bookmark};
 #[tauri::command]
 async fn read_lrc_file(path: String, bookmark: Option<String>) -> Result<String, String> {
     let access = file_access::FileAccess::open(path, bookmark)?;
-    std::fs::read_to_string(access.path()).map_err(|e| e.to_string())
+    let mut file = audio_decode::open_audio_file(&access.path())?;
+    let mut content = String::new();
+    std::io::Read::read_to_string(&mut file, &mut content).map_err(|error| error.to_string())?;
+    Ok(content)
 }
 
 #[tauri::command]
@@ -124,6 +127,49 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn lyric_read_still_reads_a_regular_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("song.lrc");
+        std::fs::write(&path, "[00:01.00]A line\n").unwrap();
+
+        assert_eq!(
+            tauri::async_runtime::block_on(read_lrc_file(
+                path.to_string_lossy().into_owned(),
+                None,
+            ))
+            .unwrap(),
+            "[00:01.00]A line\n"
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn lyric_read_rejects_fifo_without_blocking() {
+        use std::ffi::CString;
+        use std::os::unix::ffi::OsStrExt;
+        use std::sync::mpsc;
+        use std::time::Duration;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("lyrics.pipe");
+        let c_path = CString::new(path.as_os_str().as_bytes()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(c_path.as_ptr(), 0o600) }, 0);
+
+        let lyric_path = path.to_string_lossy().into_owned();
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(tauri::async_runtime::block_on(read_lrc_file(
+                lyric_path, None,
+            )));
+        });
+        let result = rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("lyric read must not block on a FIFO");
+
+        assert!(matches!(result, Err(error) if error.contains("regular file")));
+    }
 
     #[test]
     fn metadata_lookup_still_reads_tags_from_a_normal_sized_file() {
