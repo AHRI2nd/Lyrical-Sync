@@ -67,6 +67,29 @@ it("removes an individually deleted lyric from bulk selection", () => {
   useLrcStore.getState().undo();
   expect(useLrcStore.getState().doc.lines.map((line) => line.id)).toEqual(["b", "c", "d"]);
 });
+it("resets TimeShift inputs when the document session changes", () => {
+  const t = useI18nStore.getState().t;
+  const { getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  fireEvent.click(getByRole("button", { name: t.editorTools }));
+  fireEvent.click(getByRole("button", { name: t.timeShift }));
+  const from = getByRole("spinbutton", { name: t.timeShiftFrom }) as HTMLInputElement;
+  const to = getByRole("spinbutton", { name: t.timeShiftTo }) as HTMLInputElement;
+  const delta = getByRole("textbox", { name: t.timeShiftDelta }) as HTMLInputElement;
+  fireEvent.change(from, { target: { value: "2" } });
+  fireEvent.change(to, { target: { value: "3" } });
+  fireEvent.change(delta, { target: { value: "0.75" } });
+
+  const state = useLrcStore.getState();
+  act(() => useLrcStore.setState({
+    doc: { ...defaultDocument(), lines: [{ id: "new", text: "new document", timestamp: null }] },
+    activeLineId: null,
+    _documentSession: state._documentSession + 1,
+  }));
+
+  expect((getByRole("spinbutton", { name: t.timeShiftFrom }) as HTMLInputElement).value).toBe("1");
+  expect((getByRole("spinbutton", { name: t.timeShiftTo }) as HTMLInputElement).value).toBe("1");
+  expect((getByRole("textbox", { name: t.timeShiftDelta }) as HTMLInputElement).value).toBe("0");
+});
 const setup = () => {
   const result = render(<LrcEditor onPreview={() => {}} />);
   const handles = Array.from(result.container.querySelectorAll('[data-reorder-handle], [draggable="true"]'));

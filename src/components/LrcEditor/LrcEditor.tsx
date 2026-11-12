@@ -659,6 +659,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
       {!charMode && (<>
       {showTS && (
         <TimeShiftBar
+          key={documentSession}
           lineCount={lines.length}
           defaultFrom={(activeLineId ? lines.findIndex((l) => l.id === activeLineId) : 0) + 1}
           onApply={handleShiftApply}
