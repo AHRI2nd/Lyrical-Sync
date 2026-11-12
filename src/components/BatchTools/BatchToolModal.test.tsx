@@ -117,10 +117,13 @@ it("freezes list and settings during execution and waits for active work after s
   await selectInputsAndOutput();
   fireEvent.click(screen.getByRole("button", { name: "Run" }));
   await screen.findByRole("button", { name: "Stop" });
-  for (const name of ["Select files", "Output folder", "Convert", t.deleteLine, t.confirmNewCancel]) {
+  for (const name of ["Select files", "Output folder", "Convert", t.confirmNewCancel]) {
     for (const button of screen.getAllByRole("button", { name })) {
       expect(button.hasAttribute("disabled") || !!button.closest("fieldset[disabled]")).toBe(true);
     }
+  }
+  for (const button of screen.getAllByRole("button").filter((candidate) => candidate.getAttribute("aria-label")?.startsWith(`${t.deleteLine}:`))) {
+    expect(button.hasAttribute("disabled")).toBe(true);
   }
   expect(screen.getByRole("spinbutton", { name: "Offset seconds" }).closest("fieldset[disabled]")).not.toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Stop" }));
@@ -176,7 +179,7 @@ it("keeps same-basename rows distinct when removing and reporting refreshed refe
   vi.mocked(open).mockResolvedValueOnce(["/a/song.lrc", "/b/song.lrc"]);
   fireEvent.click(screen.getByRole("button", { name: "Select files" }));
   await waitFor(() => expect(screen.getAllByText("song.lrc")).toHaveLength(2));
-  fireEvent.click(screen.getAllByRole("button", { name: t.deleteLine })[0]);
+  fireEvent.click(screen.getByRole("button", { name: `${t.deleteLine}: song.lrc (1)` }));
   expect(screen.getAllByText("song.lrc")).toHaveLength(1);
   vi.mocked(open).mockResolvedValueOnce("/output");
   fireEvent.click(screen.getByRole("button", { name: "Output folder" }));
