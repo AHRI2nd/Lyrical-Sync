@@ -1462,12 +1462,12 @@ Source revision: fdb275c8a0135403067ce1c4be8e97e53c473764
 License text: b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e (LICENSE-APACHE)
 License text: 23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3 (LICENSE-MIT)
 
-rustix 1.1.4 (cargo)
+rustix 1.1.6 (cargo)
 License: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 Scope: macOS ARM64
-Source archive: https://crates.io/api/v1/crates/rustix/1.1.4/download
+Source archive: https://crates.io/api/v1/crates/rustix/1.1.6/download
 Repository: https://github.com/bytecodealliance/rustix
-Source revision: c4caf5caaa7e93828a2e4a4cdba1dd0171e45717
+Source revision: 4a563ad698b2c20ff848515821023d2265a788d0
 License text: 377c2e7c53250cc5905c0b0532d35973392af16ffb9596a41d99d202cf3617c9 (COPYRIGHT)
 License text: 143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4 (LICENSE-APACHE)
 License text: ae6e99144a735503e5b54b92e09cf8dec2e7f2e25706ec5c98af2f7d2242dc75 (LICENSE-Apache-2.0_WITH_LLVM-exception)

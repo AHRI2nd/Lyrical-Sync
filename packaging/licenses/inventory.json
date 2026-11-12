@@ -3640,12 +3640,12 @@
       "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
       "name": "rustix",
       "repository": "https://github.com/bytecodealliance/rustix",
-      "sourceArchive": "https://crates.io/api/v1/crates/rustix/1.1.4/download",
-      "sourceCommit": "c4caf5caaa7e93828a2e4a4cdba1dd0171e45717",
+      "sourceArchive": "https://crates.io/api/v1/crates/rustix/1.1.6/download",
+      "sourceCommit": "4a563ad698b2c20ff848515821023d2265a788d0",
       "targets": [
         "macOS ARM64"
       ],
-      "version": "1.1.4"
+      "version": "1.1.6"
     },
     {
       "documents": [
@@ -6567,9 +6567,9 @@
     "packaging/licenses/upstream/c76f740d1521b9bed9ca7a04ad526c310493c62621b1341d623b431736533b30.txt": "c76f740d1521b9bed9ca7a04ad526c310493c62621b1341d623b431736533b30",
     "packaging/licenses/upstream/f5c342c49f3ac804f3e8e7bb62a8040a44c50d47bb36902b1abd13f66a1adf8b.txt": "f5c342c49f3ac804f3e8e7bb62a8040a44c50d47bb36902b1abd13f66a1adf8b",
     "scripts/generate-notices.py": "4953e82aee8e9a07168fcc6d17467c02a83d28d51ba69de00efb62fb91151c0e",
-    "src-tauri/Cargo.lock": "38bd3c2b6508072f1c55757444355116d966dde898d51f4c963ff9e80c086642",
+    "src-tauri/Cargo.lock": "7673303010ddac49daeb6d82882047f99e92e654a8d5f7714b65d7db8df5e133",
     "src-tauri/Cargo.toml": "09b3d3deccd33390eb7e97b9bb4469af536df0c837e3000e14c2ca2a95a6a1d7"
   },
-  "noticeSha256": "8a020441de11d3e2839d6982560be4224d86e875d3106ccc0b61b51494254dbf",
+  "noticeSha256": "a50884583ec971e2cd801573961f21f1e16ba10302c305bbd01bf877e4c2363f",
   "schema": 1
 }
