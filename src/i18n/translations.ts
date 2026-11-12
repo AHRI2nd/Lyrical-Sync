@@ -108,6 +108,7 @@ export interface Translations {
     more: string;
     waveformPreparing: string;
     waveformNoAudio: string;
+    waveformPreparationFailed: string;
     prevWindow: string;
     nextWindow: string;
     viewportFixed: string;
@@ -505,6 +506,7 @@ const ko: Translations = {
     more: "추가 작업",
     waveformPreparing: "파형 준비 중…",
     waveformNoAudio: "오디오를 열면 파형을 표시합니다",
+    waveformPreparationFailed: "파형을 준비하지 못했습니다. 오디오를 다시 불러오세요.",
     prevWindow: "이전 시간 구간",
     nextWindow: "다음 시간 구간",
     viewportFixed: "재생 위치 추적 · 중앙 기준",
@@ -921,6 +923,7 @@ const en: Translations = {
     more: "More actions",
     waveformPreparing: "Preparing waveform…",
     waveformNoAudio: "Open audio to view the waveform",
+    waveformPreparationFailed: "Waveform preparation failed. Try loading the audio again.",
     prevWindow: "Previous time window",
     nextWindow: "Next time window",
     viewportFixed: "Following playback · centered",
@@ -1338,6 +1341,7 @@ const ja: Translations = {
     more: "その他の操作",
     waveformPreparing: "波形を準備中…",
     waveformNoAudio: "オーディオを開くと波形を表示します",
+    waveformPreparationFailed: "波形を準備できませんでした。オーディオを再読み込みしてください。",
     prevWindow: "前の時間範囲",
     nextWindow: "次の時間範囲",
     viewportFixed: "再生位置を追従 · 中央基準",

@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import { createRef } from "react";
 import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { CharWaveformPanel } from "./CharWaveformPanel";
 import { clearWaveform, prepareWaveform } from "../../stores/useWaveformStore";
+import { useI18nStore } from "../../stores/useI18nStore";
+import { translations } from "../../i18n/translations";
 
 afterEach(() => { cleanup(); clearWaveform(); });
 const props = () => ({ laneRef: createRef<HTMLDivElement>(), onPointerDown: vi.fn(), audioPath: "song.wav",
@@ -37,4 +39,14 @@ it("does not display a previous source for a different file", async () => {
     getChannelData: () => new Float32Array([1, 0]) });
   const { container } = render(<CharWaveformPanel {...props()} />);
   expect(container.querySelector("svg")).toBeNull();
+});
+
+it('shows a localized preparation error instead of claiming selected audio is missing', async () => {
+  useI18nStore.setState({ lang: 'en', t: translations.en });
+  await prepareWaveform('song.wav', { length: 1, numberOfChannels: 1, sampleRate: 1, duration: 1,
+    getChannelData: () => { throw new Error('decode unavailable'); } });
+  render(<CharWaveformPanel {...props()} />);
+
+  expect(screen.getByText('Waveform preparation failed. Try loading the audio again.')).toBeTruthy();
+  expect(screen.queryByText('Open audio to view the waveform')).toBeNull();
 });

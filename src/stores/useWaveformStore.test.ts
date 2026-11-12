@@ -24,5 +24,14 @@ it('discards an older preparation that finishes after replacement', async () => 
 it('clears published data and cancels pending work when audio is unloaded', async () => {
   const pending = prepareWaveform('song.wav', buffer(524288, 1));
   clearWaveform(); await pending;
-  expect(useWaveformStore.getState()).toEqual({ path: null, source: null, preparing: false });
+  expect(useWaveformStore.getState()).toEqual({ path: null, source: null, preparing: false, failed: false });
+});
+
+it('retains selected audio and records a waveform preparation failure', async () => {
+  await prepareWaveform('broken.wav', { length: 1, numberOfChannels: 1, sampleRate: 1, duration: 1,
+    getChannelData: () => { throw new Error('decode unavailable'); } });
+
+  expect(useWaveformStore.getState()).toMatchObject({
+    path: 'broken.wav', source: null, preparing: false, failed: true,
+  });
 });
