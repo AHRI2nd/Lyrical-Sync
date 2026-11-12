@@ -1,0 +1,8 @@
+{
+  "$schema": "../../gen/schemas/desktop-schema.json",
+  "identifier": "app-command:cancel-audio-stream-preparation",
+  "description": "Cancel native audio stream preparation",
+  "allow": [
+    { "command": "cancel_audio_stream_preparation" }
+  ]
+}

@@ -136,6 +136,15 @@ pub fn inspect_audio_file(path: &Path) -> Result<AudioResourceInfo, String> {
 pub fn stage_bounded_audio_file(
     path: &Path,
 ) -> Result<(tempfile::TempPath, AudioResourceInfo), String> {
+    let (staged, info) = stage_bounded_audio_file_with_check(path, || Ok(()))?;
+    Ok((staged.into_temp_path(), info))
+}
+
+pub(crate) fn stage_bounded_audio_file_with_check(
+    path: &Path,
+    mut check_cancelled: impl FnMut() -> Result<(), String>,
+) -> Result<(tempfile::NamedTempFile, AudioResourceInfo), String> {
+    check_cancelled()?;
     let mut source = open_audio_file(path)?;
     let expected_bytes = source.metadata().map_err(|error| error.to_string())?.len();
     if expected_bytes > MAX_AUDIO_FILE_BYTES {
@@ -160,11 +169,29 @@ pub fn stage_bounded_audio_file(
         .tempfile()
         .map_err(|error| format!("Audio snapshot creation failed: {error}"))?;
 
-    let mut bounded_source = (&mut source).take(MAX_AUDIO_FILE_BYTES + 1);
-    let copied = std::io::copy(&mut bounded_source, staged.as_file_mut())
-        .map_err(|error| format!("Audio snapshot failed: {error}"))?;
-    if copied > MAX_AUDIO_FILE_BYTES {
-        return Err(AUDIO_RESOURCE_LIMIT_ERROR.into());
+    let mut copied = 0_u64;
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        check_cancelled()?;
+        let remaining = MAX_AUDIO_FILE_BYTES
+            .checked_add(1)
+            .and_then(|limit| limit.checked_sub(copied))
+            .ok_or_else(|| AUDIO_RESOURCE_LIMIT_ERROR.to_string())?;
+        let read_limit = usize::try_from(remaining.min(buffer.len() as u64)).unwrap();
+        let read = source
+            .read(&mut buffer[..read_limit])
+            .map_err(|error| format!("Audio snapshot failed: {error}"))?;
+        if read == 0 {
+            break;
+        }
+        copied = copied
+            .checked_add(read as u64)
+            .ok_or_else(|| AUDIO_RESOURCE_LIMIT_ERROR.to_string())?;
+        if copied > MAX_AUDIO_FILE_BYTES {
+            return Err(AUDIO_RESOURCE_LIMIT_ERROR.into());
+        }
+        std::io::Write::write_all(staged.as_file_mut(), &buffer[..read])
+            .map_err(|error| format!("Audio snapshot failed: {error}"))?;
     }
     if copied != expected_bytes {
         return Err("AUDIO_FILE_CHANGED".into());
@@ -172,12 +199,13 @@ pub fn stage_bounded_audio_file(
     std::io::Write::flush(staged.as_file_mut())
         .map_err(|error| format!("Audio snapshot flush failed: {error}"))?;
 
-    let snapshot_info = inspect_audio_file_handle(staged.as_file_mut())?;
+    let snapshot_info =
+        inspect_audio_file_handle_with_check(staged.as_file_mut(), &mut check_cancelled)?;
     if snapshot_info.file_bytes != copied {
         return Err("AUDIO_FILE_CHANGED".into());
     }
 
-    Ok((staged.into_temp_path(), snapshot_info))
+    Ok((staged, snapshot_info))
 }
 
 struct AacBitReader<'a> {
@@ -778,6 +806,38 @@ mod tests {
             !snapshot_path.exists(),
             "temporary audio snapshot should be removed"
         );
+    }
+
+    #[test]
+    fn cancellable_snapshot_copy_stops_between_bounded_chunks_and_preserves_source() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cancel-copy.wav");
+        let spec = hound::WavSpec {
+            channels: 2,
+            sample_rate: 48_000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut writer = hound::WavWriter::create(&path, spec).unwrap();
+        for _ in 0..80_000 {
+            writer.write_sample(123_i16).unwrap();
+            writer.write_sample(-123_i16).unwrap();
+        }
+        writer.finalize().unwrap();
+        let source_before = std::fs::read(&path).unwrap();
+        let mut checks = 0;
+
+        let result = stage_bounded_audio_file_with_check(&path, || {
+            checks += 1;
+            if checks >= 3 {
+                Err("cancelled".into())
+            } else {
+                Ok(())
+            }
+        });
+
+        assert_eq!(result.unwrap_err(), "cancelled");
+        assert_eq!(std::fs::read(&path).unwrap(), source_before);
     }
 
     #[test]

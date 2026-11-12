@@ -9,6 +9,7 @@ mod arm_ai;
 mod alignment_process;
 mod atomic_write;
 mod audio_resource;
+mod audio_stream;
 mod bpm_audio;
 mod batch_output;
 #[cfg(any(target_os = "windows", test))]
@@ -30,6 +31,7 @@ mod ytdlp;
 use ytdlp::*;
 mod lrclib;
 use lrclib::*;
+use tauri::Manager;
 
 // ─── LRC / audio commands ────────────────────────────────────────
 
@@ -200,6 +202,65 @@ async fn read_audio_file(
     // Return raw bytes through IPC after applying the compressed and decoded-memory limits.
     audio_resource::read_bounded_audio_file(std::path::Path::new(&path))
         .map(|(bytes, _)| tauri::ipc::Response::new(bytes))
+}
+
+#[tauri::command]
+async fn prepare_audio_stream(
+    path: String,
+    run_id: String,
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, audio_stream::AudioStreamState>,
+) -> Result<audio_stream::AudioStreamDescriptor, String> {
+    if window.label() != "main" {
+        return Err("Audio streaming is restricted to the main window".into());
+    }
+    let path = path_validation::validate_safe_path(&path)?;
+    authorize_window_path(&window, &path)?;
+    let content_type = audio_stream::content_type_for_path(&path);
+    let stream_state = state.inner().clone();
+    let preparation = stream_state.begin_preparation(run_id)?;
+    let snapshot_permit = stream_state
+        .try_acquire_snapshot()
+        .ok_or("Audio snapshot capacity is full")?;
+
+    tokio::task::spawn_blocking(move || {
+        preparation.check_cancelled()?;
+        let (snapshot, info) = audio_resource::stage_bounded_audio_file_with_check(
+            &path,
+            || preparation.check_cancelled(),
+        )?;
+        preparation.check_cancelled()?;
+        let descriptor = stream_state.register_with_permit(
+            snapshot,
+            info,
+            content_type,
+            snapshot_permit,
+        )?;
+        if let Err(error) = preparation.check_cancelled() {
+            stream_state.revoke_url(&descriptor.stream_url);
+            return Err(error);
+        }
+        Ok(descriptor)
+    })
+    .await
+    .map_err(|error| format!("Audio stream preparation worker failed: {error}"))?
+}
+
+#[tauri::command]
+async fn cancel_audio_stream_preparation(
+    run_id: String,
+    state: tauri::State<'_, audio_stream::AudioStreamState>,
+) -> Result<(), String> {
+    state.cancel_preparation_and_wait(&run_id).await;
+    Ok(())
+}
+
+#[tauri::command]
+fn revoke_audio_stream(
+    stream_url: String,
+    state: tauri::State<'_, audio_stream::AudioStreamState>,
+) {
+    state.revoke_url(&stream_url);
 }
 
 #[tauri::command]
@@ -614,6 +675,7 @@ fn read_audio_metadata(path: String, window: tauri::WebviewWindow) -> Result<Aud
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(audio_stream::AudioStreamState::default())
         .manage(DownloadState::default())
         .manage(ModelsDirState::default())
         .manage(ModelUseState::default())
@@ -621,6 +683,22 @@ pub fn run() {
         .manage(bpm_audio::AnalysisState::default())
         .manage(YtdlpState::default())
         .manage(lrclib::PublishState::default())
+        .register_asynchronous_uri_scheme_protocol("lyrical-audio", |context, request, responder| {
+            let webview_label = context.webview_label().to_owned();
+            let state = context
+                .app_handle()
+                .state::<audio_stream::AudioStreamState>()
+                .inner()
+                .clone();
+            let Some(read_permit) = state.try_acquire_read() else {
+                responder.respond(audio_stream::AudioStreamState::busy_response());
+                return;
+            };
+            std::thread::spawn(move || {
+                let _read_permit = read_permit;
+                responder.respond(state.response(&webview_label, &request));
+            });
+        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
@@ -640,6 +718,9 @@ pub fn run() {
             write_lrc_file_if_unchanged,
             batch_output::write_batch_output,
             read_audio_file,
+            prepare_audio_stream,
+            cancel_audio_stream_preparation,
+            revoke_audio_stream,
             analyze_bpm_prefix,
             cancel_audio_analysis,
             decode_audio_to_wav,

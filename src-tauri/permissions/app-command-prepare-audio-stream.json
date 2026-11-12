@@ -1,0 +1,8 @@
+{
+  "$schema": "../../gen/schemas/desktop-schema.json",
+  "identifier": "app-command:prepare-audio-stream",
+  "description": "Prepare a bounded native audio stream",
+  "allow": [
+    { "command": "prepare_audio_stream" }
+  ]
+}

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-revoke-audio-stream"
+description = "Enables the revoke_audio_stream command without any pre-configured scope."
+commands.allow = ["revoke_audio_stream"]
+
+[[permission]]
+identifier = "deny-revoke-audio-stream"
+description = "Denies the revoke_audio_stream command without any pre-configured scope."
+commands.deny = ["revoke_audio_stream"]

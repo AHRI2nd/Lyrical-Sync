@@ -17,6 +17,33 @@ from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1]
 
 class SignedCandidateTests(unittest.TestCase):
+    def test_audio_stream_commands_are_declared_and_scoped(self):
+        commands = {
+            'prepare_audio_stream',
+            'cancel_audio_stream_preparation',
+            'revoke_audio_stream',
+        }
+        build_source = (ROOT / 'src-tauri/build.rs').read_text(encoding='utf-8')
+        build_block = build_source.split('let commands = &[', 1)[1].split('];', 1)[0]
+        declared = set(re.findall(r'"([a-z_]+)"', build_block))
+        app_source = (ROOT / 'src-tauri/src/lib.rs').read_text(encoding='utf-8')
+        handler_block = app_source.split('tauri::generate_handler![', 1)[1].split('])', 1)[0]
+        registered = {
+            item.split('::')[-1]
+            for item in re.findall(r'(?m)^\s*([a-zA-Z_][a-zA-Z0-9_]*(?:::[a-zA-Z_][a-zA-Z0-9_]*)?)\s*,?\s*$', handler_block)
+        }
+        capability = json.loads((ROOT / 'src-tauri/capabilities/default.json').read_text(encoding='utf-8'))
+        granted = {
+            permission.removeprefix('allow-').replace('-', '_')
+            for permission in capability['permissions']
+            if permission.startswith('allow-')
+        }
+        self.assertTrue(commands.issubset(declared))
+        self.assertTrue(commands.issubset(registered))
+        self.assertTrue(commands.issubset(granted))
+        self.assertEqual(capability['windows'], ['main'])
+        self.assertNotIn('fs:allow-read-file', capability['permissions'])
+
     def test_tauri_command_permissions_match_registered_handlers(self):
         build_source = (ROOT / 'src-tauri/build.rs').read_text(encoding='utf-8')
         build_block = build_source.split('let commands = &[', 1)[1].split('];', 1)[0]
