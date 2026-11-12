@@ -2,6 +2,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+const { closeRequestedHandler, closeWindow } = vi.hoisted(() => ({
+  closeRequestedHandler: { current: null as null | ((event: { preventDefault: () => void }) => void) },
+  closeWindow: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("@tauri-apps/api/window", () => ({
+  getCurrentWindow: () => ({
+    onCloseRequested: (handler: typeof closeRequestedHandler.current) => {
+      closeRequestedHandler.current = handler;
+      return Promise.resolve(() => { closeRequestedHandler.current = null; });
+    },
+    close: closeWindow,
+  }),
+}));
 
 // Native APIs and audio rendering are outside this shell-level DOM test.
 type NativeDropEvent = { payload: { type: "drop"; paths: string[] } };
@@ -33,6 +46,8 @@ import { parseSrt } from "./utils/srtConverter";
 describe("App document confirmation and keyboard boundaries", () => {
   beforeEach(() => {
     nativeDrop = null;
+    closeRequestedHandler.current = null;
+    closeWindow.mockClear();
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
     localStorage.clear();
     vi.mocked(invoke).mockReset().mockResolvedValue(null);
@@ -58,6 +73,7 @@ describe("App document confirmation and keyboard boundaries", () => {
   afterEach(() => {
     cleanup(); document.querySelectorAll("[data-test-control]").forEach((node) => node.remove()); vi.restoreAllMocks();
     nativeDrop = null;
+    closeRequestedHandler.current = null;
     delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
     localStorage.clear();
   });
@@ -75,6 +91,70 @@ describe("App document confirmation and keyboard boundaries", () => {
     expect(nativeDrop).not.toBeNull();
     act(() => nativeDrop?.({ payload: { type: "drop", paths } }));
   };
+
+  it("intercepts native close for dirty documents and supports cancel and explicit discard", async () => {
+    const t = useI18nStore.getState().t;
+    render(<App />);
+    await waitFor(() => expect(closeRequestedHandler.current).toBeTypeOf("function"));
+
+    const preventDefault = vi.fn();
+    act(() => closeRequestedHandler.current?.({ preventDefault }));
+    expect(preventDefault).toHaveBeenCalledOnce();
+    const dialog = await screen.findByRole("dialog", { name: t.closeUnsavedTitle });
+    fireEvent.click(within(dialog).getByRole("button", { name: t.confirmNewCancel }));
+    expect(screen.queryByRole("dialog", { name: t.closeUnsavedTitle })).toBeNull();
+    expect(closeWindow).not.toHaveBeenCalled();
+
+    act(() => closeRequestedHandler.current?.({ preventDefault }));
+    const discardDialog = await screen.findByRole("dialog", { name: t.closeUnsavedTitle });
+    fireEvent.click(within(discardDialog).getByRole("button", { name: t.closeWithoutSaving }));
+    await waitFor(() => expect(closeWindow).toHaveBeenCalledOnce());
+    expect(useLrcStore.getState().doc.lines[0].text).toBe("Keep this draft");
+  });
+
+  it("does not intercept native close for a clean document", async () => {
+    const t = useI18nStore.getState().t;
+    useLrcStore.setState({ isDirty: false });
+    render(<App />);
+    await waitFor(() => expect(closeRequestedHandler.current).toBeTypeOf("function"));
+    const preventDefault = vi.fn();
+
+    act(() => closeRequestedHandler.current?.({ preventDefault }));
+
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog", { name: t.closeUnsavedTitle })).toBeNull();
+    expect(closeWindow).not.toHaveBeenCalled();
+  });
+
+  it("closes only after the requested save succeeds", async () => {
+    const t = useI18nStore.getState().t;
+    useLrcStore.setState({ lrcPath: "/draft.lrc", isDirty: true });
+    vi.mocked(invoke).mockResolvedValue(undefined);
+    render(<App />);
+    await waitFor(() => expect(closeRequestedHandler.current).toBeTypeOf("function"));
+    act(() => closeRequestedHandler.current?.({ preventDefault: vi.fn() }));
+    const dialog = await screen.findByRole("dialog", { name: t.closeUnsavedTitle });
+
+    fireEvent.click(within(dialog).getByRole("button", { name: t.save }));
+
+    await waitFor(() => expect(closeWindow).toHaveBeenCalledOnce());
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
+  it("keeps the window open when saving before close fails", async () => {
+    const t = useI18nStore.getState().t;
+    useLrcStore.setState({ lrcPath: "/draft.lrc", isDirty: true });
+    vi.mocked(invoke).mockRejectedValue(new Error("disk unavailable"));
+    render(<App />);
+    await waitFor(() => expect(closeRequestedHandler.current).toBeTypeOf("function"));
+    act(() => closeRequestedHandler.current?.({ preventDefault: vi.fn() }));
+    const dialog = await screen.findByRole("dialog", { name: t.closeUnsavedTitle });
+
+    fireEvent.click(within(dialog).getByRole("button", { name: t.save }));
+
+    await waitFor(() => expect(useLrcStore.getState().isDirty).toBe(true));
+    expect(closeWindow).not.toHaveBeenCalled();
+  });
   const incoming = {
     audio: ["/new.mp3"], lyrics: ["/new.lrc"], both: ["/new.mp3", "/new.lrc"],
   } as const;

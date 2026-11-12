@@ -17,8 +17,10 @@ import { toast } from "./stores/useToastStore";
 import { ToastContainer } from "./components/Toast/ToastContainer";
 import { type RecoverySnapshot, loadRecoverySnapshot, clearRecoverySnapshot } from "./utils/recovery";
 import { useRecoverySnapshots } from "./hooks/useRecoverySnapshots";
+import { useUnsavedCloseGuard } from "./hooks/useUnsavedCloseGuard";
 import { useMacMenu } from "./hooks/useMacMenu";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { DocumentTransitionSaveError, setDocumentConfirmation, type TransitionChoice } from "./utils/documentTransition";
 const HelpModal = lazy(() => import("./components/AppShell/HelpModal").then((m) => ({ default: m.HelpModal })));
 import { ConfirmModal } from "./components/AppShell/ConfirmModal";
@@ -249,23 +251,31 @@ function App() {
     return () => { confirmationRef.current?.("cancel"); unregister(); };
   }, []);
   const [showFormatChooser, setShowFormatChooser] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const allowCloseRef = useRef(false);
+  const closeAfterSaveRef = useRef(false);
   const [showElrcNotice, setShowElrcNotice] = useState(false);
   const [showSrtOnlyDataLossConfirm, setShowSrtOnlyDataLossConfirm] = useState(false);
   const pendingSaveRef = useRef<(() => Promise<boolean>) | null>(null);
+  const pendingSaveSuccessRef = useRef<(() => void | Promise<void>) | null>(null);
   const pendingSrtOnlyDataLossRef = useRef<{
     run: () => Promise<boolean>;
     confirmedRun: () => Promise<boolean>;
     session: number;
     revision: number;
+    onSuccess?: () => void | Promise<void>;
   } | null>(null);
   const serializationErrorShown = useRef<string | null>(null);
   const inlineEscapeNoticeSession = useRef<number | null>(null);
   const documentSession = useLrcStore((s) => s._documentSession);
   useEffect(() => {
     setShowFormatChooser(false);
+    setShowCloseConfirm(false);
+    closeAfterSaveRef.current = false;
     setShowElrcNotice(false);
     setShowSrtOnlyDataLossConfirm(false);
     pendingSaveRef.current = null;
+    pendingSaveSuccessRef.current = null;
     pendingSrtOnlyDataLossRef.current = null;
     serializationErrorShown.current = null;
     inlineEscapeNoticeSession.current = null;
@@ -285,6 +295,10 @@ function App() {
   const hasGlyphSync = useLrcStore((s) => s.doc.lines.some((l) => l.syllables?.some((sy) => sy.time !== null)));
   const { t } = useI18nStore();
   const { uiScale, showElrcSaveNotice, setShowElrcSaveNotice } = useSettingsStore();
+  useUnsavedCloseGuard(
+    () => useLrcStore.getState().isDirty && !allowCloseRef.current,
+    () => setShowCloseConfirm(true),
+  );
 
   // Clear any zoom set by a previous version of the app
   useEffect(() => { document.documentElement.style.zoom = ""; }, []);
@@ -292,7 +306,7 @@ function App() {
   const handleNewLrc = () => { void newLrc().catch((error) => toast.error(openErrorMessage(error, t))); };
 
   // 저장 결과를 토스트로 알림(취소 시 무알림, 실패 시 에러)
-  const runSave = (p: Promise<boolean>, workingFile = true, isLrcExport = false) => {
+  const runSave = (p: Promise<boolean>, workingFile = true, isLrcExport = false, onSuccess?: () => void | Promise<void>) => {
     const { _documentSession: session, _editRevision: revision } = useLrcStore.getState();
     p.then((written) => {
       const current = useLrcStore.getState();
@@ -303,13 +317,16 @@ function App() {
           inlineEscapeNoticeSession.current = session;
           toast.info(t.toast.lrcInlineEscapeNotice);
         }
+        void onSuccess?.();
+      } else if (onSuccess) {
+        setShowCloseConfirm(true);
       }
-    })
-     .catch((error) => {
-       const code = serializationErrorCode(error);
-       if (!code || serializationErrorShown.current !== code) toast.error(saveErrorMessage(error, t));
-       serializationErrorShown.current = code;
-     });
+    }).catch((error) => {
+      const code = serializationErrorCode(error);
+      if (!code || serializationErrorShown.current !== code) toast.error(saveErrorMessage(error, t));
+      serializationErrorShown.current = code;
+      if (onSuccess) setShowCloseConfirm(true);
+    });
   };
 
   // 글자/단어 동기화가 있어 E-LRC로 저장될 LRC 저장은 알림 팝업을 거쳐 실행
@@ -317,6 +334,7 @@ function App() {
     fn: () => Promise<boolean>,
     confirmedFn: () => Promise<boolean> = fn,
     srtOnlyDataLossConfirmed = false,
+    onSuccess?: () => void | Promise<void>,
   ) => {
     const current = useLrcStore.getState();
     if (!srtOnlyDataLossConfirmed && hasUnrepresentableSrtCueDataInLrc(current.doc)) {
@@ -325,6 +343,7 @@ function App() {
         confirmedRun: confirmedFn,
         session: current._documentSession,
         revision: current._editRevision,
+        onSuccess,
       };
       setShowSrtOnlyDataLossConfirm(true);
       return;
@@ -332,9 +351,10 @@ function App() {
     const saveFn = srtOnlyDataLossConfirmed ? confirmedFn : fn;
     if (hasGlyphSync && showElrcSaveNotice) {
       pendingSaveRef.current = saveFn;
+      pendingSaveSuccessRef.current = onSuccess ?? null;
       setShowElrcNotice(true);
     } else {
-      runSave(saveFn(), true, true);
+      runSave(saveFn(), true, true, onSuccess);
     }
   };
 
@@ -345,6 +365,38 @@ function App() {
       );
       else runSave(saveLrc());
     } else {
+      setShowFormatChooser(true);
+    }
+  };
+
+  const closeWindow = async () => {
+    allowCloseRef.current = true;
+    try {
+      await getCurrentWindow().close();
+    } catch {
+      allowCloseRef.current = false;
+      toast.error(t.toast.runtimeFailed);
+    }
+  };
+
+  const finishCloseAfterSave = async () => {
+    if (useLrcStore.getState().isDirty) {
+      setShowCloseConfirm(true);
+      return;
+    }
+    closeAfterSaveRef.current = false;
+    setShowCloseConfirm(false);
+    await closeWindow();
+  };
+
+  const saveBeforeClose = () => {
+    setShowCloseConfirm(false);
+    if (lrcPath?.toLowerCase().endsWith(".lrc")) {
+      requestSaveLrc(() => saveLrc(), () => saveLrc({ confirmSrtOnlyDataLoss: true }), false, finishCloseAfterSave);
+    } else if (lrcPath) {
+      runSave(saveLrc(), false, false, finishCloseAfterSave);
+    } else {
+      closeAfterSaveRef.current = true;
       setShowFormatChooser(true);
     }
   };
@@ -415,6 +467,10 @@ function App() {
       openSettings: () => { setSettingsInitialTab("general"); setShowSettings(true); },
       openPreview: () => setShowPreview(true),
       openHelp: () => setShowHelp(true),
+      quit: () => {
+        if (useLrcStore.getState().isDirty) setShowCloseConfirm(true);
+        else void closeWindow();
+      },
     },
     { t }
   );
@@ -512,10 +568,15 @@ function App() {
         <SaveFormatModal
           onSelect={(format) => {
             setShowFormatChooser(false);
-            if (format === "lrc") requestSaveLrc(() => saveLrcAs("lrc"), () => saveLrcAs("lrc", undefined, true));
-            else runSave(saveLrcAs(format), format === "srt");
+            const onSuccess = closeAfterSaveRef.current ? finishCloseAfterSave : undefined;
+            if (format === "lrc") requestSaveLrc(() => saveLrcAs("lrc"), () => saveLrcAs("lrc", undefined, true), false, onSuccess);
+            else runSave(saveLrcAs(format), format === "srt", false, onSuccess);
           }}
-          onCancel={() => setShowFormatChooser(false)}
+          onCancel={() => {
+            setShowFormatChooser(false);
+            if (closeAfterSaveRef.current) setShowCloseConfirm(true);
+            closeAfterSaveRef.current = false;
+          }}
         />
       )}
       {showSrtOnlyDataLossConfirm && pendingSrtOnlyDataLossRef.current?.session === documentSession && (
@@ -532,14 +593,16 @@ function App() {
             pendingSrtOnlyDataLossRef.current = null;
             setShowSrtOnlyDataLossConfirm(false);
             if (pending.revision !== current._editRevision) {
-              requestSaveLrc(pending.run, pending.confirmedRun);
+              requestSaveLrc(pending.run, pending.confirmedRun, false, pending.onSuccess);
               return;
             }
-            requestSaveLrc(pending.run, pending.confirmedRun, true);
+            requestSaveLrc(pending.run, pending.confirmedRun, true, pending.onSuccess);
           }}
           onCancel={() => {
+            const closing = pendingSrtOnlyDataLossRef.current?.onSuccess !== undefined;
             pendingSrtOnlyDataLossRef.current = null;
             setShowSrtOnlyDataLossConfirm(false);
+            if (closing) setShowCloseConfirm(true);
           }}
         />
       )}
@@ -549,10 +612,31 @@ function App() {
             if (dontShowAgain) setShowElrcSaveNotice(false);
             setShowElrcNotice(false);
             const fn = pendingSaveRef.current;
+            const onSuccess = pendingSaveSuccessRef.current;
             pendingSaveRef.current = null;
-            if (fn) runSave(fn(), true, true);
+            pendingSaveSuccessRef.current = null;
+            if (fn) runSave(fn(), true, true, onSuccess ?? undefined);
           }}
-          onCancel={() => { setShowElrcNotice(false); pendingSaveRef.current = null; }}
+          onCancel={() => {
+            setShowElrcNotice(false);
+            pendingSaveRef.current = null;
+            const closing = pendingSaveSuccessRef.current !== null;
+            pendingSaveSuccessRef.current = null;
+            if (closing) setShowCloseConfirm(true);
+          }}
+        />
+      )}
+      {showCloseConfirm && (
+        <ConfirmModal
+          priority
+          title={t.closeUnsavedTitle}
+          message={t.closeUnsavedMessage}
+          leftLabel={t.save}
+          onLeft={saveBeforeClose}
+          cancelLabel={t.confirmNewCancel}
+          onCancel={() => setShowCloseConfirm(false)}
+          okLabel={t.closeWithoutSaving}
+          onOk={() => { setShowCloseConfirm(false); void closeWindow(); }}
         />
       )}
       {dropConflict && (

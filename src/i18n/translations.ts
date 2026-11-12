@@ -46,6 +46,7 @@ export interface Translations {
   menu: {
     file: string; edit: string; playback: string; view: string; help: string;
     settings: string; saveAsLrc: string; saveAsSrt: string;
+    quit: string;
     playPause: string; skipBack5: string; skipBack1: string;
     skipFwd1: string; skipFwd5: string; stop: string;
   };
@@ -228,6 +229,9 @@ export interface Translations {
   discardChanges: string;
   confirmNewTitle: string;
   confirmNewMessage: string;
+  closeUnsavedTitle: string;
+  closeUnsavedMessage: string;
+  closeWithoutSaving: string;
   confirmNewOk: string;
   confirmNewCancel: string;
   srtOnlyDataLossTitle: string;
@@ -443,7 +447,7 @@ const ko: Translations = {
   },
   menu: {
     file: "파일", edit: "편집", playback: "재생", view: "보기", help: "도움말",
-    settings: "설정…", saveAsLrc: "LRC로 저장…", saveAsSrt: "SRT로 저장…",
+    settings: "설정…", saveAsLrc: "LRC로 저장…", saveAsSrt: "SRT로 저장…", quit: "Lyrical Sync 종료",
     playPause: "재생 / 일시정지", skipBack5: "5초 뒤로", skipBack1: "1초 뒤로",
     skipFwd1: "1초 앞으로", skipFwd5: "5초 앞으로", stop: "정지",
   },
@@ -622,6 +626,9 @@ const ko: Translations = {
   discardChanges: "변경 사항 버리기",
   confirmNewTitle: "새 파일 만들기",
   confirmNewMessage: "저장되지 않은 변경 사항이 있습니다. 계속하면 현재 내용이 삭제됩니다.",
+  closeUnsavedTitle: "저장되지 않은 변경 사항",
+  closeUnsavedMessage: "닫기 전에 변경 사항을 저장하시겠습니까?",
+  closeWithoutSaving: "저장하지 않고 닫기",
   confirmNewOk: "새로 만들기",
   confirmNewCancel: "취소",
   srtOnlyDataLossTitle: "SRT 전용 정보 손실",
@@ -860,7 +867,7 @@ const en: Translations = {
   },
   menu: {
     file: "File", edit: "Edit", playback: "Playback", view: "View", help: "Help",
-    settings: "Settings…", saveAsLrc: "Save as LRC…", saveAsSrt: "Save as SRT…",
+    settings: "Settings…", saveAsLrc: "Save as LRC…", saveAsSrt: "Save as SRT…", quit: "Quit Lyrical Sync",
     playPause: "Play / Pause", skipBack5: "Back 5s", skipBack1: "Back 1s",
     skipFwd1: "Forward 1s", skipFwd5: "Forward 5s", stop: "Stop",
   },
@@ -1040,6 +1047,9 @@ const en: Translations = {
   discardChanges: "Discard Changes",
   confirmNewTitle: "New File",
   confirmNewMessage: "You have unsaved changes. Continuing will discard the current content.",
+  closeUnsavedTitle: "Unsaved changes",
+  closeUnsavedMessage: "Would you like to save your changes before closing?",
+  closeWithoutSaving: "Close without saving",
   confirmNewOk: "New File",
   confirmNewCancel: "Cancel",
   srtOnlyDataLossTitle: "SRT-only data will be lost",
@@ -1278,7 +1288,7 @@ const ja: Translations = {
   },
   menu: {
     file: "ファイル", edit: "編集", playback: "再生", view: "表示", help: "ヘルプ",
-    settings: "設定…", saveAsLrc: "LRCで保存…", saveAsSrt: "SRTで保存…",
+    settings: "設定…", saveAsLrc: "LRCで保存…", saveAsSrt: "SRTで保存…", quit: "Lyrical Syncを終了",
     playPause: "再生 / 一時停止", skipBack5: "5秒戻る", skipBack1: "1秒戻る",
     skipFwd1: "1秒進む", skipFwd5: "5秒進む", stop: "停止",
   },
@@ -1457,6 +1467,9 @@ const ja: Translations = {
   discardChanges: "変更を破棄",
   confirmNewTitle: "新規ファイル",
   confirmNewMessage: "保存されていない変更があります。続行すると現在の内容が削除されます。",
+  closeUnsavedTitle: "未保存の変更",
+  closeUnsavedMessage: "閉じる前に変更を保存しますか？",
+  closeWithoutSaving: "保存せずに閉じる",
   confirmNewOk: "新規作成",
   confirmNewCancel: "キャンセル",
   srtOnlyDataLossTitle: "SRT固有情報が失われます",

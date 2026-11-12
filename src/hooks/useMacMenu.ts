@@ -18,6 +18,7 @@ export interface MacMenuHandlers {
   openSettings: () => void;
   openPreview: () => void;
   openHelp: () => void;
+  quit: () => void;
 }
 
 export interface MacMenuState {
@@ -59,7 +60,7 @@ export function useMacMenu(handlers: MacMenuHandlers, state: MacMenuState) {
           await PredefinedMenuItem.new({ item: "HideOthers" }),
           await PredefinedMenuItem.new({ item: "ShowAll" }),
           await sep(),
-          await PredefinedMenuItem.new({ item: "Quit" }),
+          await item(t.menu.quit, () => h().quit()),
         ],
       });
 
