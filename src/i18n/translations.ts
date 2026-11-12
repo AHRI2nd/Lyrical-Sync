@@ -613,6 +613,7 @@ export interface Translations {
   ytdlpProxy: string;
   ytdlpProxyPlaceholder: string;
   ytdlpProxySave: string;
+  ytdlpProxyAuthUnsupported: string;
   ytdlpInfoText: string;
   youtubeUrlPlaceholder: string;
   youtubeDisclaimer: string;
@@ -1298,6 +1299,7 @@ const ko: Translations = {
   ytdlpProxy: "프록시 (선택)",
   ytdlpProxyPlaceholder: "http://host:port",
   ytdlpProxySave: "저장",
+  ytdlpProxyAuthUnsupported: "인증 정보가 포함된 프록시는 지원하지 않습니다. 인증 정보를 제거한 주소를 입력하세요.",
   ytdlpInfoText: "YouTube 영상의 오디오를 임시 파일로 불러와 파형 시각화 및 타임스탬프 작업에 사용합니다.",
   youtubeUrlPlaceholder: "YouTube URL 입력...",
   youtubeDisclaimer: "저작권이 있는 콘텐츠의 다운로드는 거주 국가의 법률과 YouTube 약관의 적용을 받습니다. 본인이 권리를 갖거나 허용된 범위(예: 개인적·비상업적 이용) 내에서만 사용하세요. 사용에 대한 책임은 전적으로 사용자에게 있습니다.",
@@ -1984,6 +1986,7 @@ const en: Translations = {
   ytdlpProxy: "Proxy (Optional)",
   ytdlpProxyPlaceholder: "http://host:port",
   ytdlpProxySave: "Save",
+  ytdlpProxyAuthUnsupported: "Proxies with credentials are not supported. Remove the credentials from the proxy URL.",
   ytdlpInfoText: "Downloads audio from YouTube videos to a temporary file for waveform visualization and timestamp editing.",
   youtubeUrlPlaceholder: "Enter YouTube URL...",
   youtubeDisclaimer: "Downloading copyrighted content is subject to the laws of your country and YouTube's Terms of Service. Use only content you own or are otherwise permitted to use (e.g. personal, non-commercial use). You are solely responsible for your use.",
@@ -2669,6 +2672,7 @@ const ja: Translations = {
   ytdlpProxy: "プロキシ (オプション)",
   ytdlpProxyPlaceholder: "http://host:port",
   ytdlpProxySave: "保存",
+  ytdlpProxyAuthUnsupported: "認証情報を含むプロキシには対応していません。URLから認証情報を削除してください。",
   ytdlpInfoText: "YouTube動画の音声を一時ファイルとして読み込み、波形表示とタイムスタンプ編集に使用します。",
   youtubeUrlPlaceholder: "YouTube URLを入力...",
   youtubeDisclaimer: "著作権で保護されたコンテンツのダウンロードは、お住まいの国の法律および YouTube の利用規約の対象となります。ご自身が権利を有するか、許可された範囲（個人的・非商用利用など）でのみ使用してください。使用に関する責任はすべて利用者にあります。",

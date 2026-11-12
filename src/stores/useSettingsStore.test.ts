@@ -113,3 +113,51 @@ describe("useSettingsStore — persisted writes are debounced", () => {
     }
   });
 });
+
+describe("yt-dlp proxy credential policy", () => {
+  it("does not retain an authenticated proxy when set directly", () => {
+    useSettingsStore.getState().setYtdlpProxy("http://alice:secret@proxy.example:8080");
+
+    expect(useSettingsStore.getState().ytdlpProxy).toBe("");
+  });
+
+  it.each([
+    "http://alice@proxy.example:8080",
+    "socks5://:secret@proxy.example:1080",
+    "socks5h://alice%40work:secret@proxy.example:1080",
+    "http://alice:secret@@proxy.example:8080",
+  ])("rejects credential-bearing or malformed proxy authority %s", (proxy) => {
+    useSettingsStore.getState().setYtdlpProxy(proxy);
+    expect(useSettingsStore.getState().ytdlpProxy).toBe("");
+  });
+
+  it("keeps unauthenticated proxy URLs and at-signs outside the authority", () => {
+    useSettingsStore.getState().setYtdlpProxy("socks5://proxy.example:1080");
+    expect(useSettingsStore.getState().ytdlpProxy).toBe("socks5://proxy.example:1080");
+    useSettingsStore.getState().setYtdlpProxy("http://proxy.example:8080/?target=a@b");
+    expect(useSettingsStore.getState().ytdlpProxy).toBe("http://proxy.example:8080/?target=a@b");
+  });
+
+  it("removes an authenticated proxy from previously persisted settings", async () => {
+    vi.useFakeTimers();
+    try {
+      localStorage.setItem("lyrical-sync-settings", JSON.stringify({
+        state: { ytdlpProxy: "http://alice:secret@proxy.example:8080" },
+        version: 0,
+      }));
+
+      await useSettingsStore.persist.rehydrate();
+
+      expect(useSettingsStore.getState().ytdlpProxy).toBe("");
+      vi.advanceTimersByTime(300);
+      const persisted = localStorage.getItem("lyrical-sync-settings") ?? "";
+      expect(persisted).not.toContain("alice");
+      expect(persisted).not.toContain("secret");
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+      localStorage.removeItem("lyrical-sync-settings");
+      useSettingsStore.setState({ ytdlpProxy: "" });
+    }
+  });
+});

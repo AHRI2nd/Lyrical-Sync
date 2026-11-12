@@ -55,6 +55,18 @@ it('exposes the proxy textbox with its visible localized label', async () => {
   expect(await screen.findByRole('textbox', { name: label })).toBeTruthy();
 });
 
+it('does not save proxy credentials entered in the settings UI', async () => {
+  useSettingsStore.setState({ ytdlpProxy: '' });
+  render(<YtdlpSection />);
+
+  const input = await screen.findByRole('textbox', { name: useI18nStore.getState().t.ytdlpProxy });
+  fireEvent.change(input, { target: { value: 'http://alice:secret@proxy.example:8080' } });
+  fireEvent.click(screen.getByRole('button', { name: useI18nStore.getState().t.ytdlpProxySave }));
+
+  expect(useSettingsStore.getState().ytdlpProxy).toBe('');
+  expect((await screen.findByRole('alert')).textContent).toBe(useI18nStore.getState().t.ytdlpProxyAuthUnsupported);
+});
+
 it.each(['ko', 'en', 'ja'] as const)('localizes the checking state in %s', async (lang) => {
   useI18nStore.getState().setLang(lang);
   invoke.mockImplementation((command: string) => command === 'check_ytdlp' ? new Promise(() => {}) : Promise.resolve(undefined));

@@ -9,9 +9,11 @@ import { useYouTubeLoad } from "./useYouTubeLoad";
 import { useBusyStore } from "../../stores/useBusyStore";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
+import { useI18nStore } from "../../stores/useI18nStore";
 beforeEach(() => {
  invokeMock.mockReset().mockResolvedValue(undefined);
  useBusyStore.setState({reasons:new Set()});
+ useSettingsStore.setState({ ytdlpProxy: "" });
  useSettingsStore.getState().setPlaybackMode("youtube");
  useLrcStore.getState().newLrc();useLrcStore.getState().setAudioPath(null);
 });
@@ -79,4 +81,16 @@ it('releases only its own busy reason after native failure', async () => {
  await act(async()=>{run.reject(new Error('download failed'));await run.pending;});
  expect(run.result.current.ytError).toContain('download failed');expect(run.apply).not.toHaveBeenCalled();
  expect([...useBusyStore.getState().reasons]).toEqual(['other-work']);
+});
+it('shows a localized message without exposing rejected proxy credentials', async () => {
+ useSettingsStore.setState({ ytdlpProxy: 'http://alice:secret@proxy.example:8080' });
+ const run=start();
+ const loadCall=invokeMock.mock.calls.find(([command])=>command==='ytdlp_load_audio');
+ expect(loadCall?.[1]?.proxy).toBe('http://alice:secret@proxy.example:8080');
+
+ await act(async()=>{run.reject(new Error('YTDLP_AUTH_PROXY_UNSUPPORTED'));await run.pending;});
+
+ expect(run.result.current.ytError).toBe(useI18nStore.getState().t.ytdlpProxyAuthUnsupported);
+ expect(run.result.current.ytError).not.toContain('alice');
+ expect(run.result.current.ytError).not.toContain('secret');
 });

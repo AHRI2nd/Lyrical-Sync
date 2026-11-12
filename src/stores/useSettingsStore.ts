@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage, type StateStorage } from "zustand/middleware";
 import { type KeyAction, DEFAULT_KEYBINDINGS, normalizeKeybindings } from "../utils/keybindings";
+import { hasProxyCredentials, withoutProxyCredentials } from "../utils/proxyCredentials";
 
 interface SettingsPersistenceState {
   failureCount: number;
@@ -29,7 +30,27 @@ function debouncedLocalStorage(delayMs: number): StateStorage {
   };
   if (typeof window !== "undefined") window.addEventListener("pagehide", flush);
   return {
-    getItem: (key) => { try { return localStorage.getItem(key); } catch { return null; } },
+    getItem: (key) => {
+      try {
+        const value = localStorage.getItem(key);
+        if (!value || key !== "lyrical-sync-settings") return value;
+        try {
+          const persisted = JSON.parse(value) as { state?: Record<string, unknown> };
+          const proxy = persisted?.state?.ytdlpProxy;
+          if (typeof proxy !== "string" || !hasProxyCredentials(proxy)) return value;
+          const sanitized = JSON.stringify({
+            ...persisted,
+            state: { ...persisted.state, ytdlpProxy: "" },
+          });
+          try { localStorage.setItem(key, sanitized); } catch { useSettingsPersistenceStore.getState().reportFailure(); }
+          return sanitized;
+        } catch {
+          return value;
+        }
+      } catch {
+        return null;
+      }
+    },
     setItem: (key, value) => {
       pending = { key, value };
       if (timer) clearTimeout(timer);
@@ -178,6 +199,7 @@ function restoreSettings(value: unknown, current: SettingsState): SettingsState 
     next.spotifyMode = false;
   }
   next.ytdlpAudioQuality = ["best", "192", "128"].includes(String(saved.ytdlpAudioQuality)) ? saved.ytdlpAudioQuality as SettingsState["ytdlpAudioQuality"] : current.ytdlpAudioQuality;
+  next.ytdlpProxy = withoutProxyCredentials(next.ytdlpProxy);
   next.aiAlignmentLanguage = ["auto", "eng", "kor", "jpn"].includes(String(saved.aiAlignmentLanguage))
     ? saved.aiAlignmentLanguage as AlignmentLanguage
     : current.aiAlignmentLanguage;
@@ -261,7 +283,7 @@ export const useSettingsStore = create<SettingsState>()(
         : set({ deviceMode: false }),
       setYtdlpAudioQuality: (v) => set({ ytdlpAudioQuality: v }),
       setYtdlpCookiesFile: (v) => set({ ytdlpCookiesFile: v }),
-      setYtdlpProxy: (v) => set({ ytdlpProxy: v }),
+      setYtdlpProxy: (v) => set({ ytdlpProxy: withoutProxyCredentials(v) }),
       setYoutubeDisclaimerAccepted: (v) => set({ youtubeDisclaimerAccepted: v }),
       addRecentFile: (entry) =>
         set((s) => {

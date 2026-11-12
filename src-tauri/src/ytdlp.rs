@@ -1149,6 +1149,7 @@ pub async fn ytdlp_load_audio(
     if run_id.is_empty() || run_id.len() > 128 {
         return Err("잘못된 yt-dlp 요청 식별자입니다".into());
     }
+    validate_ytdlp_proxy(proxy.as_deref())?;
     path_validation::validate_ytdlp_url(&url)?;
     let exe = ytdlp_exe(&app)?;
     let dir = ytdlp_dir(&app)?;
@@ -1239,7 +1240,8 @@ fn configure_ytdlp_audio_command(
     cookies_file: Option<&str>,
     proxy: Option<&str>,
     url: &str,
-) {
+) -> Result<(), String> {
+    validate_ytdlp_proxy(proxy)?;
     command
         .arg("--ignore-config")
         .arg("--no-plugin-dirs")
@@ -1263,6 +1265,25 @@ fn configure_ytdlp_audio_command(
     }
 
     command.arg("--").arg(url);
+    Ok(())
+}
+
+fn validate_ytdlp_proxy(proxy: Option<&str>) -> Result<(), String> {
+    let Some(proxy) = proxy.map(str::trim).filter(|proxy| !proxy.is_empty()) else {
+        return Ok(());
+    };
+    let parsed_userinfo = url::Url::parse(proxy)
+        .map(|parsed| !parsed.username().is_empty() || parsed.password().is_some())
+        .unwrap_or(false);
+    let authority_start = proxy.find("://").map(|index| index + 3).unwrap_or(0);
+    let authority = proxy[authority_start..]
+        .split(|character| matches!(character, '/' | '?' | '#'))
+        .next()
+        .unwrap_or_default();
+    if parsed_userinfo || authority.contains('@') {
+        return Err("YTDLP_AUTH_PROXY_UNSUPPORTED".into());
+    }
+    Ok(())
 }
 
 fn audio_format_for_quality(quality: &str) -> &'static str {
@@ -1296,7 +1317,7 @@ async fn ytdlp_run_child(
         cookies_file.as_deref(),
         proxy.as_deref(),
         &url,
-    );
+    )?;
     cmd.kill_on_drop(true);
     #[cfg(unix)]
     cmd.process_group(0);
@@ -1496,7 +1517,8 @@ mod tests {
             Some("/tmp/cookies.txt"),
             Some("http://127.0.0.1:8080"),
             "https://www.youtube.com/watch?v=fixture",
-        );
+        )
+        .unwrap();
         let args: Vec<String> = command
             .as_std()
             .get_args()
@@ -1512,6 +1534,28 @@ mod tests {
     }
 
     #[test]
+    fn audio_command_does_not_put_proxy_credentials_in_child_arguments() {
+        let output = PathBuf::from("/tmp/owned-run/audio.%(ext)s");
+        let mut command = tokio::process::Command::new("yt-dlp");
+        let result = configure_ytdlp_audio_command(
+            &mut command,
+            "bestaudio/best",
+            &output,
+            None,
+            Some("http://alice:secret@proxy.example:8080"),
+            "https://www.youtube.com/watch?v=fixture",
+        );
+        let args: Vec<String> = command
+            .as_std()
+            .get_args()
+            .map(|argument| argument.to_string_lossy().into_owned())
+            .collect();
+
+        assert_eq!(result.unwrap_err(), "YTDLP_AUTH_PROXY_UNSUPPORTED");
+        assert!(args.is_empty());
+    }
+
+    #[test]
     fn audio_command_caps_download_to_supported_audio_file_size() {
         let output = PathBuf::from("/tmp/owned-run/audio.%(ext)s");
         let mut command = tokio::process::Command::new("yt-dlp");
@@ -1522,7 +1566,8 @@ mod tests {
             None,
             None,
             "https://www.youtube.com/watch?v=fixture",
-        );
+        )
+        .unwrap();
         let args: Vec<String> = command
             .as_std()
             .get_args()

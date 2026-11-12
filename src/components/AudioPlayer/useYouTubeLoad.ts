@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useSettingsStore } from "../../stores/useSettingsStore";
+import { useI18nStore } from "../../stores/useI18nStore";
 import { useBusyStore } from "../../stores/useBusyStore";
 import { useLrcStore } from "../../stores/useLrcStore";
 
@@ -10,6 +11,7 @@ let youtubeRequestSequence = 0;
 // AudioPlayer에서 분리해 파일 모드/Spotify/기기 감지 엔진 로직과 뒤섞이지 않게 함.
 export function useYouTubeLoad(setAudioPath: (path: string) => void) {
   const { ytdlpAudioQuality, ytdlpCookiesFile, ytdlpProxy, youtubeMode } = useSettingsStore();
+  const proxyAuthUnsupported = useI18nStore((state) => state.t.ytdlpProxyAuthUnsupported);
 
   const [ytUrl, setYtUrl] = useState("");
   const [ytLoading, setYtLoadingRaw] = useState(false);
@@ -70,7 +72,10 @@ export function useYouTubeLoad(setAudioPath: (path: string) => void) {
       setYtModalOpen(false);
       setYtUrl("");
     } catch (e) {
-      if (mounted.current && !request.cancelled) setYtError(String(e));
+      if (mounted.current && !request.cancelled) {
+        const message = String(e);
+        setYtError(message.includes("YTDLP_AUTH_PROXY_UNSUPPORTED") ? proxyAuthUnsupported : message);
+      }
     } finally {
       operation.current = null;
       setYtLoading(false);

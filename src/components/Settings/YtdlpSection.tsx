@@ -6,6 +6,7 @@ import { safeUnlisten } from "../../utils/safeUnlisten";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useBusyStore } from "../../stores/useBusyStore";
+import { hasProxyCredentials } from "../../utils/proxyCredentials";
 
 export function YtdlpSection() {
   const { t } = useI18nStore();
@@ -23,6 +24,7 @@ export function YtdlpSection() {
   const [checkError, setCheckError] = useState<string | null>(null);
   const [proxyDraft, setProxyDraft] = useState(ytdlpProxy);
   const [proxySaved, setProxySaved] = useState(false);
+  const [proxyError, setProxyError] = useState<string | null>(null);
 
   // "latest wins" counter – prevents a stale concurrent refresh from
   // overwriting the result of a more recent one (React StrictMode runs
@@ -156,6 +158,12 @@ export function YtdlpSection() {
   };
 
   const handleSaveProxy = () => {
+    if (hasProxyCredentials(proxyDraft)) {
+      setProxyError(t.ytdlpProxyAuthUnsupported);
+      setProxySaved(false);
+      return;
+    }
+    setProxyError(null);
     setYtdlpProxy(proxyDraft.trim());
     setProxySaved(true);
     setTimeout(() => setProxySaved(false), 1500);
@@ -340,7 +348,7 @@ export function YtdlpSection() {
             id="ytdlp-proxy"
             type="text"
             value={proxyDraft}
-            onChange={(e) => { setProxyDraft(e.target.value); setProxySaved(false); }}
+            onChange={(e) => { setProxyDraft(e.target.value); setProxySaved(false); setProxyError(null); }}
             placeholder={t.ytdlpProxyPlaceholder}
             className="ls-field flex-1 text-sm font-mono"
           />
@@ -352,6 +360,7 @@ export function YtdlpSection() {
             {proxySaved ? "✓" : t.ytdlpProxySave}
           </button>
         </div>
+        {proxyError && <p role="alert" className="text-xs text-red-400">{proxyError}</p>}
       </div>
     </div>
   );
