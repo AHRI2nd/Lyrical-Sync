@@ -36,6 +36,7 @@
     "app-command:cancel-ytdlp-install",
     "app-command:ytdlp-load-audio",
     "app-command:cancel-ytdlp-load",
+    "app-command:retain-ytdlp-audio",
     "app-command:lrclib-publish",
     "app-command:cancel-lrclib-publish",
     "app-command:get-now-playing",

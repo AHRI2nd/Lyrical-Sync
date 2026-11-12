@@ -33,6 +33,8 @@ function start() {
 it('applies an unchanged download and releases busy ownership', async () => {
  const run=start();await act(async()=>{run.resolve('/completed.wav');await run.pending;});
  expect(run.apply).toHaveBeenCalledWith('/completed.wav');expect(useBusyStore.getState().reasons.size).toBe(0);
+ const loadCall=invokeMock.mock.calls.find(([command])=>command==='ytdlp_load_audio');
+ expect(invokeMock).toHaveBeenCalledWith('retain_ytdlp_audio', {runId:loadCall?.[1]?.runId});
 });
 it.each(['different','same path','new document'])('ignores a result after a later selection: %s', async change => {
  const run=start();
@@ -42,6 +44,8 @@ it.each(['different','same path','new document'])('ignores a result after a late
  await act(async()=>{run.resolve('/obsolete.wav');await run.pending;});
  expect(run.apply).not.toHaveBeenCalled();expect(run.result.current.ytLoading).toBe(false);
  expect(useBusyStore.getState().reasons.size).toBe(0);
+ const loadCall=invokeMock.mock.calls.find(([command])=>command==='ytdlp_load_audio');
+ expect(invokeMock).toHaveBeenCalledWith('cancel_ytdlp_load', {runId:loadCall?.[1]?.runId});
 });
 it('does not apply a download result after leaving YouTube mode', async () => {
  const run=start();

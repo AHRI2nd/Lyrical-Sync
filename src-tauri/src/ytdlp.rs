@@ -1,5 +1,6 @@
 use crate::path_validation;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -8,8 +9,14 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::{AsyncBufRead, AsyncBufReadExt};
 
 pub struct YtdlpState {
-    active_cancel: Mutex<Option<(String, Arc<AtomicBool>)>>,
+    runs: Mutex<YtdlpRunState>,
     active_install_cancel: Mutex<Option<Arc<AtomicBool>>>,
+}
+
+#[derive(Default)]
+struct YtdlpRunState {
+    active_cancel: Option<(String, Arc<AtomicBool>)>,
+    unclaimed_audio: HashMap<String, PathBuf>,
 }
 
 static YTDLP_RUN_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -367,7 +374,7 @@ fn next_ytdlp_run_id() -> String {
 impl Default for YtdlpState {
     fn default() -> Self {
         Self {
-            active_cancel: Mutex::new(None),
+            runs: Mutex::new(YtdlpRunState::default()),
             active_install_cancel: Mutex::new(None),
         }
     }
@@ -412,35 +419,53 @@ impl YtdlpState {
     }
 
     fn start_run(&self, run_id: String) -> Result<Arc<AtomicBool>, String> {
-        let mut active = self.active_cancel.lock().unwrap_or_else(|e| e.into_inner());
-        if active.is_some() {
+        let mut runs = self.runs.lock().unwrap_or_else(|e| e.into_inner());
+        if runs.active_cancel.is_some() || runs.unclaimed_audio.contains_key(&run_id) {
             return Err("yt-dlp 다운로드가 이미 진행 중입니다".into());
         }
         let flag = Arc::new(AtomicBool::new(false));
-        *active = Some((run_id, flag.clone()));
+        runs.active_cancel = Some((run_id, flag.clone()));
         Ok(flag)
     }
 
-    fn cancel_run(&self, run_id: &str) {
-        if let Some((active_run_id, flag)) = self
-            .active_cancel
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .as_ref()
-        {
+    fn cancel_run(&self, run_id: &str) -> Option<PathBuf> {
+        let mut runs = self.runs.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some((active_run_id, flag)) = runs.active_cancel.as_ref() {
             if active_run_id == run_id {
                 flag.store(true, Ordering::Relaxed);
             }
         }
+        runs.unclaimed_audio.remove(run_id)
+    }
+
+    fn register_completed_audio(&self, run_id: &str, flag: &Arc<AtomicBool>, cache_dir: PathBuf) -> bool {
+        let mut runs = self.runs.lock().unwrap_or_else(|e| e.into_inner());
+        let is_current_run = runs.active_cancel.as_ref().is_some_and(|(active_id, active_flag)| {
+            active_id == run_id && Arc::ptr_eq(active_flag, flag)
+        });
+        if !is_current_run || flag.load(Ordering::Acquire) {
+            return false;
+        }
+        runs.unclaimed_audio.insert(run_id.to_owned(), cache_dir);
+        true
+    }
+
+    fn retain_completed_audio(&self, run_id: &str) -> bool {
+        self.runs
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .unclaimed_audio
+            .remove(run_id)
+            .is_some()
     }
 
     fn finish_run(&self, flag: &Arc<AtomicBool>) {
-        let mut active = self.active_cancel.lock().unwrap_or_else(|e| e.into_inner());
-        if active
+        let mut runs = self.runs.lock().unwrap_or_else(|e| e.into_inner());
+        if runs.active_cancel
             .as_ref()
             .is_some_and(|(_, current)| Arc::ptr_eq(current, flag))
         {
-            *active = None;
+            runs.active_cancel = None;
         }
     }
 }
@@ -1159,7 +1184,7 @@ pub async fn ytdlp_load_audio(
         return Err("yt-dlp가 설치되지 않았습니다".into());
     }
 
-    let cancel_flag = ytdlp_state.start_run(run_id)?;
+    let cancel_flag = ytdlp_state.start_run(run_id.clone())?;
     let _run_guard = ActiveYtdlpRun::new(&ytdlp_state, cancel_flag.clone());
     let path = ytdlp_load_audio_inner(
         url,
@@ -1171,26 +1196,51 @@ pub async fn ytdlp_load_audio(
         cancel_flag.clone(),
     )
     .await?;
-    let path = PathBuf::from(path).canonicalize().map_err(|error| error.to_string())?;
-    let cache_root = app
-        .path()
-        .app_cache_dir()
-        .map_err(|error| error.to_string())?
-        .join("ytdlp-audio")
-        .canonicalize()
-        .map_err(|error| error.to_string())?;
-    if !path.starts_with(&cache_root)
-        || !std::fs::metadata(&path)
+    let output_path = PathBuf::from(path);
+    let raw_cache_dir = output_path
+        .parent()
+        .ok_or_else(|| "yt-dlp output has no cache directory".to_string())?
+        .to_path_buf();
+    let validation = (|| {
+        let path = output_path.canonicalize().map_err(|error| error.to_string())?;
+        let cache_root = app
+            .path()
+            .app_cache_dir()
             .map_err(|error| error.to_string())?
-            .is_file()
-    {
-        return Err("yt-dlp output is outside the application cache".into());
+            .join("ytdlp-audio")
+            .canonicalize()
+            .map_err(|error| error.to_string())?;
+        if !path.starts_with(&cache_root)
+            || !std::fs::metadata(&path)
+                .map_err(|error| error.to_string())?
+                .is_file()
+        {
+            return Err("yt-dlp output is outside the application cache".into());
+        }
+        let cache_dir = path
+            .parent()
+            .ok_or_else(|| "yt-dlp output has no cache directory".to_string())?
+            .to_path_buf();
+        Ok((path, cache_dir))
+    })();
+    let (path, cache_dir) = match validation {
+        Ok(output) => output,
+        Err(error) => {
+            let _ = remove_ytdlp_audio_cache(raw_cache_dir).await;
+            return Err(error);
+        }
+    };
+    if !ytdlp_state.register_completed_audio(&run_id, &cancel_flag, cache_dir.clone()) {
+        let _ = remove_ytdlp_audio_cache(cache_dir).await;
+        return Err("yt-dlp download was cancelled before it could be selected".into());
     }
     use tauri_plugin_fs::FsExt;
-    window
-        .fs_scope()
-        .allow_file(&path)
-        .map_err(|error| error.to_string())?;
+    if let Err(error) = window.fs_scope().allow_file(&path) {
+        if let Some(cache_dir) = ytdlp_state.cancel_run(&run_id) {
+            let _ = remove_ytdlp_audio_cache(cache_dir).await;
+        }
+        return Err(error.to_string());
+    }
     Ok(path.to_string_lossy().into_owned())
 }
 
@@ -1497,8 +1547,34 @@ async fn ytdlp_run_child(
 }
 
 #[tauri::command]
-pub fn cancel_ytdlp_load(run_id: String, ytdlp_state: tauri::State<'_, YtdlpState>) {
-    ytdlp_state.cancel_run(&run_id);
+pub async fn cancel_ytdlp_load(
+    run_id: String,
+    ytdlp_state: tauri::State<'_, YtdlpState>,
+) -> Result<(), String> {
+    if let Some(cache_dir) = ytdlp_state.cancel_run(&run_id) {
+        remove_ytdlp_audio_cache(cache_dir).await?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn retain_ytdlp_audio(
+    run_id: String,
+    ytdlp_state: tauri::State<'_, YtdlpState>,
+) -> Result<(), String> {
+    if ytdlp_state.retain_completed_audio(&run_id) {
+        Ok(())
+    } else {
+        Err("yt-dlp result is no longer available for selection".into())
+    }
+}
+
+async fn remove_ytdlp_audio_cache(cache_dir: PathBuf) -> Result<(), String> {
+    match tokio::fs::remove_dir_all(cache_dir).await {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.to_string()),
+    }
 }
 
 #[cfg(test)]
@@ -1923,9 +1999,9 @@ mod tests {
             .start_run("second".into())
             .expect("second run should start");
 
-        state.cancel_run("first");
+        let _ = state.cancel_run("first");
         assert!(!second.load(Ordering::Relaxed));
-        state.cancel_run("second");
+        let _ = state.cancel_run("second");
         assert!(second.load(Ordering::Relaxed));
     }
 
@@ -1936,10 +2012,76 @@ mod tests {
             .start_run("first".into())
             .expect("first run should start");
         assert!(state.start_run("second".into()).is_err());
-        state.cancel_run("first");
+        let _ = state.cancel_run("first");
         assert!(first_run_flag.load(Ordering::Relaxed));
         state.finish_run(&first_run_flag);
         assert!(state.start_run("second".into()).is_ok());
+    }
+
+    #[test]
+    fn cancelled_completed_audio_returns_its_native_owned_cache_for_cleanup() {
+        let temp = tempfile::tempdir().unwrap();
+        let cache_dir = temp.path().join("run");
+        std::fs::create_dir(&cache_dir).unwrap();
+        std::fs::write(cache_dir.join("audio.m4a"), b"fixture").unwrap();
+
+        let state = YtdlpState::default();
+        let run = state.start_run("run-1".into()).unwrap();
+        assert!(state.register_completed_audio("run-1", &run, cache_dir.clone()));
+        state.finish_run(&run);
+
+        assert_eq!(state.cancel_run("run-1"), Some(cache_dir.clone()));
+        assert!(!state.retain_completed_audio("run-1"));
+        assert!(cache_dir.join("audio.m4a").exists());
+    }
+
+    #[tokio::test]
+    async fn cancelling_a_completed_run_removes_only_its_cache_directory() {
+        let temp = tempfile::tempdir().unwrap();
+        let cache_dir = temp.path().join("run");
+        std::fs::create_dir(&cache_dir).unwrap();
+        std::fs::write(cache_dir.join("audio.m4a"), b"fixture").unwrap();
+        let unrelated = temp.path().join("unrelated");
+        std::fs::create_dir(&unrelated).unwrap();
+
+        let state = YtdlpState::default();
+        let run = state.start_run("run-1".into()).unwrap();
+        assert!(state.register_completed_audio("run-1", &run, cache_dir.clone()));
+        state.finish_run(&run);
+
+        remove_ytdlp_audio_cache(state.cancel_run("run-1").unwrap())
+            .await
+            .unwrap();
+        assert!(!cache_dir.exists());
+        assert!(unrelated.exists());
+    }
+
+    #[test]
+    fn retained_completed_audio_survives_a_late_cancel_request() {
+        let temp = tempfile::tempdir().unwrap();
+        let cache_dir = temp.path().join("run");
+        std::fs::create_dir(&cache_dir).unwrap();
+        std::fs::write(cache_dir.join("audio.m4a"), b"fixture").unwrap();
+
+        let state = YtdlpState::default();
+        let run = state.start_run("run-1".into()).unwrap();
+        assert!(state.register_completed_audio("run-1", &run, cache_dir.clone()));
+        state.finish_run(&run);
+
+        assert!(state.retain_completed_audio("run-1"));
+        assert_eq!(state.cancel_run("run-1"), None);
+        assert!(cache_dir.join("audio.m4a").exists());
+    }
+
+    #[test]
+    fn cancelled_run_cannot_register_a_completed_audio_cache() {
+        let temp = tempfile::tempdir().unwrap();
+        let state = YtdlpState::default();
+        let run = state.start_run("run-1".into()).unwrap();
+        let _ = state.cancel_run("run-1");
+
+        assert!(!state.register_completed_audio("run-1", &run, temp.path().join("run")));
+        state.finish_run(&run);
     }
 
     #[test]

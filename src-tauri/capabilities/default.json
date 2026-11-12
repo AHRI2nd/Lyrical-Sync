@@ -43,6 +43,7 @@
     "allow-cancel-ytdlp-install",
     "allow-ytdlp-load-audio",
     "allow-cancel-ytdlp-load",
+    "allow-retain-ytdlp-audio",
     "allow-lrclib-publish",
     "allow-cancel-lrclib-publish",
     "allow-get-now-playing",

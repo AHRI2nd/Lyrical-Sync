@@ -67,10 +67,14 @@ export function useYouTubeLoad(setAudioPath: (path: string) => void) {
       const current = useLrcStore.getState();
       const isYouTubeMode = useSettingsStore.getState().youtubeMode;
       if (!mounted.current || request.cancelled || current._audioSelection !== audioSelection ||
-          current._documentSession !== documentSession || !isYouTubeMode) return;
+          current._documentSession !== documentSession || !isYouTubeMode) {
+        void invoke("cancel_ytdlp_load", { runId: request.runId }).catch(() => {});
+        return;
+      }
       setAudioPath(path);
       setYtModalOpen(false);
       setYtUrl("");
+      void invoke("retain_ytdlp_audio", { runId: request.runId }).catch(() => {});
     } catch (e) {
       if (mounted.current && !request.cancelled) {
         const message = String(e);

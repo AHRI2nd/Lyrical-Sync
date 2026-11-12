@@ -45,6 +45,7 @@ fn main() {
         "cancel_ytdlp_install",
         "ytdlp_load_audio",
         "cancel_ytdlp_load",
+        "retain_ytdlp_audio",
         "lrclib_publish",
         "cancel_lrclib_publish",
         "get_now_playing",
