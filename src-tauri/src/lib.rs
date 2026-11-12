@@ -11,6 +11,7 @@ mod atomic_write;
 mod audio_resource;
 mod audio_aiff;
 mod audio_stream;
+mod ai_audio;
 mod audio_waveform;
 mod bpm_audio;
 mod batch_output;

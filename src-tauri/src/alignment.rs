@@ -1,5 +1,7 @@
 use serde::Serialize;
 use std::collections::VecDeque;
+use std::io::Write;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, WebviewWindow};
@@ -114,6 +116,100 @@ async fn wait_for_package_probe(
     }
 }
 
+struct AiPcmChannelWriter {
+    sender: tokio::sync::mpsc::Sender<Vec<u8>>,
+}
+
+impl Write for AiPcmChannelWriter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.sender
+            .blocking_send(bytes.to_vec())
+            .map_err(|_| std::io::Error::new(std::io::ErrorKind::BrokenPipe, "AI audio reader closed"))?;
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+fn frame_lines_header(lines_json: &str) -> Result<Vec<u8>, String> {
+    const MAX_LINES_JSON_BYTES: usize = 16 * 1024 * 1024;
+    if lines_json.is_empty() || lines_json.len() > MAX_LINES_JSON_BYTES {
+        return Err("AI lyric input is too large".into());
+    }
+    let length = u32::try_from(lines_json.len())
+        .map_err(|_| "AI lyric input is too large".to_string())?;
+    let mut framed = Vec::with_capacity(4 + lines_json.len());
+    framed.extend_from_slice(&length.to_le_bytes());
+    framed.extend_from_slice(lines_json.as_bytes());
+    Ok(framed)
+}
+
+fn should_stream_native_ai_audio(
+    native_decoder: bool,
+    audio_for_align: &str,
+    audio_snapshot: &str,
+    lines_json: &str,
+) -> bool {
+    if !native_decoder || audio_for_align != audio_snapshot {
+        return false;
+    }
+    serde_json::from_str::<serde_json::Value>(lines_json)
+        .ok()
+        .and_then(|value| value.as_array().map(|lines| !lines.is_empty()))
+        .unwrap_or(false)
+}
+
+async fn run_native_ai_audio_child(
+    mut child: tokio::process::Child,
+    audio_path: PathBuf,
+    extension: String,
+    sample_rate: u32,
+    channels: u8,
+    header: Option<Vec<u8>>,
+    cancel: Arc<AtomicBool>,
+    progress: impl FnMut(&str) -> Result<(), String>,
+) -> Result<String, String> {
+    let stdin = child.stdin.take().ok_or("Python stdin is unavailable")?;
+    let (sender, mut receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(1);
+    let writer = tokio::spawn(async move {
+        use tokio::io::AsyncWriteExt;
+        let mut stdin = stdin;
+        if let Some(header) = header {
+            stdin.write_all(&header).await.map_err(|error| error.to_string())?;
+        }
+        while let Some(chunk) = receiver.recv().await {
+            stdin.write_all(&chunk).await.map_err(|error| error.to_string())?;
+        }
+        stdin.shutdown().await.map_err(|error| error.to_string())
+    });
+    let decode_cancel = cancel.clone();
+    let decoder = tokio::task::spawn_blocking(move || {
+        let file = std::fs::File::open(audio_path).map_err(|error| error.to_string())?;
+        let mut output = AiPcmChannelWriter { sender };
+        crate::ai_audio::decode_to_writer(
+            file,
+            &extension,
+            sample_rate,
+            channels,
+            &decode_cancel,
+            &mut output,
+        )
+    });
+    let child_result = run_child(child, cancel, progress).await;
+    let decode_result = decoder
+        .await
+        .map_err(|error| format!("Native audio decoder worker failed: {error}"))?;
+    let writer_result = writer
+        .await
+        .map_err(|error| format!("Python audio writer worker failed: {error}"))?;
+    let output = child_result?;
+    decode_result?;
+    writer_result?;
+    Ok(output)
+}
+
 /// Run the Python ctc-forced-aligner sidecar script using the app-managed venv.
 /// `lines_json`: JSON array of `{"index": number, "text": string}` (non-empty lines only).
 /// `language`:   ISO 639-3 code, e.g. "eng" / "kor" / "jpn".
@@ -195,7 +291,7 @@ pub async fn run_alignment(
     }
 
     let audio_source_path = audio_path.clone();
-    let (audio_snapshot, _) = tokio::task::spawn_blocking(move || {
+    let (audio_snapshot, audio_info) = tokio::task::spawn_blocking(move || {
         crate::audio_resource::stage_bounded_audio_file(&audio_source_path)
     })
     .await
@@ -204,6 +300,13 @@ pub async fn run_alignment(
         return Err("cancelled".into());
     }
     let audio_path = audio_snapshot.to_string_lossy().into_owned();
+    let audio_extension = audio_path
+        .rsplit_once('.')
+        .map(|(_, extension)| extension.to_ascii_lowercase())
+        .unwrap_or_default();
+    let use_native_ai_decoder = crate::ai_audio::is_native_ai_decoder_path(&audio_extension);
+    let ai_sample_rate = audio_info.sample_rate.to_string();
+    let ai_channels = audio_info.channels.to_string();
     
     // Model checksum verification is done in align.py sidecar
     // The Python script will verify the model checksum before loading
@@ -260,21 +363,43 @@ pub async fn run_alignment(
             .await
             .map_err(|e| format!("스크립트 쓰기 실패: {e}"))?;
 
-        let sep_child = python_cmd_inference(&python_str)
-            .args([
-                sep_script_path.to_string_lossy().as_ref(),
-                "--model-path", &demucs_model.to_string_lossy(),
-                "--model-sha256", demucs_sha256,
-                "--audio",      &audio_path,
-                "--output",     &vocals_tmp_path.to_string_lossy().as_ref(),
-            ])
+        let mut sep_command = python_cmd_inference(&python_str);
+        sep_command.args([
+            sep_script_path.to_string_lossy().as_ref(),
+            "--model-path", &demucs_model.to_string_lossy(),
+            "--model-sha256", demucs_sha256,
+            "--audio", if use_native_ai_decoder { "-" } else { &audio_path },
+            "--output", &vocals_tmp_path.to_string_lossy().as_ref(),
+        ]);
+        if use_native_ai_decoder {
+            sep_command
+                .args(["--audio-sample-rate", &ai_sample_rate, "--audio-channels", &ai_channels])
+                .stdin(std::process::Stdio::piped());
+        } else {
+            sep_command.stdin(std::process::Stdio::null());
+        }
+        let sep_child = sep_command
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::piped())
             .kill_on_drop(true)
             .spawn()
             .map_err(|e| format!("Python 실행 실패: {e}"))?;
 
-        run_child(sep_child, cancel.clone(), &progress).await?;
+        if use_native_ai_decoder {
+            run_native_ai_audio_child(
+                sep_child,
+                PathBuf::from(&audio_path),
+                audio_extension.clone(),
+                audio_info.sample_rate,
+                audio_info.channels,
+                None,
+                cancel.clone(),
+                &progress,
+            )
+            .await?;
+        } else {
+            run_child(sep_child, cancel.clone(), &progress).await?;
+        }
         audio_for_align = vocals_tmp_path.to_string_lossy().into_owned();
     }
 
@@ -283,17 +408,33 @@ pub async fn run_alignment(
     // VAD on the audio is only meaningful when it's the isolated vocal stem
     let separated_flag = if audio_for_align != audio_path { "true" } else { "false" };
     let vad_flag = if use_vad { "true" } else { "false" };
-    let mut child = python_cmd_inference(&python_str)
-        .args([
-            script_str.as_str(),
-            "--models-dir", &models_dir_str,
-            "--model-sha256", model_sha256,
-            "--audio",      &audio_for_align,
-            "--lines-stdin",
-            "--language",   &language,
-            "--separated",  separated_flag,
-            "--vad",        vad_flag,
-        ])
+    let stream_native_audio = should_stream_native_ai_audio(
+        use_native_ai_decoder,
+        &audio_for_align,
+        &audio_path,
+        &lines_json,
+    );
+    let align_audio_argument = if stream_native_audio { "-" } else { &audio_for_align };
+    let mut align_command = python_cmd_inference(&python_str);
+    align_command.args([
+        script_str.as_str(),
+        "--models-dir", &models_dir_str,
+        "--model-sha256", model_sha256,
+        "--audio", align_audio_argument,
+        "--lines-stdin",
+        "--language", &language,
+        "--separated", separated_flag,
+        "--vad", vad_flag,
+    ]);
+    if stream_native_audio {
+        align_command.args([
+            "--audio-sample-rate",
+            &ai_sample_rate,
+            "--audio-channels",
+            &ai_channels,
+        ]);
+    }
+    let mut child = align_command
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .stdin(std::process::Stdio::piped())
@@ -301,35 +442,50 @@ pub async fn run_alignment(
         .spawn()
         .map_err(|e| format!("Python 실행 실패: {e}"))?;
 
-    let process_id = child.id();
-    use tokio::io::AsyncWriteExt;
-    let mut stdin = child.stdin.take().ok_or("Python stdin is unavailable")?;
-    let input = lines_json.into_bytes();
-    let input_task = tokio::spawn(async move {
-        stdin.write_all(&input).await.map_err(|error| error.to_string())
-    });
-    let output = run_child(child, cancel, progress).await;
-    match output {
-        Ok(output) => {
-            match crate::alignment_process::finish_stdin_writer(
-                input_task,
-                std::time::Duration::from_millis(500),
-            )
-            .await
-            {
-                Ok(()) => Ok(output.trim().to_string()),
-                Err(error) => {
-                    if let Some(pid) = process_id {
-                        crate::alignment_process::terminate_process_tree(pid).await;
+    if stream_native_audio {
+        run_native_ai_audio_child(
+            child,
+            PathBuf::from(&audio_path),
+            audio_extension,
+            audio_info.sample_rate,
+            audio_info.channels,
+            Some(frame_lines_header(&lines_json)?),
+            cancel,
+            progress,
+        )
+        .await
+        .map(|output| output.trim().to_string())
+    } else {
+        let process_id = child.id();
+        use tokio::io::AsyncWriteExt;
+        let mut stdin = child.stdin.take().ok_or("Python stdin is unavailable")?;
+        let input = lines_json.into_bytes();
+        let input_task = tokio::spawn(async move {
+            stdin.write_all(&input).await.map_err(|error| error.to_string())
+        });
+        let output = run_child(child, cancel, progress).await;
+        match output {
+            Ok(output) => {
+                match crate::alignment_process::finish_stdin_writer(
+                    input_task,
+                    std::time::Duration::from_millis(500),
+                )
+                .await
+                {
+                    Ok(()) => Ok(output.trim().to_string()),
+                    Err(error) => {
+                        if let Some(pid) = process_id {
+                            crate::alignment_process::terminate_process_tree(pid).await;
+                        }
+                        Err(error)
                     }
-                    Err(error)
                 }
             }
-        }
-        Err(error) => {
-            input_task.abort();
-            let _ = input_task.await;
-            Err(error)
+            Err(error) => {
+                input_task.abort();
+                let _ = input_task.await;
+                Err(error)
+            }
         }
     }
 }
@@ -342,6 +498,92 @@ pub fn cancel_alignment(al_state: tauri::State<'_, AlignmentState>, run_id: Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_audio_lyrics_header_is_bounded_and_length_framed() {
+        let input = r#"[{"index":2,"text":"hello"}]"#;
+        let encoded = frame_lines_header(input).unwrap();
+        assert_eq!(
+            u32::from_le_bytes(encoded[..4].try_into().unwrap()) as usize,
+            input.len()
+        );
+        assert_eq!(&encoded[4..], input.as_bytes());
+        assert!(frame_lines_header("").is_err());
+        assert!(frame_lines_header(&"x".repeat(16 * 1024 * 1024 + 1)).is_err());
+    }
+
+    #[test]
+    fn native_audio_stream_is_skipped_when_lyrics_are_empty_or_audio_is_a_vocal_stem() {
+        assert!(should_stream_native_ai_audio(
+            true,
+            "snapshot.m4a",
+            "snapshot.m4a",
+            r#"[{"index":0,"text":"hello"}]"#,
+        ));
+        assert!(!should_stream_native_ai_audio(
+            true,
+            "snapshot.m4a",
+            "snapshot.m4a",
+            "[]",
+        ));
+        assert!(!should_stream_native_ai_audio(
+            true,
+            "snapshot.m4a",
+            "snapshot.m4a",
+            "not-json",
+        ));
+        assert!(!should_stream_native_ai_audio(
+            true,
+            "vocals.wav",
+            "snapshot.m4a",
+            r#"[{"index":0,"text":"hello"}]"#,
+        ));
+    }
+
+    #[test]
+    fn native_aac_pcm_reaches_python_child_after_framed_lyrics() {
+        let python = std::env::var_os("LYRICAL_TEST_PYTHON").unwrap_or_else(|| {
+            if cfg!(windows) {
+                "python".into()
+            } else {
+                "python3".into()
+            }
+        });
+        let script = "import json,sys; n=int.from_bytes(sys.stdin.buffer.read(4),'little'); h=json.loads(sys.stdin.buffer.read(n)); p=sys.stdin.buffer.read(); print(json.dumps({'lines':len(h),'pcmBytes':len(p)}))";
+        let audio = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("test-fixtures/audio-prefix/prefix.m4a");
+        let header = frame_lines_header(r#"[{"index":0,"text":"hello"}]"#).unwrap();
+        let output = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(async {
+                let child = tokio::process::Command::new(python)
+                    .args(["-c", script])
+                    .stdin(std::process::Stdio::piped())
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::piped())
+                    .kill_on_drop(true)
+                    .spawn()
+                    .expect("Python is required for the native audio process-boundary regression");
+                run_native_ai_audio_child(
+                    child,
+                    audio,
+                    "m4a".into(),
+                    48_000,
+                    2,
+                    Some(header),
+                    Arc::new(AtomicBool::new(false)),
+                    |_| Ok(()),
+                )
+                .await
+            })
+            .unwrap();
+        let output: serde_json::Value = serde_json::from_str(&output).unwrap();
+        assert_eq!(output["lines"], 1);
+        let pcm_bytes = output["pcmBytes"].as_u64().unwrap();
+        assert!(pcm_bytes > 0);
+        assert!(pcm_bytes <= crate::audio_resource::MAX_AUDIO_PCM_BYTES);
+        assert_eq!(pcm_bytes % 8, 0);
+    }
 
     #[test]
     fn ai_error_codes_are_allowlisted_and_unknown_values_fail_closed() {

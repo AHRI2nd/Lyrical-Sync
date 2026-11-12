@@ -22,6 +22,36 @@ spec.loader.exec_module(align)
 
 
 class VocalActivityTests(unittest.TestCase):
+    def test_ai_pcm_stream_is_read_as_little_endian_interleaved_float32(self):
+        import numpy as np
+        data = struct.pack("<ffff", 0.25, -0.5, 1.0, -1.0)
+        samples = align.read_pcm_stream(io.BytesIO(data), channels=2, max_bytes=16)
+        self.assertEqual(samples.shape, (2, 2))
+        self.assertEqual(samples.tolist(), [[0.25, -0.5], [1.0, -1.0]])
+        self.assertEqual(samples.dtype, np.dtype("float32"))
+
+    def test_ai_pcm_stream_rejects_unaligned_nonfinite_and_over_budget_data(self):
+        for payload, channels, limit in (
+            (b"\0", 1, 8),
+            (struct.pack("<ff", 0.0, float("nan")), 1, 8),
+            (b"\0" * 12, 1, 8),
+        ):
+            with self.subTest(payload=payload, channels=channels, limit=limit):
+                with self.assertRaises(ValueError):
+                    align.read_pcm_stream(io.BytesIO(payload), channels, limit)
+
+    def test_framed_lyric_header_leaves_pcm_bytes_unconsumed(self):
+        lyrics = b'[{"index":0,"text":"hello"}]'
+        stream = io.BytesIO(struct.pack("<I", len(lyrics)) + lyrics + b"pcm")
+        self.assertEqual(align.read_framed_lines_input(stream), json.loads(lyrics))
+        self.assertEqual(stream.read(), b"pcm")
+
+    def test_framed_lyric_header_rejects_truncation_and_oversize(self):
+        with self.assertRaises(ValueError):
+            align.read_framed_lines_input(io.BytesIO(b"\x03\x00"))
+        with self.assertRaises(ValueError):
+            align.read_framed_lines_input(io.BytesIO(struct.pack("<I", 17) + b"x" * 17), max_bytes=16)
+
     def test_progress_error_uses_stable_code_and_does_not_serialize_diagnostic(self):
         output = io.StringIO()
         with patch("sys.stderr", output):
@@ -268,6 +298,132 @@ class AudioArrayOwnershipTests(unittest.TestCase):
         self.assertIs(waveform.base, tensors[0].base)
         self.assertFalse(waveform.flags.c_contiguous)
 
+    def test_native_pcm_stream_is_mapped_to_frames_without_a_second_sample_copy(self):
+        import numpy as np
+        payload = struct.pack("<ffff", 0.25, -0.5, 1.0, -1.0)
+        fake_torch = types.SimpleNamespace(from_numpy=lambda value: value)
+        modules = {"torch": fake_torch, "numpy": np}
+        with patch.dict(sys.modules, modules):
+            separate = self.load_separate(modules)
+            frames = separate.read_pcm_stream(io.BytesIO(payload), 2, max_bytes=16)
+
+        self.assertEqual(frames.shape, (2, 2))
+        self.assertEqual(frames.tolist(), [[0.25, -0.5], [1.0, -1.0]])
+        self.assertEqual(frames.dtype, np.dtype("float32"))
+        self.assertFalse(frames.flags.owndata)
+
+    def test_native_pcm_stream_rejects_truncated_nonfinite_and_over_budget_payload(self):
+        import numpy as np
+        modules = {"torch": types.SimpleNamespace(from_numpy=lambda value: value), "numpy": np}
+        with patch.dict(sys.modules, modules):
+            separate = self.load_separate(modules)
+            for payload, channels, limit in (
+                (b"\0", 1, 8),
+                (struct.pack("<ff", 0.0, float("inf")), 1, 8),
+                (b"\0" * 12, 1, 8),
+                (b"\0" * 8, 9, 8),
+            ):
+                with self.subTest(payload=payload, channels=channels, limit=limit):
+                    with self.assertRaises(ValueError):
+                        separate.read_pcm_stream(io.BytesIO(payload), channels, limit)
+
+    def test_native_pcm_stream_runs_separation_sidecar_and_writes_vocal_output(self):
+        import contextlib
+        import numpy as np
+
+        class Tensor:
+            def __init__(self, values):
+                self.values = values
+
+            def unsqueeze(self, axis):
+                return Tensor(np.expand_dims(self.values, axis))
+
+            def cpu(self):
+                return self
+
+            def numpy(self):
+                return self.values
+
+        class Model:
+            samplerate = 16_000
+            audio_channels = 2
+            sources = ["other", "vocals"]
+
+            def eval(self):
+                return None
+
+        class Sources:
+            def __init__(self, values):
+                self.values = values
+
+            def __getitem__(self, index):
+                return Tensor(self.values[index])
+
+        model = Model()
+        fake_torch = types.SimpleNamespace(
+            from_numpy=lambda value: Tensor(value),
+            load=lambda *_args, **_kwargs: model,
+            no_grad=contextlib.nullcontext,
+            cuda=types.SimpleNamespace(is_available=lambda: False),
+            backends=types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda: False)),
+        )
+        applied = []
+
+        def apply_model(_model, audio, **_kwargs):
+            applied.append(audio.values.copy())
+            return Sources(np.stack([audio.values, audio.values], axis=1))
+
+        demucs = types.ModuleType("demucs")
+        demucs.__path__ = []
+        demucs_apply = types.ModuleType("demucs.apply")
+        demucs_apply.apply_model = apply_model
+        demucs_audio = types.ModuleType("demucs.audio")
+        demucs_audio.convert_audio = lambda audio, *_args: audio
+
+        def write_output(path, audio, sample_rate, **kwargs):
+            Path(path).write_bytes(b"synthetic-float-wav")
+            self.assertEqual(audio.shape, (4, 2))
+            self.assertEqual(sample_rate, 16_000)
+            self.assertEqual(kwargs, {"format": "WAV", "subtype": "FLOAT"})
+
+        fake_soundfile = types.SimpleNamespace(write=write_output)
+        modules = {
+            "torch": fake_torch,
+            "numpy": np,
+            "demucs": demucs,
+            "demucs.apply": demucs_apply,
+            "demucs.audio": demucs_audio,
+            "soundfile": fake_soundfile,
+        }
+        payload = struct.pack("<ffffffff", 0.25, -0.5, 1.0, -1.0, 0.5, -0.25, 0.75, -0.75)
+
+        with tempfile.TemporaryDirectory() as folder, patch.dict(sys.modules, modules):
+            root = Path(folder)
+            checkpoint = root / "model.pth"
+            checkpoint.write_bytes(b"verified-model")
+            output = root / "vocals.wav"
+            stdin = io.TextIOWrapper(io.BytesIO(payload))
+            separate = self.load_separate(modules)
+            stderr = io.StringIO()
+            argv = [
+                "separate.py", "--model-path", str(checkpoint),
+                "--model-sha256", hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
+                "--audio", "-", "--audio-sample-rate", "16000", "--audio-channels", "2",
+                "--output", str(output),
+            ]
+            with patch.object(separate.sys, "argv", argv), patch.object(separate.sys, "stdin", stdin), \
+                    contextlib.redirect_stderr(stderr):
+                separate.main()
+
+            self.assertTrue(output.is_file())
+            self.assertEqual(output.read_bytes(), b"synthetic-float-wav")
+            self.assertEqual(len(applied), 1)
+            np.testing.assert_array_equal(
+                applied[0], np.array([[[0.25, 1.0, 0.5, 0.75], [-0.5, -1.0, -0.25, -0.75]]], dtype=np.float32)
+            )
+            events = [json.loads(line) for line in stderr.getvalue().splitlines()]
+            self.assertEqual(events[-1]["status"], "done")
+
 
 class CtcBoundaryTests(unittest.TestCase):
     def test_rejects_the_pinned_native_near_boundary_frame_window(self):
@@ -285,7 +441,7 @@ class CtcBoundaryTests(unittest.TestCase):
 class AlignmentExecutionTests(unittest.TestCase):
     """Run the shipped sidecar with deterministic small substitutes for ML packages."""
 
-    def run_alignment(self, *, short_audio=False, bad_timestamps=False, lyric_lines=None):
+    def run_alignment(self, *, short_audio=False, bad_timestamps=False, lyric_lines=None, native_audio=False):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             model = root / "ctc-forced-aligner.onnx"
@@ -298,7 +454,21 @@ class InferenceSession:
     def get_outputs(self): return [SimpleNamespace(name="output")]
 ''', encoding="utf-8")
             # No heavy numpy or ONNX runtime is necessary for this smoke test.
-            (root / "numpy.py").write_text("", encoding="utf-8")
+            if native_audio:
+                (root / "numpy.py").write_text('''import builtins, math, struct
+float32 = "float32"
+class Values(list):
+    def all(self): return builtins.all(self)
+class Matrix(list):
+    def mean(self, axis, dtype): return Vector([row[0] for row in self])
+class Vector(list):
+    size = property(lambda self: len(self))
+    def reshape(self, _rows, columns): return Matrix([self[i:i+columns] for i in range(0, len(self), columns)])
+def frombuffer(payload, dtype): return Vector(value[0] for value in struct.iter_unpack("<f", payload))
+def isfinite(values): return Values(math.isfinite(value) for value in values)
+''', encoding="utf-8")
+            else:
+                (root / "numpy.py").write_text("", encoding="utf-8")
             (root / "librosa.py").write_text('''
 def load(path, sr=None, mono=False):
     assert sr == 16000 and mono is True
@@ -327,12 +497,20 @@ def postprocess_results(text, spans, stride, scores):
 ''', encoding="utf-8")
             lyric = "bad" if bad_timestamps else "hello world"
             payload = lyric_lines if lyric_lines is not None else [{"index": 3, "text": lyric}]
-            return subprocess.run(
-                [sys.executable, "-S", str(ROOT / "src-tauri/src/align.py"),
+            command = [sys.executable, "-S", str(ROOT / "src-tauri/src/align.py"),
                  "--models-dir", str(root), "--model-sha256", hashlib.sha256(b"fixture-model").hexdigest(),
-                 "--audio", "short.wav" if short_audio else "normal.wav",
-                 "--lines-stdin", "--language", "eng", "--vad", "false"],
-                input=json.dumps(payload), text=True,
+                 "--audio", "-" if native_audio else ("short.wav" if short_audio else "normal.wav"),
+                 "--lines-stdin", "--language", "eng", "--vad", "false"]
+            if native_audio:
+                command.extend(["--audio-sample-rate", "16000", "--audio-channels", "1"])
+                lyrics = json.dumps(payload).encode()
+                audio = struct.pack("<" + "f" * 32_000, *([0.1] * 32_000))
+                input_data = struct.pack("<I", len(lyrics)) + lyrics + audio
+            else:
+                input_data = json.dumps(payload)
+            return subprocess.run(
+                command,
+                input=input_data, text=not native_audio,
                 capture_output=True, timeout=10, env={**os.environ, "PYTHONPATH": str(root)},
             )
 
@@ -344,6 +522,13 @@ def postprocess_results(text, spans, stride, scores):
         self.assertEqual([output["lines"][0]["start"], output["lines"][0]["end"]], [0.2, 1.8])
         self.assertEqual(output["lines"][0]["confidence"], 0.5)
         self.assertEqual(output["confidence_unit"], "batch_relative_0_to_1_not_probability")
+
+    def test_native_pcm_stream_runs_alignment_with_framed_lyrics(self):
+        result = self.run_alignment(native_audio=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        output = json.loads(result.stdout)
+        self.assertEqual([line["index"] for line in output["lines"]], [3])
+        self.assertEqual([output["lines"][0]["start"], output["lines"][0]["end"]], [0.2, 1.8])
 
     def test_equal_score_lines_receive_neutral_relative_confidence(self):
         result = self.run_alignment(lyric_lines=[

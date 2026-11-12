@@ -49,6 +49,27 @@ def load_audio(path: str) -> tuple:
     return wav, sr
 
 
+def read_pcm_stream(reader, channels: int, max_bytes: int = 1024 * 1024 * 1024):
+    """Read bounded interleaved little-endian float32 PCM from native stdin."""
+    if not isinstance(channels, int) or channels < 1 or channels > 8:
+        raise ValueError("Invalid audio channel count")
+    payload = bytearray()
+    while len(payload) <= max_bytes:
+        chunk = reader.read(min(1024 * 1024, max_bytes + 1 - len(payload)))
+        if not chunk:
+            break
+        payload.extend(chunk)
+    if len(payload) > max_bytes or len(payload) % (4 * channels) != 0:
+        raise ValueError("Invalid or oversized audio PCM stream")
+    samples = np.frombuffer(payload, dtype="<f4")
+    if samples.size == 0:
+        raise ValueError("Invalid audio PCM samples")
+    for offset in range(0, samples.size, 1_048_576):
+        if not np.isfinite(samples[offset:offset + 1_048_576]).all():
+            raise ValueError("Invalid audio PCM samples")
+    return samples.reshape(-1, channels)
+
+
 def write_vocal_audio(soundfile_module, path, audio, sample_rate):
     # Keep Demucs' float output out of the default PCM_16 range/clipping path.
     soundfile_module.write(path, audio, sample_rate, format="WAV", subtype="FLOAT")
@@ -73,6 +94,8 @@ def main():
     parser.add_argument("--model-path", required=True)
     parser.add_argument("--model-sha256", required=True)
     parser.add_argument("--audio", required=True)
+    parser.add_argument("--audio-sample-rate", type=int)
+    parser.add_argument("--audio-channels", type=int)
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
@@ -100,7 +123,15 @@ def main():
 
     progress("separating", "오디오 로딩 중...", 0.10)
     try:
-        wav, sr = load_audio(args.audio)
+        if args.audio == "-":
+            if (args.audio_sample_rate is None or not 8_000 <= args.audio_sample_rate <= 192_000
+                    or args.audio_channels is None or not 1 <= args.audio_channels <= 8):
+                raise ValueError("Invalid native audio stream format")
+            samples = read_pcm_stream(sys.stdin.buffer, args.audio_channels)
+            wav = torch.from_numpy(samples.T)
+            sr = args.audio_sample_rate
+        else:
+            wav, sr = load_audio(args.audio)
         wav = convert_audio(wav, sr, model.samplerate, model.audio_channels)
         wav = wav.unsqueeze(0)
     except Exception as e:

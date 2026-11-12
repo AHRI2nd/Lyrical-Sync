@@ -137,6 +137,42 @@ def read_lines_input(lines_json, from_stdin):
     return json.load(sys.stdin) if from_stdin else json.loads(lines_json)
 
 
+def read_framed_lines_input(reader, max_bytes=16 * 1024 * 1024):
+    """Read a bounded little-endian length-prefixed lyric header before PCM stdin."""
+    prefix = reader.read(4)
+    if len(prefix) != 4:
+        raise ValueError("Missing audio stream header")
+    length = int.from_bytes(prefix, "little")
+    if length == 0 or length > max_bytes:
+        raise ValueError("Invalid audio stream header length")
+    payload = reader.read(length)
+    if len(payload) != length:
+        raise ValueError("Truncated audio stream header")
+    return json.loads(payload)
+
+
+def read_pcm_stream(reader, channels, max_bytes=1024 * 1024 * 1024):
+    """Read one bounded interleaved little-endian float32 stream to a frame matrix."""
+    import numpy as np
+    if not isinstance(channels, int) or channels < 1 or channels > 8:
+        raise ValueError("Invalid audio channel count")
+    payload = bytearray()
+    while len(payload) <= max_bytes:
+        chunk = reader.read(min(1024 * 1024, max_bytes + 1 - len(payload)))
+        if not chunk:
+            break
+        payload.extend(chunk)
+    if len(payload) > max_bytes or len(payload) % (4 * channels) != 0:
+        raise ValueError("Invalid or oversized audio PCM stream")
+    samples = np.frombuffer(payload, dtype="<f4")
+    if samples.size == 0:
+        raise ValueError("Invalid audio PCM samples")
+    for offset in range(0, samples.size, 1_048_576):
+        if not np.isfinite(samples[offset:offset + 1_048_576]).all():
+            raise ValueError("Invalid audio PCM samples")
+    return samples.reshape(-1, channels)
+
+
 CTC_NATIVE_FRAME_SLACK = 6
 
 
@@ -183,6 +219,8 @@ def main():
     parser.add_argument("--models-dir", required=True)
     parser.add_argument("--model-sha256", required=True)
     parser.add_argument("--audio", required=True)
+    parser.add_argument("--audio-sample-rate", type=int)
+    parser.add_argument("--audio-channels", type=int)
     lines_source = parser.add_mutually_exclusive_group(required=True)
     lines_source.add_argument("--lines")
     lines_source.add_argument("--lines-stdin", action="store_true")
@@ -197,8 +235,9 @@ def main():
     vad_enabled = args.vad == "true"
 
     try:
-        lines = read_lines_input(args.lines, args.lines_stdin)
-    except json.JSONDecodeError as e:
+        lines = (read_framed_lines_input(sys.stdin.buffer) if args.audio == "-"
+                 else read_lines_input(args.lines, args.lines_stdin))
+    except (json.JSONDecodeError, ValueError) as e:
         progress("error", f"Invalid lines JSON: {e}", code="general")
         sys.exit(1)
 
@@ -252,9 +291,21 @@ def main():
 
     progress("loading_audio", "Loading audio…", 0.10)
     try:
-        # The pinned aligner wrapper copies librosa's already-float32 array.
-        # Call the same decoder settings directly to keep one waveform allocation.
-        audio_waveform, _ = librosa.load(args.audio, sr=16000, mono=True)
+        # AAC/M4A is decoded by the native, app-bundled Symphonia path and
+        # streamed over stdin so a machine-local FFmpeg installation is not needed.
+        if args.audio == "-":
+            import numpy as np
+            if (args.audio_sample_rate is None or not 8_000 <= args.audio_sample_rate <= 192_000
+                    or args.audio_channels is None or not 1 <= args.audio_channels <= 8):
+                raise ValueError("Invalid native audio stream format")
+            frames = read_pcm_stream(sys.stdin.buffer, args.audio_channels)
+            mono = frames.mean(axis=1, dtype=np.float32)
+            audio_waveform = (mono if args.audio_sample_rate == 16_000 else
+                              librosa.resample(mono, orig_sr=args.audio_sample_rate, target_sr=16_000))
+        else:
+            # The pinned aligner wrapper copies librosa's already-float32 array.
+            # Call the same decoder settings directly to keep one waveform allocation.
+            audio_waveform, _ = librosa.load(args.audio, sr=16000, mono=True)
     except Exception as e:
         progress("error", f"오디오 로드 실패: {e}", code="audio")
         sys.exit(1)
