@@ -32,6 +32,15 @@ it("rejects a malformed or oversized native response", async () => {
   await expect(decodeAudioSamples("/long.wav")).rejects.toMatchObject({ name: "EncodingError" });
 });
 
+it("decodes a raw byte array returned by native IPC", async () => {
+  vi.mocked(invoke).mockResolvedValue([0, 0, 128, 63, 0, 0, 0, 63]);
+
+  const result = await decodeAudioSamples("/song.wav");
+
+  expect(result.sampleRate).toBe(50);
+  expect(Array.from(result.samples)).toEqual([1, 0.5]);
+});
+
 it("does not invoke native work for an already cancelled analysis", async () => {
   const controller = new AbortController();
   controller.abort();
