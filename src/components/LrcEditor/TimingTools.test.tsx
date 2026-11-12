@@ -166,6 +166,21 @@ it("names timing inputs and close controls for assistive technology", () => {
   expect(getAllByRole("button", { name: t.close })).toHaveLength(2);
 });
 
+it("gives the timing adjustment buttons contextual accessible names", () => {
+  const { getByRole } = render(
+    <>
+      <ScaleBar onApply={vi.fn()} onClose={vi.fn()} />
+      <TimeShiftBar lineCount={4} defaultFrom={1} onApply={vi.fn()} onClose={vi.fn()} />
+    </>,
+  );
+  const t = useI18nStore.getState().t;
+
+  expect(getByRole("button", { name: `${t.tsScaleFactor} -0.01` })).toBeTruthy();
+  expect(getByRole("button", { name: `${t.tsScaleFactor} +0.01` })).toBeTruthy();
+  expect(getByRole("button", { name: `${t.timeShiftDelta} -0.1 ${t.timeShiftSec}` })).toBeTruthy();
+  expect(getByRole("button", { name: `${t.timeShiftDelta} +0.1 ${t.timeShiftSec}` })).toBeTruthy();
+});
+
 it("preserves a fractional scale while it is entered sequentially", async () => {
   const onApply = vi.fn();
   const user = userEvent.setup();

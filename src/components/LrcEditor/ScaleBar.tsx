@@ -33,7 +33,7 @@ export function ScaleBar({ onApply, onClose }: { onApply: (factor: number) => vo
     <div onKeyDown={handleKeyDown} className="flex flex-wrap items-center gap-2 px-3 py-2 bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] rounded-lg text-xs">
       <span className="text-[var(--ls-text-secondary)] shrink-0">{t.tsScaleFactor}</span>
       <div className="flex items-center gap-1">
-        <button onClick={() => stepFactor(-0.01)} className="ls-button ls-button--compact w-6 h-6 flex items-center justify-center transition-colors">−</button>
+        <button aria-label={`${t.tsScaleFactor} -0.01`} onClick={() => stepFactor(-0.01)} className="ls-button ls-button--compact w-6 h-6 flex items-center justify-center transition-colors">−</button>
         <input
           type="number"
           aria-label={t.tsScaleFactor}
@@ -43,7 +43,7 @@ export function ScaleBar({ onApply, onClose }: { onApply: (factor: number) => vo
           onChange={(e) => setFactorInput(e.target.value)}
           className="ls-field w-20 text-white text-center transition-colors"
         />
-        <button onClick={() => stepFactor(0.01)} className="ls-button ls-button--compact w-6 h-6 flex items-center justify-center transition-colors">+</button>
+        <button aria-label={`${t.tsScaleFactor} +0.01`} onClick={() => stepFactor(0.01)} className="ls-button ls-button--compact w-6 h-6 flex items-center justify-center transition-colors">+</button>
         <span className="text-[var(--ls-text-secondary)]">×</span>
       </div>
 

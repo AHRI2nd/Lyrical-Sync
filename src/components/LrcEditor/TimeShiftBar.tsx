@@ -76,7 +76,7 @@ export function TimeShiftBar({
       {/* 이동량 */}
       <span className="text-[var(--ls-text-secondary)] shrink-0">{t.timeShiftDelta}</span>
       <div className="flex items-center gap-1">
-        <button onClick={() => step(-0.1)} className="ls-button ls-button--compact w-6 h-6 flex items-center justify-center transition-colors">−</button>
+        <button aria-label={`${t.timeShiftDelta} -0.1 ${t.timeShiftSec}`} onClick={() => step(-0.1)} className="ls-button ls-button--compact w-6 h-6 flex items-center justify-center transition-colors">−</button>
         <input
           type="number"
           aria-label={t.timeShiftDelta}
@@ -85,7 +85,7 @@ export function TimeShiftBar({
           onChange={(e) => setDeltaInput(e.target.value)}
           className="ls-field w-20 text-white text-center transition-colors"
         />
-        <button onClick={() => step(0.1)} className="ls-button ls-button--compact w-6 h-6 flex items-center justify-center transition-colors">+</button>
+        <button aria-label={`${t.timeShiftDelta} +0.1 ${t.timeShiftSec}`} onClick={() => step(0.1)} className="ls-button ls-button--compact w-6 h-6 flex items-center justify-center transition-colors">+</button>
         <span className="text-[var(--ls-text-secondary)]">{t.timeShiftSec}</span>
       </div>
 
