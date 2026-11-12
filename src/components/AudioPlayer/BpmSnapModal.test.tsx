@@ -3,15 +3,15 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render as baseRender, screen, waitFor } from "@testing-library/react";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn().mockResolvedValue(null) }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
-vi.mock("../../utils/decodeAudioSamples", () => ({ decodeAudioSamples: vi.fn() }));
+vi.mock("../../utils/decodeBpmAudioPrefix", () => ({ decodeBpmAudioPrefix: vi.fn() }));
 vi.mock("../../stores/useI18nStore", () => ({ useI18nStore: () => ({ t: {
   bpmTitle: "Beat grid", bpmDetecting: "Detecting", bpmHint: "Check the estimate", bpmDetectFailed: "No tempo found",
   bpmDecodeError: "Decode failed", bpmLabel: "Tempo", bpmOffset: "Offset", bpmTapTempo: "Tap tempo",
-  bpmAnalyzeAudio: "Analyze audio", bpmDecodeCostNotice: "The full recording may be decoded into memory, although BPM analysis uses only the first two minutes.",
+  bpmAnalyzeAudio: "Analyze audio", bpmDecodeCostNotice: "BPM analysis uses the first two minutes. FLAC files may be scanned to the end to validate duration and resource limits.",
   bpmScopeSelected: "Selected", bpmScopeAll: "All", bpmConfidence: "Confidence", bpmAppliedAll: "Applied all",
   bpmAppliedCount: "applied", bpmManualHint: "Without audio, enter a BPM or use Tap Tempo", cancelLabel: "Cancel", applyLabel: "Apply", close: "Close",
 } }) }));
-import { decodeAudioSamples } from "../../utils/decodeAudioSamples";
+import { decodeBpmAudioPrefix } from "../../utils/decodeBpmAudioPrefix";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { defaultDocument } from "../../types/lrc";
 import { BpmSnapModal } from "./BpmSnapModal";
@@ -26,15 +26,15 @@ const render = (ui: Parameters<typeof baseRender>[0]) => {
   return view;
 };
 
-it("requires explicit consent before decoding the full recording for BPM analysis", async () => {
+it("requires explicit consent before native BPM analysis", async () => {
   baseRender(<BpmSnapModal onClose={() => {}} selectedIds={["a"]} />);
 
-  expect(screen.getByText("The full recording may be decoded into memory, although BPM analysis uses only the first two minutes.")).toBeTruthy();
+  expect(screen.getByText("BPM analysis uses the first two minutes. FLAC files may be scanned to the end to validate duration and resource limits.")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Analyze audio" })).toBeTruthy();
-  expect(decodeAudioSamples).not.toHaveBeenCalled();
+  expect(decodeBpmAudioPrefix).not.toHaveBeenCalled();
 
   fireEvent.click(screen.getByRole("button", { name: "Analyze audio" }));
-  await waitFor(() => expect(decodeAudioSamples).toHaveBeenCalledOnce());
+  await waitFor(() => expect(decodeBpmAudioPrefix).toHaveBeenCalledOnce());
 });
 
 it("keeps manual BPM entry available without granting full-recording decode", () => {
@@ -43,24 +43,24 @@ it("keeps manual BPM entry available without granting full-recording decode", ()
   fireEvent.change(screen.getByLabelText("Tempo"), { target: { value: "120" } });
   fireEvent.click(screen.getByRole("button", { name: "Apply" }));
 
-  expect(decodeAudioSamples).not.toHaveBeenCalled();
+  expect(decodeBpmAudioPrefix).not.toHaveBeenCalled();
   expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(1.5);
 });
 
 it("does not carry decode consent to a newly selected audio source", () => {
   baseRender(<BpmSnapModal onClose={() => {}} selectedIds={["a"]} />);
   fireEvent.click(screen.getByRole("button", { name: "Analyze audio" }));
-  expect(decodeAudioSamples).toHaveBeenCalledOnce();
+  expect(decodeBpmAudioPrefix).toHaveBeenCalledOnce();
 
-  vi.mocked(decodeAudioSamples).mockClear().mockReturnValue(new Promise(() => {}));
+  vi.mocked(decodeBpmAudioPrefix).mockClear().mockReturnValue(new Promise(() => {}));
   act(() => useLrcStore.setState({ _audioSelection: 1 }));
 
-  expect(decodeAudioSamples).not.toHaveBeenCalled();
+  expect(decodeBpmAudioPrefix).not.toHaveBeenCalled();
   expect(screen.getByRole("button", { name: "Analyze audio" })).toBeTruthy();
 });
 
 beforeEach(() => {
-  vi.mocked(decodeAudioSamples).mockReset().mockResolvedValue(decoded());
+  vi.mocked(decodeBpmAudioPrefix).mockReset().mockResolvedValue(decoded());
   localStorage.clear();
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "Beat", timestamp: 1.34 }] },
     audioPath: "/song.mp3", audioBookmark: "grant", _documentSession: 0, _audioSelection: 0,
@@ -69,7 +69,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); localStorage.clear(); });
 
 it("refreshes a moved audio grant and applies the estimate to the selected line", async () => {
-  vi.mocked(decodeAudioSamples).mockResolvedValue(decoded("/moved/song.mp3", "fresh"));
+  vi.mocked(decodeBpmAudioPrefix).mockResolvedValue(decoded("/moved/song.mp3", "fresh"));
   render(<BpmSnapModal onClose={() => {}} selectedIds={["a"]} />);
   await waitFor(() => expect(screen.getByLabelText<HTMLInputElement>("Tempo").value).toBe("120"));
   expect(useLrcStore.getState()).toMatchObject({ audioPath: "/moved/song.mp3", audioBookmark: "fresh" });
@@ -95,10 +95,10 @@ it.each(["Infinity", "NaN", ""])("cannot apply an invalid offset %s", async (val
 
 it("discards a late analysis after the same audio path is selected again", async () => {
   let finish!: (value: ReturnType<typeof decoded>) => void;
-  vi.mocked(decodeAudioSamples).mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+  vi.mocked(decodeBpmAudioPrefix).mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
   render(<BpmSnapModal onClose={() => {}} selectedIds={["a"]} />);
-  const previousSignal = vi.mocked(decodeAudioSamples).mock.calls[0][2];
-  vi.mocked(decodeAudioSamples).mockReturnValue(new Promise(() => {}));
+  const previousSignal = vi.mocked(decodeBpmAudioPrefix).mock.calls[0][2];
+  vi.mocked(decodeBpmAudioPrefix).mockReturnValue(new Promise(() => {}));
   act(() => useLrcStore.setState({ _audioSelection: 1 }));
   await act(async () => finish(decoded("/obsolete/song.mp3", "obsolete")));
   expect(previousSignal?.aborted).toBe(true);
@@ -109,17 +109,17 @@ it("discards a late analysis after the same audio path is selected again", async
 it("clears a completed estimate when a new document uses the same audio path", async () => {
   render(<BpmSnapModal onClose={() => {}} selectedIds={["a"]} />);
   await screen.findByLabelText("Tempo");
-  vi.mocked(decodeAudioSamples).mockReturnValue(new Promise(() => {}));
+  vi.mocked(decodeBpmAudioPrefix).mockReturnValue(new Promise(() => {}));
   act(() => useLrcStore.setState({ _documentSession: 1 }));
   expect(screen.queryByRole("button", { name: "Apply" })).toBeNull();
   expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(1.34);
 });
 
 it("cancels a pending decode when dismissed", async () => {
-  vi.mocked(decodeAudioSamples).mockReturnValue(new Promise(() => {}));
+  vi.mocked(decodeBpmAudioPrefix).mockReturnValue(new Promise(() => {}));
   const onClose = vi.fn();
   render(<BpmSnapModal onClose={onClose} selectedIds={[]} />);
-  const signal = vi.mocked(decodeAudioSamples).mock.calls[0][2];
+  const signal = vi.mocked(decodeBpmAudioPrefix).mock.calls[0][2];
   const dialog = screen.getByRole("dialog", { name: "Beat grid" });
   expect(dialog.contains(document.activeElement)).toBe(true);
   fireEvent.keyDown(document.activeElement!, { key: "Escape", isComposing: true });
@@ -144,7 +144,7 @@ it("keeps duplicate tap timestamps safe and computes a later 120 BPM sequence", 
 });
 
 it("keeps manual BPM available after an unsuccessful local detection", async () => {
-  vi.mocked(decodeAudioSamples).mockResolvedValue({ ...decoded(), samples: new Float32Array(12000) });
+  vi.mocked(decodeBpmAudioPrefix).mockResolvedValue({ ...decoded(), samples: new Float32Array(12000) });
   render(<BpmSnapModal onClose={() => {}} selectedIds={["a"]} />);
   await screen.findByText("No tempo found");
   fireEvent.change(screen.getByLabelText("Tempo"), { target: { value: "120" } });
@@ -153,9 +153,9 @@ it("keeps manual BPM available after an unsuccessful local detection", async () 
 });
 
 it("uses the saved audio grant and aborts work on unmount", () => {
-  vi.mocked(decodeAudioSamples).mockReturnValue(new Promise(() => {}));
+  vi.mocked(decodeBpmAudioPrefix).mockReturnValue(new Promise(() => {}));
   const { unmount } = render(<BpmSnapModal onClose={() => {}} selectedIds={[]} />);
-  const [path, bookmark, signal] = vi.mocked(decodeAudioSamples).mock.calls[0];
+  const [path, bookmark, signal] = vi.mocked(decodeBpmAudioPrefix).mock.calls[0];
   expect(path).toBe("/song.mp3");
   expect(bookmark).toBe("grant");
   expect(signal?.aborted).toBe(false);
@@ -165,9 +165,9 @@ it("uses the saved audio grant and aborts work on unmount", () => {
 
 it("discards a late grant refresh after document replacement", async () => {
   let finish!: (value: ReturnType<typeof decoded>) => void;
-  vi.mocked(decodeAudioSamples).mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+  vi.mocked(decodeBpmAudioPrefix).mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
   render(<BpmSnapModal onClose={() => {}} selectedIds={["a"]} />);
-  vi.mocked(decodeAudioSamples).mockReturnValue(new Promise(() => {}));
+  vi.mocked(decodeBpmAudioPrefix).mockReturnValue(new Promise(() => {}));
   act(() => useLrcStore.setState({ _documentSession: 1 }));
   await act(async () => finish(decoded("/obsolete/song.mp3", "obsolete")));
   expect(useLrcStore.getState().audioPath).toBe("/song.mp3");
@@ -183,7 +183,7 @@ it("allows a manual beat grid without audio and applies all timed lines in one u
   ] } });
   render(<BpmSnapModal onClose={() => {}} selectedIds={[]} />);
   expect(screen.getByText("Without audio, enter a BPM or use Tap Tempo")).toBeTruthy();
-  expect(decodeAudioSamples).not.toHaveBeenCalled();
+  expect(decodeBpmAudioPrefix).not.toHaveBeenCalled();
   fireEvent.change(screen.getByLabelText("Tempo"), { target: { value: "120" } });
   fireEvent.click(screen.getByRole("button", { name: "Apply" }));
   expect(useLrcStore.getState().doc.lines.map((line) => line.timestamp)).toEqual([1.5, 2.5, null]);
@@ -250,11 +250,11 @@ it("reports the actual changed count for an all-lines application", () => {
 
 it('keeps manual BPM and tap controls usable during analysis without allowing a late result to overwrite them', async () => {
   let finish!: (value: ReturnType<typeof decoded>) => void;
-  vi.mocked(decodeAudioSamples).mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+  vi.mocked(decodeBpmAudioPrefix).mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
   baseRender(<BpmSnapModal onClose={() => {}} selectedIds={['a']} />);
   fireEvent.click(screen.getByRole('button', { name: 'Analyze audio' }));
 
-  expect(decodeAudioSamples).toHaveBeenCalledOnce();
+  expect(decodeBpmAudioPrefix).toHaveBeenCalledOnce();
   const tempo = screen.getByLabelText<HTMLInputElement>('Tempo');
   const offset = screen.getByLabelText<HTMLInputElement>('Offset');
   expect(screen.getByRole('button', { name: 'Tap tempo' })).toBeTruthy();
@@ -281,7 +281,7 @@ it('keeps manual BPM and tap controls usable during analysis without allowing a 
 
 it('invalidates manual apply when the document changes during analysis', async () => {
   let finish!: (value: ReturnType<typeof decoded>) => void;
-  vi.mocked(decodeAudioSamples).mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+  vi.mocked(decodeBpmAudioPrefix).mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
   baseRender(<BpmSnapModal onClose={() => {}} selectedIds={['a']} />);
   fireEvent.click(screen.getByRole('button', { name: 'Analyze audio' }));
   fireEvent.change(screen.getByLabelText('Tempo'), { target: { value: '90' } });

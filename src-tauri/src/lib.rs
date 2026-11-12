@@ -4,6 +4,7 @@ compile_error!("Lyrical Sync supports Apple Silicon Macs only; Intel macOS is un
 mod atomic_write;
 mod batch_output;
 mod audio_decode;
+mod bpm_audio;
 mod file_access;
 mod privacy_policy;
 mod third_party_notices;
@@ -130,6 +131,45 @@ fn read_audio_metadata(path: String, bookmark: Option<String>) -> Result<AudioMe
     })
 }
 
+#[derive(serde::Serialize)]
+struct BpmAnalysisResult {
+    samples: Vec<f32>,
+    sample_rate: u32,
+    file: file_access::FileRef,
+}
+
+#[tauri::command]
+async fn analyze_bpm_prefix(
+    path: String,
+    bookmark: Option<String>,
+    run_id: String,
+    analysis_state: tauri::State<'_, bpm_audio::AnalysisState>,
+) -> Result<BpmAnalysisResult, String> {
+    let run = analysis_state.begin(run_id)?;
+    let cancel = run.cancel_handle();
+    let (samples, file) = tauri::async_runtime::spawn_blocking(move || {
+        let access = file_access::FileAccess::open(path, bookmark)?;
+        let samples = bpm_audio::decode_prefix(&access.path(), &cancel)?;
+        Ok::<_, String>((samples, access.file.clone()))
+    })
+    .await
+    .map_err(|error| format!("Audio analysis worker failed: {error}"))??;
+    Ok(BpmAnalysisResult {
+        samples,
+        sample_rate: bpm_audio::ENERGY_RATE,
+        file,
+    })
+}
+
+#[tauri::command]
+async fn cancel_audio_analysis(
+    run_id: String,
+    analysis_state: tauri::State<'_, bpm_audio::AnalysisState>,
+) -> Result<(), String> {
+    analysis_state.cancel_and_wait(&run_id).await;
+    Ok(())
+}
+
 // ─── Entry point ──────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -137,6 +177,7 @@ pub fn run() {
     #[cfg(all(windows, feature = "msstore"))]
     store_runtime::configure().expect("packaged WebView2 runtime is missing or invalid");
     tauri::Builder::default()
+        .manage(bpm_audio::AnalysisState::default())
         .plugin(tauri_plugin_opener::Builder::new().open_js_links_on_click(false).build())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
@@ -148,6 +189,8 @@ pub fn run() {
             read_audio_file,
             decode_audio_to_wav,
             read_audio_metadata,
+            analyze_bpm_prefix,
+            cancel_audio_analysis,
             create_security_bookmark,
             resolve_security_bookmark,
             privacy_policy::open_privacy_policy,

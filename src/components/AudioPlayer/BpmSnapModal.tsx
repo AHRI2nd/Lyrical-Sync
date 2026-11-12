@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
-import { decodeAudioSamples } from "../../utils/decodeAudioSamples";
+import { decodeBpmAudioPrefix } from "../../utils/decodeBpmAudioPrefix";
 import { detectBpm } from "../../utils/bpmDetect";
 import { useModalFocus } from "../../hooks/useModalFocus";
 
@@ -59,7 +59,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
     tapTimesRef.current = [];
     setLoading(Boolean(owner.path && analysisAuthorized));
     if (owner.path && analysisAuthorized) {
-      decodeAudioSamples(owner.path, owner.bookmark, controller.signal)
+      decodeBpmAudioPrefix(owner.path, owner.bookmark, controller.signal)
         .then(({ samples, sampleRate, file }) => {
           if (controller.signal.aborted || !isCurrent()) return;
           const result = detectBpm(samples, sampleRate);

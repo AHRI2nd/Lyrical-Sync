@@ -1176,6 +1176,14 @@ Repository: https://github.com/soc/option-ext.git
 Source revision: 272f22fc9ea1ac6b08f01704af52c4ac338df4e2
 License text: 66a3107d5ad6a058aab753eaac2047ccb2ed0e39465dd0fe5844da3e300d5172 (LICENSE.txt)
 
+opus-pure 0.2.3 (cargo)
+License: BSD-3-Clause
+Scope: macOS ARM64, Windows x64
+Source archive: https://crates.io/api/v1/crates/opus-pure/0.2.3/download
+Repository: https://github.com/stephenberry/opus-pure
+Source revision: 3f6077b8bdc0f6c090c3b585de9294065a50e2a4
+License text: c2041008e0d143a37a34c7784fb43ae1b3a1b9c43819595e1e5d2a37b0e2a4c6 (LICENSE)
+
 parking_lot 0.12.5 (cargo)
 License: MIT OR Apache-2.0
 Scope: macOS ARM64, Windows x64
@@ -1752,10 +1760,34 @@ Repository: https://github.com/pdeljanov/Symphonia
 Source revision: 6d533f26150953a882a6a111ebd13f0abf7129d5
 License text: fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85 (https://github.com/pdeljanov/Symphonia/blob/6d533f26150953a882a6a111ebd13f0abf7129d5/LICENSE)
 
+symphonia-bundle-mp3 0.5.5 (cargo)
+License: MPL-2.0
+Scope: macOS ARM64, Windows x64
+Source archive: https://crates.io/api/v1/crates/symphonia-bundle-mp3/0.5.5/download
+Repository: https://github.com/pdeljanov/Symphonia
+Source revision: 6d533f26150953a882a6a111ebd13f0abf7129d5
+License text: fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85 (https://github.com/pdeljanov/Symphonia/blob/6d533f26150953a882a6a111ebd13f0abf7129d5/LICENSE)
+
+symphonia-codec-aac 0.5.5 (cargo)
+License: MPL-2.0
+Scope: macOS ARM64, Windows x64
+Source archive: https://crates.io/api/v1/crates/symphonia-codec-aac/0.5.5/download
+Repository: https://github.com/pdeljanov/Symphonia
+Source revision: 6d533f26150953a882a6a111ebd13f0abf7129d5
+License text: fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85 (https://github.com/pdeljanov/Symphonia/blob/6d533f26150953a882a6a111ebd13f0abf7129d5/LICENSE)
+
 symphonia-codec-adpcm 0.5.5 (cargo)
 License: MPL-2.0
 Scope: macOS ARM64, Windows x64
 Source archive: https://crates.io/api/v1/crates/symphonia-codec-adpcm/0.5.5/download
+Repository: https://github.com/pdeljanov/Symphonia
+Source revision: 6d533f26150953a882a6a111ebd13f0abf7129d5
+License text: fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85 (https://github.com/pdeljanov/Symphonia/blob/6d533f26150953a882a6a111ebd13f0abf7129d5/LICENSE)
+
+symphonia-codec-alac 0.5.5 (cargo)
+License: MPL-2.0
+Scope: macOS ARM64, Windows x64
+Source archive: https://crates.io/api/v1/crates/symphonia-codec-alac/0.5.5/download
 Repository: https://github.com/pdeljanov/Symphonia
 Source revision: 6d533f26150953a882a6a111ebd13f0abf7129d5
 License text: fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85 (https://github.com/pdeljanov/Symphonia/blob/6d533f26150953a882a6a111ebd13f0abf7129d5/LICENSE)
@@ -1784,10 +1816,10 @@ Repository: https://github.com/pdeljanov/Symphonia
 Source revision: 6d533f26150953a882a6a111ebd13f0abf7129d5
 License text: fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85 (https://github.com/pdeljanov/Symphonia/blob/6d533f26150953a882a6a111ebd13f0abf7129d5/LICENSE)
 
-symphonia-format-mkv 0.5.5 (cargo)
+symphonia-format-isomp4 0.5.5 (cargo)
 License: MPL-2.0
 Scope: macOS ARM64, Windows x64
-Source archive: https://crates.io/api/v1/crates/symphonia-format-mkv/0.5.5/download
+Source archive: https://crates.io/api/v1/crates/symphonia-format-isomp4/0.5.5/download
 Repository: https://github.com/pdeljanov/Symphonia
 Source revision: 6d533f26150953a882a6a111ebd13f0abf7129d5
 License text: fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85 (https://github.com/pdeljanov/Symphonia/blob/6d533f26150953a882a6a111ebd13f0abf7129d5/LICENSE)
@@ -1838,6 +1870,15 @@ Scope: macOS ARM64, Windows x64
 Source archive: https://crates.io/api/v1/crates/syn/2.0.117/download
 Repository: https://github.com/dtolnay/syn
 Source revision: 7bcb37cdb3399977658c8b52d2441d37e42e48f2
+License text: b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e (LICENSE-APACHE)
+License text: 23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3 (LICENSE-MIT)
+
+syn 3.0.6 (cargo)
+License: MIT OR Apache-2.0
+Scope: macOS ARM64, Windows x64
+Source archive: https://crates.io/api/v1/crates/syn/3.0.6/download
+Repository: https://github.com/dtolnay/syn
+Source revision: 559cab55ef0c644f77660840edc3620d0d99d3d7
 License text: b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e (LICENSE-APACHE)
 License text: 23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3 (LICENSE-MIT)
 
@@ -2030,6 +2071,14 @@ Source archive: https://crates.io/api/v1/crates/tinystr/0.8.3/download
 Repository: https://github.com/unicode-org/icu4x
 Source revision: c9fac4e625ccb2c6a7aa35079fff9709db4385ac
 License text: f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2 (LICENSE)
+
+tokio-macros 2.7.2 (cargo)
+License: MIT
+Scope: macOS ARM64, Windows x64
+Source archive: https://crates.io/api/v1/crates/tokio-macros/2.7.2/download
+Repository: https://github.com/tokio-rs/tokio
+Source revision: 4308c74a65218e8ebea1a84e09c0ba4b0882f881
+License text: 0b83dc40cba89b9922bb84b0a9c7d2768ce37c1d7e138b7424fd4549915778c9 (LICENSE)
 
 tokio 1.53.3 (cargo)
 License: MIT
@@ -2842,6 +2891,30 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
+
+--- 0b83dc40cba89b9922bb84b0a9c7d2768ce37c1d7e138b7424fd4549915778c9 ---
+MIT License
+
+Copyright (c) 2019 Yoshua Wuyts
+Copyright (c) Tokio Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 --- 0dcf41516e608bbcb6cdc5229feb7b86fe4a643b85e7df251133c93408fdac73 ---
 MIT License
@@ -11261,6 +11334,56 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+--- c2041008e0d143a37a34c7784fb43ae1b3a1b9c43819595e1e5d2a37b0e2a4c6 ---
+Copyright 2026 Stephen Berry
+
+Copyright 2026 restsend.com
+
+Copyright 2001-2023 Xiph.Org, Skype Limited, Octasic,
+                    Jean-Marc Valin, Timothy B. Terriberry,
+                    CSIRO, Gregory Maxwell, Mark Borgerding,
+                    Erik de Castro Lopo, Mozilla, Amazon
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+- Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+
+- Redistributions in binary form must reproduce the above copyright
+notice, this list of conditions and the following disclaimer in the
+documentation and/or other materials provided with the distribution.
+
+- Neither the name of Internet Society, IETF or IETF Trust, nor the
+names of specific contributors, may be used to endorse or promote
+products derived from this software without specific prior written
+permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
+OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+Opus is subject to the royalty-free patent licenses which are
+specified at:
+
+Xiph.Org Foundation:
+https://datatracker.ietf.org/ipr/1524/
+
+Microsoft Corporation:
+https://datatracker.ietf.org/ipr/1914/
+
+Broadcom Corporation:
+https://datatracker.ietf.org/ipr/1526/
 
 --- c30152c94a6d75e021adbc52b3a52470366a46edb917e17deae3259251af244c ---
 Copyright Mozilla Foundation

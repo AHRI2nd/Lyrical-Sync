@@ -120,3 +120,27 @@ it("averages both channels across a chunk boundary and returns the refreshed fil
   expect(result.samples[0]).toBe(0.25);
   expect(result.samples[200000]).toBe(0.25);
 });
+it("keeps the complete decoded track for Auto Spot", async () => {
+  const samples = new Float32Array(121 * 50).fill(0.25);
+  vi.mocked(readAudioBytes).mockResolvedValue({
+    bytes: new Uint8Array([1]),
+    file: { path: "/song.mp3", bookmark: null },
+    transcoded: false,
+  });
+  vi.stubGlobal("AudioContext", class {
+    async close() {}
+    async decodeAudioData() {
+      return {
+        numberOfChannels: 1,
+        length: samples.length,
+        sampleRate: 50,
+        getChannelData: () => samples,
+      };
+    }
+  });
+
+  const decoded = await decodeAudioSamples("/song.mp3");
+
+  expect(decoded.samples).toHaveLength(samples.length);
+  expect(decoded.samples[decoded.samples.length - 1]).toBe(0.25);
+});

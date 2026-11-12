@@ -339,6 +339,14 @@ fn inspect_adts_aac(file: &mut File, file_bytes: u64) -> Result<Option<u64>, Str
 }
 
 fn inspect_audio_file_handle(file: &mut File) -> Result<u64, String> {
+    inspect_audio_file_handle_with_check(file, || Ok(()))
+}
+
+pub(crate) fn inspect_audio_file_handle_with_check(
+    file: &mut File,
+    mut check: impl FnMut() -> Result<(), String>,
+) -> Result<u64, String> {
+    check()?;
     let file_bytes = file.metadata().map_err(|error| error.to_string())?.len();
     if file_bytes > MAX_AUDIO_FILE_BYTES {
         return Err(AUDIO_RESOURCE_LIMIT_ERROR.into());
@@ -350,7 +358,7 @@ fn inspect_audio_file_handle(file: &mut File) -> Result<u64, String> {
         .map_err(|error| error.to_string())?;
     let tagged = lofty::read_from(file).map_err(|error| error.to_string())?;
     if tagged.file_type() == FileType::Flac {
-        inspect_flac_frame_budget(file)?;
+        inspect_flac_frame_budget(file, &mut check)?;
         return Ok(file_bytes);
     }
     let properties = tagged.properties();
@@ -364,7 +372,10 @@ fn inspect_audio_file_handle(file: &mut File) -> Result<u64, String> {
     Ok(file_bytes)
 }
 
-fn inspect_flac_frame_budget(file: &mut File) -> Result<(), String> {
+fn inspect_flac_frame_budget(
+    file: &mut File,
+    check: &mut impl FnMut() -> Result<(), String>,
+) -> Result<(), String> {
     use std::io::ErrorKind;
     use symphonia::core::{
         codecs::DecoderOptions, errors::Error, formats::FormatOptions, io::MediaSourceStream,
@@ -401,6 +412,7 @@ fn inspect_flac_frame_budget(file: &mut File) -> Result<(), String> {
     let mut frames = 0u64;
 
     loop {
+        check()?;
         let packet = match format.next_packet() {
             Ok(packet) => packet,
             Err(Error::IoError(error)) if error.kind() == ErrorKind::UnexpectedEof => break,
@@ -672,6 +684,32 @@ pub fn decode_to_wav(source: Box<dyn MediaSource>, extension: &str) -> Result<Ve
 mod tests {
     use super::*;
     use std::io::Cursor;
+
+    #[test]
+    fn flac_resource_scan_observes_analysis_cancellation() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("prefix.flac");
+        std::fs::write(
+            &path,
+            include_bytes!("../test-fixtures/audio-prefix/prefix.flac"),
+        )
+        .unwrap();
+        let mut file = open_audio_file(&path).unwrap();
+        let mut checks = 0;
+
+        let error = inspect_audio_file_handle_with_check(&mut file, || {
+            checks += 1;
+            if checks == 2 {
+                Err("cancelled".into())
+            } else {
+                Ok(())
+            }
+        })
+        .unwrap_err();
+
+        assert_eq!(error, "cancelled");
+        assert_eq!(checks, 2);
+    }
 
     // Synthetic signed 16-bit AIFF with a standard 8 kHz extended sample rate.
     fn aiff(frames: u32, channels: u16) -> Vec<u8> {
