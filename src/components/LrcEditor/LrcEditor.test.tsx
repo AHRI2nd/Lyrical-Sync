@@ -347,9 +347,14 @@ it("ignores AI readiness results for a model directory that is no longer selecte
   const filesB = deferred<boolean[]>();
   let envCalls = 0;
   let fileCalls = 0;
-  vi.mocked(invoke).mockImplementation((command: unknown) => {
-    if (command === "set_models_dir_override") return Promise.resolve(undefined);
+  let selectedModelsDir = "/models/A";
+  vi.mocked(invoke).mockImplementation((command: unknown, args?: unknown) => {
+    if (command === "set_models_dir_override") {
+      selectedModelsDir = (args as { path: string }).path;
+      return Promise.resolve(undefined);
+    }
     if (command === "get_python_env_info") return [envA.promise, envB.promise][envCalls++];
+    if (command === "get_models_dir") return Promise.resolve(selectedModelsDir);
     if (command === "check_model_files") return [filesA.promise, filesB.promise][fileCalls++];
     return Promise.resolve(undefined);
   });
