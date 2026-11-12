@@ -31,7 +31,7 @@ const { wsHandlers, wsMock } = vi.hoisted(() => {
     setPlaybackRate: () => {},
     setVolume: () => {},
     zoom: () => {},
-    load: vi.fn((_url: string) => Promise.resolve()),
+    load: vi.fn((_url: string, _peaks?: Array<Float32Array | number[]>, _duration?: number) => Promise.resolve()),
     loadBlob: vi.fn((_blob: Blob) => Promise.resolve()),
     play: () => {},
     pause: () => {},
@@ -53,7 +53,6 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(() => Promise.resolve(und
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(() => Promise.resolve(() => {})) }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
-vi.mock("../../utils/readAudioBytes", () => ({ readAudioBytes: vi.fn() }));
 
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -61,7 +60,6 @@ import { useWaveformStore } from "../../stores/useWaveformStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { useToastStore } from "../../stores/useToastStore";
 import { AudioPlayer } from "./AudioPlayer";
-import { readAudioBytes } from "../../utils/readAudioBytes";
 import { invoke } from "@tauri-apps/api/core";
 import { audioControls } from "../../utils/audioControls";
 import { useLrcStore } from "../../stores/useLrcStore";
@@ -84,6 +82,48 @@ const loadSpy = vi.spyOn(wsMock, "load");
 const loadBlobSpy = vi.spyOn(wsMock, "loadBlob");
 const playPauseSpy = vi.spyOn(wsMock, "playPause");
 
+function waveformSummaryBuffer(): ArrayBuffer {
+  const bins = 4;
+  const bytes = new Uint8Array(40 + bins * 8);
+  const view = new DataView(bytes.buffer);
+  bytes.set([76, 83, 87, 70]);
+  view.setUint16(4, 1, false);
+  view.setUint16(6, 40, false);
+  view.setUint32(8, 48_000, false);
+  bytes[12] = 1;
+  view.setBigUint64(16, BigInt(bins * 256), false);
+  view.setBigUint64(24, BigInt(Math.floor(bins * 256 * 1e9 / 48_000)), false);
+  view.setUint32(32, 256, false);
+  view.setUint32(36, bins, false);
+  const minima = [0, -0.25, -0.5, 0];
+  const maxima = [0, 0.5, 0.25, 0];
+  for (let index = 0; index < bins; index++) {
+    view.setFloat32(40 + index * 8, minima[index], false);
+    view.setFloat32(44 + index * 8, maxima[index], false);
+  }
+  return bytes.buffer;
+}
+
+function mockSuccessfulAudioStream() {
+  let streamNumber = 0;
+  vi.mocked(invoke).mockImplementation((command: string) => {
+    if (command === "prepare_audio_stream") {
+      streamNumber += 1;
+      return Promise.resolve({
+        streamUrl: `lyrical-audio://localhost/${String(streamNumber).padStart(64, "0")}`,
+        contentType: "audio/mpeg",
+        fileBytes: 12,
+        durationSeconds: 0,
+        sampleRate: 48_000,
+        channels: 1,
+      }) as ReturnType<typeof invoke>;
+    }
+    if (command === "summarize_audio_stream") return Promise.resolve(waveformSummaryBuffer()) as ReturnType<typeof invoke>;
+    if (command === "read_audio_metadata") return Promise.resolve({ title: "", artist: "", album: "" }) as ReturnType<typeof invoke>;
+    return Promise.resolve(undefined) as ReturnType<typeof invoke>;
+  });
+}
+
 describe("AudioPlayer — local audio loading", () => {
   it("gives local volume and waveform zoom sliders localized accessible names", () => {
     const t = useI18nStore.getState().t;
@@ -99,9 +139,8 @@ describe("AudioPlayer — local audio loading", () => {
     audioControls.togglePlay();
     expect(playPauseSpy).not.toHaveBeenCalled();
 
-    vi.mocked(readAudioBytes).mockResolvedValue({ bytes: new Uint8Array([1]), transcoded: false });
     act(() => useLrcStore.setState({ audioPath: "/music/loading.mp3" }));
-    await waitFor(() => expect(loadBlobSpy).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(loadSpy).toHaveBeenCalledTimes(1));
     audioControls.togglePlay();
     expect(playPauseSpy).not.toHaveBeenCalled();
 
@@ -111,8 +150,8 @@ describe("AudioPlayer — local audio loading", () => {
   });
 
   beforeEach(() => {
-    vi.mocked(readAudioBytes).mockReset();
     vi.mocked(invoke).mockReset();
+    mockSuccessfulAudioStream();
     useToastStore.setState({ toasts: [] });
     loadSpy.mockClear();
     loadBlobSpy.mockClear();
@@ -138,29 +177,28 @@ describe("AudioPlayer — local audio loading", () => {
     }
   });
 
-  it("passes MP3 bytes to WaveSurfer as a typed Blob, without fetching a Blob URL", async () => {
-    vi.mocked(readAudioBytes).mockResolvedValue({
-      bytes: Uint8Array.from([0x49, 0x44, 0x33]),
-      transcoded: false,
-    });
+  it("streams MP3 through WaveSurfer with bounded native peaks", async () => {
     resetLrc([], null);
     useLrcStore.setState({ audioPath: "/music/song.mp3" });
 
     render(<AudioPlayer />);
 
-    await waitFor(() => expect(loadBlobSpy).toHaveBeenCalledTimes(1));
-    const [blob] = loadBlobSpy.mock.calls[0];
-    expect(blob.type).toBe("audio/mpeg");
-    expect([...new Uint8Array(await blob.arrayBuffer())]).toEqual([0x49, 0x44, 0x33]);
-    expect(loadSpy).not.toHaveBeenCalled();
+    await waitFor(() => expect(loadSpy).toHaveBeenCalledTimes(1));
+    expect(loadSpy.mock.calls[0][0]).toMatch(/^lyrical-audio:\/\/localhost\//);
+    expect(loadSpy.mock.calls[0][1]?.[0]).toEqual(new Float32Array([0, 0.5, -0.5, 0]));
+    expect(loadSpy.mock.calls[0][2]).toBeCloseTo(1024 / 48_000);
+    expect(loadBlobSpy).not.toHaveBeenCalled();
+    expect(vi.mocked(invoke)).not.toHaveBeenCalledWith("read_audio_file", expect.anything());
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith("summarize_audio_stream", expect.objectContaining({
+      streamUrl: expect.stringMatching(/^lyrical-audio:\/\/localhost\//),
+    }));
   });
 
   it("clears local playback state when restoring a lyrics-only snapshot", async () => {
-    vi.mocked(readAudioBytes).mockResolvedValue({ bytes: Uint8Array.from([1]), transcoded: false });
     resetLrc([], null);
     useLrcStore.setState({ audioPath: "/music/old.mp3" });
     render(<AudioPlayer />);
-    await waitFor(() => expect(loadBlobSpy).toHaveBeenCalled());
+    await waitFor(() => expect(loadSpy).toHaveBeenCalled());
 
     act(() => {
       useLrcStore.getState().setDuration(100);
@@ -175,7 +213,6 @@ describe("AudioPlayer — local audio loading", () => {
   });
 
   it("loads the selected local file when Spotify mode is persisted but the user is logged out", async () => {
-    vi.mocked(readAudioBytes).mockResolvedValue({ bytes: Uint8Array.from([1]), transcoded: false });
     resetLrc([], null);
     useLrcStore.setState({ audioPath: "/music/song.mp3" });
     useSettingsStore.setState({ spotifyMode: true, deviceMode: false });
@@ -183,13 +220,12 @@ describe("AudioPlayer — local audio loading", () => {
 
     render(<AudioPlayer />);
 
-    await waitFor(() => expect(readAudioBytes).toHaveBeenCalledWith("/music/song.mp3", expect.any(AbortSignal)));
-    await waitFor(() => expect(loadBlobSpy).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(vi.mocked(invoke)).toHaveBeenCalledWith("prepare_audio_stream", expect.objectContaining({ path: "/music/song.mp3" })));
+    await waitFor(() => expect(loadSpy).toHaveBeenCalledTimes(1));
   });
 
   it("shows a localized error when Spotify login cannot be initiated from the player", async () => {
     resetLrc([], null);
-    vi.mocked(readAudioBytes).mockResolvedValue({ bytes: new Uint8Array(), transcoded: false });
     useSettingsStore.setState({ spotifyMode: true, deviceMode: false, spotifyClientId: "client-id" });
     useServiceStore.setState({ isLoggedIn: false, startLogin: vi.fn().mockRejectedValue(new Error("callback listener failed")) });
     render(<AudioPlayer />);
@@ -199,22 +235,21 @@ describe("AudioPlayer — local audio loading", () => {
     expect(useToastStore.getState().toasts[0]).toMatchObject({ type: "error", message: useI18nStore.getState().t.toast.spotifyActionFailed });
   });
 
-  it("preserves WAV MIME for audio already transcoded from Windows AIFF", async () => {
-    vi.mocked(readAudioBytes).mockResolvedValue({
-      bytes: Uint8Array.from([0x52, 0x49, 0x46, 0x46]),
-      transcoded: true,
-    });
+  it("prepares AIFF from the selected file path without moving bytes through JavaScript", async () => {
     resetLrc([], null);
     useLrcStore.setState({ audioPath: "C:/music/song.aiff" });
 
     render(<AudioPlayer />);
 
-    await waitFor(() => expect(loadBlobSpy).toHaveBeenCalledTimes(1));
-    expect(loadBlobSpy.mock.calls[0][0].type).toBe("audio/wav");
+    await waitFor(() => expect(loadSpy).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith("prepare_audio_stream", expect.objectContaining({ path: "C:/music/song.aiff" }));
+    expect(loadBlobSpy).not.toHaveBeenCalled();
   });
 
   it("shows the localized guidance when audio exceeds the processing budget", async () => {
-    vi.mocked(readAudioBytes).mockRejectedValue(new Error("AUDIO_RESOURCE_LIMIT"));
+    vi.mocked(invoke).mockImplementation((command: string) => command === "prepare_audio_stream"
+      ? Promise.reject(new Error("AUDIO_RESOURCE_LIMIT")) as ReturnType<typeof invoke>
+      : Promise.resolve(undefined) as ReturnType<typeof invoke>);
     resetLrc([], null);
     useLrcStore.setState({ audioPath: "/music/long-song.mp3" });
     render(<AudioPlayer />);
@@ -224,9 +259,8 @@ describe("AudioPlayer — local audio loading", () => {
   });
 
   it("does not import audio tags when loading the selected audio fails", async () => {
-    vi.mocked(readAudioBytes).mockRejectedValue(new Error("AUDIO_RESOURCE_LIMIT"));
-    vi.mocked(invoke).mockImplementation((command: string) => command === "read_audio_metadata"
-      ? Promise.resolve({ title: "Tagged title", artist: "Tagged artist", album: "" }) as ReturnType<typeof invoke>
+    vi.mocked(invoke).mockImplementation((command: string) => command === "prepare_audio_stream"
+      ? Promise.reject(new Error("AUDIO_RESOURCE_LIMIT")) as ReturnType<typeof invoke>
       : Promise.resolve(undefined) as ReturnType<typeof invoke>);
     resetLrc([], null);
     useLrcStore.setState({ audioPath: "/music/unplayable.mp3" });
@@ -240,8 +274,13 @@ describe("AudioPlayer — local audio loading", () => {
   });
 
   it("imports empty metadata fields after audio loads successfully", async () => {
-    vi.mocked(readAudioBytes).mockResolvedValue({ bytes: new Uint8Array([1]), transcoded: false });
-    vi.mocked(invoke).mockResolvedValue({ title: "Tagged title", artist: "Tagged artist", album: "" });
+    vi.mocked(invoke).mockImplementation((command: string) => command === "read_audio_metadata"
+      ? Promise.resolve({ title: "Tagged title", artist: "Tagged artist", album: "" }) as ReturnType<typeof invoke>
+      : command === "summarize_audio_stream"
+        ? Promise.resolve(waveformSummaryBuffer()) as ReturnType<typeof invoke>
+        : command === "prepare_audio_stream"
+          ? Promise.resolve({ streamUrl: `lyrical-audio://localhost/${"1".repeat(64)}`, contentType: "audio/mpeg", fileBytes: 1, durationSeconds: 1, sampleRate: 48_000, channels: 1 }) as ReturnType<typeof invoke>
+          : Promise.resolve(undefined) as ReturnType<typeof invoke>);
     resetLrc([], null);
     useLrcStore.setState({ audioPath: "/music/valid.mp3" });
     render(<AudioPlayer />);
@@ -252,11 +291,10 @@ describe("AudioPlayer — local audio loading", () => {
   });
 
   it("publishes decoded detail after loading and clears it when audio is unloaded", async () => {
-    vi.mocked(readAudioBytes).mockResolvedValue({ bytes: new Uint8Array([1]), transcoded: false });
     resetLrc([], null); useLrcStore.setState({ audioPath: "/music/song.wav" });
     render(<AudioPlayer />);
     await waitFor(() => expect(useWaveformStore.getState().source).not.toBeNull());
-    expect([...useWaveformStore.getState().source!.getEnvelope(0, 1, 4)!.min]).toEqual([0, 0, -.5, 0]);
+    expect([...useWaveformStore.getState().source!.getEnvelope(0, 1, 4)!.min]).toEqual([0, -.25, -.5, 0]);
     act(() => useLrcStore.setState({ audioPath: null }));
     expect(useWaveformStore.getState().source).toBeNull();
   });
@@ -358,20 +396,30 @@ describe("AudioPlayer — loop-line boundary (audioprocess handler)", () => {
 describe('AudioPlayer — source ownership', () => {
   afterEach(cleanup);
   it('reloads a reselected path and ignores events from the replaced engine', async () => {
-    vi.mocked(readAudioBytes).mockReset().mockResolvedValue({bytes:new Uint8Array([1]),transcoded:false});
+    vi.mocked(invoke).mockReset(); mockSuccessfulAudioStream();
+    loadSpy.mockClear();
     useSettingsStore.setState({spotifyMode:false,deviceMode:false});
     resetLrc([],null); useLrcStore.getState().setAudioPath('/same.mp3');
-    render(<AudioPlayer />); await waitFor(()=>expect(readAudioBytes).toHaveBeenCalledTimes(1));
+    render(<AudioPlayer />); await waitFor(()=>expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "prepare_audio_stream")).toHaveLength(1));
+    await waitFor(()=>expect(loadSpy).toHaveBeenCalledTimes(1));
+    const preparedUrl = loadSpy.mock.calls[0][0];
     const oldReady=wsHandlers.ready, oldProcess=wsHandlers.audioprocess;
     act(()=>useLrcStore.getState().setAudioPath('/same.mp3'));
-    await waitFor(()=>expect(readAudioBytes).toHaveBeenCalledTimes(2));
+    await waitFor(()=>expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "prepare_audio_stream")).toHaveLength(2));
+    const calls = vi.mocked(invoke).mock.calls;
+    const revokeIndex = calls.findIndex(([command, args]) => command === "revoke_audio_stream"
+      && (args as { streamUrl?: string } | undefined)?.streamUrl === preparedUrl);
+    const secondPrepareIndex = calls.findIndex(([command], index) => command === "prepare_audio_stream"
+      && calls.slice(0, index).filter(([previous]) => previous === "prepare_audio_stream").length === 1);
+    expect(revokeIndex).toBeGreaterThanOrEqual(0);
+    expect(revokeIndex).toBeLessThan(secondPrepareIndex);
     act(()=>{ useLrcStore.setState({duration:42,currentTime:5}); oldReady(); oldProcess(90); });
     expect(useLrcStore.getState().duration).toBe(42); expect(useLrcStore.getState().currentTime).toBe(5);
   });
 });
 
 it('reattaches an enabled spectrogram after replacing the audio engine', async () => {
-  spectrumCreate.mockClear(); vi.mocked(readAudioBytes).mockResolvedValue({bytes:new Uint8Array([1]),transcoded:false});
+  spectrumCreate.mockClear(); vi.mocked(invoke).mockReset(); mockSuccessfulAudioStream();
   useSettingsStore.setState({spotifyMode:false,deviceMode:false,showSpectrogram:true});
   resetLrc([],null); useLrcStore.getState().setAudioPath('/spectrogram.mp3');
   const view=render(<AudioPlayer />);
@@ -383,7 +431,7 @@ it('reattaches an enabled spectrogram after replacing the audio engine', async (
 });
 
 it('retains decoded waveform data when only the lyric document changes', async () => {
-  vi.mocked(readAudioBytes).mockResolvedValue({bytes:new Uint8Array([1]),transcoded:false});
+  vi.mocked(invoke).mockReset(); mockSuccessfulAudioStream();
   useSettingsStore.setState({spotifyMode:false,deviceMode:false}); resetLrc([],null);
   useLrcStore.getState().setAudioPath('/kept.mp3'); const view=render(<AudioPlayer />);
   try {
@@ -395,7 +443,7 @@ it('retains decoded waveform data when only the lyric document changes', async (
 });
 it('keeps the selected volume when the audio engine is replaced', async () => {
   const volumeSpy=vi.spyOn(wsMock,'setVolume');
-  vi.mocked(readAudioBytes).mockResolvedValue({bytes:new Uint8Array([1]),transcoded:false});
+  vi.mocked(invoke).mockReset(); mockSuccessfulAudioStream();
   useSettingsStore.setState({spotifyMode:false,deviceMode:false}); resetLrc([],null);
   useLrcStore.getState().setAudioPath('/volume.mp3'); const view=render(<AudioPlayer />);
   try {

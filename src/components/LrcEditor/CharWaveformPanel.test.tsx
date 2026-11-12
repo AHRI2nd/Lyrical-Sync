@@ -3,12 +3,24 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createRef } from 'react';
 import { CharWaveformPanel } from './CharWaveformPanel';
-import { clearWaveform, prepareWaveform } from '../../stores/useWaveformStore';
+import { clearWaveform, publishWaveformSummary } from '../../stores/useWaveformStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
 import { useI18nStore } from '../../stores/useI18nStore';
 
-beforeEach(async () => {
-  await prepareWaveform('song.wav', { length: 2, sampleRate: 1, duration: 2, numberOfChannels: 1, getChannelData: () => new Float32Array([.2, .8]) });
+function summary(frameCount: number, sampleRate: number, impulses: Array<[number, number]> = []) {
+  const bins = Math.ceil(frameCount / 256);
+  const minima = new Float32Array(bins);
+  const maxima = new Float32Array(bins);
+  for (const [frame, value] of impulses) maxima[Math.floor(frame / 256)] = value;
+  return {
+    sampleRate, channels: 1, frameCount, durationNanos: Math.floor(frameCount * 1e9 / sampleRate),
+    duration: frameCount / sampleRate, blockFrames: 256, minima, maxima,
+    peaks: Float32Array.from(maxima),
+  };
+}
+
+beforeEach(() => {
+  publishWaveformSummary('song.wav', summary(2, 1, [[1, .8]]));
   useI18nStore.getState().setLang('en');
   useSettingsStore.setState({ glyphWaveformHeight: 96, glyphWaveformStyle: 'continuous' });
 });
@@ -74,10 +86,9 @@ it('makes co-timed glyphs selectable as a group and keeps the selected label vis
   expect(select).toHaveBeenLastCalledWith(0);
 });
 
-it('translates stable audio geometry during fractional playback and refreshes it on zoom', async () => {
-  const samples = new Float32Array(48000 * 12); samples[240006] = 1; samples[240206] = .4;
-  await prepareWaveform('song.wav', { length: samples.length, sampleRate: 48000, duration: 12,
-    numberOfChannels: 1, getChannelData: () => samples });
+it('translates stable audio geometry during fractional playback and refreshes it on zoom', () => {
+  const frames = 48000 * 12;
+  publishWaveformSummary('song.wav', summary(frames, 48000, [[240006, 1], [240206, .4]]));
   const props = { laneRef: createRef<HTMLDivElement>(), onPointerDown: vi.fn(), audioPath: 'song.wav',
     start: 2, end: 8, lineStart: 4, lineEnd: 10, playhead: 5,
     syllables: [], activeIndex: 0, onSelect: vi.fn(), available: true };

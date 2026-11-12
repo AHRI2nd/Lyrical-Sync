@@ -194,18 +194,6 @@ async fn write_lrc_file_if_unchanged_impl(
 }
 
 #[tauri::command]
-async fn read_audio_file(
-    path: String,
-    window: tauri::WebviewWindow,
-) -> Result<tauri::ipc::Response, String> {
-    let path = path_validation::validate_safe_path(&path)?;
-    authorize_window_path(&window, &path)?;
-    // Return raw bytes through IPC after applying the compressed and decoded-memory limits.
-    audio_resource::read_bounded_audio_file(std::path::Path::new(&path))
-        .map(|(bytes, _)| tauri::ipc::Response::new(bytes))
-}
-
-#[tauri::command]
 async fn prepare_audio_stream(
     path: String,
     run_id: String,
@@ -375,11 +363,13 @@ struct AudioFileInfo {
     file_id: Option<String>,
 }
 
+#[cfg(test)]
 fn is_normal_audio_eof(error: &symphonia::core::errors::Error) -> bool {
     matches!(error, symphonia::core::errors::Error::IoError(err)
         if err.kind() == std::io::ErrorKind::UnexpectedEof)
 }
 
+#[cfg(test)]
 fn inspect_aiff_container(file: &mut std::fs::File) -> Result<u64, String> {
     use std::io::{Read, Seek, SeekFrom};
 
@@ -482,30 +472,7 @@ fn inspect_aiff_container(file: &mut std::fs::File) -> Result<u64, String> {
     Ok(frames)
 }
 
-/// AIFF 등 WebView2 미지원 포맷을 WAV 바이트로 트랜스코딩합니다.
-#[tauri::command]
-async fn decode_audio_to_wav(
-    path: String,
-    window: tauri::WebviewWindow,
-) -> Result<tauri::ipc::Response, String> {
-    let path = path_validation::validate_safe_path(&path)?;
-    authorize_window_path(&window, &path)?;
-    let mut file = std::fs::File::open(&path).map_err(|e| e.to_string())?;
-    if file.metadata().map_err(|e| e.to_string())?.len() > audio_resource::MAX_AUDIO_FILE_BYTES {
-        return Err(audio_resource::AUDIO_RESOURCE_LIMIT_ERROR.into());
-    }
-    let extension = path.extension().and_then(|value| value.to_str());
-    let is_aiff = extension.is_some_and(|value| {
-        value.eq_ignore_ascii_case("aif") || value.eq_ignore_ascii_case("aiff")
-    });
-    let declared_aiff_frames = if is_aiff {
-        Some(inspect_aiff_container(&mut file)?)
-    } else {
-        None
-    };
-    decode_audio_file_to_wav(file, extension, declared_aiff_frames).map(tauri::ipc::Response::new)
-}
-
+#[cfg(test)]
 fn decode_audio_file_to_wav(
     file: std::fs::File,
     extension: Option<&str>,
@@ -767,14 +734,12 @@ pub fn run() {
             write_lrc_file,
             write_lrc_file_if_unchanged,
             batch_output::write_batch_output,
-            read_audio_file,
             prepare_audio_stream,
             cancel_audio_stream_preparation,
             summarize_audio_stream,
             revoke_audio_stream,
             analyze_bpm_prefix,
             cancel_audio_analysis,
-            decode_audio_to_wav,
             read_audio_metadata,
             set_models_dir_override,
             get_models_dir,

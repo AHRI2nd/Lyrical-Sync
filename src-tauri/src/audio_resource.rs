@@ -594,6 +594,7 @@ fn inspect_flac_frames(
     Ok(Some(info))
 }
 
+#[cfg(test)]
 pub(crate) fn inspect_audio_file_handle(file: &mut std::fs::File) -> Result<AudioResourceInfo, String> {
     inspect_audio_file_handle_with_check(file, || Ok(()))
 }
@@ -630,10 +631,12 @@ pub(crate) fn inspect_audio_file_handle_with_check(
     validate_audio_properties(file_bytes, properties.duration(), sample_rate, channels)
 }
 
+#[cfg(test)]
 pub fn read_bounded_audio_file(path: &Path) -> Result<(Vec<u8>, AudioResourceInfo), String> {
     read_bounded_audio_file_with_hook(path, || {})
 }
 
+#[cfg(test)]
 fn read_bounded_audio_file_with_hook(
     path: &Path,
     after_inspect: impl FnOnce(),

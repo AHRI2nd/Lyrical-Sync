@@ -9,10 +9,10 @@ import { useI18nStore } from "../../stores/useI18nStore";
 import { toast } from "../../stores/useToastStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
-import { clearWaveform, prepareWaveform } from "../../stores/useWaveformStore";
+import { beginWaveformPreparation, clearWaveform, publishWaveformSummary } from "../../stores/useWaveformStore";
 import { getLinePlaybackRange } from "../../utils/linePlaybackRange";
 import { audioControls } from "../../utils/audioControls";
-import { readAudioBytes } from "../../utils/readAudioBytes";
+import { parseAudioWaveformSummary } from "../../utils/audioWaveformSummary";
 import { activateSpotifyPlayer } from "../../utils/spotifyPlayer";
 import { formatDisplayTime } from "../../utils/lrcParser";
 import { ServicePlayerPanel } from "../Service/ServicePlayerPanel";
@@ -26,11 +26,7 @@ import { TransportControls } from "./TransportControls";
 const YouTubeModal = lazy(() => import("./YouTubeModal").then((m) => ({ default: m.YouTubeModal })));
 import { VolumeIcon, ZoomIcon, FileGlyph, YouTubeGlyph, YouTubeLinkIcon } from "./icons";
 
-const AUDIO_MIME: Record<string, string> = {
-  mp3: "audio/mpeg", flac: "audio/flac", wav: "audio/wav",
-  ogg: "audio/ogg", m4a: "audio/mp4", aac: "audio/aac", opus: "audio/ogg",
-  aiff: "audio/aiff", aif: "audio/aiff",
-};
+let nextAudioStreamRun = 0;
 
 const SPEED_STEPS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
 
@@ -68,6 +64,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
   const [playbackRate, setPlaybackRate] = useState(1.0);
   const [viewMode, setViewMode] = useState<"waveform" | "bar">("waveform");
   const [showNoTrackAlert, setShowNoTrackAlert] = useState(false);
+  const streamCleanupRef = useRef<Promise<void>>(Promise.resolve());
 
   // 자체 로컬 상태(currentTimeLocal 등)로 UI를 그리므로 스토어 currentTime은 구독하지 않음
   const { audioPath, setCurrentTime, setIsPlaying, setDuration, openAudio, setAudioPath } = useLrcStore(
@@ -234,7 +231,10 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       return;
     }
     let cancelled = false;
-    const controller = new AbortController();
+    let nativeOperation: Promise<unknown> | null = null;
+    let streamUrl: string | null = null;
+    const runId = `audio-stream-${++nextAudioStreamRun}`;
+    const previousCleanup = streamCleanupRef.current;
     const ownerDocumentSession = useLrcStore.getState()._documentSession;
 
     setIsAudioReady(false);
@@ -247,40 +247,89 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     setCurrentTime(0);
     setDuration(0);
 
-    const ext = audioPath.split(".").pop()?.toLowerCase() ?? "";
+    const isCurrentSelection = () => {
+      const store = useLrcStore.getState();
+      return !cancelled && store._documentSession === ownerDocumentSession
+        && store.audioPath === audioPath && store._audioSelection === audioSelection;
+    };
 
-    readAudioBytes(audioPath, controller.signal).then(async ({ bytes, transcoded }) => {
-      if (cancelled || !wsRef.current) return;
+    void (async () => {
+      await previousCleanup;
+      if (!isCurrentSelection() || !wsRef.current) return;
+      beginWaveformPreparation(audioPath);
+      try {
+        const prepareOperation = invoke<{
+          streamUrl: string;
+          contentType: string;
+          fileBytes: number;
+          durationSeconds: number;
+          sampleRate: number;
+          channels: number;
+        }>("prepare_audio_stream", { path: audioPath, runId }).then((prepared) => {
+          streamUrl = prepared.streamUrl;
+          return prepared;
+        });
+        nativeOperation = prepareOperation;
+        const prepared = await prepareOperation;
+        if (nativeOperation === prepareOperation) nativeOperation = null;
+        if (!isCurrentSelection()) return;
 
-      const mimeType = transcoded ? "audio/wav" : (AUDIO_MIME[ext] ?? "audio/*");
-      const blob = new Blob([bytes], { type: mimeType });
-      const ws = wsRef.current;
-      await ws.loadBlob(blob);
-      if (cancelled) return;
-      const decoded = ws.getDecodedData();
-      if (!decoded) return;
-      void invoke<{ title: string; artist: string; album: string }>("read_audio_metadata", { path: audioPath })
-        .then((metadata) => {
-          const store = useLrcStore.getState();
-          if (cancelled || store._documentSession !== ownerDocumentSession || store.audioPath !== audioPath || store._audioSelection !== audioSelection) return;
-          const current = store.doc.metadata;
-          const patch: { title?: string; artist?: string; album?: string } = {};
-          if (!current.title.trim() && metadata.title) patch.title = metadata.title;
-          if (!current.artist.trim() && metadata.artist) patch.artist = metadata.artist;
-          if (!current.album.trim() && metadata.album) patch.album = metadata.album;
-          if (Object.keys(patch).length > 0) store.setAudioMetadata(patch);
-        })
-        .catch(() => {});
-      await prepareWaveform(audioPath, decoded);
-    }).catch((e) => {
-      // 새 로드로 인한 중단(AbortError)은 무시, 실제 디코드/읽기 실패만 알림
-      if (cancelled || (e && (e as Error).name === "AbortError")) return;
+        const summaryOperation = invoke<ArrayBuffer>("summarize_audio_stream", {
+          streamUrl: prepared.streamUrl,
+          runId,
+        });
+        nativeOperation = summaryOperation;
+        const summaryBytes = await summaryOperation;
+        if (nativeOperation === summaryOperation) nativeOperation = null;
+        const summary = parseAudioWaveformSummary(summaryBytes);
+        if (!isCurrentSelection()) return;
+
+        publishWaveformSummary(audioPath, summary);
+        const ws = wsRef.current;
+        if (!ws) return;
+        await ws.load(prepared.streamUrl, [summary.peaks], summary.duration);
+        if (!isCurrentSelection()) return;
+
+        void invoke<{ title: string; artist: string; album: string }>("read_audio_metadata", { path: audioPath })
+          .then((metadata) => {
+            const store = useLrcStore.getState();
+            if (!isCurrentSelection() || store._documentSession !== ownerDocumentSession) return;
+            const current = store.doc.metadata;
+            const patch: { title?: string; artist?: string; album?: string } = {};
+            if (!current.title.trim() && metadata.title) patch.title = metadata.title;
+            if (!current.artist.trim() && metadata.artist) patch.artist = metadata.artist;
+            if (!current.album.trim() && metadata.album) patch.album = metadata.album;
+            if (Object.keys(patch).length > 0) store.setAudioMetadata(patch);
+          })
+          .catch(() => {});
+      } catch (error) {
+        if (streamUrl) {
+          void invoke("revoke_audio_stream", { streamUrl }).catch(() => {});
+          streamUrl = null;
+        }
+        if (!isCurrentSelection()) return;
+        clearWaveform();
+        const messages = useI18nStore.getState().t.toast;
+        toast.error(String(error).includes("AUDIO_RESOURCE_LIMIT") ? messages.audioResourceLimit : messages.audioLoadFailed);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
       clearWaveform();
-      const messages = useI18nStore.getState().t.toast;
-      toast.error(String(e).includes("AUDIO_RESOURCE_LIMIT") ? messages.audioResourceLimit : messages.audioLoadFailed);
-    });
-
-    return () => { cancelled = true; controller.abort(); clearWaveform(); };
+      const cleanup = (async () => {
+        const operation = nativeOperation;
+        if (operation) {
+          await invoke("cancel_audio_stream_preparation", { runId }).catch(() => {});
+          await operation.catch(() => {});
+        }
+        if (streamUrl) {
+          await invoke("revoke_audio_stream", { streamUrl }).catch(() => {});
+          streamUrl = null;
+        }
+      })();
+      streamCleanupRef.current = cleanup;
+    };
   }, [audioPath, audioSelection, isServiceMode, deviceMode]);
 
   // 오디오 로드 완료 시 현재 zoom 값 적용 (슬라이더 조작 중 zoom은 debounce로 직접 처리)

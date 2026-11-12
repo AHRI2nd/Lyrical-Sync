@@ -10,8 +10,6 @@
     "fs:scope-audio-recursive",
     "app-command:read-lrc-file",
     "app-command:write-lrc-file",
-    "app-command:read-audio-file",
-    "app-command:decode-audio-to-wav",
     "app-command:read-audio-metadata",
     "app-command:write-batch-output",
     "app-command:set-models-dir-override",
