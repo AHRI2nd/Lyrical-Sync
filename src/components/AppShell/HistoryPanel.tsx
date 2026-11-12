@@ -26,19 +26,24 @@ export function HistoryPanel() {
 
   const disabled = _history.length === 0 && _future.length === 0;
   const currentIndex = _history.length;
+  const timelineInfo = [..._historyInfo, ..._futureInfo];
+  const stateLabel = (index: number) => index === 0
+    ? t.historyInitial
+    : formatLabel(t, timelineInfo[index - 1]?.label ?? "editText", timelineInfo[index - 1]?.count);
+  const stateTimestamp = (index: number) => index === 0 ? 0 : timelineInfo[index - 1]?.timestamp ?? 0;
 
   const rows: { index: number; label: string; timestamp: number; isCurrent: boolean }[] = [
     ..._history.map((_, i) => ({
       index: i,
-      label: formatLabel(t, _historyInfo[i]?.label ?? "editText", _historyInfo[i]?.count),
-      timestamp: _historyInfo[i]?.timestamp ?? 0,
+      label: stateLabel(i),
+      timestamp: stateTimestamp(i),
       isCurrent: false,
     })),
-    { index: currentIndex, label: t.historyCurrent, timestamp: Date.now(), isCurrent: true },
+    { index: currentIndex, label: t.historyCurrent, timestamp: stateTimestamp(currentIndex), isCurrent: true },
     ..._future.map((_, i) => ({
       index: currentIndex + 1 + i,
-      label: formatLabel(t, _futureInfo[i]?.label ?? "editText", _futureInfo[i]?.count),
-      timestamp: _futureInfo[i]?.timestamp ?? 0,
+      label: stateLabel(currentIndex + 1 + i),
+      timestamp: stateTimestamp(currentIndex + 1 + i),
       isCurrent: false,
     })),
   ];
@@ -73,7 +78,7 @@ export function HistoryPanel() {
               ].join(" ")}`}
             >
               <span className="truncate">{row.label}</span>
-              {!row.isCurrent && (
+              {!row.isCurrent && row.index > 0 && (
                 <span className="text-[10px] text-[var(--ls-text-secondary)] shrink-0 tabular-nums">
                   {new Date(row.timestamp).toLocaleTimeString()}
                 </span>

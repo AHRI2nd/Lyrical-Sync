@@ -324,6 +324,7 @@ export interface Translations {
   translationSplitAction: string;
   historyPanelTitle: string;
   historyCurrent: string;
+  historyInitial: string;
   historyLabels: Record<string, string>;
   translationToggle: string;
   translationPlaceholder: string;
@@ -721,6 +722,7 @@ const ko: Translations = {
   translationSplitAction: "줄 나누기",
   historyPanelTitle: "편집 히스토리",
   historyCurrent: "현재",
+  historyInitial: "시작 상태",
   historyLabels: {
       commitSyllables: "글자 동기화 입력",
       clearSyllables: "글자 동기화 해제",
@@ -1143,6 +1145,7 @@ const en: Translations = {
   translationSplitAction: "Split line",
   historyPanelTitle: "Edit history",
   historyCurrent: "Current",
+  historyInitial: "Initial state",
   historyLabels: {
       commitSyllables: "Sync glyphs",
       clearSyllables: "Clear glyph sync",
@@ -1564,6 +1567,7 @@ const ja: Translations = {
   translationSplitAction: "行を分割",
   historyPanelTitle: "編集履歴",
   historyCurrent: "現在",
+  historyInitial: "初期状態",
   historyLabels: {
       commitSyllables: "文字同期入力",
       clearSyllables: "文字同期解除",
