@@ -9,6 +9,7 @@ mod arm_ai;
 mod alignment_process;
 mod atomic_write;
 mod audio_resource;
+mod bpm_audio;
 mod batch_output;
 #[cfg(any(target_os = "windows", test))]
 mod device_worker;
@@ -199,6 +200,39 @@ async fn read_audio_file(
     // Return raw bytes through IPC after applying the compressed and decoded-memory limits.
     audio_resource::read_bounded_audio_file(std::path::Path::new(&path))
         .map(|(bytes, _)| tauri::ipc::Response::new(bytes))
+}
+
+#[tauri::command]
+async fn analyze_bpm_prefix(
+    path: String,
+    run_id: String,
+    window: tauri::WebviewWindow,
+    analysis_state: tauri::State<'_, bpm_audio::AnalysisState>,
+) -> Result<tauri::ipc::Response, String> {
+    let path = path_validation::validate_safe_path(&path)?;
+    authorize_window_path(&window, &path)?;
+    let run = analysis_state.begin(run_id)?;
+    if run.cancel_flag().load(std::sync::atomic::Ordering::Relaxed) {
+        return Err("cancelled".into());
+    }
+    let cancel = run.cancel_handle();
+    let energies = tokio::task::spawn_blocking(move || bpm_audio::decode_prefix(&path, &cancel))
+        .await
+        .map_err(|error| format!("Audio analysis worker failed: {error}"))??;
+    let mut bytes = Vec::with_capacity(energies.len().saturating_mul(std::mem::size_of::<f32>()));
+    for energy in energies {
+        bytes.extend_from_slice(&energy.to_le_bytes());
+    }
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
+#[tauri::command]
+async fn cancel_audio_analysis(
+    run_id: String,
+    analysis_state: tauri::State<'_, bpm_audio::AnalysisState>,
+) -> Result<(), String> {
+    analysis_state.cancel_and_wait(&run_id).await;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -584,6 +618,7 @@ pub fn run() {
         .manage(ModelsDirState::default())
         .manage(ModelUseState::default())
         .manage(AlignmentState::default())
+        .manage(bpm_audio::AnalysisState::default())
         .manage(YtdlpState::default())
         .manage(lrclib::PublishState::default())
         .plugin(tauri_plugin_opener::init())
@@ -605,6 +640,8 @@ pub fn run() {
             write_lrc_file_if_unchanged,
             batch_output::write_batch_output,
             read_audio_file,
+            analyze_bpm_prefix,
+            cancel_audio_analysis,
             decode_audio_to_wav,
             read_audio_metadata,
             set_models_dir_override,

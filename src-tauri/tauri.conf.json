@@ -28,6 +28,7 @@
     "targets": "all",
     "resources": {
       "resources/mediaremote-adapter": "mediaremote-adapter",
+      "resources/licenses/opus-pure-LICENSE.txt": "licenses/opus-pure-LICENSE.txt",
       "../LICENSE": "LICENSE"
     },
     "icon": [

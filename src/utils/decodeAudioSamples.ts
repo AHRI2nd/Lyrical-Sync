@@ -1,65 +1,49 @@
-import { readAudioBytes } from "./readAudioBytes";
+import { invoke } from "@tauri-apps/api/core";
 
-const MAX_AUDIO_PCM_BYTES = 1024 * 1024 * 1024; // 1 GiB
-const MAX_ANALYSIS_DURATION_SECONDS = 120;
+const MAX_ANALYSIS_BUCKETS = 6_000;
+const ANALYSIS_SAMPLE_RATE = 50;
+let cancellationQueue: Promise<unknown> = Promise.resolve();
 
-// Decode original PCM for local analysis; display peaks lose transient detail.
-export async function decodeAudioSamples(audioPath: string, signal?: AbortSignal): Promise<{ samples: Float32Array; sampleRate: number }> {
-  const checkCancelled = () => {
-    if (signal?.aborted) throw new DOMException("Audio analysis cancelled", "AbortError");
-  };
-  checkCancelled();
-  const { bytes } = await readAudioBytes(audioPath, signal);
-  checkCancelled();
-  // Match the native resource estimate's Web Audio baseline so device output
-  // rates cannot silently inflate decoded PCM for local analysis.
-  const ctx = new AudioContext({ sampleRate: 48_000 });
+function checkCancelled(signal?: AbortSignal): void {
+  if (signal?.aborted) throw new DOMException("Audio analysis cancelled", "AbortError");
+}
+
+function requestNativeCancellation(runId: string): Promise<unknown> {
+  cancellationQueue = cancellationQueue
+    .catch(() => undefined)
+    .then(() => invoke("cancel_audio_analysis", { runId }));
+  return cancellationQueue;
+}
+
+/** Ask the native decoder for the first two minutes as 20 ms mono RMS buckets. */
+export async function decodeAudioSamples(
+  audioPath: string,
+  signal?: AbortSignal,
+): Promise<{ samples: Float32Array; sampleRate: number }> {
+  checkCancelled(signal);
+  const runId = crypto.randomUUID();
+  const cancelNative = () => { void requestNativeCancellation(runId).catch(() => undefined); };
+  signal?.addEventListener("abort", cancelNative, { once: true });
+
   try {
-    // decodeAudioData consumes its ArrayBuffer. The file reader returns a fresh byte
-    // view, and nothing reads it after this call, so reuse complete ArrayBuffers
-    // rather than making another potentially 1 GiB encoded-audio allocation.
-    // Partial and SharedArrayBuffer-backed views still need an exact owned copy.
-    const backing = bytes.buffer;
-    let arrayBuffer: ArrayBuffer;
-    if (backing instanceof ArrayBuffer && bytes.byteOffset === 0 && bytes.byteLength === backing.byteLength) {
-      arrayBuffer = backing;
-    } else {
-      const exact = new Uint8Array(bytes.byteLength);
-      exact.set(bytes);
-      arrayBuffer = exact.buffer;
+    await cancellationQueue.catch(() => undefined);
+    checkCancelled(signal);
+    const bytes = await invoke<ArrayBuffer>("analyze_bpm_prefix", { path: audioPath, runId });
+    checkCancelled(signal);
+    if (!(bytes instanceof ArrayBuffer) || bytes.byteLength % Float32Array.BYTES_PER_ELEMENT !== 0) {
+      throw new DOMException("Invalid audio analysis response", "EncodingError");
     }
-    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-    checkCancelled();
-    const channels = audioBuffer.numberOfChannels;
-    const { length, sampleRate } = audioBuffer;
-    
-    // Validate decoded PCM size against 1 GiB limit
-    const estimatedPcmBytes = BigInt(length) * BigInt(channels) * 4n;
-    if (estimatedPcmBytes > BigInt(MAX_AUDIO_PCM_BYTES)) {
-      throw new Error("AUDIO_RESOURCE_LIMIT: Decoded PCM exceeds 1 GiB limit");
+    const samples = new Float32Array(bytes);
+    if (samples.length > MAX_ANALYSIS_BUCKETS) {
+      throw new DOMException("Audio analysis exceeded its prefix limit", "EncodingError");
     }
-
-    // BPM detection only inspects the first two minutes. Keep the additional
-    // mono analysis buffer and its mixdown work within that same window.
-    const analysisLength = Math.min(length, Math.floor(sampleRate * MAX_ANALYSIS_DURATION_SECONDS));
-    
-    // Mix channel energy in chunks so opposite-phase channels cannot cancel BPM attacks.
-    const samples = new Float32Array(analysisLength);
-    const channelData = Array.from({ length: channels }, (_, c) => audioBuffer.getChannelData(c));
-    const chunkSize = 200000;
-    for (let start = 0; start < analysisLength; start += chunkSize) {
-      checkCancelled();
-      const end = Math.min(analysisLength, start + chunkSize);
-      for (const data of channelData) {
-        for (let i = start; i < end; i++) samples[i] += data[i] * data[i] / channels;
-      }
-      for (let i = start; i < end; i++) samples[i] = Math.sqrt(samples[i]);
-      if (end < length) await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    return { samples, sampleRate: ANALYSIS_SAMPLE_RATE };
+  } catch (error) {
+    if (signal?.aborted || error === "cancelled") {
+      throw new DOMException("Audio analysis cancelled", "AbortError");
     }
-    checkCancelled();
-    return { samples, sampleRate };
+    throw error;
   } finally {
-    // Closing a context must not replace the original decode/cancel error.
-    try { await ctx.close(); } catch { /* Context may already be closed. */ }
+    signal?.removeEventListener("abort", cancelNative);
   }
 }

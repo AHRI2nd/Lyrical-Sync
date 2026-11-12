@@ -14,7 +14,7 @@ const MAX_AUDIO_SAMPLE_RATE: u32 = 192_000;
 const WEBAUDIO_BASE_SAMPLE_RATE: u32 = 48_000;
 pub const AUDIO_RESOURCE_LIMIT_ERROR: &str = "AUDIO_RESOURCE_LIMIT";
 
-fn open_audio_file(path: &Path) -> Result<File, String> {
+pub(crate) fn open_audio_file(path: &Path) -> Result<File, String> {
     let mut options = OpenOptions::new();
     options.read(true);
     #[cfg(unix)]
@@ -269,7 +269,11 @@ fn aac_program_config_channels(payload: &[u8], expected_rate_index: usize) -> Op
     (channels > 0 && channels <= MAX_AUDIO_CHANNELS).then_some(channels)
 }
 
-fn inspect_adts_aac(file: &mut File, file_bytes: u64) -> Result<Option<AudioResourceInfo>, String> {
+fn inspect_adts_aac(
+    file: &mut File,
+    file_bytes: u64,
+    check_cancelled: &mut impl FnMut() -> Result<(), String>,
+) -> Result<Option<AudioResourceInfo>, String> {
     let mut audio_end = file_bytes;
     if file_bytes >= 128 {
         file.seek(SeekFrom::Start(file_bytes - 128))
@@ -326,6 +330,7 @@ fn inspect_adts_aac(file: &mut File, file_bytes: u64) -> Result<Option<AudioReso
     let mut channels = None;
     let mut decoded_frames = 0_u128;
     while offset < audio_end {
+        check_cancelled()?;
         if audio_end - offset < 7 {
             return Err("AUDIO_METADATA_UNAVAILABLE".into());
         }
@@ -487,6 +492,7 @@ fn find_flac_stream_offset(file: &mut File) -> Result<Option<u64>, String> {
 fn inspect_flac_frames(
     file: &mut File,
     file_bytes: u64,
+    check_cancelled: &mut impl FnMut() -> Result<(), String>,
 ) -> Result<Option<AudioResourceInfo>, String> {
     use symphonia::core::formats::FormatOptions;
     use symphonia::core::io::MediaSourceStream;
@@ -531,6 +537,7 @@ fn inspect_flac_frames(
 
     let mut frames = 0_u64;
     loop {
+        check_cancelled()?;
         let packet = match format.next_packet() {
             Ok(packet) => packet,
             Err(symphonia::core::errors::Error::IoError(error))
@@ -559,20 +566,29 @@ fn inspect_flac_frames(
     Ok(Some(info))
 }
 
-fn inspect_audio_file_handle(file: &mut std::fs::File) -> Result<AudioResourceInfo, String> {
+pub(crate) fn inspect_audio_file_handle(file: &mut std::fs::File) -> Result<AudioResourceInfo, String> {
+    inspect_audio_file_handle_with_check(file, || Ok(()))
+}
+
+pub(crate) fn inspect_audio_file_handle_with_check(
+    file: &mut std::fs::File,
+    mut check_cancelled: impl FnMut() -> Result<(), String>,
+) -> Result<AudioResourceInfo, String> {
+    check_cancelled()?;
     let file_bytes = file.metadata().map_err(|error| error.to_string())?.len();
     if file_bytes > MAX_AUDIO_FILE_BYTES {
         return Err(AUDIO_RESOURCE_LIMIT_ERROR.into());
     }
 
-    if let Some(info) = inspect_adts_aac(file, file_bytes)? {
+    if let Some(info) = inspect_adts_aac(file, file_bytes, &mut check_cancelled)? {
         return Ok(info);
     }
 
-    if let Some(info) = inspect_flac_frames(file, file_bytes)? {
+    if let Some(info) = inspect_flac_frames(file, file_bytes, &mut check_cancelled)? {
         return Ok(info);
     }
 
+    check_cancelled()?;
     file.seek(SeekFrom::Start(0))
         .map_err(|error| error.to_string())?;
     let tagged = lofty::read_from(file).map_err(|error| error.to_string())?;
