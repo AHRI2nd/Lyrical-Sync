@@ -10,8 +10,8 @@ if (typeof globalThis.localStorage === "undefined") {
     setItem: (k: string, v: string) => void m.set(k, String(v)),
     removeItem: (k: string) => void m.delete(k),
     clear: () => m.clear(),
-    key: () => null,
-    length: 0,
+    key: (index: number) => Array.from(m.keys())[index] ?? null,
+    get length() { return m.size; },
   } as Storage;
 }
 
@@ -22,6 +22,8 @@ const doc = (): LrcDocument => ({
   lines: [{ id: "1", timestamp: 1.5, text: "hello" }],
   extraTags: {},
 });
+
+beforeEach(() => localStorage.clear());
 
 describe("recovery snapshot round-trip", () => {
   beforeEach(() => localStorage.clear());
@@ -212,7 +214,7 @@ it("restores rich document data from stored bytes after recreating the module", 
   rich.lines[0].text = "hello ";
   rich.lines[0].syllables = [{ text: "hello", time: 1.5 }, { text: " ", time: null }];
   expect(saveRecoverySnapshot(rich, "/a.lrc", null, "grant", null, "restart")).toBe(true);
-  expect(JSON.parse(localStorage.getItem(KEY)!).doc).toEqual(rich);
+  expect(JSON.parse(localStorage.getItem(`${KEY}:session:restart`)!).doc).toEqual(rich);
   vi.resetModules();
   const recreated = await import("./recovery");
   expect(recreated.loadRecoverySnapshot()?.doc).toEqual(rich);
@@ -238,4 +240,41 @@ it.each(["translated", ""])("retains optional translation strings %s in recovery
   (rich.lines[0] as any).translation = translation;
   expect(saveRecoverySnapshot(rich, null, null)).toBe(true);
   expect(loadRecoverySnapshot()?.doc.lines[0]).toHaveProperty("translation", translation);
+});
+
+it("does not delete another session's newer recovery snapshot during cleanup", () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-11-12T10:00:00Z"));
+  const first = { ...doc(), lines: [{ id: "first", timestamp: null, text: "first session" }] };
+  saveRecoverySnapshot(first, null, null, null, null, "session-a");
+  const stale = loadRecoverySnapshot()!;
+
+  vi.setSystemTime(new Date("2026-11-12T10:00:05Z"));
+  const originalRemove = localStorage.removeItem.bind(localStorage);
+  let interposed = false;
+  localStorage.removeItem = (key: string) => {
+    if (!interposed) {
+      interposed = true;
+      const second = { ...doc(), lines: [{ id: "second", timestamp: null, text: "second session" }] };
+      saveRecoverySnapshot(second, null, null, null, null, "session-b");
+    }
+    originalRemove(key);
+  };
+  try {
+    expect(clearRecoverySnapshot(stale)).toBe(true);
+  } finally {
+    localStorage.removeItem = originalRemove;
+    vi.useRealTimers();
+  }
+
+  expect(interposed).toBe(true);
+  expect(loadRecoverySnapshot()?.doc.lines[0].text).toBe("second session");
+});
+
+it("clears recovery snapshots from every session after privacy opt-out", () => {
+  saveRecoverySnapshot(doc(), null, null, null, null, "session-a");
+  saveRecoverySnapshot(doc(), null, null, null, null, "session-b");
+
+  expect(clearRecoverySnapshot()).toBe(true);
+  expect(loadRecoverySnapshot()).toBeNull();
 });

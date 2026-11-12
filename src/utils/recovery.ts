@@ -1,6 +1,8 @@
 import type { LrcDocument } from "../types/lrc";
 import { isRecord, isFiniteNumber, isNullableString } from "./storage";
 const KEY = "lyrical-sync-recovery";
+const SESSION_KEY_PREFIX = `${KEY}:session:`;
+const sessionKey = (sessionId: string) => `${SESSION_KEY_PREFIX}${encodeURIComponent(sessionId)}`;
 export interface RecoverySnapshot {
   doc: LrcDocument;
   lrcPath: string | null;
@@ -40,7 +42,8 @@ export function saveRecoverySnapshot(doc: LrcDocument, lrcPath: string | null, a
   lrcBookmark: string | null = null, audioBookmark: string | null = null, sessionId?: string): boolean {
   try {
     if (!validDocument(doc)) return false;
-    localStorage.setItem(KEY, JSON.stringify({ doc, lrcPath, audioPath, lrcBookmark, audioBookmark, savedAt: Date.now(), sessionId }));
+    const storageKey = sessionId ? sessionKey(sessionId) : KEY;
+    localStorage.setItem(storageKey, JSON.stringify({ doc, lrcPath, audioPath, lrcBookmark, audioBookmark, savedAt: Date.now(), sessionId }));
     return true;
   } catch { return false; }
 }
@@ -59,18 +62,41 @@ function parseSnapshot(raw: string): RecoverySnapshot | null {
   } catch { return null; }
 }
 
-export function loadRecoverySnapshot(): RecoverySnapshot | null {
-  try { const raw = localStorage.getItem(KEY); return raw ? parseSnapshot(raw) : null; }
-  catch { return null; }
+export function loadRecoverySnapshot(sessionId?: string): RecoverySnapshot | null {
+  try {
+    const snapshots: RecoverySnapshot[] = [];
+    const add = (raw: string | null) => {
+      if (!raw) return;
+      const snapshot = parseSnapshot(raw);
+      if (snapshot && (!sessionId || snapshot.sessionId === sessionId)) snapshots.push(snapshot);
+    };
+    add(sessionId ? localStorage.getItem(sessionKey(sessionId)) : localStorage.getItem(KEY));
+    if (!sessionId) {
+      for (let index = 0; index < localStorage.length; index++) {
+        const key = localStorage.key(index);
+        if (key?.startsWith(SESSION_KEY_PREFIX)) add(localStorage.getItem(key));
+      }
+    }
+    return snapshots.reduce<RecoverySnapshot | null>((latest, snapshot) =>
+      !latest || snapshot.savedAt >= latest.savedAt ? snapshot : latest, null);
+  } catch { return null; }
 }
 
 export function clearRecoverySnapshot(expected?: RecoverySnapshot): boolean {
   try {
     if (expected) {
-      const raw = localStorage.getItem(KEY);
+      const key = expected.sessionId ? sessionKey(expected.sessionId) : KEY;
+      const raw = localStorage.getItem(key);
       if (!raw || JSON.stringify(parseSnapshot(raw)) !== JSON.stringify(expected)) return true;
+      localStorage.removeItem(key);
+      return true;
     }
-    localStorage.removeItem(KEY);
+    const keys = [KEY];
+    for (let index = 0; index < localStorage.length; index++) {
+      const key = localStorage.key(index);
+      if (key?.startsWith(SESSION_KEY_PREFIX)) keys.push(key);
+    }
+    for (const key of keys) localStorage.removeItem(key);
     return true;
   } catch { return false; }
 }

@@ -31,9 +31,10 @@ export function useRecoverySnapshots(pendingRecovery: boolean): boolean {
     const flush = () => {
       const state = useLrcStore.getState();
       if (!useSettingsStore.getState().recoveryEnabled || !state.isDirty || state._documentSession !== session) return;
-      const ok = saveRecoverySnapshot(state.doc, state.lrcPath, state.audioPath, state.lrcBookmark, state.audioBookmark, `${prefix.current}:${session}`);
+      const sessionId = `${prefix.current}:${session}`;
+      const ok = saveRecoverySnapshot(state.doc, state.lrcPath, state.audioPath, state.lrcBookmark, state.audioBookmark, sessionId);
       if (ok) {
-        const snapshot = loadRecoverySnapshot();
+        const snapshot = loadRecoverySnapshot(sessionId);
         if (snapshot?.sessionId === `${prefix.current}:${session}`) owned.current = snapshot;
         setFailed(!snapshot);
       } else setFailed(true);

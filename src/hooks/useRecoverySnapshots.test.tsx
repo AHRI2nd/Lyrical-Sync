@@ -8,7 +8,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useRecoverySnapshots } from "./useRecoverySnapshots";
 import { useLrcStore } from "../stores/useLrcStore";
 import { defaultDocument } from "../types/lrc";
-import { loadRecoverySnapshot, saveRecoverySnapshot } from "../utils/recovery";
+import { clearRecoverySnapshot, loadRecoverySnapshot, saveRecoverySnapshot } from "../utils/recovery";
 beforeEach(() => {
   vi.useFakeTimers(); localStorage.clear();
   useSettingsStore.setState({ recoveryEnabled: true });
@@ -80,7 +80,7 @@ it("retries failed cleanup without removing a newer snapshot", async () => {
 it("stops all backup writes while disabled and resumes the latest edited document when enabled", () => {
   const { unmount } = renderHook(() => useRecoverySnapshots(false));
   act(() => useSettingsStore.setState({ recoveryEnabled: false }));
-  localStorage.removeItem("lyrical-sync-recovery");
+  clearRecoverySnapshot();
   act(() => { useLrcStore.getState().addLine("unsaved working text"); vi.advanceTimersByTime(15000); });
   expect(loadRecoverySnapshot()).toBeNull();
   expect(useLrcStore.getState().isDirty).toBe(true);
@@ -102,7 +102,7 @@ it("flushes the latest document and bookmarks on pagehide before the interval", 
 it("pagehide never recreates recovery after local privacy opt-out", () => {
   renderHook(() => useRecoverySnapshots(false));
   act(() => useSettingsStore.setState({ recoveryEnabled: false }));
-  localStorage.removeItem("lyrical-sync-recovery");
+  clearRecoverySnapshot();
   act(() => fireEvent(window, new Event("pagehide")));
   expect(loadRecoverySnapshot()).toBeNull();
 });
