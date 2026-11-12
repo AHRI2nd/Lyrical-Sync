@@ -49,6 +49,7 @@ function serializationErrorCode(error: unknown): string | null {
 function saveErrorMessage(error: unknown, t: ReturnType<typeof useI18nStore.getState>["t"]): string {
   if (error instanceof LyricSaveFormatChangedError) return t.toast.saveFormatChanged;
   if (error instanceof Error && error.message === "SRT_ONLY_DATA_NOT_REPRESENTABLE") return t.srtOnlyDataLossMessage;
+  if (String(error).includes("ATOMIC_REPLACED_DURABILITY_UNCERTAIN")) return t.toast.atomicSaveDurabilityUncertain;
   if (String(error).includes("ATOMIC_STAGE_PERMISSION_DENIED")) return t.toast.atomicSaveNeedsFolderWriteAccess;
   if (error instanceof SrtUnrepresentableContentError) return t.toast.srtBlankRowsUnsupported;
   if (error instanceof SrtLossyDocumentError) return t.toast.srtLossyDocument;

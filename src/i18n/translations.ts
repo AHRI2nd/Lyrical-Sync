@@ -277,6 +277,7 @@ export interface Translations {
     saveFailed: string;
     saveFormatChanged: string;
     atomicSaveNeedsFolderWriteAccess: string;
+    atomicSaveDurabilityUncertain: string;
     srtBlankRowsUnsupported: string;
     vttBlankRowsUnsupported: string;
     vttInvalidSyllableTime: string;
@@ -673,6 +674,7 @@ const ko: Translations = {
     saveFailed: "저장에 실패했습니다",
     saveFormatChanged: "북마크가 가리키는 파일의 형식이 바뀌어 저장하지 않았습니다. 다른 이름으로 저장에서 원하는 형식을 선택해 주세요.",
     atomicSaveNeedsFolderWriteAccess: "안전한 저장에 필요한 임시 파일을 이 폴더에 만들 수 없습니다. 폴더 쓰기 권한을 허용하거나 쓰기 가능한 위치에 다른 이름으로 저장하세요.",
+    atomicSaveDurabilityUncertain: "파일 내용은 이미 교체되었을 수 있지만 저장 완료를 확인하지 못했습니다. 다시 저장하기 전에 파일 내용을 확인하세요.",
     srtBlankRowsUnsupported: "SRT는 빈 문단을 보존할 수 없습니다. 빈 줄을 제거하거나 다른 형식으로 저장하세요.",
     vttBlankRowsUnsupported: "VTT는 빈 문단을 보존할 수 없습니다. 빈 줄을 제거하거나 다른 형식으로 저장하세요.",
     vttInvalidSyllableTime: "VTT 자막 구간 안에 담을 수 없는 글자별 타이밍이 있습니다. 타이밍을 조정하거나 다른 형식으로 저장하세요.",
@@ -1094,6 +1096,7 @@ const en: Translations = {
     saveFailed: "Failed to save",
     saveFormatChanged: "The bookmarked file now has a different format, so it was not saved. Use Save As and choose the intended format.",
     atomicSaveNeedsFolderWriteAccess: "This folder does not allow the temporary file needed for a safe save. Grant write access to the folder or use Save As to choose a writable location.",
+    atomicSaveDurabilityUncertain: "The file may already contain the new content, but the save could not be confirmed complete. Check the file before trying again.",
     srtBlankRowsUnsupported: "SRT cannot preserve blank paragraph rows. Remove the blank rows or save in another format.",
     vttBlankRowsUnsupported: "VTT cannot preserve blank paragraph rows. Remove the blank rows or save in another format.",
     vttInvalidSyllableTime: "Some syllable timings do not fit inside their VTT cue. Adjust the timings or save in another format.",
@@ -1514,6 +1517,7 @@ const ja: Translations = {
     saveFailed: "保存に失敗しました",
     saveFormatChanged: "ブックマーク先のファイル形式が変わったため保存しませんでした。名前を付けて保存から形式を選択してください。",
     atomicSaveNeedsFolderWriteAccess: "安全に保存するための一時ファイルをこのフォルダーに作成できません。フォルダーへの書き込みを許可するか、書き込み可能な場所に名前を付けて保存してください。",
+    atomicSaveDurabilityUncertain: "ファイルの内容はすでに置き換わっている可能性がありますが、保存完了を確認できませんでした。再保存する前にファイルの内容を確認してください。",
     srtBlankRowsUnsupported: "SRTでは空の段落を保持できません。空行を削除するか、別の形式で保存してください。",
     vttBlankRowsUnsupported: "VTTでは空の段落を保持できません。空行を削除するか、別の形式で保存してください。",
     vttInvalidSyllableTime: "文字ごとのタイミングがVTT字幕区間に収まりません。タイミングを調整するか、別の形式で保存してください。",

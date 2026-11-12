@@ -155,6 +155,22 @@ describe("App document confirmation and keyboard boundaries", () => {
     await waitFor(() => expect(useLrcStore.getState().isDirty).toBe(true));
     expect(closeWindow).not.toHaveBeenCalled();
   });
+
+  it("warns that a failed atomic save may already have replaced the file", async () => {
+    const t = useI18nStore.getState().t;
+    useLrcStore.setState({ lrcPath: "/draft.lrc", isDirty: true });
+    vi.mocked(invoke).mockRejectedValue(new Error("ATOMIC_REPLACED_DURABILITY_UNCERTAIN: sync failed"));
+    render(<App />);
+    await waitFor(() => expect(closeRequestedHandler.current).toBeTypeOf("function"));
+    act(() => closeRequestedHandler.current?.({ preventDefault: vi.fn() }));
+    const dialog = await screen.findByRole("dialog", { name: t.closeUnsavedTitle });
+
+    fireEvent.click(within(dialog).getByRole("button", { name: t.save }));
+
+    expect(await screen.findByText(t.toast.atomicSaveDurabilityUncertain)).toBeTruthy();
+    expect(useLrcStore.getState().isDirty).toBe(true);
+    expect(closeWindow).not.toHaveBeenCalled();
+  });
   const incoming = {
     audio: ["/new.mp3"], lyrics: ["/new.lrc"], both: ["/new.mp3", "/new.lrc"],
   } as const;

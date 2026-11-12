@@ -3,6 +3,8 @@ use std::io;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+pub const DURABILITY_UNCERTAIN_CODE: &str = "ATOMIC_REPLACED_DURABILITY_UNCERTAIN";
+
 pub fn write_atomic(path: &Path, content: &str) -> io::Result<()> {
     #[cfg(target_os = "macos")]
     {
@@ -46,6 +48,14 @@ fn destination(path: &Path) -> io::Result<(PathBuf, Option<fs::Metadata>)> {
 }
 
 fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> io::Result<()> {
+    write_with_sync(path, write, sync_parent_directory)
+}
+
+fn write_with_sync(
+    path: &Path,
+    write: impl FnOnce(&mut File) -> io::Result<()>,
+    sync_parent: impl FnOnce(&Path) -> io::Result<()>,
+) -> io::Result<()> {
     let (target, original_metadata) = destination(path)?;
     let permissions = original_metadata.as_ref().map(fs::Metadata::permissions);
     #[cfg(windows)]
@@ -85,8 +95,18 @@ fn write_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) -> i
     }
     // A successful return includes directory durability on Unix. A sync failure
     // after the rename is reported as uncertain durability, never as success.
-    #[cfg(unix)]
-    File::open(parent)?.sync_all()?;
+    sync_parent(parent)
+        .map_err(|error| io::Error::other(format!("{DURABILITY_UNCERTAIN_CODE}: {error}")))?;
+    Ok(())
+}
+
+#[cfg(unix)]
+fn sync_parent_directory(parent: &Path) -> io::Result<()> {
+    File::open(parent)?.sync_all()
+}
+
+#[cfg(not(unix))]
+fn sync_parent_directory(_parent: &Path) -> io::Result<()> {
     Ok(())
 }
 
@@ -211,6 +231,23 @@ fn persist_windows(
 mod tests {
     use super::*;
     use std::io::Write;
+
+    #[test]
+    fn directory_sync_failure_reports_uncertain_publication_and_keeps_new_bytes() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("song.lrc");
+        std::fs::write(&path, "original").unwrap();
+
+        let error = write_with_sync(
+            &path,
+            |file| file.write_all(b"updated"),
+            |_| Err(io::Error::other("injected directory sync failure")),
+        )
+        .unwrap_err();
+
+        assert!(error.to_string().starts_with(DURABILITY_UNCERTAIN_CODE));
+        assert_eq!(std::fs::read_to_string(path).unwrap(), "updated");
+    }
 
     #[cfg(unix)]
     #[test]
