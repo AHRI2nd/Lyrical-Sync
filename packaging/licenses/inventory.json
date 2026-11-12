@@ -91,6 +91,37 @@
     {
       "documents": [
         {
+          "file": "COPYRIGHT",
+          "text": "d00d6d48df2db6f91e4ca9c656e5e30782d5becf52bb3e5bfd0aff467bd37781"
+        },
+        {
+          "file": "LICENSE-APACHE",
+          "text": "143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4"
+        },
+        {
+          "file": "LICENSE-Apache-2.0_WITH_LLVM-exception",
+          "text": "ae6e99144a735503e5b54b92e09cf8dec2e7f2e25706ec5c98af2f7d2242dc75"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "text": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ],
+      "ecosystem": "cargo",
+      "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+      "name": "ambient-authority",
+      "repository": "https://github.com/sunfishcode/ambient-authority",
+      "sourceArchive": "https://crates.io/api/v1/crates/ambient-authority/0.0.2/download",
+      "sourceCommit": "d0d3c2d5c3fb00b027dfbd2e9041f686d7529775",
+      "targets": [
+        "macOS ARM64",
+        "Windows x64"
+      ],
+      "version": "0.0.2"
+    },
+    {
+      "documents": [
+        {
           "file": "LICENSE-APACHE",
           "text": "b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e"
         },
@@ -464,6 +495,68 @@
         "Windows x64"
       ],
       "version": "1.2.2"
+    },
+    {
+      "documents": [
+        {
+          "file": "COPYRIGHT",
+          "text": "a8799c2a07dabcb8d52481f885c5ab7000acb8a4d3cd9503fbcb97c84d350e65"
+        },
+        {
+          "file": "LICENSE-APACHE",
+          "text": "143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4"
+        },
+        {
+          "file": "LICENSE-Apache-2.0_WITH_LLVM-exception",
+          "text": "ae6e99144a735503e5b54b92e09cf8dec2e7f2e25706ec5c98af2f7d2242dc75"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "text": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ],
+      "ecosystem": "cargo",
+      "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+      "name": "cap-primitives",
+      "repository": "https://github.com/bytecodealliance/cap-std",
+      "sourceArchive": "https://crates.io/api/v1/crates/cap-primitives/4.0.3/download",
+      "sourceCommit": "b7acf8e8807fe3fab991884d2208b7e03d35a409",
+      "targets": [
+        "macOS ARM64",
+        "Windows x64"
+      ],
+      "version": "4.0.3"
+    },
+    {
+      "documents": [
+        {
+          "file": "COPYRIGHT",
+          "text": "6b1691fdee3b03c3946696a7be125fcf50eff310b9486fac850c1b8aea91478b"
+        },
+        {
+          "file": "LICENSE-APACHE",
+          "text": "143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4"
+        },
+        {
+          "file": "LICENSE-Apache-2.0_WITH_LLVM-exception",
+          "text": "ae6e99144a735503e5b54b92e09cf8dec2e7f2e25706ec5c98af2f7d2242dc75"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "text": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ],
+      "ecosystem": "cargo",
+      "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+      "name": "cap-std",
+      "repository": "https://github.com/bytecodealliance/cap-std",
+      "sourceArchive": "https://crates.io/api/v1/crates/cap-std/4.0.3/download",
+      "sourceCommit": "b7acf8e8807fe3fab991884d2208b7e03d35a409",
+      "targets": [
+        "macOS ARM64",
+        "Windows x64"
+      ],
+      "version": "4.0.3"
     },
     {
       "documents": [
@@ -1648,6 +1741,37 @@
     {
       "documents": [
         {
+          "file": "COPYRIGHT",
+          "text": "e196ffeb5ab101e9ec8bbe395c9f367c5380ee2d28c47e5c03371523798a9af7"
+        },
+        {
+          "file": "LICENSE-APACHE",
+          "text": "143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4"
+        },
+        {
+          "file": "LICENSE-Apache-2.0_WITH_LLVM-exception",
+          "text": "ae6e99144a735503e5b54b92e09cf8dec2e7f2e25706ec5c98af2f7d2242dc75"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "text": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ],
+      "ecosystem": "cargo",
+      "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+      "name": "fs-set-times",
+      "repository": "https://github.com/bytecodealliance/fs-set-times",
+      "sourceArchive": "https://crates.io/api/v1/crates/fs-set-times/0.20.3/download",
+      "sourceCommit": "56406c912238a253f01f10446541f2cf2d9a88c3",
+      "targets": [
+        "macOS ARM64",
+        "Windows x64"
+      ],
+      "version": "0.20.3"
+    },
+    {
+      "documents": [
+        {
           "file": "LICENSE",
           "text": "eb69613e00e596e13d2f58e820aee10e9d51754b91d7111bc997f1fc90791f66"
         }
@@ -2197,6 +2321,122 @@
     {
       "documents": [
         {
+          "file": "COPYRIGHT",
+          "text": "f0c1d22de8bd3b776a40f2691f08b84e91c7bafc78b72a51150e231002b88db3"
+        },
+        {
+          "file": "LICENSE-APACHE",
+          "text": "143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4"
+        },
+        {
+          "file": "LICENSE-Apache-2.0_WITH_LLVM-exception",
+          "text": "ae6e99144a735503e5b54b92e09cf8dec2e7f2e25706ec5c98af2f7d2242dc75"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "text": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ],
+      "ecosystem": "cargo",
+      "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+      "name": "io-extras",
+      "repository": "https://github.com/sunfishcode/io-extras",
+      "sourceArchive": "https://crates.io/api/v1/crates/io-extras/0.19.0/download",
+      "sourceCommit": "943084024810db2d674050af664a1e10c81b58a0",
+      "targets": [
+        "macOS ARM64",
+        "Windows x64"
+      ],
+      "version": "0.19.0"
+    },
+    {
+      "documents": [
+        {
+          "file": "COPYRIGHT",
+          "text": "495c30b45120f8af07cfa26eb9cb1ebfe8324560dca2b3b1e76cad1b9b6b489a"
+        },
+        {
+          "file": "LICENSE-APACHE",
+          "text": "143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4"
+        },
+        {
+          "file": "LICENSE-Apache-2.0_WITH_LLVM-exception",
+          "text": "ae6e99144a735503e5b54b92e09cf8dec2e7f2e25706ec5c98af2f7d2242dc75"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "text": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ],
+      "ecosystem": "cargo",
+      "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+      "name": "io-lifetimes",
+      "repository": "https://github.com/sunfishcode/io-lifetimes",
+      "sourceArchive": "https://crates.io/api/v1/crates/io-lifetimes/2.0.4/download",
+      "sourceCommit": "37b9d1bc5d70ec81c0ea862f34b853aef4c4b949",
+      "targets": [
+        "macOS ARM64",
+        "Windows x64"
+      ],
+      "version": "2.0.4"
+    },
+    {
+      "documents": [
+        {
+          "file": "COPYRIGHT",
+          "text": "495c30b45120f8af07cfa26eb9cb1ebfe8324560dca2b3b1e76cad1b9b6b489a"
+        },
+        {
+          "file": "LICENSE-APACHE",
+          "text": "143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4"
+        },
+        {
+          "file": "LICENSE-Apache-2.0_WITH_LLVM-exception",
+          "text": "ae6e99144a735503e5b54b92e09cf8dec2e7f2e25706ec5c98af2f7d2242dc75"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "text": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ],
+      "ecosystem": "cargo",
+      "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+      "name": "io-lifetimes",
+      "repository": "https://github.com/sunfishcode/io-lifetimes",
+      "sourceArchive": "https://crates.io/api/v1/crates/io-lifetimes/3.0.1/download",
+      "sourceCommit": "a260eb48d54cab4555fcf21bb496ca7235277034",
+      "targets": [
+        "macOS ARM64",
+        "Windows x64"
+      ],
+      "version": "3.0.1"
+    },
+    {
+      "documents": [
+        {
+          "file": "LICENSE-APACHE",
+          "text": "6366ebae0a4c6d4a2d5f230c72ac776b34a1c638223e8a0b6ff34ee31b338f80"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "text": "47dc9ff29128ddfb4d6a0435383c9f89120bc374dbcc1dd00b933a0b28aa7865"
+        }
+      ],
+      "ecosystem": "cargo",
+      "license": "MIT OR Apache-2.0",
+      "name": "ipnet",
+      "repository": "https://github.com/krisprice/ipnet",
+      "sourceArchive": "https://crates.io/api/v1/crates/ipnet/2.12.0/download",
+      "sourceCommit": "65c04c35566890a1c8381fa524d0ab42e7d32364",
+      "targets": [
+        "macOS ARM64",
+        "Windows x64"
+      ],
+      "version": "2.12.0"
+    },
+    {
+      "documents": [
+        {
           "file": "LICENSE-APACHE",
           "text": "b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e"
         },
@@ -2465,6 +2705,29 @@
         "Windows x64"
       ],
       "version": "0.38.0"
+    },
+    {
+      "documents": [
+        {
+          "file": "LICENSE-APACHE",
+          "text": "15a9683b647225a614102c2a70e5c5b654e222647605ba7a4a88e230e774b630"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "text": "ef2b3bbd7b718a7881253226313f103e89b379e1279681a3c1ebcb65a27d209d"
+        }
+      ],
+      "ecosystem": "cargo",
+      "license": "MIT OR Apache-2.0",
+      "name": "maybe-owned",
+      "repository": "https://github.com/rustonaut/maybe-owned",
+      "sourceArchive": "https://crates.io/api/v1/crates/maybe-owned/0.3.4/download",
+      "sourceCommit": "a00769e3332fb2f93f2b58f0b731fbb6222fa66c",
+      "targets": [
+        "macOS ARM64",
+        "Windows x64"
+      ],
+      "version": "0.3.4"
     },
     {
       "documents": [
@@ -6321,6 +6584,24 @@
       "documents": [
         {
           "file": "LICENSE",
+          "text": "ae6e99144a735503e5b54b92e09cf8dec2e7f2e25706ec5c98af2f7d2242dc75"
+        }
+      ],
+      "ecosystem": "cargo",
+      "license": "Apache-2.0 WITH LLVM-exception",
+      "name": "winx",
+      "repository": "https://github.com/sunfishcode/winx",
+      "sourceArchive": "https://crates.io/api/v1/crates/winx/0.36.4/download",
+      "sourceCommit": "23d6e2793b27979f7a7abbdbf1b2aedc1d0c78f3",
+      "targets": [
+        "Windows x64"
+      ],
+      "version": "0.36.4"
+    },
+    {
+      "documents": [
+        {
+          "file": "LICENSE",
           "text": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2"
         }
       ],
@@ -6685,9 +6966,9 @@
     "packaging/licenses/upstream/c76f740d1521b9bed9ca7a04ad526c310493c62621b1341d623b431736533b30.txt": "c76f740d1521b9bed9ca7a04ad526c310493c62621b1341d623b431736533b30",
     "packaging/licenses/upstream/f5c342c49f3ac804f3e8e7bb62a8040a44c50d47bb36902b1abd13f66a1adf8b.txt": "f5c342c49f3ac804f3e8e7bb62a8040a44c50d47bb36902b1abd13f66a1adf8b",
     "scripts/generate-notices.py": "4953e82aee8e9a07168fcc6d17467c02a83d28d51ba69de00efb62fb91151c0e",
-    "src-tauri/Cargo.lock": "6020f7921c06c58451f34ba87de55bbdba134bf3dac5c8d01aaaabff555d37eb",
-    "src-tauri/Cargo.toml": "16febc017aa5d401ee9fc72077534b4ffb060e63546c6316837283dbc0fafdc8"
+    "src-tauri/Cargo.lock": "1bbb293834e527a766b74e2292ee02326d76e680399f5989ea5d08bfeaa16384",
+    "src-tauri/Cargo.toml": "3ddfe8efa410ed27058a17a33b8a0a40a31d2889215de1b5823b78f71c1240ef"
   },
-  "noticeSha256": "53b8973c92daaaded3eb30b49ef2c25ebdade34afa430b7c2006b2048e21090e",
+  "noticeSha256": "463e08aa0fefabe8980a3cdcf527aac35f337c5f26cf134735bac42a9362c2a2",
   "schema": 1
 }
