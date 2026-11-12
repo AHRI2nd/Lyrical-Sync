@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-summarize-audio-stream"
+description = "Enables the summarize_audio_stream command without any pre-configured scope."
+commands.allow = ["summarize_audio_stream"]
+
+[[permission]]
+identifier = "deny-summarize-audio-stream"
+description = "Denies the summarize_audio_stream command without any pre-configured scope."
+commands.deny = ["summarize_audio_stream"]

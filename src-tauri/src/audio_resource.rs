@@ -29,7 +29,7 @@ pub(crate) fn open_audio_file(path: &Path) -> Result<File, String> {
     Ok(file)
 }
 
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AudioResourceInfo {
     pub file_bytes: u64,

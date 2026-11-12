@@ -14,6 +14,7 @@
     "allow-read-audio-file",
     "allow-prepare-audio-stream",
     "allow-cancel-audio-stream-preparation",
+    "allow-summarize-audio-stream",
     "allow-revoke-audio-stream",
     "allow-decode-audio-to-wav",
     "allow-read-audio-metadata",

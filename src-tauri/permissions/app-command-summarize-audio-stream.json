@@ -1,0 +1,8 @@
+{
+  "$schema": "../../gen/schemas/desktop-schema.json",
+  "identifier": "app-command:summarize-audio-stream",
+  "description": "Generate a bounded waveform summary for the prepared audio stream",
+  "allow": [
+    { "command": "summarize_audio_stream" }
+  ]
+}

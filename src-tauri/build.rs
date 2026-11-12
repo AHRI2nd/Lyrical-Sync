@@ -16,6 +16,7 @@ fn main() {
         "read_audio_file",
         "prepare_audio_stream",
         "cancel_audio_stream_preparation",
+        "summarize_audio_stream",
         "revoke_audio_stream",
         "decode_audio_to_wav",
         "read_audio_metadata",

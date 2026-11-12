@@ -10,6 +10,7 @@ mod alignment_process;
 mod atomic_write;
 mod audio_resource;
 mod audio_stream;
+mod audio_waveform;
 mod bpm_audio;
 mod batch_output;
 #[cfg(any(target_os = "windows", test))]
@@ -217,6 +218,11 @@ async fn prepare_audio_stream(
     let path = path_validation::validate_safe_path(&path)?;
     authorize_window_path(&window, &path)?;
     let content_type = audio_stream::content_type_for_path(&path);
+    let extension = path
+        .extension()
+        .and_then(std::ffi::OsStr::to_str)
+        .unwrap_or_default()
+        .to_ascii_lowercase();
     let stream_state = state.inner().clone();
     let preparation = stream_state.begin_preparation(run_id)?;
     let snapshot_permit = stream_state
@@ -234,6 +240,7 @@ async fn prepare_audio_stream(
             snapshot,
             info,
             content_type,
+            extension,
             snapshot_permit,
         )?;
         if let Err(error) = preparation.check_cancelled() {
@@ -253,6 +260,49 @@ async fn cancel_audio_stream_preparation(
 ) -> Result<(), String> {
     state.cancel_preparation_and_wait(&run_id).await;
     Ok(())
+}
+
+#[tauri::command]
+async fn summarize_audio_stream(
+    stream_url: String,
+    run_id: String,
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, audio_stream::AudioStreamState>,
+) -> Result<tauri::ipc::Response, String> {
+    if window.label() != "main" {
+        return Err("Audio streaming is restricted to the main window".into());
+    }
+    let stream_state = state.inner().clone();
+    let preparation = stream_state.begin_preparation(run_id)?;
+    let worker_state = stream_state.clone();
+    let cleanup_url = stream_url.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        preparation.check_cancelled()?;
+        let response = worker_state.with_snapshot(&stream_url, |file, extension, expected_info| {
+            let summary = audio_waveform::decode_audio_file(
+                file,
+                extension,
+                preparation.cancel_flag(),
+            )?;
+            if summary.sample_rate != expected_info.sample_rate
+                || summary.channels != expected_info.channels
+                || (summary.duration_nanos / 1_000_000_000)
+                    .abs_diff(expected_info.duration_seconds)
+                    > 2
+            {
+                return Err("AUDIO_METADATA_UNAVAILABLE".into());
+            }
+            summary.encode()
+        })?;
+        preparation.check_cancelled()?;
+        Ok(tauri::ipc::Response::new(response))
+    })
+    .await
+    .map_err(|error| format!("Audio waveform worker failed: {error}"))?;
+    if result.is_err() {
+        stream_state.revoke_url(&cleanup_url);
+    }
+    result
 }
 
 #[tauri::command]
@@ -720,6 +770,7 @@ pub fn run() {
             read_audio_file,
             prepare_audio_stream,
             cancel_audio_stream_preparation,
+            summarize_audio_stream,
             revoke_audio_stream,
             analyze_bpm_prefix,
             cancel_audio_analysis,

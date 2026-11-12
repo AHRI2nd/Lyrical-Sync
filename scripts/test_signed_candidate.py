@@ -21,6 +21,7 @@ class SignedCandidateTests(unittest.TestCase):
         commands = {
             'prepare_audio_stream',
             'cancel_audio_stream_preparation',
+            'summarize_audio_stream',
             'revoke_audio_stream',
         }
         build_source = (ROOT / 'src-tauri/build.rs').read_text(encoding='utf-8')

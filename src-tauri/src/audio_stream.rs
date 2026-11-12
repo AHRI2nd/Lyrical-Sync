@@ -107,6 +107,8 @@ pub struct AudioStreamDescriptor {
 struct AudioStreamEntry {
     snapshot: Mutex<tempfile::NamedTempFile>,
     _snapshot_permit: tokio::sync::OwnedSemaphorePermit,
+    audio_info: crate::audio_resource::AudioResourceInfo,
+    extension: String,
     file_bytes: u64,
     content_type: String,
     revoked: AtomicBool,
@@ -262,6 +264,10 @@ impl AudioPreparationRun {
             Ok(())
         }
     }
+
+    pub fn cancel_flag(&self) -> &AtomicBool {
+        &self.cancel
+    }
 }
 
 impl Drop for AudioPreparationRun {
@@ -286,11 +292,12 @@ impl AudioStreamState {
         snapshot: tempfile::NamedTempFile,
         info: crate::audio_resource::AudioResourceInfo,
         content_type: String,
+        extension: String,
     ) -> Result<AudioStreamDescriptor, String> {
         let permit = self
             .try_acquire_snapshot()
             .ok_or("Audio snapshot capacity is full")?;
-        self.register_with_permit(snapshot, info, content_type, permit)
+        self.register_with_permit(snapshot, info, content_type, extension, permit)
     }
 
     pub(crate) fn register_with_permit(
@@ -298,6 +305,7 @@ impl AudioStreamState {
         snapshot: tempfile::NamedTempFile,
         info: crate::audio_resource::AudioResourceInfo,
         content_type: String,
+        extension: String,
         snapshot_permit: tokio::sync::OwnedSemaphorePermit,
     ) -> Result<AudioStreamDescriptor, String> {
         let file_bytes = snapshot
@@ -337,6 +345,8 @@ impl AudioStreamState {
             Arc::new(AudioStreamEntry {
                 snapshot: Mutex::new(snapshot),
                 _snapshot_permit: snapshot_permit,
+                audio_info: info.clone(),
+                extension,
                 file_bytes,
                 content_type: content_type.clone(),
                 revoked: AtomicBool::new(false),
@@ -369,6 +379,47 @@ impl AudioStreamState {
         } else {
             false
         }
+    }
+
+    pub(crate) fn with_snapshot<T>(
+        &self,
+        stream_url: &str,
+        operation: impl FnOnce(
+            std::fs::File,
+            &str,
+            &crate::audio_resource::AudioResourceInfo,
+        ) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let token = token_from_url(stream_url).ok_or("Invalid audio stream URL")?;
+        let entry = self
+            .registry
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .entries
+            .get(token)
+            .cloned()
+            .ok_or("Audio stream is unavailable")?;
+        if entry.revoked.load(Ordering::Acquire) {
+            return Err("Audio stream is unavailable".into());
+        }
+        let snapshot = entry
+            .snapshot
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        if entry.revoked.load(Ordering::Acquire) {
+            return Err("Audio stream is unavailable".into());
+        }
+        let mut file = snapshot
+            .as_file()
+            .try_clone()
+            .map_err(|error| format!("Audio snapshot could not be opened: {error}"))?;
+        file.seek(SeekFrom::Start(0))
+            .map_err(|error| format!("Audio snapshot seek failed: {error}"))?;
+        let result = operation(file, &entry.extension, &entry.audio_info)?;
+        if entry.revoked.load(Ordering::Acquire) {
+            return Err("Audio stream is unavailable".into());
+        }
+        Ok(result)
     }
 
     pub(crate) fn response(
@@ -579,7 +630,7 @@ mod tests {
         content_type_for_path, parse_byte_range, plan_response, read_range, token_from_url,
         AudioStreamState, ByteRange, StreamResponsePlan,
     };
-    use std::io::Write;
+    use std::io::{Read, Write};
 
     fn register_test_stream() -> (AudioStreamState, super::AudioStreamDescriptor) {
         let mut snapshot = tempfile::NamedTempFile::new().unwrap();
@@ -596,6 +647,7 @@ mod tests {
                     estimated_pcm_bytes: 48_000 * 4,
                 },
                 "audio/wav".into(),
+                "wav".into(),
             )
             .unwrap();
         (state, descriptor)
@@ -615,6 +667,7 @@ mod tests {
                     estimated_pcm_bytes: 48_000 * 4,
                 },
                 "audio/wav".into(),
+                "wav".into(),
             )
             .unwrap()
     }
@@ -817,6 +870,7 @@ mod tests {
                 estimated_pcm_bytes: 48_000 * 4,
             },
             "audio/wav".into(),
+            "wav".into(),
         );
         assert!(result.unwrap_err().contains("capacity"));
         assert!(state.revoke_url(&first.stream_url));
@@ -846,6 +900,7 @@ mod tests {
                     estimated_pcm_bytes: 48_000 * 4,
                 },
                 "audio/wav".into(),
+                "wav".into(),
             )
             .unwrap();
         assert!(path.exists());
@@ -871,6 +926,26 @@ mod tests {
         assert!(state.try_acquire_snapshot().is_none());
         drop(response_entry);
         assert!(state.try_acquire_snapshot().is_some());
+    }
+
+    #[test]
+    fn waveform_summary_reads_the_registered_snapshot_and_rejects_revoked_tokens() {
+        let (state, descriptor) = register_test_stream();
+        let bytes = state
+            .with_snapshot(&descriptor.stream_url, |mut file, extension, info| {
+                let mut bytes = Vec::new();
+                file.read_to_end(&mut bytes)
+                    .map_err(|error| error.to_string())?;
+                assert_eq!(extension, "wav");
+                assert_eq!(info.sample_rate, 48_000);
+                Ok(bytes)
+            })
+            .unwrap();
+        assert_eq!(bytes, b"0123456789");
+        assert!(state.revoke_url(&descriptor.stream_url));
+        assert!(state
+            .with_snapshot(&descriptor.stream_url, |_, _, _| Ok(()))
+            .is_err());
     }
 
     #[test]
