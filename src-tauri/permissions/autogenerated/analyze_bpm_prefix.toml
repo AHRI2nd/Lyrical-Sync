@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-analyze-bpm-prefix"
+description = "Enables the analyze_bpm_prefix command without any pre-configured scope."
+commands.allow = ["analyze_bpm_prefix"]
+
+[[permission]]
+identifier = "deny-analyze-bpm-prefix"
+description = "Denies the analyze_bpm_prefix command without any pre-configured scope."
+commands.deny = ["analyze_bpm_prefix"]

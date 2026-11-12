@@ -16,6 +16,8 @@ fn main() {
         "read_audio_file",
         "decode_audio_to_wav",
         "read_audio_metadata",
+        "analyze_bpm_prefix",
+        "cancel_audio_analysis",
         "write_batch_output",
         "set_models_dir_override",
         "get_models_dir",

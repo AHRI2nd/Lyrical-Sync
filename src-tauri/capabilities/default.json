@@ -14,6 +14,8 @@
     "allow-read-audio-file",
     "allow-decode-audio-to-wav",
     "allow-read-audio-metadata",
+    "allow-analyze-bpm-prefix",
+    "allow-cancel-audio-analysis",
     "allow-write-batch-output",
     "allow-set-models-dir-override",
     "allow-get-models-dir",
