@@ -338,4 +338,22 @@ mod tests {
         assert!(!output_path.exists());
         assert_eq!(std::fs::read(source_path).unwrap(), source_bytes);
     }
+
+    #[test]
+    fn malformed_aiff_drops_the_failed_wav_snapshot() {
+        let mut source_bytes = include_bytes!("../test-fixtures/audio-prefix/prefix.aiff").to_vec();
+        source_bytes[0] = b'X';
+        let dir = tempfile::tempdir().unwrap();
+        let source_path = dir.path().join("malformed.aiff");
+        std::fs::write(&source_path, &source_bytes).unwrap();
+        let source = std::fs::File::open(&source_path).unwrap();
+        let mut output = tempfile::NamedTempFile::new().unwrap();
+        let output_path = output.path().to_path_buf();
+
+        assert!(transcode_aiff_to_wav(source, &mut output, || Ok(())).is_err());
+        drop(output);
+
+        assert!(!output_path.exists());
+        assert_eq!(std::fs::read(source_path).unwrap(), source_bytes);
+    }
 }
