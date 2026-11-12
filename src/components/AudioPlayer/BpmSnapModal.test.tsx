@@ -247,3 +247,49 @@ it("reports the actual changed count for an all-lines application", () => {
 
   expect(screen.getByText("1 applied")).toBeTruthy();
 });
+
+it('keeps manual BPM and tap controls usable during analysis without allowing a late result to overwrite them', async () => {
+  let finish!: (value: ReturnType<typeof decoded>) => void;
+  vi.mocked(decodeAudioSamples).mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+  baseRender(<BpmSnapModal onClose={() => {}} selectedIds={['a']} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Analyze audio' }));
+
+  expect(decodeAudioSamples).toHaveBeenCalledOnce();
+  const tempo = screen.getByLabelText<HTMLInputElement>('Tempo');
+  const offset = screen.getByLabelText<HTMLInputElement>('Offset');
+  expect(screen.getByRole('button', { name: 'Tap tempo' })).toBeTruthy();
+  const clock = vi.spyOn(performance, 'now');
+  clock.mockReturnValue(1000);
+  fireEvent.click(screen.getByRole('button', { name: 'Tap tempo' }));
+  clock.mockReturnValue(1500);
+  fireEvent.click(screen.getByRole('button', { name: 'Tap tempo' }));
+  expect(tempo.value).toBe('120.0');
+  fireEvent.change(tempo, { target: { value: '90' } });
+  fireEvent.change(offset, { target: { value: '0.25' } });
+
+  const apply = screen.getByRole<HTMLButtonElement>('button', { name: 'Apply' });
+  expect(apply.disabled).toBe(false);
+  fireEvent.click(apply);
+  const appliedTimestamp = useLrcStore.getState().doc.lines[0].timestamp;
+  expect(appliedTimestamp).not.toBe(1.34);
+
+  await act(async () => finish(decoded()));
+  expect(tempo.value).toBe('90');
+  expect(offset.value).toBe('0.25');
+  expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(appliedTimestamp);
+});
+
+it('invalidates manual apply when the document changes during analysis', async () => {
+  let finish!: (value: ReturnType<typeof decoded>) => void;
+  vi.mocked(decodeAudioSamples).mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+  baseRender(<BpmSnapModal onClose={() => {}} selectedIds={['a']} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Analyze audio' }));
+  fireEvent.change(screen.getByLabelText('Tempo'), { target: { value: '90' } });
+
+  act(() => useLrcStore.setState({ _documentSession: 1, doc: { ...defaultDocument(), lines: [
+    { id: 'new', text: 'New document', timestamp: 2 },
+  ] } }));
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Apply' })).toBeNull());
+  await act(async () => finish(decoded()));
+  expect(useLrcStore.getState().doc.lines[0]).toMatchObject({ id: 'new', timestamp: 2 });
+});

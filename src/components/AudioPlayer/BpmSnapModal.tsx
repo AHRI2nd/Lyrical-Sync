@@ -20,6 +20,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
   const [confidence, setConfidence] = useState<number | null>(null);
   const [snappedCount, setSnappedCount] = useState<number | null>(null);
   const [analysisRequest, setAnalysisRequest] = useState<string | null>(null);
+  const manualOverrideRef = useRef(false);
   const tapTimesRef = useRef<number[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const dismissedRef = useRef(false);
@@ -54,6 +55,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
     setConfidence(null);
     setSnappedCount(null);
     setError(null);
+    manualOverrideRef.current = false;
     tapTimesRef.current = [];
     setLoading(Boolean(owner.path && analysisAuthorized));
     if (owner.path && analysisAuthorized) {
@@ -69,11 +71,11 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
           owner.path = file.path;
           owner.bookmark = file.bookmark;
           if (!isCurrent()) return;
-          if (result) {
+          if (result && !manualOverrideRef.current) {
             setBpmStr(String(result.bpm));
             setOffsetStr(result.offsetSec.toFixed(2));
             setConfidence(result.confidence);
-          } else setError(t.bpmDetectFailed);
+          } else if (!result) setError(t.bpmDetectFailed);
         })
         .catch(() => {
           if (!controller.signal.aborted && isCurrent()) setError(t.bpmDecodeError);
@@ -99,6 +101,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
 
   const handleTapTempo = () => {
     if (!isCurrent()) return;
+    manualOverrideRef.current = true;
     const now = performance.now();
     const taps = tapTimesRef.current;
     // Reset after a long pause; duplicate or reversed clocks cannot form intervals.
@@ -146,10 +149,11 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
         </div>
 
         <div className="p-5 flex flex-col gap-4">
-          {loading || !sourceCurrent ? (
+          {!sourceCurrent ? (
             <p className="text-sm text-[var(--ls-text-secondary)]">{t.bpmDetecting}</p>
           ) : (
             <>
+              {loading && <p className="text-sm text-[var(--ls-text-secondary)]">{t.bpmDetecting}</p>}
               {!audioPath && <p className="text-sm text-[var(--ls-playhead)]">{t.bpmManualHint}</p>}
               {audioPath && !analysisAuthorized && (
                 <div className="flex flex-col gap-3">
@@ -173,7 +177,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
                     type="text"
                     inputMode="decimal"
                     value={bpmStr}
-                    onChange={(e) => { setBpmStr(e.target.value); setSnappedCount(null); }}
+                    onChange={(e) => { manualOverrideRef.current = true; setBpmStr(e.target.value); setSnappedCount(null); }}
                     className="ls-field w-20 text-white text-xs text-right transition-colors"
                   />
                   <span className="text-[11px] text-[var(--ls-text-secondary)] w-9">BPM</span>
@@ -188,7 +192,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
                     type="text"
                     inputMode="decimal"
                     value={offsetStr}
-                    onChange={(e) => { setOffsetStr(e.target.value); setSnappedCount(null); }}
+                    onChange={(e) => { manualOverrideRef.current = true; setOffsetStr(e.target.value); setSnappedCount(null); }}
                     className="ls-field w-20 text-white text-xs text-right transition-colors"
                   />
                   <span className="text-[11px] text-[var(--ls-text-secondary)] w-9">s</span>
@@ -227,7 +231,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
             >
               {t.cancelLabel}
             </button>
-            {sourceCurrent && !loading && (!audioPath || analysisAuthorized || bpmStr.trim() !== "") && (
+            {sourceCurrent && (!audioPath || analysisAuthorized || bpmStr.trim() !== "") && (
               <button
                 onClick={handleApply}
                 disabled={!valid}
