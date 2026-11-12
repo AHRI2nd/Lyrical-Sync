@@ -9,6 +9,7 @@ mod arm_ai;
 mod alignment_process;
 mod atomic_write;
 mod audio_resource;
+mod audio_aiff;
 mod audio_stream;
 mod audio_waveform;
 mod bpm_audio;
@@ -205,8 +206,8 @@ async fn prepare_audio_stream(
     }
     let path = path_validation::validate_safe_path(&path)?;
     authorize_window_path(&window, &path)?;
-    let content_type = audio_stream::content_type_for_path(&path);
-    let extension = path
+    let mut content_type = audio_stream::content_type_for_path(&path);
+    let mut extension = path
         .extension()
         .and_then(std::ffi::OsStr::to_str)
         .unwrap_or_default()
@@ -219,10 +220,31 @@ async fn prepare_audio_stream(
 
     tokio::task::spawn_blocking(move || {
         preparation.check_cancelled()?;
-        let (snapshot, info) = audio_resource::stage_bounded_audio_file_with_check(
-            &path,
-            || preparation.check_cancelled(),
-        )?;
+        let is_windows_aiff =
+            audio_aiff::needs_windows_playback_transcode(cfg!(target_os = "windows"), &extension);
+        let (snapshot, info) = if is_windows_aiff {
+            let source = audio_resource::open_audio_file(&path)?;
+            if source.metadata().map_err(|error| error.to_string())?.len()
+                > audio_resource::MAX_AUDIO_FILE_BYTES
+            {
+                return Err(audio_resource::AUDIO_RESOURCE_LIMIT_ERROR.into());
+            }
+            let mut output = tempfile::Builder::new()
+                .prefix("lyrical_sync_audio_")
+                .suffix(".wav")
+                .tempfile()
+                .map_err(|error| format!("AIFF playback snapshot creation failed: {error}"))?;
+            let info = audio_aiff::transcode_aiff_to_wav(source, output.as_file_mut(), || {
+                preparation.check_cancelled()
+            })?;
+            extension = "wav".into();
+            content_type = "audio/wav".into();
+            (output, info)
+        } else {
+            audio_resource::stage_bounded_audio_file_with_check(&path, || {
+                preparation.check_cancelled()
+            })?
+        };
         preparation.check_cancelled()?;
         let descriptor = stream_state.register_with_permit(
             snapshot,
