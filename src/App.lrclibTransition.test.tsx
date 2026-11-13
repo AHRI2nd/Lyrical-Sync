@@ -71,6 +71,20 @@ function openLrcLib() {
   return { getByRole, queryByRole };
 }
 
+function jsonResponse(data: unknown) {
+  const value = new TextEncoder().encode(JSON.stringify(data));
+  let read = false;
+  return {
+    ok: true,
+    headers: { get: () => null },
+    body: { getReader: () => ({ read: async () => {
+      if (read) return { done: true, value: undefined };
+      read = true;
+      return { done: false, value };
+    } }) },
+  };
+}
+
 async function searchAndSelect(getByRole: ReturnType<typeof openLrcLib>["getByRole"]) {
   const t = useI18nStore.getState().t;
   await waitFor(() => expect(document.querySelector('.fixed.inset-0 input[type="text"]')).toBeTruthy());
@@ -87,7 +101,7 @@ beforeEach(() => {
   useSettingsStore.setState({ autoCheckUpdate: false, autoSave: false, deviceMode: false });
   invokeMock.mockReset().mockResolvedValue(undefined);
   saveDialog.mockReset().mockResolvedValue(null);
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => [result] }));
+  vi.stubGlobal("fetch", vi.fn().mockImplementation(() => Promise.resolve(jsonResponse([result]))));
 });
 
 afterEach(() => {
@@ -96,7 +110,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it.skip("keeps the dirty document on Cancel and applies the chosen result only after Discard", async () => {
+it("keeps the dirty document on Cancel and applies the chosen result only after Discard", async () => {
   const { getByRole, queryByRole } = openLrcLib();
   await searchAndSelect(getByRole);
   const t = useI18nStore.getState().t;
@@ -116,7 +130,7 @@ it.skip("keeps the dirty document on Cancel and applies the chosen result only a
   expect(useLrcStore.getState().lrcPath).toBeNull();
 });
 
-it.skip("saves an existing dirty file before replacing it and keeps the new file clean only until fetched lyrics apply", async () => {
+it("saves an existing dirty file before replacing it and keeps the new file clean only until fetched lyrics apply", async () => {
   resetDocument({ lrcPath: "/tmp/current.lrc" });
   const { getByRole } = openLrcLib();
   await searchAndSelect(getByRole);
@@ -127,7 +141,7 @@ it.skip("saves an existing dirty file before replacing it and keeps the new file
   expect(useLrcStore.getState().isDirty).toBe(true);
 });
 
-it.skip("asks again after a manual edit during confirmation and lets Escape cancel the top modal", async () => {
+it("asks again after a manual edit during confirmation and lets Escape cancel the top modal", async () => {
   const { getByRole, queryByRole } = openLrcLib();
   await searchAndSelect(getByRole);
   const t = useI18nStore.getState().t;
@@ -142,7 +156,7 @@ it.skip("asks again after a manual edit during confirmation and lets Escape canc
   expect(useLrcStore.getState().doc.metadata.title).toBe("Edited while waiting");
 });
 
-it.skip("does not replace dirty content when writing the selected Save target fails", async () => {
+it("does not replace dirty content when writing the selected Save target fails", async () => {
   resetDocument({ lrcPath: "/tmp/current.lrc" });
   const { getByRole, queryByRole } = openLrcLib();
   await searchAndSelect(getByRole);
@@ -154,7 +168,7 @@ it.skip("does not replace dirty content when writing the selected Save target fa
   expect(useLrcStore.getState().isDirty).toBe(true);
 });
 
-it.skip("rejects search results owned by a document session that has since changed", async () => {
+it("rejects search results owned by a document session that has since changed", async () => {
   const { getByRole, queryByRole } = openLrcLib();
   await waitFor(() => expect(document.querySelector('.fixed.inset-0 input[type="text"]')).toBeTruthy());
   const searchField = document.querySelector('.fixed.inset-0 input[type="text"]') as HTMLInputElement;
@@ -168,7 +182,7 @@ it.skip("rejects search results owned by a document session that has since chang
   expect(queryByRole("dialog", { name: useI18nStore.getState().t.lrclib.title })).toBeTruthy();
 });
 
-it.skip("does not replace an existing document when Save As is cancelled", async () => {
+it("does not replace an existing document when Save As is cancelled", async () => {
   const { getByRole } = openLrcLib();
   await searchAndSelect(getByRole);
   const t = useI18nStore.getState().t;
