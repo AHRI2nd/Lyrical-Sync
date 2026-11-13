@@ -569,12 +569,18 @@ function App() {
   };
 
   const handleOpenLrc = async () => {
+    const owner = useLrcStore.getState();
     try {
       const selected = await openDialog({
         multiple: false,
         filters: [{ name: "Lyrics", extensions: ["lrc", "srt"] }],
       });
-      if (typeof selected === "string") requestDocumentOpen({ lyricsPath: selected });
+      if (typeof selected === "string") {
+        const current = useLrcStore.getState();
+        if (current._documentSession !== owner._documentSession || current._history !== owner._history ||
+            current._future !== owner._future || current._audioSelection !== owner._audioSelection) return;
+        requestDocumentOpen({ lyricsPath: selected });
+      }
     } catch {
       toast.error(t.toast.openFailed);
     }

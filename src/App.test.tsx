@@ -125,6 +125,39 @@ describe("App — drag-and-drop conflict resolution", () => {
     expect(setAudioPathSpy).toHaveBeenCalledWith("/music/song.mp3");
   });
 
+  it("discards a lyric picker result after its document owner changes", async () => {
+    let resolvePicker!: (path: string | null) => void;
+    dialogOpen.mockImplementation(() => new Promise((resolve) => { resolvePicker = resolve; }));
+    invokeMock.mockImplementation((command) => command === "read_lrc_file_with_hash"
+      ? Promise.resolve({ content: "[00:03.00]new document", sha256: "b".repeat(64) })
+      : Promise.resolve(undefined));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: useI18nStore.getState().t.openLrc }));
+    await waitFor(() => expect(resolvePicker).toBeTypeOf("function"));
+    await act(async () => useLrcStore.getState().loadLyricsPath("/tmp/new.lrc"));
+    await act(async () => resolvePicker("/tmp/stale.lrc"));
+
+    expect(invokeMock.mock.calls.filter(([command]) => command === "read_lrc_file_with_hash")).toEqual([
+      ["read_lrc_file_with_hash", { path: "/tmp/new.lrc" }],
+    ]);
+    expect(useLrcStore.getState().doc.lines.map((line) => line.text)).toEqual(["new document"]);
+  });
+
+  it("opens the selected lyrics when the document owner is unchanged", async () => {
+    dialogOpen.mockResolvedValue("/tmp/selected.lrc");
+    invokeMock.mockImplementation((command) => command === "read_lrc_file_with_hash"
+      ? Promise.resolve({ content: "[00:04.00]selected lyric", sha256: "c".repeat(64) })
+      : Promise.resolve(undefined));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: useI18nStore.getState().t.openLrc }));
+
+    await waitFor(() => expect(useLrcStore.getState().lrcPath).toBe("/tmp/selected.lrc"));
+    expect(useLrcStore.getState().doc.lines.map((line) => line.text)).toEqual(["selected lyric"]);
+    expect(useLrcStore.getState().isDirty).toBe(false);
+  });
+
   it("reports callback-listener registration failure and keeps Spotify login unavailable", async () => {
     eventListen.mockImplementation((event: unknown) => event === "spotify-callback"
       ? Promise.reject(new Error("listener unavailable"))
