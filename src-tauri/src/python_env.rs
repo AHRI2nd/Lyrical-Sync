@@ -86,6 +86,7 @@ fn isolate_python_environment(command: &mut tokio::process::Command) {
         "PYTHONSTARTUP",
         "PYTHONEXECUTABLE",
         "PYTHONWARNINGS",
+        "PIP_CONFIG_FILE",
     ] {
         command.env_remove(variable);
     }
@@ -614,8 +615,21 @@ mod isolated_python_environment_tests {
     use super::{ctc_archive_install_command, package_probe_command, python_cmd, python_cmd_inference};
 
     #[test]
-    fn embedded_python_commands_remove_inherited_python_paths() {
-        for command in [python_cmd("python"), python_cmd_inference("python")] {
+    fn managed_python_commands_remove_inherited_python_and_pip_configuration() {
+        let ctc_install = ctc_archive_install_command(
+            std::path::Path::new("python"),
+            std::path::Path::new("ctc.tar.gz"),
+        );
+        let package_probe = package_probe_command(
+            std::path::Path::new("python"),
+            std::path::Path::new("runtime-root"),
+        );
+        for command in [
+            python_cmd("python"),
+            python_cmd_inference("python"),
+            ctc_install,
+            package_probe,
+        ] {
             for key in [
                 "PYTHONHOME",
                 "PYTHONPATH",
@@ -623,6 +637,7 @@ mod isolated_python_environment_tests {
                 "PYTHONSTARTUP",
                 "PYTHONEXECUTABLE",
                 "PYTHONWARNINGS",
+                "PIP_CONFIG_FILE",
             ] {
                 assert!(command.as_std().get_envs().any(|(name, value)| {
                     name == key && value.is_none()
