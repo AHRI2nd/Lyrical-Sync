@@ -66,6 +66,24 @@ class AuditTests(unittest.TestCase):
         self.assertIn('python scripts/test_ai_common_wheel.py', workflow)
         self.assertIn('python scripts/test_ai_profile_locks.py', workflow)
 
+    def test_ci_installs_numpy_before_running_the_sidecar_suite(self):
+        workflow = (ROOT / '.github/workflows/test.yml').read_text(encoding='utf-8')
+        install = 'python -m pip install --only-binary=:all: --require-hashes --no-deps -r scripts/requirements-test-numpy.txt'
+        sidecar_tests = 'python scripts/test_ai_sidecars.py'
+        self.assertIn(install, workflow)
+        test_lock = (ROOT / 'scripts/requirements-test-numpy.txt').read_text(encoding='utf-8')
+        self.assertIn('numpy==2.5.4', test_lock)
+        for lock_name in ('macos-arm64.txt', 'windows-x64.txt', 'windows-arm64.txt'):
+            lock = (ROOT / 'src-tauri/requirements-lock' / lock_name).read_text(encoding='utf-8')
+            numpy_line = next(line for line in lock.splitlines() if line.startswith('numpy=='))
+            self.assertIn(numpy_line.split('--hash=sha256:', 1)[1], test_lock)
+        self.assertLess(workflow.index(install), workflow.index(sidecar_tests))
+        arm_interpreter = next(
+            line for line in workflow.splitlines()
+            if 'sysconfig.get_platform()' in line
+        )
+        self.assertIn('sys.version_info[:2] == (3, 13)', arm_interpreter)
+
     def test_install_report_requires_and_exports_every_resolved_artifact_hash(self):
         report = {
             'version': '1',
