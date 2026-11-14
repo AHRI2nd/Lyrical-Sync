@@ -18,11 +18,12 @@ if (typeof globalThis.localStorage === "undefined") {
 
 // App.tsx가 마운트 시 건드리는 Tauri API 전부 스텁 — 이 테스트는 드래그앤드롭 충돌
 // 해소 로직(App.tsx 자체)만 검증하므로, 실제 IPC/OS 연동은 필요 없음.
-const { dragDropHandler, dialogOpen, closeRequestedHandler, closeWindow, eventListen, appMenuHandlers, appMenuContext, invokeMock } = vi.hoisted(() => ({
+const { dragDropHandler, dialogOpen, closeRequestedHandler, closeWindow, exitApplication, eventListen, appMenuHandlers, appMenuContext, invokeMock } = vi.hoisted(() => ({
   dragDropHandler: { current: null as ((e: unknown) => void) | null },
   dialogOpen: vi.fn(),
   closeRequestedHandler: { current: null as ((event: { preventDefault: () => void }) => void) | null },
   closeWindow: vi.fn(() => Promise.resolve()),
+  exitApplication: vi.fn(() => Promise.resolve()),
   eventListen: vi.fn((..._args: unknown[]) => Promise.resolve(() => {})),
   appMenuHandlers: { current: null as Record<string, (() => void) | undefined> | null },
   appMenuContext: { current: null as { ytdlpInstalled?: boolean } | null },
@@ -40,6 +41,7 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: (...args: unknown[]) => eventL
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: dialogOpen, save: vi.fn() }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
+vi.mock("@tauri-apps/plugin-process", () => ({ exit: exitApplication }));
 vi.mock("@tauri-apps/api/window", () => ({
   getCurrentWindow: () => ({
     onCloseRequested: async (handler: typeof closeRequestedHandler.current) => {
@@ -96,6 +98,7 @@ describe("App — drag-and-drop conflict resolution", () => {
     dragDropHandler.current = null;
     closeRequestedHandler.current = null;
     closeWindow.mockClear();
+    exitApplication.mockClear();
     dialogOpen.mockReset();
     eventListen.mockReset().mockResolvedValue(() => {});
     invokeMock.mockReset().mockResolvedValue(undefined);
@@ -532,6 +535,54 @@ describe("App — drag-and-drop conflict resolution", () => {
     fireEvent.click(screen.getByRole("button", { name: useI18nStore.getState().t.closeWithoutSaving }));
     await waitFor(() => expect(closeWindow).toHaveBeenCalledOnce());
     expect(useLrcStore.getState().doc.lines[0].text).toBe("Unsaved");
+  });
+
+  it("routes native app-menu Quit through the unsaved-close confirmation", async () => {
+    resetLrc({ isDirty: true, doc: { ...defaultDocument(), lines: [{ id: "1", text: "Unsaved", timestamp: 1 }] } });
+    render(<App />);
+    const requestQuit = appMenuHandlers.current?.quit;
+    expect(requestQuit).toBeTypeOf("function");
+
+    act(() => requestQuit?.());
+    const dialog = await screen.findByRole("dialog", { name: useI18nStore.getState().t.closeUnsavedTitle });
+    fireEvent.click(within(dialog).getByRole("button", { name: useI18nStore.getState().t.confirmNewCancel }));
+    expect(closeWindow).not.toHaveBeenCalled();
+    expect(exitApplication).not.toHaveBeenCalled();
+    expect(useLrcStore.getState().isDirty).toBe(true);
+
+    act(() => requestQuit?.());
+    const secondDialog = await screen.findByRole("dialog", { name: useI18nStore.getState().t.closeUnsavedTitle });
+    fireEvent.click(within(secondDialog).getByRole("button", { name: useI18nStore.getState().t.closeWithoutSaving }));
+    await waitFor(() => expect(exitApplication).toHaveBeenCalledOnce());
+    expect(exitApplication).toHaveBeenCalledWith(0);
+    expect(closeWindow).not.toHaveBeenCalled();
+    expect(useLrcStore.getState().doc.lines[0].text).toBe("Unsaved");
+  });
+
+  it("exits immediately from the native app menu when the document is clean", async () => {
+    resetLrc({ isDirty: false });
+    render(<App />);
+    act(() => appMenuHandlers.current?.quit?.());
+    await waitFor(() => expect(exitApplication).toHaveBeenCalledOnce());
+    expect(exitApplication).toHaveBeenCalledWith(0);
+    expect(closeWindow).not.toHaveBeenCalled();
+  });
+
+  it("saves a dirty document before exiting from the native app menu", async () => {
+    resetLrc({
+      isDirty: true,
+      lrcPath: "/tmp/current.lrc",
+      doc: { ...defaultDocument(), lines: [{ id: "1", text: "Unsaved", timestamp: 1 }] },
+    });
+    render(<App />);
+    act(() => appMenuHandlers.current?.quit?.());
+    const dialog = await screen.findByRole("dialog", { name: useI18nStore.getState().t.closeUnsavedTitle });
+    fireEvent.click(within(dialog).getByRole("button", { name: useI18nStore.getState().t.save }));
+
+    await waitFor(() => expect(exitApplication).toHaveBeenCalledOnce());
+    expect(exitApplication).toHaveBeenCalledWith(0);
+    expect(closeWindow).not.toHaveBeenCalled();
+    expect(useLrcStore.getState().isDirty).toBe(false);
   });
 
   it("saves a dirty document before closing when requested", async () => {

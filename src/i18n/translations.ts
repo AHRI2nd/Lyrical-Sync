@@ -66,7 +66,7 @@ export interface Translations {
   };
   menu: {
     file: string; edit: string; playback: string; mode: string; view: string; help: string;
-    settings: string; saveAsLrc: string; saveAsSrt: string;
+    settings: string; saveAsLrc: string; saveAsSrt: string; quit: string;
     playPause: string; skipBack5: string; skipBack1: string;
     skipFwd1: string; skipFwd5: string; stop: string;
   };
@@ -733,7 +733,7 @@ const ko: Translations = {
   },
   menu: {
     file: "파일", edit: "편집", playback: "재생", mode: "모드", view: "보기", help: "도움말",
-    settings: "설정…", saveAsLrc: "LRC로 저장…", saveAsSrt: "SRT로 저장…",
+    settings: "설정…", saveAsLrc: "LRC로 저장…", saveAsSrt: "SRT로 저장…", quit: "Lyrical Sync 종료",
     playPause: "재생 / 일시정지", skipBack5: "5초 뒤로", skipBack1: "1초 뒤로",
     skipFwd1: "1초 앞으로", skipFwd5: "5초 앞으로", stop: "정지",
   },
@@ -1419,7 +1419,7 @@ const en: Translations = {
   },
   menu: {
     file: "File", edit: "Edit", playback: "Playback", mode: "Mode", view: "View", help: "Help",
-    settings: "Settings…", saveAsLrc: "Save as LRC…", saveAsSrt: "Save as SRT…",
+    settings: "Settings…", saveAsLrc: "Save as LRC…", saveAsSrt: "Save as SRT…", quit: "Quit Lyrical Sync",
     playPause: "Play / Pause", skipBack5: "Back 5s", skipBack1: "Back 1s",
     skipFwd1: "Forward 1s", skipFwd5: "Forward 5s", stop: "Stop",
   },
@@ -2106,7 +2106,7 @@ const ja: Translations = {
   },
   menu: {
     file: "ファイル", edit: "編集", playback: "再生", mode: "モード", view: "表示", help: "ヘルプ",
-    settings: "設定…", saveAsLrc: "LRCで保存…", saveAsSrt: "SRTで保存…",
+    settings: "設定…", saveAsLrc: "LRCで保存…", saveAsSrt: "SRTで保存…", quit: "Lyrical Syncを終了",
     playPause: "再生 / 一時停止", skipBack5: "5秒戻る", skipBack1: "1秒戻る",
     skipFwd1: "1秒進む", skipFwd5: "5秒進む", stop: "停止",
   },

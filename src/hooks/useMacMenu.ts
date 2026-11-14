@@ -22,6 +22,7 @@ export interface MacMenuHandlers {
   openSettings: () => void;
   openPreview: () => void;
   openHelp: () => void;
+  quit: () => void;
 }
 
 export interface MacMenuState {
@@ -38,7 +39,7 @@ const isMac =
 type MenuTextKey =
   | "settings" | "newFile" | "openLrc" | "openAudio" | "save" | "saveAsLrc" | "saveAsSrt"
   | "undo" | "redo" | "playPause" | "skipBack5" | "skipBack1" | "skipFwd1" | "skipFwd5"
-  | "stop" | "preview" | "help";
+  | "stop" | "preview" | "help" | "quit";
 type MenuGroupKey = "file" | "edit" | "playback" | "mode" | "view" | "help";
 interface NativeMenuTree {
   menu: Menu;
@@ -56,6 +57,7 @@ let menuUpdateQueue = Promise.resolve();
 function menuText(state: MacMenuState): Record<MenuTextKey, string> {
   const t = state.t;
   return {
+    quit: t.menu.quit,
     settings: t.menu.settings,
     newFile: t.newFileBtn,
     openLrc: t.openLrc,
@@ -130,7 +132,8 @@ function ensureNativeMenu() {
         await item("settings", latestState!.t.menu.settings, () => latestHandlers?.openSettings(), "CmdOrCtrl+,"), await sep(),
         await PredefinedMenuItem.new({ item: "Services" }), await sep(),
         await PredefinedMenuItem.new({ item: "Hide" }), await PredefinedMenuItem.new({ item: "HideOthers" }),
-        await PredefinedMenuItem.new({ item: "ShowAll" }), await sep(), await PredefinedMenuItem.new({ item: "Quit" }),
+        await PredefinedMenuItem.new({ item: "ShowAll" }), await sep(),
+        await item("quit", latestState!.t.menu.quit, () => latestHandlers?.quit(), "CmdOrCtrl+Q"),
       ],
     });
     const fileMenu = await Submenu.new({

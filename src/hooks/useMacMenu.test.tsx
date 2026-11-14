@@ -8,6 +8,7 @@ const menuMocks = vi.hoisted(() => ({
   setAsAppMenu: vi.fn(),
   submenuNew: vi.fn(),
   menuItemNew: vi.fn(),
+  menuItemOptions: [] as Array<{ text?: string; accelerator?: string; action?: () => void }>,
   predefinedNew: vi.fn(),
   checkMenuItemNew: vi.fn(),
   setText: vi.fn(),
@@ -32,7 +33,11 @@ it("reuses one native menu tree when mode or locale changes", async () => {
   menuMocks.setChecked.mockReset().mockResolvedValue(undefined);
   menuMocks.setEnabled.mockReset().mockResolvedValue(undefined);
   menuMocks.submenuNew.mockReset().mockResolvedValue({ setText: menuMocks.setText });
-  menuMocks.menuItemNew.mockReset().mockResolvedValue({ setText: menuMocks.setText });
+  menuMocks.menuItemOptions.length = 0;
+  menuMocks.menuItemNew.mockReset().mockImplementation(async (options: { text?: string; accelerator?: string; action?: () => void }) => {
+    menuMocks.menuItemOptions.push(options);
+    return { setText: menuMocks.setText };
+  });
   menuMocks.predefinedNew.mockReset().mockResolvedValue({});
   menuMocks.checkMenuItemNew.mockReset().mockResolvedValue({
     setText: menuMocks.setText,
@@ -43,7 +48,7 @@ it("reuses one native menu tree when mode or locale changes", async () => {
   const { useMacMenu } = await import("./useMacMenu");
   const translations = (settings: string) => ({
     menu: {
-      settings, file: "File", edit: "Edit", playback: "Playback", mode: "Mode", view: "View", help: "Help",
+      settings, file: "File", edit: "Edit", playback: "Playback", mode: "Mode", view: "View", help: "Help", quit: "Quit Lyrical Sync",
       saveAsLrc: "Save LRC", saveAsSrt: "Save SRT", playPause: "Play", skipBack5: "Back 5",
       skipBack1: "Back 1", skipFwd1: "Forward 1", skipFwd5: "Forward 5", stop: "Stop",
     },
@@ -59,7 +64,9 @@ it("reuses one native menu tree when mode or locale changes", async () => {
     ...overrides,
   });
   const first = state();
-  const { rerender } = renderHook(({ current }) => useMacMenu({} as never, current as never), {
+  const quit = vi.fn();
+  const handlers = { quit } as never;
+  const { rerender } = renderHook(({ current }) => useMacMenu(handlers, current as never), {
     initialProps: { current: first },
     wrapper: StrictMode,
   });
@@ -72,6 +79,10 @@ it("reuses one native menu tree when mode or locale changes", async () => {
   await waitFor(() => expect(menuMocks.setChecked).toHaveBeenCalled());
   expect(menuMocks.setText).toHaveBeenCalledWith("Einstellungen");
   expect(menuMocks.setEnabled).toHaveBeenCalledWith(false);
+  const quitItem = menuMocks.menuItemOptions.find((option) => option.text === "Quit Lyrical Sync");
+  expect(quitItem).toMatchObject({ accelerator: "CmdOrCtrl+Q" });
+  quitItem?.action?.();
+  expect(quit).toHaveBeenCalledOnce();
 });
 
 it("reports native menu creation failures locally", async () => {

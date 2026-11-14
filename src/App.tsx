@@ -305,6 +305,7 @@ function App() {
   const [showNewConfirm, setShowNewConfirm] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const allowCloseRef = useRef(false);
+  const quitRequestedRef = useRef(false);
   const [newConfirmSession, setNewConfirmSession] = useState<number | null>(null);
   const [newConfirmRevision, setNewConfirmRevision] = useState<number | null>(null);
   const [showFormatChooser, setShowFormatChooser] = useState(false);
@@ -526,10 +527,33 @@ function App() {
     }
   };
 
+  const exitApplication = async () => {
+    try {
+      const { exit } = await import("@tauri-apps/plugin-process");
+      await exit(0);
+    } catch {
+      toast.error(t.toast.runtimeFailed);
+    }
+  };
+
+  const requestApplicationQuit = () => {
+    if (useLrcStore.getState().isDirty) {
+      quitRequestedRef.current = true;
+      setShowCloseConfirm(true);
+      return;
+    }
+    void exitApplication();
+  };
+
   const finishCloseAfterSave = async () => {
     if (useLrcStore.getState().isDirty) return;
     setShowCloseConfirm(false);
-    await closeWindow();
+    if (quitRequestedRef.current) {
+      quitRequestedRef.current = false;
+      await exitApplication();
+    } else {
+      await closeWindow();
+    }
   };
 
   const saveBeforeClose = () => {
@@ -720,6 +744,7 @@ function App() {
       openSettings: () => { setSettingsInitialTab("general"); setShowSettings(true); },
       openPreview: () => setShowPreview(true),
       openHelp: () => setShowHelp(true),
+      quit: requestApplicationQuit,
     },
     { t, spotifyMode, youtubeMode, deviceMode, ytdlpInstalled }
   );
@@ -825,9 +850,17 @@ function App() {
           leftLabel={t.save}
           onLeft={saveBeforeClose}
           cancelLabel={t.confirmNewCancel}
-          onCancel={() => setShowCloseConfirm(false)}
+          onCancel={() => { quitRequestedRef.current = false; setShowCloseConfirm(false); }}
           okLabel={t.closeWithoutSaving}
-          onOk={() => { setShowCloseConfirm(false); void closeWindow(); }}
+          onOk={() => {
+            setShowCloseConfirm(false);
+            if (quitRequestedRef.current) {
+              quitRequestedRef.current = false;
+              void exitApplication();
+            } else {
+              void closeWindow();
+            }
+          }}
           priority
         />
       )}
