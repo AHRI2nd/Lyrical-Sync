@@ -127,7 +127,7 @@ function useGlobalKeys() {
 
 // 저장 경로(lrcPath)가 지정된 파일에 한해, 변경 후 일정 시간 멈추면 자동 저장.
 // 새 문서(lrcPath 없음)는 저장 위치가 없으므로 자동 저장하지 않음.
-function useAutoSave(recoveryPending: boolean) {
+function useAutoSave(recoveryPending: boolean, discardingClose: boolean, skipRecoveryOnUnmount: () => boolean) {
   const recoveryFailed = useRef(false);
   const serializationErrorShown = useRef<string | null>(null);
   const lrcExtensionNoticeShown = useRef(false);
@@ -139,6 +139,7 @@ function useAutoSave(recoveryPending: boolean) {
     lrcExtensionNoticeShown.current = false;
   }
   const persistRecovery = () => {
+    if (skipRecoveryOnUnmount()) return;
     const st = useLrcStore.getState();
     if (!st.isDirty || recoveryPending) return;
     const saved = saveRecoverySnapshot(st.doc, st.lrcPath, st.audioPath, null, null, undefined, st._documentSession, st._editRevision, st._lrcFileHash);
@@ -157,7 +158,7 @@ function useAutoSave(recoveryPending: boolean) {
 
   useEffect(() => {
     if (!isDirty) serializationErrorShown.current = null;
-    if (recoveryPending || !autoSave || !lrcPath || !isDirty) return;
+    if (recoveryPending || discardingClose || !autoSave || !lrcPath || !isDirty) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
     let retryIndex = 0;
@@ -215,31 +216,31 @@ function useAutoSave(recoveryPending: boolean) {
     timer = setTimeout(() => { void attemptSave(); }, 1500);
     return () => { cancelled = true; clearTimeout(timer); };
     // Reset the debounce timer for user edits and silent metadata refreshes while dirty.
-  }, [autoSave, lrcPath, isDirty, editRevision, backgroundMetadataRevision, recoveryPending, documentSession]);
+  }, [autoSave, lrcPath, isDirty, editRevision, backgroundMetadataRevision, recoveryPending, discardingClose, documentSession]);
 
   // 미저장 작업 자동 복구 스냅샷: dirty면 디바운스로 저장, 저장되면(dirty 해제) 제거.
   // 저장 경로가 없어도 보호되므로 autoSave와 독립적으로 동작.
   useEffect(() => {
-    if (recoveryPending) return;
+    if (recoveryPending || discardingClose) return;
     if (!isDirty) { clearRecoverySnapshot(); return; }
     const id = setTimeout(persistRecovery, 2000);
     return () => clearTimeout(id);
-  }, [isDirty, doc, recoveryPending]);
+  }, [isDirty, doc, recoveryPending, discardingClose]);
 
   // 위 디바운스는 doc이 바뀔 때마다 리셋되므로 끊임없이 타이핑하는 구간에서는
   // 한 번도 실행되지 못할 수 있다. dirty가 유지되는 동안 일정 간격으로 강제
   // 플러시해 그런 연속 편집 구간에도 최소한의 복구 지점을 남긴다.
   useEffect(() => {
-    if (recoveryPending || !isDirty) return;
+    if (recoveryPending || discardingClose || !isDirty) return;
     const id = setInterval(persistRecovery, 5000);
     return () => clearInterval(id);
-  }, [isDirty, recoveryPending]);
+  }, [isDirty, recoveryPending, discardingClose]);
 
   useEffect(() => {
     const flush = () => persistRecovery();
     window.addEventListener("pagehide", flush);
     return () => window.removeEventListener("pagehide", flush);
-  }, [recoveryPending]);
+  }, [recoveryPending, discardingClose]);
 }
 
 function serializationErrorCode(error: unknown): string | null {
@@ -296,7 +297,9 @@ function App() {
   const recoveryRef = useRef(recovery);
   recoveryRef.current = recovery;
   const deferredRecoveryDropRef = useRef<{ audio?: string; lyrics?: string } | null>(null);
-  useAutoSave(recovery !== null);
+  const discardCloseRef = useRef(false);
+  const [discardingClose, setDiscardingClose] = useState(false);
+  useAutoSave(recovery !== null, discardingClose, () => discardCloseRef.current);
   const [showHelp, setShowHelp] = useState(false);
   const [showBatchTool, setShowBatchTool] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -521,9 +524,11 @@ function App() {
     allowCloseRef.current = true;
     try {
       await getCurrentWindow().close();
+      return true;
     } catch {
       allowCloseRef.current = false;
       toast.error(t.toast.runtimeFailed);
+      return false;
     }
   };
 
@@ -531,8 +536,30 @@ function App() {
     try {
       const { exit } = await import("@tauri-apps/plugin-process");
       await exit(0);
+      return true;
     } catch {
       toast.error(t.toast.runtimeFailed);
+      return false;
+    }
+  };
+
+  const discardAndClose = async () => {
+    if (!clearRecoverySnapshot()) {
+      toast.error(t.recovery.discardFailed);
+      return;
+    }
+    setShowCloseConfirm(false);
+    discardCloseRef.current = true;
+    setDiscardingClose(true);
+    if (quitRequestedRef.current) {
+      quitRequestedRef.current = false;
+      if (!await exitApplication()) {
+        discardCloseRef.current = false;
+        setDiscardingClose(false);
+      }
+    } else if (!await closeWindow()) {
+      discardCloseRef.current = false;
+      setDiscardingClose(false);
     }
   };
 
@@ -850,17 +877,14 @@ function App() {
           leftLabel={t.save}
           onLeft={saveBeforeClose}
           cancelLabel={t.confirmNewCancel}
-          onCancel={() => { quitRequestedRef.current = false; setShowCloseConfirm(false); }}
-          okLabel={t.closeWithoutSaving}
-          onOk={() => {
+          onCancel={() => {
+            quitRequestedRef.current = false;
+            discardCloseRef.current = false;
+            setDiscardingClose(false);
             setShowCloseConfirm(false);
-            if (quitRequestedRef.current) {
-              quitRequestedRef.current = false;
-              void exitApplication();
-            } else {
-              void closeWindow();
-            }
           }}
+          okLabel={t.closeWithoutSaving}
+          onOk={() => { void discardAndClose(); }}
           priority
         />
       )}

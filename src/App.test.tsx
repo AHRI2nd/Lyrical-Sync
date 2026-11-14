@@ -537,6 +537,22 @@ describe("App — drag-and-drop conflict resolution", () => {
     expect(useLrcStore.getState().doc.lines[0].text).toBe("Unsaved");
   });
 
+  it("removes the recovery snapshot when the user discards changes while closing", async () => {
+    render(<App />);
+    act(() => useLrcStore.getState().loadFromRawText("[00:01.00]Disposable draft"));
+    fireEvent(window, new Event("pagehide"));
+    expect(loadRecoverySnapshot()?.doc.lines[0].text).toBe("Disposable draft");
+
+    act(() => closeRequestedHandler.current?.({ preventDefault: vi.fn() }));
+    const dialog = await screen.findByRole("dialog", { name: useI18nStore.getState().t.closeUnsavedTitle });
+    fireEvent.click(within(dialog).getByRole("button", { name: useI18nStore.getState().t.closeWithoutSaving }));
+    await waitFor(() => expect(closeWindow).toHaveBeenCalledOnce());
+
+    expect(loadRecoverySnapshot()).toBeNull();
+    cleanup();
+    expect(loadRecoverySnapshot()).toBeNull();
+  });
+
   it("routes native app-menu Quit through the unsaved-close confirmation", async () => {
     resetLrc({ isDirty: true, doc: { ...defaultDocument(), lines: [{ id: "1", text: "Unsaved", timestamp: 1 }] } });
     render(<App />);
@@ -784,6 +800,54 @@ describe("App — recovery lifecycle", () => {
     app.unmount();
 
     expect(loadRecoverySnapshot()?.doc.lines[0].text).toBe("unmounted draft");
+  });
+  it("does not autosave or recreate recovery after explicit close discard", async () => {
+    vi.useFakeTimers();
+    closeWindow.mockClear();
+    closeRequestedHandler.current = null;
+    useSettingsStore.setState({ autoSave: true });
+    resetLrc({ lrcPath: "/tmp/discarded.lrc" });
+    const app = render(<App />);
+    const saveSpy = vi.spyOn(useLrcStore.getState(), "saveLrc");
+    act(() => useLrcStore.getState().loadFromRawText("[00:01.00]Disposable draft"));
+    fireEvent(window, new Event("pagehide"));
+    expect(loadRecoverySnapshot()?.doc.lines[0].text).toBe("Disposable draft");
+
+    act(() => closeRequestedHandler.current?.({ preventDefault: vi.fn() }));
+    fireEvent.click(screen.getByRole("button", { name: useI18nStore.getState().t.closeWithoutSaving }));
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(6000); });
+
+    expect(saveSpy).not.toHaveBeenCalled();
+    expect(loadRecoverySnapshot()).toBeNull();
+    app.unmount();
+    expect(loadRecoverySnapshot()).toBeNull();
+  });
+  it("keeps a dirty document open when its recovery snapshot cannot be removed", () => {
+    const { storage, restore } = installMemoryLocalStorage();
+    closeWindow.mockClear();
+    closeRequestedHandler.current = null;
+    resetLrc();
+    render(<App />);
+    act(() => useLrcStore.getState().loadFromRawText("[00:01.00]Protected draft"));
+    fireEvent(window, new Event("pagehide"));
+    const recoveryKey = loadRecoverySnapshot()?.storageKey;
+    expect(recoveryKey).toMatch(/^lyrical-sync-recovery:/);
+    const removeItem = storage.removeItem.bind(storage);
+    vi.spyOn(storage, "removeItem").mockImplementation((key) => {
+      if (key === recoveryKey) throw new Error("storage unavailable");
+      removeItem(key);
+    });
+
+    act(() => closeRequestedHandler.current?.({ preventDefault: vi.fn() }));
+    fireEvent.click(screen.getByRole("button", { name: useI18nStore.getState().t.closeWithoutSaving }));
+
+    expect(screen.getByRole("dialog", { name: useI18nStore.getState().t.closeUnsavedTitle })).toBeTruthy();
+    expect(screen.getAllByText(useI18nStore.getState().t.recovery.discardFailed).length).toBeGreaterThan(0);
+    expect(closeWindow).not.toHaveBeenCalled();
+    expect(useLrcStore.getState().isDirty).toBe(true);
+    expect(loadRecoverySnapshot()?.doc.lines[0].text).toBe("Protected draft");
+    restore();
   });
   it("announces settings persistence failures to the user", () => {
     useToastStore.setState({ toasts: [] });
