@@ -26,6 +26,7 @@ function makeProps(overrides: Partial<LrcLineRowProps> = {}): LrcLineRowProps {
     } as unknown as Translations,
     line: { id: "line-1", timestamp: 1, text: "First line" },
     idx: 0,
+    lineNumberDigits: 1,
     isActive: false,
     isSelected: false,
     confidence: undefined,
@@ -76,6 +77,18 @@ describe("LrcLineRow drag handle", () => {
     fireEvent.pointerDown(handle, { pointerId: 1, button: 0 });
 
     expect(onReorderPointerDown).toHaveBeenCalledOnce();
+  });
+});
+
+describe("LrcLineRow line number", () => {
+  afterEach(cleanup);
+
+  it("reserves enough width for the largest line number in the document", () => {
+    const { container } = render(<LrcLineRow {...makeProps({ idx: 9_999 })} lineNumberDigits={5} />);
+    const row = container.querySelector("[data-line-index]");
+
+    expect(row?.getAttribute("style")).toContain("--ls-line-number-width: 5ch");
+    expect(container.querySelector(".ls-line-number")?.textContent).toBe("10000");
   });
 });
 

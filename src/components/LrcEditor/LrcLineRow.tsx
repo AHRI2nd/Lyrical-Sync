@@ -1,4 +1,4 @@
-import { memo, useId } from "react";
+import { memo, useId, type CSSProperties } from "react";
 import { isComposingKeyEvent } from "../../utils/keybindings";
 import { type LrcLine } from "../../types/lrc";
 import { type Translations } from "../../i18n/translations";
@@ -9,6 +9,7 @@ interface LrcLineRowProps {
   t: Translations;
   line: LrcLine;
   idx: number;
+  lineNumberDigits: number;
   virtualizedTotalCount?: number;
   isActive: boolean;
   isSelected: boolean;
@@ -57,7 +58,7 @@ interface LrcLineRowProps {
 // 상호작용 상태(드래그·타임스탬프 편집 등)는 LrcEditor가 소유하고 이벤트 핸들러로 전달 —
 // 이 컴포넌트는 순수 렌더링(+ line 자체에서 파생되는 hasGlyphSync/tsClass만 내부 계산).
 export function LrcLineRowImpl({
-  t, line, idx, virtualizedTotalCount, isActive, isSelected, confidence, isMatch, isCurrentMatch, warning,
+  t, line, idx, lineNumberDigits, virtualizedTotalCount, isActive, isSelected, confidence, isMatch, isCurrentMatch, warning,
   loopLineId, lyricsFontScale, showSpellCheck, showTranslationLines,
   dragIdx, showInsertionBefore, showInsertionAfter, onReorderPointerDown,
   editingTsId, editTsValue, onEditTsChange, onStartTsEdit, onCommitTsEdit, onCancelTsEdit, onStampCurrentLine,
@@ -87,6 +88,7 @@ export function LrcLineRowImpl({
       aria-posinset={virtualizedTotalCount === undefined ? undefined : idx + 1}
       data-line-id={line.id}
       data-line-index={idx}
+      style={{ "--ls-line-number-width": `${lineNumberDigits}ch` } as CSSProperties}
       onClick={(e) => onRowClick(e, line.id, idx)}
       className={`ls-line-row group/row relative rounded-lg transition-colors cursor-pointer mb-1 ${
         isSelected
@@ -121,7 +123,7 @@ export function LrcLineRowImpl({
           <circle cx="2.5" cy="12" r="1.2" /><circle cx="7.5" cy="12" r="1.2" />
         </svg>
       </span>
-      <span className="ls-line-number text-[var(--ls-text-secondary)] text-xs w-5 shrink-0 text-right select-none">
+      <span className="ls-line-number text-[var(--ls-text-secondary)] text-xs shrink-0 text-right tabular-nums whitespace-nowrap select-none">
         {idx + 1}
       </span>
 

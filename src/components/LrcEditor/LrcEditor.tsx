@@ -1201,6 +1201,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
               t={t}
               line={line}
               idx={idx}
+              lineNumberDigits={String(lines.length).length}
               virtualizedTotalCount={virtualLines.isVirtualized ? lines.length : undefined}
               isActive={isActive}
               isSelected={selectedIds.has(line.id)}
