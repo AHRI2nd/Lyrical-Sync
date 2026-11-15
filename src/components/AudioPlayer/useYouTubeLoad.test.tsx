@@ -98,3 +98,14 @@ it('shows a localized message without exposing rejected proxy credentials', asyn
  expect(run.result.current.ytError).not.toContain('alice');
  expect(run.result.current.ytError).not.toContain('secret');
 });
+it('asks users to reselect a cookie file when its window grant is missing', async () => {
+ useSettingsStore.setState({ ytdlpCookiesFile: '/private/test/cookies.txt' });
+ const run=start();
+ const loadCall=invokeMock.mock.calls.find(([command])=>command==='ytdlp_load_audio');
+ expect(loadCall?.[1]?.cookiesFile).toBe('/private/test/cookies.txt');
+
+ await act(async()=>{run.reject(new Error('YTDLP_COOKIE_FILE_SCOPE_REQUIRED'));await run.pending;});
+
+ expect(run.result.current.ytError).toBe(useI18nStore.getState().t.ytdlpCookieFileReselectRequired);
+ expect(run.result.current.ytError).not.toContain('/private/test/cookies.txt');
+});

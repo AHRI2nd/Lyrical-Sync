@@ -610,6 +610,7 @@ export interface Translations {
   ytdlpCookiesFileDesc: string;
   ytdlpCookiesSelect: string;
   ytdlpCookiesClear: string;
+  ytdlpCookieFileReselectRequired: string;
   ytdlpProxy: string;
   ytdlpProxyPlaceholder: string;
   ytdlpProxySave: string;
@@ -1296,6 +1297,7 @@ const ko: Translations = {
   ytdlpCookiesFileDesc: "로그인이 필요한 영상(연령 제한 등)에 사용할 브라우저 쿠키 파일",
   ytdlpCookiesSelect: "파일 선택",
   ytdlpCookiesClear: "지우기",
+  ytdlpCookieFileReselectRequired: "앱을 다시 시작한 뒤에는 쿠키 파일을 다시 선택해야 합니다.",
   ytdlpProxy: "프록시 (선택)",
   ytdlpProxyPlaceholder: "http://host:port",
   ytdlpProxySave: "저장",
@@ -1983,6 +1985,7 @@ const en: Translations = {
   ytdlpCookiesFileDesc: "Cookies file for age-restricted or login-required content",
   ytdlpCookiesSelect: "Select file",
   ytdlpCookiesClear: "Clear",
+  ytdlpCookieFileReselectRequired: "Select the cookies file again. File access permission does not persist after restarting the app.",
   ytdlpProxy: "Proxy (Optional)",
   ytdlpProxyPlaceholder: "http://host:port",
   ytdlpProxySave: "Save",
@@ -2669,6 +2672,7 @@ const ja: Translations = {
   ytdlpCookiesFileDesc: "年齢制限やログインが必要な動画に使用するブラウザのクッキーファイル",
   ytdlpCookiesSelect: "ファイルを選択",
   ytdlpCookiesClear: "クリア",
+  ytdlpCookieFileReselectRequired: "アプリの再起動後は、クッキーファイルをもう一度選択してください。ファイルへのアクセス許可は再起動後に引き継がれません。",
   ytdlpProxy: "プロキシ (オプション)",
   ytdlpProxyPlaceholder: "http://host:port",
   ytdlpProxySave: "保存",

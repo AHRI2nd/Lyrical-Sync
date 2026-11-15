@@ -26,6 +26,7 @@ const MAX_YTDLP_STDOUT_LINE_BYTES: usize = 64 * 1024;
 const MAX_YTDLP_STDERR_LINE_BYTES: usize = 8 * 1024;
 const MAX_YTDLP_AUDIO_BYTES: u64 = crate::audio_resource::MAX_AUDIO_FILE_BYTES;
 const MAX_YTDLP_AUDIO_RUN: std::time::Duration = crate::audio_resource::MAX_AUDIO_DURATION;
+const YTDLP_COOKIE_FILE_SCOPE_REQUIRED: &str = "YTDLP_COOKIE_FILE_SCOPE_REQUIRED";
 const YTDLP_TRANSACTION_PREFIX: &str = ".lyrical-ytdlp-install-";
 static YTDLP_INSTALL_RECOVERY_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
@@ -1176,6 +1177,7 @@ pub async fn ytdlp_load_audio(
     }
     validate_ytdlp_proxy(proxy.as_deref())?;
     path_validation::validate_ytdlp_url(&url)?;
+    let cookies_file = authorize_ytdlp_cookie_file(&window, cookies_file.as_deref())?;
     let exe = ytdlp_exe(&app)?;
     let dir = ytdlp_dir(&app)?;
     let version = dir.join("version.txt");
@@ -1242,6 +1244,20 @@ pub async fn ytdlp_load_audio(
         return Err(error.to_string());
     }
     Ok(path.to_string_lossy().into_owned())
+}
+
+fn authorize_ytdlp_cookie_file<R: tauri::Runtime>(
+    window: &tauri::WebviewWindow<R>,
+    path: Option<&str>,
+) -> Result<Option<String>, String> {
+    let Some(path) = path.filter(|path| !path.is_empty()) else {
+        return Ok(None);
+    };
+    let canonical = path_validation::validate_safe_path(path)
+        .map_err(|_| YTDLP_COOKIE_FILE_SCOPE_REQUIRED.to_string())?;
+    crate::authorize_window_path(window, &canonical)
+        .map_err(|_| YTDLP_COOKIE_FILE_SCOPE_REQUIRED.to_string())?;
+    Ok(Some(canonical.to_string_lossy().into_owned()))
 }
 
 async fn ytdlp_load_audio_inner(
@@ -1581,6 +1597,34 @@ async fn remove_ytdlp_audio_cache(cache_dir: PathBuf) -> Result<(), String> {
 mod tests {
     use super::*;
     use tokio::io::BufReader;
+
+    #[test]
+    fn cookie_file_path_requires_a_current_window_scope_grant() {
+        use tauri_plugin_fs::FsExt;
+
+        let app = tauri::test::mock_builder()
+            .plugin(tauri_plugin_fs::init())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let cookies = dir.path().join("cookies.txt");
+        std::fs::write(&cookies, "# Netscape HTTP Cookie File\n").unwrap();
+        let canonical = cookies.canonicalize().unwrap();
+
+        assert_eq!(
+            authorize_ytdlp_cookie_file(&window, Some(cookies.to_str().unwrap())).unwrap_err(),
+            "YTDLP_COOKIE_FILE_SCOPE_REQUIRED"
+        );
+        window.fs_scope().allow_file(&canonical).unwrap();
+        assert_eq!(
+            authorize_ytdlp_cookie_file(&window, Some(cookies.to_str().unwrap())).unwrap(),
+            Some(canonical.to_string_lossy().into_owned())
+        );
+        assert_eq!(authorize_ytdlp_cookie_file(&window, None).unwrap(), None);
+    }
 
     #[test]
     fn audio_command_ignores_external_config_and_plugins() {

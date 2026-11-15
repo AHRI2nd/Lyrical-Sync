@@ -12,6 +12,7 @@ let youtubeRequestSequence = 0;
 export function useYouTubeLoad(setAudioPath: (path: string) => void) {
   const { ytdlpAudioQuality, ytdlpCookiesFile, ytdlpProxy, youtubeMode } = useSettingsStore();
   const proxyAuthUnsupported = useI18nStore((state) => state.t.ytdlpProxyAuthUnsupported);
+  const cookieFileReselectRequired = useI18nStore((state) => state.t.ytdlpCookieFileReselectRequired);
 
   const [ytUrl, setYtUrl] = useState("");
   const [ytLoading, setYtLoadingRaw] = useState(false);
@@ -78,7 +79,11 @@ export function useYouTubeLoad(setAudioPath: (path: string) => void) {
     } catch (e) {
       if (mounted.current && !request.cancelled) {
         const message = String(e);
-        setYtError(message.includes("YTDLP_AUTH_PROXY_UNSUPPORTED") ? proxyAuthUnsupported : message);
+        setYtError(message.includes("YTDLP_AUTH_PROXY_UNSUPPORTED")
+          ? proxyAuthUnsupported
+          : message.includes("YTDLP_COOKIE_FILE_SCOPE_REQUIRED")
+            ? cookieFileReselectRequired
+            : message);
       }
     } finally {
       operation.current = null;
