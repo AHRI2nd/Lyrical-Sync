@@ -487,6 +487,40 @@ it("rechecks model readiness when inventory confirms installation despite missin
   await vi.waitFor(() => expect(modelChecks).toBe(2));
   await vi.waitFor(() => expect(aiButton.hasAttribute("disabled")).toBe(false));
 });
+it("rechecks AI readiness after package installation when its progress listener cannot register", async () => {
+  useBusyStore.setState({ reasons: new Set(), errors: {} });
+  act(() => useBusyStore.getState().markBusy("python-packages"));
+  vi.mocked(listen).mockImplementation(async (event) => {
+    if (event === "pip-install-progress") throw new Error("progress listener unavailable");
+    return () => {};
+  });
+  let readinessCalls = 0;
+  vi.mocked(invoke).mockImplementation((command: unknown) => {
+    if (command === "set_models_dir_override") return Promise.resolve(undefined);
+    if (command === "get_python_env_info") {
+      readinessCalls += 1;
+      const busy = [...useBusyStore.getState().reasons].some((reason) => reason === "python-download" || reason === "python-packages");
+      return busy
+        ? Promise.reject(new Error("AI environment is busy"))
+        : Promise.resolve({ packagesReady: true });
+    }
+    if (command === "get_models_dir") return Promise.resolve("/models/default");
+    if (command === "check_model_files") return Promise.resolve([true]);
+    return Promise.resolve(undefined);
+  });
+  useSettingsStore.setState({ modelsDir: "", deviceMode: false, spotifyMode: false });
+  useLrcStore.setState({ audioPath: "/song.mp3" });
+
+  const { getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  const aiButton = getByRole("button", { name: useI18nStore.getState().t.aiAutoSync });
+  await vi.waitFor(() => expect(vi.mocked(listen)).toHaveBeenCalledWith("pip-install-progress", expect.any(Function)));
+  expect(readinessCalls).toBe(0);
+
+  act(() => useBusyStore.getState().clearBusy("python-packages"));
+
+  await vi.waitFor(() => expect(readinessCalls).toBe(1));
+  await vi.waitFor(() => expect(aiButton.hasAttribute("disabled")).toBe(false));
+});
 it("routes line seeking to the device controller when device mode is selected", () => {
   useSettingsStore.setState({ deviceMode: true, spotifyMode: false });
   useDeviceStore.setState({ hasSession: true, positionMs: 4321 });
