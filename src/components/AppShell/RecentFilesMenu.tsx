@@ -51,7 +51,7 @@ export function RecentFilesMenu({ onOpen }: { onOpen: (entry: RecentFileEntry) =
         <HistoryIcon />
       </button>
       {open && (
-        <div id={menuId} role="group" aria-label={t.recentFiles} className="absolute left-0 top-full mt-1 bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] rounded-lg shadow-xl z-50 overflow-hidden py-1 min-w-[240px] max-w-[320px]">
+        <div id={menuId} role="group" aria-label={t.recentFiles} className="absolute right-0 top-full mt-1 bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] rounded-lg shadow-xl z-50 overflow-hidden py-1 min-w-[240px] max-w-[320px]">
           {recentFiles.map((entry, i) => {
             const primary = entry.lrcPath ?? entry.audioPath ?? "";
             const secondary = entry.lrcPath && entry.audioPath ? entry.audioPath : null;

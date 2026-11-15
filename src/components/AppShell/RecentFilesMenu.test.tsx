@@ -35,3 +35,14 @@ it("does not close the recent-files popup for an IME Escape event", () => {
   expect(screen.getByRole("group", { name: t.recentFiles })).toBeTruthy();
   expect(trigger.getAttribute("aria-expanded")).toBe("true");
 });
+
+it("keeps the recent-files popup aligned within the right edge of its header", () => {
+  useSettingsStore.setState({ recentFiles: [{ lrcPath: "/music/song.lrc", audioPath: null, openedAt: 1 }] });
+  const t = useI18nStore.getState().t;
+  render(<RecentFilesMenu onOpen={() => {}} />);
+  fireEvent.click(screen.getByRole("button", { name: t.recentFiles }));
+
+  const popup = screen.getByRole("group", { name: t.recentFiles });
+  expect(popup.className).toContain("right-0");
+  expect(popup.className).not.toContain("left-0");
+});
