@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useSettingsStore, type RecentFileEntry } from "../../stores/useSettingsStore";
+import { toast } from "../../stores/useToastStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { isComposingKeyEvent } from "../../utils/keybindings";
 import { HistoryIcon } from "./icons";
@@ -28,6 +30,16 @@ export function RecentFilesMenu({ onOpen }: { onOpen: (entry: RecentFileEntry) =
   const handleSelect = (entry: RecentFileEntry) => {
     setOpen(false);
     onOpen(entry);
+  };
+
+  const handleClearRecentFiles = async () => {
+    try {
+      await invoke("clear_recent_file_grants");
+      clearRecentFiles();
+      setOpen(false);
+    } catch {
+      toast.error(t.toast.recentFilesClearFailed);
+    }
   };
 
   return (
@@ -70,7 +82,7 @@ export function RecentFilesMenu({ onOpen }: { onOpen: (entry: RecentFileEntry) =
           })}
           <div className="border-t border-[var(--ls-border-subtle)] mt-1 pt-1">
             <button
-              onClick={() => { clearRecentFiles(); setOpen(false); }}
+              onClick={() => void handleClearRecentFiles()}
               className="ls-button w-full text-left px-3 py-1.5 text-[11px] text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-[var(--ls-text-secondary)] transition-colors"
             >
               {t.clearRecentFiles}

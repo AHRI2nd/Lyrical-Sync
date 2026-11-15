@@ -420,6 +420,7 @@ export interface Translations {
     recoveryFailed: string;
     runtimeFailed: string;
     openFailed: string;
+    recentFilesClearFailed: string;
     lyricResourceLimit: string;
     audioLoadFailed: string;
     audioResourceLimit: string;
@@ -1110,6 +1111,7 @@ const ko: Translations = {
     runtimeFailed: "오류가 발생했습니다. 현재 작업을 저장한 뒤 다시 시도해 주세요.",
     recoveryFailed: "복구 사본을 저장할 수 없습니다. 작업을 파일로 저장해 주세요.",
     openFailed: "파일을 열지 못했습니다",
+    recentFilesClearFailed: "최근 파일 접근 권한을 지우지 못했습니다. 최근 파일 목록은 유지했습니다.",
     lyricResourceLimit: "가사 파일이 너무 커서 안전하게 열 수 없습니다. 더 작은 UTF-8 파일을 사용하세요.",
     audioLoadFailed: "오디오를 불러오지 못했습니다",
     audioResourceLimit: "오디오가 앱의 안전한 처리 한도를 넘습니다 (파일 최대 1 GiB, 길이 최대 4시간, 추정 디코드 PCM 최대 1 GiB). 파일을 자르거나 채널·샘플레이트를 낮춰 다시 불러오세요.",
@@ -1798,6 +1800,7 @@ const en: Translations = {
     runtimeFailed: "An error occurred. Save your current work before trying again.",
     recoveryFailed: "Cannot save a recovery copy. Please save your work to a file.",
     openFailed: "Couldn't open file",
+    recentFilesClearFailed: "Could not clear recent file access grants. Recent Files were kept.",
     lyricResourceLimit: "This lyric file is too large to open safely. Use a smaller UTF-8 file.",
     audioLoadFailed: "Couldn't load audio",
     audioResourceLimit: "This audio exceeds the app's safe processing limits (file up to 1 GiB, duration up to 4 hours, estimated decoded PCM up to 1 GiB). Trim it or reduce its channel count or sample rate, then try again.",
@@ -2485,6 +2488,7 @@ const ja: Translations = {
     runtimeFailed: "エラーが発生しました。作業を保存してから再試行してください。",
     recoveryFailed: "復元用コピーを保存できません。作業をファイルに保存してください。",
     openFailed: "ファイルを開けませんでした",
+    recentFilesClearFailed: "最近使ったファイルのアクセス権を削除できませんでした。履歴は保持されています。",
     lyricResourceLimit: "この歌詞ファイルは安全に開くには大きすぎます。より小さいUTF-8ファイルを使用してください。",
     audioLoadFailed: "オーディオを読み込めませんでした",
     audioResourceLimit: "このオーディオはアプリの安全な処理上限（ファイル最大1 GiB、長さ最大4時間、推定デコードPCM最大1 GiB）を超えています。短くするかチャンネル数・サンプルレートを下げて再試行してください。",
