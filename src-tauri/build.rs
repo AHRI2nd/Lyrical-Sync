@@ -11,6 +11,7 @@ fn main() {
     let commands = &[
         "read_lrc_file",
         "read_lrc_file_with_hash",
+        "clear_recent_file_grants",
         "write_lrc_file",
         "write_lrc_file_if_unchanged",
         "prepare_audio_stream",

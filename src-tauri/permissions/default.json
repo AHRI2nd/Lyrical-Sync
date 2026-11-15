@@ -7,6 +7,7 @@
     "opener:allow-open-url",
     "dialog:allow-open",
     "dialog:allow-save",
+    "app-command:clear-recent-file-grants",
     "fs:scope-audio-recursive",
     "app-command:read-lrc-file",
     "app-command:write-lrc-file",

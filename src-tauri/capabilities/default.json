@@ -10,6 +10,7 @@
     "dialog:allow-save",
     "allow-read-lrc-file",
     "allow-read-lrc-file-with-hash",
+    "allow-clear-recent-file-grants",
     "allow-write-lrc-file",
     "allow-write-lrc-file-if-unchanged",
     "allow-prepare-audio-stream",

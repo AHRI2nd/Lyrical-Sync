@@ -1,24 +1,26 @@
 #[cfg(all(target_os = "macos", not(target_arch = "aarch64")))]
 compile_error!("Lyrical Sync supports Apple Silicon Macs only; Intel macOS is unsupported.");
 
-mod python_runtime;
+mod ai_audio;
 mod ai_common;
-mod platform_profile;
+mod alignment_process;
 #[cfg(any(all(target_os = "windows", target_arch = "aarch64"), test))]
 mod arm_ai;
-mod alignment_process;
 mod atomic_write;
-mod audio_resource;
 mod audio_aiff;
+mod audio_resource;
 mod audio_stream;
-mod ai_audio;
 mod audio_waveform;
-mod bpm_audio;
 mod batch_output;
+mod bpm_audio;
 #[cfg(any(target_os = "windows", test))]
 mod device_worker;
 mod oauth_listener;
 mod path_validation;
+mod platform_profile;
+mod python_runtime;
+mod recent_file_grants;
+use recent_file_grants::RecentFileGrants;
 mod service_auth;
 use service_auth::*;
 mod now_playing;
@@ -46,7 +48,32 @@ pub(crate) fn authorize_window_path<R: tauri::Runtime>(
 ) -> Result<(), String> {
     use tauri_plugin_fs::FsExt;
     let scope = window.fs_scope();
-    path_validation::require_filesystem_scope(path, |candidate| scope.is_allowed(candidate))
+    if scope.is_allowed(path) {
+        if let Some(grants) = window.try_state::<RecentFileGrants>() {
+            if let Err(error) = grants.remember(path) {
+                eprintln!("Could not persist selected file grant: {error}");
+            }
+        }
+        return Ok(());
+    }
+    if window
+        .try_state::<RecentFileGrants>()
+        .is_some_and(|grants| grants.allows(path))
+    {
+        return Ok(());
+    }
+    Err("Path is outside the granted filesystem scope".into())
+}
+
+#[tauri::command]
+fn clear_recent_file_grants(
+    window: tauri::WebviewWindow,
+    grants: tauri::State<'_, RecentFileGrants>,
+) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("Recent file grants can only be cleared from the main window".into());
+    }
+    grants.clear()
 }
 
 fn read_lyric_file(path: &std::path::Path) -> Result<String, String> {
@@ -77,8 +104,9 @@ fn read_lyric_file(path: &std::path::Path) -> Result<String, String> {
     if bytes.starts_with(&[0xFF, 0xFE]) || bytes.starts_with(&[0xFE, 0xFF]) || bytes.contains(&0) {
         return Err("Unsupported lyric encoding: UTF-16 is not supported; convert a copy to UTF-8 before editing.".into());
     }
-    String::from_utf8(bytes)
-        .map_err(|_| "Unsupported lyric encoding: expected UTF-8; convert a copy to UTF-8 before editing.".into())
+    String::from_utf8(bytes).map_err(|_| {
+        "Unsupported lyric encoding: expected UTF-8; convert a copy to UTF-8 before editing.".into()
+    })
 }
 
 #[tauri::command]
@@ -187,12 +215,8 @@ async fn write_lrc_file_if_unchanged_impl(
     content: String,
     expected_sha256: String,
 ) -> Result<String, String> {
-    atomic_write::write_atomic_if_unchanged(
-        std::path::Path::new(&path),
-        &content,
-        &expected_sha256,
-    )
-    .map_err(|e| e.to_string())
+    atomic_write::write_atomic_if_unchanged(std::path::Path::new(&path), &content, &expected_sha256)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -289,22 +313,20 @@ async fn summarize_audio_stream(
     let cleanup_url = stream_url.clone();
     let result = tokio::task::spawn_blocking(move || {
         preparation.check_cancelled()?;
-        let response = worker_state.with_snapshot(&stream_url, |file, extension, expected_info| {
-            let summary = audio_waveform::decode_audio_file(
-                file,
-                extension,
-                preparation.cancel_flag(),
-            )?;
-            if summary.sample_rate != expected_info.sample_rate
-                || summary.channels != expected_info.channels
-                || (summary.duration_nanos / 1_000_000_000)
-                    .abs_diff(expected_info.duration_seconds)
-                    > 2
-            {
-                return Err("AUDIO_METADATA_UNAVAILABLE".into());
-            }
-            summary.encode()
-        })?;
+        let response =
+            worker_state.with_snapshot(&stream_url, |file, extension, expected_info| {
+                let summary =
+                    audio_waveform::decode_audio_file(file, extension, preparation.cancel_flag())?;
+                if summary.sample_rate != expected_info.sample_rate
+                    || summary.channels != expected_info.channels
+                    || (summary.duration_nanos / 1_000_000_000)
+                        .abs_diff(expected_info.duration_seconds)
+                        > 2
+                {
+                    return Err("AUDIO_METADATA_UNAVAILABLE".into());
+                }
+                summary.encode()
+            })?;
         preparation.check_cancelled()?;
         Ok(tauri::ipc::Response::new(response))
     })
@@ -364,7 +386,9 @@ fn get_audio_file_info_impl(path: std::path::PathBuf) -> Result<AudioFileInfo, S
         return Err("Audio path is not a regular file".into());
     }
     let mtime = meta.modified().map_err(|e| e.to_string())?;
-    let duration = mtime.duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?;
+    let duration = mtime
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| e.to_string())?;
     // A string retains nanosecond precision when serialized to JavaScript.
     let mtime = format!("{}.{:09}", duration.as_secs(), duration.subsec_nanos());
     #[cfg(unix)]
@@ -374,7 +398,11 @@ fn get_audio_file_info_impl(path: std::path::PathBuf) -> Result<AudioFileInfo, S
     };
     #[cfg(not(unix))]
     let file_id: Option<String> = None;
-    Ok(AudioFileInfo { size: meta.len(), mtime, file_id })
+    Ok(AudioFileInfo {
+        size: meta.len(),
+        mtime,
+        file_id,
+    })
 }
 
 #[cfg(test)]
@@ -642,7 +670,12 @@ fn first_nonempty_tag_value<'a>(
 ) -> Option<std::borrow::Cow<'a, str>> {
     preferred
         .filter(|value| !value.trim().is_empty())
-        .or_else(|| remaining.into_iter().flatten().find(|value| !value.trim().is_empty()))
+        .or_else(|| {
+            remaining
+                .into_iter()
+                .flatten()
+                .find(|value| !value.trim().is_empty())
+        })
 }
 
 fn preferred_tag_value(
@@ -657,7 +690,10 @@ fn preferred_tag_value(
 }
 
 #[tauri::command]
-fn read_audio_metadata(path: String, window: tauri::WebviewWindow) -> Result<AudioMetadata, String> {
+fn read_audio_metadata(
+    path: String,
+    window: tauri::WebviewWindow,
+) -> Result<AudioMetadata, String> {
     use lofty::file::TaggedFileExt;
     use lofty::tag::Accessor;
     let path = path_validation::validate_safe_path(&path)?;
@@ -671,36 +707,34 @@ fn read_audio_metadata(path: String, window: tauri::WebviewWindow) -> Result<Aud
     let tags = tagged.tags();
     let primary = tagged.primary_tag().or_else(|| tags.first());
     Ok(match primary {
-        Some(primary) => {
-            AudioMetadata {
-                title: preferred_tag_value(
-                    primary.title(),
-                    first_nonempty_tag_value(
-                        None,
-                        tags.iter()
-                            .filter(|candidate| candidate.tag_type() != primary.tag_type())
-                            .map(lofty::tag::Tag::title),
-                    ),
+        Some(primary) => AudioMetadata {
+            title: preferred_tag_value(
+                primary.title(),
+                first_nonempty_tag_value(
+                    None,
+                    tags.iter()
+                        .filter(|candidate| candidate.tag_type() != primary.tag_type())
+                        .map(lofty::tag::Tag::title),
                 ),
-                artist: preferred_tag_value(
-                    primary.artist(),
-                    first_nonempty_tag_value(
-                        None,
-                        tags.iter()
-                            .filter(|candidate| candidate.tag_type() != primary.tag_type())
-                            .map(lofty::tag::Tag::artist),
-                    ),
+            ),
+            artist: preferred_tag_value(
+                primary.artist(),
+                first_nonempty_tag_value(
+                    None,
+                    tags.iter()
+                        .filter(|candidate| candidate.tag_type() != primary.tag_type())
+                        .map(lofty::tag::Tag::artist),
                 ),
-                album: preferred_tag_value(
-                    primary.album(),
-                    first_nonempty_tag_value(
-                        None,
-                        tags.iter()
-                            .filter(|candidate| candidate.tag_type() != primary.tag_type())
-                            .map(lofty::tag::Tag::album),
-                    ),
+            ),
+            album: preferred_tag_value(
+                primary.album(),
+                first_nonempty_tag_value(
+                    None,
+                    tags.iter()
+                        .filter(|candidate| candidate.tag_type() != primary.tag_type())
+                        .map(lofty::tag::Tag::album),
                 ),
-            }
+            ),
         },
         None => AudioMetadata {
             title: String::new(),
@@ -723,28 +757,34 @@ pub fn run() {
         .manage(bpm_audio::AnalysisState::default())
         .manage(YtdlpState::default())
         .manage(lrclib::PublishState::default())
-        .register_asynchronous_uri_scheme_protocol("lyrical-audio", |context, request, responder| {
-            let webview_label = context.webview_label().to_owned();
-            let state = context
-                .app_handle()
-                .state::<audio_stream::AudioStreamState>()
-                .inner()
-                .clone();
-            let Some(read_permit) = state.try_acquire_read() else {
-                responder.respond(audio_stream::AudioStreamState::busy_response());
-                return;
-            };
-            std::thread::spawn(move || {
-                let _read_permit = read_permit;
-                responder.respond(state.response(&webview_label, &request));
-            });
-        })
+        .register_asynchronous_uri_scheme_protocol(
+            "lyrical-audio",
+            |context, request, responder| {
+                let webview_label = context.webview_label().to_owned();
+                let state = context
+                    .app_handle()
+                    .state::<audio_stream::AudioStreamState>()
+                    .inner()
+                    .clone();
+                let Some(read_permit) = state.try_acquire_read() else {
+                    responder.respond(audio_stream::AudioStreamState::busy_response());
+                    return;
+                };
+                std::thread::spawn(move || {
+                    let _read_permit = read_permit;
+                    responder.respond(state.response(&webview_label, &request));
+                });
+            },
+        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
+            let grants_path = app.path().app_data_dir()?.join("recent-file-grants.json");
+            app.manage(RecentFileGrants::open(grants_path).map_err(std::io::Error::other)?);
+
             // 업데이터는 데스크톱 전용(모바일 타깃엔 없음)
             #[cfg(desktop)]
             app.handle()
@@ -752,6 +792,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            clear_recent_file_grants,
             read_lrc_file,
             read_lrc_file_with_hash,
             write_lrc_file,
@@ -807,7 +848,10 @@ mod audio_metadata_fallback_tests {
     #[test]
     fn fills_missing_or_blank_primary_fields_from_the_secondary_tag() {
         assert_eq!(
-            preferred_tag_value(Some(Cow::Borrowed("Primary")), Some(Cow::Borrowed("Secondary"))),
+            preferred_tag_value(
+                Some(Cow::Borrowed("Primary")),
+                Some(Cow::Borrowed("Secondary"))
+            ),
             "Primary",
         );
         assert_eq!(
@@ -817,7 +861,10 @@ mod audio_metadata_fallback_tests {
         assert_eq!(
             preferred_tag_value(
                 Some(Cow::Borrowed("  ")),
-                first_nonempty_tag_value(None, [Some(Cow::Borrowed(" ")), Some(Cow::Borrowed("Third"))]),
+                first_nonempty_tag_value(
+                    None,
+                    [Some(Cow::Borrowed(" ")), Some(Cow::Borrowed("Third"))]
+                ),
             ),
             "Third",
         );
@@ -827,7 +874,10 @@ mod audio_metadata_fallback_tests {
         );
         assert_eq!(preferred_tag_value(None, None), "");
         assert_eq!(
-            first_nonempty_tag_value(None, [Some(Cow::Borrowed(" ")), Some(Cow::Borrowed("Third"))]),
+            first_nonempty_tag_value(
+                None,
+                [Some(Cow::Borrowed(" ")), Some(Cow::Borrowed("Third"))]
+            ),
             Some(Cow::Borrowed("Third")),
         );
     }
@@ -969,9 +1019,8 @@ mod audio_decode_tests {
 #[cfg(test)]
 mod lyric_save_command_tests {
     use super::{
-        read_lrc_file_impl, read_lrc_file_with_hash_impl, write_lrc_file_impl,
-        write_lrc_file_if_unchanged_impl,
-        MAX_LYRIC_FILE_BYTES,
+        read_lrc_file_impl, read_lrc_file_with_hash_impl, write_lrc_file_if_unchanged_impl,
+        write_lrc_file_impl, MAX_LYRIC_FILE_BYTES,
     };
     use std::fs;
 
@@ -980,9 +1029,13 @@ mod lyric_save_command_tests {
         let dir = tempfile::tempdir().unwrap();
         let target = dir.path().join("new-lyrics.lrc");
         let path = target.to_str().unwrap().to_string();
-        write_lrc_file_impl(path.clone(), "[00:01.00]First".into(), None, None).await.unwrap();
+        write_lrc_file_impl(path.clone(), "[00:01.00]First".into(), None, None)
+            .await
+            .unwrap();
         assert_eq!(fs::read_to_string(&target).unwrap(), "[00:01.00]First");
-        write_lrc_file_impl(path.clone(), "[00:02.00]Second".into(), None, None).await.unwrap();
+        write_lrc_file_impl(path.clone(), "[00:02.00]Second".into(), None, None)
+            .await
+            .unwrap();
         assert_eq!(read_lrc_file_impl(path).await.unwrap(), "[00:02.00]Second");
     }
 
@@ -997,11 +1050,20 @@ mod lyric_save_command_tests {
             let text = "1\n00:00:01,000 --> 00:00:02,000\ncue\n";
             let mut bytes = bom.to_vec();
             for unit in text.encode_utf16() {
-                bytes.extend(if little_endian { unit.to_le_bytes() } else { unit.to_be_bytes() });
+                bytes.extend(if little_endian {
+                    unit.to_le_bytes()
+                } else {
+                    unit.to_be_bytes()
+                });
             }
             fs::write(&target, &bytes).unwrap();
-            let error = read_lrc_file_impl(target.to_string_lossy().into_owned()).await.unwrap_err();
-            assert!(error.contains("UTF-16"), "unexpected error for {name}: {error}");
+            let error = read_lrc_file_impl(target.to_string_lossy().into_owned())
+                .await
+                .unwrap_err();
+            assert!(
+                error.contains("UTF-16"),
+                "unexpected error for {name}: {error}"
+            );
             assert_eq!(fs::read(target).unwrap(), bytes);
         }
     }
@@ -1016,24 +1078,18 @@ mod lyric_save_command_tests {
         assert_eq!(opened.content, "original");
 
         fs::write(&target, "external edit").unwrap();
-        let stale = write_lrc_file_if_unchanged_impl(
-            path.clone(),
-            "app edit".into(),
-            opened.sha256,
-        )
-        .await
-        .unwrap_err();
+        let stale =
+            write_lrc_file_if_unchanged_impl(path.clone(), "app edit".into(), opened.sha256)
+                .await
+                .unwrap_err();
         assert!(stale.contains("LYRICS_FILE_CHANGED"));
         assert_eq!(fs::read_to_string(&target).unwrap(), "external edit");
 
         let current = read_lrc_file_with_hash_impl(path.clone()).await.unwrap();
-        let saved_hash = write_lrc_file_if_unchanged_impl(
-            path.clone(),
-            "app edit".into(),
-            current.sha256,
-        )
-        .await
-        .unwrap();
+        let saved_hash =
+            write_lrc_file_if_unchanged_impl(path.clone(), "app edit".into(), current.sha256)
+                .await
+                .unwrap();
         assert_eq!(read_lrc_file_impl(path).await.unwrap(), "app edit");
         assert_eq!(saved_hash.len(), 64);
     }
@@ -1050,18 +1106,17 @@ mod lyric_save_command_tests {
         symlink(&target, &alias).unwrap();
         let target_path = target.to_string_lossy().into_owned();
         let alias_path = alias.to_string_lossy().into_owned();
-        let opened = read_lrc_file_with_hash_impl(target_path.clone()).await.unwrap();
-
-        write_lrc_file_if_unchanged_impl(
-            target_path,
-            "first save".into(),
-            opened.sha256.clone(),
-        )
-        .await
-        .unwrap();
-        let stale = write_lrc_file_if_unchanged_impl(alias_path, "stale save".into(), opened.sha256)
+        let opened = read_lrc_file_with_hash_impl(target_path.clone())
             .await
-            .unwrap_err();
+            .unwrap();
+
+        write_lrc_file_if_unchanged_impl(target_path, "first save".into(), opened.sha256.clone())
+            .await
+            .unwrap();
+        let stale =
+            write_lrc_file_if_unchanged_impl(alias_path, "stale save".into(), opened.sha256)
+                .await
+                .unwrap_err();
 
         assert!(stale.contains("LYRICS_FILE_CHANGED"));
         assert_eq!(fs::read_to_string(&target).unwrap(), "first save");
@@ -1079,7 +1134,9 @@ mod lyric_save_command_tests {
         symlink(&target, &alias).unwrap();
         let source_path = target.to_string_lossy().into_owned();
         let alias_path = alias.to_string_lossy().into_owned();
-        let opened = read_lrc_file_with_hash_impl(source_path.clone()).await.unwrap();
+        let opened = read_lrc_file_with_hash_impl(source_path.clone())
+            .await
+            .unwrap();
         fs::write(&target, "external edit").unwrap();
 
         let error = write_lrc_file_impl(
@@ -1093,7 +1150,9 @@ mod lyric_save_command_tests {
         assert!(error.contains("LYRICS_FILE_CHANGED"));
         assert_eq!(fs::read_to_string(&target).unwrap(), "external edit");
 
-        let latest = read_lrc_file_with_hash_impl(source_path.clone()).await.unwrap();
+        let latest = read_lrc_file_with_hash_impl(source_path.clone())
+            .await
+            .unwrap();
         write_lrc_file_impl(
             alias_path,
             "app edit".into(),
@@ -1111,7 +1170,14 @@ mod lyric_save_command_tests {
         let original = dir.path().join("original.lrc");
         fs::write(&original, "original content").unwrap();
         let invalid = dir.path().join("missing-dir").join("draft.lrc");
-        assert!(write_lrc_file_impl(invalid.to_string_lossy().into_owned(), "draft".into(), None, None).await.is_err());
+        assert!(write_lrc_file_impl(
+            invalid.to_string_lossy().into_owned(),
+            "draft".into(),
+            None,
+            None
+        )
+        .await
+        .is_err());
         assert_eq!(fs::read_to_string(&original).unwrap(), "original content");
         assert!(!invalid.exists());
     }
@@ -1123,9 +1189,14 @@ mod lyric_save_command_tests {
         let file = fs::File::create(&target).unwrap();
         file.set_len(MAX_LYRIC_FILE_BYTES + 1).unwrap();
 
-        let error = read_lrc_file_impl(target.to_string_lossy().into_owned()).await.unwrap_err();
+        let error = read_lrc_file_impl(target.to_string_lossy().into_owned())
+            .await
+            .unwrap_err();
         assert!(error.contains("LYRIC_RESOURCE_LIMIT"));
-        assert_eq!(fs::metadata(&target).unwrap().len(), MAX_LYRIC_FILE_BYTES + 1);
+        assert_eq!(
+            fs::metadata(&target).unwrap().len(),
+            MAX_LYRIC_FILE_BYTES + 1
+        );
     }
 
     #[cfg(unix)]
@@ -1156,7 +1227,9 @@ mod lyric_save_command_tests {
         let source = "1\n00:00:01,000 --> 00:00:02,000\nOriginal";
         let raw: Vec<u8> = source.encode_utf16().flat_map(u16::to_le_bytes).collect();
         fs::write(&target, &raw).unwrap();
-        let error = read_lrc_file_impl(target.to_string_lossy().into_owned()).await.unwrap_err();
+        let error = read_lrc_file_impl(target.to_string_lossy().into_owned())
+            .await
+            .unwrap_err();
         assert!(error.contains("Unsupported lyric encoding"), "{error}");
         assert_eq!(fs::read(&target).unwrap(), raw);
     }
@@ -1167,7 +1240,12 @@ mod lyric_save_command_tests {
         let target = dir.path().join("normal.lrc");
         let source = "[00:01.00]한글 日本語 \\0 text";
         fs::write(&target, source).unwrap();
-        assert_eq!(read_lrc_file_impl(target.to_string_lossy().into_owned()).await.unwrap(), source);
+        assert_eq!(
+            read_lrc_file_impl(target.to_string_lossy().into_owned())
+                .await
+                .unwrap(),
+            source
+        );
     }
 }
 
@@ -1196,18 +1274,22 @@ mod audio_identity_command_tests {
 #[cfg(test)]
 mod window_scope_tests {
     use super::authorize_window_path;
+    use crate::recent_file_grants::RecentFileGrants;
+    use tauri::Manager;
     use tauri_plugin_fs::FsExt;
 
     #[test]
     fn native_file_commands_require_a_window_grant_and_accept_a_selected_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let grants = RecentFileGrants::open(dir.path().join("recent-file-grants.json")).unwrap();
         let app = tauri::test::mock_builder()
             .plugin(tauri_plugin_fs::init())
+            .manage(grants)
             .build(tauri::test::mock_context(tauri::test::noop_assets()))
             .unwrap();
         let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
             .build()
             .unwrap();
-        let dir = tempfile::tempdir().unwrap();
         let selected = dir.path().join("selected.lrc");
         std::fs::write(&selected, "lyrics").unwrap();
         let selected = selected.canonicalize().unwrap();
@@ -1215,6 +1297,30 @@ mod window_scope_tests {
         assert!(authorize_window_path(&window, &selected).is_err());
         window.fs_scope().allow_file(&selected).unwrap();
         assert!(authorize_window_path(&window, &selected).is_ok());
+        assert!(window.state::<RecentFileGrants>().allows(&selected));
+    }
+    #[test]
+    fn native_file_commands_accept_a_persisted_exact_file_grant_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let selected = dir.path().join("selected.wav");
+        std::fs::write(&selected, b"audio").unwrap();
+        let selected = selected.canonicalize().unwrap();
+        let store_path = dir.path().join("recent-file-grants.json");
+        RecentFileGrants::open(store_path.clone())
+            .unwrap()
+            .remember(&selected)
+            .unwrap();
+        let grants = RecentFileGrants::open(store_path).unwrap();
+        let app = tauri::test::mock_builder()
+            .plugin(tauri_plugin_fs::init())
+            .manage(grants)
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
 
+        assert!(authorize_window_path(&window, &selected).is_ok());
+        assert!(authorize_window_path(&window, &dir.path().join("unselected.wav")).is_err());
     }
 }
