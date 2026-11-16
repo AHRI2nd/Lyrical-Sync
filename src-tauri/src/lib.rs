@@ -846,6 +846,43 @@ mod audio_metadata_fallback_tests {
     use std::borrow::Cow;
 
     #[test]
+    fn reads_title_artist_and_album_from_a_riff_info_tag() {
+        use lofty::config::WriteOptions;
+        use lofty::file::TaggedFileExt;
+        use lofty::tag::{Accessor, ItemKey, Tag, TagExt, TagType};
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("tagged.wav");
+        let spec = hound::WavSpec {
+            channels: 2,
+            sample_rate: 44_100,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut writer = hound::WavWriter::create(&path, spec).unwrap();
+        for _ in 0..441 {
+            writer.write_sample(0_i16).unwrap();
+            writer.write_sample(0_i16).unwrap();
+        }
+        writer.finalize().unwrap();
+
+        let mut tag = Tag::new(TagType::RiffInfo);
+        tag.insert_text(ItemKey::TrackTitle, "QA title".into());
+        tag.insert_text(ItemKey::TrackArtist, "QA artist".into());
+        tag.insert_text(ItemKey::AlbumTitle, "QA album".into());
+        tag.save_to_path(&path, WriteOptions::default()).unwrap();
+
+        let tagged = lofty::read_from_path(&path).unwrap();
+        let tag = tagged
+            .primary_tag()
+            .or_else(|| tagged.tags().first())
+            .expect("RIFF INFO tag should be available through the tag fallback");
+        assert_eq!(preferred_tag_value(tag.title(), None), "QA title");
+        assert_eq!(preferred_tag_value(tag.artist(), None), "QA artist");
+        assert_eq!(preferred_tag_value(tag.album(), None), "QA album");
+    }
+
+    #[test]
     fn fills_missing_or_blank_primary_fields_from_the_secondary_tag() {
         assert_eq!(
             preferred_tag_value(
