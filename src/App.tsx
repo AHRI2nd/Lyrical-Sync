@@ -296,6 +296,16 @@ function App() {
   });
   const recoveryRef = useRef(recovery);
   recoveryRef.current = recovery;
+  const restoredRecoverySnapshotRef = useRef<RecoverySnapshot | null>(null);
+  const restoredRecoveryDocumentSessionRef = useRef<number | null>(null);
+  const clearRestoredRecoverySnapshot = () => {
+    const snapshot = restoredRecoverySnapshotRef.current;
+    if (!snapshot) return true;
+    if (!clearRecoverySnapshot(snapshot)) return false;
+    restoredRecoverySnapshotRef.current = null;
+    restoredRecoveryDocumentSessionRef.current = null;
+    return true;
+  };
   const deferredRecoveryDropRef = useRef<{ audio?: string; lyrics?: string } | null>(null);
   const discardCloseRef = useRef(false);
   const [discardingClose, setDiscardingClose] = useState(false);
@@ -346,6 +356,10 @@ function App() {
   const hasGlyphSync = useLrcStore((s) => s.doc.lines.some((l) => l.syllables?.some((sy) => sy.time !== null)));
   const { t } = useI18nStore();
   const appDocumentSession = useLrcStore((s) => s._documentSession);
+  useEffect(() => {
+    if (!restoredRecoverySnapshotRef.current || restoredRecoveryDocumentSessionRef.current === appDocumentSession) return;
+    if (!clearRestoredRecoverySnapshot()) toast.error(t.recovery.discardFailed);
+  }, [appDocumentSession]);
   const lrcExtensionNoticeShown = useRef({ session: appDocumentSession, shown: false });
   if (lrcExtensionNoticeShown.current.session !== appDocumentSession) {
     lrcExtensionNoticeShown.current = { session: appDocumentSession, shown: false };
@@ -481,6 +495,7 @@ function App() {
     const needsExtensionNotice = isLrcExport && needsInlineTimestampEscape(useLrcStore.getState().doc);
     p.then((written) => {
       if (!written) return;
+      if (!clearRestoredRecoverySnapshot()) toast.error(t.recovery.discardFailed);
       toast.success(t.toast.saved);
       if (needsExtensionNotice && !lrcExtensionNoticeShown.current.shown) {
         toast.info(t.toast.lrcInlineEscapeNotice);
@@ -857,7 +872,9 @@ function App() {
           okLabel={t.recovery.restore}
           cancelLabel={t.recovery.discard}
           onOk={() => {
+            restoredRecoverySnapshotRef.current = recovery;
             useLrcStore.getState().restoreDoc(recovery.doc, recovery.lrcPath, recovery.audioPath, recovery.lrcFileHash);
+            restoredRecoveryDocumentSessionRef.current = useLrcStore.getState()._documentSession;
             finishRecoveryDecision();
             // Keep recovery snapshot until restored document is explicitly saved
           }}
@@ -939,6 +956,10 @@ function App() {
             if (current._documentSession !== newConfirmSession) return;
             if (current._editRevision !== newConfirmRevision) {
               setNewConfirmRevision(current._editRevision);
+              return;
+            }
+            if (!clearRestoredRecoverySnapshot()) {
+              toast.error(t.recovery.discardFailed);
               return;
             }
             setShowNewConfirm(false);

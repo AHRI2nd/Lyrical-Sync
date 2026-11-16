@@ -666,6 +666,7 @@ describe("App — recovery lifecycle", () => {
     localStorage.clear();
     resetLrc();
     useSettingsStore.setState({ autoCheckUpdate: false, autoSave: false, spotifyMode: false, deviceMode: false });
+    useToastStore.setState({ toasts: [] });
   });
   afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.useRealTimers(); });
   const snapshot = (withLines = true) => {
@@ -728,6 +729,94 @@ describe("App — recovery lifecycle", () => {
     expect(useLrcStore.getState().isDirty).toBe(true);
     expect(screen.queryByRole("dialog", { name: useI18nStore.getState().t.recovery.title })).toBeNull();
     expect(loadRecoverySnapshot()?.doc.metadata.title).toBe(doc.metadata.title);
+  });
+  it("clears a prior-instance recovery snapshot when starting a new document", async () => {
+    const doc = defaultDocument();
+    doc.lines = [{ id: "recovered", text: "Disposable recovered lyric", timestamp: 1 }];
+    expect(saveRecoverySnapshot(doc, null, null, null, null, "previous-app-instance", 4, 7)).toBe(true);
+    const user = userEvent.setup();
+    render(<App />);
+
+    const t = useI18nStore.getState().t;
+    await user.click(screen.getByText(t.recovery.restore));
+    expect(useLrcStore.getState().doc.lines[0]?.text).toBe("Disposable recovered lyric");
+    await user.click(screen.getByRole("button", { name: t.newFileBtn }));
+    const confirm = screen.getByRole("dialog", { name: t.confirmNewTitle });
+    await user.click(within(confirm).getByRole("button", { name: t.confirmNewOk }));
+
+    expect(useLrcStore.getState().doc.lines).toEqual([]);
+    expect(loadRecoverySnapshot()).toBeNull();
+  });
+  it("keeps recovered edits when their snapshot cannot be removed before New", async () => {
+    const { storage, restore } = installMemoryLocalStorage();
+    const doc = defaultDocument();
+    doc.lines = [{ id: "recovered", text: "Protected recovered lyric", timestamp: 1 }];
+    expect(saveRecoverySnapshot(doc, null, null, null, null, "previous-app-instance", 4, 7)).toBe(true);
+    const recoveryKey = loadRecoverySnapshot()?.storageKey;
+    expect(recoveryKey).toBe("lyrical-sync-recovery:previous-app-instance");
+    const removeItem = storage.removeItem.bind(storage);
+    vi.spyOn(storage, "removeItem").mockImplementation((key) => {
+      if (key === recoveryKey) throw new Error("storage unavailable");
+      removeItem(key);
+    });
+    const user = userEvent.setup();
+
+    try {
+      render(<App />);
+      const t = useI18nStore.getState().t;
+      await user.click(screen.getByText(t.recovery.restore));
+      await user.click(screen.getByRole("button", { name: t.newFileBtn }));
+      const confirm = screen.getByRole("dialog", { name: t.confirmNewTitle });
+      await user.click(within(confirm).getByRole("button", { name: t.confirmNewOk }));
+
+      expect(useLrcStore.getState().doc.lines[0]?.text).toBe("Protected recovered lyric");
+      expect(useLrcStore.getState().isDirty).toBe(true);
+      expect(screen.getByRole("dialog", { name: t.confirmNewTitle })).toBeTruthy();
+      expect(screen.getByText(t.recovery.discardFailed)).toBeTruthy();
+      expect(loadRecoverySnapshot()?.doc.lines[0]?.text).toBe("Protected recovered lyric");
+    } finally {
+      restore();
+    }
+  });
+  it("clears a prior-instance recovery snapshot after saving the restored document", async () => {
+    const doc = defaultDocument();
+    doc.lines = [{ id: "recovered", text: "Saved recovered lyric", timestamp: 1 }];
+    expect(saveRecoverySnapshot(doc, "/tmp/recovered.lrc", null, null, null, "previous-app-instance", 4, 7)).toBe(true);
+    const saveLrc = vi.fn(async () => {
+      useLrcStore.setState({ isDirty: false });
+      return true;
+    });
+    const originalSaveLrc = useLrcStore.getState().saveLrc;
+    useLrcStore.setState({ saveLrc });
+    const user = userEvent.setup();
+    try {
+      render(<App />);
+
+      const t = useI18nStore.getState().t;
+      await user.click(screen.getByText(t.recovery.restore));
+      await user.click(screen.getByRole("button", { name: t.save }));
+
+      expect(saveLrc).toHaveBeenCalledOnce();
+      expect(await screen.findByText(t.toast.saved)).toBeTruthy();
+      expect(loadRecoverySnapshot()).toBeNull();
+    } finally {
+      useLrcStore.setState({ saveLrc: originalSaveLrc });
+    }
+  });
+  it("clears the prior recovery snapshot when another document replaces the restored one", () => {
+    const doc = defaultDocument();
+    doc.lines = [{ id: "recovered", text: "Old recovered lyric", timestamp: 1 }];
+    expect(saveRecoverySnapshot(doc, null, null, null, null, "previous-app-instance", 4, 7)).toBe(true);
+    const recoveryKey = loadRecoverySnapshot()?.storageKey;
+    render(<App />);
+
+    fireEvent.click(screen.getByText(useI18nStore.getState().t.recovery.restore));
+    const replacement = defaultDocument();
+    replacement.lines = [{ id: "replacement", text: "Replacement lyric", timestamp: 2 }];
+    act(() => useLrcStore.getState().restoreDoc(replacement, "/tmp/replacement.lrc", null));
+
+    expect(useLrcStore.getState().doc.lines[0]?.text).toBe("Replacement lyric");
+    expect(localStorage.getItem(recoveryKey!)).toBeNull();
   });
   it("removes the expected snapshot on explicit discard", () => {
     snapshot();
