@@ -8,7 +8,7 @@ if len(sys.argv) != 3:
 
 def run_pip(*args):
     proc = subprocess.Popen(
-        [sys.executable, "-m", "pip", "--isolated"] + list(args),
+        [sys.executable, "-m", "pip", "--isolated", "--disable-pip-version-check"] + list(args),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,

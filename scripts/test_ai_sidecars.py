@@ -869,6 +869,46 @@ class EmbeddedAlignmentExecutionTests(unittest.TestCase):
 
 
 class PlatformSupportTests(unittest.TestCase):
+    def test_windows_ctc_installer_disables_transient_pip_update_notice(self):
+        import ast
+
+        installer_path = ROOT / "src-tauri/src/install_ctc.py"
+        installer = ast.parse(installer_path.read_text(encoding="utf-8"))
+        run_pip = next(
+            node for node in installer.body
+            if isinstance(node, ast.FunctionDef) and node.name == "run_pip"
+        )
+        commands = []
+
+        class FakeProcess:
+            stdout = ()
+            returncode = 0
+
+            def wait(self):
+                return self.returncode
+
+        def fake_popen(command, **_kwargs):
+            commands.append(command)
+            return FakeProcess()
+
+        namespace = {
+            "sys": types.SimpleNamespace(executable="/qa/python"),
+            "subprocess": types.SimpleNamespace(
+                PIPE=object(),
+                STDOUT=object(),
+                Popen=fake_popen,
+            ),
+        }
+        exec(compile(ast.Module(body=[run_pip], type_ignores=[]), str(installer_path), "exec"), namespace)
+
+        result = namespace["run_pip"]("install", "--no-deps", "/stage/source")
+
+        self.assertEqual(result, 0)
+        self.assertEqual(commands, [[
+            "/qa/python", "-m", "pip", "--isolated", "--disable-pip-version-check",
+            "install", "--no-deps", "/stage/source",
+        ]])
+
     def test_ctc_patcher_scratch_is_scoped_to_its_owned_stage(self):
         installer = (ROOT / "src-tauri/src/install_ctc.py").read_text(encoding="utf-8")
         native = (ROOT / "src-tauri/src/python_env.rs").read_text(encoding="utf-8")
