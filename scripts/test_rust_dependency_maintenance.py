@@ -19,7 +19,7 @@ class RustDependencyMaintenanceTests(unittest.TestCase):
                 result = subprocess.run(
                     [
                         'cargo', 'tree', '--manifest-path', str(MANIFEST),
-                        '--locked', '--offline', '--target', target,
+                        '--locked', '--target', target,
                         '--edges', 'all', '-i', 'paste',
                     ],
                     text=True,
