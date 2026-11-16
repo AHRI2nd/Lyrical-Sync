@@ -1411,7 +1411,7 @@ async fn ytdlp_run_child<R: tauri::Runtime>(
     // 자식 프로세스가 멈출 수 있음). 마지막 몇 줄만 보관해 에러 메시지에 붙인다.
     let stderr_tail = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
     let stderr_tail_c = stderr_tail.clone();
-    let stderr_task = tokio::spawn(async move {
+    let mut stderr_task = tokio::spawn(async move {
         let mut reader = BufReader::new(stderr);
         loop {
             let line = match read_bounded_line(&mut reader, MAX_YTDLP_STDERR_LINE_BYTES).await {
@@ -1518,7 +1518,17 @@ async fn ytdlp_run_child<R: tauri::Runtime>(
             Ok(status) => break status.map_err(|e| e.to_string())?,
         }
     };
-    let _ = stderr_task.await;
+    // A descendant can keep the inherited stderr pipe open after yt-dlp exits.
+    // Drain briefly for the final diagnostic lines, then stop the whole process
+    // tree and reader instead of letting this await hang the UI indefinitely.
+    if tokio::time::timeout(std::time::Duration::from_millis(250), &mut stderr_task)
+        .await
+        .is_err()
+    {
+        process_tree.terminate().await;
+        stderr_task.abort();
+        let _ = stderr_task.await;
+    }
 
     if cancel_flag.load(Ordering::Relaxed) {
         return Err("cancelled".into());
@@ -1968,6 +1978,74 @@ mod tests {
         })
         .await
         .expect("full runner cancellation should terminate the pipe-holding descendant");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn full_runner_does_not_wait_forever_for_stderr_after_stdout_eof() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = tempfile::tempdir().unwrap();
+        let descendant_pid_path = temp.path().join("stderr-descendant.pid");
+        let executable = temp.path().join("synthetic-yt-dlp-stderr-only");
+        let pid_path = descendant_pid_path.display().to_string();
+        let script = format!(
+            "#!/usr/bin/env python3\nimport os, time\npid = os.fork()\nif pid == 0:\n  os.close(1)\n  with open({pid_path:?}, 'w') as f: f.write(str(os.getpid()))\n  time.sleep(60)\nelse:\n  print('direct process exiting', flush=True)\n"
+        );
+        std::fs::write(&executable, script).unwrap();
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
+
+        let app = tauri::test::mock_app();
+        let app = app.handle().clone();
+        let cache_dir = temp.path().join("cache");
+        std::fs::create_dir(&cache_dir).unwrap();
+        let mut run = tokio::spawn(async move {
+            ytdlp_run_child(
+                "https://www.youtube.com/watch?v=fixture".into(),
+                "128".into(),
+                None,
+                None,
+                app,
+                executable,
+                cache_dir,
+                "stderr-only-descendant-run".into(),
+                Arc::new(AtomicBool::new(false)),
+            )
+            .await
+        });
+
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            while !descendant_pid_path.exists() {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("stderr-only descendant should start");
+        let descendant_pid: i32 = std::fs::read_to_string(&descendant_pid_path)
+            .unwrap()
+            .parse()
+            .unwrap();
+
+        let completion = tokio::time::timeout(std::time::Duration::from_secs(1), &mut run).await;
+        if completion.is_err() {
+            run.abort();
+            let _ = run.await;
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+                while unsafe { libc::kill(descendant_pid, 0) } == 0 {
+                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                }
+            })
+            .await;
+            panic!("runner must not wait indefinitely for a descendant holding only stderr");
+        }
+        let _ = completion.unwrap().unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            while unsafe { libc::kill(descendant_pid, 0) } == 0 {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("stderr-only descendant should be reaped when the direct process exits");
     }
 
     #[cfg(unix)]
