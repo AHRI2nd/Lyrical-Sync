@@ -133,6 +133,7 @@ pub fn inspect_audio_file(path: &Path) -> Result<AudioResourceInfo, String> {
 
 /// Copies admitted audio into a private, bounded temporary file and validates the exact bytes
 /// that downstream AI sidecars will reopen. The returned path owns the snapshot lifetime.
+#[cfg(test)]
 pub fn stage_bounded_audio_file(
     path: &Path,
 ) -> Result<(tempfile::TempPath, AudioResourceInfo), String> {

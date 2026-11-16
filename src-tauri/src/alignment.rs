@@ -103,6 +103,23 @@ fn canonical_ai_error_code(code: Option<&str>) -> &'static str {
     }
 }
 
+fn stage_alignment_audio_with_check(
+    path: &std::path::Path,
+    check_cancelled: impl FnMut() -> Result<(), String>,
+) -> Result<(tempfile::TempPath, crate::audio_resource::AudioResourceInfo), String> {
+    let (snapshot, info) =
+        crate::audio_resource::stage_bounded_audio_file_with_check(path, check_cancelled)?;
+    Ok((snapshot.into_temp_path(), info))
+}
+
+fn check_alignment_cancelled(cancel: &AtomicBool) -> Result<(), String> {
+    if cancel.load(Ordering::Relaxed) {
+        Err("cancelled".into())
+    } else {
+        Ok(())
+    }
+}
+
 async fn wait_for_package_probe(
     probe: impl std::future::Future<Output = bool>, cancel: &AtomicBool,
 ) -> Result<bool, String> {
@@ -291,8 +308,11 @@ pub async fn run_alignment(
     }
 
     let audio_source_path = audio_path.clone();
+    let staging_cancel = cancel.clone();
     let (audio_snapshot, audio_info) = tokio::task::spawn_blocking(move || {
-        crate::audio_resource::stage_bounded_audio_file(&audio_source_path)
+        stage_alignment_audio_with_check(&audio_source_path, || {
+            check_alignment_cancelled(&staging_cancel)
+        })
     })
     .await
     .map_err(|error| format!("Audio snapshot worker failed: {error}"))??;
@@ -630,6 +650,42 @@ mod tests {
         assert_eq!(
             crate::audio_resource::stage_bounded_audio_file(&path).unwrap_err(),
             crate::audio_resource::AUDIO_RESOURCE_LIMIT_ERROR,
+        );
+    }
+
+    #[test]
+    fn alignment_audio_staging_stops_when_the_run_is_cancelled() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cancel-alignment-audio.wav");
+        let spec = hound::WavSpec {
+            channels: 2,
+            sample_rate: 48_000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut writer = hound::WavWriter::create(&path, spec).unwrap();
+        for _ in 0..80_000 {
+            writer.write_sample(123_i16).unwrap();
+            writer.write_sample(-123_i16).unwrap();
+        }
+        writer.finalize().unwrap();
+        let source_before = std::fs::read(&path).unwrap();
+        let cancelled = AtomicBool::new(false);
+        let mut checks = 0;
+
+        let result = stage_alignment_audio_with_check(&path, || {
+            checks += 1;
+            if checks == 4 {
+                cancelled.store(true, Ordering::Relaxed);
+            }
+            check_alignment_cancelled(&cancelled)
+        });
+
+        assert_eq!(result.unwrap_err(), "cancelled");
+        assert_eq!(std::fs::read(&path).unwrap(), source_before);
+        assert!(
+            checks >= 4,
+            "cancellation should be checked during the copy"
         );
     }
 
