@@ -444,6 +444,19 @@ if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
         self.assertEqual(resources.get('../LICENSE'),'LICENSE')
         self.assertTrue((ROOT/'LICENSE').is_file())
 
+    def test_bundle_csp_allows_tauri_internal_ipc_origins(self):
+        config=json.loads((ROOT/'src-tauri/tauri.conf.json').read_text(encoding='utf-8'))
+        directives={}
+        for directive in config['app']['security']['csp'].split(';'):
+            name, *sources=directive.strip().split()
+            directives[name]=sources
+
+        connect_sources=directives['connect-src']
+        self.assertIn('ipc:',connect_sources)
+        self.assertIn('http://ipc.localhost',connect_sources)
+        wildcard_sources={source for source in connect_sources if '*' in source}
+        self.assertEqual(wildcard_sources,{'https://*.spotify.com','https://*.scdn.co'})
+
     def test_mac_updater_archive_with_stale_app_version_is_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);self.mac_candidate(root,'0.6.3',(ROOT/'LICENSE').read_bytes())
