@@ -5,7 +5,7 @@ const MAX_AUDIO_SNAPSHOTS: usize = 1;
 use std::collections::HashMap;
 use std::io::{Read, Seek, SeekFrom};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ByteRange {
@@ -117,23 +117,46 @@ struct AudioStreamEntry {
 #[derive(Default)]
 struct AudioStreamRegistry {
     entries: HashMap<String, Arc<AudioStreamEntry>>,
+    shutting_down: bool,
+    active_requests: usize,
+}
+
+struct AudioStreamRequest {
+    registry: Arc<Mutex<AudioStreamRegistry>>,
+    idle: Arc<Condvar>,
+}
+
+impl Drop for AudioStreamRequest {
+    fn drop(&mut self) {
+        let mut registry = self
+            .registry
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        registry.active_requests = registry.active_requests.saturating_sub(1);
+        if registry.active_requests == 0 {
+            self.idle.notify_all();
+        }
+    }
 }
 
 #[derive(Default)]
 struct PreparationInner {
     active: Option<(String, Arc<AtomicBool>)>,
     pending_cancellations: std::collections::VecDeque<String>,
+    shutting_down: bool,
 }
 
 #[derive(Default)]
 struct PreparationState {
     inner: Mutex<PreparationInner>,
     completed: tokio::sync::Notify,
+    completed_sync: std::sync::Condvar,
 }
 
 #[derive(Clone)]
 pub struct AudioStreamState {
     registry: Arc<Mutex<AudioStreamRegistry>>,
+    registry_idle: Arc<Condvar>,
     preparations: Arc<PreparationState>,
     read_permits: Arc<tokio::sync::Semaphore>,
     snapshot_permits: Arc<tokio::sync::Semaphore>,
@@ -143,6 +166,7 @@ impl Default for AudioStreamState {
     fn default() -> Self {
         Self {
             registry: Arc::default(),
+            registry_idle: Arc::default(),
             preparations: Arc::default(),
             read_permits: Arc::new(tokio::sync::Semaphore::new(MAX_CONCURRENT_AUDIO_READS)),
             snapshot_permits: Arc::new(tokio::sync::Semaphore::new(MAX_AUDIO_SNAPSHOTS)),
@@ -165,6 +189,28 @@ impl AudioStreamState {
         self.snapshot_permits.clone().try_acquire_owned().ok()
     }
 
+    fn acquire_entry(&self, token: &str) -> Option<(Arc<AudioStreamEntry>, AudioStreamRequest)> {
+        let mut registry = self
+            .registry
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        if registry.shutting_down {
+            return None;
+        }
+        let entry = registry.entries.get(token)?.clone();
+        if entry.revoked.load(Ordering::Acquire) {
+            return None;
+        }
+        registry.active_requests += 1;
+        Some((
+            entry,
+            AudioStreamRequest {
+                registry: self.registry.clone(),
+                idle: self.registry_idle.clone(),
+            },
+        ))
+    }
+
     pub(crate) fn busy_response() -> tauri::http::Response<Vec<u8>> {
         empty_response(tauri::http::StatusCode::SERVICE_UNAVAILABLE, None, None)
     }
@@ -183,6 +229,9 @@ impl AudioStreamState {
             .inner
             .lock()
             .unwrap_or_else(|error| error.into_inner());
+        if inner.shutting_down {
+            return Err("Audio streaming is shutting down".into());
+        }
         if inner.active.is_some() {
             return Err("Audio preparation is still running or cancelling".into());
         }
@@ -211,6 +260,9 @@ impl AudioStreamState {
                 cancel.store(true, Ordering::Release);
                 return;
             }
+        }
+        if inner.shutting_down {
+            return;
         }
         if id.is_empty()
             || id.len() > 64
@@ -250,6 +302,48 @@ impl AudioStreamState {
             notified.await;
         }
     }
+
+    pub fn shutdown(&self) {
+        let mut inner = self
+            .preparations
+            .inner
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        inner.shutting_down = true;
+        inner.pending_cancellations.clear();
+        if let Some((_, cancel)) = &inner.active {
+            cancel.store(true, Ordering::Release);
+        }
+        while inner.active.is_some() {
+            inner = self
+                .preparations
+                .completed_sync
+                .wait(inner)
+                .unwrap_or_else(|error| error.into_inner());
+        }
+        drop(inner);
+
+        let mut registry = self
+            .registry
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        registry.shutting_down = true;
+        for entry in registry.entries.values() {
+            entry.revoked.store(true, Ordering::Release);
+        }
+        while registry.active_requests > 0 {
+            registry = self
+                .registry_idle
+                .wait(registry)
+                .unwrap_or_else(|error| error.into_inner());
+        }
+        let entries = std::mem::take(&mut registry.entries);
+        drop(registry);
+        for entry in entries.values() {
+            entry.revoked.store(true, Ordering::Release);
+        }
+        drop(entries);
+    }
 }
 
 impl AudioPreparationRun {
@@ -282,6 +376,7 @@ impl Drop for AudioPreparationRun {
         }
         drop(inner);
         self.state.completed.notify_waiters();
+        self.state.completed_sync.notify_all();
     }
 }
 
@@ -321,6 +416,9 @@ impl AudioStreamState {
             .registry
             .lock()
             .unwrap_or_else(|error| error.into_inner());
+        if registry.shutting_down {
+            return Err("Audio streaming is shutting down".into());
+        }
         registry
             .entries
             .retain(|_, entry| !entry.revoked.load(Ordering::Acquire));
@@ -391,13 +489,8 @@ impl AudioStreamState {
         ) -> Result<T, String>,
     ) -> Result<T, String> {
         let token = token_from_url(stream_url).ok_or("Invalid audio stream URL")?;
-        let entry = self
-            .registry
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .entries
-            .get(token)
-            .cloned()
+        let (entry, _request) = self
+            .acquire_entry(token)
             .ok_or("Audio stream is unavailable")?;
         if entry.revoked.load(Ordering::Acquire) {
             return Err("Audio stream is unavailable".into());
@@ -442,14 +535,7 @@ impl AudioStreamState {
         let Some(token) = token_from_uri(request.uri().path()) else {
             return empty_response(StatusCode::NOT_FOUND, None, None);
         };
-        let entry = self
-            .registry
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .entries
-            .get(token)
-            .cloned();
-        let Some(entry) = entry.filter(|entry| !entry.revoked.load(Ordering::Acquire)) else {
+        let Some((entry, _request)) = self.acquire_entry(token) else {
             return empty_response(StatusCode::NOT_FOUND, None, None);
         };
         let range_header = request
@@ -906,6 +992,118 @@ mod tests {
         assert!(path.exists());
         assert!(state.revoke_url(&descriptor.stream_url));
         assert!(!path.exists());
+    }
+
+    #[test]
+    fn shutdown_removes_registered_snapshots_and_rejects_new_preparations() {
+        let state = AudioStreamState::default();
+        let mut snapshot = tempfile::NamedTempFile::new().unwrap();
+        snapshot.write_all(b"temporary audio").unwrap();
+        let path = snapshot.path().to_path_buf();
+        let descriptor = state
+            .register(
+                snapshot,
+                crate::audio_resource::AudioResourceInfo {
+                    file_bytes: 15,
+                    duration_seconds: 1,
+                    sample_rate: 48_000,
+                    channels: 1,
+                    estimated_pcm_bytes: 48_000 * 4,
+                },
+                "audio/wav".into(),
+                "wav".into(),
+            )
+            .unwrap();
+
+        assert!(path.exists());
+        state.shutdown();
+
+        assert!(!path.exists());
+        assert!(state.try_acquire_snapshot().is_some());
+        assert!(state.begin_preparation("after-shutdown".into()).is_err());
+        assert_eq!(descriptor.file_bytes, 15);
+    }
+
+    #[test]
+    fn shutdown_waits_for_active_preparation_to_release_its_snapshot_owner() {
+        use std::sync::mpsc;
+        use std::time::Duration;
+
+        let state = AudioStreamState::default();
+        let active = state.begin_preparation("active-run".into()).unwrap();
+        let shutdown_state = state.clone();
+        let (started_tx, started_rx) = mpsc::channel();
+        let (finished_tx, finished_rx) = mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            started_tx.send(()).unwrap();
+            shutdown_state.shutdown();
+            finished_tx.send(()).unwrap();
+        });
+
+        started_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        while !active.is_cancelled() {
+            std::thread::yield_now();
+        }
+        assert!(finished_rx.recv_timeout(Duration::from_millis(10)).is_err());
+
+        drop(active);
+        finished_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        worker.join().unwrap();
+        assert!(state.begin_preparation("after-shutdown".into()).is_err());
+    }
+
+    #[test]
+    fn shutdown_waits_for_active_snapshot_request_before_removing_file() {
+        use std::sync::mpsc;
+        use std::time::Duration;
+
+        let (state, descriptor) = register_test_stream();
+        let snapshot_path = {
+            let registry = state.registry.lock().unwrap();
+            let entry = registry.entries.values().next().unwrap();
+            let path = entry.snapshot.lock().unwrap().path().to_path_buf();
+            path
+        };
+        let stream_state = state.clone();
+        let stream_url = descriptor.stream_url.clone();
+        let (entered_tx, entered_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let (stream_done_tx, stream_done_rx) = mpsc::channel();
+        let stream_worker = std::thread::spawn(move || {
+            let result = stream_state.with_snapshot(&stream_url, |_file, _extension, _info| {
+                entered_tx.send(()).unwrap();
+                release_rx.recv().unwrap();
+                Ok(())
+            });
+            stream_done_tx.send(result.is_err()).unwrap();
+        });
+        entered_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+
+        let shutdown_state = state.clone();
+        let (shutdown_done_tx, shutdown_done_rx) = mpsc::channel();
+        let shutdown_worker = std::thread::spawn(move || {
+            shutdown_state.shutdown();
+            shutdown_done_tx.send(()).unwrap();
+        });
+
+        let deadline = std::time::Instant::now() + Duration::from_secs(1);
+        while !state.registry.lock().unwrap().shutting_down {
+            assert!(std::time::Instant::now() < deadline);
+            std::thread::yield_now();
+        }
+        assert!(shutdown_done_rx
+            .recv_timeout(Duration::from_millis(10))
+            .is_err());
+        assert!(snapshot_path.exists());
+
+        release_tx.send(()).unwrap();
+        assert!(stream_done_rx.recv_timeout(Duration::from_secs(1)).unwrap());
+        shutdown_done_rx
+            .recv_timeout(Duration::from_secs(1))
+            .unwrap();
+        stream_worker.join().unwrap();
+        shutdown_worker.join().unwrap();
+        assert!(!snapshot_path.exists());
     }
 
     #[test]

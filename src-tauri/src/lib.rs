@@ -836,8 +836,15 @@ pub fn run() {
             now_playing_toggle_play_pause,
             now_playing_seek,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            if matches!(event, tauri::RunEvent::Exit) {
+                app_handle
+                    .state::<audio_stream::AudioStreamState>()
+                    .shutdown();
+            }
+        });
 }
 
 #[cfg(test)]
