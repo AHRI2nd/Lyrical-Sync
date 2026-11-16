@@ -122,3 +122,93 @@ it("reports native menu creation failures locally", async () => {
   window.removeEventListener("lyrical-runtime-error", reportRuntimeError);
   logError.mockRestore();
 });
+
+it("closes native menu resources created before a later construction failure", async () => {
+  vi.resetModules();
+  Object.defineProperty(navigator, "platform", { configurable: true, value: "MacIntel" });
+  const resources: Array<{ close: ReturnType<typeof vi.fn> }> = [];
+  const createResource = async () => {
+    const resource = { close: vi.fn().mockResolvedValue(undefined) };
+    resources.push(resource);
+    return resource;
+  };
+  menuMocks.menuNew.mockReset().mockRejectedValue(new Error("application menu unavailable"));
+  menuMocks.setAsAppMenu.mockReset();
+  menuMocks.submenuNew.mockReset().mockImplementation(createResource);
+  menuMocks.menuItemNew.mockReset().mockImplementation(createResource);
+  menuMocks.predefinedNew.mockReset().mockImplementation(createResource);
+  menuMocks.checkMenuItemNew.mockReset().mockImplementation(createResource);
+
+  const { useMacMenu } = await import("./useMacMenu");
+  const reportRuntimeError = vi.fn();
+  window.addEventListener("lyrical-runtime-error", reportRuntimeError);
+
+  renderHook(() => useMacMenu({} as never, {
+    t: {
+      menu: {
+        settings: "Settings", file: "File", edit: "Edit", playback: "Playback", mode: "Mode", view: "View", help: "Help",
+        quit: "Quit", saveAsLrc: "Save LRC", saveAsSrt: "Save SRT", playPause: "Play", skipBack5: "Back 5",
+        skipBack1: "Back 1", skipFwd1: "Forward 1", skipFwd5: "Forward 5", stop: "Stop",
+      },
+      newFileBtn: "New", openLrc: "Open LRC", openAudio: "Open Audio", save: "Save", undo: "Undo", redo: "Redo",
+      previewBtn: "Preview", shortcutsTitle: "Shortcuts", modeFile: "File mode", modeYouTube: "YouTube", modeDevice: "Device",
+    } as never,
+    spotifyMode: false,
+    youtubeMode: false,
+    deviceMode: false,
+    ytdlpInstalled: false,
+  }));
+
+  await waitFor(() => expect(reportRuntimeError).toHaveBeenCalledOnce());
+  expect(resources.length).toBeGreaterThan(0);
+  expect(resources.every((resource) => resource.close.mock.calls.length === 1)).toBe(true);
+  window.removeEventListener("lyrical-runtime-error", reportRuntimeError);
+});
+
+it("waits for parallel menu-item creation before cleaning up a failed build", async () => {
+  vi.resetModules();
+  Object.defineProperty(navigator, "platform", { configurable: true, value: "MacIntel" });
+  const resources: Array<{ close: ReturnType<typeof vi.fn> }> = [];
+  const createResource = async () => {
+    const resource = { close: vi.fn().mockResolvedValue(undefined) };
+    resources.push(resource);
+    return resource;
+  };
+  let resolveDelayedCreation!: (resource: Awaited<ReturnType<typeof createResource>>) => void;
+  menuMocks.menuNew.mockReset();
+  menuMocks.setAsAppMenu.mockReset();
+  menuMocks.submenuNew.mockReset().mockImplementation(createResource);
+  menuMocks.menuItemNew.mockReset().mockImplementation(createResource);
+  menuMocks.predefinedNew.mockReset().mockImplementation(createResource);
+  menuMocks.checkMenuItemNew.mockReset()
+    .mockRejectedValueOnce(new Error("mode menu item unavailable"))
+    .mockImplementationOnce(() => new Promise((resolve) => { resolveDelayedCreation = resolve; }))
+    .mockImplementation(createResource)
+    .mockImplementation(createResource);
+
+  const { useMacMenu } = await import("./useMacMenu");
+  const reportRuntimeError = vi.fn();
+  window.addEventListener("lyrical-runtime-error", reportRuntimeError);
+  renderHook(() => useMacMenu({} as never, {
+    t: {
+      menu: {
+        settings: "Settings", file: "File", edit: "Edit", playback: "Playback", mode: "Mode", view: "View", help: "Help",
+        quit: "Quit", saveAsLrc: "Save LRC", saveAsSrt: "Save SRT", playPause: "Play", skipBack5: "Back 5",
+        skipBack1: "Back 1", skipFwd1: "Forward 1", skipFwd5: "Forward 5", stop: "Stop",
+      },
+      newFileBtn: "New", openLrc: "Open LRC", openAudio: "Open Audio", save: "Save", undo: "Undo", redo: "Redo",
+      previewBtn: "Preview", shortcutsTitle: "Shortcuts", modeFile: "File mode", modeYouTube: "YouTube", modeDevice: "Device",
+    } as never,
+    spotifyMode: false,
+    youtubeMode: false,
+    deviceMode: false,
+    ytdlpInstalled: false,
+  }));
+
+  await waitFor(() => expect(menuMocks.checkMenuItemNew).toHaveBeenCalledTimes(4));
+  const delayedResource = await createResource();
+  await act(async () => resolveDelayedCreation(delayedResource));
+  await waitFor(() => expect(reportRuntimeError).toHaveBeenCalledOnce());
+  expect(resources.every((resource) => resource.close.mock.calls.length === 1)).toBe(true);
+  window.removeEventListener("lyrical-runtime-error", reportRuntimeError);
+});

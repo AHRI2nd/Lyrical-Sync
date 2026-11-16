@@ -117,26 +117,31 @@ function applyLatestMenuState() {
 
 function ensureNativeMenu() {
   if (!isMac || menuBuild) return;
+  const createdResources: Array<{ close: () => Promise<void> }> = [];
   menuBuild = (async () => {
+    const track = <T extends { close: () => Promise<void> }>(resource: T): T => {
+      createdResources.push(resource);
+      return resource;
+    };
     const tree: NativeMenuTree = { menu: null as unknown as Menu, groups: {}, items: {}, modes: {} };
     const item = async (key: MenuTextKey, text: string, action: () => void, accelerator?: string) => {
-      const created = await MenuItem.new({ text, accelerator, action });
+      const created = track(await MenuItem.new({ text, accelerator, action }));
       tree.items[key] = created;
       return created;
     };
-    const sep = () => PredefinedMenuItem.new({ item: "Separator" });
-    const appMenu = await Submenu.new({
+    const sep = async () => track(await PredefinedMenuItem.new({ item: "Separator" }));
+    const appMenu = track(await Submenu.new({
       text: "Lyrical Sync",
       items: [
-        await PredefinedMenuItem.new({ item: { About: null } }), await sep(),
+        track(await PredefinedMenuItem.new({ item: { About: null } })), await sep(),
         await item("settings", latestState!.t.menu.settings, () => latestHandlers?.openSettings(), "CmdOrCtrl+,"), await sep(),
-        await PredefinedMenuItem.new({ item: "Services" }), await sep(),
-        await PredefinedMenuItem.new({ item: "Hide" }), await PredefinedMenuItem.new({ item: "HideOthers" }),
-        await PredefinedMenuItem.new({ item: "ShowAll" }), await sep(),
+        track(await PredefinedMenuItem.new({ item: "Services" })), await sep(),
+        track(await PredefinedMenuItem.new({ item: "Hide" })), track(await PredefinedMenuItem.new({ item: "HideOthers" })),
+        track(await PredefinedMenuItem.new({ item: "ShowAll" })), await sep(),
         await item("quit", latestState!.t.menu.quit, () => latestHandlers?.quit(), "CmdOrCtrl+Q"),
       ],
-    });
-    const fileMenu = await Submenu.new({
+    }));
+    const fileMenu = track(await Submenu.new({
       text: latestState!.t.menu.file,
       items: [
         await item("newFile", latestState!.t.newFileBtn, () => latestHandlers?.newFile(), "CmdOrCtrl+N"),
@@ -146,17 +151,17 @@ function ensureNativeMenu() {
         await item("saveAsLrc", latestState!.t.menu.saveAsLrc, () => latestHandlers?.saveAsLrc(), "CmdOrCtrl+Shift+S"),
         await item("saveAsSrt", latestState!.t.menu.saveAsSrt, () => latestHandlers?.saveAsSrt()),
       ],
-    });
-    const editMenu = await Submenu.new({
+    }));
+    const editMenu = track(await Submenu.new({
       text: latestState!.t.menu.edit,
       items: [
         await item("undo", latestState!.t.undo, () => latestHandlers?.undo()),
         await item("redo", latestState!.t.redo, () => latestHandlers?.redo()), await sep(),
-        await PredefinedMenuItem.new({ item: "Cut" }), await PredefinedMenuItem.new({ item: "Copy" }),
-        await PredefinedMenuItem.new({ item: "Paste" }), await PredefinedMenuItem.new({ item: "SelectAll" }),
+        track(await PredefinedMenuItem.new({ item: "Cut" })), track(await PredefinedMenuItem.new({ item: "Copy" })),
+        track(await PredefinedMenuItem.new({ item: "Paste" })), track(await PredefinedMenuItem.new({ item: "SelectAll" })),
       ],
-    });
-    const playMenu = await Submenu.new({
+    }));
+    const playMenu = track(await Submenu.new({
       text: latestState!.t.menu.playback,
       items: [
         await item("playPause", latestState!.t.menu.playPause, () => latestHandlers?.togglePlay()), await sep(),
@@ -166,27 +171,38 @@ function ensureNativeMenu() {
         await item("skipFwd5", latestState!.t.menu.skipFwd5, () => latestHandlers?.skip(5)), await sep(),
         await item("stop", latestState!.t.menu.stop, () => latestHandlers?.stop()),
       ],
-    });
+    }));
     const modes = [
       ["file", latestState!.t.modeFile, !latestState!.spotifyMode && !latestState!.youtubeMode && !latestState!.deviceMode, true, () => latestHandlers?.modeFile()],
       ["spotify", "Spotify", latestState!.spotifyMode && !latestState!.youtubeMode && !latestState!.deviceMode, true, () => latestHandlers?.modeSpotify()],
       ["youtube", latestState!.t.modeYouTube, latestState!.youtubeMode && !latestState!.deviceMode, latestState!.ytdlpInstalled, () => latestHandlers?.modeYouTube()],
       ["device", latestState!.t.modeDevice, latestState!.deviceMode, true, () => latestHandlers?.modeDevice()],
     ] as const;
-    const modeItems = await Promise.all(modes.map(async ([key, text, checked, enabled, action]) => {
-      const created = await CheckMenuItem.new({ text, checked, enabled, action });
+    const modeItemResults = await Promise.allSettled(modes.map(async ([key, text, checked, enabled, action]) => {
+      const created = track(await CheckMenuItem.new({ text, checked, enabled, action }));
       tree.modes[key] = created;
       return created;
     }));
-    const modeMenu = await Submenu.new({ text: latestState!.t.menu.mode, items: modeItems });
-    const viewMenu = await Submenu.new({ text: latestState!.t.menu.view, items: [await item("preview", latestState!.t.previewBtn, () => latestHandlers?.openPreview())] });
-    const helpMenu = await Submenu.new({ text: latestState!.t.menu.help, items: [await item("help", latestState!.t.shortcutsTitle, () => latestHandlers?.openHelp())] });
+    const modeItems = modeItemResults.map((result) => {
+      if (result.status === "rejected") throw result.reason;
+      return result.value;
+    });
+    const modeMenu = track(await Submenu.new({ text: latestState!.t.menu.mode, items: modeItems }));
+    const viewMenu = track(await Submenu.new({ text: latestState!.t.menu.view, items: [await item("preview", latestState!.t.previewBtn, () => latestHandlers?.openPreview())] }));
+    const helpMenu = track(await Submenu.new({ text: latestState!.t.menu.help, items: [await item("help", latestState!.t.shortcutsTitle, () => latestHandlers?.openHelp())] }));
     tree.groups = { file: fileMenu, edit: editMenu, playback: playMenu, mode: modeMenu, view: viewMenu, help: helpMenu };
-    tree.menu = await Menu.new({ items: [appMenu, fileMenu, editMenu, playMenu, modeMenu, viewMenu, helpMenu] });
+    tree.menu = track(await Menu.new({ items: [appMenu, fileMenu, editMenu, playMenu, modeMenu, viewMenu, helpMenu] }));
     await tree.menu.setAsAppMenu();
     nativeMenuTree = tree;
     applyLatestMenuState();
-  })().catch((error: unknown) => {
+  })().catch(async (error: unknown) => {
+    for (const resource of createdResources.reverse()) {
+      try {
+        await resource.close();
+      } catch (cleanupError) {
+        console.error("Failed to release a partial macOS menu resource", cleanupError);
+      }
+    }
     menuBuild = null;
     console.error("Failed to create macOS application menu", error);
     const detail = error instanceof Error ? error.stack || error.message : String(error);
