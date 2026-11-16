@@ -1360,12 +1360,12 @@ fn audio_format_for_quality(quality: &str) -> &'static str {
     }
 }
 
-async fn ytdlp_run_child(
+async fn ytdlp_run_child<R: tauri::Runtime>(
     url: String,
     quality: String,
     cookies_file: Option<String>,
     proxy: Option<String>,
-    app: AppHandle,
+    app: AppHandle<R>,
     exe: PathBuf,
     cache_dir: PathBuf,
     ts: String,
@@ -1893,6 +1893,180 @@ mod tests {
         })
         .await
         .expect("terminating the process group should release the inherited pipe");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn full_runner_cancellation_reaps_a_descendant_holding_both_output_pipes() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = tempfile::tempdir().unwrap();
+        let direct_pid_path = temp.path().join("yt-dlp.pid");
+        let descendant_pid_path = temp.path().join("descendant.pid");
+        let executable = temp.path().join("synthetic-yt-dlp");
+        let quote =
+            |path: &Path| format!("'{}'", path.display().to_string().replace('\'', "'\\''"));
+        let script = format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$$\" > {}\nsleep 60 &\nprintf '%s\\n' \"$!\" > {}\nwait\n",
+            quote(&direct_pid_path),
+            quote(&descendant_pid_path),
+        );
+        std::fs::write(&executable, script).unwrap();
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
+
+        let app = tauri::test::mock_app();
+        let app = app.handle().clone();
+        let cache_dir = temp.path().join("cache");
+        std::fs::create_dir(&cache_dir).unwrap();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let run_cancel = cancel.clone();
+        let run = tokio::spawn(async move {
+            ytdlp_run_child(
+                "https://www.youtube.com/watch?v=fixture".into(),
+                "128".into(),
+                None,
+                None,
+                app,
+                executable,
+                cache_dir,
+                "synthetic-run".into(),
+                run_cancel,
+            )
+            .await
+        });
+
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            while !direct_pid_path.exists() || !descendant_pid_path.exists() {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("synthetic yt-dlp and pipe-holding descendant should start");
+        let direct_pid: i32 = std::fs::read_to_string(&direct_pid_path)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+        let descendant_pid: i32 = std::fs::read_to_string(&descendant_pid_path)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+        assert_eq!(unsafe { libc::kill(direct_pid, 0) }, 0);
+        assert_eq!(unsafe { libc::kill(descendant_pid, 0) }, 0);
+
+        cancel.store(true, Ordering::Relaxed);
+        let result = tokio::time::timeout(std::time::Duration::from_secs(3), run)
+            .await
+            .expect("full runner cancellation must not wait for inherited output pipes")
+            .unwrap();
+        assert_eq!(result.unwrap_err(), "cancelled");
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            while unsafe { libc::kill(descendant_pid, 0) } == 0 {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("full runner cancellation should terminate the pipe-holding descendant");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn full_runner_bounds_newline_free_output_with_rss_sampling() {
+        use std::os::unix::fs::PermissionsExt;
+
+        fn rss_kib(pid: u32) -> Option<u64> {
+            let output = std::process::Command::new("ps")
+                .args(["-o", "rss=", "-p", &pid.to_string()])
+                .output()
+                .ok()?;
+            String::from_utf8(output.stdout).ok()?.trim().parse().ok()
+        }
+
+        let temp = tempfile::tempdir().unwrap();
+        let pid_path = temp.path().join("synthetic-yt-dlp.pid");
+        let executable = temp.path().join("synthetic-yt-dlp-rss");
+        let quoted_pid_path = format!(
+            "'{}'",
+            pid_path.display().to_string().replace('\'', "'\\''")
+        );
+        let script = format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$$\" > {quoted_pid_path}\nexec python3 -c 'import sys,time\nchunk=b\"x\"*4096\nwhile True:\n sys.stdout.buffer.write(chunk)\n sys.stdout.buffer.flush()\n time.sleep(0.05)'\n"
+        );
+        std::fs::write(&executable, script).unwrap();
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
+
+        let app = tauri::test::mock_app();
+        let app = app.handle().clone();
+        let cache_dir = temp.path().join("cache");
+        std::fs::create_dir(&cache_dir).unwrap();
+        let parent_pid = std::process::id();
+        let parent_baseline = rss_kib(parent_pid);
+        let can_sample_rss = parent_baseline.is_some();
+        let run = tokio::spawn(async move {
+            ytdlp_run_child(
+                "https://www.youtube.com/watch?v=fixture".into(),
+                "128".into(),
+                None,
+                None,
+                app,
+                executable,
+                cache_dir,
+                "synthetic-rss-run".into(),
+                Arc::new(AtomicBool::new(false)),
+            )
+            .await
+        });
+
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(3);
+        let mut sample_count = 0;
+        let mut parent_peak = parent_baseline;
+        let mut child_peak = None;
+        let child_pid = loop {
+            if let Ok(value) = std::fs::read_to_string(&pid_path) {
+                if let Ok(pid) = value.trim().parse::<u32>() {
+                    break pid;
+                }
+            }
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "synthetic process did not start"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        };
+
+        while !run.is_finished() && tokio::time::Instant::now() < deadline {
+            if can_sample_rss {
+                if let Some(rss) = rss_kib(parent_pid) {
+                    parent_peak = Some(parent_peak.unwrap_or(0).max(rss));
+                    sample_count += 1;
+                }
+                if let Some(rss) = rss_kib(child_pid) {
+                    child_peak = Some(child_peak.unwrap_or(0).max(rss));
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+        let result = tokio::time::timeout(std::time::Duration::from_secs(3), run)
+            .await
+            .expect("oversized output should be rejected promptly")
+            .unwrap()
+            .unwrap_err();
+        assert!(
+            result.contains(&format!("{MAX_YTDLP_STDOUT_LINE_BYTES}-byte limit")),
+            "unexpected result: {result}"
+        );
+        if can_sample_rss {
+            assert!(
+                sample_count > 0,
+                "ps should capture at least one parent sample"
+            );
+            eprintln!(
+                "newline-free child RSS sample: parent baseline={parent_baseline:?} KiB, parent max={parent_peak:?} KiB, child max={child_peak:?} KiB, samples={sample_count}; sampled maximum is not a guaranteed peak"
+            );
+        } else {
+            eprintln!("RSS sampling unavailable; bounded full-runner rejection still passed");
+        }
     }
 
     #[test]
