@@ -1273,7 +1273,7 @@ mod audio_identity_command_tests {
 
 #[cfg(test)]
 mod window_scope_tests {
-    use super::authorize_window_path;
+    use super::{authorize_window_path, write_lrc_file_impl};
     use crate::recent_file_grants::RecentFileGrants;
     use tauri::Manager;
     use tauri_plugin_fs::FsExt;
@@ -1322,5 +1322,39 @@ mod window_scope_tests {
 
         assert!(authorize_window_path(&window, &selected).is_ok());
         assert!(authorize_window_path(&window, &dir.path().join("unselected.wav")).is_err());
+    }
+
+    #[tokio::test]
+    async fn save_as_persists_the_selected_grant_after_creating_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("new-song.lrc");
+        let store_path = dir.path().join("recent-file-grants.json");
+        let grants = RecentFileGrants::open(store_path.clone()).unwrap();
+        let app = tauri::test::mock_builder()
+            .plugin(tauri_plugin_fs::init())
+            .manage(grants)
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        window.fs_scope().allow_file(&target).unwrap();
+        assert!(authorize_window_path(&window, &target).is_ok());
+
+        write_lrc_file_impl(
+            target.to_string_lossy().into_owned(),
+            "[00:01.00]Synthetic".into(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        let canonical = target.canonicalize().unwrap();
+        let reopened = RecentFileGrants::open(store_path).unwrap();
+        assert!(
+            reopened.allows(&canonical),
+            "a newly saved LRC must be available from Recent Files after restart"
+        );
     }
 }

@@ -77,10 +77,7 @@ impl RecentFileGrants {
 
     /// Remember a path only after the caller has verified a live native filesystem grant.
     pub fn remember(&self, path: &Path) -> Result<(), String> {
-        let canonical = path.canonicalize().map_err(|error| error.to_string())?;
-        if !is_canonical_regular_file(&canonical) {
-            return Err("Recent file grant must identify a canonical regular file".into());
-        }
+        let canonical = canonical_grant_candidate(path)?;
 
         let mut paths = self.paths.lock().unwrap_or_else(|error| error.into_inner());
         let previous = paths.clone();
@@ -160,6 +157,34 @@ fn is_canonical_regular_file(path: &Path) -> bool {
         && fs::metadata(path).is_ok_and(|metadata| metadata.is_file())
 }
 
+/// Resolve existing selections canonically; Save As may authorize a final path before creation.
+/// `open` prunes that pending path on restart if a regular file was never published there.
+fn canonical_grant_candidate(path: &Path) -> Result<PathBuf, String> {
+    match path.canonicalize() {
+        Ok(canonical) if is_canonical_regular_file(&canonical) => Ok(canonical),
+        Ok(_) => Err("Recent file grant must identify a canonical regular file".into()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            let parent = path
+                .parent()
+                .ok_or_else(|| "Recent file grant has no parent directory".to_string())?;
+            let filename = path
+                .file_name()
+                .ok_or_else(|| "Recent file grant has no file name".to_string())?;
+            let canonical_parent = parent.canonicalize().map_err(|error| error.to_string())?;
+            if !canonical_parent.is_dir() {
+                return Err("Recent file grant parent is not a directory".into());
+            }
+            let candidate = canonical_parent.join(filename);
+            match fs::symlink_metadata(&candidate) {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(candidate),
+                Ok(_) => Err("Recent file grant path changed while it was being authorized".into()),
+                Err(error) => Err(error.to_string()),
+            }
+        }
+        Err(error) => Err(error.to_string()),
+    }
+}
+
 fn bytes_grant_count(bytes: &[u8]) -> usize {
     serde_json::from_slice::<Vec<String>>(bytes)
         .map(|paths| paths.len())
@@ -227,6 +252,47 @@ mod tests {
         let reopened = RecentFileGrants::open(store_path).unwrap();
 
         assert!(!reopened.allows(&canonical));
+    }
+
+    #[test]
+    fn unpublished_selected_path_is_pruned_after_restart() {
+        let dir = tempfile::tempdir().unwrap();
+        let selected = dir.path().join("not-published.lrc");
+        let selected_canonical = selected
+            .parent()
+            .unwrap()
+            .canonicalize()
+            .unwrap()
+            .join(selected.file_name().unwrap());
+        let store_path = dir.path().join("recent-file-grants.json");
+        let grants = RecentFileGrants::open(store_path.clone()).unwrap();
+
+        grants.remember(&selected).unwrap();
+        assert!(grants.allows(&selected_canonical));
+
+        let reopened = RecentFileGrants::open(store_path.clone()).unwrap();
+
+        assert!(!reopened.allows(&selected_canonical));
+        assert_eq!(fs::read(store_path).unwrap(), b"[]");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unpublished_selected_path_does_not_authorize_a_later_symlink_target() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempfile::tempdir().unwrap();
+        let selected = dir.path().join("new-song.lrc");
+        let other = dir.path().join("other.lrc");
+        let store_path = dir.path().join("recent-file-grants.json");
+        let grants = RecentFileGrants::open(store_path.clone()).unwrap();
+        grants.remember(&selected).unwrap();
+        fs::write(&other, "unselected").unwrap();
+        symlink(&other, &selected).unwrap();
+
+        let reopened = RecentFileGrants::open(store_path).unwrap();
+
+        assert!(!reopened.allows(&other.canonicalize().unwrap()));
     }
 
     #[test]
