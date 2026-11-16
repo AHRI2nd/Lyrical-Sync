@@ -391,13 +391,38 @@ fn normalize_refresh_token(token: Option<String>) -> Option<String> {
     })
 }
 
+fn legacy_token_metadata_is_acceptable(
+    is_regular_file: bool,
+    file_len: u64,
+    is_reparse_point: bool,
+) -> bool {
+    is_regular_file && file_len <= MAX_LEGACY_TOKEN_BYTES && !is_reparse_point
+}
+
+#[cfg(windows)]
+fn metadata_is_reparse_point(metadata: &std::fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    use windows::Win32::Storage::FileSystem::FILE_ATTRIBUTE_REPARSE_POINT;
+
+    metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT.0 != 0
+}
+
+#[cfg(not(windows))]
+fn metadata_is_reparse_point(_: &std::fs::Metadata) -> bool {
+    false
+}
+
 fn read_legacy_token_file(path: &Path) -> Result<Option<String>, String> {
     let entry = match std::fs::symlink_metadata(path) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error.to_string()),
     };
-    if !entry.file_type().is_file() || entry.len() > MAX_LEGACY_TOKEN_BYTES {
+    if !legacy_token_metadata_is_acceptable(
+        entry.file_type().is_file(),
+        entry.len(),
+        metadata_is_reparse_point(&entry),
+    ) {
         return Err("Legacy Spotify token must be a bounded regular file".into());
     }
 
@@ -408,9 +433,19 @@ fn read_legacy_token_file(path: &Path) -> Result<Option<String>, String> {
         use std::os::unix::fs::OpenOptionsExt;
         options.custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC);
     }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        use windows::Win32::Storage::FileSystem::FILE_FLAG_OPEN_REPARSE_POINT;
+        options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT.0);
+    }
     let file = options.open(path).map_err(|error| error.to_string())?;
     let metadata = file.metadata().map_err(|error| error.to_string())?;
-    if !metadata.file_type().is_file() || metadata.len() > MAX_LEGACY_TOKEN_BYTES {
+    if !legacy_token_metadata_is_acceptable(
+        metadata.file_type().is_file(),
+        metadata.len(),
+        metadata_is_reparse_point(&metadata),
+    ) {
         return Err("Legacy Spotify token must be a bounded regular file".into());
     }
 
@@ -511,10 +546,10 @@ pub fn clear_refresh_token(app: AppHandle) -> Result<(), String> {
 #[cfg(test)]
 mod token_file_tests {
     use super::{
-        active_oauth_state_matches, clear_pending_refresh_tokens, register_pending_refresh_token,
-        read_legacy_token_file, resolve_refresh_token_sources, set_active_oauth_state,
-        write_restricted_token_file,
-        TokenResponse, MAX_LEGACY_TOKEN_BYTES,
+        active_oauth_state_matches, clear_pending_refresh_tokens,
+        legacy_token_metadata_is_acceptable, read_legacy_token_file,
+        register_pending_refresh_token, resolve_refresh_token_sources, set_active_oauth_state,
+        write_restricted_token_file, TokenResponse, MAX_LEGACY_TOKEN_BYTES,
     };
 
     #[test]
@@ -533,6 +568,11 @@ mod token_file_tests {
         assert!(read_legacy_token_file(&directory).is_err());
     }
 
+    #[test]
+    fn legacy_refresh_token_reader_rejects_reparse_points_even_if_the_target_is_regular() {
+        assert!(!legacy_token_metadata_is_acceptable(true, 16, true));
+    }
+
     #[cfg(unix)]
     #[test]
     fn legacy_refresh_token_reader_rejects_symlinks() {
@@ -542,6 +582,20 @@ mod token_file_tests {
         let link = dir.path().join("token-link");
         std::fs::write(&target, "legacy-refresh-token").unwrap();
         symlink(&target, &link).unwrap();
+        assert!(read_legacy_token_file(&link).is_err());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn legacy_refresh_token_reader_rejects_file_reparse_points() {
+        use std::os::windows::fs::symlink_file;
+
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("target-token");
+        let link = dir.path().join("token-link");
+        std::fs::write(&target, "legacy-refresh-token").unwrap();
+        symlink_file(&target, &link).unwrap();
+
         assert!(read_legacy_token_file(&link).is_err());
     }
 
