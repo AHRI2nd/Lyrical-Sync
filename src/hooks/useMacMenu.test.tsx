@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
 import { expect, it, vi } from "vitest";
 
@@ -28,7 +28,10 @@ it("reuses one native menu tree when mode or locale changes", async () => {
   vi.resetModules();
   Object.defineProperty(navigator, "platform", { configurable: true, value: "MacIntel" });
   menuMocks.menuNew.mockReset().mockResolvedValue({ setAsAppMenu: menuMocks.setAsAppMenu });
-  menuMocks.setAsAppMenu.mockReset().mockResolvedValue(null);
+  let resolveMenuApplication!: () => void;
+  menuMocks.setAsAppMenu.mockReset().mockImplementation(() => new Promise<void>((resolve) => {
+    resolveMenuApplication = resolve;
+  }));
   menuMocks.setText.mockReset().mockResolvedValue(undefined);
   menuMocks.setChecked.mockReset().mockResolvedValue(undefined);
   menuMocks.setEnabled.mockReset().mockResolvedValue(undefined);
@@ -73,12 +76,21 @@ it("reuses one native menu tree when mode or locale changes", async () => {
   await waitFor(() => expect(menuMocks.setAsAppMenu).toHaveBeenCalledOnce());
 
   rerender({ current: state({ spotifyMode: true }) });
-  rerender({ current: state({ t: translations("Einstellungen") }) });
+  rerender({ current: state({
+    t: translations("Einstellungen"),
+    deviceMode: true,
+    ytdlpInstalled: true,
+  }) });
+  await act(async () => resolveMenuApplication());
+
   await waitFor(() => expect(menuMocks.menuNew).toHaveBeenCalledOnce());
+  expect(menuMocks.setAsAppMenu).toHaveBeenCalledOnce();
   expect(menuMocks.submenuNew).toHaveBeenCalledTimes(7);
   await waitFor(() => expect(menuMocks.setChecked).toHaveBeenCalled());
   expect(menuMocks.setText).toHaveBeenCalledWith("Einstellungen");
-  expect(menuMocks.setEnabled).toHaveBeenCalledWith(false);
+  expect(menuMocks.setText).toHaveBeenCalledWith("Mode");
+  expect(menuMocks.setEnabled).toHaveBeenCalledWith(true);
+  expect(menuMocks.setChecked).toHaveBeenCalledWith(true);
   const quitItem = menuMocks.menuItemOptions.find((option) => option.text === "Quit Lyrical Sync");
   expect(quitItem).toMatchObject({ accelerator: "CmdOrCtrl+Q" });
   quitItem?.action?.();
