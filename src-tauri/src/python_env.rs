@@ -416,8 +416,8 @@ pub async fn download_embedded_python(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-async fn install_step(
-    app: &AppHandle,
+async fn install_step<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     command: &mut tokio::process::Command,
 ) -> Result<(), String> {
     let child = command
@@ -450,6 +450,19 @@ async fn install_step(
     } else {
         error
     })?;
+    Ok(())
+}
+
+async fn run_install_steps<'a, R: tauri::Runtime, I>(
+    app: &tauri::AppHandle<R>,
+    commands: I,
+) -> Result<(), String>
+where
+    I: IntoIterator<Item = &'a mut tokio::process::Command>,
+{
+    for command in commands {
+        install_step(app, command).await?;
+    }
     Ok(())
 }
 
@@ -513,8 +526,6 @@ async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> 
             .arg(&requirements);
         #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
         audit_command.args(["--extra-package", "ctc-forced-aligner==1.0.2"]);
-        install_step(&app, &mut audit_command).await?;
-
         let mut packages = python_cmd(&python);
         packages
             .args([
@@ -530,7 +541,7 @@ async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> 
             ])
             .arg(&locked_requirements);
         packages.args(["--find-links"]).arg(&wheels);
-        install_step(&app, &mut packages).await?;
+        run_install_steps(&app, [&mut audit_command, &mut packages]).await?;
         #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
         {
             #[cfg(windows)]
@@ -590,6 +601,121 @@ async fn install_python_packages_unlocked(app: AppHandle) -> Result<(), String> 
         },
     );
     result
+}
+
+#[cfg(test)]
+mod dependency_audit_gate_tests {
+    use super::run_install_steps;
+    use std::path::Path;
+    use tempfile::tempdir;
+
+    fn child_command(mode: &str, marker: Option<&Path>) -> tokio::process::Command {
+        let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+        command
+            .args([
+                "--exact",
+                "python_env::dependency_audit_gate_tests::child_process_fixture",
+                "--nocapture",
+            ])
+            .env("LYRICAL_TEST_INSTALL_STEP_MODE", mode);
+        if let Some(marker) = marker {
+            command.env("LYRICAL_TEST_INSTALL_STEP_MARKER", marker);
+        }
+        command
+    }
+
+    #[tokio::test]
+    async fn audit_failure_stops_package_install_and_preserves_the_live_runtime() {
+        let app = tauri::test::mock_app();
+        let app = app.handle();
+        let root = tempdir().unwrap();
+        let live = root.path().join("embedded-python");
+        std::fs::create_dir_all(&live).unwrap();
+        std::fs::write(live.join("runtime-state"), b"existing runtime").unwrap();
+
+        let stage = root.path().join("stage");
+        std::fs::create_dir_all(stage.join("python/bin")).unwrap();
+        std::fs::write(stage.join("python/bin/python3"), b"candidate runtime").unwrap();
+        std::fs::write(stage.join(super::READY_MARKER), super::RUNTIME_ID).unwrap();
+
+        let package_marker = root.path().join("package-install-ran");
+        let mut audit = child_command("fail", None);
+        let mut package_install = child_command("write-marker", Some(&package_marker));
+        let result = async {
+            run_install_steps(&app, [&mut audit, &mut package_install]).await?;
+            crate::python_runtime::publish_runtime(&stage, &live).map_err(|error| error.to_string())
+        }
+        .await;
+
+        assert!(
+            result.is_err(),
+            "audit failure must abort the install transaction"
+        );
+        assert!(
+            !package_marker.exists(),
+            "pip install must not run after audit failure"
+        );
+        assert_eq!(
+            std::fs::read(live.join("runtime-state")).unwrap(),
+            b"existing runtime"
+        );
+        assert!(
+            stage.exists(),
+            "failed staging runtime must not be published"
+        );
+    }
+
+    #[tokio::test]
+    async fn clean_audit_allows_install_and_publishes_the_validated_stage() {
+        let app = tauri::test::mock_app();
+        let app = app.handle();
+        let root = tempdir().unwrap();
+        let live = root.path().join("embedded-python");
+        std::fs::create_dir_all(&live).unwrap();
+        std::fs::write(live.join("runtime-state"), b"existing runtime").unwrap();
+
+        let stage = root.path().join("stage");
+        std::fs::create_dir_all(stage.join("python/bin")).unwrap();
+        std::fs::write(stage.join("python/bin/python3"), b"candidate runtime").unwrap();
+        std::fs::write(stage.join(super::READY_MARKER), super::RUNTIME_ID).unwrap();
+
+        let package_marker = root.path().join("package-install-ran");
+        let mut audit = child_command("success", None);
+        let mut package_install = child_command("write-marker", Some(&package_marker));
+        let result = async {
+            run_install_steps(&app, [&mut audit, &mut package_install]).await?;
+            crate::python_runtime::publish_runtime(&stage, &live).map_err(|error| error.to_string())
+        }
+        .await;
+
+        assert!(result.is_ok());
+        assert_eq!(std::fs::read(package_marker).unwrap(), b"ran");
+        assert_eq!(
+            std::fs::read(crate::python_runtime::runtime_exe(&live)).unwrap(),
+            b"candidate runtime"
+        );
+        assert!(crate::python_runtime::runtime_complete(&live));
+        assert!(!stage.exists());
+    }
+
+    #[test]
+    fn child_process_fixture() {
+        let Ok(mode) = std::env::var("LYRICAL_TEST_INSTALL_STEP_MODE") else {
+            return;
+        };
+        match mode.as_str() {
+            "fail" => std::process::exit(17),
+            "success" => {}
+            "write-marker" => {
+                std::fs::write(
+                    std::env::var_os("LYRICAL_TEST_INSTALL_STEP_MARKER").unwrap(),
+                    b"ran",
+                )
+                .unwrap();
+            }
+            _ => panic!("unknown install-step fixture mode"),
+        }
+    }
 }
 
 #[cfg(test)]
