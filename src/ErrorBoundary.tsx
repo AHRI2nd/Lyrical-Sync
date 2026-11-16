@@ -1,8 +1,9 @@
 import { Component, ReactNode } from "react";
 import { useLrcStore } from "./stores/useLrcStore";
+import { useI18nStore } from "./stores/useI18nStore";
 import { saveRecoverySnapshot } from "./utils/recovery";
 
-interface Props { children: ReactNode }
+interface Props { children: ReactNode; onReload?: () => void }
 interface State { error: Error | null }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -38,6 +39,9 @@ export class ErrorBoundary extends Component<Props, State> {
             {"\n\n"}
             {this.state.error.stack}
           </pre>
+          <button type="button" onClick={this.props.onReload ?? (() => window.location.reload())}>
+            {useI18nStore.getState().t.devicePicker.refresh}
+          </button>
         </div>
       );
     }
