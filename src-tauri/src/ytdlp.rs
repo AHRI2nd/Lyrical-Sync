@@ -2014,17 +2014,19 @@ mod tests {
             .await
         });
 
-        tokio::time::timeout(std::time::Duration::from_secs(2), async {
-            while !descendant_pid_path.exists() {
+        let descendant_pid = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            loop {
+                if let Some(pid) = std::fs::read_to_string(&descendant_pid_path)
+                    .ok()
+                    .and_then(|contents| contents.trim().parse::<i32>().ok())
+                {
+                    break pid;
+                }
                 tokio::time::sleep(std::time::Duration::from_millis(10)).await;
             }
         })
         .await
-        .expect("stderr-only descendant should start");
-        let descendant_pid: i32 = std::fs::read_to_string(&descendant_pid_path)
-            .unwrap()
-            .parse()
-            .unwrap();
+        .expect("stderr-only descendant should publish a complete PID marker");
 
         let completion = tokio::time::timeout(std::time::Duration::from_secs(1), &mut run).await;
         if completion.is_err() {
