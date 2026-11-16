@@ -63,7 +63,13 @@ jobs:
       - run: python scripts/audit_ai_dependencies.py --locked-requirements src-tauri/requirements-lock/macos-arm64.txt --source-requirements src-tauri/requirements-ai.txt --extra-package ctc-forced-aligner==1.0.2
       - run: python scripts/audit_ai_dependencies.py --locked-requirements src-tauri/requirements-lock/windows-x64.txt --source-requirements src-tauri/requirements-ai.txt --extra-package ctc-forced-aligner==1.0.2
       - run: python scripts/audit_ai_dependencies.py --locked-requirements src-tauri/requirements-lock/windows-arm64.txt --source-requirements src-tauri/requirements-ai-windows-arm64.txt
-      - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+      - run: python scripts/test_windows_manifest_test_runner.py
+      - name: Run Rust tests with Windows test manifests
+        if: runner.os == 'Windows'
+        run: python scripts/windows_manifest_test_runner.py --cargo-test
+      - name: Run Rust tests
+        if: runner.os != 'Windows'
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
       - run: python scripts/test_updater_security.py
       - run: python scripts/test_release_manifest.py
       - run: python scripts/test_signed_candidate.py

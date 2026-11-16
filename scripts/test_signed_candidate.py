@@ -108,6 +108,18 @@ class SignedCandidateTests(unittest.TestCase):
         self.assertTrue(regression_scripts.issubset(configured),
                         f"Missing Python regression scripts from signed-build gate: {sorted(regression_scripts-configured)}")
 
+    def test_windows_rust_tests_use_manifest_runner_only_on_windows(self):
+        workflow = (ROOT / '.github/workflows/test.yml').read_text(encoding='utf-8')
+
+        self.assertRegex(
+            workflow,
+            r"(?ms)- name: Run Rust tests with Windows test manifests\s+if: runner\.os == 'Windows'\s+run: python scripts/windows_manifest_test_runner\.py --cargo-test",
+        )
+        self.assertRegex(
+            workflow,
+            r"(?ms)- name: Run Rust tests\s+if: runner\.os != 'Windows'\s+run: cargo test --manifest-path src-tauri/Cargo\.toml --locked",
+        )
+
     def run_release_draft_gate(self, mode, source_sha='source-sha', tag_sha='source-sha'):
         workflow=(ROOT/'.github/workflows/release.yml').read_text(encoding='utf-8')
         lines=workflow.splitlines()
