@@ -39,6 +39,30 @@ describe("batch preflight", () => {
 });
 
 describe("batch output", () => {
+  it.each(["vtt", "ass"] as const)("rejects oversized SRT timestamps before writing %s output", async (format) => {
+    const hours = "9".repeat(304);
+    vi.mocked(readLyrics).mockResolvedValueOnce({
+      value: `1\n${hours}:00:00,000 --> ${hours}:00:01,000\nunsafe\n`,
+      file: { path: "/inputs/unsafe.srt", bookmark: "fresh" },
+    });
+    const status = vi.fn();
+
+    const summary = await runBatchOperation(
+      [entry("/inputs/unsafe.srt", format)],
+      { kind: "convert", format },
+      output,
+      status,
+      { concurrency: 1 },
+    );
+
+    expect(summary).toEqual({ done: 0, error: 1, cancelled: 0 });
+    expect(status).toHaveBeenCalledWith(format, "error", "SUBTITLE_TIMESTAMP_UNREPRESENTABLE", {
+      path: "/inputs/unsafe.srt",
+      bookmark: "fresh",
+    });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
   it("rejects an unrepresentable ASS cue before writing the target file", async () => {
     vi.mocked(readLyrics).mockResolvedValueOnce({
       value: "[00:02.00]literal {override}",
