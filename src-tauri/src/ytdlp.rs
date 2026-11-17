@@ -1608,6 +1608,22 @@ mod tests {
     use super::*;
     use tokio::io::BufReader;
 
+    fn install_fixture_paths(
+        root: &std::path::Path,
+        run_id: &str,
+    ) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
+        let executable_name = crate::platform_profile::ytdlp_asset(
+            std::env::consts::OS,
+            std::env::consts::ARCH,
+        )
+        .1;
+        let executable = root.join(executable_name);
+        let version = root.join("version.txt");
+        let part = root.join(format!("{executable_name}.{run_id}.part"));
+        let version_part = root.join(format!("version.txt.{run_id}.part"));
+        (part, version_part, executable, version)
+    }
+
     #[test]
     fn cookie_file_path_requires_a_current_window_scope_grant() {
         use tauri_plugin_fs::FsExt;
@@ -2473,10 +2489,7 @@ mod tests {
     #[test]
     fn failed_version_publish_preserves_the_previous_binary_and_version() {
         let dir = tempfile::tempdir().unwrap();
-        let part = dir.path().join("yt-dlp.part");
-        let version_part = dir.path().join("version.txt.part");
-        let dest = dir.path().join("yt-dlp");
-        let version = dir.path().join("version.txt");
+        let (part, version_part, dest, version) = install_fixture_paths(dir.path(), "test-run");
         std::fs::write(&part, b"new binary").unwrap();
         std::fs::write(&dest, b"working binary").unwrap();
         std::fs::write(&version, "old-version").unwrap();
@@ -2494,12 +2507,8 @@ mod tests {
     #[test]
     fn failed_commit_marker_restores_the_previous_install_pair() {
         let dir = tempfile::tempdir().unwrap();
-        let part = dir.path().join("yt-dlp.part");
-        let version_part = dir.path().join("version.txt.part");
-        let dest = dir.path().join(
-            crate::platform_profile::ytdlp_asset(std::env::consts::OS, std::env::consts::ARCH).1,
-        );
-        let version = dir.path().join("version.txt");
+        let run_id = "commit-marker-failure";
+        let (part, version_part, dest, version) = install_fixture_paths(dir.path(), run_id);
         std::fs::write(&part, b"new binary").unwrap();
         std::fs::write(&version_part, "new-version").unwrap();
         std::fs::write(&dest, b"old binary").unwrap();
@@ -2511,7 +2520,7 @@ mod tests {
             &version_part,
             &dest,
             &version,
-            "commit-marker-failure",
+            run_id,
             |from, to| std::fs::rename(from, to),
             |path, contents| {
                 marker_writes += 1;
@@ -2532,11 +2541,9 @@ mod tests {
     #[test]
     fn failed_version_backup_reports_and_retains_an_unrestored_binary_backup() {
         let dir = tempfile::tempdir().unwrap();
-        let part = dir.path().join("yt-dlp.part");
-        let version_part = dir.path().join("version.txt.part");
-        let dest = dir.path().join("yt-dlp");
-        let version = dir.path().join("version.txt");
-        let dest_backup = dir.path().join(".yt-dlp.rollback-test.backup");
+        let run_id = "rollback-test";
+        let (part, version_part, dest, version) = install_fixture_paths(dir.path(), run_id);
+        let dest_backup = backup_path(&dest, run_id);
         std::fs::write(&part, b"new binary").unwrap();
         std::fs::write(&version_part, "new-version").unwrap();
         std::fs::write(&dest, b"working binary").unwrap();
@@ -2548,7 +2555,7 @@ mod tests {
             &version_part,
             &dest,
             &version,
-            "rollback-test",
+            run_id,
             |from, to| {
                 calls += 1;
                 if calls == 2 || calls == 3 {
@@ -2583,15 +2590,8 @@ mod tests {
     fn interrupted_publication_recovers_a_complete_installed_pair() {
         if let Ok(root) = std::env::var("LYRICAL_YTDLP_CRASH_FIXTURE") {
             let root = PathBuf::from(root);
-            let exe_name = crate::platform_profile::ytdlp_asset(
-                std::env::consts::OS,
-                std::env::consts::ARCH,
-            )
-            .1;
-            let dest = root.join(exe_name);
-            let version = root.join("version.txt");
-            let part = root.join("yt-dlp.part");
-            let version_part = root.join("version.txt.part");
+            let run_id = "crash-fixture";
+            let (part, version_part, dest, version) = install_fixture_paths(&root, run_id);
             std::fs::write(&dest, b"working binary").unwrap();
             std::fs::write(&version, "old-version").unwrap();
             std::fs::write(&part, b"new binary").unwrap();
@@ -2612,7 +2612,7 @@ mod tests {
                 &version_part,
                 &dest,
                 &version,
-                "crash-fixture",
+                run_id,
                 |from, to| {
                     calls += 1;
                     let result = std::fs::rename(from, to);
@@ -2672,11 +2672,8 @@ mod tests {
     #[test]
     fn committed_install_recovery_keeps_new_pair_and_cleans_backups() {
         let root = tempfile::tempdir().unwrap();
-        let exe = root.path().join(
-            crate::platform_profile::ytdlp_asset(std::env::consts::OS, std::env::consts::ARCH).1,
-        );
-        let version = root.path().join("version.txt");
         let run_id = "committed-fixture";
+        let (part, version_part, exe, version) = install_fixture_paths(root.path(), run_id);
         std::fs::write(&exe, b"new binary").unwrap();
         std::fs::write(&version, "new-version").unwrap();
         std::fs::write(backup_path(&exe, run_id), b"old binary").unwrap();
@@ -2689,7 +2686,12 @@ mod tests {
         let (prepared, committed) = ytdlp_transaction_paths(root.path(), run_id);
         write_new_marker(
             &prepared,
-            b"1 1 yt-dlp.committed-fixture.part version.txt.committed-fixture.part\n",
+            format!(
+                "1 1 {} {}\n",
+                part.file_name().unwrap().to_string_lossy(),
+                version_part.file_name().unwrap().to_string_lossy()
+            )
+            .as_bytes(),
         )
         .unwrap();
         write_new_marker(&committed, b"complete").unwrap();
@@ -2723,15 +2725,8 @@ mod tests {
     fn interrupted_first_install_removes_uncommitted_executable() {
         if let Ok(root) = std::env::var("LYRICAL_YTDLP_FIRST_INSTALL_FIXTURE") {
             let root = PathBuf::from(root);
-            let exe_name = crate::platform_profile::ytdlp_asset(
-                std::env::consts::OS,
-                std::env::consts::ARCH,
-            )
-            .1;
-            let dest = root.join(exe_name);
-            let version = root.join("version.txt");
-            let part = root.join("yt-dlp.part");
-            let version_part = root.join("version.txt.part");
+            let run_id = "first-install-fixture";
+            let (part, version_part, dest, version) = install_fixture_paths(&root, run_id);
             std::fs::write(&part, b"new binary").unwrap();
             std::fs::write(&version_part, "new-version").unwrap();
             #[cfg(unix)]
@@ -2744,7 +2739,7 @@ mod tests {
                 &version_part,
                 &dest,
                 &version,
-                "first-install-fixture",
+                run_id,
                 |from, to| {
                     let _ = std::fs::rename(from, to);
                     std::process::exit(52)
@@ -2784,16 +2779,14 @@ mod tests {
     #[test]
     fn successful_publish_replaces_binary_and_version_together() {
         let dir = tempfile::tempdir().unwrap();
-        let part = dir.path().join("yt-dlp.part");
-        let version_part = dir.path().join("version.txt.part");
-        let dest = dir.path().join("yt-dlp");
-        let version = dir.path().join("version.txt");
+        let run_id = "success-run";
+        let (part, version_part, dest, version) = install_fixture_paths(dir.path(), run_id);
         std::fs::write(&part, b"new binary").unwrap();
         std::fs::write(&version_part, "new-version").unwrap();
         std::fs::write(&dest, b"old binary").unwrap();
         std::fs::write(&version, "old-version").unwrap();
 
-        publish_ytdlp_install(&part, &version_part, &dest, &version, "success-run").unwrap();
+        publish_ytdlp_install(&part, &version_part, &dest, &version, run_id).unwrap();
 
         assert_eq!(std::fs::read(&dest).unwrap(), b"new binary");
         assert_eq!(std::fs::read_to_string(&version).unwrap(), "new-version");

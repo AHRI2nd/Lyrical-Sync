@@ -185,7 +185,7 @@ it("allows a manual beat grid without audio and applies all timed lines in one u
 
 it("cannot apply again after dismissal even if the parent has not unmounted yet", async () => {
   render(<BpmSnapModal onClose={() => {}} selectedIds={["a"]} />);
-  await screen.findAllByRole("textbox");
+  await waitFor(() => expect(screen.getByRole("button", { name: "Apply" })).toBeTruthy());
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
   fireEvent.click(screen.getByRole("button", { name: "Apply" }));
   expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(1.34);

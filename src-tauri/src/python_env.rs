@@ -624,6 +624,13 @@ mod dependency_audit_gate_tests {
         command
     }
 
+    fn write_runtime_fixture(stage: &Path) {
+        let executable = crate::python_runtime::runtime_exe(stage);
+        std::fs::create_dir_all(executable.parent().unwrap()).unwrap();
+        std::fs::write(executable, b"candidate runtime").unwrap();
+        std::fs::write(stage.join(super::READY_MARKER), super::RUNTIME_ID).unwrap();
+    }
+
     #[tokio::test]
     async fn audit_failure_stops_package_install_and_preserves_the_live_runtime() {
         let app = tauri::test::mock_app();
@@ -634,9 +641,7 @@ mod dependency_audit_gate_tests {
         std::fs::write(live.join("runtime-state"), b"existing runtime").unwrap();
 
         let stage = root.path().join("stage");
-        std::fs::create_dir_all(stage.join("python/bin")).unwrap();
-        std::fs::write(stage.join("python/bin/python3"), b"candidate runtime").unwrap();
-        std::fs::write(stage.join(super::READY_MARKER), super::RUNTIME_ID).unwrap();
+        write_runtime_fixture(&stage);
 
         let package_marker = root.path().join("package-install-ran");
         let mut audit = child_command("fail", None);
@@ -675,9 +680,7 @@ mod dependency_audit_gate_tests {
         std::fs::write(live.join("runtime-state"), b"existing runtime").unwrap();
 
         let stage = root.path().join("stage");
-        std::fs::create_dir_all(stage.join("python/bin")).unwrap();
-        std::fs::write(stage.join("python/bin/python3"), b"candidate runtime").unwrap();
-        std::fs::write(stage.join(super::READY_MARKER), super::RUNTIME_ID).unwrap();
+        write_runtime_fixture(&stage);
 
         let package_marker = root.path().join("package-install-ran");
         let mut audit = child_command("success", None);
