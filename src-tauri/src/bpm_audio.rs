@@ -400,9 +400,37 @@ fn decode_symphonia(
 
 #[cfg(test)]
 mod tests {
-    use super::{decode_prefix, AnalysisState, ENERGY_RATE};
+    use super::{add_interleaved, decode_prefix, finish_bucket, AnalysisState, ENERGY_RATE};
     use std::sync::atomic::AtomicBool;
     use std::sync::Arc;
+
+    #[test]
+    fn opposite_phase_stereo_preserves_channel_energy() {
+        let mut output = Vec::new();
+        let mut current_bucket = None;
+        let mut sum_squares = 0.0;
+        let mut bucket_frames = 0;
+        let mut first_frame = 0;
+        let samples = [1.0, -1.0, 1.0, -1.0];
+
+        let completed = add_interleaved(
+            &mut output,
+            &mut current_bucket,
+            &mut sum_squares,
+            &mut bucket_frames,
+            &samples,
+            2,
+            100,
+            &mut first_frame,
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        assert!(!completed);
+
+        finish_bucket(&mut output, sum_squares, bucket_frames);
+
+        assert_eq!(output, vec![1.0]);
+    }
 
     #[test]
     fn prefix_decode_returns_at_most_two_minutes_of_mono_energy() {
