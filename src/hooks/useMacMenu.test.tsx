@@ -24,15 +24,25 @@ vi.mock("@tauri-apps/api/menu", () => ({
   CheckMenuItem: { new: menuMocks.checkMenuItemNew },
 }));
 
-it("reuses one native menu tree when mode or locale changes", async () => {
+it("serializes delayed native menu updates so the latest state wins", async () => {
   vi.resetModules();
   Object.defineProperty(navigator, "platform", { configurable: true, value: "MacIntel" });
   menuMocks.menuNew.mockReset().mockResolvedValue({ setAsAppMenu: menuMocks.setAsAppMenu });
-  let resolveMenuApplication!: () => void;
-  menuMocks.setAsAppMenu.mockReset().mockImplementation(() => new Promise<void>((resolve) => {
-    resolveMenuApplication = resolve;
-  }));
-  menuMocks.setText.mockReset().mockResolvedValue(undefined);
+  menuMocks.setAsAppMenu.mockReset().mockResolvedValue(undefined);
+  let resolveOldLabel!: () => void;
+  let appliedSettingsLabel = "";
+  menuMocks.setText.mockReset().mockImplementation((text: string) => {
+    if (text === "Settings") {
+      return new Promise<void>((resolve) => {
+        resolveOldLabel = () => {
+          appliedSettingsLabel = text;
+          resolve();
+        };
+      });
+    }
+    if (text === "Einstellungen") appliedSettingsLabel = text;
+    return Promise.resolve();
+  });
   menuMocks.setChecked.mockReset().mockResolvedValue(undefined);
   menuMocks.setEnabled.mockReset().mockResolvedValue(undefined);
   menuMocks.submenuNew.mockReset().mockResolvedValue({ setText: menuMocks.setText });
@@ -74,14 +84,16 @@ it("reuses one native menu tree when mode or locale changes", async () => {
     wrapper: StrictMode,
   });
   await waitFor(() => expect(menuMocks.setAsAppMenu).toHaveBeenCalledOnce());
+  await waitFor(() => expect(resolveOldLabel).toBeTypeOf("function"));
 
-  rerender({ current: state({ spotifyMode: true }) });
   rerender({ current: state({
     t: translations("Einstellungen"),
     deviceMode: true,
     ytdlpInstalled: true,
   }) });
-  await act(async () => resolveMenuApplication());
+  await act(async () => { await Promise.resolve(); });
+  const newerUpdateStartedBeforeOldFinished = menuMocks.setText.mock.calls.some(([text]) => text === "Einstellungen");
+  await act(async () => resolveOldLabel());
 
   await waitFor(() => expect(menuMocks.menuNew).toHaveBeenCalledOnce());
   expect(menuMocks.setAsAppMenu).toHaveBeenCalledOnce();
@@ -91,6 +103,8 @@ it("reuses one native menu tree when mode or locale changes", async () => {
   expect(menuMocks.setText).toHaveBeenCalledWith("Mode");
   expect(menuMocks.setEnabled).toHaveBeenCalledWith(true);
   expect(menuMocks.setChecked).toHaveBeenCalledWith(true);
+  expect(newerUpdateStartedBeforeOldFinished).toBe(false);
+  expect(appliedSettingsLabel).toBe("Einstellungen");
   const quitItem = menuMocks.menuItemOptions.find((option) => option.text === "Quit Lyrical Sync");
   expect(quitItem).toMatchObject({ accelerator: "CmdOrCtrl+Q" });
   quitItem?.action?.();
