@@ -176,13 +176,14 @@ it('ignores an older latest-release response after a newer refresh', async () =>
   fireEvent.click(refreshButton);
   await vi.waitFor(() => expect(resolveSecond).toBeTypeOf('function'));
   await act(async () => {
-    resolveSecond({ ok: true, json: async () => ({ tag_name: 'v2' }) });
+    resolveSecond({ ok: true, json: async () => ({ tag_name: 'v3' }) });
   });
+  expect(await screen.findByRole('button', { name: useI18nStore.getState().t.ytdlpUpdate })).toBeTruthy();
   await act(async () => {
-    resolveFirst({ ok: true, json: async () => ({ tag_name: 'v1' }) });
+    resolveFirst({ ok: true, json: async () => ({ tag_name: 'v2' }) });
   });
 
-  expect(screen.queryByRole('button', { name: useI18nStore.getState().t.ytdlpUpdate })).toBeNull();
+  expect(screen.getByRole('button', { name: useI18nStore.getState().t.ytdlpUpdate })).toBeTruthy();
 });
 
 it('does not keep offering an update when the refreshed latest-release lookup fails', async () => {
