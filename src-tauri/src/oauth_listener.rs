@@ -237,7 +237,7 @@ mod tests {
     }
 
     #[test]
-    fn expiry_closes_idle_clients_and_releases_the_port() {
+    fn expiry_closes_idle_clients_and_stops_accepting_connections() {
         tokio::runtime::Runtime::new().unwrap().block_on(async {
             let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
             let address = listener.local_addr().unwrap();
@@ -249,13 +249,21 @@ mod tests {
                 Duration::from_millis(100),
                 Duration::from_secs(2),
             ));
-            let _idle = tokio::net::TcpStream::connect(address).await.unwrap();
+            let mut idle = tokio::net::TcpStream::connect(address).await.unwrap();
             assert!(tokio::time::timeout(Duration::from_secs(2), task)
                 .await
                 .unwrap()
                 .unwrap()
                 .is_none());
-            assert!(TcpListener::bind(address).await.is_ok());
+            let mut response = [0; 1];
+            assert_eq!(idle.read(&mut response).await.unwrap(), 0);
+            assert!(tokio::time::timeout(
+                Duration::from_secs(1),
+                TcpStream::connect(address)
+            )
+            .await
+            .unwrap()
+            .is_err());
         });
     }
 
