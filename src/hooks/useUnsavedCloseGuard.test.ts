@@ -84,6 +84,25 @@ it("waits for native close-listener removal before invoking the close API", asyn
   await waitFor(() => expect(closeWindow).toHaveBeenCalledOnce());
 });
 
+it("handles close-listener removal failure without closing or leaking a rejection", async () => {
+  let handler: ((event: { preventDefault: () => void }) => void) | undefined;
+  const unlisten = vi.fn().mockRejectedValue(new Error("unlisten failed"));
+  onCloseRequested.mockImplementation(async (callback: typeof handler) => {
+    handler = callback;
+    return unlisten;
+  });
+  closeWindow.mockResolvedValue(undefined);
+  const onCloseError = vi.fn();
+  const { result } = renderHook(() => useUnsavedCloseGuard(() => false, vi.fn(), onCloseError));
+  await waitFor(() => expect(handler).toBeTypeOf("function"));
+
+  await expect(result.current()).resolves.toBe(false);
+
+  expect(closeWindow).not.toHaveBeenCalled();
+  expect(onCloseRequested).toHaveBeenCalledTimes(2);
+  expect(onCloseError).toHaveBeenCalledOnce();
+});
+
 it("restores the close guard after the authorized close API rejects", async () => {
   let handler: ((event: { preventDefault: () => void }) => void) | undefined;
   const unlisten = vi.fn();
