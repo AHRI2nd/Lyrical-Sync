@@ -13,7 +13,7 @@ class UpdaterSecurityTests(unittest.TestCase):
             ['cargo', 'tree', '--manifest-path', str(ROOT / 'src-tauri/Cargo.toml'),
              '--locked', '--target', 'x86_64-pc-windows-msvc',
              '-e', 'features', '-p', 'tauri-plugin-updater'],
-            text=True, capture_output=True, check=True,
+            encoding='utf-8', capture_output=True, check=True,
         )
         self.assertNotRegex(result.stdout, r'\bzip v[0-9]', 'ZIP extraction must not be resolved')
         self.assertIn('rustls v', result.stdout)
@@ -23,7 +23,7 @@ class UpdaterSecurityTests(unittest.TestCase):
             ['cargo', 'tree', '--manifest-path', str(ROOT / 'src-tauri/Cargo.toml'),
              '--locked', '--target', 'aarch64-apple-darwin',
              '-e', 'features', '-p', 'tauri-plugin-updater'],
-            text=True, capture_output=True, check=True,
+            encoding='utf-8', capture_output=True, check=True,
         )
         self.assertIn('tar v', result.stdout)
         self.assertIn('flate2 v', result.stdout)

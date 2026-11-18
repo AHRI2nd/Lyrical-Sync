@@ -22,11 +22,12 @@ class RustDependencyMaintenanceTests(unittest.TestCase):
                         '--locked', '--target', target,
                         '--edges', 'all', '-i', 'paste',
                     ],
-                    text=True,
+                    encoding='utf-8',
                     capture_output=True,
                     check=True,
                 )
-                self.assertIn('src-tauri/vendor/paste', result.stdout)
+                normalized_output = result.stdout.replace('\\', '/')
+                self.assertIn('src-tauri/vendor/paste', normalized_output)
 
 
 if __name__ == '__main__':
