@@ -32,7 +32,6 @@ import { LrcInlineEscapeTagConflictError, LrcInvalidTimestampError, LrcMetadataL
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 const HelpModal = lazy(() => import("./components/AppShell/HelpModal").then((m) => ({ default: m.HelpModal })));
 const BatchToolModal = lazy(() => import("./components/BatchTools/BatchToolModal").then((m) => ({ default: m.BatchToolModal })));
@@ -317,7 +316,6 @@ function App() {
   const [settingsInitialTab, setSettingsInitialTab] = useState<"general" | "preview" | "models" | "spotify" | "youtube" | "shortcuts">("general");
   const [showNewConfirm, setShowNewConfirm] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
-  const allowCloseRef = useRef(false);
   const quitRequestedRef = useRef(false);
   const [newConfirmSession, setNewConfirmSession] = useState<number | null>(null);
   const [newConfirmRevision, setNewConfirmRevision] = useState<number | null>(null);
@@ -389,7 +387,11 @@ function App() {
     lastReportedSettingsFailure.current = settingsPersistenceFailureCount;
     toast.error(t.toast.settingsSaveFailed);
   }, [settingsPersistenceFailureCount, t.toast.settingsSaveFailed]);
-  useUnsavedCloseGuard(() => useLrcStore.getState().isDirty && !allowCloseRef.current, () => setShowCloseConfirm(true));
+  const closeWindow = useUnsavedCloseGuard(
+    () => useLrcStore.getState().isDirty,
+    () => setShowCloseConfirm(true),
+    () => toast.error(t.toast.runtimeFailed),
+  );
   const { isLoggedIn, handleCallback, tryRestoreSession, pausePlayback } = useServiceStore();
   const [ytdlpInstalled, setYtdlpInstalled] = useState(false);
 
@@ -532,18 +534,6 @@ function App() {
       setShowElrcNotice(true);
     } else {
       runSave(saveFn(), true, onSuccess);
-    }
-  };
-
-  const closeWindow = async () => {
-    allowCloseRef.current = true;
-    try {
-      await getCurrentWindow().close();
-      return true;
-    } catch {
-      allowCloseRef.current = false;
-      toast.error(t.toast.runtimeFailed);
-      return false;
     }
   };
 
