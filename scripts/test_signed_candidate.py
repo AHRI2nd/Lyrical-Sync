@@ -21,8 +21,14 @@ class SignedCandidateTests(unittest.TestCase):
     def test_unsaved_close_flow_grants_close_but_not_forced_destroy(self):
         capability = json.loads((ROOT / 'src-tauri/capabilities/default.json').read_text(encoding='utf-8'))
         app_source = (ROOT / 'src/App.tsx').read_text(encoding='utf-8')
+        close_guard_source = (ROOT / 'src/hooks/useUnsavedCloseGuard.ts').read_text(encoding='utf-8')
 
-        self.assertIn('getCurrentWindow().close()', app_source)
+        self.assertIn('useUnsavedCloseGuard(', app_source)
+        self.assertIn('getCurrentWindow().close()', close_guard_source)
+        self.assertIn('event.preventDefault()', close_guard_source)
+        self.assertIn('onCloseRequested(handleCloseRequested)', close_guard_source)
+        self.assertIn('dirtyRef.current()', close_guard_source)
+        self.assertNotIn('getCurrentWindow().destroy()', app_source + close_guard_source)
         self.assertIn('core:window:allow-close', capability['permissions'])
         self.assertNotIn('core:window:allow-destroy', capability['permissions'])
 
