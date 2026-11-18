@@ -181,8 +181,14 @@ def validate_ctc_native_boundary(emissions, tokens):
     try:
         shape = getattr(emissions, "shape", None)
         frames = int(shape[-2]) if shape is not None and len(shape) >= 2 else len(emissions)
-        token_count = len(tokens)
-        repeated_labels = sum(tokens[index] == tokens[index - 1] for index in range(1, token_count))
+        token_count = 0
+        repeated_labels = 0
+        previous_token = None
+        for token in tokens:
+            token_count += 1
+            if token_count > 1 and token == previous_token:
+                repeated_labels += 1
+            previous_token = token
     except (TypeError, ValueError, IndexError):
         return False, "CTC emission/token dimensions are unavailable"
     required = token_count + repeated_labels + CTC_NATIVE_FRAME_SLACK
@@ -192,6 +198,19 @@ def validate_ctc_native_boundary(emissions, tokens):
             f"안전한 정렬을 위해 최소 {required} 프레임이 필요합니다."
         )
     return True, ""
+
+
+def native_ctc_target_ids(tokens, tokenizer):
+    """Mirror the pinned aligner's token-to-ID expansion before checking CTC bounds."""
+    vocabulary = tokenizer.get_vocab()
+    if not isinstance(vocabulary, dict):
+        raise ValueError("정렬 모델 문자 사전 형식이 올바르지 않습니다")
+    dictionary = {str(character).lower(): token_id for character, token_id in vocabulary.items()}
+    dictionary["<star>"] = len(dictionary)
+    for token in tokens:
+        for character in token.split(" "):
+            if character in dictionary:
+                yield dictionary[character]
 
 
 def unsupported_alignment_characters(tokens, tokenizer):
@@ -475,7 +494,8 @@ def main():
                 raise ValueError("가사 일부가 정렬 모델에서 정규화되어 원문 줄과 대응하지 않습니다")
             if any(not token.strip() for token in alignment_tokens):
                 raise ValueError("가사 정규화 후 빈 정렬 토큰이 있습니다 (empty normalized token)")
-            safe_shape, shape_error = validate_ctc_native_boundary(emissions, tokens_starred)
+            native_target_ids = native_ctc_target_ids(tokens_starred, tokenizer)
+            safe_shape, shape_error = validate_ctc_native_boundary(emissions, native_target_ids)
             if not safe_shape:
                 progress("error", shape_error, code="audio_too_short")
                 sys.exit(1)

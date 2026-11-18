@@ -437,11 +437,30 @@ class CtcBoundaryTests(unittest.TestCase):
         self.assertFalse(align.validate_ctc_native_boundary([[0] * 32 for _ in range(8)], [1, 1])[0])
         self.assertTrue(align.validate_ctc_native_boundary([[0] * 32 for _ in range(9)], [1, 1])[0])
 
+    def test_expands_character_spaced_words_to_native_target_ids(self):
+        class Tokenizer:
+            def get_vocab(self):
+                return {"<blank>": 0, **{character: index + 1 for index, character in enumerate("abcdefghijklmnopqrstuvwxyz")}}
+
+        tokenizer = Tokenizer()
+        tokens = ["<star>", "a b c d e f g h i j k l m n o p q r s t u v w x y"]
+        target_ids = list(align.native_ctc_target_ids(tokens, tokenizer))
+        self.assertEqual(len(target_ids), 26)
+        self.assertEqual(sum(target_ids[index] == target_ids[index - 1] for index in range(1, len(target_ids))), 0)
+        self.assertFalse(align.validate_ctc_native_boundary([[0] * 32 for _ in range(25)], target_ids)[0])
+        self.assertTrue(align.validate_ctc_native_boundary([[0] * 32 for _ in range(32)], target_ids)[0])
+
+        repeated_ids = list(align.native_ctc_target_ids(["<star>", "a a"], tokenizer))
+        self.assertEqual(sum(repeated_ids[index] == repeated_ids[index - 1] for index in range(1, len(repeated_ids))), 1)
+        self.assertFalse(align.validate_ctc_native_boundary([[0] * 32 for _ in range(9)], repeated_ids)[0])
+        self.assertTrue(align.validate_ctc_native_boundary([[0] * 32 for _ in range(10)], repeated_ids)[0])
+
 
 class AlignmentExecutionTests(unittest.TestCase):
     """Run the shipped sidecar with deterministic small substitutes for ML packages."""
 
-    def run_alignment(self, *, short_audio=False, bad_timestamps=False, lyric_lines=None, native_audio=False):
+    def run_alignment(self, *, short_audio=False, bad_timestamps=False, lyric_lines=None, native_audio=False,
+                      audio_samples=None):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             model = root / "ctc-forced-aligner.onnx"
@@ -469,10 +488,11 @@ def isfinite(values): return Values(math.isfinite(value) for value in values)
 ''', encoding="utf-8")
             else:
                 (root / "numpy.py").write_text("", encoding="utf-8")
-            (root / "librosa.py").write_text('''
+            sample_count = 16 if short_audio else (audio_samples if audio_samples is not None else 32000)
+            (root / "librosa.py").write_text(f'''
 def load(path, sr=None, mono=False):
     assert sr == 16000 and mono is True
-    return range(16 if "short" in path else 32000), sr
+    return range({sample_count}), sr
 ''', encoding="utf-8")
             (root / "ctc_forced_aligner.py").write_text('''
 class Tokenizer:
@@ -482,12 +502,16 @@ class Tokenizer:
 def load_audio(path, ret_type=None):
     return range(16 if "short" in path else 32000)
 def generate_emissions(session, waveform, batch_size=1):
-    return list(range(16)), 0.02
+    return list(range(len(waveform) // 320)), 0.02
 def preprocess_text(text, **kwargs):
     words = text.split()
+    if len(words) == 1 and len(words[0]) == 25:
+        return ["<star>", " ".join(words[0])], ["<star>", words[0]]
     return [" ".join(word) for word in words], words
 def get_alignments(emissions, tokens, tokenizer):
-    assert len(emissions) == 16, "emissions must precede alignment"
+    if len(emissions) == 25:
+        raise RuntimeError("native alignment reached for the under-frame boundary")
+    assert len(emissions) >= 16, "emissions must precede alignment"
     return tokens, [0.0] * len(tokens), 0
 def get_spans(tokens, segments, blank_token): return segments
 def postprocess_results(text, spans, stride, scores):
@@ -561,6 +585,19 @@ def postprocess_results(text, spans, stride, scores):
         events = [json.loads(line) for line in result.stderr.splitlines()]
         self.assertTrue(any(event.get("code") == "audio_too_short" for event in events))
 
+    def test_long_single_word_uses_native_character_target_length(self):
+        lyric = [{"index": 0, "text": "abcdefghijklmnopqrstuvwxy"}]
+        boundary = self.run_alignment(lyric_lines=lyric, audio_samples=25 * 320)
+        events = [json.loads(line) for line in boundary.stderr.splitlines() if line.startswith("{")]
+        self.assertNotEqual(boundary.returncode, 0)
+        self.assertTrue(
+            any(event.get("code") == "audio_too_short" for event in events),
+            boundary.stderr,
+        )
+
+        control = self.run_alignment(lyric_lines=lyric, audio_samples=40 * 320)
+        self.assertEqual(control.returncode, 0, control.stderr)
+
     def test_nonfinite_sidecar_results_rejected(self):
         result = self.run_alignment(bad_timestamps=True)
         self.assertNotEqual(result.returncode, 0)
@@ -628,7 +665,7 @@ class EmbeddedAlignmentExecutionTests(unittest.TestCase):
                 "class FakeAudio:\n"
                 " def __len__(self): return 32000\n"
                 "def load_audio(*args, **kwargs): return FakeAudio()\n"
-                "def generate_emissions(session, audio, batch_size): return (list(range(16)), 0.02)\n"
+                "def generate_emissions(session, audio, batch_size): return (list(range(64)), 0.02)\n"
                 "def preprocess_text(text, **kwargs):\n"
                 " words = text.split()\n"
                 " tokens = []\n"
@@ -638,7 +675,7 @@ class EmbeddedAlignmentExecutionTests(unittest.TestCase):
                 "  starred_text.extend(['<star>', word])\n"
                 " return tokens, starred_text\n"
                 "def get_alignments(emissions, tokens, tokenizer):\n"
-                " assert len(emissions) == 16\n"
+                " assert len(emissions) >= 16\n"
                 " return ('segments', 'scores', 'blank')\n"
                 "def get_spans(tokens, segments, blank): return tokens\n"
                 "def postprocess_results(text, spans, stride, scores):\n"
