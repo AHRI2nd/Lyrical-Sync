@@ -42,6 +42,7 @@ fn python_cmd(python: impl AsRef<std::ffi::OsStr>) -> tokio::process::Command {
     cmd
 }
 
+#[cfg(any(not(windows), test))]
 fn ctc_archive_install_command(
     python: &std::path::Path,
     archive: &std::path::Path,

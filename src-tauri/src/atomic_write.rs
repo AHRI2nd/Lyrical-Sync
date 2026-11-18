@@ -179,7 +179,7 @@ fn write_with_expected_unlocked_and_sync(
     // Use symlink_metadata to NOT follow symlinks, so we can detect dangling links.
     let metadata = fs::symlink_metadata(&selected_target);
     
-    let (target, permissions, is_existing, target_metadata, macos_flags) = match metadata {
+    let (target, permissions, is_existing, _target_metadata, _macos_flags) = match metadata {
         Ok(meta) => {
             if meta.file_type().is_symlink() {
                 // It's a symlink - resolve it but keep track of the link path
@@ -234,14 +234,11 @@ fn write_with_expected_unlocked_and_sync(
     };
 
     // Check if destination is a FIFO or other special file before attempting atomic write
-    if let Some(ref meta) = target_metadata {
-        let ft = meta.file_type();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::FileTypeExt;
-            if ft.is_fifo() {
-                return Err(io::Error::other("Destination is a FIFO; cannot atomic write"));
-            }
+    #[cfg(unix)]
+    if let Some(ref meta) = _target_metadata {
+        use std::os::unix::fs::FileTypeExt;
+        if meta.file_type().is_fifo() {
+            return Err(io::Error::other("Destination is a FIFO; cannot atomic write"));
         }
     }
 
@@ -259,7 +256,7 @@ fn write_with_expected_unlocked_and_sync(
     write(stage.as_file_mut())?;
 
     #[cfg(unix)]
-    if let Some(original_metadata) = target_metadata.as_ref() {
+    if let Some(original_metadata) = _target_metadata.as_ref() {
         ensure_target_identity(&target, original_metadata)?;
     }
     
@@ -270,7 +267,7 @@ fn write_with_expected_unlocked_and_sync(
     #[cfg(target_os = "macos")]
     if permissions.is_some() {
         preserve_macos_metadata(&target, stage.path(), stage.as_file())?;
-        preserve_macos_file_flags(stage.as_file(), macos_flags)?;
+        preserve_macos_file_flags(stage.as_file(), _macos_flags)?;
     }
     
     stage.as_file_mut().flush()?;
@@ -290,7 +287,7 @@ fn write_with_expected_unlocked_and_sync(
     }
 
     #[cfg(unix)]
-    if let Some(original_metadata) = target_metadata.as_ref() {
+    if let Some(original_metadata) = _target_metadata.as_ref() {
         ensure_target_identity(&target, original_metadata)?;
     }
 
