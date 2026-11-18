@@ -953,6 +953,7 @@ mod windows_metadata_tests {
     use super::*;
     use std::ffi::c_void;
     use std::os::windows::ffi::OsStrExt;
+    use std::process::Command;
     #[link(name = "advapi32")]
     extern "system" {
         fn ConvertStringSecurityDescriptorToSecurityDescriptorW(
@@ -987,6 +988,22 @@ mod windows_metadata_tests {
     }
     fn wide(path: &Path) -> Vec<u16> {
         path.as_os_str().encode_wide().chain(Some(0)).collect()
+    }
+    fn create_junction(link: &Path, target: &Path) -> io::Result<()> {
+        let output = Command::new("cmd.exe")
+            .args(["/C", "mklink", "/J"])
+            .arg(link)
+            .arg(target)
+            .output()?;
+        if output.status.success() {
+            Ok(())
+        } else {
+            Err(io::Error::other(format!(
+                "Failed to create test junction: {}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            )))
+        }
     }
     fn dacl(path: &Path) -> (bool, Vec<u8>) {
         let path = wide(path);
@@ -1111,5 +1128,45 @@ mod windows_metadata_tests {
             "explicit security descriptor must survive save"
         );
         assert_eq!(fs::read_to_string(&stream).unwrap(), "keep stream");
+    }
+
+    #[test]
+    fn retargeting_parent_junction_during_new_save_keeps_original_destination() {
+        let dir = tempfile::tempdir().unwrap();
+        let selected = dir.path().join("selected");
+        let approved = dir.path().join("approved");
+        let alternate = dir.path().join("alternate");
+        fs::create_dir(&approved).unwrap();
+        fs::create_dir(&alternate).unwrap();
+        create_junction(&selected, &approved).unwrap();
+
+        write_with(&selected.join("new.lrc"), |stage| {
+            stage.write_all(b"intended lyrics")?;
+            let staged_name = fs::read_dir(&approved)?
+                .next()
+                .ok_or_else(|| io::Error::other("Missing staged lyric file"))??
+                .file_name();
+            fs::write(alternate.join(staged_name), b"decoy stage bytes")?;
+            fs::remove_dir(&selected)?;
+            create_junction(&selected, &alternate)?;
+            Ok(())
+        })
+        .unwrap();
+
+        assert_eq!(fs::read(approved.join("new.lrc")).unwrap(), b"intended lyrics");
+        assert!(!alternate.join("new.lrc").exists());
+        assert_eq!(fs::read_dir(&approved).unwrap().count(), 1);
+        let decoys: Vec<_> = fs::read_dir(&alternate).unwrap().collect();
+        assert_eq!(decoys.len(), 1);
+        assert_eq!(
+            fs::read(decoys[0].as_ref().unwrap().path()).unwrap(),
+            b"decoy stage bytes"
+        );
+
+        write_atomic(&approved.join("control.lrc"), "stable path").unwrap();
+        assert_eq!(
+            fs::read(approved.join("control.lrc")).unwrap(),
+            b"stable path"
+        );
     }
 }
