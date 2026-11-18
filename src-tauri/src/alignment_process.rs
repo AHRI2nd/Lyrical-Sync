@@ -338,6 +338,10 @@ mod tests {
                 }
             }
             Ok("failure") => std::process::exit(7),
+            Ok("failure_stderr") => {
+                eprintln!("stderr_output");
+                std::process::exit(7);
+            }
             Ok("failure_stdout") => {
                 println!("dependency conflict details");
                 std::process::exit(7);
@@ -629,15 +633,8 @@ mod tests {
     fn pre_exited_child_stderr_is_captured() {
         tokio::runtime::Runtime::new().unwrap().block_on(async {
             let mut captured_stderr = String::new();
-            let child = tokio::process::Command::new("sh")
-                .arg("-c")
-                .arg("echo stderr_output >&2; exit 7")
-                .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::piped())
-                .spawn()
-                .expect("spawn failed");
             let result = run_child(
-                child,
+                child("failure_stderr"),
                 Arc::new(AtomicBool::new(false)),
                 |line| {
                     captured_stderr.push_str(line);
