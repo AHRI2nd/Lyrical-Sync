@@ -1086,6 +1086,19 @@ mod lyric_save_command_tests {
     };
     use std::fs;
 
+    const ERROR_NO_DATA: u32 = 232;
+
+    fn named_pipe_client_closed_before_server_disconnect(error: u32) -> bool {
+        error == ERROR_NO_DATA
+    }
+
+    #[test]
+    fn recognizes_named_pipe_client_close_before_server_disconnect() {
+        assert!(named_pipe_client_closed_before_server_disconnect(232));
+        assert!(!named_pipe_client_closed_before_server_disconnect(535));
+        assert!(!named_pipe_client_closed_before_server_disconnect(536));
+    }
+
     #[tokio::test]
     async fn command_creates_new_file_then_replaces_existing_file() {
         let dir = tempfile::tempdir().unwrap();
@@ -1352,6 +1365,9 @@ mod lyric_save_command_tests {
                 }
                 let error = unsafe { GetLastError() };
                 if error == ERROR_PIPE_CONNECTED {
+                    break;
+                }
+                if named_pipe_client_closed_before_server_disconnect(error) {
                     break;
                 }
                 if error != ERROR_PIPE_LISTENING {
