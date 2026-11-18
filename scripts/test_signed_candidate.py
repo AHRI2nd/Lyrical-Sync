@@ -168,7 +168,15 @@ if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
             env.update(GH_LOG=str(log),
                        GH_MODE=mode,RELEASE_REPO='owner/repo',TAG='v0.7.1',SOURCE_SHA=source_sha,TAG_SHA=tag_sha,
                        RELEASE_FILE=str(release_file),RUNNER_TEMP=str(root))
-            bash_executable = shutil.which('bash', path=env['PATH'])
+            git_bash_candidates = (
+                Path(program_files) / 'Git' / 'bin' / 'bash.exe'
+                for program_files in (os.environ.get('ProgramFiles'), os.environ.get('ProgramFiles(x86)'))
+                if program_files
+            )
+            bash_executable = next(
+                (str(candidate) for candidate in git_bash_candidates if candidate.is_file()),
+                None,
+            ) or shutil.which('bash', path=env['PATH'])
             if bash_executable is None:
                 self.fail('A Bash executable is required for the release draft gate fixture')
             result=subprocess.run([bash_executable,'-c','set -euo pipefail\n'+shell_stubs+gate],cwd=ROOT,env=env,encoding='utf-8',capture_output=True)
