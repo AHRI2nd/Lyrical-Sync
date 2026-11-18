@@ -131,10 +131,9 @@ class SignedCandidateTests(unittest.TestCase):
         gate,replaced=re.subn(r'(?m)^mapfile -t files < <\(python .*\)$','files=("$RELEASE_FILE")',gate)
         self.assertEqual(replaced,1,'Release file list command changed; update the local fake-API harness.')
         with tempfile.TemporaryDirectory() as directory:
-            root=Path(directory);bin_dir=root/'bin';bin_dir.mkdir()
+            root=Path(directory)
             release_file=root/'fixture.pkg';release_file.write_text('synthetic artifact',encoding='utf-8')
-            gh=bin_dir/'gh'
-            gh.write_text('''#!/bin/sh
+            shell_stubs = '''gh() {
 printf 'gh %s\\n' "$*" >> "$GH_LOG"
 case "$1:$2" in
   api:--paginate)
@@ -158,23 +157,21 @@ case "$1:$2" in
     printf 'gh release upload %s\\n' "$*" >> "$GH_LOG" ;;
   *) exit 19 ;;
 esac
-''',encoding='utf-8')
-            gh.chmod(0o755)
-            git=bin_dir/'git'
-            git.write_text('''#!/bin/sh
+}
+git() {
 printf 'git %s\\n' "$*" >> "$GH_LOG"
 if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
-''',encoding='utf-8')
-            git.chmod(0o755)
+}
+'''
             log=root/'commands.log'
             env=os.environ.copy()
-            env.update(PATH=str(bin_dir)+os.pathsep+env.get('PATH',''),GH_LOG=str(log),
+            env.update(GH_LOG=str(log),
                        GH_MODE=mode,RELEASE_REPO='owner/repo',TAG='v0.7.1',SOURCE_SHA=source_sha,TAG_SHA=tag_sha,
                        RELEASE_FILE=str(release_file),RUNNER_TEMP=str(root))
             bash_executable = shutil.which('bash', path=env['PATH'])
             if bash_executable is None:
                 self.fail('A Bash executable is required for the release draft gate fixture')
-            result=subprocess.run([bash_executable,'-c','set -euo pipefail\n'+gate],cwd=ROOT,env=env,encoding='utf-8',capture_output=True)
+            result=subprocess.run([bash_executable,'-c','set -euo pipefail\n'+shell_stubs+gate],cwd=ROOT,env=env,encoding='utf-8',capture_output=True)
             return result,log.read_text(encoding='utf-8') if log.exists() else ''
 
     def test_default_capability_does_not_grant_plugin_file_read_access(self):
