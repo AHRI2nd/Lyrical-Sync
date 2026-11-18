@@ -215,7 +215,7 @@ if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
     def test_workflow_is_manual_read_only_and_does_not_publish(self):
         path=ROOT/'.github/workflows/candidate.yml'
         self.assertTrue(path.is_file(), 'A non-publishing signed candidate workflow is required')
-        source=path.read_text()
+        source=path.read_text(encoding='utf-8')
         self.assertIn('workflow_dispatch:',source)
         self.assertIn('contents: read',source)
         self.assertNotRegex(source,r'(?m)^\s*(?:push|pull_request|tagName|releaseName|releaseId|releaseDraft|releaseCommitish):')
@@ -241,7 +241,7 @@ if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
             self.assertIn(command,tests)
 
     def test_release_upload_waits_for_all_verified_build_artifacts(self):
-        source=(ROOT/'.github/workflows/release.yml').read_text()
+        source=(ROOT/'.github/workflows/release.yml').read_text(encoding='utf-8')
         self.assertIn('publish-release:',source)
         self.assertRegex(source,r'needs:\s*\[\s*release\s*,\s*test-gate\s*\]')
         self.assertIn('scripts/verify_release_candidates.py',source)
@@ -300,7 +300,7 @@ if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
                     self.assertRegex(line, uses, f'{path}: mutable or malformed action reference: {line}')
 
     def test_signed_candidate_rejects_untrusted_refs_before_running_build_code(self):
-        source=(ROOT/'.github/workflows/candidate.yml').read_text()
+        source=(ROOT/'.github/workflows/candidate.yml').read_text(encoding='utf-8')
         guard=source.index('Verify signed candidate source')
         self.assertIn('CANDIDATE_REF: ${{ github.ref }}',source)
         self.assertIn('CANDIDATE_REF_TYPE: ${{ github.ref_type }}',source)
@@ -314,7 +314,7 @@ if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
         self.assertLess(guard,source.index('Build signed macOS candidate'))
 
     def test_signing_depends_on_tests_and_never_interpolates_untrusted_ref_into_shell(self):
-        source=(ROOT/'.github/workflows/release.yml').read_text()
+        source=(ROOT/'.github/workflows/release.yml').read_text(encoding='utf-8')
         self.assertRegex(source,r'(?m)^  release:\n(?:    #[^\n]*\n)*    needs: test-gate[ \t]*$')
         self.assertRegex(source,r'(?m)^  test-gate:\n    uses: \./\.github/workflows/test\.yml$')
         tests=(ROOT/'.github/workflows/test.yml').read_text(encoding='utf-8')
@@ -329,7 +329,7 @@ if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
         self.assertIn('existing_target=$(gh api',source)
         self.assertIn('git fetch --depth=1 origin "refs/tags/$TAG"',source)
         for workflow in ('release.yml','candidate.yml'):
-            signed=(ROOT/'.github/workflows'/workflow).read_text()
+            signed=(ROOT/'.github/workflows'/workflow).read_text(encoding='utf-8')
             self.assertNotIn('run: echo "${{ secrets.APPLE_API_KEY }}"',signed)
             self.assertNotIn('codesign --force --sign "${{ secrets.APPLE_SIGNING_IDENTITY }}"',signed)
             self.assertIn('APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY }}',signed)
@@ -337,7 +337,7 @@ if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
 
     def test_signed_workflow_targets_match_verified_candidate_contract(self):
         for workflow in ('release.yml','candidate.yml'):
-            source=(ROOT/'.github/workflows'/workflow).read_text()
+            source=(ROOT/'.github/workflows'/workflow).read_text(encoding='utf-8')
             for target in ('aarch64-apple-darwin','x86_64-pc-windows-msvc',
                            'aarch64-pc-windows-msvc'):
                 self.assertIn('target: '+target,source)
@@ -345,7 +345,7 @@ if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
             self.assertIn('os: windows-11-arm',source)
 
     def test_registered_build_can_dispatch_candidate_without_changing_main(self):
-        source=(ROOT/'.github/workflows/build.yml').read_text()
+        source=(ROOT/'.github/workflows/build.yml').read_text(encoding='utf-8')
         self.assertIn('signed_candidate:',source)
         self.assertIn('type: boolean',source)
         self.assertIn('default: false',source)
@@ -354,10 +354,10 @@ if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
         self.assertIn("if: ${{ inputs.signed_candidate != true }}",source)
         self.assertIn('uses: ./.github/workflows/candidate.yml',source)
         self.assertIn('secrets: inherit',source)
-        self.assertIn('workflow_call:',(ROOT/'.github/workflows/candidate.yml').read_text())
+        self.assertIn('workflow_call:',(ROOT/'.github/workflows/candidate.yml').read_text(encoding='utf-8'))
 
     def test_ordinary_build_fails_when_expected_artifacts_are_missing(self):
-        source=(ROOT/'.github/workflows/build.yml').read_text()
+        source=(ROOT/'.github/workflows/build.yml').read_text(encoding='utf-8')
         self.assertEqual(source.count('if-no-files-found: error'),2)
 
     def recorder(self):
