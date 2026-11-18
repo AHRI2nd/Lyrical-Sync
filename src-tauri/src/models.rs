@@ -370,31 +370,6 @@ pub async fn check_model_files(
     Ok(results)
 }
 
-/// 모델 파일의 체크섬을 사용 시점에 검증합니다. 정렬/추론 전에 호출해야 합니다.
-#[tauri::command]
-pub async fn verify_model_at_use(
-    app: AppHandle,
-    dir_state: tauri::State<'_, ModelsDirState>,
-    expected_root: String,
-    model_id: String,
-) -> Result<(), String> {
-    let files = registered_model_files(&model_id)?;
-    let base = models_dir(&app, &dir_state)?;
-    if !models_root_matches(&base, &expected_root) {
-        return Err("Model directory changed before verification".into());
-    }
-    let store = crate::model_store::ModelStore::open(&base).map_err(|e| e.to_string())?;
-    for spec in files {
-        if !model_file_matches(&store, &spec.filename, spec.sha256.as_deref()).await {
-            return Err(format!(
-                "Model checksum mismatch at use time: {}",
-                spec.filename
-            ));
-        }
-    }
-    Ok(())
-}
-
 async fn hash_model_file(file: std::fs::File) -> Result<String, std::io::Error> {
     use sha2::{Digest, Sha256};
     use tokio::io::AsyncReadExt;
@@ -586,10 +561,6 @@ fn cancel_download_if_current(
     } else {
         false
     }
-}
-
-fn checked_model_download_bytes(current: u64, additional: u64) -> Result<u64, String> {
-    checked_model_download_bytes_with_limit(current, additional, MAX_MODEL_DOWNLOAD_BYTES)
 }
 
 fn checked_model_download_bytes_with_limit(
@@ -1096,11 +1067,26 @@ mod integrity_tests {
     #[test]
     fn model_download_byte_budget_accepts_exact_limit_and_rejects_overflow() {
         assert_eq!(
-            checked_model_download_bytes(MAX_MODEL_DOWNLOAD_BYTES - 1, 1).unwrap(),
+            checked_model_download_bytes_with_limit(
+                MAX_MODEL_DOWNLOAD_BYTES - 1,
+                1,
+                MAX_MODEL_DOWNLOAD_BYTES,
+            )
+            .unwrap(),
             MAX_MODEL_DOWNLOAD_BYTES,
         );
-        assert!(checked_model_download_bytes(MAX_MODEL_DOWNLOAD_BYTES, 1).is_err());
-        assert!(checked_model_download_bytes(u64::MAX, 1).is_err());
+        assert!(checked_model_download_bytes_with_limit(
+            MAX_MODEL_DOWNLOAD_BYTES,
+            1,
+            MAX_MODEL_DOWNLOAD_BYTES,
+        )
+        .is_err());
+        assert!(checked_model_download_bytes_with_limit(
+            u64::MAX,
+            1,
+            MAX_MODEL_DOWNLOAD_BYTES,
+        )
+        .is_err());
     }
 
     #[tokio::test]
@@ -1403,9 +1389,6 @@ mod integrity_tests {
             start_registered_download, DownloadState,
         };
         use std::path::PathBuf;
-        use std::sync::atomic::{AtomicBool, Ordering};
-        use std::sync::Arc;
-
         // Test 1: Cancel before download starts (registered only)
         let state = DownloadState::default();
         let cancel = register_download(&state, "model1", "run1").unwrap();
