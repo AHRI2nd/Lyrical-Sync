@@ -256,14 +256,18 @@ mod tests {
                 .unwrap()
                 .is_none());
             let mut response = [0; 1];
-            assert_eq!(idle.read(&mut response).await.unwrap(), 0);
-            assert!(tokio::time::timeout(
-                Duration::from_secs(1),
-                TcpStream::connect(address)
-            )
-            .await
-            .unwrap()
-            .is_err());
+            match idle.read(&mut response).await {
+                Ok(0) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::ConnectionReset => {}
+                Ok(bytes_read) => panic!("expired idle client received {bytes_read} bytes"),
+                Err(error) => panic!("expired idle client did not close cleanly: {error}"),
+            }
+            let post_expiry_connect =
+                tokio::time::timeout(Duration::from_secs(1), TcpStream::connect(address)).await;
+            assert!(
+                !matches!(post_expiry_connect, Ok(Ok(_))),
+                "OAuth listener accepted a connection after expiry"
+            );
         });
     }
 
