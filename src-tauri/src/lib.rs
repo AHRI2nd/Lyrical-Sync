@@ -87,6 +87,10 @@ fn read_lyric_file(path: &std::path::Path) -> Result<String, String> {
         options.custom_flags(libc::O_NONBLOCK);
     }
     let file = options.open(path).map_err(|error| error.to_string())?;
+    #[cfg(windows)]
+    if !is_windows_disk_file(&file) {
+        return Err("Lyrics path is not a regular file".into());
+    }
     let metadata = file.metadata().map_err(|error| error.to_string())?;
     if !metadata.is_file() {
         return Err("Lyrics path is not a regular file".into());
@@ -107,6 +111,20 @@ fn read_lyric_file(path: &std::path::Path) -> Result<String, String> {
     String::from_utf8(bytes).map_err(|_| {
         "Unsupported lyric encoding: expected UTF-8; convert a copy to UTF-8 before editing.".into()
     })
+}
+
+#[cfg(windows)]
+fn is_windows_disk_file(file: &std::fs::File) -> bool {
+    use std::ffi::c_void;
+    use std::os::windows::io::AsRawHandle;
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetFileType(file: *mut c_void) -> u32;
+    }
+
+    const FILE_TYPE_DISK: u32 = 0x0001;
+    unsafe { GetFileType(file.as_raw_handle()) == FILE_TYPE_DISK }
 }
 
 #[tauri::command]
@@ -1262,6 +1280,133 @@ mod lyric_save_command_tests {
         .expect("FIFO read must not block")
         .unwrap_err();
         assert!(error.contains("regular file"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn read_rejects_a_named_pipe_without_blocking() {
+        use std::ffi::c_void;
+        use std::sync::mpsc;
+        use std::thread;
+        use std::time::Duration;
+
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn CreateNamedPipeW(
+                name: *const u16,
+                open_mode: u32,
+                pipe_mode: u32,
+                max_instances: u32,
+                out_buffer_size: u32,
+                in_buffer_size: u32,
+                default_timeout: u32,
+                security_attributes: *mut c_void,
+            ) -> *mut c_void;
+            fn ConnectNamedPipe(pipe: *mut c_void, overlapped: *mut c_void) -> i32;
+            fn DisconnectNamedPipe(pipe: *mut c_void) -> i32;
+            fn CloseHandle(handle: *mut c_void) -> i32;
+            fn GetLastError() -> u32;
+        }
+
+        const INVALID_HANDLE_VALUE: *mut c_void = -1isize as *mut c_void;
+        const PIPE_ACCESS_DUPLEX: u32 = 0x0000_0003;
+        const PIPE_NOWAIT: u32 = 0x0000_0001;
+        const ERROR_PIPE_CONNECTED: u32 = 535;
+        const ERROR_PIPE_LISTENING: u32 = 536;
+
+        let pipe_name = format!(
+            r"\\.\pipe\LyricalSyncReadTest-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+        let pipe_path = std::path::PathBuf::from(&pipe_name);
+        let wide_name: Vec<u16> = pipe_name.encode_utf16().chain(Some(0)).collect();
+        let server_handle = unsafe {
+            CreateNamedPipeW(
+                wide_name.as_ptr(),
+                PIPE_ACCESS_DUPLEX,
+                PIPE_NOWAIT,
+                1,
+                4096,
+                4096,
+                0,
+                std::ptr::null_mut(),
+            )
+        };
+        assert_ne!(server_handle, INVALID_HANDLE_VALUE);
+
+        let (release_server, wait_for_release) = mpsc::channel();
+        let server_handle = server_handle as usize;
+        let server = thread::spawn(move || {
+            let server_handle = server_handle as *mut c_void;
+            loop {
+                if wait_for_release.try_recv().is_ok() {
+                    unsafe { CloseHandle(server_handle) };
+                    return Ok::<(), u32>(());
+                }
+                if unsafe { ConnectNamedPipe(server_handle, std::ptr::null_mut()) } != 0 {
+                    break;
+                }
+                let error = unsafe { GetLastError() };
+                if error == ERROR_PIPE_CONNECTED {
+                    break;
+                }
+                if error != ERROR_PIPE_LISTENING {
+                    unsafe { CloseHandle(server_handle) };
+                    return Err(error);
+                }
+                thread::sleep(Duration::from_millis(1));
+            }
+
+            let _ = wait_for_release.recv_timeout(Duration::from_secs(3));
+            unsafe {
+                DisconnectNamedPipe(server_handle);
+                CloseHandle(server_handle);
+            }
+            Ok(())
+        });
+
+        let (result_sender, result_receiver) = mpsc::channel();
+        let regular_dir = tempfile::tempdir().unwrap();
+        let regular_path = regular_dir.path().join("ordinary.lrc");
+        std::fs::write(&regular_path, "regular lyrics").unwrap();
+        assert_eq!(super::read_lyric_file(&regular_path).unwrap(), "regular lyrics");
+
+        let reader = thread::spawn(move || {
+            let result = super::read_lyric_file(&pipe_path);
+            let _ = result_sender.send(result);
+        });
+        let early_result = result_receiver.recv_timeout(Duration::from_secs(1));
+        let completed_before_close = early_result.is_ok();
+        let _ = release_server.send(());
+        let server_result = server.join().unwrap();
+        let result = match early_result {
+            Ok(result) => Some(result),
+            Err(_) => result_receiver
+                .recv_timeout(Duration::from_secs(1))
+                .ok(),
+        };
+        if result.is_some() {
+            reader.join().unwrap();
+        } else {
+            drop(reader);
+        }
+
+        assert!(server_result.is_ok(), "named-pipe server failed: {server_result:?}");
+        assert!(
+            completed_before_close,
+            "lyric reader blocked on an unwritten Windows named pipe"
+        );
+        let pipe_error = result
+            .expect("reader must finish after the server closes the pipe")
+            .unwrap_err();
+        assert!(
+            pipe_error.contains("regular file"),
+            "named pipes must be rejected as non-regular files: {pipe_error}"
+        );
     }
 
     #[tokio::test]
