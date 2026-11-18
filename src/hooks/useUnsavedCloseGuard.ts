@@ -21,10 +21,11 @@ export function useUnsavedCloseGuard(
     if (closingRef.current) return false;
     closingRef.current = true;
     await registrationRef.current;
-    unlistenRef.current?.();
+    const unlisten = unlistenRef.current;
     unlistenRef.current = undefined;
 
     try {
+      await unlisten?.();
       await getCurrentWindow().close();
       return true;
     } catch {
