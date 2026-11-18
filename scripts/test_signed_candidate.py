@@ -2,6 +2,7 @@
 from pathlib import Path
 import importlib.util
 import os
+import shutil
 import subprocess
 import tempfile
 import io
@@ -170,7 +171,10 @@ if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
             env.update(PATH=str(bin_dir)+os.pathsep+env.get('PATH',''),GH_LOG=str(log),
                        GH_MODE=mode,RELEASE_REPO='owner/repo',TAG='v0.7.1',SOURCE_SHA=source_sha,TAG_SHA=tag_sha,
                        RELEASE_FILE=str(release_file),RUNNER_TEMP=str(root))
-            result=subprocess.run(['bash','-c','set -euo pipefail\n'+gate],cwd=ROOT,env=env,text=True,capture_output=True)
+            bash_executable = shutil.which('bash', path=env['PATH'])
+            if bash_executable is None:
+                self.fail('A Bash executable is required for the release draft gate fixture')
+            result=subprocess.run([bash_executable,'-c','set -euo pipefail\n'+gate],cwd=ROOT,env=env,encoding='utf-8',capture_output=True)
             return result,log.read_text(encoding='utf-8') if log.exists() else ''
 
     def test_default_capability_does_not_grant_plugin_file_read_access(self):
@@ -635,8 +639,9 @@ if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
                         outside.write_bytes(original.read_bytes())
                         bad_path=str(outside) if mode=='absolute' else '../'+outside.name
                     self.update_mac_candidate_path(root,field,bad_path)
-                    with self.assertRaisesRegex(ValueError,'escapes candidate directory'):
+                    with self.assertRaises(ValueError) as raised:
                         module.verify(root,'0.7.0','a'*40)
+                    self.assertRegex(str(raised.exception), r'(?:path separator|escapes candidate directory)')
 
     def test_release_candidate_rejects_windows_path_separators(self):
         module=self.release_candidate_verifier()
