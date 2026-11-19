@@ -30,6 +30,15 @@ class AIProfileLockTests(unittest.TestCase):
                 self.assertEqual(lock_map[("torch", torch_version)] is not None, True)
                 self.assertEqual(lock_map[("demucs", "4.0.1")], provenance["wheel"]["sha256"])
 
+    def test_windows_locks_pin_tqdm_colorama_dependency(self):
+        expected_hash = "4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"
+        for profile in ("windows-x64", "windows-arm64"):
+            with self.subTest(profile=profile):
+                lock_file = PROFILES[profile][1]
+                locked = audit.parse_hashed_requirements((LOCKS / lock_file).read_text(encoding="utf-8"))
+                lock_map = {audit.normalize_name(name): (version, digest) for name, version, digest in locked}
+                self.assertEqual(lock_map.get("colorama"), ("0.4.6", expected_hash))
+
     def test_static_locks_have_expected_profile_count_and_no_conflicting_package_versions(self):
         for profile, (_, lock_file, _) in PROFILES.items():
             with self.subTest(profile=profile):

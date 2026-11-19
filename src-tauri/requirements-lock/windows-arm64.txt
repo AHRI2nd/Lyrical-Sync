@@ -4,6 +4,7 @@ certifi==2026.10.23 --hash=sha256:e9b54de76e530bb6cf0ccd036787103acb58fd42ba930e
 cffi==2.1.1 --hash=sha256:63bbfd5ded17c4840ac07cd8f1c21ba9d9708141f840b324f422f41b207e3973
 charset-normalizer==3.5.2 --hash=sha256:11912e4bb14baae7c5d8791aa55ba0a3a03ec6729073307b0f57270abaa713d3
 cloudpickle==3.1.2 --hash=sha256:9acb47f6afd73f60dc1df93bb801b472f05ff42fa6c84167d25cb206be1fbf4a
+colorama==0.4.6 --hash=sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6
 ctc_forced_aligner==1.0.2 --hash=sha256:b55371b3de322dbb1147a3b25f187b5759a791a8bdfac6341f6156bbf376ddc7
 decorator==5.3.1 --hash=sha256:f47fe6fdbd2edd623ecfe36875d37aba411624e2670dd395dddae1358689bb3c
 demucs==4.0.1 --hash=sha256:ce6aa7ea6ad5acd739f6c6bc3f6a6d023c034124f9bb3bb9f484911ae99183dd
