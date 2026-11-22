@@ -119,6 +119,13 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         useLrcStore.getState().setActiveLineId(region.id.slice("lyric:".length));
       }
     });
+    regions.on("region-updated", (region) => {
+      if (typeof region.id !== "string" || !region.id.startsWith("lyric:")) return;
+      const lineId = region.id.slice("lyric:".length);
+      const line = useLrcStore.getState().doc.lines.find((entry) => entry.id === lineId);
+      if (!line || line.timestamp === null || !Number.isFinite(region.start)) return;
+      useLrcStore.getState().shiftLines([lineId], region.start - line.timestamp);
+    });
 
     // Spotify/기기 감지 모드에선 로컬 파형이 전역 재생상태(currentTime/isPlaying/duration)를
     // 덮어쓰지 않도록 차단(해당 모드가 단일 소스). 로컬 UI 상태(*Local)는 항상 갱신.
@@ -364,7 +371,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         id: `lyric:${l.id}`,
         start: l.timestamp,
         color: isActive ? "#ea580c" : "rgba(217, 119, 6, 0.8)",
-        drag: false,
+        drag: true,
         resize: false,
       });
       if (r.element) {
