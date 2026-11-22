@@ -49,6 +49,7 @@ function makeProps(overrides: Partial<LrcLineRowProps> = {}): LrcLineRowProps {
     onCommitTsEdit: noop,
     onCancelTsEdit: noop,
     onStampCurrentLine: noop,
+    onNudgeTimestamp: noop,
     onRowClick: noop,
     onToggleLoop: noop,
     onTextChange: noop,

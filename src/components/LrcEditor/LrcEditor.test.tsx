@@ -935,7 +935,7 @@ it.each([2.369, 3602.369, 2.36912345])("preserves timestamp %s and history when 
   useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "a", text: "precise", timestamp }] }, _history: [], _future: [] });
   const original = useLrcStore.getState().doc;
   const { container, getByRole } = render(<LrcEditor onPreview={() => {}} />);
-  const timestampButton = container.querySelector('[data-line-id="a"] .ls-line-time button')!;
+  const timestampButton = container.querySelector('[data-line-id="a"] .ls-line-time .ls-time-button')!;
   fireEvent.click(timestampButton);
   const input = container.querySelector('[data-line-id="a"] .ls-line-time input')!;
   fireEvent.blur(input);
