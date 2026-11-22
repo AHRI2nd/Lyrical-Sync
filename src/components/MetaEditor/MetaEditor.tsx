@@ -4,6 +4,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { serializeLrc } from "../../utils/lrcParser";
 import { useModalFocus } from "../../hooks/useModalFocus";
+import { useSettingsStore } from "../../stores/useSettingsStore";
 // 검색/불러오기·업로드 모달은 버튼 클릭 시에만 필요 → 지연 로드(초기 번들 절감)
 const LrcLibModal = lazy(() => import("../LrcLib/LrcLibModal").then((m) => ({ default: m.LrcLibModal })));
 const LrcLibPublishModal = lazy(() => import("../LrcLib/LrcLibPublishModal").then((m) => ({ default: m.LrcLibPublishModal })));
@@ -27,6 +28,14 @@ export function MetaEditor() {
   } | null>(null);
   const [showLrcLib, setShowLrcLib] = useState(false);
   const [showPublish, setShowPublish] = useState(false);
+  const [showSaveOptions, setShowSaveOptions] = useState(false);
+  const saveOptions = {
+    title: useSettingsStore((s) => s.saveLrcTitle),
+    artist: useSettingsStore((s) => s.saveLrcArtist),
+    album: useSettingsStore((s) => s.saveLrcAlbum),
+    by: useSettingsStore((s) => s.saveLrcBy),
+  };
+  const setSaveOption = useSettingsStore((s) => s.setLrcMetadataSaveOption);
 
   // 오프셋 입력은 로컬 문자열로 관리해 ""·"-"·음수 입력을 허용 (숫자 0 고정 방지)
   const [offsetStr, setOffsetStr] = useState(String(metadata.offset));
@@ -84,6 +93,16 @@ export function MetaEditor() {
         <Field label={t.metaArtist.label} placeholder={t.metaArtist.placeholder} value={metadata.artist} onChange={(v) => setMetadata({ artist: v })} />
         <Field label={t.metaAlbum.label} placeholder={t.metaAlbum.placeholder} value={metadata.album} onChange={(v) => setMetadata({ album: v })} />
         <Field label={t.metaBy.label} placeholder={t.metaBy.placeholder} value={metadata.by} onChange={(v) => setMetadata({ by: v })} />
+      </div>
+
+      <div className="relative">
+        <button type="button" aria-expanded={showSaveOptions} onClick={() => setShowSaveOptions((value) => !value)} className="ls-button text-xs">저장 옵션</button>
+        {showSaveOptions && <fieldset className="mt-2 grid grid-cols-2 gap-2 text-xs">
+          <legend className="sr-only">LRC metadata save options</legend>
+          {([ ["title", t.metaTitle.label], ["artist", t.metaArtist.label], ["album", t.metaAlbum.label], ["by", t.metaBy.label] ] as const).map(([field, label]) => (
+            <label key={field} className="flex items-center gap-2"><input type="checkbox" checked={saveOptions[field]} onChange={(event) => setSaveOption(field, event.target.checked)} />{label}</label>
+          ))}
+        </fieldset>}
       </div>
 
       <div className="flex items-center gap-1.5 pt-3 border-t border-[var(--ls-border-subtle)]">

@@ -464,7 +464,7 @@ export function parseLrc(raw: string): LrcDocument {
 }
 
 // enhanced=false면 글자/단어 동기화 태그를 제거하고 일반 LRC로 출력
-export function serializeLrc(doc: LrcDocument, enhanced = true, allowInvalidControlTags = false): string {
+export function serializeLrc(doc: LrcDocument, enhanced = true, allowInvalidControlTags = false, includeMetadata: Partial<Record<"title" | "artist" | "album" | "by", boolean>> = {}): string {
   const { metadata, lines, extraTags } = doc;
   if (doc.invalidControlTags?.length && !allowInvalidControlTags) {
     if (doc.invalidControlTags.some(({ key }) => key.toLowerCase() === INLINE_ESCAPE_TAG)) {
@@ -539,6 +539,7 @@ export function serializeLrc(doc: LrcDocument, enhanced = true, allowInvalidCont
   sequence?.forEach(({ key, value: original }, index) => {
     if (reservedModeValues.has(key)) return;
     const field = Object.prototype.hasOwnProperty.call(META_TAGS, key) ? META_TAGS[key] : undefined;
+    if (field && field !== "offset" && includeMetadata[field as "title" | "artist" | "album" | "by"] === false) return;
     if (!field && !Object.prototype.hasOwnProperty.call(extraTags, key)) return;
     let value = original;
     if (lastEntry.get(key) === index) {
@@ -550,10 +551,10 @@ export function serializeLrc(doc: LrcDocument, enhanced = true, allowInvalidCont
     }
     parts.push(`[${key}:${value}]`);
   });
-  if (!lastEntry.has("ti") && metadata.title) parts.push(`[ti:${metadata.title}]`);
-  if (!lastEntry.has("ar") && metadata.artist) parts.push(`[ar:${metadata.artist}]`);
-  if (!lastEntry.has("al") && metadata.album) parts.push(`[al:${metadata.album}]`);
-  if (!lastEntry.has("by") && metadata.by) parts.push(`[by:${metadata.by}]`);
+  if (includeMetadata.title !== false && !lastEntry.has("ti") && metadata.title) parts.push(`[ti:${metadata.title}]`);
+  if (includeMetadata.artist !== false && !lastEntry.has("ar") && metadata.artist) parts.push(`[ar:${metadata.artist}]`);
+  if (includeMetadata.album !== false && !lastEntry.has("al") && metadata.album) parts.push(`[al:${metadata.album}]`);
+  if (includeMetadata.by !== false && !lastEntry.has("by") && metadata.by) parts.push(`[by:${metadata.by}]`);
   if (!lastEntry.has("offset") && metadata.offset !== 0) parts.push(`[offset:${metadata.offset}]`);
   for (const [key, val] of Object.entries(extraTags)) {
     if (lastEntry.has(key)) continue;

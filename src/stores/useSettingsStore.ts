@@ -86,6 +86,11 @@ interface SettingsState {
   aiAlignmentLanguage: AlignmentLanguage;
   /** 글자/단어 동기화가 있어 Enhanced LRC로 저장될 때 알림 팝업 표시. false면 묻지 않고 저장 */
   showElrcSaveNotice: boolean;
+  saveLrcTitle: boolean;
+  saveLrcArtist: boolean;
+  saveLrcAlbum: boolean;
+  saveLrcBy: boolean;
+  hideLrcMetadataWarning: boolean;
   /** 가사 편집 글꼴 크기 배율 (0.8 ~ 1.5, 기본값: 1.0) */
   lyricsFontScale: number;
   /** 글자 동기화 모드에서 글자 아래 시간 마커 표시 */
@@ -135,6 +140,8 @@ interface SettingsState {
   setBlankLineOffset: (v: number) => void;
   setAiAlignmentLanguage: (v: AlignmentLanguage) => void;
   setShowElrcSaveNotice: (v: boolean) => void;
+  setLrcMetadataSaveOption: (field: "title" | "artist" | "album" | "by", value: boolean) => void;
+  setHideLrcMetadataWarning: (value: boolean) => void;
   setLyricsFontScale: (v: number) => void;
   setShowGlyphTimeMarkers: (v: boolean) => void;
   setShowSpectrogram: (v: boolean) => void;
@@ -224,6 +231,11 @@ export const useSettingsStore = create<SettingsState>()(
       blankLineOffset: 1.0,
       aiAlignmentLanguage: "auto",
       showElrcSaveNotice: true,
+      saveLrcTitle: true,
+      saveLrcArtist: true,
+      saveLrcAlbum: true,
+      saveLrcBy: true,
+      hideLrcMetadataWarning: false,
       lyricsFontScale: 1.0,
       showGlyphTimeMarkers: true,
       showSpectrogram: false,
@@ -252,6 +264,8 @@ export const useSettingsStore = create<SettingsState>()(
       setBlankLineOffset: (v) => set({ blankLineOffset: v }),
       setAiAlignmentLanguage: (v) => set({ aiAlignmentLanguage: ["auto", "eng", "kor", "jpn"].includes(v) ? v : "auto" }),
       setShowElrcSaveNotice: (v) => set({ showElrcSaveNotice: v }),
+      setLrcMetadataSaveOption: (field, value) => set({ [`saveLrc${field[0].toUpperCase()}${field.slice(1)}`]: value } as Pick<SettingsState, "saveLrcTitle">),
+      setHideLrcMetadataWarning: (value) => set({ hideLrcMetadataWarning: value }),
       setLyricsFontScale: (v) => set({ lyricsFontScale: v }),
       setShowGlyphTimeMarkers: (v) => set({ showGlyphTimeMarkers: v }),
       setShowSpectrogram: (v) => set({ showSpectrogram: v }),

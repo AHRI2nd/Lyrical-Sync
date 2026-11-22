@@ -193,7 +193,11 @@ function serializeForPath(path: string, doc: LrcDocument, duration: number): str
   if (p.endsWith(".vtt")) return serializeVtt(doc, end);
   if (p.endsWith(".ass")) return serializeAss(doc, end);
   // 글자/단어 동기화가 있으면 보존(자동 E-LRC), 없으면 일반 LRC로 출력
-  return serializeLrc(doc, true);
+  const settings = useSettingsStore.getState();
+  return serializeLrc(doc, true, false, {
+    title: settings.saveLrcTitle, artist: settings.saveLrcArtist,
+    album: settings.saveLrcAlbum, by: settings.saveLrcBy,
+  });
 }
 
 const MAX_HISTORY = 50;
@@ -1099,7 +1103,12 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
         format === "srt" ? serializeSrt(doc, end)
         : format === "vtt" ? serializeVtt(doc, end)
         : format === "ass" ? serializeAss(doc, end)
-        : serializeLrc(savedDoc, enhanced ?? true);
+        : serializeLrc(savedDoc, enhanced ?? true, false, {
+          title: useSettingsStore.getState().saveLrcTitle,
+          artist: useSettingsStore.getState().saveLrcArtist,
+          album: useSettingsStore.getState().saveLrcAlbum,
+          by: useSettingsStore.getState().saveLrcBy,
+        });
       const result = await writeLrcFileWithMeta(
         path,
         content,

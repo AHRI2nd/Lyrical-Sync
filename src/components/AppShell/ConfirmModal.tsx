@@ -3,6 +3,7 @@ import { useModalFocus } from "../../hooks/useModalFocus";
 
 export function ConfirmModal({
   title, message, okLabel, cancelLabel, onOk, onCancel, leftLabel, onLeft, okGreen, priority,
+  checkboxLabel, checked, onCheckedChange,
 }: {
   title: string;
   message: string;
@@ -14,6 +15,9 @@ export function ConfirmModal({
   onLeft?: () => void;
   okGreen?: boolean;
   priority?: boolean;
+  checkboxLabel?: string;
+  checked?: boolean;
+  onCheckedChange?: (value: boolean) => void;
 }) {
   const dialog = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -34,6 +38,7 @@ export function ConfirmModal({
         </div>
         <div className="px-5 py-4">
           <p id={messageId} className="text-sm text-[var(--ls-text-secondary)] whitespace-pre-line">{message}</p>
+          {checkboxLabel && <label className="mt-4 flex items-center gap-2 text-sm text-[var(--ls-text-secondary)]"><input type="checkbox" checked={checked ?? false} onChange={(event) => onCheckedChange?.(event.target.checked)} />{checkboxLabel}</label>}
         </div>
         <div className="flex items-center gap-2 px-5 pb-4">
           {leftLabel && onLeft && (

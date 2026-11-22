@@ -322,6 +322,9 @@ function App() {
   const [showFormatChooser, setShowFormatChooser] = useState(false);
   const [showElrcNotice, setShowElrcNotice] = useState(false);
   const [showSrtCueEndLossConfirm, setShowSrtCueEndLossConfirm] = useState(false);
+  const [showLrcMetadataWarning, setShowLrcMetadataWarning] = useState(false);
+  const [dontShowLrcMetadataWarning, setDontShowLrcMetadataWarning] = useState(false);
+  const pendingLrcMetadataSaveRef = useRef<{ run: () => Promise<boolean>; confirmedRun: () => Promise<boolean>; success?: () => void | Promise<void>; srtConfirmed: boolean; session: number; revision: number } | null>(null);
   const pendingSrtCueEndLossRef = useRef<{
     run: () => Promise<boolean>;
     confirmedRun: () => Promise<boolean>;
@@ -363,6 +366,7 @@ function App() {
     lrcExtensionNoticeShown.current = { session: appDocumentSession, shown: false };
   }
   const { autoCheckUpdate, uiScale, spotifyMode, youtubeMode, deviceMode, setPlaybackMode, showElrcSaveNotice, setShowElrcSaveNotice } = useSettingsStore();
+  const setHideLrcMetadataWarning = useSettingsStore((s) => s.setHideLrcMetadataWarning);
   const settingsPersistenceFailureCount = useSettingsPersistenceStore((s) => s.failureCount);
   const lastReportedSettingsFailure = useRef(0);
   useEffect(() => {
@@ -513,8 +517,10 @@ function App() {
     onSuccess?: () => void | Promise<void>,
     confirmedFn: () => Promise<boolean> = fn,
     srtOnlyDataLossConfirmed = false,
+    metadataLossConfirmed = false,
   ) => {
     const current = useLrcStore.getState();
+    const settings = useSettingsStore.getState();
     if (!srtOnlyDataLossConfirmed && hasUnrepresentableSrtCueDataInLrc(current.doc)) {
       pendingSrtCueEndLossRef.current = {
         run: fn,
@@ -524,6 +530,13 @@ function App() {
         revision: current._editRevision,
       };
       setShowSrtCueEndLossConfirm(true);
+      return;
+    }
+    const omitted = [!settings.saveLrcTitle && current.doc.metadata.title.trim(), !settings.saveLrcArtist && current.doc.metadata.artist.trim()].filter(Boolean);
+    if (!metadataLossConfirmed && !settings.hideLrcMetadataWarning && omitted.length > 0) {
+      pendingLrcMetadataSaveRef.current = { run: fn, confirmedRun: confirmedFn, success: onSuccess, srtConfirmed: srtOnlyDataLossConfirmed, session: current._documentSession, revision: current._editRevision };
+      setDontShowLrcMetadataWarning(false);
+      setShowLrcMetadataWarning(true);
       return;
     }
     const saveFn = srtOnlyDataLossConfirmed ? confirmedFn : fn;
@@ -919,6 +932,31 @@ function App() {
             pendingSrtCueEndLossRef.current = null;
             setShowSrtCueEndLossConfirm(false);
           }}
+          priority
+        />
+      )}
+      {showLrcMetadataWarning && pendingLrcMetadataSaveRef.current?.session === appDocumentSession && (
+        <ConfirmModal
+          title="LRC metadata will be omitted"
+          message={`The following song information will not be written: ${[
+            !useSettingsStore.getState().saveLrcTitle && useLrcStore.getState().doc.metadata.title.trim() ? t.metaTitle.label : "",
+            !useSettingsStore.getState().saveLrcArtist && useLrcStore.getState().doc.metadata.artist.trim() ? t.metaArtist.label : "",
+          ].filter(Boolean).join(", ")}.`}
+          okLabel={t.save}
+          cancelLabel={t.cancelLabel}
+          checkboxLabel="다시 보지 않음"
+          checked={dontShowLrcMetadataWarning}
+          onCheckedChange={setDontShowLrcMetadataWarning}
+          onOk={() => {
+            const pending = pendingLrcMetadataSaveRef.current;
+            const current = useLrcStore.getState();
+            pendingLrcMetadataSaveRef.current = null;
+            setShowLrcMetadataWarning(false);
+            if (!pending || pending.session !== current._documentSession) return;
+            if (dontShowLrcMetadataWarning) setHideLrcMetadataWarning(true);
+            requestSaveLrc(pending.run, pending.success, pending.confirmedRun, pending.srtConfirmed, true);
+          }}
+          onCancel={() => { pendingLrcMetadataSaveRef.current = null; setShowLrcMetadataWarning(false); }}
           priority
         />
       )}

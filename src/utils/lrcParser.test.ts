@@ -19,6 +19,17 @@ const docOf = (lines: LrcDocument["lines"]): LrcDocument => ({
   extraTags: {},
 });
 
+it("omits only disabled song metadata fields while retaining timing and control tags", () => {
+  const doc = parseLrc("[ti:Title]\n[ar:Artist]\n[al:Album]\n[by:Editor]\n[offset:20]\n[00:01.00]Lyric");
+  const output = serializeLrc(doc, true, false, { title: false, artist: false, album: true, by: false });
+  expect(output).not.toContain("[ti:");
+  expect(output).not.toContain("[ar:");
+  expect(output).not.toContain("[by:");
+  expect(output).toContain("[al:Album]");
+  expect(output).toContain("[offset:20]");
+  expect(output).toContain("[00:01.00]Lyric");
+});
+
 it.each([
   ["title", { title: "safe\n[00:02.00]injected", artist: "", album: "", by: "", offset: 0 }],
   ["artist", { title: "", artist: "safe\rvalue", album: "", by: "", offset: 0 }],
