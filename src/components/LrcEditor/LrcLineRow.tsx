@@ -37,6 +37,7 @@ interface LrcLineRowProps {
   onCancelTsEdit: () => void;
   onStampCurrentLine: () => void;
   onNudgeTimestamp: (delta: number) => void;
+  nudgeMs: number;
 
   // LrcEditor가 useCallback으로 고정한 단일 참조 — 이 줄은 자신의 id/idx를 실어 호출한다
   onRowClick: (e: React.MouseEvent, id: string, idx: number) => void;
@@ -62,7 +63,7 @@ export function LrcLineRowImpl({
   t, line, idx, lineNumberDigits, virtualizedTotalCount, isActive, isSelected, confidence, isMatch, isCurrentMatch, warning,
   loopLineId, lyricsFontScale, showSpellCheck, showTranslationLines,
   dragIdx, showInsertionBefore, showInsertionAfter, onReorderPointerDown,
-  editingTsId, editTsValue, onEditTsChange, onStartTsEdit, onCommitTsEdit, onCancelTsEdit, onStampCurrentLine, onNudgeTimestamp,
+  editingTsId, editTsValue, onEditTsChange, onStartTsEdit, onCommitTsEdit, onCancelTsEdit, onStampCurrentLine, onNudgeTimestamp, nudgeMs,
   onRowClick, onToggleLoop, onTextChange, onTranslationChange, onKeyDown, onPaste, onFocus,
   onMergeUp, onDuplicate, onDelete,
   inputRef, rowRef,
@@ -150,16 +151,16 @@ export function LrcLineRowImpl({
         ) : (
           // 좌클릭 → 시간 직접 편집 / 우클릭 → 현재 재생 시간으로 설정
           <div className="flex min-w-0 items-center gap-0.5">
-            <button type="button" disabled={line.timestamp === null || line.timestamp <= 0} aria-label={`Move line ${idx + 1} 10 milliseconds earlier`} title="−10 ms" onClick={(e) => { e.stopPropagation(); onNudgeTimestamp(-0.01); }} className="ls-button ls-button--compact px-1" onContextMenu={(e) => e.stopPropagation()}>−</button>
+            <button type="button" disabled={line.timestamp === null || line.timestamp <= 0} aria-label={`${idx + 1}: ${t.timestampEarlier} ${nudgeMs} ms`} title={`−${nudgeMs} ms`} onClick={(e) => { e.stopPropagation(); onNudgeTimestamp(-nudgeMs / 1000); }} className="ls-button ls-button--compact px-1" onContextMenu={(e) => e.stopPropagation()}>−</button>
             <button
               onClick={(e) => { e.stopPropagation(); onStartTsEdit(); }}
               onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onStampCurrentLine(); }}
               title={confidence !== undefined ? t.aiConfidenceRelativeScore : undefined}
-              className={`ls-button ls-button--compact ls-time-button min-w-0 flex-1 truncate ${`font-mono text-xs transition-colors ${tsClass}`}`}
+              className={`ls-button ls-button--compact ls-time-button whitespace-nowrap font-mono text-xs transition-colors ${tsClass}`}
             >
               {line.timestamp !== null ? formatDisplayTime(line.timestamp) : "-:--:--.---"}
             </button>
-            <button type="button" disabled={line.timestamp === null} aria-label={`Move line ${idx + 1} 10 milliseconds later`} title="+10 ms" onClick={(e) => { e.stopPropagation(); onNudgeTimestamp(0.01); }} className="ls-button ls-button--compact px-1" onContextMenu={(e) => e.stopPropagation()}>+</button>
+            <button type="button" disabled={line.timestamp === null} aria-label={`${idx + 1}: ${t.timestampLater} ${nudgeMs} ms`} title={`+${nudgeMs} ms`} onClick={(e) => { e.stopPropagation(); onNudgeTimestamp(nudgeMs / 1000); }} className="ls-button ls-button--compact px-1" onContextMenu={(e) => e.stopPropagation()}>+</button>
           </div>
         )}
       </div>
@@ -306,6 +307,7 @@ function areEqual(prev: LrcLineRowProps, next: LrcLineRowProps): boolean {
   if (
     prev.t !== next.t ||
     prev.line !== next.line ||
+    prev.nudgeMs !== next.nudgeMs ||
     prev.idx !== next.idx ||
     prev.virtualizedTotalCount !== next.virtualizedTotalCount ||
     prev.isActive !== next.isActive ||

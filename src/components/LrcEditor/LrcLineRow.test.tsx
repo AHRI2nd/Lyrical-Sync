@@ -50,6 +50,7 @@ function makeProps(overrides: Partial<LrcLineRowProps> = {}): LrcLineRowProps {
     onCancelTsEdit: noop,
     onStampCurrentLine: noop,
     onNudgeTimestamp: noop,
+    nudgeMs: 10,
     onRowClick: noop,
     onToggleLoop: noop,
     onTextChange: noop,
@@ -65,6 +66,15 @@ function makeProps(overrides: Partial<LrcLineRowProps> = {}): LrcLineRowProps {
     ...overrides,
   };
 }
+
+it("uses the configured millisecond step for both timestamp buttons", () => {
+  const onNudgeTimestamp = vi.fn();
+  const { getByTitle, unmount } = render(<LrcLineRow {...makeProps({ nudgeMs: 25, onNudgeTimestamp })} />);
+  fireEvent.click(getByTitle("−25 ms"));
+  fireEvent.click(getByTitle("+25 ms"));
+  expect(onNudgeTimestamp.mock.calls).toEqual([[-0.025], [0.025]]);
+  unmount();
+});
 
 describe("LrcLineRow drag handle", () => {
   afterEach(cleanup);

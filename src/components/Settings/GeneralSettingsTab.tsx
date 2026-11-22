@@ -14,8 +14,8 @@ export function GeneralSettingsTab({
 }) {
   const { t } = useI18nStore();
   const {
-    autoCheckUpdate, autoSave, uiScale, blankLineOffset, showElrcSaveNotice, lyricsFontScale, showGlyphTimeMarkers, showSpellCheck, showTranslationLines,
-    setAutoCheckUpdate, setAutoSave, setUiScale, setBlankLineOffset, setShowElrcSaveNotice, setLyricsFontScale, setShowGlyphTimeMarkers, setShowSpellCheck, setShowTranslationLines,
+    autoCheckUpdate, autoSave, uiScale, blankLineOffset, timestampNudgeMs, showElrcSaveNotice, lyricsFontScale, showGlyphTimeMarkers, showSpellCheck, showTranslationLines,
+    setAutoCheckUpdate, setAutoSave, setUiScale, setBlankLineOffset, setTimestampNudgeMs, setShowElrcSaveNotice, setLyricsFontScale, setShowGlyphTimeMarkers, setShowSpellCheck, setShowTranslationLines,
   } = useSettingsStore();
 
   const scalePercent = Math.round(uiScale * 100);
@@ -128,6 +128,10 @@ export function GeneralSettingsTab({
 
       <div className="border-t border-[var(--ls-border-subtle)]" />
 
+      <label className="flex items-center justify-between gap-3 text-sm text-[var(--ls-text)]">
+        <span>{t.settingsTimestampNudge}</span>
+        <input type="number" min={1} max={1000} step={1} value={timestampNudgeMs} onChange={(event) => setTimestampNudgeMs(event.currentTarget.valueAsNumber)} className="ls-field w-24 text-right" />
+      </label>
       {/* Blank line offset */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">

@@ -82,6 +82,7 @@ interface SettingsState {
   modelsDir: string;
   /** 빈 줄 타임스탬프 = 앞 가사 end + blankLineOffset 초 */
   blankLineOffset: number;
+  timestampNudgeMs: number;
   /** AI alignment language; auto preserves the historical UI-language behavior. */
   aiAlignmentLanguage: AlignmentLanguage;
   /** 글자/단어 동기화가 있어 Enhanced LRC로 저장될 때 알림 팝업 표시. false면 묻지 않고 저장 */
@@ -138,6 +139,7 @@ interface SettingsState {
   setUiScale: (v: number) => void;
   setModelsDir: (v: string) => void;
   setBlankLineOffset: (v: number) => void;
+  setTimestampNudgeMs: (v: number) => void;
   setAiAlignmentLanguage: (v: AlignmentLanguage) => void;
   setShowElrcSaveNotice: (v: boolean) => void;
   setLrcMetadataSaveOption: (field: "title" | "artist" | "album" | "by", value: boolean) => void;
@@ -195,6 +197,7 @@ function restoreSettings(value: unknown, current: SettingsState): SettingsState 
     if (typeof item === "number" && Number.isFinite(item) && item >= min && item <= max) next[key] = item;
   };
   range("uiScale", .7, 1.3); range("lyricsFontScale", .8, 1.5); range("previewFontScale", .8, 1.5); range("blankLineOffset", 0, 10);
+  if (typeof saved.timestampNudgeMs === "number" && Number.isInteger(saved.timestampNudgeMs) && saved.timestampNudgeMs >= 1 && saved.timestampNudgeMs <= 1000) next.timestampNudgeMs = saved.timestampNudgeMs;
   next.glyphWaveformHeight = normalizeGlyphWaveformHeight(saved.glyphWaveformHeight);
   next.glyphWaveformStyle = saved.glyphWaveformStyle === "bars" ? "bars" : "continuous";
   next.previewActiveColor = isPreviewColor(saved.previewActiveColor) ? saved.previewActiveColor : current.previewActiveColor;
@@ -229,6 +232,7 @@ export const useSettingsStore = create<SettingsState>()(
       uiScale: 1.0,
       modelsDir: "",
       blankLineOffset: 1.0,
+      timestampNudgeMs: 10,
       aiAlignmentLanguage: "auto",
       showElrcSaveNotice: true,
       saveLrcTitle: true,
@@ -262,6 +266,7 @@ export const useSettingsStore = create<SettingsState>()(
       setUiScale: (v) => set({ uiScale: v }),
       setModelsDir: (v) => set({ modelsDir: v }),
       setBlankLineOffset: (v) => set({ blankLineOffset: v }),
+      setTimestampNudgeMs: (v) => { if (Number.isInteger(v) && v >= 1 && v <= 1000) set({ timestampNudgeMs: v }); },
       setAiAlignmentLanguage: (v) => set({ aiAlignmentLanguage: ["auto", "eng", "kor", "jpn"].includes(v) ? v : "auto" }),
       setShowElrcSaveNotice: (v) => set({ showElrcSaveNotice: v }),
       setLrcMetadataSaveOption: (field, value) => set({ [`saveLrc${field[0].toUpperCase()}${field.slice(1)}`]: value } as Pick<SettingsState, "saveLrcTitle">),

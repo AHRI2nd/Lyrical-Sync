@@ -375,6 +375,9 @@ export interface Translations {
   previewGlowLabel: string;
   previewStyleSettingsTooltip: string;
   settingsAutoUpdate: string;
+  settingsTimestampNudge: string;
+  timestampEarlier: string;
+  timestampLater: string;
   settingsAutoUpdateDesc: string;
   settingsAutoSave: string;
   settingsAutoSaveDesc: string;
@@ -1066,6 +1069,9 @@ const ko: Translations = {
   previewGlowLabel: "글로우 효과",
   previewStyleSettingsTooltip: "미리보기 스타일 설정",
   settingsAutoUpdate: "자동 업데이트 확인",
+  settingsTimestampNudge: "타임스탬프 조정 단위 (ms)",
+  timestampEarlier: "이전으로 이동",
+  timestampLater: "이후로 이동",
   settingsAutoUpdateDesc: "앱 시작 시 최신 버전을 자동으로 확인합니다.",
   settingsAutoSave: "자동 저장",
   settingsAutoSaveDesc: "저장 위치가 지정된 파일은 변경 후 잠시 멈추면 자동으로 저장합니다.",
@@ -1755,6 +1761,9 @@ const en: Translations = {
   previewGlowLabel: "Glow effect",
   previewStyleSettingsTooltip: "Preview style settings",
   settingsAutoUpdate: "Auto-check for updates",
+  settingsTimestampNudge: "Timestamp adjustment step (ms)",
+  timestampEarlier: "Move earlier",
+  timestampLater: "Move later",
   settingsAutoUpdateDesc: "Automatically check for new versions on startup.",
   settingsAutoSave: "Auto-save",
   settingsAutoSaveDesc: "Files with a save location are saved automatically a moment after you stop editing.",
@@ -2443,6 +2452,9 @@ const ja: Translations = {
   previewGlowLabel: "グロー効果",
   previewStyleSettingsTooltip: "プレビュースタイル設定",
   settingsAutoUpdate: "自動更新確認",
+  settingsTimestampNudge: "タイムスタンプの調整単位 (ms)",
+  timestampEarlier: "前に移動",
+  timestampLater: "後に移動",
   settingsAutoUpdateDesc: "アプリ起動時に最新バージョンを自動で確認します。",
   settingsAutoSave: "自動保存",
   settingsAutoSaveDesc: "保存先が指定されたファイルは、編集を止めると少し後に自動保存されます。",

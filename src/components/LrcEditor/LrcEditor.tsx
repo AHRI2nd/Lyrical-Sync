@@ -1231,6 +1231,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
               onCommitTsEdit={() => commitTsEdit(line.id)}
               onCancelTsEdit={cancelTsEdit}
               onStampCurrentLine={() => stampCurrentLine(line.id)}
+              nudgeMs={useSettingsStore.getState().timestampNudgeMs}
               onNudgeTimestamp={(delta) => shiftLines([line.id], delta)}
               onRowClick={handleRowClick}
               onToggleLoop={(e) => {
