@@ -36,6 +36,8 @@ export function MetaEditor() {
     by: useSettingsStore((s) => s.saveLrcBy),
   };
   const setSaveOption = useSettingsStore((s) => s.setLrcMetadataSaveOption);
+  const hideMetadataWarning = useSettingsStore((s) => s.hideLrcMetadataWarning);
+  const setHideMetadataWarning = useSettingsStore((s) => s.setHideLrcMetadataWarning);
 
   // 오프셋 입력은 로컬 문자열로 관리해 ""·"-"·음수 입력을 허용 (숫자 0 고정 방지)
   const [offsetStr, setOffsetStr] = useState(String(metadata.offset));
@@ -102,6 +104,7 @@ export function MetaEditor() {
           {([ ["title", t.metaTitle.label], ["artist", t.metaArtist.label], ["album", t.metaAlbum.label], ["by", t.metaBy.label] ] as const).map(([field, label]) => (
             <label key={field} className="flex items-center gap-2"><input type="checkbox" checked={saveOptions[field]} onChange={(event) => setSaveOption(field, event.target.checked)} />{label}</label>
           ))}
+          <label className="col-span-2 flex items-center gap-2"><input type="checkbox" checked={!hideMetadataWarning} onChange={(event) => setHideMetadataWarning(!event.target.checked)} />Warn before omitting title or artist</label>
         </fieldset>}
       </div>
 

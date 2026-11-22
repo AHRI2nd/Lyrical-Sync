@@ -950,9 +950,13 @@ function App() {
           onOk={() => {
             const pending = pendingLrcMetadataSaveRef.current;
             const current = useLrcStore.getState();
+            if (!pending || pending.session !== current._documentSession) return;
             pendingLrcMetadataSaveRef.current = null;
             setShowLrcMetadataWarning(false);
-            if (!pending || pending.session !== current._documentSession) return;
+            if (pending.revision !== current._editRevision) {
+              requestSaveLrc(pending.run, pending.success, pending.confirmedRun, pending.srtConfirmed);
+              return;
+            }
             if (dontShowLrcMetadataWarning) setHideLrcMetadataWarning(true);
             requestSaveLrc(pending.run, pending.success, pending.confirmedRun, pending.srtConfirmed, true);
           }}
