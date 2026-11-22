@@ -17,11 +17,13 @@ if (typeof globalThis.localStorage === "undefined") {
 // wavesurfer.js는 실제 오디오/캔버스 렌더링이 필요해 jsdom에서 그대로 쓸 수 없음 —
 // audioprocess 핸들러(줄 반복 경계 로직)만 검증할 수 있게, on()으로 등록되는 콜백을
 // 캡처하고 getDuration/seekTo를 스파이할 수 있는 최소 mock으로 대체.
-const { wsHandlers, wsMock } = vi.hoisted(() => {
+const { wsHandlers, wsMock, regionHandlers, regionsMock } = vi.hoisted(() => {
   const handlers: Record<string, (...args: unknown[]) => void> = {};
+  const regionCallbacks: Record<string, (...args: unknown[]) => void> = {};
+  const regions = { on: (event: string, cb: (...args: unknown[]) => void) => { regionCallbacks[event] = cb; }, destroy: () => {}, clearRegions: () => {}, getRegions: () => [], addRegion: () => ({ element: null }) };
   const mock = {
     getWrapper: () => ({ classList: { add: () => {} } }),
-    registerPlugin: () => ({ on: () => {}, destroy: () => {}, clearRegions: () => {}, getRegions: () => [] }),
+    registerPlugin: () => regions,
     on: (event: string, cb: (...args: unknown[]) => void) => { handlers[event] = cb; },
     getDuration: () => 100,
     getCurrentTime: () => 0,
@@ -38,7 +40,7 @@ const { wsHandlers, wsMock } = vi.hoisted(() => {
     playPause: () => {},
     destroy: () => {},
   };
-  return { wsHandlers: handlers, wsMock: mock };
+  return { wsHandlers: handlers, wsMock: mock, regionHandlers: regionCallbacks, regionsMock: regions };
 });
 
 vi.mock("wavesurfer.js", () => ({
@@ -47,7 +49,7 @@ vi.mock("wavesurfer.js", () => ({
 const spectrumCreate = vi.hoisted(() => vi.fn(() => ({ type: "spectrum" })));
 vi.mock("wavesurfer.js/dist/plugins/spectrogram.esm.js", () => ({ default: { create: spectrumCreate } }));
 vi.mock("wavesurfer.js/dist/plugins/regions.esm.js", () => ({
-  default: { create: () => ({ on: () => {}, clearRegions: () => {} }) },
+  default: { create: () => regionsMock },
 }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(() => Promise.resolve(undefined)) }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(() => Promise.resolve(() => {})) }));
@@ -147,6 +149,20 @@ describe("AudioPlayer — local audio loading", () => {
     act(() => wsHandlers.ready());
     audioControls.togglePlay();
     expect(playPauseSpy).toHaveBeenCalledOnce();
+  });
+
+  it("applies a dragged lyric marker through the timestamp store action", async () => {
+    resetLrc([{ id: "drag-line", timestamp: 5, text: "drag target", syllables: [{ text: "drag target", time: 5 }] }], null);
+    render(<AudioPlayer />);
+    act(() => useLrcStore.setState({ audioPath: "/music/drag.mp3" }));
+    await waitFor(() => expect(loadSpy).toHaveBeenCalled());
+    act(() => wsHandlers.ready());
+    expect(regionHandlers["region-updated"]).toBeTypeOf("function");
+    act(() => regionHandlers["region-updated"]({ id: "lyric:drag-line", start: 5.01 }));
+    expect(useLrcStore.getState().doc.lines[0]).toMatchObject({
+      timestamp: 5.01,
+      syllables: [{ text: "drag target", time: 5.01 }],
+    });
   });
 
   beforeEach(() => {
