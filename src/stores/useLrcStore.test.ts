@@ -437,15 +437,18 @@ describe("useLrcStore — offset / shift carry syllable times", () => {
     }
   });
 
-  it("rejects a shift that would collapse an SRT cue at zero without changing the document", () => {
+  it("preserves SRT cue duration when a shift reaches zero", () => {
     reset([{ id: "1", timestamp: 1, srtEndTime: 2, text: "cue" }]);
-    const original = useLrcStore.getState().doc;
-
     useLrcStore.getState().shiftLines(["1"], -3);
+    expect(lines()[0]).toMatchObject({ timestamp: 0, srtEndTime: 1 });
+  });
 
-    expect(useLrcStore.getState().doc).toBe(original);
-    expect(useLrcStore.getState()._history).toHaveLength(0);
-    expect(useLrcStore.getState().isDirty).toBe(false);
+  it("moves glyph times by the actual clamped line shift", () => {
+    reset([{ id: "1", timestamp: 0.005, text: "a", syllables: [{ text: "a", time: 1 }] }]);
+    useLrcStore.getState().shiftLines(["1"], -0.01);
+    expect(lines()[0]).toMatchObject({ timestamp: 0, syllables: [{ text: "a", time: 0.995 }] });
+    useLrcStore.getState().undo();
+    expect(lines()[0].timestamp).toBe(0.005);
   });
 
   it("shifts SRT cue ends with selected line starts", () => {

@@ -819,11 +819,12 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     const idSet = new Set(ids);
     const { doc } = get();
     const sh = (t: number | null) => (t !== null ? Math.max(0, Math.round((t + delta) * 1000) / 1000) : null);
-    const lines = doc.lines.map((l) =>
-      idSet.has(l.id)
-        ? { ...l, timestamp: sh(l.timestamp), srtEndTime: shiftSrtEnd(l, delta, sh(l.timestamp)), syllables: l.syllables?.map((s) => ({ ...s, time: sh(s.time) })) }
-        : l
-    );
+    const lines = doc.lines.map((l) => {
+      if (!idSet.has(l.id)) return l;
+      const timestamp = sh(l.timestamp);
+      const applied = l.timestamp === null || timestamp === null ? delta : timestamp - l.timestamp;
+      return { ...l, timestamp, srtEndTime: shiftSrtEnd(l, applied, timestamp), syllables: l.syllables?.map((s) => ({ ...s, time: s.time === null ? null : Math.max(0, Math.round((s.time + applied) * 1000) / 1000) })) };
+    });
     if (!hasFiniteLineTimes(lines)) { reportInvalidTime(); return; }
     if (lines.every((line, index) => hasSameTiming(line, doc.lines[index]))) return;
     pushHistory("shiftLines");
