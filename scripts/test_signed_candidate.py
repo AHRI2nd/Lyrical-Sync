@@ -152,11 +152,13 @@ case "$1:$2" in
         esac ;;
       *'draft == false'*)
         if [ "$GH_MODE" = published ]; then printf '31\\n'; fi ;;
+      *'[].id'*)
+        if [ "$GH_MODE" = assets ]; then printf '99\\n'; fi ;;
     esac ;;
   api:repos/*/releases/*/assets)
-    if [ "$GH_MODE" = assets ]; then printf '1\\n'; else printf '0\\n'; fi ;;
+    if [ "$GH_MODE" = assets ]; then printf '99\\n'; fi ;;
   api:repos/*/releases/*)
-    if [ "$GH_MODE" = wrong-target ]; then printf 'other-sha\\n'; else printf '%s\\n' "$SOURCE_SHA"; fi ;;
+    if [ "$GH_MODE" = wrong-target ] || [ "$GH_MODE" = assets ]; then printf 'other-sha\\n'; else printf '%s\\n' "$SOURCE_SHA"; fi ;;
   api:--method)
     printf 'created tag\\n' ;;
   release:create)
@@ -259,14 +261,14 @@ if [ "$1" = ls-remote ] && [ "$GH_MODE" = missing-tag ]; then return 2; fi
         self.assertIn('node-version: 22',source[source.index('  updater-manifest:'):])
         self.assertIn('gh release upload',source)
         self.assertNotRegex(source,r'(?m)^\s*gh release upload .*--clobber')
-        self.assertIn('existing_asset_count=$(gh api',source)
-        self.assertIn('Existing draft already contains assets',source)
+        self.assertIn('existing_asset_ids=$(gh api',source)
+        self.assertIn('can_retarget="true"',source)
         self.assertIn('existing_target=$(gh api',source)
         self.assertIn('Existing draft targets',source)
         self.assertIn('git fetch --depth=1 origin "refs/tags/$TAG"',source)
         self.assertIn('resolved_tag_sha=$(git rev-parse "FETCH_HEAD^{commit}")',source)
         self.assertNotRegex(source,r'(?m)^\s*gh release upload .*--clobber')
-        self.assertLess(source.index('existing_asset_count='),source.index('gh release upload'))
+        self.assertLess(source.index('existing_asset_ids='),source.index('gh release upload'))
         self.assertLess(source.index('resolved_tag_sha='),source.index('gh release upload'))
         self.assertIn('actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',source)
         self.assertNotRegex(source,r'(?m)^\s*tagName:')
@@ -274,8 +276,8 @@ if [ "$1" = ls-remote ] && [ "$GH_MODE" = missing-tag ]; then return 2; fi
         self.assertLess(source.index('Verify Windows artifact architecture'),source.index('actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02'))
         self.assertLess(source.index('Record exact source and signed candidate hashes'),source.index('actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02'))
 
-    def test_release_draft_guard_rejects_ambiguous_published_wrong_source_and_existing_assets(self):
-        for mode in ('ambiguous','published','wrong-target','assets'):
+    def test_release_draft_guard_rejects_ambiguous_and_published_releases(self):
+        for mode in ('ambiguous','published'):
             with self.subTest(mode=mode):
                 result,log=self.run_release_draft_gate(mode)
                 self.assertNotEqual(result.returncode,0, result.stdout+result.stderr)
@@ -284,10 +286,23 @@ if [ "$1" = ls-remote ] && [ "$GH_MODE" = missing-tag ]; then return 2; fi
     def test_release_draft_guard_rejects_tag_sha_mismatch_before_upload(self):
         result,log=self.run_release_draft_gate('matching-draft',tag_sha='other-sha')
         self.assertNotEqual(result.returncode,0,result.stdout+result.stderr)
-        self.assertIn('Current remote tag points to other-sha',result.stdout)
+        self.assertIn('Refreshed release tag points to other-sha',result.stdout)
         self.assertNotIn('release upload',log)
 
-    def test_release_draft_guard_accepts_only_empty_draft_bound_to_exact_source(self):
+    def test_release_draft_guard_retargets_existing_draft_to_selected_main_commit(self):
+        result,log=self.run_release_draft_gate('wrong-target',tag_sha='old-sha')
+        self.assertNotEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertIn('gh api --method PATCH repos/owner/repo/git/refs/tags/v0.7.1',log)
+        self.assertIn('gh api --method PATCH repos/owner/repo/releases/42',log)
+        self.assertNotIn('gh release upload',log)
+
+    def test_release_draft_guard_replaces_assets_only_after_explicit_retarget(self):
+        result,log=self.run_release_draft_gate('assets',tag_sha='source-sha')
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertIn('gh api --method DELETE repos/owner/repo/releases/assets/99',log)
+        self.assertIn('gh release upload',log)
+
+    def test_release_draft_guard_accepts_matching_source_draft(self):
         result,log=self.run_release_draft_gate('matching-draft')
         self.assertEqual(result.returncode,0,result.stdout+result.stderr)
         self.assertIn('git rev-parse FETCH_HEAD^{commit}',log)

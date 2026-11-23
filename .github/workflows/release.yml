@@ -13,7 +13,7 @@ on:
         required: true
         default: ''
       create_tag:
-        description: 'Create the tag for the selected main commit if it does not exist'
+        description: 'Create or retarget the draft tag to the selected main commit'
         type: boolean
         required: true
         default: false
@@ -285,22 +285,31 @@ jobs:
             echo "::error::Release tag $TAG is ambiguous or already published; refusing to upload candidate artifacts."
             exit 1
           fi
-          # A pre-existing draft must be bound to this exact tested commit.
-          # Do not replace another source's assets with --clobber.
+          can_retarget="false"
+          if [ "$RELEASE_EVENT" = "workflow_dispatch" ] && [ "$RELEASE_REF" = "refs/heads/main" ] && [ "$RELEASE_CREATE_TAG" = "true" ]; then
+            can_retarget="true"
+          fi
+
+          # A draft is refreshed from the selected main commit only when tag creation/retargeting was explicitly selected.
           if [ "$draft_count" -eq 1 ]; then
             existing_target=$(gh api "repos/${RELEASE_REPO}/releases/${draft_ids}" --jq '.target_commitish')
             if [ "$existing_target" != "$SOURCE_SHA" ]; then
-              echo "::error::Existing draft targets $existing_target, expected $SOURCE_SHA"
-              exit 1
-            fi
-            existing_asset_count=$(gh api "repos/${RELEASE_REPO}/releases/${draft_ids}/assets" --paginate --jq 'length' | awk '{ total += $1 } END { print total+0 }')
-            if [ "$existing_asset_count" -ne 0 ]; then
-              echo "::error::Existing draft already contains assets; refusing to replace or overwrite them. Review the draft manually."
-              exit 1
+              if [ "$can_retarget" != "true" ]; then
+                echo "::error::Existing draft targets $existing_target, expected $SOURCE_SHA. Select main and enable create_tag to refresh this draft."
+                exit 1
+              fi
+              existing_asset_ids=$(gh api "repos/${RELEASE_REPO}/releases/${draft_ids}/assets" --paginate --jq '.[].id')
+              while IFS= read -r asset_id; do
+                [ -n "$asset_id" ] || continue
+                gh api --method DELETE "repos/${RELEASE_REPO}/releases/assets/${asset_id}" >/dev/null
+              done <<< "$existing_asset_ids"
+              gh api --method PATCH "repos/${RELEASE_REPO}/releases/${draft_ids}" -f "target_commitish=$SOURCE_SHA" >/dev/null
             fi
           fi
 
+          tag_exists="true"
           if ! git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            tag_exists="false"
             if [ "$RELEASE_EVENT" != "workflow_dispatch" ] || [ "$RELEASE_REF" != "refs/heads/main" ] || [ "$RELEASE_CREATE_TAG" != "true" ]; then
               echo "::error::Release tag does not exist and tag creation was not selected."
               exit 1
@@ -310,8 +319,19 @@ jobs:
           git fetch --depth=1 origin "refs/tags/$TAG"
           resolved_tag_sha=$(git rev-parse "FETCH_HEAD^{commit}")
           if [ "$resolved_tag_sha" != "$SOURCE_SHA" ]; then
-            echo "::error::Current remote tag points to $resolved_tag_sha, expected $SOURCE_SHA"
-            exit 1
+            if [ "$can_retarget" != "true" ]; then
+              echo "::error::Current remote tag points to $resolved_tag_sha, expected $SOURCE_SHA. Select main and enable create_tag to refresh this draft tag."
+              exit 1
+            fi
+            if [ "$tag_exists" = "true" ]; then
+              gh api --method PATCH "repos/${RELEASE_REPO}/git/refs/tags/$TAG" -f "sha=$SOURCE_SHA" -F force=true >/dev/null
+            fi
+            git fetch --depth=1 origin "refs/tags/$TAG"
+            resolved_tag_sha=$(git rev-parse "FETCH_HEAD^{commit}")
+            if [ "$resolved_tag_sha" != "$SOURCE_SHA" ]; then
+              echo "::error::Refreshed release tag points to $resolved_tag_sha, expected $SOURCE_SHA"
+              exit 1
+            fi
           fi
           if [ "$draft_count" -eq 0 ]; then
             gh release create "$TAG" --target "$SOURCE_SHA" --draft --title "Lyrical Sync ${TAG#v}" --notes ""
