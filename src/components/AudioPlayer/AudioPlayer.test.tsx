@@ -22,7 +22,7 @@ const { wsHandlers, wsMock, regionsMock } = vi.hoisted(() => {
   const regions = { on: () => {}, destroy: () => {}, clearRegions: () => {}, getRegions: () => [], addRegion: (options: { start: number }) => {
     const element = document.createElement("div");
     document.body.appendChild(element);
-    const region = { element, start: options.start, setOptions: (next: { start: number }) => { region.start = next.start; } };
+    const region = { element, start: options.start, setOptions: (next: { start: number }) => { region.start = next.start; element.dataset.time = String(next.start); } };
     return region;
   } };
   const mock = {
@@ -182,6 +182,20 @@ describe("AudioPlayer — local audio loading", () => {
     act(() => { marker.dispatchEvent(pointer("pointerdown", 0)); window.dispatchEvent(pointer("pointermove", 10)); window.dispatchEvent(pointer("pointercancel", 10)); window.dispatchEvent(pointer("pointerup", 10)); });
     expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(5);
     expect(useLrcStore.getState()._history).toHaveLength(0);
+  });
+
+  it("restores the marker when an early glyph prevents moving the line", async () => {
+    resetLrc([{ id: "bounded", timestamp: 5, text: "a", syllables: [{ text: "a", time: 0 }] }], null);
+    render(<AudioPlayer />);
+    act(() => useLrcStore.setState({ audioPath: "/music/bounded.mp3" }));
+    await waitFor(() => expect(loadSpy).toHaveBeenCalled());
+    act(() => wsHandlers.ready());
+    const markers = document.querySelectorAll<HTMLElement>(".lyric-marker");
+    const marker = markers[markers.length - 1];
+    const pointer = (type: string, x: number) => { const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x }); Object.defineProperty(event, "pointerId", { value: 1 }); return event; };
+    act(() => { marker.dispatchEvent(pointer("pointerdown", 10)); window.dispatchEvent(pointer("pointermove", 0)); window.dispatchEvent(pointer("pointerup", 0)); });
+    expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(5);
+    expect(marker.dataset.time).toBe("5");
   });
 
   it("registers window drag listeners only during an active gesture", async () => {

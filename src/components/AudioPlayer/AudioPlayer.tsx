@@ -413,6 +413,8 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
             return;
           }
           state.shiftLines([l.id], next - snapshot.start);
+          const actual = useLrcStore.getState().doc.lines.find((entry) => entry.id === l.id)?.timestamp;
+          if (actual != null) r.setOptions({ start: actual, end: actual });
         };
         const cancel = (event: PointerEvent) => { if (active?.pointerId === event.pointerId) restore(); };
         const key = (event: KeyboardEvent) => { if (event.key === "Escape") restore(); };
