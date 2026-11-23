@@ -127,7 +127,7 @@ class SignedCandidateTests(unittest.TestCase):
             r"(?ms)- name: Run Rust tests\s+if: runner\.os != 'Windows'\s+run: cargo test --manifest-path src-tauri/Cargo\.toml --locked",
         )
 
-    def run_release_draft_gate(self, mode, source_sha='source-sha', tag_sha='source-sha'):
+    def run_release_draft_gate(self, mode, source_sha='source-sha', tag_sha='source-sha', create_tag='true'):
         workflow=(ROOT/'.github/workflows/release.yml').read_text(encoding='utf-8')
         lines=workflow.splitlines()
         start=next(i for i,line in enumerate(lines) if line.startswith('          draft_ids=$(gh api'))
@@ -157,6 +157,8 @@ case "$1:$2" in
     if [ "$GH_MODE" = assets ]; then printf '1\\n'; else printf '0\\n'; fi ;;
   api:repos/*/releases/*)
     if [ "$GH_MODE" = wrong-target ]; then printf 'other-sha\\n'; else printf '%s\\n' "$SOURCE_SHA"; fi ;;
+  api:--method)
+    printf 'created tag\\n' ;;
   release:create)
     printf 'gh release create %s\\n' "$*" >> "$GH_LOG" ;;
   release:upload)
@@ -167,13 +169,15 @@ esac
 git() {
 printf 'git %s\\n' "$*" >> "$GH_LOG"
 if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
+if [ "$1" = ls-remote ] && [ "$GH_MODE" = missing-tag ]; then return 2; fi
 }
 '''
             log=root/'commands.log'
             env=os.environ.copy()
             env.update(GH_LOG=str(log),
                        GH_MODE=mode,RELEASE_REPO='owner/repo',TAG='v0.7.1',SOURCE_SHA=source_sha,TAG_SHA=tag_sha,
-                       RELEASE_FILE=str(release_file),RUNNER_TEMP=str(root))
+                       RELEASE_FILE=str(release_file),RUNNER_TEMP=str(root),
+                       RELEASE_EVENT='workflow_dispatch', RELEASE_REF='refs/heads/main', RELEASE_CREATE_TAG=create_tag)
             git_bash_candidates = (
                 Path(program_files) / 'Git' / 'bin' / 'bash.exe'
                 for program_files in (os.environ.get('ProgramFiles'), os.environ.get('ProgramFiles(x86)'))
@@ -295,6 +299,19 @@ if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
         self.assertEqual(result.returncode,0,result.stdout+result.stderr)
         self.assertIn('gh release create',log)
         self.assertIn('gh release upload',log)
+
+    def test_missing_tag_is_created_at_tested_commit_before_draft(self):
+        result,log=self.run_release_draft_gate('missing-tag')
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertIn('ref=refs/tags/v0.7.1',log)
+        self.assertIn('sha=source-sha',log)
+        self.assertLess(log.index('ref=refs/tags/v0.7.1'),log.index('git fetch'))
+
+    def test_missing_tag_is_not_created_without_opt_in(self):
+        result,log=self.run_release_draft_gate('missing-tag', create_tag='false')
+        self.assertNotEqual(result.returncode,0)
+        self.assertNotIn('ref=refs/tags/v0.7.1',log)
+        self.assertNotIn('gh release upload',log)
 
     def test_external_workflow_actions_are_pinned_to_full_commit_shas(self):
         workflows = ROOT / '.github/workflows'

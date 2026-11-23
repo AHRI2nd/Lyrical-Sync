@@ -9,9 +9,14 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Select the tag in Use workflow from, then enter the same tag (vX.Y.Z) here; do not select a branch.'
+        description: 'Release tag matching the app version (vX.Y.Z)'
         required: true
         default: ''
+      create_tag:
+        description: 'Create the tag for the selected main commit if it does not exist'
+        type: boolean
+        required: true
+        default: false
 
 concurrency:
   group: release
@@ -30,6 +35,7 @@ jobs:
       - name: Verify selected release tag and commit
         env:
           RELEASE_INPUT_TAG: ${{ github.event.inputs.tag }}
+          RELEASE_CREATE_TAG: ${{ inputs.create_tag }}
         run: python3 scripts/release_preflight.py
 
   release:
@@ -62,14 +68,18 @@ jobs:
         env:
           RELEASE_REF_NAME: ${{ github.ref_name }}
           RELEASE_INPUT_TAG: ${{ github.event.inputs.tag }}
+          RELEASE_CREATE_TAG: ${{ inputs.create_tag }}
         run: |
           set -euo pipefail
           VERSION=$(jq -r .version src-tauri/tauri.conf.json)
           TAG_NAME="$RELEASE_REF_NAME"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ "$GITHUB_REF_TYPE" = "branch" ] && [ "$GITHUB_REF" = "refs/heads/main" ] && [ "$RELEASE_CREATE_TAG" = "true" ]; then
+            TAG_NAME="$RELEASE_INPUT_TAG"
+          fi
           # A manually supplied tag must be the ref actually checked out.
           # Never sign the selected branch while labeling it with another tag.
-          if [ "$GITHUB_REF_TYPE" != "tag" ]; then
-            echo "::error::Select the release tag as the workflow ref, not a branch."
+          if [ "$GITHUB_REF_TYPE" != "tag" ] && ! { [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ "$GITHUB_REF" = "refs/heads/main" ] && [ "$RELEASE_CREATE_TAG" = "true" ]; }; then
+            echo "::error::Select an existing tag, or select main and enable create_tag."
             exit 1
           fi
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ "$RELEASE_INPUT_TAG" != "$TAG_NAME" ]; then
@@ -257,6 +267,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_REPO: ${{ github.repository }}
           SOURCE_SHA: ${{ github.sha }}
+          RELEASE_CREATE_TAG: ${{ inputs.create_tag }}
+          RELEASE_EVENT: ${{ github.event_name }}
+          RELEASE_REF: ${{ github.ref }}
         shell: bash
         run: |
           set -euo pipefail
@@ -287,6 +300,13 @@ jobs:
             fi
           fi
 
+          if ! git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            if [ "$RELEASE_EVENT" != "workflow_dispatch" ] || [ "$RELEASE_REF" != "refs/heads/main" ] || [ "$RELEASE_CREATE_TAG" != "true" ]; then
+              echo "::error::Release tag does not exist and tag creation was not selected."
+              exit 1
+            fi
+            gh api --method POST "repos/${RELEASE_REPO}/git/refs" -f "ref=refs/tags/$TAG" -f "sha=$SOURCE_SHA" >/dev/null
+          fi
           git fetch --depth=1 origin "refs/tags/$TAG"
           resolved_tag_sha=$(git rev-parse "FETCH_HEAD^{commit}")
           if [ "$resolved_tag_sha" != "$SOURCE_SHA" ]; then

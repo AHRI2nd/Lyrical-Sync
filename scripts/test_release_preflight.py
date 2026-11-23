@@ -23,6 +23,10 @@ class ReleasePreflightTests(unittest.TestCase):
     def test_rejects_branch(self):
         self.assertNotEqual(self.run_check(GITHUB_REF_TYPE='branch', GITHUB_REF_NAME='main').returncode, 0)
 
+    def test_allows_main_only_with_explicit_tag_creation(self):
+        self.assertEqual(self.run_check(GITHUB_REF_TYPE='branch', GITHUB_REF_NAME='main', GITHUB_REF='refs/heads/main', RELEASE_CREATE_TAG='true').returncode, 0)
+        self.assertNotEqual(self.run_check(GITHUB_REF_TYPE='branch', GITHUB_REF_NAME='dev-next', GITHUB_REF='refs/heads/dev-next', RELEASE_CREATE_TAG='true').returncode, 0)
+
     def test_rejects_mismatched_input(self):
         self.assertNotEqual(self.run_check(RELEASE_INPUT_TAG='not-the-selected-tag').returncode, 0)
 
