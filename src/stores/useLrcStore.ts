@@ -818,11 +818,13 @@ export const useLrcStore = create<LrcStore>((rawSet, get) => {
     if (delta === 0 || ids.length === 0) return;
     const idSet = new Set(ids);
     const { doc } = get();
-    const sh = (t: number | null) => (t !== null ? Math.max(0, Math.round((t + delta) * 1000) / 1000) : null);
     const lines = doc.lines.map((l) => {
       if (!idSet.has(l.id)) return l;
-      const timestamp = sh(l.timestamp);
-      const applied = l.timestamp === null || timestamp === null ? delta : timestamp - l.timestamp;
+      let earliest = l.timestamp ?? Infinity;
+      for (const syllable of l.syllables ?? []) if (syllable.time !== null) earliest = Math.min(earliest, syllable.time);
+      const safeDelta = Number.isFinite(earliest) ? Math.max(delta, -earliest) : delta;
+      const timestamp = l.timestamp === null ? null : Math.max(0, Math.round((l.timestamp + safeDelta) * 1000) / 1000);
+      const applied = l.timestamp === null || timestamp === null ? safeDelta : timestamp - l.timestamp;
       return { ...l, timestamp, srtEndTime: shiftSrtEnd(l, applied, timestamp), syllables: l.syllables?.map((s) => ({ ...s, time: s.time === null ? null : Math.max(0, Math.round((s.time + applied) * 1000) / 1000) })) };
     });
     if (!hasFiniteLineTimes(lines)) { reportInvalidTime(); return; }

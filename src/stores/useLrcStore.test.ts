@@ -451,6 +451,14 @@ describe("useLrcStore — offset / shift carry syllable times", () => {
     expect(lines()[0].timestamp).toBe(0.005);
   });
 
+  it("limits backward movement by a glyph that precedes the line timestamp", () => {
+    reset([{ id: "1", timestamp: 1, text: "a", syllables: [{ text: "a", time: 0.5 }] }]);
+    useLrcStore.getState().shiftLines(["1"], -1);
+    expect(lines()[0]).toMatchObject({ timestamp: 0.5, syllables: [{ text: "a", time: 0 }] });
+    useLrcStore.getState().undo();
+    expect(lines()[0].timestamp).toBe(1);
+  });
+
   it("shifts SRT cue ends with selected line starts", () => {
     reset([
       { id: "1", timestamp: 10, srtEndTime: 12, text: "a" },
