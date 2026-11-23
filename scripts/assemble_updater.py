@@ -45,8 +45,8 @@ def assemble_manifest(version, repo, assets, signatures, published_at):
         raise ValueError('Invalid repository')
     windows = re.compile(r'Lyrical[ .]Sync_' + re.escape(version)
         + r'_(x64|arm64|aarch64)(-setup\.exe|_setup\.msi|\.msi|_[a-z]{2}-[A-Z]{2}\.msi)')
-    macos = re.compile(r'Lyrical[ .]Sync(?:_' + re.escape(version)
-        + r')?_(?:aarch64|arm64)\.app\.tar\.gz')
+    macos = re.compile(r'Lyrical[ .]Sync(?:(?:_' + re.escape(version)
+        + r')?_(?:aarch64|arm64))?\.app\.tar\.gz')
     platforms = {}
     names = [asset['name'] for asset in assets]
     if len(names) != len(set(names)):
@@ -112,8 +112,8 @@ def publish(repo, version, output, signature_verifier=verify_signature):
     tag = 'v' + version
     windows = re.compile(r'Lyrical[ .]Sync_' + re.escape(version)
         + r'_(x64|arm64|aarch64)(-setup\.exe|_setup\.msi|\.msi|_[a-z]{2}-[A-Z]{2}\.msi)')
-    macos = re.compile(r'Lyrical[ .]Sync(?:_' + re.escape(version)
-        + r')?_(?:aarch64|arm64)\.app\.tar\.gz')
+    macos = re.compile(r'Lyrical[ .]Sync(?:(?:_' + re.escape(version)
+        + r')?_(?:aarch64|arm64))?\.app\.tar\.gz')
     release = get_draft_release(repo, tag)
     if not release.get('draft'):
         raise ValueError('Updater assembly only modifies a draft release')

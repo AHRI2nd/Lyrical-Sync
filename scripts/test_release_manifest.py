@@ -54,6 +54,14 @@ class ReleaseManifestTests(unittest.TestCase):
         self.assertEqual(platforms['windows-aarch64']['signature'],
                          signatures['Lyrical.Sync_0.7.0_arm64-setup.exe.sig'])
 
+    def test_accepts_actual_macos_updater_archive_name(self):
+        old = self.names[3]
+        new = 'Lyrical Sync.app.tar.gz'
+        assets = [{'name': asset['name'].replace(old, new)} for asset in self.assets]
+        signatures = {name.replace(old, new): value for name, value in self.signatures.items()}
+        platforms = self.assemble(assets, signatures)['platforms']
+        self.assertTrue(platforms['darwin-aarch64']['url'].endswith('Lyrical%20Sync.app.tar.gz'))
+
     def test_windows_clients_receive_only_their_architecture_and_installer(self):
         assets = [{'name':a['name'].replace('_x64.msi','_x64_setup.msi')} for a in self.assets]
         signatures = {name.replace('_x64.msi','_x64_setup.msi'): signature
