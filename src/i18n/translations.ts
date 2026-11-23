@@ -1126,7 +1126,7 @@ const ko: Translations = {
     modelDownloaded: "{name} 다운로드 완료",
     modelDownloadFailed: "{name} 다운로드 실패",
     deviceUnavailable: "기기 감지를 사용할 수 없습니다",
-    deviceControlFailed: "미디어 기기를 제어하지 못했습니다. 재생 상태를 다시 확인하세요.",
+    deviceControlFailed: "미디어 기기를 제어하지 못했습니다. 재생 상태를 갱신합니다.",
     spotifyActionFailed: "Spotify 요청에 실패했습니다. 연결 상태를 확인하고 다시 시도하세요.",
     spotifyCallbackListenerUnavailable: "앱이 Spotify 로그인 콜백을 받을 준비가 되지 않았습니다. 앱을 다시 시작한 뒤 시도하세요.",
     spotifySessionRestoreFailed: "저장된 Spotify 로그인을 확인하지 못했습니다. 시스템 자격 증명 접근 권한을 확인하고 다시 시도하세요.",

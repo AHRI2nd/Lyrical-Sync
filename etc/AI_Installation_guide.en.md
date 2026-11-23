@@ -77,13 +77,13 @@ The AI feature uses bundled CPython 3.13.17 (build 20261021) — no separate Pyt
 
 ## Step 4 — Review & Correct Results
 
-- A **confidence badge** (0–100%) is shown next to each lyric line.
-- Lines with low confidence show a red badge.
+- Each lyric line's timestamp color reflects its relative alignment score (0–100%); this score is not a probability.
+- Lower-scoring lines are shown in red.
 - How to correct:
   - Click a line to activate it, then press **Space** during playback to manually stamp it.
   - Click the timestamp button to overwrite with the current playback position.
-- Manually stamped lines have their confidence badge automatically removed.
-- Once you're done reviewing, click **"Clear Draft"** to remove all confidence badges.
+- Manually stamped lines no longer show the AI score color.
+- Once you're done reviewing, click **"Clear Draft"** to remove all AI score colors.
 
 ---
 
