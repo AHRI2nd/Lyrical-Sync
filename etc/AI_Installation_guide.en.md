@@ -25,7 +25,7 @@ Optionally, Demucs vocal separation can be used as a preprocessing step to impro
 The AI feature uses bundled CPython 3.13.17 (build 20261021) — no separate Python installation required.
 
 1. Click the **⚙ Settings** button at the bottom-left of the app.
-2. Select the **AI Environment** tab.
+2. Select the **AI Models** tab.
 3. If Python is not installed, click **"Install / update AI environment"**. This prepares the bundled CPython runtime and AI packages together.
    - macOS uses the CPython 3.13.17 Apple Silicon distribution.
    - Windows x64 uses the CPython 3.13.17 x64 distribution.
@@ -108,7 +108,7 @@ MP3, WAV, M4A/AAC, FLAC, OGG, Opus, AIFF
 A. Check for typos or unnecessary symbols (brackets, chorus markers, etc.) in the lyrics. For tracks with heavy accompaniment, installing Demucs and retrying usually improves accuracy.
 
 **Q. I see a "Python is not ready" error.**  
-A. Check the Python installation status under Settings → AI Environment. If it shows as installed but the error persists, try restarting the app.
+A. Check the Python installation status under Settings → AI Models. If it shows as installed but the error persists, try restarting the app.
 
 **Q. Package installation fails on Windows.**  
 A. Install the "Desktop development with C++" workload from Visual Studio Build Tools, then try again.

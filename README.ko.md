@@ -17,7 +17,8 @@
 ## 기능
 
 ### 편집 & 동기화
-- **파형 & 탐색 바** — Wavesurfer.js로 오디오를 시각화하고, 찍힌 줄은 파형 위에 **클릭 가능한 마커**로 표시됩니다. 파형 보기와, 호버 툴팁·드래그 탐색·남은 시간 토글이 있는 탐색 바를 전환할 수 있습니다.
+- **파형 & 탐색 바** — 오디오 파형의 가사 마커를 클릭해 줄을 선택하거나 드래그해 시간을 조정합니다. 파형과 탐색 바를 전환할 수 있습니다.
+- **줄별 시간 조정** — 시간 표시 양옆의 `−` / `+`로 해당 줄을 조정합니다. 조정 단위는 설정에서 1~1,000ms로 지정하며 기본값은 10ms입니다.
 - **실시간 타임스탬프** — `Space`로 활성 줄에 현재 재생 위치를 찍고 다음 줄로 자동 이동합니다. 재생·스탬프 키는 **모두 재설정 가능**합니다.
 - **글자/단어 단위 동기화(Enhanced LRC)** — 글자마다 시간을 입력하는 전용 모드: 글자 위를 드래그하면 **현재 재생 위치**로 "칠하듯" 찍히며, 줌 가능한 파형 스크럽 레인·글자별 시간 마커·키보드 미세조정·미리보기 가라오케 채움을 지원합니다. A2 `<mm:ss.xx>` 태그 또는 일반 LRC로 저장됩니다.
 - **줄 도구** — 줄 복제, 위 줄과 병합, 분할(`Shift+Enter`, 커서 위치), **드래그로 순서 변경** — 모두 실행취소 가능.
@@ -26,6 +27,7 @@
 - **검증 & 통계** — 완성도 표시 + 이슈 목록(미입력·중복·순서 오류 타임스탬프); 이슈를 클릭하면 해당 줄로 점프.
 - **미리보기** — 전체화면 가라오케 미리보기. 자동 스크롤 하이라이트, 줄 클릭 탐색, 인라인 타임스탬프 편집, 글자별 가라오케 채움.
 - **곡 메타데이터** — 제목·아티스트·앨범·작성자·오프셋 및 알 수 없는 LRC 태그 편집(보존). 오디오를 열면 파일 태그(ID3 / Vorbis / MP4)에서 **빈 필드를 자동으로 채웁니다**.
+- **곡 정보 저장 옵션** — 곡 정보 패널에서 제목·아티스트·앨범·작성자의 LRC 저장 여부를 개별 선택합니다. 제목이나 아티스트가 입력됐지만 저장 대상에서 빠진 경우 수동 저장 시 경고하며, 경고를 다시 표시하지 않도록 설정할 수 있습니다.
 - **자동 복구** — 작업 중인 내용을 스냅샷으로 보관해, 예기치 않게 종료돼도(저장 경로가 없어도) 재시작 시 복구를 제안합니다.
 
 ### AI 자동 동기화
@@ -54,6 +56,10 @@
 - **지원 오디오 포맷** — MP3, FLAC, WAV, OGG, Opus, M4A/AAC, AIFF/AIF.
   - macOS(WKWebView): 모든 포맷 기본 지원.
   - Windows(WebView2): AIFF/AIF는 Rust 백엔드가 자동으로 WAV로 트랜스코딩.
+
+오디오 입력은 원본 파일 최대 1 GiB, 최대 4시간이며, 디코딩된 PCM에도 1 GiB 제한이 적용됩니다. 샘플레이트와 채널 수에 따라 원본 파일이 1 GiB보다 작아도 제한에 걸릴 수 있습니다.
+
+사용 가이드: [AI 설치](etc/AI_Installation_guide.ko.md) · [Spotify 연결](etc/Spotify_Connection_guide.ko.md) · [YouTube 사용](etc/YouTube_guide.ko.md)
 
 ---
 
@@ -108,7 +114,7 @@ Lyrical Sync는 **Apple Silicon Mac만 지원**하며 Intel Mac은 지원하지 
 
 | 역할 | 기술 | 버전 |
 |------|------|------|
-| 데스크톱 프레임워크 | Tauri | 2.11.0 (CLI 2.11.4) |
+| 데스크톱 프레임워크 | Tauri | 2.12.2 (CLI 2.11.4) |
 | 프론트엔드 | React + TypeScript | 19.2.7, 5.8.3 |
 | 스타일링 | Tailwind CSS + @tailwindcss/vite | 4.3.2 |
 | 상태 관리 | Zustand | 5.0.14 |
@@ -121,7 +127,7 @@ Lyrical Sync는 **Apple Silicon Mac만 지원**하며 Intel Mac은 지원하지 
 | YouTube 다운로더 | yt-dlp | 실행 시점 GitHub 최신 릴리즈 |
 | macOS 미디어 어댑터 | mediaremote-adapter | 벤더링 커밋 `3ac3d4bdf862c7b5399b4fba4df5689f5c38609a` |
 
-배지는 현재 앱 버전을 표시합니다. JavaScript/Rust 버전은 각 lockfile 기준입니다. AI 직접 의존성은 `src-tauri/requirements-ai.txt`, Python·정렬기 소스·실제 ONNX 모델의 고정 URL과 SHA-256은 `src-tauri/ai-manifest.json`에 기록합니다. 설치는 임시 환경에서 import 및 `pip check`를 통과한 뒤 교체하며, 전이 의존성의 실제 설치 버전도 기록합니다. 전이 의존성 전체를 고정한 플랫폼별 lockfile은 아직 없습니다. yt-dlp는 실행 시점의 최신 릴리즈를 받으며 공식 체크섬을 검증합니다.
+배지는 이 브랜치의 앱 버전을 표시합니다. JavaScript/Rust 버전은 각 잠금 파일 기준입니다. AI 직접 의존성은 `src-tauri/requirements-ai.txt`, 플랫폼별 해시 고정 패키지 목록은 `src-tauri/requirements-lock/`, Python·정렬기·ONNX 모델의 URL과 SHA-256은 `src-tauri/ai-manifest.json`에 기록합니다. 설치는 보안 검사 후 임시 환경에서 진행하고 검증을 통과하면 교체합니다. yt-dlp는 최신 릴리스의 공개 체크섬을 검증합니다.
 
 ---
 
@@ -144,7 +150,7 @@ npm test            # 프론트엔드 단위 테스트
 빌드 결과물은 `src-tauri/target/release/bundle/`에 생성됩니다.
 
 
-### Windows architecture builds
+### Windows 아키텍처별 빌드
 
 ```sh
 npm ci
@@ -152,9 +158,4 @@ npm run build:windows-arm64
 npm run build:windows-x64
 ```
 
-Install the matching Rust target and MSVC C++ build tools first. ARM64 builds also
-require LLVM/clang on PATH for the cryptography dependency. ARM64 uses NSIS;
-x64 retains NSIS and MSI. Output paths include the Rust target triple under
-`src-tauri/target/`. Native ARM64 AI wheel provenance and rebuild instructions
-are in `src-tauri/resources/windows-arm64-ai/README.md`. The ARM-specific package
-pins are in `src-tauri/requirements-ai-windows-arm64.txt`.
+먼저 해당 Rust 타깃과 MSVC C++ 빌드 도구를 설치합니다. ARM64 빌드에는 암호화 의존성용 LLVM/clang도 PATH에 필요합니다. ARM64는 NSIS를, x64는 NSIS와 MSI를 사용합니다. 결과물은 `src-tauri/target/` 아래 타깃별 경로에 생성됩니다. ARM64 AI wheel의 출처와 재빌드 방법은 `src-tauri/resources/windows-arm64-ai/README.md`에, ARM 전용 패키지 버전은 `src-tauri/requirements-ai-windows-arm64.txt`에 있습니다.

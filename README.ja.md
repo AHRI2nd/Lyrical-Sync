@@ -17,7 +17,8 @@
 ## 機能
 
 ### 編集 & 同期
-- **波形 & シークバー** — Wavesurfer.js で音声を可視化し、記録した行は波形上に**クリック可能なマーカー**として表示されます。波形表示と、ホバーツールチップ・ドラッグシーク・残り時間トグルを備えたシークバーを切り替えできます。
+- **波形 & シークバー** — 歌詞マーカーをクリックして行を選択し、ドラッグして時刻を調整できます。波形とシークバーを切り替えられます。
+- **行ごとの時刻調整** — 時刻の左右にある `−` / `+` で調整します。設定で1〜1,000msを指定でき、既定値は10msです。
 - **リアルタイム記録** — `Space` でアクティブな行に現在の再生位置を記録し、自動的に次の行へ進みます。再生・記録キーは**すべて再設定可能**です。
 - **文字/単語単位の同期（Enhanced LRC）** — 文字ごとに時刻を入力する専用モード：文字の上をドラッグすると**現在の再生位置**で「塗る」ように記録され、ズーム可能な波形スクラブレーン・文字ごとのタイムマーカー・キーボード微調整・プレビューのカラオケ塗りに対応します。A2 `<mm:ss.xx>` タグまたは通常 LRC で保存します。
 - **行ツール** — 行の複製、上の行と結合、分割（`Shift+Enter`、カーソル位置）、**ドラッグで並べ替え** — すべて取り消し可能。
@@ -26,6 +27,7 @@
 - **検証 & 統計** — 完成度の表示＋問題リスト（未入力・重複・順序エラーのタイムスタンプ）。問題をクリックするとその行へジャンプ。
 - **プレビュー** — 全画面カラオケプレビュー。自動スクロールのハイライト、行クリックでシーク、インラインのタイムスタンプ編集、文字単位のカラオケ塗り。
 - **曲メタデータ** — タイトル・アーティスト・アルバム・作成者・オフセットおよび未知の LRC タグを編集（保持）。音声を開くと、ファイルのタグ（ID3 / Vorbis / MP4）から**空の項目を自動入力**します。
+- **曲情報の保存設定** — タイトル・アーティスト・アルバム・作成者をLRCに保存するか個別に選択できます。入力済みのタイトルまたはアーティストを除外して手動保存すると警告が表示され、次回以降は非表示にもできます。
 - **自動復元** — 作業中の内容をスナップショットとして保持し、予期せず終了しても（保存先がなくても）再起動時に復元を提案します。
 
 ### AI 自動同期
@@ -54,6 +56,10 @@
 - **対応音声フォーマット** — MP3、FLAC、WAV、OGG、Opus、M4A/AAC、AIFF/AIF。
   - macOS（WKWebView）：すべてのフォーマットをネイティブ対応。
   - Windows（WebView2）：AIFF/AIF は Rust バックエンドが自動的に WAV へトランスコード。
+
+音声入力は元ファイルが最大1 GiB、長さが最大4時間です。デコード後のPCMにも1 GiBの制限があり、サンプルレートとチャンネル数によっては元ファイルが1 GiB未満でも制限に達します。
+
+ガイド: [AIのインストール](etc/AI_Installation_guide.ja.md) · [Spotify接続](etc/Spotify_Connection_guide.ja.md) · [YouTube](etc/YouTube_guide.ja.md)
 
 ---
 
@@ -110,7 +116,7 @@ Lyrical Sync は **Apple Silicon 搭載 Mac のみ対応**し、Intel Mac はサ
 
 | 役割 | 技術 | バージョン |
 |------|------|-----------|
-| デスクトップフレームワーク | Tauri | 2.11.0（CLI 2.11.4） |
+| デスクトップフレームワーク | Tauri | 2.12.2（CLI 2.11.4） |
 | フロントエンド | React + TypeScript | 19.2.7、5.8.3 |
 | スタイリング | Tailwind CSS + @tailwindcss/vite | 4.3.2 |
 | 状態管理 | Zustand | 5.0.14 |
@@ -123,7 +129,7 @@ Lyrical Sync は **Apple Silicon 搭載 Mac のみ対応**し、Intel Mac はサ
 | YouTube ダウンローダー | yt-dlp | 実行時に GitHub 最新リリースを取得 |
 | macOS メディアアダプター | mediaremote-adapter | ベンダーコミット `3ac3d4bdf862c7b5399b4fba4df5689f5c38609a` |
 
-バッジはアプリのバージョンを示します。JavaScript/Rust は各 lockfile が基準です。AI の直接依存は `src-tauri/requirements-ai.txt`、Python・aligner・ONNX の固定 URL と SHA-256 は `src-tauri/ai-manifest.json` に記録しています。一時環境で import と `pip check` に成功した後に切り替え、推移的依存の実際のバージョンも記録します。プラットフォーム別の完全な推移的依存 lockfile は未提供です。yt-dlp は最新リリースと公開チェックサムを使用します。
+バッジはこのブランチのアプリバージョンを示します。JavaScript/Rust は各ロックファイルが基準です。AIの直接依存は `src-tauri/requirements-ai.txt`、プラットフォーム別のハッシュ付きパッケージ一覧は `src-tauri/requirements-lock/`、Python・aligner・ONNXのURLとSHA-256は `src-tauri/ai-manifest.json` に記録しています。セキュリティ検査と一時環境での検証に成功してから環境を切り替えます。yt-dlpは最新リリースの公開チェックサムを検証します。
 
 ---
 
@@ -146,7 +152,7 @@ npm test            # フロントエンド単体テスト
 ビルド成果物は `src-tauri/target/release/bundle/` に出力されます。
 
 
-### Windows architecture builds
+### Windows アーキテクチャ別ビルド
 
 ```sh
 npm ci
@@ -154,9 +160,4 @@ npm run build:windows-arm64
 npm run build:windows-x64
 ```
 
-Install the matching Rust target and MSVC C++ build tools first. ARM64 builds also
-require LLVM/clang on PATH for the cryptography dependency. ARM64 uses NSIS;
-x64 retains NSIS and MSI. Output paths include the Rust target triple under
-`src-tauri/target/`. Native ARM64 AI wheel provenance and rebuild instructions
-are in `src-tauri/resources/windows-arm64-ai/README.md`. The ARM-specific package
-pins are in `src-tauri/requirements-ai-windows-arm64.txt`.
+先に対応するRustターゲットとMSVC C++ビルドツールをインストールしてください。ARM64ビルドでは暗号化の依存関係に必要なLLVM/clangもPATHに追加します。ARM64はNSIS、x64はNSISとMSIを使用します。成果物は `src-tauri/target/` 以下のターゲット別パスに生成されます。ARM64 AI wheelの出所と再ビルド手順は `src-tauri/resources/windows-arm64-ai/README.md`、ARM専用パッケージの固定バージョンは `src-tauri/requirements-ai-windows-arm64.txt` にあります。

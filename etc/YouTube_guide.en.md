@@ -102,7 +102,7 @@ A. Check that the URL is correct. For private videos, you will need a cookies fi
 A. Entering a proxy server address in Settings may allow you to bypass regional restrictions.
 
 **Q. Does it work with sites other than YouTube?**  
-A. yt-dlp supports thousands of sites. You can try pasting any URL, though Lyrical Sync is tested primarily with YouTube.
+A. Lyrical Sync accepts direct YouTube video URLs only. URLs from other sites are not supported.
 
 **Q. How do I update yt-dlp?**  
 A. When a newer version is available, an **"Update"** button will appear in Settings → YouTube tab.

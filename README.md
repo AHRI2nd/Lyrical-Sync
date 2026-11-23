@@ -17,7 +17,8 @@ A desktop app for creating, syncing, and editing `.lrc` (LRC) lyric files
 ## Features
 
 ### Editing & syncing
-- **Waveform & seek bar** — visualize audio with Wavesurfer.js; stamped lines appear as clickable markers on the waveform. Switch between waveform and a sleek seek bar with hover tooltip, drag-to-seek, and remaining-time toggle.
+- **Waveform & seek bar** — click a lyric marker to select its line or drag it to adjust its timestamp. Switch between the waveform and seek bar.
+- **Per-line timing** — use `−` / `+` beside a timestamp. Configure the step from 1 to 1,000 ms in Settings; the default is 10 ms.
 - **Real-time stamping** — press `Space` to stamp the active line with the current playback position and auto-advance. All playback/stamp keys are **fully customizable**.
 - **Character / word-level sync (Enhanced LRC)** — a dedicated mode to time each glyph: drag across glyphs to "paint" timestamps at the live position, with a zoomable waveform scrub lane, per-glyph time markers, keyboard nudge, and karaoke fill in preview. Exports A2 `<mm:ss.xx>` tags or plain LRC.
 - **Line tools** — duplicate, merge, split (`Shift+Enter` at the caret), and **drag to reorder** lines — all undoable.
@@ -26,6 +27,7 @@ A desktop app for creating, syncing, and editing `.lrc` (LRC) lyric files
 - **Validation & stats** — a completion gauge plus a list of issues (missing, duplicate, or out-of-order timestamps); click any issue to jump to that line.
 - **Preview mode** — full-screen karaoke preview with auto-scrolling highlight, click-to-seek on any line, inline timestamp editing, and per-glyph karaoke fill.
 - **Song metadata** — edit title, artist, album, author, offset, and any extra LRC tags (preserved on load/save); empty fields are **auto-filled from the audio file's tags** (ID3 / Vorbis / MP4) when you open audio.
+- **Metadata save options** — choose separately whether to save title, artist, album, and author in LRC files. A manual save warns when a populated title or artist is excluded; the warning can be dismissed for future saves.
 - **Auto-recovery** — unsaved work is snapshotted and offered for restore after an unexpected close, even when no save path exists.
 
 ### AI Auto Sync
@@ -54,6 +56,10 @@ A desktop app for creating, syncing, and editing `.lrc` (LRC) lyric files
 - **Supported audio formats** — MP3, FLAC, WAV, OGG, Opus, M4A/AAC, AIFF/AIF.
   - macOS (WKWebView): all formats natively supported.
   - Windows (WebView2): AIFF/AIF files are automatically transcoded to WAV via the Rust backend.
+
+Audio input is limited to a 1 GiB source file and four hours, with a separate 1 GiB decoded PCM limit. Depending on sample rate and channel count, a file smaller than 1 GiB may still exceed the PCM limit.
+
+Guides: [AI installation](etc/AI_Installation_guide.en.md) · [Spotify connection](etc/Spotify_Connection_guide.en.md) · [YouTube](etc/YouTube_guide.en.md)
 
 ---
 
@@ -113,7 +119,7 @@ Keep the installed Windows architecture when updating. Switching between x64 and
 
 | Role | Technology | Version |
 |------|-----------|---------|
-| Desktop framework | Tauri | 2.11.0 (CLI 2.11.4) |
+| Desktop framework | Tauri | 2.12.2 (CLI 2.11.4) |
 | Frontend | React + TypeScript | 19.2.7, 5.8.3 |
 | Styling | Tailwind CSS + @tailwindcss/vite | 4.3.2 |
 | State management | Zustand | 5.0.14 |
@@ -126,7 +132,7 @@ Keep the installed Windows architecture when updating. Switching between x64 and
 | YouTube downloader | yt-dlp | Latest GitHub release at runtime |
 | macOS media adapter | mediaremote-adapter | Vendored commit `3ac3d4bdf862c7b5399b4fba4df5689f5c38609a` |
 
-The badge shows the app version. JavaScript/Rust versions are defined by their lockfiles. Direct AI dependencies are pinned in `src-tauri/requirements-ai.txt`; immutable Python/aligner/ONNX URLs and SHA-256 values are in `src-tauri/ai-manifest.json`. Installation is staged and committed only after imports and `pip check` succeed; installed transitive versions are recorded. A fully locked per-platform transitive dependency graph is not yet provided. yt-dlp uses the latest release and verifies its published checksum.
+The badge shows the app version on this branch. JavaScript/Rust versions are defined by their lockfiles. Direct AI dependencies are pinned in `src-tauri/requirements-ai.txt`, platform-specific hashed package lists are in `src-tauri/requirements-lock/`, and Python/aligner/ONNX URLs and SHA-256 values are in `src-tauri/ai-manifest.json`. Installation is security-checked and staged before validation and replacement. yt-dlp verifies the published checksum of its latest release.
 
 ---
 
