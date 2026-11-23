@@ -17,12 +17,16 @@ if (typeof globalThis.localStorage === "undefined") {
 // wavesurfer.js는 실제 오디오/캔버스 렌더링이 필요해 jsdom에서 그대로 쓸 수 없음 —
 // audioprocess 핸들러(줄 반복 경계 로직)만 검증할 수 있게, on()으로 등록되는 콜백을
 // 캡처하고 getDuration/seekTo를 스파이할 수 있는 최소 mock으로 대체.
-const { wsHandlers, wsMock, regionHandlers, regionsMock } = vi.hoisted(() => {
+const { wsHandlers, wsMock, regionsMock } = vi.hoisted(() => {
   const handlers: Record<string, (...args: unknown[]) => void> = {};
-  const regionCallbacks: Record<string, (...args: unknown[]) => void> = {};
-  const regions = { on: (event: string, cb: (...args: unknown[]) => void) => { regionCallbacks[event] = cb; }, destroy: () => {}, clearRegions: () => {}, getRegions: () => [], addRegion: () => ({ element: null }) };
+  const regions = { on: () => {}, destroy: () => {}, clearRegions: () => {}, getRegions: () => [], addRegion: (options: { start: number }) => {
+    const element = document.createElement("div");
+    document.body.appendChild(element);
+    const region = { element, start: options.start, setOptions: (next: { start: number }) => { region.start = next.start; } };
+    return region;
+  } };
   const mock = {
-    getWrapper: () => ({ classList: { add: () => {} } }),
+    getWrapper: () => ({ classList: { add: () => {} }, getBoundingClientRect: () => ({ width: 100 }) }),
     registerPlugin: () => regions,
     on: (event: string, cb: (...args: unknown[]) => void) => { handlers[event] = cb; },
     getDuration: () => 100,
@@ -40,7 +44,7 @@ const { wsHandlers, wsMock, regionHandlers, regionsMock } = vi.hoisted(() => {
     playPause: () => {},
     destroy: () => {},
   };
-  return { wsHandlers: handlers, wsMock: mock, regionHandlers: regionCallbacks, regionsMock: regions };
+  return { wsHandlers: handlers, wsMock: mock, regionsMock: regions };
 });
 
 vi.mock("wavesurfer.js", () => ({
@@ -157,12 +161,27 @@ describe("AudioPlayer — local audio loading", () => {
     act(() => useLrcStore.setState({ audioPath: "/music/drag.mp3" }));
     await waitFor(() => expect(loadSpy).toHaveBeenCalled());
     act(() => wsHandlers.ready());
-    expect(regionHandlers["region-updated"]).toBeTypeOf("function");
-    act(() => regionHandlers["region-updated"]({ id: "lyric:drag-line", start: 5.01 }));
+    const marker = document.querySelector(".lyric-marker")!;
+    const pointer = (type: string, x: number) => { const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x }); Object.defineProperty(event, "pointerId", { value: 1 }); return event; };
+    act(() => { marker.dispatchEvent(pointer("pointerdown", 0)); window.dispatchEvent(pointer("pointermove", 10)); window.dispatchEvent(pointer("pointerup", 10)); });
     expect(useLrcStore.getState().doc.lines[0]).toMatchObject({
-      timestamp: 5.01,
-      syllables: [{ text: "drag target", time: 5.01 }],
+      timestamp: 15,
+      syllables: [{ text: "drag target", time: 15 }],
     });
+  });
+
+  it("does not apply a cancelled marker drag", async () => {
+    resetLrc([{ id: "cancel-line", timestamp: 5, text: "cancel target" }], null);
+    render(<AudioPlayer />);
+    act(() => useLrcStore.setState({ audioPath: "/music/cancel.mp3" }));
+    await waitFor(() => expect(loadSpy).toHaveBeenCalled());
+    act(() => wsHandlers.ready());
+    const markers = document.querySelectorAll(".lyric-marker");
+    const marker = markers[markers.length - 1];
+    const pointer = (type: string, x: number) => { const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x }); Object.defineProperty(event, "pointerId", { value: 1 }); return event; };
+    act(() => { marker.dispatchEvent(pointer("pointerdown", 0)); window.dispatchEvent(pointer("pointermove", 10)); window.dispatchEvent(pointer("pointercancel", 10)); window.dispatchEvent(pointer("pointerup", 10)); });
+    expect(useLrcStore.getState().doc.lines[0].timestamp).toBe(5);
+    expect(useLrcStore.getState()._history).toHaveLength(0);
   });
 
   beforeEach(() => {

@@ -119,13 +119,6 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         useLrcStore.getState().setActiveLineId(region.id.slice("lyric:".length));
       }
     });
-    regions.on("region-updated", (region) => {
-      if (typeof region.id !== "string" || !region.id.startsWith("lyric:")) return;
-      const lineId = region.id.slice("lyric:".length);
-      const line = useLrcStore.getState().doc.lines.find((entry) => entry.id === lineId);
-      if (!line || line.timestamp === null || !Number.isFinite(region.start)) return;
-      useLrcStore.getState().shiftLines([lineId], region.start - line.timestamp);
-    });
 
     // Spotify/기기 감지 모드에선 로컬 파형이 전역 재생상태(currentTime/isPlaying/duration)를
     // 덮어쓰지 않도록 차단(해당 모드가 단일 소스). 로컬 UI 상태(*Local)는 항상 갱신.
@@ -364,6 +357,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     if (!showMarkers) return;
     // 마커는 순수 시각 표시 — 파형 클릭(탐색)을 가로막지 않도록 pointer-events 해제하되,
     // 가사 마커만 clickable로 두어 클릭 시 해당 줄을 선택할 수 있게 함.
+    const cleanupDrag: Array<() => void> = [];
     lines.forEach((l, i) => {
       if (l.timestamp === null) return;
       const isActive = l.id === activeLineId;
@@ -371,10 +365,59 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         id: `lyric:${l.id}`,
         start: l.timestamp,
         color: isActive ? "#ea580c" : "rgba(217, 119, 6, 0.8)",
-        drag: true,
+        drag: false,
         resize: false,
       });
       if (r.element) {
+        const element = r.element;
+        let suppressClick = false;
+        let active: { pointerId: number; x: number; start: number; session: number; audio: number; path: string | null; line: typeof l; moved: boolean } | null = null;
+        const restore = () => { if (active) r.setOptions({ start: active.start, end: active.start }); active = null; };
+        const down = (event: PointerEvent) => {
+          if (event.button !== 0 || active) return;
+          const state = useLrcStore.getState();
+          const line = state.doc.lines.find((entry) => entry.id === l.id);
+          if (!line || line.timestamp === null) return;
+          active = { pointerId: event.pointerId, x: event.clientX, start: line.timestamp, session: state._documentSession, audio: state._audioSelection, path: state.audioPath, line, moved: false };
+        };
+        const move = (event: PointerEvent) => {
+          if (!active || event.pointerId !== active.pointerId) return;
+          const rect = wsRef.current?.getWrapper().getBoundingClientRect();
+          const duration = wsRef.current?.getDuration() ?? 0;
+          if (!rect || rect.width <= 0 || duration <= 0) return;
+          if (!active.moved && Math.abs(event.clientX - active.x) < 3) return;
+          active.moved = true;
+          event.preventDefault();
+          const next = Math.max(0, Math.min(duration, active.start + (event.clientX - active.x) / rect.width * duration));
+          r.setOptions({ start: next, end: next });
+        };
+        const up = (event: PointerEvent) => {
+          if (!active || event.pointerId !== active.pointerId) return;
+          const snapshot = active;
+          const next = r.start;
+          active = null;
+          const state = useLrcStore.getState();
+          const line = state.doc.lines.find((entry) => entry.id === l.id);
+          if (!snapshot.moved) return;
+          suppressClick = true;
+          window.setTimeout(() => { suppressClick = false; }, 0);
+          if (state._documentSession !== snapshot.session || state._audioSelection !== snapshot.audio || state.audioPath !== snapshot.path || line !== snapshot.line || !Number.isFinite(next)) {
+            if (line?.timestamp != null) r.setOptions({ start: line.timestamp, end: line.timestamp });
+            return;
+          }
+          state.shiftLines([l.id], next - snapshot.start);
+        };
+        const cancel = (event: PointerEvent) => { if (active?.pointerId === event.pointerId) restore(); };
+        const key = (event: KeyboardEvent) => { if (event.key === "Escape") restore(); };
+        const click = (event: MouseEvent) => { if (suppressClick) { event.preventDefault(); event.stopImmediatePropagation(); suppressClick = false; } };
+        element.addEventListener("pointerdown", down);
+        element.addEventListener("click", click, true);
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+        window.addEventListener("pointercancel", cancel);
+        window.addEventListener("blur", restore);
+        window.addEventListener("keydown", key);
+        cleanupDrag.push(() => { restore(); element.removeEventListener("pointerdown", down); element.removeEventListener("click", click, true); window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", cancel); window.removeEventListener("blur", restore); window.removeEventListener("keydown", key); });
         r.element.style.pointerEvents = "auto";
         r.element.style.cursor = "pointer";
         r.element.style.overflow = "visible";
@@ -394,6 +437,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         r.element.appendChild(label);
       }
     });
+    return () => { cleanupDrag.forEach((cleanup) => cleanup()); };
     // lines/activeLineId는 closure 최신값 사용. markerSig(마커 위치 변경)에만 재생성 →
     // 활성 줄만 바뀔 땐 아래 별도 effect가 스타일만 토글(전체 region 재생성 회피).
     // eslint-disable-next-line react-hooks/exhaustive-deps
