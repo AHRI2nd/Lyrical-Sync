@@ -372,13 +372,19 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         const element = r.element;
         let suppressClick = false;
         let active: { pointerId: number; x: number; start: number; session: number; audio: number; path: string | null; line: typeof l; moved: boolean } | null = null;
-        const restore = () => { if (active) r.setOptions({ start: active.start, end: active.start }); active = null; };
+        const detach = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", cancel); window.removeEventListener("blur", restore); window.removeEventListener("keydown", key); };
+        const restore = () => { if (active) r.setOptions({ start: active.start, end: active.start }); active = null; detach(); };
         const down = (event: PointerEvent) => {
           if (event.button !== 0 || active) return;
           const state = useLrcStore.getState();
           const line = state.doc.lines.find((entry) => entry.id === l.id);
           if (!line || line.timestamp === null) return;
           active = { pointerId: event.pointerId, x: event.clientX, start: line.timestamp, session: state._documentSession, audio: state._audioSelection, path: state.audioPath, line, moved: false };
+          window.addEventListener("pointermove", move);
+          window.addEventListener("pointerup", up);
+          window.addEventListener("pointercancel", cancel);
+          window.addEventListener("blur", restore);
+          window.addEventListener("keydown", key);
         };
         const move = (event: PointerEvent) => {
           if (!active || event.pointerId !== active.pointerId) return;
@@ -396,6 +402,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           const snapshot = active;
           const next = r.start;
           active = null;
+          detach();
           const state = useLrcStore.getState();
           const line = state.doc.lines.find((entry) => entry.id === l.id);
           if (!snapshot.moved) return;
@@ -412,12 +419,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         const click = (event: MouseEvent) => { if (suppressClick) { event.preventDefault(); event.stopImmediatePropagation(); suppressClick = false; } };
         element.addEventListener("pointerdown", down);
         element.addEventListener("click", click, true);
-        window.addEventListener("pointermove", move);
-        window.addEventListener("pointerup", up);
-        window.addEventListener("pointercancel", cancel);
-        window.addEventListener("blur", restore);
-        window.addEventListener("keydown", key);
-        cleanupDrag.push(() => { restore(); element.removeEventListener("pointerdown", down); element.removeEventListener("click", click, true); window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", cancel); window.removeEventListener("blur", restore); window.removeEventListener("keydown", key); });
+        cleanupDrag.push(() => { restore(); element.removeEventListener("pointerdown", down); element.removeEventListener("click", click, true); });
         r.element.style.pointerEvents = "auto";
         r.element.style.cursor = "pointer";
         r.element.style.overflow = "visible";

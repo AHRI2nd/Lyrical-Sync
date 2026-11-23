@@ -184,6 +184,25 @@ describe("AudioPlayer — local audio loading", () => {
     expect(useLrcStore.getState()._history).toHaveLength(0);
   });
 
+  it("registers window drag listeners only during an active gesture", async () => {
+    resetLrc([{ id: "listeners", timestamp: 5, text: "line" }], null);
+    const add = vi.spyOn(window, "addEventListener");
+    const remove = vi.spyOn(window, "removeEventListener");
+    render(<AudioPlayer />);
+    act(() => useLrcStore.setState({ audioPath: "/music/listeners.mp3" }));
+    await waitFor(() => expect(loadSpy).toHaveBeenCalled());
+    act(() => wsHandlers.ready());
+    add.mockClear(); remove.mockClear();
+    const markers = document.querySelectorAll(".lyric-marker");
+    const marker = markers[markers.length - 1];
+    const pointer = (type: string) => { const event = new MouseEvent(type, { bubbles: true, button: 0 }); Object.defineProperty(event, "pointerId", { value: 1 }); return event; };
+    act(() => marker.dispatchEvent(pointer("pointerdown")));
+    expect(add.mock.calls.filter(([type]) => type === "pointermove")).toHaveLength(1);
+    act(() => window.dispatchEvent(pointer("pointercancel")));
+    expect(remove.mock.calls.filter(([type]) => type === "pointermove")).toHaveLength(1);
+    add.mockRestore(); remove.mockRestore();
+  });
+
   beforeEach(() => {
     vi.mocked(invoke).mockReset();
     mockSuccessfulAudioStream();
