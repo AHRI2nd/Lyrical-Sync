@@ -211,7 +211,7 @@ if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
     def test_release_tag_inputs_are_data_not_shell_source(self):
         source = (ROOT / '.github/workflows/release.yml').read_text(encoding='utf-8')
         self.assertEqual(source.count('RELEASE_REF_NAME: ${{ github.ref_name }}'), 2)
-        self.assertEqual(source.count('RELEASE_INPUT_TAG: ${{ github.event.inputs.tag }}'), 2)
+        self.assertEqual(source.count('RELEASE_INPUT_TAG: ${{ github.event.inputs.tag }}'), 3)
         self.assertIn('TAG_NAME="$RELEASE_REF_NAME"', source)
         self.assertIn('REF_NAME="$RELEASE_REF_NAME"', source)
         # GitHub expressions must not be spliced into the shell's quoted strings.
@@ -321,8 +321,8 @@ if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
 
     def test_signing_depends_on_tests_and_never_interpolates_untrusted_ref_into_shell(self):
         source=(ROOT/'.github/workflows/release.yml').read_text(encoding='utf-8')
-        self.assertRegex(source,r'(?m)^  release:\n(?:    #[^\n]*\n)*    needs: test-gate[ \t]*$')
-        self.assertRegex(source,r'(?m)^  test-gate:\n    uses: \./\.github/workflows/test\.yml$')
+        self.assertRegex(source,r'(?m)^  release:\n(?:    #[^\n]*\n)*    needs: \[release-preflight, test-gate\][ \t]*$')
+        self.assertRegex(source,r'(?m)^  test-gate:\n    needs: release-preflight\n    uses: \./\.github/workflows/test\.yml$')
         tests=(ROOT/'.github/workflows/test.yml').read_text(encoding='utf-8')
         self.assertIn('python scripts/test_ai_sidecars.py',tests)
         self.assertIn('python scripts/test_signed_candidate.py',tests)

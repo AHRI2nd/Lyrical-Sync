@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag (vX.Y.Z)'
+        description: 'Select the tag in Use workflow from, then enter the same tag (vX.Y.Z) here; do not select a branch.'
         required: true
         default: ''
 
@@ -21,9 +21,20 @@ permissions:
   contents: write
 
 jobs:
+  release-preflight:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Verify selected release tag and commit
+        env:
+          RELEASE_INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: python3 scripts/release_preflight.py
+
   release:
     # Never expose signing credentials before verifying the exact checkout.
-    needs: test-gate
+    needs: [release-preflight, test-gate]
     strategy:
       fail-fast: false
       matrix:
@@ -57,9 +68,12 @@ jobs:
           TAG_NAME="$RELEASE_REF_NAME"
           # A manually supplied tag must be the ref actually checked out.
           # Never sign the selected branch while labeling it with another tag.
-          if [ "$GITHUB_REF_TYPE" != "tag" ] ||
-             { [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ "$RELEASE_INPUT_TAG" != "$TAG_NAME" ]; }; then
-            echo "::error::Signed releases require a matching tag ref"
+          if [ "$GITHUB_REF_TYPE" != "tag" ]; then
+            echo "::error::Select the release tag as the workflow ref, not a branch."
+            exit 1
+          fi
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ "$RELEASE_INPUT_TAG" != "$TAG_NAME" ]; then
+            echo "::error::The entered release tag must match the selected tag ref."
             exit 1
           fi
           # 태그 형식이어야 함 (v로 시작, 숫자.숫자.숫자)
@@ -218,6 +232,7 @@ jobs:
   # Run the same full macOS/Windows x64/Windows ARM64 checks as pull requests.
   # Signing jobs receive no secrets until this exact-source matrix passes.
   test-gate:
+    needs: release-preflight
     uses: ./.github/workflows/test.yml
 
   publish-release:
