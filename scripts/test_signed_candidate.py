@@ -261,14 +261,14 @@ if [ "$1" = ls-remote ] && [ "$GH_MODE" = missing-tag ]; then return 2; fi
         self.assertIn('node-version: 22',source[source.index('  updater-manifest:'):])
         self.assertIn('gh release upload',source)
         self.assertNotRegex(source,r'(?m)^\s*gh release upload .*--clobber')
-        self.assertIn('existing_asset_ids=$(gh api',source)
+        self.assertIn('gh api --method DELETE "repos/${RELEASE_REPO}/releases/${draft_ids}"',source)
         self.assertIn('can_retarget="true"',source)
         self.assertIn('existing_target=$(gh api',source)
         self.assertIn('Existing draft targets',source)
         self.assertIn('git fetch --depth=1 origin "refs/tags/$TAG"',source)
         self.assertIn('resolved_tag_sha=$(git rev-parse "FETCH_HEAD^{commit}")',source)
         self.assertNotRegex(source,r'(?m)^\s*gh release upload .*--clobber')
-        self.assertLess(source.index('existing_asset_ids='),source.index('gh release upload'))
+        self.assertLess(source.index('draft_count=0'),source.index('gh release upload'))
         self.assertLess(source.index('resolved_tag_sha='),source.index('gh release upload'))
         self.assertIn('actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',source)
         self.assertNotRegex(source,r'(?m)^\s*tagName:')
@@ -293,13 +293,13 @@ if [ "$1" = ls-remote ] && [ "$GH_MODE" = missing-tag ]; then return 2; fi
         result,log=self.run_release_draft_gate('wrong-target',tag_sha='old-sha')
         self.assertNotEqual(result.returncode,0,result.stdout+result.stderr)
         self.assertIn('gh api --method PATCH repos/owner/repo/git/refs/tags/v0.7.1',log)
-        self.assertIn('gh api --method PATCH repos/owner/repo/releases/42',log)
+        self.assertIn('gh api --method DELETE repos/owner/repo/releases/42',log)
         self.assertNotIn('gh release upload',log)
 
     def test_release_draft_guard_replaces_assets_only_after_explicit_retarget(self):
         result,log=self.run_release_draft_gate('assets',tag_sha='source-sha')
         self.assertEqual(result.returncode,0,result.stdout+result.stderr)
-        self.assertIn('gh api --method DELETE repos/owner/repo/releases/assets/99',log)
+        self.assertIn('gh api --method DELETE repos/owner/repo/releases/42',log)
         self.assertIn('gh release upload',log)
 
     def test_release_draft_guard_accepts_matching_source_draft(self):

@@ -298,12 +298,8 @@ jobs:
                 echo "::error::Existing draft targets $existing_target, expected $SOURCE_SHA. Select main and enable create_tag to refresh this draft."
                 exit 1
               fi
-              existing_asset_ids=$(gh api "repos/${RELEASE_REPO}/releases/${draft_ids}/assets" --paginate --jq '.[].id')
-              while IFS= read -r asset_id; do
-                [ -n "$asset_id" ] || continue
-                gh api --method DELETE "repos/${RELEASE_REPO}/releases/assets/${asset_id}" >/dev/null
-              done <<< "$existing_asset_ids"
-              gh api --method PATCH "repos/${RELEASE_REPO}/releases/${draft_ids}" -f "target_commitish=$SOURCE_SHA" >/dev/null
+              gh api --method DELETE "repos/${RELEASE_REPO}/releases/${draft_ids}" >/dev/null
+              draft_count=0
             fi
           fi
 
