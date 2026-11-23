@@ -25,6 +25,15 @@ FIXTURE_SIGNATURE = '\n'.join((
 
 
 class MinisignVerifierTests(unittest.TestCase):
+    def test_accepts_tauri_encoded_signature(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory) / 'artifact.bin'
+            signature = Path(directory) / 'artifact.sig'
+            artifact.write_bytes(b'test')
+            signature.write_text(base64.b64encode(FIXTURE_SIGNATURE.encode()).decode(), encoding='utf-8')
+            result = self.run_verifier(artifact, signature)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def run_verifier(self, artifact, signature, public_key=FIXTURE_PUBLIC_KEY):
         envelope = base64.b64encode(public_key.encode()).decode()
         return subprocess.run(

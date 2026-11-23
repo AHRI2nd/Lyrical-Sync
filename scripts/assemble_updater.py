@@ -16,7 +16,14 @@ except ModuleNotFoundError:
 
 
 def has_minisign_signature_structure(signature):
-    lines = signature.splitlines()
+    try:
+        encoded = signature.encode('ascii')
+        decoded = base64.b64decode(encoded, validate=True)
+        if base64.b64encode(decoded) != encoded:
+            return False
+        lines = decoded.decode('utf-8').splitlines()
+    except (ValueError, UnicodeError):
+        return False
     if (len(lines) != 4
             or not lines[0].startswith('untrusted comment: ')
             or not lines[2].startswith('trusted comment: ')):

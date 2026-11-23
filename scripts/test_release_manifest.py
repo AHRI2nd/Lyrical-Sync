@@ -11,12 +11,12 @@ SCRIPT = Path(__file__).with_name('assemble_updater.py')
 
 
 def fake_signature_file():
-    return '\n'.join((
+    return base64.b64encode('\n'.join((
         'untrusted comment: fixture',
         base64.b64encode(b'Ed' + bytes(72)).decode(),
         'trusted comment: timestamp:0',
         base64.b64encode(bytes(64)).decode(),
-    )).encode()
+    )).encode())
 
 
 class ReleaseManifestTests(unittest.TestCase):
@@ -29,12 +29,12 @@ class ReleaseManifestTests(unittest.TestCase):
         ]
         self.assets = [{'name': n} for name in self.names for n in (name, name + '.sig')]
         self.signatures = {
-            n + '.sig': '\n'.join((
+            n + '.sig': base64.b64encode('\n'.join((
                 'untrusted comment: fixture',
                 base64.b64encode(b'Ed' + bytes(72)).decode(),
                 'trusted comment: timestamp:0',
                 base64.b64encode(bytes(64)).decode(),
-            )) for n in self.names
+            )).encode()).decode() for n in self.names
         }
 
     def assemble(self, assets=None, signatures=None):
@@ -47,6 +47,12 @@ class ReleaseManifestTests(unittest.TestCase):
             self.assets if assets is None else assets,
             self.signatures if signatures is None else signatures,
             '2026-10-23T00:00:00Z')
+
+    def test_accepts_and_preserves_tauri_encoded_signatures(self):
+        signatures = self.signatures.copy()
+        platforms = self.assemble(signatures=signatures)['platforms']
+        self.assertEqual(platforms['windows-aarch64']['signature'],
+                         signatures['Lyrical.Sync_0.7.0_arm64-setup.exe.sig'])
 
     def test_windows_clients_receive_only_their_architecture_and_installer(self):
         assets = [{'name':a['name'].replace('_x64.msi','_x64_setup.msi')} for a in self.assets]

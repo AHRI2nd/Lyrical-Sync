@@ -42,7 +42,11 @@ async function main() {
   }
 
   const publicKey = decodePublicKey(publicKeyEnvelope);
-  const signatureLines = readFileSync(signaturePath, 'utf8').trimEnd().split(/\r?\n/);
+  const signatureText = readFileSync(signaturePath, 'utf8').trimEnd();
+  const decodedSignature = signatureText.startsWith('untrusted comment: ')
+    ? signatureText
+    : decodeBase64(signatureText, 'signature envelope').toString('utf8');
+  const signatureLines = decodedSignature.trimEnd().split(/\r?\n/);
   if (signatureLines.length !== 4 || !signatureLines[2].startsWith('trusted comment: ')) {
     throw new Error('Invalid Minisign signature envelope');
   }
