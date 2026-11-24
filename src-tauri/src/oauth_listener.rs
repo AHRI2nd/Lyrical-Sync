@@ -1,6 +1,7 @@
 //! Bounded loopback OAuth transport. Callback authentication precedes event delivery.
 use std::io;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -53,7 +54,7 @@ impl OAuthServer {
         let (cancel, cancellation) = oneshot::channel();
         let task = tokio::spawn(async move {
             if let Some(url) = wait_callback(
-                listener,
+                Arc::new(listener),
                 state,
                 cancellation,
                 Duration::from_secs(180),
@@ -129,7 +130,7 @@ async fn handle_connection(mut stream: TcpStream, expected: String) -> Option<St
 }
 
 async fn wait_callback(
-    listener: TcpListener,
+    listener: Arc<TcpListener>,
     expected: String,
     mut cancellation: oneshot::Receiver<()>,
     lifetime: Duration,
@@ -167,6 +168,28 @@ async fn wait_callback(
 mod tests {
     use super::*;
     const STATE: &str = "0123456789abcdef0123456789abcdef";
+
+    #[test]
+    fn expiry_releases_the_specific_listener() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let listener = std::sync::Arc::new(TcpListener::bind("127.0.0.1:0").await.unwrap());
+            let weak = std::sync::Arc::downgrade(&listener);
+            let (_cancel, cancellation) = oneshot::channel();
+            let result = wait_callback(
+                listener,
+                STATE.into(),
+                cancellation,
+                Duration::from_millis(10),
+                Duration::from_secs(1),
+            )
+            .await;
+            assert!(result.is_none());
+            assert!(
+                weak.upgrade().is_none(),
+                "expired listener was not released"
+            );
+        });
+    }
     fn request(target: &str) -> String {
         format!("GET {target} HTTP/1.1\r\nHost: localhost\r\n\r\n")
     }
@@ -217,7 +240,7 @@ mod tests {
             let address = listener.local_addr().unwrap();
             let (_cancel, cancellation) = tokio::sync::oneshot::channel();
             let task = tokio::spawn(wait_callback(
-                listener,
+                Arc::new(listener),
                 STATE.into(),
                 cancellation,
                 Duration::from_secs(3),
@@ -242,6 +265,8 @@ mod tests {
             let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
             let address = listener.local_addr().unwrap();
             let (_cancel, cancellation) = tokio::sync::oneshot::channel();
+            let listener = Arc::new(listener);
+            let weak = Arc::downgrade(&listener);
             let task = tokio::spawn(wait_callback(
                 listener,
                 STATE.into(),
@@ -262,11 +287,9 @@ mod tests {
                 Ok(bytes_read) => panic!("expired idle client received {bytes_read} bytes"),
                 Err(error) => panic!("expired idle client did not close cleanly: {error}"),
             }
-            let post_expiry_connect =
-                tokio::time::timeout(Duration::from_secs(1), TcpStream::connect(address)).await;
             assert!(
-                !matches!(post_expiry_connect, Ok(Ok(_))),
-                "OAuth listener accepted a connection after expiry"
+                weak.upgrade().is_none(),
+                "expired listener was not released"
             );
         });
     }
