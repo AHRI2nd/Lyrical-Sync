@@ -323,6 +323,11 @@ export interface Translations {
   metaAlbum: { label: string; placeholder: string };
   metaBy: { label: string; placeholder: string };
   metaOffset: string;
+  metaSaveOptions: string;
+  metaSaveOptionsLegend: string;
+  metaWarnOmission: string;
+  metaOmissionTitle: string;
+  metaOmissionMessage: string;
   metaOffsetShort: string;
   applyOffset: string;
   applyOffsetTooltip: string;
@@ -1020,6 +1025,11 @@ const ko: Translations = {
   metaAlbum: { label: "앨범 (al)", placeholder: "앨범 이름" },
   metaBy: { label: "작성자 (by)", placeholder: "LRC 작성자" },
   metaOffset: "오프셋 ms (offset)",
+  metaSaveOptions: "저장 옵션",
+  metaSaveOptionsLegend: "LRC 메타데이터 저장 옵션",
+  metaWarnOmission: "제목 또는 아티스트를 저장하지 않을 때 경고",
+  metaOmissionTitle: "LRC 메타데이터가 저장되지 않습니다",
+  metaOmissionMessage: "다음 곡 정보가 저장되지 않습니다: {fields}.",
   metaOffsetShort: "오프셋",
   applyOffset: "적용",
   applyOffsetTooltip: "모든 타임스탬프에 오프셋을 더한 후 오프셋을 0으로 초기화합니다",
@@ -1712,6 +1722,11 @@ const en: Translations = {
   metaAlbum: { label: "Album (al)", placeholder: "Album name" },
   metaBy: { label: "Author (by)", placeholder: "LRC author" },
   metaOffset: "Offset ms (offset)",
+  metaSaveOptions: "Save Options",
+  metaSaveOptionsLegend: "LRC metadata save options",
+  metaWarnOmission: "Warn before omitting title or artist",
+  metaOmissionTitle: "LRC metadata will be omitted",
+  metaOmissionMessage: "The following song information will not be written: {fields}.",
   metaOffsetShort: "Offset",
   applyOffset: "Apply",
   applyOffsetTooltip: "Add offset to all timestamps, then reset offset to 0",
@@ -2403,6 +2418,11 @@ const ja: Translations = {
   metaAlbum: { label: "アルバム (al)", placeholder: "アルバム名" },
   metaBy: { label: "作成者 (by)", placeholder: "LRC作成者" },
   metaOffset: "オフセット ms (offset)",
+  metaSaveOptions: "保存オプション",
+  metaSaveOptionsLegend: "LRCメタデータの保存オプション",
+  metaWarnOmission: "タイトルまたはアーティストを保存しない場合に警告",
+  metaOmissionTitle: "LRCメタデータが保存されません",
+  metaOmissionMessage: "次の曲情報は保存されません: {fields}。",
   metaOffsetShort: "オフセット",
   applyOffset: "適用",
   applyOffsetTooltip: "全タイムスタンプにオフセットを加算し、オフセットを0にリセットします",

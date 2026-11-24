@@ -98,13 +98,13 @@ export function MetaEditor() {
       </div>
 
       <div className="relative">
-        <button type="button" aria-expanded={showSaveOptions} onClick={() => setShowSaveOptions((value) => !value)} className="ls-button text-xs">저장 옵션</button>
+        <button type="button" aria-expanded={showSaveOptions} onClick={() => setShowSaveOptions((value) => !value)} className="ls-button text-xs">{t.metaSaveOptions}</button>
         {showSaveOptions && <fieldset className="mt-2 grid grid-cols-2 gap-2 text-xs">
-          <legend className="sr-only">LRC metadata save options</legend>
+          <legend className="sr-only">{t.metaSaveOptionsLegend}</legend>
           {([ ["title", t.metaTitle.label], ["artist", t.metaArtist.label], ["album", t.metaAlbum.label], ["by", t.metaBy.label] ] as const).map(([field, label]) => (
             <label key={field} className="flex items-center gap-2"><input type="checkbox" checked={saveOptions[field]} onChange={(event) => setSaveOption(field, event.target.checked)} />{label}</label>
           ))}
-          <label className="col-span-2 flex items-center gap-2"><input type="checkbox" checked={!hideMetadataWarning} onChange={(event) => setHideMetadataWarning(!event.target.checked)} />Warn before omitting title or artist</label>
+          <label className="col-span-2 flex items-center gap-2"><input type="checkbox" checked={!hideMetadataWarning} onChange={(event) => setHideMetadataWarning(!event.target.checked)} />{t.metaWarnOmission}</label>
         </fieldset>}
       </div>
 

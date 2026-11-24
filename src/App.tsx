@@ -937,14 +937,14 @@ function App() {
       )}
       {showLrcMetadataWarning && pendingLrcMetadataSaveRef.current?.session === appDocumentSession && (
         <ConfirmModal
-          title="LRC metadata will be omitted"
-          message={`The following song information will not be written: ${[
+          title={t.metaOmissionTitle}
+          message={t.metaOmissionMessage.replace("{fields}", [
             !useSettingsStore.getState().saveLrcTitle && useLrcStore.getState().doc.metadata.title.trim() ? t.metaTitle.label : "",
             !useSettingsStore.getState().saveLrcArtist && useLrcStore.getState().doc.metadata.artist.trim() ? t.metaArtist.label : "",
-          ].filter(Boolean).join(", ")}.`}
+          ].filter(Boolean).join(", "))}
           okLabel={t.save}
           cancelLabel={t.cancelLabel}
-          checkboxLabel="다시 보지 않음"
+          checkboxLabel={t.elrcNotice.dontShowAgain}
           checked={dontShowLrcMetadataWarning}
           onCheckedChange={setDontShowLrcMetadataWarning}
           onOk={() => {

@@ -216,3 +216,18 @@ it("does not close the raw editor when Escape is composing an IME character", ()
   fireEvent.keyDown(editor!, { key: "Escape" });
   expect(screen.queryAllByRole("textbox").some((element) => element.tagName === "TEXTAREA")).toBe(false);
 });
+
+it("updates save option labels when the UI language changes", () => {
+  act(() => useI18nStore.getState().setLang("ko"));
+  render(<MetaEditor />);
+  fireEvent.click(screen.getByRole("button", { name: "저장 옵션" }));
+  expect(screen.getByRole("group", { name: "LRC 메타데이터 저장 옵션" })).toBeTruthy();
+  for (const lang of ["en", "ja"] as const) {
+    act(() => useI18nStore.getState().setLang(lang));
+    const t = useI18nStore.getState().t;
+    expect(screen.getByRole("button", { name: t.metaSaveOptions })).toBeTruthy();
+    expect(screen.getByRole("group", { name: t.metaSaveOptionsLegend })).toBeTruthy();
+    expect(screen.getByLabelText(t.metaWarnOmission)).toBeTruthy();
+  }
+  act(() => useI18nStore.getState().setLang("ko"));
+});
