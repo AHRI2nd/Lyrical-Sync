@@ -284,6 +284,38 @@ describe("App — drag-and-drop conflict resolution", () => {
     ).toBeTruthy();
   });
 
+  it.each(["ko", "en", "ja"] as const)("localizes metadata warning and preserves save choices in %s", async (lang) => {
+    const originalSave = useLrcStore.getState().saveLrc;
+    const save = vi.fn().mockResolvedValue(true);
+    const originalLang = useI18nStore.getState().lang;
+    const originalSettings = useSettingsStore.getState();
+    try {
+      act(() => useI18nStore.getState().setLang(lang));
+      useSettingsStore.setState({ saveLrcTitle: false, saveLrcArtist: false, hideLrcMetadataWarning: false });
+      resetLrc({ lrcPath: "/music/test.lrc", doc: { ...defaultDocument(), metadata: { ...defaultDocument().metadata, title: "Title", artist: "Artist" } } });
+      useLrcStore.setState({ saveLrc: save });
+      const user = userEvent.setup();
+      render(<App />);
+      const t = useI18nStore.getState().t;
+      await user.click(screen.getByRole("button", { name: t.save }));
+      let dialog = await screen.findByRole("dialog", { name: t.metaOmissionTitle });
+      expect(within(dialog).getByText(t.metaOmissionMessage.replace("{fields}", `${t.metaTitle.label}, ${t.metaArtist.label}`))).toBeTruthy();
+      await user.click(within(dialog).getByRole("button", { name: t.cancelLabel }));
+      expect(save).not.toHaveBeenCalled();
+      expect(useSettingsStore.getState().hideLrcMetadataWarning).toBe(false);
+      await user.click(screen.getByRole("button", { name: t.save }));
+      dialog = await screen.findByRole("dialog", { name: t.metaOmissionTitle });
+      await user.click(within(dialog).getByRole("checkbox", { name: t.elrcNotice.dontShowAgain }));
+      await user.click(within(dialog).getByRole("button", { name: t.save }));
+      await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+      expect(useSettingsStore.getState().hideLrcMetadataWarning).toBe(true);
+    } finally {
+      useLrcStore.setState({ saveLrc: originalSave });
+      useSettingsStore.setState({ saveLrcTitle: originalSettings.saveLrcTitle, saveLrcArtist: originalSettings.saveLrcArtist, hideLrcMetadataWarning: originalSettings.hideLrcMetadataWarning });
+      act(() => useI18nStore.getState().setLang(originalLang));
+    }
+  });
+
   it("dismisses a pending E-LRC save notice and drops its save action when the document changes", async () => {
     const t = useI18nStore.getState().t;
     useSettingsStore.setState({ showElrcSaveNotice: true });
