@@ -163,7 +163,6 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
   const laneDragRef = useRef<LaneDrag | null>(null);
   const laneSeekPendingRef = useRef(false);
   const lanePreviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const previousCurrentTimeRef = useRef(currentTime);
   useEffect(() => {
     const anchor = controlSource === "spotify" ? useServiceStore.getState().positionMs / 1000
       : controlSource === "device" ? useDeviceStore.getState().positionMs / 1000
@@ -193,6 +192,9 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
     if (!followPlayback) setViewAnchor(getSeekViewAnchor(seconds, visibleViewStart, visibleViewEnd));
     controller.seekTo(seconds);
   };
+
+  const seekWithAnchorRef = useRef(seekWithAnchor);
+  seekWithAnchorRef.current = seekWithAnchor;
 
   // 재생 위치에서 지금 불리는 글자(편집 커서와 별개). 창 밖이면 -1.
   const playingIdx = useMemo(() => {
@@ -289,7 +291,7 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
     const settings = useSettingsStore.getState();
     const ctrl = useServiceStore.getState().isLoggedIn && settings.spotifyMode
       ? serviceControls : settings.deviceMode ? deviceControls : audioControls;
-    seekWithAnchor(nt, ctrl);
+    seekWithAnchorRef.current(nt, ctrl);
   };
 
   // ←→=글자 이동(Shift=미세조정, 고정) · stamp/prevLine=사용자 단축키
@@ -412,9 +414,7 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
   }, []);
 
   useEffect(() => {
-    const changed = previousCurrentTimeRef.current !== currentTime;
-    previousCurrentTimeRef.current = currentTime;
-    if (!laneSeekPendingRef.current || !changed) return;
+    if (!laneSeekPendingRef.current || !lanePreview || Math.abs(currentTime - lanePreview.time) > 0.05) return;
     if (!followPlayback && lanePreview) {
       setViewAnchor(getSeekViewAnchor(lanePreview.time, lanePreview.start, lanePreview.end));
     }

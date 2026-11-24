@@ -772,3 +772,33 @@ it("recenters only after an edge seek is acknowledged", () => {
   act(() => useLrcStore.setState({ currentTime: 16 }));
   expect(Number(lane.dataset.start)).toBe(12);
 });
+
+
+it("uses current follow state for keyboard nudge outside the window", () => {
+  useLrcStore.setState({ doc: { ...defaultDocument(), lines: [{ id: "line-1", timestamp: 10, text: "a", syllables: [{ text: "a", time: 30 }] }] } });
+  const { lane, getByRole } = setup();
+  fireEvent.click(getByRole("button", { name: /재생 위치 따라가기|Follow playback/ }));
+  fireEvent.keyDown(window, { code: "ArrowRight", shiftKey: true });
+  expect(seekSpy).toHaveBeenCalledWith(30.05);
+  expect(Number(lane.dataset.start)).toBeCloseTo(26.05);
+});
+
+it("does not acknowledge an edge seek on an unrelated playback tick", () => {
+  const { lane, getByRole } = setup();
+  fireEvent.click(getByRole("button", { name: /재생 위치 따라가기|Follow playback/ }));
+  fireEvent.pointerDown(lane, { pointerId: 9, button: 0, clientX: 100 });
+  fireEvent.pointerUp(window, { pointerId: 9, button: 0, clientX: 100 });
+  act(() => useLrcStore.setState({ currentTime: 12.1 }));
+  expect(Number(lane.dataset.start)).toBe(8);
+  act(() => useLrcStore.setState({ currentTime: 16 }));
+  expect(Number(lane.dataset.start)).toBe(12);
+});
+
+it("handles a seek to the current time at the window edge", () => {
+  const { lane, getByRole } = setup();
+  fireEvent.click(getByRole("button", { name: /재생 위치 따라가기|Follow playback/ }));
+  act(() => useLrcStore.setState({ currentTime: 16 }));
+  fireEvent.pointerDown(lane, { pointerId: 9, button: 0, clientX: 100 });
+  fireEvent.pointerUp(window, { pointerId: 9, button: 0, clientX: 100 });
+  expect(Number(lane.dataset.start)).toBe(12);
+});
