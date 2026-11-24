@@ -1,7 +1,7 @@
 name: Release
 
 # 서명·공증 시크릿은 버전 태그(vX.Y.Z) 푸시에서만 접근 가능하도록 트리거를 좁힘.
-# main 브랜치의 일반 빌드는 build.yml(서명 없음)이 담당.
+# 수동 일반 빌드는 build.yml(서명 없음)이 담당.
 on:
   push:
     tags:
