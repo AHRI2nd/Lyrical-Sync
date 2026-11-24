@@ -83,7 +83,7 @@ def verify(root, version, source_sha, signature_verifier=None):
             raise ValueError(f'Candidate artifact set is incomplete: {target}')
         for row in rows:
             artifact = confined_candidate_file(directory, row.get('path'), 'artifact')
-            if not artifact.is_file() or not isinstance(row.get('bytes'), int) or artifact.stat().st_size != row['bytes']:
+            if not artifact.is_file() or not isinstance(row.get('bytes'), int) or row['bytes'] <= 0 or artifact.stat().st_size != row['bytes']:
                 raise ValueError(f'Missing or changed candidate artifact: {row.get("path")}')
             if (not isinstance(row.get('sha256'), str)
                     or not re.fullmatch(r'[0-9a-f]{64}', row['sha256'])

@@ -68,6 +68,8 @@ def record(root, target, source_sha, version):
     files=[p for p in root.rglob('*') if p.is_file()]
     installers=[]
     def add(path,kind,require_signature=True):
+        if path.stat().st_size == 0:
+            raise ValueError(f'Empty candidate artifact: {path.name}')
         row={'path':path.relative_to(root).as_posix(),'kind':kind,'bytes':path.stat().st_size,
              'sha256':sha256_file(path)}
         if require_signature:

@@ -391,6 +391,10 @@ jobs:
           python-version: '3.12'
       - name: Verify updater architecture contract
         run: python scripts/test_release_manifest.py
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: signed-release-*
+          path: release-artifacts
       - name: Assemble complete updater manifest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -408,18 +412,4 @@ jobs:
         run: |
           set -euo pipefail
           VERSION=$(python -c 'import json; print(json.load(open("src-tauri/tauri.conf.json"))["version"])')
-          TAG="v${VERSION}"
-          download_dir="$RUNNER_TEMP/final-release-assets"
-          mkdir -p "$download_dir"
-          gh release download "$TAG" --repo "$RELEASE_REPO" --dir "$download_dir"
-          mapfile -t installers < <(find "$download_dir" -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.msi' -o -name '*.app.tar.gz' \) | sort)
-          if [ "${#installers[@]}" -ne 5 ]; then
-            echo "::error::Expected five final installer/archive assets, found ${#installers[@]}"
-            exit 1
-          fi
-          for installer in "${installers[@]}"; do
-            gh attestation verify "$installer" \
-              --repo "$RELEASE_REPO" \
-              --signer-workflow "$RELEASE_REPO/.github/workflows/release.yml" \
-              --source-digest "$SOURCE_SHA"
-          done
+          python scripts/verify_release_provenance.py --root release-artifacts --version "$VERSION" --source-sha "$SOURCE_SHA" --repo "$RELEASE_REPO"
