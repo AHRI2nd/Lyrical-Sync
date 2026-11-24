@@ -73,6 +73,7 @@ jobs:
       - run: python scripts/test_updater_security.py
       - run: python scripts/test_release_manifest.py
       - run: python scripts/test_release_provenance.py
+      - run: python scripts/test_prepare_release_retry.py
       - run: python scripts/test_release_preflight.py
       - run: python scripts/test_signed_candidate.py
       - run: python scripts/test_rust_dependency_maintenance.py

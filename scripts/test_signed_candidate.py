@@ -173,6 +173,9 @@ printf 'git %s\\n' "$*" >> "$GH_LOG"
 if [ "$1" = rev-parse ]; then printf '%s\\n' "$TAG_SHA"; fi
 if [ "$1" = ls-remote ] && [ "$GH_MODE" = missing-tag ]; then return 2; fi
 }
+python() {
+printf 'python %s\n' "$*" >> "$GH_LOG"
+}
 '''
             log=root/'commands.log'
             env=os.environ.copy()
@@ -260,14 +263,14 @@ if [ "$1" = ls-remote ] && [ "$GH_MODE" = missing-tag ]; then return 2; fi
         self.assertIn('node-version: 22',source[source.index('  publish-release:'):source.index('  updater-manifest:')])
         self.assertIn('node-version: 22',source[source.index('  updater-manifest:'):])
         self.assertIn('gh release upload',source)
-        self.assertNotRegex(source,r'(?m)^\s*gh release upload .*--clobber')
+        self.assertNotRegex(source[:source.index('  updater-manifest:')],r'(?m)^\s*gh release upload .*--clobber')
         self.assertIn('gh api --method DELETE "repos/${RELEASE_REPO}/releases/${draft_ids}"',source)
         self.assertIn('can_retarget="true"',source)
         self.assertIn('existing_target=$(gh api',source)
         self.assertIn('Existing draft targets',source)
         self.assertIn('git fetch --depth=1 origin "refs/tags/$TAG"',source)
         self.assertIn('resolved_tag_sha=$(git rev-parse "FETCH_HEAD^{commit}")',source)
-        self.assertNotRegex(source,r'(?m)^\s*gh release upload .*--clobber')
+        self.assertNotRegex(source[:source.index('  updater-manifest:')],r'(?m)^\s*gh release upload .*--clobber')
         self.assertLess(source.index('draft_count=0'),source.index('gh release upload'))
         self.assertLess(source.index('resolved_tag_sha='),source.index('gh release upload'))
         self.assertIn('actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',source)
@@ -307,7 +310,15 @@ if [ "$1" = ls-remote ] && [ "$GH_MODE" = missing-tag ]; then return 2; fi
         self.assertEqual(result.returncode,0,result.stdout+result.stderr)
         self.assertIn('git rev-parse FETCH_HEAD^{commit}',log)
         self.assertIn('gh release upload',log)
+        self.assertIn('python scripts/prepare_release_retry.py',log)
+        self.assertLess(log.index('python scripts/prepare_release_retry.py'), log.index('gh release upload'))
         self.assertNotIn('--clobber',log)
+
+    def test_updater_manifest_is_uploaded_only_after_provenance_verification(self):
+        source = (ROOT / '.github/workflows/release.yml').read_text(encoding='utf-8')
+        updater = source[source.index('  updater-manifest:'):]
+        self.assertIn('scripts/assemble_updater.py --repo "$RELEASE_REPO" --version "$VERSION" --prepare-only', updater)
+        self.assertLess(updater.index('scripts/verify_release_provenance.py'), updater.index('gh release upload'))
 
     def test_release_draft_guard_creates_a_fresh_draft_at_the_tested_sha(self):
         result,log=self.run_release_draft_gate('no-draft')

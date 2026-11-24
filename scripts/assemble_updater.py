@@ -108,7 +108,7 @@ def get_draft_release(repo, tag):
     return json.loads(result)
 
 
-def publish(repo, version, output, signature_verifier=verify_signature):
+def publish(repo, version, output, signature_verifier=verify_signature, upload=True):
     tag = 'v' + version
     windows = re.compile(r'Lyrical[ .]Sync_' + re.escape(version)
         + r'_(x64|arm64|aarch64)(-setup\.exe|_setup\.msi|\.msi|_[a-z]{2}-[A-Z]{2}\.msi)')
@@ -187,7 +187,8 @@ def publish(repo, version, output, signature_verifier=verify_signature):
     manifest = assemble_manifest(version, repo, release['assets'], signatures,
         datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'))
     output.write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
-    gh('release', 'upload', tag, str(output), '--repo', repo, '--clobber')
+    if upload:
+        gh('release', 'upload', tag, str(output), '--repo', repo, '--clobber')
 
 
 def main():
@@ -195,8 +196,9 @@ def main():
     parser.add_argument('--repo', required=True)
     parser.add_argument('--version', required=True)
     parser.add_argument('--output', type=Path, default=Path('latest.json'))
+    parser.add_argument('--prepare-only', action='store_true')
     args = parser.parse_args()
-    publish(args.repo, args.version, args.output)
+    publish(args.repo, args.version, args.output, upload=not args.prepare_only)
 
 
 if __name__ == '__main__':
