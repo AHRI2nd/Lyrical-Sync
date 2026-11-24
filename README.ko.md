@@ -87,6 +87,19 @@ Lyrical Sync는 **Apple Silicon Mac만 지원**하며 Intel Mac은 지원하지 
 >
 > Windows Defender SmartScreen이 "알 수 없는 게시자" 경고를 표시하면 **추가 정보** → **실행**을 클릭하세요.
 
+### 릴리스 출처 확인
+
+공식 릴리스 설치 파일에는 GitHub 빌드 출처 증명이 포함됩니다. GitHub CLI를 설치하고 설치 파일을 내려받은 뒤, 릴리스 커밋과 워크플로를 지정해 확인할 수 있습니다.
+
+```bash
+gh attestation verify <다운로드한-파일> \
+  --repo AHRI2nd/Lyrical-Sync \
+  --signer-workflow AHRI2nd/Lyrical-Sync/.github/workflows/release.yml \
+  --source-digest <릴리스-커밋의-전체-SHA>
+```
+
+기대하는 커밋은 릴리스 태그에서 확인한 다음, GitHub에서 해당 커밋의 소스 코드를 검토하세요. 출처 증명은 파일과 저장소·커밋·워크플로의 연결을 보여주며, 그 자체로 소스 코드나 의존성의 안전성을 보증하지 않습니다.
+
 ---
 
 ## 단축키

@@ -87,6 +87,19 @@ Lyrical Sync は **Apple Silicon 搭載 Mac のみ対応**し、Intel Mac はサ
 >
 > Windows Defender SmartScreen が「不明な発行元」の警告を表示した場合は、**詳細情報** → **実行** をクリックします。
 
+### リリースのビルド元を確認する
+
+公式リリースのインストーラーには GitHub のビルド来歴証明が含まれます。GitHub CLI をインストールしてインストーラーをダウンロードし、リリースのコミットとワークフローを指定して確認できます。
+
+```bash
+gh attestation verify <ダウンロードしたファイル> \
+  --repo AHRI2nd/Lyrical-Sync \
+  --signer-workflow AHRI2nd/Lyrical-Sync/.github/workflows/release.yml \
+  --source-digest <リリースコミットの完全なSHA>
+```
+
+期待するコミットはリリースタグから確認し、GitHub でそのコミットのソースコードを確認してください。証明はファイルとリポジトリ・コミット・ワークフローの関連を示しますが、ソースコードや依存関係の安全性を保証するものではありません。
+
 ---
 
 ## ショートカット

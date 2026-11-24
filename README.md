@@ -82,6 +82,19 @@ Updates retain the installed app architecture, including an x64 app running on W
 >
 > If Windows Defender SmartScreen shows an "Unknown publisher" warning, click **More info** → **Run anyway**.
 
+### Verify release provenance
+
+Official release installers include GitHub build provenance. Install GitHub CLI, download an installer, and verify it against the release commit and workflow:
+
+```bash
+gh attestation verify <downloaded-file> \
+  --repo AHRI2nd/Lyrical-Sync \
+  --signer-workflow AHRI2nd/Lyrical-Sync/.github/workflows/release.yml \
+  --source-digest <full-release-commit-sha>
+```
+
+Get the expected commit from the release tag, then inspect that commit's source on GitHub. A valid attestation links the file to the repository, commit, and workflow; it does not by itself establish that the source or its dependencies are safe.
+
 ---
 
 ## Keyboard Shortcuts

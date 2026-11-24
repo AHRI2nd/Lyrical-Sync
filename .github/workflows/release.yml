@@ -57,6 +57,11 @@ jobs:
 
 
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -231,6 +236,23 @@ jobs:
         shell: bash
         run: python scripts/record_signed_candidate.py --target "${{ matrix.target }}"
 
+      - name: Select exact candidate files for provenance
+        id: provenance-subjects
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate="src-tauri/target/${{ matrix.target }}/release/bundle/candidate-record.json"
+          {
+            echo 'paths<<LYRICAL_SYNC_PATHS'
+            jq -r '.installers[].path | "src-tauri/target/${{ matrix.target }}/release/bundle/" + .' "$candidate"
+            echo 'LYRICAL_SYNC_PATHS'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Attest signed candidate files
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ${{ steps.provenance-subjects.outputs.paths }}
+
       # Upload verified build artifact
       - name: Upload verified build artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -250,6 +272,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      attestations: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -276,6 +299,18 @@ jobs:
           VERSION=$(python -c 'import json; print(json.load(open("src-tauri/tauri.conf.json"))["version"])')
           TAG="v${VERSION}"
           python scripts/verify_release_candidates.py --root release-artifacts --version "$VERSION" --source-sha "$SOURCE_SHA" --output "$RUNNER_TEMP/release-files.json"
+
+          # Verify provenance before any release tag or draft mutation.
+          mapfile -t candidate_files < <(python -c 'import json,sys; print("\n".join(json.load(open(sys.argv[1]))["files"]))' "$RUNNER_TEMP/release-files.json")
+          for candidate in "${candidate_files[@]}"; do
+            case "$candidate" in
+              *.sig) continue ;;
+            esac
+            gh attestation verify "$candidate" \
+              --repo "$RELEASE_REPO" \
+              --signer-workflow "$RELEASE_REPO/.github/workflows/release.yml" \
+              --source-digest "$SOURCE_SHA"
+          done
 
           draft_ids=$(gh api --paginate "repos/${RELEASE_REPO}/releases?per_page=100" --jq ".[] | select(.tag_name == \"$TAG\" and .draft == true) | .id")
           published_ids=$(gh api --paginate "repos/${RELEASE_REPO}/releases?per_page=100" --jq ".[] | select(.tag_name == \"$TAG\" and .draft == false) | .id")
@@ -343,6 +378,9 @@ jobs:
   updater-manifest:
     needs: publish-release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      attestations: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -360,3 +398,28 @@ jobs:
         run: |
           VERSION=$(python -c 'import json; print(json.load(open("src-tauri/tauri.conf.json"))["version"])')
           python scripts/assemble_updater.py --repo "$RELEASE_REPO" --version "$VERSION"
+
+      - name: Verify provenance of final release installers
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_REPO: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(python -c 'import json; print(json.load(open("src-tauri/tauri.conf.json"))["version"])')
+          TAG="v${VERSION}"
+          download_dir="$RUNNER_TEMP/final-release-assets"
+          mkdir -p "$download_dir"
+          gh release download "$TAG" --repo "$RELEASE_REPO" --dir "$download_dir"
+          mapfile -t installers < <(find "$download_dir" -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.msi' -o -name '*.app.tar.gz' \) | sort)
+          if [ "${#installers[@]}" -ne 5 ]; then
+            echo "::error::Expected five final installer/archive assets, found ${#installers[@]}"
+            exit 1
+          fi
+          for installer in "${installers[@]}"; do
+            gh attestation verify "$installer" \
+              --repo "$RELEASE_REPO" \
+              --signer-workflow "$RELEASE_REPO/.github/workflows/release.yml" \
+              --source-digest "$SOURCE_SHA"
+          done
