@@ -59,6 +59,13 @@ function getLaneViewRange(
   return { start: viewStart, end: viewStart + zoomSpan };
 }
 
+export function getSeekViewAnchor(target: number, start: number, end: number): number {
+  const center = (start + end) / 2;
+  const span = end - start;
+  if (!Number.isFinite(target) || !Number.isFinite(center) || !Number.isFinite(span) || span <= 0) return Number.isFinite(center) ? center : 0;
+  return target <= start + span * 0.05 || target >= end - span * 0.05 ? target : center;
+}
+
 export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void } = {}) {
   const doc = useLrcStore((s) => s.doc);
   const activeLineId = useLrcStore((s) => s.activeLineId);
@@ -183,7 +190,7 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
   };
   const seekWithAnchor = (seconds: number, controller = controls) => {
     discardLanePreview();
-    setViewAnchor(seconds);
+    if (!followPlayback) setViewAnchor(getSeekViewAnchor(seconds, visibleViewStart, visibleViewEnd));
     controller.seekTo(seconds);
   };
 
@@ -408,12 +415,14 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
     const changed = previousCurrentTimeRef.current !== currentTime;
     previousCurrentTimeRef.current = currentTime;
     if (!laneSeekPendingRef.current || !changed) return;
-    setViewAnchor(currentTime);
+    if (!followPlayback && lanePreview) {
+      setViewAnchor(getSeekViewAnchor(lanePreview.time, lanePreview.start, lanePreview.end));
+    }
     laneSeekPendingRef.current = false;
     if (lanePreviewTimerRef.current) clearTimeout(lanePreviewTimerRef.current);
     lanePreviewTimerRef.current = null;
     setLanePreview(null);
-  }, [currentTime]);
+  }, [currentTime, followPlayback, lanePreview]);
 
   useEffect(() => {
     const drag = laneDragRef.current;

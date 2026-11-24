@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { useI18nStore } from "../../stores/useI18nStore";
-import { CharSyncView } from "./CharSyncView";
+import { CharSyncView, getSeekViewAnchor } from "./CharSyncView";
 import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
 import { deviceControls } from "../../utils/deviceControls";
@@ -305,9 +305,9 @@ describe("CharSyncView seek lane", () => {
 
     act(() => useLrcStore.setState({ currentTime: 14 }));
     expect(followButton.getAttribute("aria-pressed")).toBe("false");
-    expect(Number(lane.dataset.start)).toBe(10);
+    expect(Number(lane.dataset.start)).toBe(8);
     act(() => useLrcStore.setState({ currentTime: 14.5 }));
-    expect(Number(lane.dataset.start)).toBe(10);
+    expect(Number(lane.dataset.start)).toBe(8);
 
     fireEvent.click(followButton);
     expect(followButton.getAttribute("aria-pressed")).toBe("true");
@@ -751,4 +751,24 @@ it("blocks glyph shortcuts behind the actual clear confirmation dialog", () => {
   expect(useLrcStore.getState().doc).toBe(before.doc);
   expect(useLrcStore.getState().activeSyllableIndex).toBe(before.activeSyllableIndex);
   expect(useLrcStore.getState()._history).toEqual(before._history);
+});
+
+
+it("keeps the view for middle seeks and recenters at either edge", () => {
+  expect(getSeekViewAnchor(14, 10, 20)).toBe(15);
+  expect(getSeekViewAnchor(10.5, 10, 20)).toBe(10.5);
+  expect(getSeekViewAnchor(19.5, 10, 20)).toBe(19.5);
+  expect(getSeekViewAnchor(30, 10, 20)).toBe(30);
+  expect(getSeekViewAnchor(NaN, 10, 20)).toBe(15);
+});
+
+it("recenters only after an edge seek is acknowledged", () => {
+  const { lane, getByRole } = setup();
+  fireEvent.click(getByRole("button", { name: /재생 위치 따라가기|Follow playback/ }));
+  fireEvent.pointerDown(lane, { pointerId: 9, button: 0, clientX: 100 });
+  expect(Number(lane.dataset.start)).toBe(8);
+  fireEvent.pointerUp(window, { pointerId: 9, button: 0, clientX: 100 });
+  expect(Number(lane.dataset.start)).toBe(8);
+  act(() => useLrcStore.setState({ currentTime: 16 }));
+  expect(Number(lane.dataset.start)).toBe(12);
 });
