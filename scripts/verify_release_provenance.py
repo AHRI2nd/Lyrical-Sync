@@ -10,6 +10,8 @@ from verify_release_candidates import sha256_file, verify
 
 
 def final_name(name):
+    if name.startswith('Lyrical Sync'):
+        name = 'Lyrical.Sync' + name[len('Lyrical Sync'):]
     return re.sub(r'_x64(?:_[a-z]{2}-[A-Z]{2})?\.msi$', '_x64_setup.msi', name)
 
 

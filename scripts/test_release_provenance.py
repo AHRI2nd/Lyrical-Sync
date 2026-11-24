@@ -8,6 +8,21 @@ import verify_release_provenance as provenance
 
 
 class ReleaseProvenanceTests(unittest.TestCase):
+    def test_candidate_names_match_tauri_release_asset_names(self):
+        files = {
+            'Lyrical Sync.app.tar.gz': ('Lyrical.Sync.app.tar.gz', b'app'),
+            'Lyrical Sync_0.7.2_aarch64.dmg': ('Lyrical.Sync_0.7.2_aarch64.dmg', b'dmg'),
+            'Lyrical Sync_0.7.2_arm64-setup.exe': ('Lyrical.Sync_0.7.2_arm64-setup.exe', b'arm'),
+            'Lyrical Sync_0.7.2_x64-setup.exe': ('Lyrical.Sync_0.7.2_x64-setup.exe', b'x64'),
+            'Lyrical Sync_0.7.2_x64_en-US.msi': ('Lyrical.Sync_0.7.2_x64_setup.msi', b'msi'),
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            expected = {name: hashlib.sha256(data).hexdigest() for name, (_, data) in files.items()}
+            for actual_name, data in files.values():
+                (root / actual_name).write_bytes(data)
+            provenance.check_downloads(root, expected)
+
     def test_normalized_asset_names_and_hashes_must_match_candidates(self):
         files = {'a.app.tar.gz': b'app', 'a.dmg': b'dmg', 'a_x64-setup.exe': b'x64',
                  'a_x64_en-US.msi': b'msi', 'a_arm64-setup.exe': b'arm'}
