@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn().mockRejectedValue(new Error("unavailable")) }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn().mockResolvedValue(() => {}) }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
-import { LrcEditor, resolveAlignmentLanguage } from "./LrcEditor";
+import { LrcEditor } from "./LrcEditor";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -26,12 +26,6 @@ beforeEach(() => {
     syncMode: "line", activeLineId: "a", isDirty: false, _history: [], _future: [], _lastEditKey: null });
 });
 afterEach(() => { cleanup(); delete (HTMLElement.prototype as unknown as { scrollIntoView?: unknown }).scrollIntoView; vi.restoreAllMocks(); vi.unstubAllGlobals(); });
-it("keeps AI alignment language independent from the UI language when explicitly selected", () => {
-  expect(resolveAlignmentLanguage("auto", "ko")).toBe("kor");
-  expect(resolveAlignmentLanguage("auto", "ja")).toBe("jpn");
-  expect(resolveAlignmentLanguage("eng", "ko")).toBe("eng");
-  expect(resolveAlignmentLanguage("kor", "en")).toBe("kor");
-});
 it("resets the time shift range and delta when the document is replaced", () => {
   const t = useI18nStore.getState().t;
   const { getByRole, getAllByRole } = render(<LrcEditor onPreview={() => {}} />);
@@ -123,10 +117,9 @@ it.each(["en", "ja"] as const)("localizes sidecar error progress before the comm
   act(() => useI18nStore.getState().setLang("ko"));
 });
 
-it("lets the user choose the AI language separately from the interface language", () => {
-  const { getByLabelText } = render(<LrcEditor onPreview={() => {}} />);
-  fireEvent.change(getByLabelText(useI18nStore.getState().t.aiLanguageLabel), { target: { value: "jpn" } });
-  expect(useSettingsStore.getState().aiAlignmentLanguage).toBe("jpn");
+it("does not show a manual AI language selector", () => {
+  const { queryByLabelText } = render(<LrcEditor onPreview={() => {}} />);
+  expect(queryByLabelText(useI18nStore.getState().t.aiLanguageLabel)).toBeNull();
 });
 it.each(["spotify", "device"] as const)("explains File and YouTube support while AI is disabled in %s mode", (mode) => {
   useSettingsStore.setState({ spotifyMode: mode === "spotify", deviceMode: mode === "device" });
@@ -1228,4 +1221,27 @@ it("keeps Tab navigation in document order across an unmounted virtual row", asy
     expect(nextRow).not.toBeNull();
     expect(document.activeElement?.closest("[data-line-index]")).toBe(nextRow);
   });
+});
+
+it("passes detected original lyric language to AI instead of a saved manual preference", async () => {
+  useSettingsStore.setState({ modelsDir: "", deviceMode: false, spotifyMode: false, aiAlignmentLanguage: "eng" });
+  useBusyStore.setState({ reasons: new Set() });
+  vi.mocked(invoke).mockImplementation((command: unknown) => {
+    if (command === "get_python_env_info") return Promise.resolve({ packagesReady: true });
+    if (command === "get_models_dir") return Promise.resolve("/models");
+    if (command === "check_model_files") return Promise.resolve([true]);
+    return Promise.resolve(undefined);
+  });
+  const originalRun = useLrcStore.getState().runAiSync;
+  const run = vi.fn().mockResolvedValue(undefined);
+  useLrcStore.setState({ runAiSync: run, audioPath: "/tmp/audio.wav", doc: { ...defaultDocument(), lines: [{ id: "a", text: "사랑해요 hello", translation: "English translation", timestamp: null }] } });
+  try {
+    const { getByRole } = render(<LrcEditor onPreview={() => {}} />);
+    const button = getByRole("button", { name: useI18nStore.getState().t.aiAutoSync });
+    await waitFor(() => expect(button.hasAttribute("disabled")).toBe(false));
+    fireEvent.click(button);
+    expect(run).toHaveBeenCalledWith("kor", expect.anything(), expect.anything(), expect.anything());
+  } finally {
+    useLrcStore.setState({ runAiSync: originalRun });
+  }
 });

@@ -5,11 +5,12 @@ import { listen } from "@tauri-apps/api/event";
 import { useLrcStore } from "../../stores/useLrcStore";
 import { useShallow } from "zustand/react/shallow";
 import { useI18nStore } from "../../stores/useI18nStore";
-import { useSettingsStore, type AlignmentLanguage } from "../../stores/useSettingsStore";
+import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useBusyStore } from "../../stores/useBusyStore";
 import { useModelDownloadStore } from "../../stores/useModelDownloadStore";
 import { useServiceStore } from "../../stores/useServiceStore";
 import { formatDisplayTime, parseTimestampInput, validateTimestamps, type SyncUnit } from "../../utils/lrcParser";
+import { detectAlignmentLanguage } from "../../utils/detectAlignmentLanguage";
 import { audioControls } from "../../utils/audioControls";
 import { serviceControls } from "../../utils/serviceControls";
 import { deviceControls } from "../../utils/deviceControls";
@@ -36,17 +37,9 @@ import { useVirtualLineWindow } from "./useVirtualLineWindow";
 const CharSyncView = lazy(() => import("./CharSyncView").then((m) => ({ default: m.CharSyncView })));
 const BpmSnapModal = lazy(() => import("../AudioPlayer/BpmSnapModal").then((m) => ({ default: m.BpmSnapModal })));
 
-// ISO 639-3 codes used by ctc-forced-aligner / MMS model
-const LANG_CODE: Record<string, AlignmentLanguage> = { ko: "kor", en: "eng", ja: "jpn" };
 const REQUIRED_MODEL_ID = MODEL_DEFS.find((model) => model.required)!.id;
 
 type FindMatch = { id: string; start: number; end: number };
-
-export function resolveAlignmentLanguage(language: AlignmentLanguage, uiLanguage: string): Exclude<AlignmentLanguage, "auto"> {
-  if (language !== "auto") return language;
-  const uiCode = LANG_CODE[uiLanguage];
-  return uiCode === "kor" || uiCode === "jpn" ? uiCode : "eng";
-}
 
 function sameSyllables(left: LrcSyllable[] | undefined, right: LrcSyllable[] | undefined): boolean {
   if (left === right) return true;
@@ -89,8 +82,8 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
       loopLineId: s.loopLineId, setLoopLine: s.setLoopLine,
     }))
   );
-  const { t, lang } = useI18nStore();
-  const { blankLineOffset, aiAlignmentLanguage, setAiAlignmentLanguage, modelsDir, spotifyMode, deviceMode, lyricsFontScale, useVocalSeparation, useVad, showSpellCheck, showTranslationLines } = useSettingsStore();
+  const { t } = useI18nStore();
+  const { blankLineOffset, modelsDir, spotifyMode, deviceMode, lyricsFontScale, useVocalSeparation, useVad, showSpellCheck, showTranslationLines } = useSettingsStore();
   const serviceLoggedIn = useServiceStore((s) => s.isLoggedIn);
   const requiredModelStatus = useModelDownloadStore((state) => state.models[REQUIRED_MODEL_ID]?.status);
   const pythonEnvironmentBusy = useBusyStore((state) => [...state.reasons].some((reason) => reason === "python-download" || reason === "python-packages"));
@@ -915,7 +908,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   }, [shiftTimeRange]);
 
   const runAiSyncNow = () => {
-    const language = resolveAlignmentLanguage(aiAlignmentLanguage, lang);
+    const language = detectAlignmentLanguage(useLrcStore.getState().doc.lines.map((line) => line.text).join("\n"));
     runAiSync(language, blankLineOffset, useVocalSeparation, useVad);
   };
   const handleAiSync = () => {
@@ -986,18 +979,6 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
           {!charMode && (<>
           {/* AI Auto Sync */}
-          <select
-            aria-label={t.aiLanguageLabel}
-            value={aiAlignmentLanguage}
-            onChange={(event) => setAiAlignmentLanguage(event.target.value as AlignmentLanguage)}
-            disabled={isRunning}
-            className="ls-button text-xs"
-          >
-            <option value="auto">{t.aiLanguageAuto}</option>
-            <option value="eng">{t.aiLanguageEnglish}</option>
-            <option value="kor">{t.aiLanguageKorean}</option>
-            <option value="jpn">{t.aiLanguageJapanese}</option>
-          </select>
           <div className="relative group">
             <div className="flex items-center gap-1">
               <button
