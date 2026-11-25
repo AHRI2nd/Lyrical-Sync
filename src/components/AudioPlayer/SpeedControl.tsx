@@ -21,7 +21,7 @@ export function SpeedControl({ t, playbackRate, speedMin, speedMax, onSpeedDown,
       event.preventDefault(); event.stopPropagation(); setOpen(false); trigger.current?.focus();
     }
   }}>
-    <button ref={trigger} type="button" className="ls-button ls-button--secondary tabular-nums" aria-label={`${t.playerSpeed}: ${playbackRate.toFixed(2)}×`} aria-expanded={open} aria-controls={id} onClick={() => setOpen(value => !value)}>{playbackRate.toFixed(2)}×</button>
+    <button ref={trigger} type="button" className="ls-button ls-button--secondary tabular-nums" aria-label={`${t.playerSpeed}: ${playbackRate.toFixed(2)}×`} aria-expanded={open} aria-controls={id} onClick={() => setOpen(value => !value)}>{playbackRate.toFixed(2)}× <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></button>
     {open && <div id={id} role="group" aria-label={t.playerSpeed} className="absolute right-0 top-full mt-1 z-40 flex items-center gap-2 rounded-md border border-[var(--ls-border-subtle)] bg-[var(--ls-control)] p-2 shadow-xl">
       <button type="button" className="ls-button ls-button--icon" aria-label={t.tooltipSpeedDown} disabled={playbackRate <= speedMin} onClick={onSpeedDown}>−</button>
       <span className="tabular-nums text-sm">{playbackRate.toFixed(2)}×</span>

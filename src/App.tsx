@@ -1091,14 +1091,14 @@ function App() {
       )}
 
       <div className="flex flex-1 min-h-0 gap-0">
-        <div className="ls-sidebar flex flex-col gap-3 p-3 w-80 shrink-0 overflow-y-auto border-r border-[var(--ls-border-subtle)]">
+        <div className="ls-sidebar flex flex-col gap-0 p-0 ls-sidebar-width shrink-0 overflow-y-auto border-r border-[var(--ls-border-subtle)]">
           <AudioPlayer
             onSpotifySearch={() => setShowSpotifySearch(true)}
             onSpotifyNoClientId={() => { setSettingsInitialTab("spotify"); setShowSettings(true); }}
           />
           <MetaEditor />
         </div>
-        <div className="flex flex-col flex-1 p-3 min-h-0 min-w-0">
+        <div className="flex flex-col flex-1 min-h-0 min-w-0">
           <LrcEditor onPreview={() => setShowPreview(true)} onOpenShortcuts={() => { setSettingsInitialTab("shortcuts"); setShowSettings(true); }} />
         </div>
       </div>

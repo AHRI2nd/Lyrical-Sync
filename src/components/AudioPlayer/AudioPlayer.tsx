@@ -103,6 +103,8 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       progressColor: "#d3c4fa",
       cursorColor: "#e8bb72",
       height: 80,
+      barWidth: 2,
+      barGap: 2,
       normalize: true,
       interact: true,
     });
@@ -571,7 +573,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           when switching back from Spotify mode. Hide with display:none instead. */}
       <div
         ref={containerRef}
-        className="w-full rounded-lg overflow-hidden bg-[var(--ls-control)] cursor-pointer"
+        className="w-full overflow-hidden bg-transparent cursor-pointer"
         style={{ minHeight: 80, display: (isServiceMode || deviceMode || viewMode === "bar") ? "none" : "" }}
       />
       <div
@@ -669,8 +671,9 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       ) : (
         <button
           onClick={openAudio}
-          className="ls-button ls-button--secondary w-full text-sm transition-colors text-center truncate"
+          className="ls-button ls-button--secondary w-full text-sm transition-colors text-center truncate gap-2"
         >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M3 6h7l2 2h9v11H3z" strokeLinejoin="round" /></svg>
           {t.openAudio}
         </button>
       )}

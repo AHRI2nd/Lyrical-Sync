@@ -23,7 +23,11 @@
   .ls-settings-option > p { grid-column: 1; grid-row: 2; }
   .ls-settings-option > div:not(:first-child) { grid-column: 1 / -1; grid-row: 3; }
   .ls-sidebar { min-width: 0; scrollbar-gutter: stable; }
+  .ls-sidebar-width { width: clamp(18rem, 27.55vw, 27rem); }
   .ls-transport .ls-button--play { flex-shrink: 0; }
+  .ls-transport .ls-button:not(.ls-button--play) { background: var(--ls-control); border-color: var(--ls-border-subtle); }
+  .ls-transport .ls-button--play { background: var(--ls-control); border-color: var(--ls-border-subtle); color: var(--ls-text); }
+  .ls-transport .ls-button--play:disabled { opacity: .55; }
 
   .ls-button {
     display: inline-flex;
