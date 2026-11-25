@@ -98,7 +98,7 @@ export function LrcLineRowImpl({
           : isCurrentMatch
           ? "bg-[var(--ls-selection)]/30 ring-1 ring-[var(--ls-playhead)]"
           : isActive
-          ? "bg-[var(--ls-selection)]/40 border-l-2 border-[var(--ls-accent)]"
+          ? "bg-[var(--ls-selection)]/40 shadow-[inset_2px_0_0_var(--ls-accent)]"
           : isMatch
           ? "bg-[var(--ls-selection)]/10 ring-1 ring-[var(--ls-playhead)]"
           : dragIdx === null ? "hover:bg-[var(--ls-control)]" : ""
