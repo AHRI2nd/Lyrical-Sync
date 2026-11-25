@@ -60,13 +60,13 @@ export function KeybindingsSection({ focusCharacterSync = false }: { focusCharac
     ? t.charSync.stampHint
     : action === "prevLine" ? t.charSync.previousSelection : t.keys[action];
   const editableRow = (action: KeyAction) => (
-    <div key={action} className="flex items-center justify-between gap-3 px-2 py-1 rounded-lg hover:bg-[var(--ls-control)]/40">
+    <div key={action} className="flex items-center justify-between gap-3 px-2 py-1 border-b border-[var(--ls-border-subtle)] hover:bg-[var(--ls-control)]/40">
       <span className="text-sm text-[var(--ls-text-secondary)]">{actionLabel(action)}</span>
       <button
         aria-label={`${actionLabel(action)} ${capturing === action ? "…" : keyLabel(kb[action])}`}
         onClick={() => { setCapturing(action); setError(""); }}
         className={`ls-button ${`min-w-[64px] px-2.5 py-1 text-xs rounded-md font-mono transition-colors ${
-          capturing === action ? "bg-[var(--ls-primary)] text-white" : "bg-[var(--ls-control)] text-[var(--ls-text)] hover:bg-[var(--ls-control)]"
+          capturing === action ? "bg-[var(--ls-primary)] text-white" : "bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] text-[var(--ls-text)] hover:bg-[var(--ls-control)]"
         }`}`}
       >
         {capturing === action ? "…" : keyLabel(kb[action])}

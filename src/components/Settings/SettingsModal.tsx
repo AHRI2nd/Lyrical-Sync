@@ -66,7 +66,7 @@ export function SettingsModal({
       onClick={onClose}
     >
       <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
-        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-lg shadow-2xl w-full max-w-lg mx-4 overflow-hidden flex flex-col max-h-[calc(100%-2rem)]"
+        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-lg shadow-2xl w-full max-w-3xl mx-4 overflow-hidden flex flex-col max-h-[calc(100%-2rem)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -104,7 +104,7 @@ export function SettingsModal({
         </SettingsTabBar>
 
         {/* Scrollable content */}
-        <div className="overflow-y-auto flex-1">
+        <div className="overflow-y-auto flex-1 min-h-0">
           {tab === "general" && (
             <GeneralSettingsTab checkState={checkState} onCheckNow={handleCheckNow} />
           )}
@@ -151,7 +151,7 @@ export function SettingsModal({
           {tab === "youtube" && (
             <>
               <div className="px-5 pt-4">
-                <GuideBanner color="red" url={youtubeGuideUrl} label={t.settingsViewGuide} />
+                <GuideBanner color="indigo" url={youtubeGuideUrl} label={t.settingsViewGuide} />
               </div>
               <YtdlpSection />
             </>

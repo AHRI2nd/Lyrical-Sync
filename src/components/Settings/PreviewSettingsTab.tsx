@@ -17,7 +17,7 @@ export function PreviewSettingsTab() {
   return (
     <div className="p-5 flex flex-col gap-5">
       <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <label htmlFor="preview-font-scale" className="text-sm font-medium text-[var(--ls-text)]">{t.previewFontScaleLabel}</label>
           <div className="flex items-center gap-2">
             <span className="text-sm tabular-nums text-[var(--ls-text-secondary)] w-10 text-right">{Math.round(previewFontScale * 100)}%</span>

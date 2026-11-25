@@ -15,6 +15,7 @@
 }
 
 @layer components {
+  .ls-settings-tabs .ls-settings-tab[aria-pressed="true"] { background: transparent; border-bottom-color: var(--ls-accent); }
   .ls-sidebar { min-width: 0; scrollbar-gutter: stable; }
   .ls-transport .ls-button--play { flex-shrink: 0; }
 
