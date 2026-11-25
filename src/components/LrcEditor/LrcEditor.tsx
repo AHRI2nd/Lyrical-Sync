@@ -982,6 +982,8 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
           <div className="relative group">
             <div className="flex items-center gap-1">
               <button
+                aria-label={isRunning ? t.aiSyncRunning : t.aiAutoSync}
+                title={t.aiAutoSync}
                 onClick={isRunning ? undefined : handleAiSync}
                 disabled={isRunning || !canRunAi || !audioPath || aiSyncModeUnsupported}
                 className={`ls-button ${[
@@ -993,8 +995,9 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
                     : "bg-[var(--ls-control)] text-[var(--ls-text-secondary)] cursor-not-allowed",
                 ].join(" ")}`}
               >
-                {isRunning ? t.aiSyncRunning : t.aiAutoSync}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M3 10v4M7 6v12M11 3v18M15 8v8M19 5v14M23 10v4" /></svg>
               </button>
+              <button type="button" aria-label={`${t.aiAutoSync}: ${t.aiAutoSyncDescription}`} className="ls-button ls-button--compact">ⓘ</button>
               {modelInventoryError && (
                 <button
                   type="button"
@@ -1007,9 +1010,10 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
                 </button>
               )}
             </div>
-            {!isRunning && (aiSyncModeUnsupported || !canRunAi || !audioPath) && (
-              <div className="absolute top-full right-0 mt-1.5 hidden group-hover:block z-20 w-60 bg-[var(--ls-control)] border border-[var(--ls-border-control)] text-xs text-[var(--ls-text-secondary)] rounded-lg px-3 py-2 shadow-xl pointer-events-none">
-                {aiSyncModeUnsupported ? (
+            <div role="tooltip" className="absolute top-full right-0 mt-1.5 hidden group-hover:block group-focus-within:block z-20 w-60 max-w-[calc(100vw-2rem)] bg-[var(--ls-control)] border border-[var(--ls-border-control)] text-xs text-[var(--ls-text-secondary)] rounded-lg px-3 py-2 shadow-xl pointer-events-none">
+                <strong className="text-[var(--ls-text)]">{t.aiAutoSync}</strong>
+                <p>{t.aiAutoSyncDescription}</p>
+                {!isRunning && (aiSyncModeUnsupported || !canRunAi || !audioPath) && (aiSyncModeUnsupported ? (
                   t.aiSyncModeUnsupported
                 ) : !canRunAi ? (
                   modelInventoryError ? (
@@ -1023,9 +1027,8 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
                   </>
                 ) : (
                   t.aiSyncNoAudio
-                )}
-              </div>
-            )}
+                ))}
+            </div>
           </div>
 
           {/* Cancel (only while running) */}

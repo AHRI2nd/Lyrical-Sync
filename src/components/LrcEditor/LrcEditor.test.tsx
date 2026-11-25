@@ -1245,3 +1245,13 @@ it("passes detected original lyric language to AI instead of a saved manual pref
     useLrcStore.setState({ runAiSync: originalRun });
   }
 });
+
+it("keeps AI sync description keyboard-accessible while alignment is unavailable", () => {
+  useLrcStore.setState({ audioPath: null, syncMode: "line" });
+  const t = useI18nStore.getState().t;
+  const { getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  expect(getByRole("button", { name: t.aiAutoSync }).hasAttribute("disabled")).toBe(true);
+  const info = getByRole("button", { name: `${t.aiAutoSync}: ${t.aiAutoSyncDescription}` });
+  info.focus();
+  expect(document.activeElement).toBe(info);
+});

@@ -502,6 +502,7 @@ export interface Translations {
   aiLanguageKorean: string;
   aiLanguageJapanese: string;
   aiAutoSync: string;
+  aiAutoSyncDescription: string;
   aiSyncRunning: string;
   aiSyncCancel: string;
   aiSyncClear: string;
@@ -1199,6 +1200,7 @@ const ko: Translations = {
   modelInstalledVariants: "설치됨",
   modelNoneInstalled: "없음",
   aiAutoSync: "AI 자동 싱크",
+  aiAutoSyncDescription: "가사 줄을 오디오에 맞춰 자동 정렬합니다. 가사 문자로 언어를 추정하므로 혼합 언어에서는 결과가 달라질 수 있습니다.",
   aiSyncRunning: "분석 중...",
   aiSyncCancel: "취소",
   aiSyncClear: "초안 지우기",
@@ -1891,6 +1893,7 @@ const en: Translations = {
   modelInstalledVariants: "Installed",
   modelNoneInstalled: "None",
   aiAutoSync: "AI Auto Sync",
+  aiAutoSyncDescription: "Aligns lyric lines with audio. Language is inferred from the lyrics and mixed-language results may vary.",
   aiLanguageLabel: "Alignment language",
   aiLanguageAuto: "Use UI language",
   aiLanguageEnglish: "English",
@@ -2587,6 +2590,7 @@ const ja: Translations = {
   modelInstalledVariants: "インストール済み",
   modelNoneInstalled: "なし",
   aiAutoSync: "AI自動シンク",
+  aiAutoSyncDescription: "歌詞の行を音声に合わせて自動整列します。文字から言語を推定するため、複数言語では結果が異なる場合があります。",
   aiLanguageLabel: "アライメント言語",
   aiLanguageAuto: "UI言語を使う",
   aiLanguageEnglish: "英語",
