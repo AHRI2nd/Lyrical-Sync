@@ -65,7 +65,7 @@ input[type="range"].range-slim::-webkit-slider-thumb {
   margin-top: -4px;
   border-radius: 50%;
   background: #ffffff;
-  border: 2px solid var(--slim-accent, #6366f1);
+  border: 2px solid var(--slim-accent, #b8a8e8);
   transition: transform 0.1s ease;
 }
 input[type="range"].range-slim:hover::-webkit-slider-thumb {
@@ -79,7 +79,7 @@ input[type="range"].range-slim::-moz-range-track {
 input[type="range"].range-slim::-moz-range-thumb {
   width: 13px;
   height: 13px;
-  border: 2px solid var(--slim-accent, #6366f1);
+  border: 2px solid var(--slim-accent, #b8a8e8);
   border-radius: 50%;
   background: #ffffff;
   cursor: pointer;

@@ -92,10 +92,10 @@ const WaveformTile = memo(function WaveformTile({ envelope, style, left, width }
 }) {
   const geometry = useMemo(() => {
     if (style === "bars") return Array.from(envelope.min, (lo, i) => <rect key={i} x={i + .1} width={.8}
-      y={50 - envelope.max[i] * 36} height={Math.max(1, (envelope.max[i] - lo) * 36)} fill="#a1a1aa" />);
+      y={50 - envelope.max[i] * 36} height={Math.max(1, (envelope.max[i] - lo) * 36)} fill="#b8a8e8" />);
     const top = Array.from(envelope.max, (v, i) => `${i + .5},${50 - v * 36}`).join(" L ");
     const bottom = Array.from(envelope.min, (v, i) => `${i + .5},${50 - v * 36}`).reverse().join(" L ");
-    return <path d={`M ${top} L ${bottom} Z`} fill="#a1a1aa" />;
+    return <path d={`M ${top} L ${bottom} Z`} fill="#b8a8e8" />;
   }, [envelope, style]);
   return <svg className="absolute inset-y-0 h-full pointer-events-none" style={{ left: `${left}%`, width: `${width}%` }}
     viewBox={`0 0 ${envelope.min.length} 100`} preserveAspectRatio="none" aria-hidden>{geometry}</svg>;

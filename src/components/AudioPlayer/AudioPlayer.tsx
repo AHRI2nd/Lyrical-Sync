@@ -99,9 +99,9 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     let disposed = false;
     const ws = WaveSurfer.create({
       container: containerRef.current,
-      waveColor: "#6366f1",
-      progressColor: "#a5b4fc",
-      cursorColor: "#f43f5e",
+      waveColor: "#b8a8e8",
+      progressColor: "#d3c4fa",
+      cursorColor: "#e8bb72",
       height: 80,
       normalize: true,
       interact: true,
@@ -687,7 +687,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           aria-label={t.volume}
           onChange={(e) => setVolume(parseFloat(Number(e.target.value).toFixed(2)))}
           className="ls-range range-slim min-w-0 flex-1"
-          style={{ backgroundImage: `linear-gradient(to right, #6366f1 ${Math.round(volume * 100)}%, #3f3f46 ${Math.round(volume * 100)}%)` }}
+          style={{ backgroundImage: `linear-gradient(to right, #b8a8e8 ${Math.round(volume * 100)}%, #3f3f46 ${Math.round(volume * 100)}%)` }}
         />
         <span className="shrink-0 w-9 text-right text-xs text-[var(--ls-text-secondary)] tabular-nums">{Math.round(volume * 100)}%</span>
       </div>
@@ -709,7 +709,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
                 }, 80);
               }}
               className="ls-range range-slim min-w-0 flex-1"
-              style={{ backgroundImage: `linear-gradient(to right, #6366f1 ${zoomLevel}%, #3f3f46 ${zoomLevel}%)` }}
+              style={{ backgroundImage: `linear-gradient(to right, #b8a8e8 ${zoomLevel}%, #3f3f46 ${zoomLevel}%)` }}
             />
           </>
         ) : (
