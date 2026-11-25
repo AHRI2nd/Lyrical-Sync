@@ -630,7 +630,6 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         onToggleMarkers={() => setShowMarkers((v) => !v)}
         showSpectrogram={showSpectrogram}
         onToggleSpectrogram={() => setShowSpectrogram(!showSpectrogram)}
-        playbackRate={playbackRate}
       />
 
       {/* Open and speed controls share a row without changing the transport center. */}
@@ -676,7 +675,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         </button>
       )}
 
-      <SpeedControl t={t} playbackRate={playbackRate} speedMin={SPEED_STEPS[0]} speedMax={SPEED_STEPS[SPEED_STEPS.length - 1]} onSpeedDown={() => adjustSpeed(-1)} onSpeedUp={() => adjustSpeed(1)} />
+      {!spotifyMode && <SpeedControl t={t} playbackRate={playbackRate} speedMin={SPEED_STEPS[0]} speedMax={SPEED_STEPS[SPEED_STEPS.length - 1]} onSpeedDown={() => adjustSpeed(-1)} onSpeedUp={() => adjustSpeed(1)} />}
       </div>
 
       {/* 볼륨 (스피커 아이콘 + 슬림 슬라이더) */}

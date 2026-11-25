@@ -22,7 +22,6 @@ function renderControls() {
       onToggleMarkers={() => {}}
       showSpectrogram={false}
       onToggleSpectrogram={() => {}}
-      playbackRate={1}
     />,
   );
   return t;

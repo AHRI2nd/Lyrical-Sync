@@ -12,7 +12,6 @@ import {
 export function TransportControls({
   t, audioPath, isPlaying, togglePlay, skip, stopAndReset,
   isLooping, onToggleLoop, showMarkers, onToggleMarkers, showSpectrogram, onToggleSpectrogram,
-  playbackRate,
 }: {
   t: Translations;
   audioPath: string | null;
@@ -26,7 +25,6 @@ export function TransportControls({
   onToggleMarkers: () => void;
   showSpectrogram: boolean;
   onToggleSpectrogram: () => void;
-  playbackRate: number;
 }) {
   const [showMore, setShowMore] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
@@ -81,7 +79,7 @@ export function TransportControls({
         title={t.playerMore}
         ariaExpanded={showMore}
         ariaControls={moreId}
-        active={showMore || isLooping || playbackRate !== 1.0 || showSpectrogram}
+        active={showMore || isLooping || showSpectrogram}
       >
         <MoreIcon />
       </CtrlBtn>

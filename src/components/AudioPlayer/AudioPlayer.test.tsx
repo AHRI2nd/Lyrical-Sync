@@ -532,3 +532,14 @@ it("exposes waveform and seek bar selection states", async () => {
   expect(getByRole("button", { name: t.tooltipViewSeekBar }).getAttribute("aria-pressed")).toBe("true");
   expect(getByRole("button", { name: t.tooltipViewWaveform }).getAttribute("aria-pressed")).toBe("false");
 });
+
+
+it("does not offer local playback speed while Spotify mode is selected", () => {
+  cleanup();
+  useSettingsStore.setState({ spotifyMode: true, deviceMode: false });
+  useServiceStore.setState({ isLoggedIn: false });
+  const t = useI18nStore.getState().t;
+  const view = render(<AudioPlayer />);
+  expect(view.queryByRole("button", { name: new RegExp(t.playerSpeed) })).toBeNull();
+  cleanup();
+});
