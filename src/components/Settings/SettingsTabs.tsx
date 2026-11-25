@@ -20,7 +20,7 @@ export function TabBtn({
       className={`ls-button ${[
         "ls-settings-tab shrink-0 whitespace-nowrap rounded-none px-3 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px focus-visible:outline-offset-[-2px]",
         active
-          ? "text-[var(--ls-accent)] border-[var(--ls-accent)]"
+          ? "text-[var(--ls-accent)] border-transparent border-b-[var(--ls-accent)]"
           : "text-[var(--ls-text-secondary)] border-transparent hover:text-[var(--ls-text)]",
       ].join(" ")}`}
     >

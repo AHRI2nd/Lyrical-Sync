@@ -32,7 +32,7 @@ export function GeneralSettingsTab({
   return (
     <div className="p-5 flex flex-col gap-3">
       {/* Auto update */}
-      <div className="flex flex-col gap-2">
+      <div className="ls-settings-option">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-[var(--ls-text)]">{t.settingsAutoUpdate}</span>
           <button
@@ -75,7 +75,7 @@ export function GeneralSettingsTab({
       <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* Auto save */}
-      <div className="flex flex-col gap-2">
+      <div className="ls-settings-option">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-[var(--ls-text)]">{t.settingsAutoSave}</span>
           <button
@@ -102,7 +102,7 @@ export function GeneralSettingsTab({
       <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* Enhanced LRC 저장 알림 */}
-      <div className="flex flex-col gap-2">
+      <div className="ls-settings-option">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-[var(--ls-text)]">{t.settingsElrcNotice}</span>
           <button
@@ -133,7 +133,7 @@ export function GeneralSettingsTab({
         <input type="number" min={1} max={1000} step={1} value={timestampNudgeMs} onChange={(event) => setTimestampNudgeMs(event.currentTarget.valueAsNumber)} className="ls-field w-24 text-right" />
       </label>
       {/* Blank line offset */}
-      <div className="flex flex-col gap-2">
+      <div className="ls-settings-option">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-[var(--ls-text)]">{t.aiSyncBlankOffset}</span>
           <span className="text-sm tabular-nums text-[var(--ls-text-secondary)] w-12 text-right">
@@ -226,7 +226,7 @@ export function GeneralSettingsTab({
       <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* Glyph time markers */}
-      <div className="flex flex-col gap-2">
+      <div className="ls-settings-option">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-[var(--ls-text)]">{t.settingsGlyphMarkers}</span>
           <button
@@ -253,7 +253,7 @@ export function GeneralSettingsTab({
       <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* Spell check */}
-      <div className="flex flex-col gap-2">
+      <div className="ls-settings-option">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-[var(--ls-text)]">{t.settingsSpellCheck}</span>
           <button
@@ -280,7 +280,7 @@ export function GeneralSettingsTab({
       <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* Translation lines */}
-      <div className="flex flex-col gap-2">
+      <div className="ls-settings-option">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-[var(--ls-text)]">{t.translationToggle}</span>
           <button
