@@ -89,7 +89,16 @@ Lyrical Sync는 **Apple Silicon Mac만 지원**하며 Intel Mac은 지원하지 
 
 ### 릴리스 출처 확인
 
-공식 릴리스 설치 파일에는 GitHub 빌드 출처 증명이 포함됩니다. GitHub CLI를 설치하고 설치 파일을 내려받은 뒤, 릴리스 커밋과 워크플로를 지정해 확인할 수 있습니다.
+**Immutable**로 표시된 릴리스는 GitHub CLI로 릴리스와 다운로드한 설치 파일을 확인할 수 있습니다. 태그와 파일 경로는 해당 릴리스에 맞게 바꾸세요.
+
+```bash
+gh release verify <release-tag> --repo AHRI2nd/Lyrical-Sync
+gh release verify-asset <release-tag> <다운로드한-파일> --repo AHRI2nd/Lyrical-Sync
+```
+
+이 검증은 파일이 발행된 릴리스와 일치하는지 확인합니다. 이전 릴리스에는 릴리스 증명이 없을 수 있습니다.
+
+GitHub 빌드 출처 증명이 제공되는 릴리스는 GitHub CLI를 설치하고 설치 파일을 내려받은 뒤, 릴리스 커밋과 워크플로를 지정해 확인할 수 있습니다.
 
 ```bash
 gh attestation verify <다운로드한-파일> \

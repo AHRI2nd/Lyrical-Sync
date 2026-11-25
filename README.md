@@ -84,7 +84,16 @@ Updates retain the installed app architecture, including an x64 app running on W
 
 ### Verify release provenance
 
-Official release installers include GitHub build provenance. Install GitHub CLI, download an installer, and verify it against the release commit and workflow:
+For releases marked **Immutable**, verify the release and a downloaded installer with GitHub CLI (replace the tag and file path):
+
+```bash
+gh release verify <release-tag> --repo AHRI2nd/Lyrical-Sync
+gh release verify-asset <release-tag> <downloaded-file> --repo AHRI2nd/Lyrical-Sync
+```
+
+Release verification confirms that the file matches the published release. Older releases may not have a release attestation.
+
+For releases with GitHub build provenance, install GitHub CLI, download an installer, and verify it against the release commit and workflow:
 
 ```bash
 gh attestation verify <downloaded-file> \

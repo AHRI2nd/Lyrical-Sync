@@ -89,7 +89,16 @@ Lyrical Sync は **Apple Silicon 搭載 Mac のみ対応**し、Intel Mac はサ
 
 ### リリースのビルド元を確認する
 
-公式リリースのインストーラーには GitHub のビルド来歴証明が含まれます。GitHub CLI をインストールしてインストーラーをダウンロードし、リリースのコミットとワークフローを指定して確認できます。
+**Immutable** と表示されたリリースは、GitHub CLI でリリースとダウンロードしたインストーラーを検証できます。タグとファイルパスは対象に合わせて変更してください。
+
+```bash
+gh release verify <release-tag> --repo AHRI2nd/Lyrical-Sync
+gh release verify-asset <release-tag> <ダウンロードしたファイル> --repo AHRI2nd/Lyrical-Sync
+```
+
+この検証は、ファイルが公開済みリリースと一致することを確認します。古いリリースにはリリース証明がない場合があります。
+
+GitHub のビルド来歴証明があるリリースは、GitHub CLI をインストールしてインストーラーをダウンロードし、リリースのコミットとワークフローを指定して確認できます。
 
 ```bash
 gh attestation verify <ダウンロードしたファイル> \
