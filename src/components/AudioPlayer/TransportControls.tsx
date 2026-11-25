@@ -12,7 +12,7 @@ import {
 export function TransportControls({
   t, audioPath, isPlaying, togglePlay, skip, stopAndReset,
   isLooping, onToggleLoop, showMarkers, onToggleMarkers, showSpectrogram, onToggleSpectrogram,
-  playbackRate, speedMin, speedMax, onSpeedDown, onSpeedUp,
+  playbackRate,
 }: {
   t: Translations;
   audioPath: string | null;
@@ -27,10 +27,6 @@ export function TransportControls({
   showSpectrogram: boolean;
   onToggleSpectrogram: () => void;
   playbackRate: number;
-  speedMin: number;
-  speedMax: number;
-  onSpeedDown: () => void;
-  onSpeedUp: () => void;
 }) {
   const [showMore, setShowMore] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
@@ -63,19 +59,19 @@ export function TransportControls({
 
       <div className="flex-1 flex items-center justify-center gap-0.5">
         <CtrlBtn onClick={() => skip(-5)} title={t.tooltipSkipBack5}>
-          <SkipBackIcon /><span className="text-[10px] font-bold ml-0.5">5</span>
+          <SkipBackIcon />
         </CtrlBtn>
         <CtrlBtn onClick={() => skip(-1)} title={t.tooltipSkipBack1}>
-          <TriLeftIcon /><span className="text-[10px] font-bold ml-0.5">1</span>
+          <TriLeftIcon />
         </CtrlBtn>
         <CtrlBtn onClick={togglePlay} disabled={!audioPath} title={t.tooltipPlayPause} accent>
           {isPlaying ? <PauseIcon /> : <PlayIcon />}
         </CtrlBtn>
         <CtrlBtn onClick={() => skip(1)} title={t.tooltipSkipFwd1}>
-          <span className="text-[10px] font-bold mr-0.5">1</span><TriRightIcon />
+          <TriRightIcon />
         </CtrlBtn>
         <CtrlBtn onClick={() => skip(5)} title={t.tooltipSkipFwd5}>
-          <span className="text-[10px] font-bold mr-0.5">5</span><SkipFwdIcon />
+          <SkipFwdIcon />
         </CtrlBtn>
       </div>
 
@@ -96,8 +92,6 @@ export function TransportControls({
           isLooping={isLooping} onToggleLoop={onToggleLoop}
           showMarkers={showMarkers} onToggleMarkers={onToggleMarkers}
           showSpectrogram={showSpectrogram} onToggleSpectrogram={onToggleSpectrogram}
-          playbackRate={playbackRate} speedMin={speedMin} speedMax={speedMax}
-          onSpeedDown={onSpeedDown} onSpeedUp={onSpeedUp}
         />
       )}
     </div>

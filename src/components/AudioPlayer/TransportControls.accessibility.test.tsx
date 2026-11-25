@@ -23,10 +23,6 @@ function renderControls() {
       showSpectrogram={false}
       onToggleSpectrogram={() => {}}
       playbackRate={1}
-      speedMin={0.5}
-      speedMax={2}
-      onSpeedDown={() => {}}
-      onSpeedUp={() => {}}
     />,
   );
   return t;

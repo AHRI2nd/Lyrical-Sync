@@ -22,6 +22,7 @@ import { SeekBar } from "./SeekBar";
 import { NoTrackAlert } from "./NoTrackAlert";
 import { useYouTubeLoad } from "./useYouTubeLoad";
 import { TransportControls } from "./TransportControls";
+import { SpeedControl } from "./SpeedControl";
 // YouTube 모드일 때만 필요 → 지연 로드(초기 번들 절감)
 const YouTubeModal = lazy(() => import("./YouTubeModal").then((m) => ({ default: m.YouTubeModal })));
 import { VolumeIcon, ZoomIcon, FileGlyph, YouTubeGlyph, YouTubeLinkIcon } from "./icons";
@@ -630,13 +631,10 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         showSpectrogram={showSpectrogram}
         onToggleSpectrogram={() => setShowSpectrogram(!showSpectrogram)}
         playbackRate={playbackRate}
-        speedMin={SPEED_STEPS[0]}
-        speedMax={SPEED_STEPS[SPEED_STEPS.length - 1]}
-        onSpeedDown={() => adjustSpeed(-1)}
-        onSpeedUp={() => adjustSpeed(1)}
       />
 
-      {/* 열기 버튼 */}
+      {/* Open and speed controls share a row without changing the transport center. */}
+      <div className="flex items-center gap-2 min-w-0">
       {spotifyMode ? (
         !isLoggedIn ? (
           <button
@@ -677,6 +675,9 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           {t.openAudio}
         </button>
       )}
+
+      <SpeedControl t={t} playbackRate={playbackRate} speedMin={SPEED_STEPS[0]} speedMax={SPEED_STEPS[SPEED_STEPS.length - 1]} onSpeedDown={() => adjustSpeed(-1)} onSpeedUp={() => adjustSpeed(1)} />
+      </div>
 
       {/* 볼륨 (스피커 아이콘 + 슬림 슬라이더) */}
       <div className="flex items-center gap-2.5 text-[var(--ls-text-secondary)]" title={`${t.volume} ${Math.round(volume * 100)}%`}>
