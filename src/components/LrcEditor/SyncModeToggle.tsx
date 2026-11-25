@@ -15,11 +15,11 @@ export function SyncModeToggle({
 }) {
   return (
     <>
-      <div className="inline-flex bg-[var(--ls-control)] rounded-lg p-0.5">
+      <div className="inline-flex border-b border-[var(--ls-border-subtle)]">
         <button
           onClick={(e) => { onSetSyncMode("line"); if (e.detail !== 0) e.currentTarget.blur(); }}
           aria-pressed={!charMode}
-          className={`ls-button ls-button--compact ${`  text-xs rounded-md transition-colors ${!charMode ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
+          className={`ls-button ls-button--compact ${`  text-xs rounded-none border-b-2 transition-colors ${!charMode ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
         >
           {t.charSync.modeLine}
         </button>
@@ -28,7 +28,7 @@ export function SyncModeToggle({
           aria-pressed={charMode}
           disabled={isRunning}
           title={isRunning ? runningTitle : undefined}
-          className={`ls-button ls-button--compact ${`  text-xs rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${charMode ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
+          className={`ls-button ls-button--compact ${`  text-xs rounded-none border-b-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${charMode ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)]"}`}`}
         >
           {t.charSync.modeChar}
         </button>
