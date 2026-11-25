@@ -165,7 +165,7 @@ export function SettingsModal({
 function GuideBanner({ color, url, label }: { color: "indigo" | "green" | "red"; url: string; label: string }) {
   const colorMap = {
     indigo: "bg-[var(--ls-primary)]/60 border-[var(--ls-accent)]/50 text-[var(--ls-accent)] hover:text-[var(--ls-accent)]",
-    green:  "bg-green-950/60 border-green-800/50 text-green-400 hover:text-green-300",
+    green:  "bg-[var(--ls-selection)] border-[var(--ls-border-subtle)] text-[var(--ls-accent)] hover:text-[var(--ls-accent)]",
     red:    "bg-red-950/60 border-red-800/50 text-red-400 hover:text-red-300",
   };
   return (

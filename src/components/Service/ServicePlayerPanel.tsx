@@ -19,14 +19,13 @@ interface ServicePlayerPanelProps {
   onLoadCurrent?: () => void;
 }
 
-// Spotify 브랜드 색(green)으로 고정한 CtrlBtn — 공용 컴포넌트에 매 호출부마다
-// 색상 클래스를 반복해서 넘기지 않도록 하는 래퍼.
+// Reuse the application palette for the service transport controls.
 function SpotifyCtrlBtn(props: Omit<React.ComponentProps<typeof CtrlBtn>, "accentClass" | "activeClass">) {
   return (
     <CtrlBtn
       {...props}
-      accentClass="w-9 h-9 rounded-full bg-green-600 hover:bg-green-500 active:bg-green-700 text-white"
-      activeClass="h-9 px-2 rounded-lg bg-green-500/15 text-green-400 hover:bg-green-500/25"
+      accentClass="w-9 h-9 rounded-full bg-[var(--ls-primary)] hover:bg-[var(--ls-control)] active:bg-[var(--ls-primary)] text-white"
+      activeClass="h-9 px-2 rounded-lg bg-[var(--ls-selection)] text-[var(--ls-accent)] hover:bg-[var(--ls-control)]"
     />
   );
 }
@@ -113,7 +112,7 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
       {/* Track info — 클릭 시 Spotify에서 열기(출처표시) */}
       <TrackInfoHeader
         icon={<SpotifyGlyph />}
-        iconBgClass="bg-green-500/15 text-green-400"
+        iconBgClass="bg-[var(--ls-selection)] text-[var(--ls-accent)]"
         imageUrl={albumArtUrl || undefined}
         title={trackName}
         subtitle={artistName + (albumName ? ` · ${albumName}` : "")}
@@ -128,7 +127,7 @@ export function ServicePlayerPanel({ onSpotifySearch, onLoadCurrent }: ServicePl
         duration={durationSec}
         seekContextKey={`${trackUri ?? ""}:${deviceId ?? ""}`}
         onSeek={(s) => serviceControls.seekTo(s)}
-        accentClass="bg-green-500"
+        accentClass="bg-[var(--ls-accent)]"
       />
 
       {/* 재생 컨트롤 한 줄: 정지(좌) · 전송(중앙) · 반복(우) */}

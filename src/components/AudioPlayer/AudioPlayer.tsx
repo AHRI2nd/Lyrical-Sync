@@ -639,7 +639,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         !isLoggedIn ? (
           <button
             onClick={handleSpotifyLogin}
-            className="ls-button w-full bg-green-700 hover:bg-green-600 text-white text-sm transition-colors text-center truncate"
+            className="ls-button w-full bg-[var(--ls-primary)] hover:bg-[var(--ls-primary)] text-white text-sm transition-colors text-center truncate"
           >
             {t.spotifyConnect}
           </button>

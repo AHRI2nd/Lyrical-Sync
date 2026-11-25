@@ -81,7 +81,7 @@ export function SpotifySection({
           disabled={!isLoggedIn}
           className={`ls-button ls-switch--spotify ${[
             "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
-            spotifyMode && isLoggedIn ? "bg-green-600" : "bg-[var(--ls-control)]",
+            spotifyMode && isLoggedIn ? "bg-[var(--ls-primary)]" : "bg-[var(--ls-control)]",
             !isLoggedIn ? "opacity-40 cursor-not-allowed" : "",
           ].join(" ")}`}
           role="switch"
@@ -130,7 +130,7 @@ export function SpotifySection({
             <button
               onClick={handleConnect}
               disabled={connecting || !clientId || !draftMatchesSavedId}
-              className="ls-button self-start text-sm bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium transition-colors"
+              className="ls-button self-start text-sm bg-[var(--ls-primary)] hover:bg-[var(--ls-control)] disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium transition-colors"
             >
               {connecting ? t.spotifyConnecting : t.spotifyConnect}
             </button>

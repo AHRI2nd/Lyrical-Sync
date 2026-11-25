@@ -160,7 +160,7 @@
     transition: background-color 120ms;
   }
   .ls-button[role="switch"][aria-checked="true"]:not(:disabled)::before { background-color: var(--ls-switch-active); }
-  .ls-button[role="switch"].ls-switch--spotify { --ls-switch-active: var(--color-green-600); }
+  .ls-button[role="switch"].ls-switch--spotify { --ls-switch-active: var(--ls-primary); }
   .ls-button[role="switch"].ls-switch--youtube { --ls-switch-active: var(--color-red-600); }
   @media (prefers-reduced-motion: reduce) {
     .ls-button[role="switch"]::before { transition: none; }

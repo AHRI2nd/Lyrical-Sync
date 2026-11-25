@@ -81,9 +81,9 @@ export function ModeSelectButton() {
     ? "bg-red-700 hover:bg-red-600 text-white"
     : spotifyMode
     ? isLoggedIn && isReady
-      ? "bg-green-700 hover:bg-green-600 text-white"
+      ? "bg-[var(--ls-primary)] hover:bg-[var(--ls-primary)] text-white"
       : isLoggedIn
-      ? "bg-green-900/50 hover:bg-green-800/60 text-green-300 border border-green-800"
+      ? "bg-[var(--ls-selection)] hover:bg-[var(--ls-control)] text-[var(--ls-accent)] border border-[var(--ls-border-control)]"
       : "bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text)]"
     : "bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text)]";
 

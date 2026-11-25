@@ -107,11 +107,11 @@ export function DevicePickerModal({ onClose }: { onClose: () => void }) {
                   disabled={d.is_active || busyId !== null}
                   className={`ls-button ${`flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors disabled:cursor-default ${
                     d.is_active
-                      ? "bg-green-500/15 border border-green-500/40"
+                      ? "bg-[var(--ls-selection)] border border-[var(--ls-accent)]"
                       : "border border-transparent hover:bg-[var(--ls-control)]"
                   }`}`}
                 >
-                  <span className={d.is_active ? "text-green-400" : "text-[var(--ls-text-secondary)]"}>
+                  <span className={d.is_active ? "text-[var(--ls-accent)]" : "text-[var(--ls-text-secondary)]"}>
                     <DeviceIcon type={d.type} />
                   </span>
                   <div className="flex-1 min-w-0">
@@ -123,7 +123,7 @@ export function DevicePickerModal({ onClose }: { onClose: () => void }) {
                   {busyId === d.id ? (
                     <span className="text-xs text-[var(--ls-text-secondary)] shrink-0">…</span>
                   ) : d.is_active ? (
-                    <span className="text-xs text-green-400 shrink-0">{t.devicePicker.active}</span>
+                    <span className="text-xs text-[var(--ls-accent)] shrink-0">{t.devicePicker.active}</span>
                   ) : null}
                 </button>
               ))}

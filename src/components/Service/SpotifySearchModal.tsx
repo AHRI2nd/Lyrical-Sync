@@ -466,7 +466,7 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
       onClick={onClick}
       className={`ls-button ${[
         "px-5 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px",
-        active ? "text-green-400 border-green-500" : "text-[var(--ls-text-secondary)] border-transparent hover:text-[var(--ls-text)]",
+        active ? "text-[var(--ls-accent)] border-[var(--ls-accent)]" : "text-[var(--ls-text-secondary)] border-transparent hover:text-[var(--ls-text)]",
       ].join(" ")}`}
     >
       {children}
