@@ -151,7 +151,7 @@ export function LrcLineRowImpl({
         ) : (
           // 좌클릭 → 시간 직접 편집 / 우클릭 → 현재 재생 시간으로 설정
           <div className="flex min-w-0 items-center gap-0.5">
-            <button type="button" disabled={line.timestamp === null || line.timestamp <= 0} aria-label={`${idx + 1}: ${t.timestampEarlier} ${nudgeMs} ms`} title={`−${nudgeMs} ms`} onClick={(e) => { e.stopPropagation(); onNudgeTimestamp(-nudgeMs / 1000); }} className="ls-button ls-button--compact ls-button--secondary px-1" onContextMenu={(e) => e.stopPropagation()}>−</button>
+            <button type="button" disabled={line.timestamp === null || line.timestamp <= 0} aria-label={`${idx + 1}: ${t.timestampEarlier} ${nudgeMs} ms`} title={`−${nudgeMs} ms`} onClick={(e) => { e.stopPropagation(); onNudgeTimestamp(-nudgeMs / 1000); }} className="ls-button ls-button--compact ls-button--secondary ls-nudge" onContextMenu={(e) => e.stopPropagation()}>−</button>
             <button
               onClick={(e) => { e.stopPropagation(); onStartTsEdit(); }}
               onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onStampCurrentLine(); }}
@@ -160,7 +160,7 @@ export function LrcLineRowImpl({
             >
               {line.timestamp !== null ? formatDisplayTime(line.timestamp) : "-:--:--.---"}
             </button>
-            <button type="button" disabled={line.timestamp === null} aria-label={`${idx + 1}: ${t.timestampLater} ${nudgeMs} ms`} title={`+${nudgeMs} ms`} onClick={(e) => { e.stopPropagation(); onNudgeTimestamp(nudgeMs / 1000); }} className="ls-button ls-button--compact ls-button--secondary px-1" onContextMenu={(e) => e.stopPropagation()}>+</button>
+            <button type="button" disabled={line.timestamp === null} aria-label={`${idx + 1}: ${t.timestampLater} ${nudgeMs} ms`} title={`+${nudgeMs} ms`} onClick={(e) => { e.stopPropagation(); onNudgeTimestamp(nudgeMs / 1000); }} className="ls-button ls-button--compact ls-button--secondary ls-nudge" onContextMenu={(e) => e.stopPropagation()}>+</button>
           </div>
         )}
       </div>
@@ -288,7 +288,7 @@ export function LrcLineRowImpl({
         title={t.deleteLine}
         aria-label={t.deleteLine}
       >
-        ✕
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5" /></svg>
       </button>
       </div>
     </div>

@@ -956,10 +956,10 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
 
   return (
-    <div ref={editorRef} className="ls-panel flex flex-col gap-2 p-4 border border-transparent flex-1 min-h-0 min-w-0">
-      <div className="flex flex-wrap gap-2 items-center justify-between">
+    <div ref={editorRef} className="ls-panel flex flex-col gap-2 px-5 py-4 border border-transparent flex-1 min-h-0 min-w-0">
+      <div className="flex flex-wrap gap-2 items-center justify-between pb-3 border-b border-[var(--ls-border-subtle)]">
         <div className="flex items-center gap-2 shrink-0">
-          <h2 className="text-sm font-semibold text-[var(--ls-text-secondary)]">{t.lyricsEditor}</h2>
+          <h2 className="text-lg font-semibold text-[var(--ls-text)]">{t.lyricsEditor}</h2>
           {!charMode && stats.total > 0 && (
             <button
               onClick={() => setShowValidation(true)}
