@@ -70,7 +70,7 @@ export function MetaEditor() {
             onClick={() => setShowPublish(true)}
             title={t.lrclibPublish.button}
             aria-label={t.lrclibPublish.button}
-            className="ls-button hover:text-[var(--ls-accent)] transition-colors"
+            className="ls-button ls-button--secondary hover:text-[var(--ls-accent)] transition-colors"
           >
             <UploadIcon />
           </button>
@@ -83,7 +83,7 @@ export function MetaEditor() {
             })}
             title={t.viewAll}
             aria-label={t.viewAll}
-            className="ls-button hover:text-white transition-colors"
+            className="ls-button ls-button--secondary hover:text-white transition-colors"
           >
             <CodeIcon />
           </button>
@@ -98,7 +98,7 @@ export function MetaEditor() {
       </div>
 
       <div className="relative">
-        <button type="button" aria-expanded={showSaveOptions} onClick={() => setShowSaveOptions((value) => !value)} className="ls-button text-xs">{t.metaSaveOptions}</button>
+        <button type="button" aria-expanded={showSaveOptions} onClick={() => setShowSaveOptions((value) => !value)} className="ls-button ls-button--secondary w-full text-xs">{t.metaSaveOptions}</button>
         {showSaveOptions && <fieldset className="mt-2 grid grid-cols-2 gap-2 text-xs">
           <legend className="sr-only">{t.metaSaveOptionsLegend}</legend>
           {([ ["title", t.metaTitle.label], ["artist", t.metaArtist.label], ["album", t.metaAlbum.label], ["by", t.metaBy.label] ] as const).map(([field, label]) => (

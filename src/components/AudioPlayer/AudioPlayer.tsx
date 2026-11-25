@@ -669,7 +669,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       ) : (
         <button
           onClick={openAudio}
-          className="ls-button w-full text-sm transition-colors text-center truncate"
+          className="ls-button ls-button--secondary w-full text-sm transition-colors text-center truncate"
         >
           {t.openAudio}
         </button>
@@ -691,10 +691,9 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         <span className="shrink-0 w-9 text-right text-xs text-[var(--ls-text-secondary)] tabular-nums">{Math.round(volume * 100)}%</span>
       </div>
 
-      {/* 줌 + 뷰 토글 */}
+      {/* Zoom and display mode are separate rows to keep both controls readable. */}
+      {viewMode === "waveform" && (
       <div className="flex items-center gap-2.5 text-[var(--ls-text-secondary)]">
-        {viewMode === "waveform" ? (
-          <>
             <span className="shrink-0"><ZoomIcon /></span>
             <input
               type="range" min={0} max={100} value={zoomLevel}
@@ -710,15 +709,13 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
               className="ls-range range-slim min-w-0 flex-1"
               style={{ backgroundImage: `linear-gradient(to right, #b8a8e8 ${zoomLevel}%, #3f3f46 ${zoomLevel}%)` }}
             />
-          </>
-        ) : (
-          <div className="flex-1" />
-        )}
-        <div className="flex shrink-0 bg-[var(--ls-control)] rounded-lg p-0.5">
+      </div>
+      )}
+      <div className="flex w-full overflow-hidden rounded-md border border-[var(--ls-border-subtle)]">
           <button
             onClick={() => setViewMode("waveform")}
             aria-pressed={viewMode === "waveform"}
-            className={`ls-button ls-button--compact ${`  rounded-md text-xs font-medium transition-colors ${
+            className={`ls-button ls-button--compact flex-1 rounded-none border-b-2 text-xs font-medium transition-colors ${` ${
               viewMode === "waveform" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)]"
             }`}`}
           >
@@ -727,13 +724,12 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           <button
             onClick={() => setViewMode("bar")}
             aria-pressed={viewMode === "bar"}
-            className={`ls-button ls-button--compact ${`  rounded-md text-xs font-medium transition-colors ${
+            className={`ls-button ls-button--compact flex-1 rounded-none border-b-2 text-xs font-medium transition-colors ${` ${
               viewMode === "bar" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)]"
             }`}`}
           >
             {t.tooltipViewSeekBar}
           </button>
-        </div>
       </div>
 
       </>
