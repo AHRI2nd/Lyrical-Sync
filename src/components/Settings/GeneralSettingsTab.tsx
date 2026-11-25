@@ -133,7 +133,7 @@ export function GeneralSettingsTab({
         <input type="number" min={1} max={1000} step={1} value={timestampNudgeMs} onChange={(event) => setTimestampNudgeMs(event.currentTarget.valueAsNumber)} className="ls-field w-24 text-right" />
       </label>
       {/* Blank line offset */}
-      <div className="ls-settings-option">
+      <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-[var(--ls-text)]">{t.aiSyncBlankOffset}</span>
           <span className="text-sm tabular-nums text-[var(--ls-text-secondary)] w-12 text-right">
