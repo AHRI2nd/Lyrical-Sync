@@ -635,7 +635,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       />
 
       {/* Open and speed controls share a row without changing the transport center. */}
-      <div className="flex items-center gap-2 min-w-0">
+      <div className="flex items-center justify-between gap-2 min-w-0">
       {spotifyMode ? (
         !isLoggedIn ? (
           <button
@@ -671,7 +671,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       ) : (
         <button
           onClick={openAudio}
-          className="ls-button ls-button--secondary w-full text-sm transition-colors text-center truncate gap-2"
+          className="ls-button ls-button--secondary max-w-[65%] text-sm transition-colors text-center truncate gap-2"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M3 6h7l2 2h9v11H3z" strokeLinejoin="round" /></svg>
           {t.openAudio}
@@ -722,6 +722,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
               viewMode === "waveform" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)]"
             }`}`}
           >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M3 10v4M7 7v10M11 4v16M15 7v10M19 10v4" /></svg>
             {t.tooltipViewWaveform}
           </button>
           <button
@@ -731,6 +732,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
               viewMode === "bar" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)]"
             }`}`}
           >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 4 13 8-13 8z" /></svg>
             {t.tooltipViewSeekBar}
           </button>
       </div>

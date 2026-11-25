@@ -64,7 +64,7 @@ export function MetaEditor() {
             title={t.lrclib.button}
             className="ls-button flex items-center gap-1.5 text-xs bg-[var(--ls-control)] text-[var(--ls-accent)] transition-colors"
           >
-            <DownloadIcon /> LRCLIB
+            LRCLIB
           </button>
           <button
             onClick={() => setShowPublish(true)}
@@ -98,7 +98,7 @@ export function MetaEditor() {
       </div>
 
       <div className="relative">
-        <button type="button" aria-expanded={showSaveOptions} onClick={() => setShowSaveOptions((value) => !value)} className="ls-button ls-button--secondary w-full text-xs">{t.metaSaveOptions}</button>
+        <button type="button" aria-expanded={showSaveOptions} onClick={() => setShowSaveOptions((value) => !value)} className="ls-button ls-button--secondary w-full text-xs"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true"><path d="M4 3h14l3 3v15H3V3zM7 3v6h10V3M7 21v-8h10v8" /></svg>{t.metaSaveOptions}</button>
         {showSaveOptions && <fieldset className="mt-2 grid grid-cols-2 gap-2 text-xs">
           <legend className="sr-only">{t.metaSaveOptionsLegend}</legend>
           {([ ["title", t.metaTitle.label], ["artist", t.metaArtist.label], ["album", t.metaAlbum.label], ["by", t.metaBy.label] ] as const).map(([field, label]) => (
@@ -198,14 +198,6 @@ function Field({
         className="ls-field w-full text-white text-sm transition-colors"
       />
     </div>
-  );
-}
-
-function DownloadIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3v12M8 11l4 4 4-4M5 20h14" />
-    </svg>
   );
 }
 
