@@ -56,13 +56,13 @@ export function MetaEditor() {
 
   return (
     <div className="ls-panel flex flex-col gap-3 p-4 border border-transparent">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-[var(--ls-text-secondary)]">{t.songInfo}</h2>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={() => setShowLrcLib(true)}
             title={t.lrclib.button}
-            className="ls-button flex items-center gap-1.5 text-xs bg-[var(--ls-selection)]/15 hover:bg-[var(--ls-selection)]/25 text-[var(--ls-accent)] transition-colors"
+            className="ls-button flex items-center gap-1.5 text-xs bg-[var(--ls-control)] text-[var(--ls-accent)] transition-colors"
           >
             <DownloadIcon /> LRCLIB
           </button>
