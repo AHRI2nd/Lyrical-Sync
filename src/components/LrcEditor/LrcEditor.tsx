@@ -958,8 +958,13 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
   return (
     <div ref={editorRef} className="ls-panel flex flex-col gap-2 px-5 py-4 border border-transparent flex-1 min-h-0 min-w-0">
       <div className="flex flex-wrap gap-2 items-center justify-between pb-3 border-b border-[var(--ls-border-subtle)]">
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-x-5 gap-y-2 flex-wrap min-w-0">
           <h2 className="text-lg font-semibold text-[var(--ls-text)]">{t.lyricsEditor}</h2>
+          <SyncModeToggle
+            t={t} charMode={charMode} onSetSyncMode={setSyncMode}
+            syncUnit={syncUnit} onUnitChange={handleUnitChange} isRunning={isRunning} runningTitle={t.aiSyncRunning}
+          />
+
           {!charMode && stats.total > 0 && (
             <button
               onClick={() => setShowValidation(true)}
@@ -973,10 +978,6 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
         </div>
         <div className="flex gap-2 items-center flex-wrap justify-end">
 
-          <SyncModeToggle
-            t={t} charMode={charMode} onSetSyncMode={setSyncMode}
-            syncUnit={syncUnit} onUnitChange={handleUnitChange} isRunning={isRunning} runningTitle={t.aiSyncRunning}
-          />
 
           {!charMode && (<>
           {/* AI Auto Sync */}
