@@ -212,7 +212,7 @@ export function YtdlpSection() {
           <div className="flex items-center gap-2">
             <div className="flex-1 h-1.5 bg-[var(--ls-control)] rounded-full overflow-hidden">
               <div
-                className="h-full bg-red-500 rounded-full transition-all"
+                className="h-full bg-[var(--ls-accent)] rounded-full transition-all"
                 style={{ width: `${dlPercent}%` }}
               />
             </div>
@@ -234,7 +234,7 @@ export function YtdlpSection() {
           !isInstalled ? (
             <button
               onClick={handleDownload}
-              className="ls-button self-start text-xs bg-red-600 hover:bg-red-500 text-white transition-colors"
+              className="ls-button ls-button--primary self-start text-xs transition-colors"
             >
               {t.ytdlpDownload}
             </button>
@@ -264,7 +264,7 @@ export function YtdlpSection() {
           disabled={!isInstalled}
           className={`ls-button ls-switch--youtube ${[
             "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
-            youtubeMode && isInstalled ? "bg-red-600" : "bg-[var(--ls-control)]",
+            youtubeMode && isInstalled ? "bg-[var(--ls-primary)]" : "bg-[var(--ls-control)]",
             !isInstalled ? "opacity-40 cursor-not-allowed" : "",
           ].join(" ")}`}
           role="switch"
@@ -285,7 +285,7 @@ export function YtdlpSection() {
       {/* 오디오 품질 */}
       <fieldset className="flex flex-col gap-2">
         <legend className="text-sm font-medium text-[var(--ls-text)]">{t.ytdlpAudioQuality}</legend>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-wrap gap-x-5 gap-y-2">
           {(["best", "192", "128"] as const).map((q) => (
             <label key={q} className="flex items-center gap-2.5 cursor-pointer group">
               <input
@@ -297,7 +297,7 @@ export function YtdlpSection() {
                 className="sr-only peer"
               />
               <span aria-hidden="true" className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center transition-colors peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--ls-accent)] ${
-                ytdlpAudioQuality === q ? "border-red-500 bg-red-500" : "border-[var(--ls-border-control)] group-hover:border-[var(--ls-border-control)]"
+                ytdlpAudioQuality === q ? "border-[var(--ls-accent)] bg-[var(--ls-accent)]" : "border-[var(--ls-border-control)] group-hover:border-[var(--ls-border-control)]"
               }`}>
                 {ytdlpAudioQuality === q && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
               </span>
