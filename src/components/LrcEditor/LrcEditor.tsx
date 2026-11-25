@@ -949,6 +949,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
     warning: t.aiSyncWarning,
   };
 
+  const aiUnavailableReason = isRunning ? t.aiSyncRunning : aiSyncModeUnsupported ? t.aiSyncModeUnsupported : !canRunAi ? (modelInventoryError ? t.aiSyncModelInventoryError : t.aiSyncNoModel) : !audioPath ? t.aiSyncNoAudio : "";
   const displayMessage = aiSyncStatus === "error" || aiSyncProgressStatus === "error"
     ? localizeAiSyncError(aiSyncMessage, t)
     : (PROGRESS_STATUS_MAP[aiSyncProgressStatus] ?? aiSyncMessage);
@@ -981,6 +982,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
           {/* AI Auto Sync */}
           <div className="relative group">
             <div className="flex items-center gap-1">
+              <span role="group" tabIndex={isRunning || !canRunAi || !audioPath || aiSyncModeUnsupported ? 0 : -1} aria-label={`${t.aiAutoSync}: ${t.aiAutoSyncDescription}${aiUnavailableReason ? ` ${aiUnavailableReason}` : ""}`}>
               <button
                 aria-label={isRunning ? t.aiSyncRunning : t.aiAutoSync}
                 title={t.aiAutoSync}
@@ -997,7 +999,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M3 10v4M7 6v12M11 3v18M15 8v8M19 5v14M23 10v4" /></svg>
               </button>
-              <button type="button" aria-label={`${t.aiAutoSync}: ${t.aiAutoSyncDescription}`} className="ls-button ls-button--compact">ⓘ</button>
+              </span>
               {modelInventoryError && (
                 <button
                   type="button"

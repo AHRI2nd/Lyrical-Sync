@@ -1251,7 +1251,7 @@ it("keeps AI sync description keyboard-accessible while alignment is unavailable
   const t = useI18nStore.getState().t;
   const { getByRole } = render(<LrcEditor onPreview={() => {}} />);
   expect(getByRole("button", { name: t.aiAutoSync }).hasAttribute("disabled")).toBe(true);
-  const info = getByRole("button", { name: `${t.aiAutoSync}: ${t.aiAutoSyncDescription}` });
+  const info = getByRole("group", { name: new RegExp(t.aiAutoSyncDescription) });
   info.focus();
   expect(document.activeElement).toBe(info);
 });
