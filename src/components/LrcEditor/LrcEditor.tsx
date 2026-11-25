@@ -1061,16 +1061,20 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
           </>)}
           <button
             onClick={onPreview}
-            className="ls-button text-xs hover:text-white transition-colors"
+            aria-label={t.previewBtn}
+            title={t.previewBtn}
+            className="ls-button ls-button--icon"
           >
-            {t.previewBtn}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>
           </button>
           {!charMode && (
           <button
             onClick={handleAddLine}
-            className="ls-button text-xs bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] text-white transition-colors ls-button--primary"
+            aria-label={t.addLine}
+            title={t.addLine}
+            className="ls-button ls-button--icon ls-button--secondary"
           >
-            {t.addLine}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M12 4v16M4 12h16" /></svg>
           </button>
           )}
         </div>

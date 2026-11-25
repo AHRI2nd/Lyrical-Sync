@@ -98,7 +98,7 @@ export function LrcLineRowImpl({
           : isCurrentMatch
           ? "bg-[var(--ls-selection)]/30 ring-1 ring-[var(--ls-playhead)]"
           : isActive
-          ? "bg-[var(--ls-primary)]/40 ring-1 ring-[var(--ls-accent)]"
+          ? "bg-[var(--ls-selection)]/40 border-l-2 border-[var(--ls-accent)]"
           : isMatch
           ? "bg-[var(--ls-selection)]/10 ring-1 ring-[var(--ls-playhead)]"
           : dragIdx === null ? "hover:bg-[var(--ls-control)]" : ""
@@ -108,7 +108,7 @@ export function LrcLineRowImpl({
         <div
           data-testid="line-insertion-marker"
           data-placement={showInsertionBefore ? "before" : "after"}
-          className={`pointer-events-none absolute z-10 left-2 right-2 h-0.5 rounded-full bg-[var(--ls-accent)] shadow-[0_0_6px_rgba(129,140,248,0.8)] ${showInsertionBefore ? "-top-1" : "-bottom-1"}`}
+          className={`pointer-events-none absolute z-10 left-2 right-2 h-0.5 rounded-full bg-[var(--ls-accent)]  ${showInsertionBefore ? "-top-1" : "-bottom-1"}`}
         />
       )}
       <span
@@ -117,7 +117,7 @@ export function LrcLineRowImpl({
         onPointerDown={onReorderPointerDown}
         onClick={(e) => e.stopPropagation()}
         title={t.reorderLine}
-        className="ls-line-drag w-4 h-7 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing select-none touch-none text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)] opacity-0 group-hover/row:opacity-100 transition-opacity"
+        className="ls-line-drag w-4 h-7 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing select-none touch-none text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)] opacity-50 group-hover/row:opacity-100 group-focus-within/row:opacity-100 transition-opacity"
       >
         <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true">
           <circle cx="2.5" cy="2" r="1.2" /><circle cx="7.5" cy="2" r="1.2" />

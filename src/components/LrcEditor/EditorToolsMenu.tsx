@@ -46,9 +46,12 @@ export function EditorToolsMenu({
       <button
         ref={triggerRef}
         onClick={() => setShowTools((v) => !v)}
+        aria-label={t.editorTools}
+        aria-expanded={showTools}
+        title={t.editorTools}
         className={`ls-button ${`px-3 py-1 text-xs rounded-lg transition-colors ${showTools || showFR || showTS || showScale ? "bg-[var(--ls-control)] text-white" : "text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-white"}`}`}
       >
-        {t.editorTools}
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16M8 5v4M16 10v4M10 15v4" /></svg>
       </button>
       {showTools && (
         <div className="absolute right-0 top-full mt-1.5 z-40 w-44 bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl p-1.5 flex flex-col gap-0.5">
