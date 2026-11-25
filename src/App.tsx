@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, lazy, Suspense } from "react";
+import appIcon from "../src-tauri/icons/32x32.png";
 import { AudioPlayer } from "./components/AudioPlayer/AudioPlayer";
 import { MetaEditor } from "./components/MetaEditor/MetaEditor";
 import { LrcEditor } from "./components/LrcEditor/LrcEditor";
@@ -809,7 +810,7 @@ function App() {
       }}
     >
       <header className="flex items-center gap-2 px-4 py-2 bg-[var(--ls-surface)] border-b border-[var(--ls-border-subtle)] shrink-0">
-        <span className="font-semibold text-[var(--ls-accent)] mr-2 shrink-0">Lyrical Sync</span>
+        <span className="flex items-center gap-2 font-semibold text-[var(--ls-text)] mr-2 shrink-0"><img src={appIcon} alt="" aria-hidden="true" className="w-6 h-6 rounded-md" style={{ filter: "saturate(0.55) hue-rotate(12deg)" }} />Lyrical Sync</span>
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <span className="text-[var(--ls-text-secondary)] text-sm truncate">
             {title}
