@@ -1091,43 +1091,44 @@ function App() {
       )}
 
       <div className="flex flex-1 min-h-0 gap-0">
-        <div className="ls-sidebar flex flex-col gap-0 p-0 ls-sidebar-width shrink-0 overflow-y-auto border-r border-[var(--ls-border-subtle)]">
-          <AudioPlayer
-            onSpotifySearch={() => setShowSpotifySearch(true)}
-            onSpotifyNoClientId={() => { setSettingsInitialTab("spotify"); setShowSettings(true); }}
-          />
-          <MetaEditor />
+        <div className="ls-sidebar-width shrink-0 min-h-0 flex flex-col border-r border-[var(--ls-border-subtle)]">
+          <div className="ls-sidebar flex flex-col min-h-0 flex-1 overflow-y-auto">
+            <AudioPlayer
+              onSpotifySearch={() => setShowSpotifySearch(true)}
+              onSpotifyNoClientId={() => { setSettingsInitialTab("spotify"); setShowSettings(true); }}
+            />
+            <MetaEditor />
+          </div>
+          <div className="flex gap-2 px-4 py-3 shrink-0 border-t border-[var(--ls-border-subtle)]">
+            <button
+              onClick={() => { setSettingsInitialTab("general"); setShowSettings(true); }}
+              title={t.settingsTitle}
+              aria-label={t.settingsTitle}
+              className="ls-button ls-button--icon w-8 h-8 rounded-full bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:text-white transition-colors flex items-center justify-center shadow-lg"
+            >
+              <GearIcon />
+            </button>
+            <button
+              onClick={() => setShowBatchTool(true)}
+              title={t.batchTitle}
+              aria-label={t.batchTitle}
+              className="ls-button ls-button--icon w-8 h-8 rounded-full bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:text-white transition-colors flex items-center justify-center shadow-lg"
+            >
+              <BatchIcon />
+            </button>
+            <button
+              onClick={() => setShowHelp(true)}
+              title={t.shortcutsTitle}
+              aria-label={t.shortcutsTitle}
+              className="ls-button ls-button--icon w-8 h-8 rounded-full bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:text-white text-sm font-bold transition-colors flex items-center justify-center shadow-lg"
+            >
+              ?
+            </button>
+          </div>
         </div>
         <div className="flex flex-col flex-1 min-h-0 min-w-0">
           <LrcEditor onPreview={() => setShowPreview(true)} onOpenShortcuts={() => { setSettingsInitialTab("shortcuts"); setShowSettings(true); }} />
         </div>
-      </div>
-
-      <div className="fixed bottom-4 left-4 flex gap-2 z-10">
-        <button
-          onClick={() => { setSettingsInitialTab("general"); setShowSettings(true); }}
-          title={t.settingsTitle}
-          aria-label={t.settingsTitle}
-          className="ls-button ls-button--icon w-8 h-8 rounded-full bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:text-white transition-colors flex items-center justify-center shadow-lg"
-        >
-          <GearIcon />
-        </button>
-        <button
-          onClick={() => setShowBatchTool(true)}
-          title={t.batchTitle}
-          aria-label={t.batchTitle}
-          className="ls-button ls-button--icon w-8 h-8 rounded-full bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:text-white transition-colors flex items-center justify-center shadow-lg"
-        >
-          <BatchIcon />
-        </button>
-        <button
-          onClick={() => setShowHelp(true)}
-          title={t.shortcutsTitle}
-          aria-label={t.shortcutsTitle}
-          className="ls-button ls-button--icon w-8 h-8 rounded-full bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:text-white text-sm font-bold transition-colors flex items-center justify-center shadow-lg"
-        >
-          ?
-        </button>
       </div>
 
       <ToastContainer />
