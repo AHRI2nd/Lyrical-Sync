@@ -971,7 +971,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
               title={t.validationTitle}
               className="ls-button flex items-center gap-1.5 text-xs transition-colors"
             >
-              <span className={stats.pct === 100 ? "text-emerald-400" : "text-[var(--ls-text-secondary)]"}>{stats.pct}%</span>
+              <span className="text-[var(--ls-text-secondary)]">{stats.pct}%</span>
               {warnings.size > 0 && <span className="text-[var(--ls-playhead)]">⚠ {warnings.size}</span>}
             </button>
           )}
