@@ -57,19 +57,19 @@ export function EditorToolsMenu({
         <div className="absolute right-0 top-full mt-1.5 z-40 w-44 bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl p-1.5 flex flex-col gap-0.5">
           <button
             onClick={() => { onToggleFR(); setShowTools(false); }}
-            className={`ls-button ${`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showFR ? "bg-[var(--ls-playhead)] text-[var(--ls-canvas)]" : "hover:bg-[var(--ls-control)] text-[var(--ls-text)]"}`}`}
+            className={`ls-button ${`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showFR ? "bg-[var(--ls-selection)] text-[var(--ls-accent)]" : "hover:bg-[var(--ls-control)] text-[var(--ls-text)]"}`}`}
           >
             {t.findReplace}
           </button>
           <button
             onClick={() => { onToggleTS(); setShowTools(false); }}
-            className={`ls-button ${`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showTS ? "bg-sky-600 text-white" : "hover:bg-[var(--ls-control)] text-[var(--ls-text)]"}`}`}
+            className={`ls-button ${`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showTS ? "bg-[var(--ls-selection)] text-[var(--ls-accent)]" : "hover:bg-[var(--ls-control)] text-[var(--ls-text)]"}`}`}
           >
             {t.timeShift}
           </button>
           <button
             onClick={() => { onToggleScale(); setShowTools(false); }}
-            className={`ls-button ${`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showScale ? "bg-sky-600 text-white" : "hover:bg-[var(--ls-control)] text-[var(--ls-text)]"}`}`}
+            className={`ls-button ${`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showScale ? "bg-[var(--ls-selection)] text-[var(--ls-accent)]" : "hover:bg-[var(--ls-control)] text-[var(--ls-text)]"}`}`}
           >
             {t.tsScale}
           </button>

@@ -95,7 +95,7 @@ export function TimeShiftBar({
       <button
         onClick={handleApply}
         disabled={!canApply}
-        className="ls-button ls-button--compact bg-sky-700 hover:bg-sky-600 text-white disabled:opacity-40 transition-colors"
+        className="ls-button ls-button--compact bg-[var(--ls-primary)] text-[var(--ls-on-primary)] disabled:opacity-40 transition-colors"
       >
         {t.timeShiftApply}
       </button>

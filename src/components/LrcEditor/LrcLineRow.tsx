@@ -94,7 +94,7 @@ export function LrcLineRowImpl({
       onClick={(e) => onRowClick(e, line.id, idx)}
       className={`ls-line-row group/row relative border-b border-[var(--ls-border-subtle)] transition-colors cursor-pointer mb-1 ${
         isSelected
-          ? "bg-sky-900/30 ring-1 ring-sky-600/60"
+          ? "bg-[var(--ls-selection)] ring-1 ring-[var(--ls-accent)]"
           : isCurrentMatch
           ? "bg-[var(--ls-selection)]/30 ring-1 ring-[var(--ls-playhead)]"
           : isActive
