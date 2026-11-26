@@ -180,3 +180,17 @@
     .ls-button[role="switch"]::before { transition: none; }
   }
 }
+
+/* The player uses quiet neutral slider handles; focus remains separately visible. */
+.ls-sidebar input[type="range"].range-slim::-webkit-slider-thumb {
+  background: #aaaab1;
+  border-color: #aaaab1;
+}
+.ls-sidebar input[type="range"].range-slim::-moz-range-thumb {
+  background: #aaaab1;
+  border-color: #aaaab1;
+}
+
+/* Sidebar controls follow the darker, outlined surfaces of the reference. */
+.ls-sidebar .ls-field { background: #1b1b1e; }
+.ls-sidebar .ls-button--secondary { background: #222225; }
