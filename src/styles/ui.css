@@ -103,6 +103,9 @@
 @layer utilities {
   .ls-sidebar > .ls-panel + .ls-panel { border-top-color: var(--ls-border-subtle); }
   .ls-transport .ls-button:not(.ls-button--play):not(.ls-button--compact) { width: 2rem; min-width: 2rem; height: 2rem; min-height: 2rem; padding: 0.125rem; gap: 0; }
+  @media (min-width: 75rem) {
+    .ls-player { gap: 1.25rem; }
+  }
 }
 
 @layer components {

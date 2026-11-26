@@ -55,7 +55,7 @@ export function TransportControls({
         <StopIcon />
       </CtrlBtn>
 
-      <div className="flex-1 flex items-center justify-center gap-0.5">
+      <div className="flex-1 flex items-center justify-evenly gap-0.5">
         <CtrlBtn onClick={() => skip(-5)} title={t.tooltipSkipBack5}>
           <SkipBackIcon />
         </CtrlBtn>

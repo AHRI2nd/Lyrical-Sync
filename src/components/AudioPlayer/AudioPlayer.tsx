@@ -102,7 +102,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       waveColor: "#b8a8e8",
       progressColor: "#d3c4fa",
       cursorColor: "#e8bb72",
-      height: 80,
+      height: 100,
       barWidth: 2,
       barGap: 2,
       normalize: true,
@@ -567,14 +567,14 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           />
         </Suspense>
       )}
-    <div className="ls-panel flex flex-col gap-3 p-4 border border-transparent">
+    <div className="ls-panel ls-player flex flex-col gap-3 p-4 border border-transparent">
       {/* WaveSurfer container must always remain in the DOM while the component
           is mounted — removing it detaches the canvas and breaks the instance
           when switching back from Spotify mode. Hide with display:none instead. */}
       <div
         ref={containerRef}
         className="w-full overflow-hidden bg-transparent border-b border-[var(--ls-border-subtle)] cursor-pointer"
-        style={{ minHeight: 80, display: (isServiceMode || deviceMode || viewMode === "bar") ? "none" : "" }}
+        style={{ minHeight: 100, display: (isServiceMode || deviceMode || viewMode === "bar") ? "none" : "" }}
       />
       <div
         ref={spectrogramContainerRef}
