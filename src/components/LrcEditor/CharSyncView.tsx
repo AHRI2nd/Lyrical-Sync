@@ -641,14 +641,13 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
 
   return <div className="flex flex-col flex-1 min-h-0 overflow-y-auto gap-4 pr-1">
     <div className="flex flex-wrap items-center gap-2 px-2 py-1.5 border-b border-[var(--ls-border-subtle)] shrink-0">
-      <span className="text-sm text-[var(--ls-text)] shrink-0">{t.charSync.modeChar}</span>
-      {onOpenShortcuts && <button type="button" onClick={onOpenShortcuts} className="ls-button ls-button--compact ls-button--secondary text-xs">{t.charSync.shortcuts}</button>}
-      <LineDots lines={lines} activeIdx={lineIdx} onSelect={setActiveLineId} onPointerSelect={focusGlyphEditor} />
       <button type="button" onClick={e => { gotoLine(lineIdx - 1); e.currentTarget.blur(); }} aria-label={t.charSync.prevLine} disabled={lineIdx <= 0}
         className="ls-button ls-button--compact ls-button--secondary hover:text-white disabled:opacity-30">‹</button>
-      <span className="text-xs text-[var(--ls-text-secondary)] font-mono shrink-0">{lineIdx + 1}/{lines.length}</span>
+      <LineDots lines={lines} activeIdx={lineIdx} onSelect={setActiveLineId} onPointerSelect={focusGlyphEditor} />
       <button type="button" onClick={e => { gotoLine(lineIdx + 1); e.currentTarget.blur(); }} aria-label={t.charSync.nextLine} disabled={lineIdx >= lines.length - 1}
         className="ls-button ls-button--compact ls-button--secondary hover:text-white disabled:opacity-30">›</button>
+      <span className="text-xs text-[var(--ls-text-secondary)] font-mono shrink-0">{lineIdx + 1}/{lines.length}</span>
+      {onOpenShortcuts && <button type="button" onClick={onOpenShortcuts} className="ls-button ls-button--compact ls-button--secondary text-xs">{t.charSync.shortcuts}</button>}
     </div>
     <div className="shrink-0 min-w-0">
       <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--ls-text-secondary)] mb-3">

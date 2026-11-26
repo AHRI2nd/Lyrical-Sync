@@ -83,7 +83,7 @@
   .ls-tooltip { color: var(--ls-text); background: var(--ls-control); border: 1px solid var(--ls-border-control); border-radius: 0.4375rem; }
   .ls-glyph { position: relative; border-bottom: 2px solid transparent; border-radius: 0.25rem; }
   .ls-glyph--timed::after { content: ""; position: absolute; width: 3px; height: 3px; border-radius: 50%; background: var(--ls-text-secondary); bottom: -4px; left: calc(50% - 1.5px); pointer-events: none; }
-  .ls-glyph--selected { background: var(--ls-selection); border-bottom-color: var(--ls-accent); color: var(--ls-text); }
+  .ls-glyph--selected { background: transparent; box-shadow: inset 0 0 0 1px var(--ls-accent); color: var(--ls-text); }
   .ls-glyph--selected::after { display: none; }
   .ls-glyph--playing { color: var(--ls-playhead); background: color-mix(in srgb, var(--ls-playhead), transparent 90%); }
   @media (prefers-reduced-motion: reduce) {
