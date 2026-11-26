@@ -56,7 +56,7 @@ export function FindReplaceBar({
             aria-pressed={caseSensitive}
             className={`ls-button ls-button--compact ${`  text-xs rounded-lg font-mono transition-colors ${
               caseSensitive
-                ? "bg-[var(--ls-playhead)] text-[var(--ls-canvas)]"
+                ? "bg-[var(--ls-selection)] text-[var(--ls-accent)]"
                 : "bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text-secondary)]"
             }`}`}
           >
@@ -104,7 +104,7 @@ export function FindReplaceBar({
         <button
           onClick={onReplaceAll}
           disabled={matchCount === 0}
-          className="ls-button ls-button--compact shrink-0 text-xs bg-[var(--ls-playhead)] hover:bg-[var(--ls-playhead)] text-[var(--ls-canvas)] disabled:opacity-40 transition-colors"
+          className="ls-button ls-button--compact shrink-0 text-xs bg-[var(--ls-primary)] text-[var(--ls-on-primary)] disabled:opacity-40 transition-colors"
         >
           {t.replaceAll}
         </button>

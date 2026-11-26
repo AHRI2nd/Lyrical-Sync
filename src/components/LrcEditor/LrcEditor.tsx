@@ -994,7 +994,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
                   isRunning
                     ? "bg-[var(--ls-primary)] text-[var(--ls-accent)] cursor-not-allowed"
                     : canRunAi && audioPath && !aiSyncModeUnsupported
-                    ? "bg-[var(--ls-primary)] hover:bg-[var(--ls-selection)] text-white"
+                    ? "bg-[var(--ls-control)] border-[var(--ls-border-subtle)] text-[var(--ls-text)]"
                     : "bg-[var(--ls-control)] text-[var(--ls-text-secondary)] cursor-not-allowed",
                 ].join(" ")}`}
               >
