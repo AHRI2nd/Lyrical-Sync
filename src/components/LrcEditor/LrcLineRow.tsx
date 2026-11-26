@@ -269,7 +269,7 @@ export function LrcLineRowImpl({
         aria-label={t.mergeLineUp}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M8 7l4-4 4 4" /><path d="M12 3v8" /><path d="M5 21h14" /><path d="M5 15h14" />
+          <path d="M3 12h7m-3-3 3 3-3 3M21 12h-7m3-3-3 3 3 3" />
         </svg>
       </button>
       <button
