@@ -175,10 +175,10 @@ export function LrcLineRowImpl({
         className={`ls-button ls-button--compact ls-button--icon-compact ${`shrink-0 transition-opacity disabled:opacity-30 ${
           loopLineId === line.id
             ? "text-[var(--ls-accent)] opacity-100"
-            : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-accent)] opacity-70 group-hover/row:opacity-100 focus:opacity-100"
+            : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-accent)] opacity-100 group-hover/row:opacity-100 focus:opacity-100"
         }`}`}
       >
-        <LoopIcon size={12} />
+        <LoopIcon size={15} />
       </button>
 
       <div className="ls-line-status-slot">
@@ -264,31 +264,31 @@ export function LrcLineRowImpl({
       <button
         onClick={onMergeUp}
         disabled={idx === 0}
-        className="ls-button ls-button--compact ls-button--icon-compact shrink-0 hover:text-[var(--ls-accent)] opacity-70 group-hover/row:opacity-100 focus:opacity-100 transition-opacity disabled:opacity-30"
+        className="ls-button ls-button--compact ls-button--icon-compact shrink-0 hover:text-[var(--ls-accent)] opacity-100 group-hover/row:opacity-100 focus:opacity-100 transition-opacity disabled:opacity-30"
         title={t.mergeLineUp}
         aria-label={t.mergeLineUp}
       >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M8 7l4-4 4 4" /><path d="M12 3v8" /><path d="M5 21h14" /><path d="M5 15h14" />
         </svg>
       </button>
       <button
         onClick={onDuplicate}
-        className="ls-button ls-button--compact ls-button--icon-compact shrink-0 hover:text-[var(--ls-accent)] opacity-70 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
+        className="ls-button ls-button--compact ls-button--icon-compact shrink-0 hover:text-[var(--ls-accent)] opacity-100 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
         title={t.duplicateLine}
         aria-label={t.duplicateLine}
       >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" />
         </svg>
       </button>
       <button
         onClick={onDelete}
-        className="ls-button ls-button--compact ls-button--icon-compact shrink-0 hover:text-rose-400 text-sm opacity-70 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
+        className="ls-button ls-button--compact ls-button--icon-compact shrink-0 hover:text-rose-400 text-sm opacity-100 group-hover/row:opacity-100 focus:opacity-100 transition-opacity"
         title={t.deleteLine}
         aria-label={t.deleteLine}
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5" /></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5" /></svg>
       </button>
       </div>
     </div>
