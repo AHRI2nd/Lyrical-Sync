@@ -133,13 +133,12 @@ export function GeneralSettingsTab({
         <input type="number" min={1} max={1000} step={1} value={timestampNudgeMs} onChange={(event) => setTimestampNudgeMs(event.currentTarget.valueAsNumber)} className="ls-field w-24 text-right" />
       </label>
       {/* Blank line offset */}
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
+      <div className="ls-settings-range">
+        <div className="ls-settings-range__label">
           <span className="text-sm font-medium text-[var(--ls-text)]">{t.aiSyncBlankOffset}</span>
-          <span className="text-sm tabular-nums text-[var(--ls-text-secondary)] w-12 text-right">
-            {blankLineOffset.toFixed(1)}s
-          </span>
+          <p className="text-xs text-[var(--ls-text-secondary)]">{t.aiSyncBlankOffsetDesc}</p>
         </div>
+        <div className="ls-settings-range__controls">
         <input
           type="range"
           aria-label={t.aiSyncBlankOffset}
@@ -148,19 +147,34 @@ export function GeneralSettingsTab({
           step={0.1}
           value={blankLineOffset}
           onChange={(e) => setBlankLineOffset(Number(e.target.value))}
-          className="ls-range range-slim w-full"
+          className="ls-range range-slim"
           style={{ backgroundImage: `linear-gradient(to right, #b8a8e8 ${Math.round((blankLineOffset / 5) * 100)}%, #3f3f46 ${Math.round((blankLineOffset / 5) * 100)}%)` }}
         />
-        <p className="text-xs text-[var(--ls-text-secondary)]">{t.aiSyncBlankOffsetDesc}</p>
+          <span className="text-sm tabular-nums text-[var(--ls-text-secondary)] w-12 text-right">
+            {blankLineOffset.toFixed(1)}s
+          </span>
+        </div>
       </div>
 
       <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* UI Scale */}
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
+      <div className="ls-settings-range">
+        <div className="ls-settings-range__label">
           <span className="text-sm font-medium text-[var(--ls-text)]">{t.settingsUiScale}</span>
-          <div className="flex items-center gap-2">
+        </div>
+        <div className="ls-settings-range__controls">
+        <input
+          type="range"
+          aria-label={t.settingsUiScale}
+          min={0.7}
+          max={1.3}
+          step={0.05}
+          value={uiScale}
+          onChange={(e) => setUiScale(Number(e.target.value))}
+          className="ls-range range-slim"
+          style={{ backgroundImage: `linear-gradient(to right, #b8a8e8 ${Math.round(((uiScale - 0.7) / 0.6) * 100)}%, #3f3f46 ${Math.round(((uiScale - 0.7) / 0.6) * 100)}%)` }}
+        />
             <span className="text-sm tabular-nums text-[var(--ls-text-secondary)] w-10 text-right">
               {scalePercent}%
             </span>
@@ -171,33 +185,28 @@ export function GeneralSettingsTab({
             >
               {t.settingsUiScaleReset}
             </button>
-          </div>
-        </div>
-        <input
-          type="range"
-          aria-label={t.settingsUiScale}
-          min={0.7}
-          max={1.3}
-          step={0.05}
-          value={uiScale}
-          onChange={(e) => setUiScale(Number(e.target.value))}
-          className="ls-range range-slim w-full"
-          style={{ backgroundImage: `linear-gradient(to right, #b8a8e8 ${Math.round(((uiScale - 0.7) / 0.6) * 100)}%, #3f3f46 ${Math.round(((uiScale - 0.7) / 0.6) * 100)}%)` }}
-        />
-        <div className="flex justify-between text-xs text-[var(--ls-text-secondary)] select-none">
-          <span>70%</span>
-          <span>100%</span>
-          <span>130%</span>
         </div>
       </div>
 
       <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* Lyrics font size */}
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
+      <div className="ls-settings-range">
+        <div className="ls-settings-range__label">
           <span className="text-sm font-medium text-[var(--ls-text)]">{t.settingsLyricsFontSize}</span>
-          <div className="flex items-center gap-2">
+        </div>
+        <div className="ls-settings-range__controls">
+        <input
+          type="range"
+          aria-label={t.settingsLyricsFontSize}
+          min={0.8}
+          max={1.5}
+          step={0.05}
+          value={lyricsFontScale}
+          onChange={(e) => setLyricsFontScale(Number(e.target.value))}
+          className="ls-range range-slim"
+          style={{ backgroundImage: `linear-gradient(to right, #b8a8e8 ${Math.round(((lyricsFontScale - 0.8) / 0.7) * 100)}%, #3f3f46 ${Math.round(((lyricsFontScale - 0.8) / 0.7) * 100)}%)` }}
+        />
             <span className="text-sm tabular-nums text-[var(--ls-text-secondary)] w-10 text-right">
               {Math.round(lyricsFontScale * 100)}%
             </span>
@@ -208,19 +217,7 @@ export function GeneralSettingsTab({
             >
               {t.settingsUiScaleReset}
             </button>
-          </div>
         </div>
-        <input
-          type="range"
-          aria-label={t.settingsLyricsFontSize}
-          min={0.8}
-          max={1.5}
-          step={0.05}
-          value={lyricsFontScale}
-          onChange={(e) => setLyricsFontScale(Number(e.target.value))}
-          className="ls-range range-slim w-full"
-          style={{ backgroundImage: `linear-gradient(to right, #b8a8e8 ${Math.round(((lyricsFontScale - 0.8) / 0.7) * 100)}%, #3f3f46 ${Math.round(((lyricsFontScale - 0.8) / 0.7) * 100)}%)` }}
-        />
       </div>
 
       <div className="border-t border-[var(--ls-border-subtle)]" />

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import {afterEach,beforeEach,it,expect,vi} from 'vitest';
-import {render,screen,cleanup} from '@testing-library/react';
+import {render,screen,cleanup,fireEvent} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {GeneralSettingsTab} from './GeneralSettingsTab';
 import {SettingsModal} from './SettingsModal';
@@ -21,6 +21,21 @@ it('names each settings range control',()=>{
  expect(screen.getByRole('slider',{name:t.aiSyncBlankOffset})).toBeTruthy();
  expect(screen.getByRole('slider',{name:t.settingsUiScale})).toBeTruthy();
  expect(screen.getByRole('slider',{name:t.settingsLyricsFontSize})).toBeTruthy();
+});
+it('updates each range and resets the two scale settings',async()=>{
+ useSettingsStore.setState({blankLineOffset:1,uiScale:1,lyricsFontScale:1});
+ useI18nStore.getState().setLang('en');const t=useI18nStore.getState().t;render(<GeneralSettingsTab checkState="idle" onCheckNow={()=>{}}/>);
+ fireEvent.change(screen.getByRole('slider',{name:t.aiSyncBlankOffset}),{target:{value:'2'}});
+ fireEvent.change(screen.getByRole('slider',{name:t.settingsUiScale}),{target:{value:'1.15'}});
+ fireEvent.change(screen.getByRole('slider',{name:t.settingsLyricsFontSize}),{target:{value:'1.2'}});
+ expect(useSettingsStore.getState().blankLineOffset).toBe(2);
+ expect(useSettingsStore.getState().uiScale).toBe(1.15);
+ expect(useSettingsStore.getState().lyricsFontScale).toBe(1.2);
+ const reset=screen.getAllByRole('button',{name:t.settingsUiScaleReset});
+ await userEvent.setup().click(reset[0]);await userEvent.setup().click(reset[1]);
+ expect(useSettingsStore.getState().uiScale).toBe(1);
+ expect(useSettingsStore.getState().lyricsFontScale).toBe(1);
+ useSettingsStore.setState({blankLineOffset:1});
 });
 it('keeps settings open when cancelling the nested translation warning',async()=>{
  useI18nStore.getState().setLang('en');const close=vi.fn();render(<SettingsModal onClose={close} onUpdateFound={()=>{}}/>);const user=userEvent.setup();const control=screen.getByRole('switch',{name:useI18nStore.getState().t.translationToggle});await user.click(control);

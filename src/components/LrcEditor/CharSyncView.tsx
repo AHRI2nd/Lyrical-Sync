@@ -654,7 +654,7 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
         <span>{t.charSync.currentLine}</span><span title={t.charSync.glyphProgress} className="font-mono tabular-nums">{glyphDone}/{glyphTotal}</span>
         <div className="ml-auto"><ClearGlyphTimings lineId={line.id} /></div>
       </div>
-      <div ref={textRef} tabIndex={-1} className="min-h-16 leading-relaxed select-none break-words"
+      <div ref={textRef} tabIndex={-1} className="ls-glyph-editor min-h-16 leading-relaxed select-none break-words"
         style={{ whiteSpace: "pre-wrap", fontSize: `${1.875 * lyricsFontScale}rem` }}>
         {syllables.map((s, i) => !isStampable(s) ? <span key={i}>{s.text}</span> : <span key={i} data-glyph={i}
           onMouseDown={e => beginDrag(i, e)} onContextMenu={e => { e.preventDefault(); clearGlyph(i); }}
