@@ -55,7 +55,7 @@ export function MetaEditor() {
   const offsetChanged = metadata.offset !== 0;
 
   return (
-    <div className="ls-panel flex flex-col gap-3 p-4 border border-transparent">
+    <div className="ls-panel ls-meta flex flex-col gap-3 p-4 border border-transparent">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold text-[var(--ls-text)]">{t.songInfo}</h2>
         <div className="flex items-center gap-1 shrink-0">
@@ -108,7 +108,7 @@ export function MetaEditor() {
         </fieldset>}
       </div>
 
-      <div className="flex items-center gap-1.5 pt-3 border-t border-[var(--ls-border-subtle)]">
+      <div className="ls-meta-offset flex items-center gap-1.5 pt-3 border-t border-[var(--ls-border-subtle)]">
         <span className="text-xs text-[var(--ls-text-secondary)] shrink-0">{t.metaOffsetShort}</span>
         <input
           aria-label={t.metaOffsetShort}

@@ -104,7 +104,13 @@
   .ls-sidebar > .ls-panel + .ls-panel { border-top-color: var(--ls-border-subtle); }
   .ls-transport .ls-button:not(.ls-button--play):not(.ls-button--compact) { width: 2rem; min-width: 2rem; height: 2rem; min-height: 2rem; padding: 0.125rem; gap: 0; }
   @media (min-width: 75rem) {
-    .ls-player { gap: 1.25rem; }
+    .ls-player { gap: 1.625rem; }
+    .ls-meta { gap: 1rem; }
+    .ls-meta h2 { font-size: 1.375rem; }
+    .ls-readable .ls-meta .ls-label { font-size: 0.9375rem; }
+    .ls-readable .ls-meta .ls-field { min-height: 2.5rem; font-size: 1rem; }
+    .ls-meta-offset input { flex: 0 1 9rem; }
+    .ls-meta-offset button { min-width: 6.5rem; margin-left: auto; }
   }
 }
 
@@ -218,3 +224,4 @@
 /* Sidebar controls follow the darker, outlined surfaces of the reference. */
 .ls-sidebar .ls-field { background: #1b1b1e; }
 .ls-sidebar .ls-button--secondary { background: #222225; }
+.ls-meta input[type="checkbox"] { accent-color: var(--ls-primary); }
