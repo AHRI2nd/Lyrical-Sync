@@ -712,6 +712,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
               className="ls-range range-slim min-w-0 flex-1"
               style={{ backgroundImage: `linear-gradient(to right, #b8a8e8 ${zoomLevel}%, #3f3f46 ${zoomLevel}%)` }}
             />
+            <span aria-hidden="true" className="shrink-0 w-12 text-right text-xs tabular-nums">{(zoomLevelToPixels(zoomLevel) / zoomLevelToPixels(50)).toFixed(2)}×</span>
       </div>
       )}
       <div className="flex w-full overflow-hidden rounded-md border border-[var(--ls-border-subtle)]">
