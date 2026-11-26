@@ -283,9 +283,10 @@ export function YtdlpSection() {
       <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* 오디오 품질 */}
-      <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium text-[var(--ls-text)]">{t.ytdlpAudioQuality}</legend>
-        <div className="flex flex-wrap gap-x-5 gap-y-2">
+      <fieldset className="ls-settings-range ls-ytdlp-row">
+        <legend className="sr-only">{t.ytdlpAudioQuality}</legend>
+        <span aria-hidden="true" className="ls-settings-range__label text-sm font-medium text-[var(--ls-text)]">{t.ytdlpAudioQuality}</span>
+        <div className="ls-settings-range__controls flex-wrap gap-x-5 gap-y-2">
           {(["best", "192", "128"] as const).map((q) => (
             <label key={q} className="flex items-center gap-2.5 cursor-pointer group">
               <input
@@ -314,10 +315,12 @@ export function YtdlpSection() {
       <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* 쿠키 파일 */}
-      <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-[var(--ls-text)]">{t.ytdlpCookiesFile}</span>
-        <p className="text-xs text-[var(--ls-text-secondary)]">{t.ytdlpCookiesFileDesc}</p>
-        <div className="flex items-center gap-2">
+      <div className="ls-settings-range ls-ytdlp-row">
+        <div className="ls-settings-range__label">
+          <span className="text-sm font-medium text-[var(--ls-text)]">{t.ytdlpCookiesFile}</span>
+          <p className="text-xs text-[var(--ls-text-secondary)]">{t.ytdlpCookiesFileDesc}</p>
+        </div>
+        <div className="ls-settings-range__controls flex-wrap">
           <span className="flex-1 text-xs text-[var(--ls-text-secondary)] bg-[var(--ls-control)] rounded px-2 py-1.5 truncate font-mono min-w-0">
             {ytdlpCookiesFile || "—"}
           </span>
@@ -341,16 +344,16 @@ export function YtdlpSection() {
       <div className="border-t border-[var(--ls-border-subtle)]" />
 
       {/* 프록시 */}
-      <div className="flex flex-col gap-2">
-        <label htmlFor="ytdlp-proxy" className="text-sm font-medium text-[var(--ls-text)]">{t.ytdlpProxy}</label>
-        <div className="flex gap-2">
+      <div className="ls-settings-range ls-ytdlp-row">
+        <label htmlFor="ytdlp-proxy" className="ls-settings-range__label text-sm font-medium text-[var(--ls-text)]">{t.ytdlpProxy}</label>
+        <div className="ls-settings-range__controls">
           <input
             id="ytdlp-proxy"
             type="text"
             value={proxyDraft}
             onChange={(e) => { setProxyDraft(e.target.value); setProxySaved(false); setProxyError(null); }}
             placeholder={t.ytdlpProxyPlaceholder}
-            className="ls-field flex-1 text-sm font-mono"
+            className="ls-field flex-1 min-w-0 text-sm font-mono"
           />
           <button
             onClick={handleSaveProxy}
@@ -360,7 +363,7 @@ export function YtdlpSection() {
             {proxySaved ? "✓" : t.ytdlpProxySave}
           </button>
         </div>
-        {proxyError && <p role="alert" className="text-xs text-red-400">{proxyError}</p>}
+        {proxyError && <p role="alert" className="w-full text-xs text-red-400">{proxyError}</p>}
       </div>
     </div>
   );
