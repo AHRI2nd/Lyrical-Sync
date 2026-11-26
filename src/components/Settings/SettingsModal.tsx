@@ -1,6 +1,6 @@
 import { SettingsTabBar, TabBtn } from "./SettingsTabs";
 import { useModalFocus } from "../../hooks/useModalFocus";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useI18nStore } from "../../stores/useI18nStore";
 import { useServiceStore } from "../../stores/useServiceStore";
@@ -38,9 +38,14 @@ export function SettingsModal({
   const [checkState, setCheckState] = useState<CheckState>("idle");
   const [tab, setTab] = useState<Tab>(initialTab);
   const dialog = useRef<HTMLDivElement>(null);
+  const content = useRef<HTMLDivElement>(null);
   const mounted = useRef(false);
   const titleId = useId();
   useModalFocus(dialog, onClose, true, modalPriority);
+
+  useLayoutEffect(() => {
+    if (content.current) content.current.scrollTop = 0;
+  }, [tab]);
 
   useEffect(() => {
     mounted.current = true;
@@ -66,7 +71,7 @@ export function SettingsModal({
       onClick={onClose}
     >
       <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
-        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-lg shadow-2xl w-full max-w-3xl mx-4 overflow-hidden flex flex-col max-h-[calc(100%-2rem)]"
+        className="bg-[var(--ls-surface)] border border-[var(--ls-border-subtle)] rounded-lg shadow-2xl w-full max-w-3xl mx-4 overflow-hidden flex flex-col max-h-[calc(100%-2rem)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--ls-accent)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -104,7 +109,7 @@ export function SettingsModal({
         </SettingsTabBar>
 
         {/* Scrollable content */}
-        <div className="overflow-y-auto flex-1 min-h-0">
+        <div ref={content} className="overflow-y-auto flex-1 min-h-0">
           {tab === "general" && (
             <GeneralSettingsTab checkState={checkState} onCheckNow={handleCheckNow} />
           )}

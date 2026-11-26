@@ -13,6 +13,14 @@ import {useI18nStore} from '../../stores/useI18nStore';
 import {openUrl} from '@tauri-apps/plugin-opener';
 afterEach(cleanup);
 beforeEach(()=>{check.mockReset();useUpdaterStore.setState({status:'idle',error:null,_update:null});useI18nStore.getState().setLang('en');});
+it('starts each settings tab at the top after switching',async()=>{
+ const {container}=render(<SettingsModal onClose={()=>{}} onUpdateFound={()=>{}}/>);
+ const content=container.querySelector('.overflow-y-auto') as HTMLElement;
+ content.scrollTop=200;
+ await userEvent.setup().click(screen.getByRole('button',{name:'YouTube'}));
+ expect(content.scrollTop).toBe(0);
+ expect(screen.getByRole('button',{name:useI18nStore.getState().t.settingsViewGuide})).toBeTruthy();
+});
 it.each([
  ['models','lyrical-sync-ai-installation-guide-en/'],
  ['spotify','lyrical-sync-spotify-guide-en/'],
