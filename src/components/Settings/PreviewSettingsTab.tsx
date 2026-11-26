@@ -16,20 +16,27 @@ export function PreviewSettingsTab() {
 
   return (
     <div className="p-5 flex flex-col gap-5">
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-3">
+      <section className="ls-settings-range ls-preview-range">
+        <div className="ls-settings-range__label">
           <label htmlFor="preview-font-scale" className="text-sm font-medium text-[var(--ls-text)]">{t.previewFontScaleLabel}</label>
-          <div className="flex items-center gap-2">
-            <span className="text-sm tabular-nums text-[var(--ls-text-secondary)] w-10 text-right">{Math.round(previewFontScale * 100)}%</span>
-            <button type="button" onClick={() => setPreviewFontScale(1)} disabled={previewFontScale === 1}
-              className="ls-button text-xs hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-              {t.settingsUiScaleReset}
-            </button>
-          </div>
         </div>
-        <input id="preview-font-scale" type="range" min={0.8} max={1.5} step={0.05} value={previewFontScale}
-          onChange={(e) => setPreviewFontScale(Number(e.target.value))} className="ls-range range-slim w-full" />
-        <div className="flex justify-between text-xs text-[var(--ls-text-secondary)] select-none"><span>80%</span><span>100%</span><span>150%</span></div>
+        <div className="ls-settings-range__controls">
+          <div className="min-w-0 flex-1">
+            <input id="preview-font-scale" type="range" min={0.8} max={1.5} step={0.05} value={previewFontScale}
+              onChange={(e) => setPreviewFontScale(Number(e.target.value))} className="ls-range range-slim w-full"
+              style={{ backgroundImage: `linear-gradient(to right, #b8a8e8 ${Math.round(((previewFontScale - 0.8) / 0.7) * 100)}%, #3f3f46 ${Math.round(((previewFontScale - 0.8) / 0.7) * 100)}%)` }} />
+            <div className="relative flex justify-between text-xs text-[var(--ls-text-secondary)] select-none">
+              <span>80%</span>
+              <span className="absolute -translate-x-1/2" style={{ left: "calc(28.5714% + 2.79px)" }}>100%</span>
+              <span>150%</span>
+            </div>
+          </div>
+          <span className="text-sm tabular-nums text-[var(--ls-text-secondary)] w-10 text-right">{Math.round(previewFontScale * 100)}%</span>
+          <button type="button" onClick={() => setPreviewFontScale(1)} disabled={previewFontScale === 1}
+            className="ls-button text-xs hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+            {t.settingsUiScaleReset}
+          </button>
+        </div>
       </section>
       <div className="border-t border-[var(--ls-border-subtle)]" />
       <div className="flex items-center justify-between">
