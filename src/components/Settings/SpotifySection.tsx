@@ -68,38 +68,6 @@ export function SpotifySection({
 
       <div className="border-t border-[var(--ls-border-subtle)]" />
 
-      {/* Mode toggle */}
-      <div className="flex items-center justify-between">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-medium text-[var(--ls-text)]">{t.spotifyModeToggle}</span>
-          <span className="text-xs text-[var(--ls-text-secondary)]">
-            {spotifyMode ? t.spotifyModeActive : t.spotifyModeLocal}
-          </span>
-        </div>
-        <button
-          onClick={() => onToggleMode(!spotifyMode)}
-          disabled={!isLoggedIn}
-          className={`ls-button ls-switch--spotify ${[
-            "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
-            spotifyMode && isLoggedIn ? "bg-[var(--ls-primary)]" : "bg-[var(--ls-control)]",
-            !isLoggedIn ? "opacity-40 cursor-not-allowed" : "",
-          ].join(" ")}`}
-          role="switch"
-          aria-label={t.spotifyModeToggle}
-          aria-checked={spotifyMode}
-          title={!isLoggedIn ? t.spotifyConnectFirst : undefined}
-        >
-          <span
-            className={[
-              "absolute top-[calc(50%-0.5rem)] left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
-              spotifyMode && isLoggedIn ? "translate-x-[22px]" : "translate-x-0.5",
-            ].join(" ")}
-          />
-        </button>
-      </div>
-
-      <div className="border-t border-[var(--ls-border-subtle)]" />
-
       {/* Connect / status */}
       <div className="flex flex-col gap-3">
         {isLoggedIn ? (
@@ -139,6 +107,38 @@ export function SpotifySection({
             )}
           </>
         )}
+      </div>
+
+      <div className="border-t border-[var(--ls-border-subtle)]" />
+
+      {/* Mode toggle */}
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm font-medium text-[var(--ls-text)]">{t.spotifyModeToggle}</span>
+          <span className="text-xs text-[var(--ls-text-secondary)]">
+            {spotifyMode ? t.spotifyModeActive : t.spotifyModeLocal}
+          </span>
+        </div>
+        <button
+          onClick={() => onToggleMode(!spotifyMode)}
+          disabled={!isLoggedIn}
+          className={`ls-button ls-switch--spotify ${[
+            "relative w-10 h-5 rounded-full transition-colors shrink-0 p-0 overflow-hidden",
+            spotifyMode && isLoggedIn ? "bg-[var(--ls-primary)]" : "bg-[var(--ls-control)]",
+            !isLoggedIn ? "opacity-40 cursor-not-allowed" : "",
+          ].join(" ")}`}
+          role="switch"
+          aria-label={t.spotifyModeToggle}
+          aria-checked={spotifyMode}
+          title={!isLoggedIn ? t.spotifyConnectFirst : undefined}
+        >
+          <span
+            className={[
+              "absolute top-[calc(50%-0.5rem)] left-0 w-4 h-4 rounded-full bg-white shadow transition-transform",
+              spotifyMode && isLoggedIn ? "translate-x-[22px]" : "translate-x-0.5",
+            ].join(" ")}
+          />
+        </button>
       </div>
 
       <div className="border-t border-[var(--ls-border-subtle)]" />
