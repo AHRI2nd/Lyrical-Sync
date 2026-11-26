@@ -1155,8 +1155,9 @@ it("moves the rendered window when the large lyric list scrolls", async () => {
   await waitFor(() => {
     const renderedIndices = Array.from(list.querySelectorAll<HTMLElement>("[data-line-index]"))
       .map((row) => Number(row.dataset.lineIndex));
-    expect(Math.min(...renderedIndices)).toBeGreaterThan(400);
-    expect(Math.max(...renderedIndices)).toBeLessThan(600);
+    expect(Math.min(...renderedIndices)).toBeGreaterThan(250);
+    expect(Math.max(...renderedIndices)).toBeLessThan(400);
+    expect(renderedIndices.length).toBeLessThan(100);
   });
 });
 

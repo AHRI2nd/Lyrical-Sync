@@ -1,5 +1,5 @@
 export const VIRTUAL_LINE_THRESHOLD = 500;
-export const DEFAULT_LINE_HEIGHT = 40;
+export const DEFAULT_LINE_HEIGHT = 56;
 export const LINE_GAP = 4;
 export const VIRTUAL_LINE_OVERSCAN = 720;
 

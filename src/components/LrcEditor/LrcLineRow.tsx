@@ -224,7 +224,7 @@ export function LrcLineRowImpl({
           onFocus={onFocus}
           spellCheck={showSpellCheck}
           className="ls-field ls-row-input ls-lyric-input w-full min-w-0 resize-y text-white text-sm"
-          style={{ fontSize: `${lyricsFontScale}rem` }}
+          style={{ fontSize: `${1.125 * lyricsFontScale}rem` }}
           placeholder={t.linePlaceholder}
         />
       ) : (
@@ -238,7 +238,7 @@ export function LrcLineRowImpl({
           onPaste={onPaste}
           spellCheck={showSpellCheck}
           className="ls-field ls-row-input ls-lyric-input w-full min-w-0 text-white text-sm"
-          style={{ fontSize: `${lyricsFontScale}rem` }}
+          style={{ fontSize: `${1.125 * lyricsFontScale}rem` }}
           placeholder={t.linePlaceholder}
         />
       )}

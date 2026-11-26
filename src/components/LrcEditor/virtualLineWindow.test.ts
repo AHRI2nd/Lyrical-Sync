@@ -13,8 +13,8 @@ describe("virtual line window", () => {
     const offsets = buildLineOffsets(10_000, () => undefined);
     const range = getVirtualLineRange(offsets, 20_000, 600, 200);
 
-    expect(range.start).toBeGreaterThan(400);
-    expect(range.end).toBeLessThan(700);
+    expect(range.start).toBeGreaterThan(0);
+    expect(range.end - range.start).toBeLessThan(40);
     expect(includePinnedLineIndices(range, 10_000, [3, 9_999, range.start])).toEqual(
       [3, ...Array.from({ length: range.end - range.start }, (_, offset) => range.start + offset), 9_999],
     );

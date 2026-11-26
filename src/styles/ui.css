@@ -115,6 +115,7 @@
     align-items: center;
     gap: 0.25rem;
     padding: 0.375rem 0.5rem;
+    min-height: 3.5rem;
     flex-shrink: 0;
   }
   .ls-line-drag { grid-area: drag; align-self: center; }
@@ -134,6 +135,13 @@
   .ls-line-time .ls-nudge { width: 1.75rem; height: 1.75rem; border-radius: 50%; padding: 0; background: var(--ls-canvas); }
   .ls-line-time .ls-nudge:hover:not(:disabled) { background: var(--ls-control); }
   .ls-time-input, .ls-time-button { height: 2rem; min-height: 2rem; text-align: center; }
+  @container (min-width: 48rem) {
+    .ls-line-row {
+      grid-template-columns: 1.5rem minmax(2rem, var(--ls-line-number-width, 2rem)) max-content 5rem minmax(0, 1fr) 4.75rem;
+      column-gap: 0.75rem;
+    }
+    .ls-line-time .ls-time-button { min-width: 7.75rem; }
+  }
   @container (max-width: 36rem) {
     .ls-line-warning-tooltip { left: auto; right: 0; }
     .ls-line-row {
@@ -153,6 +161,9 @@
   .ls-readable h2.text-sm, .ls-readable h3.text-sm { font-size: 0.9375rem; line-height: 1.4; }
   .ls-readable .ls-line-number { line-height: 1.75rem; }
   .ls-readable .ls-time-input, .ls-readable .ls-time-button { font-size: 0.8125rem; font-weight: 400; font-variant-numeric: tabular-nums; }
+  @container (min-width: 48rem) {
+    .ls-readable .ls-line-time .ls-time-button, .ls-readable .ls-line-time .ls-time-input { font-size: 1rem; }
+  }
   .ls-readable .ls-lyric-input { font-weight: 400; line-height: 1.5; }
   .ls-readable .ls-translation-input { font-style: normal; font-weight: 400; line-height: 1.5; color: var(--ls-text-secondary); }
 }
