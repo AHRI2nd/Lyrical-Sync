@@ -79,7 +79,7 @@ export function LrcLineRowImpl({
       ? "bg-yellow-900/50 text-yellow-300 hover:bg-yellow-800/60"
       : "bg-red-900/50 text-red-300 hover:bg-red-800/60"
     : line.timestamp !== null
-    ? "bg-[var(--ls-control)] text-[var(--ls-accent)] hover:bg-[var(--ls-control)]"
+    ? "bg-[var(--ls-control)] text-[var(--ls-text)] hover:bg-[var(--ls-control)]"
     : "bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-[var(--ls-text-secondary)]";
 
   return (
@@ -146,7 +146,7 @@ export function LrcLineRowImpl({
             }}
             onBlur={onCommitTsEdit}
             placeholder="H:MM:SS.mmm"
-            className="ls-field ls-row-input ls-time-input font-mono text-xs w-full"
+            className="ls-field ls-row-input ls-time-input tabular-nums text-xs w-full"
           />
         ) : (
           // 좌클릭 → 시간 직접 편집 / 우클릭 → 현재 재생 시간으로 설정
@@ -156,7 +156,7 @@ export function LrcLineRowImpl({
               onClick={(e) => { e.stopPropagation(); onStartTsEdit(); }}
               onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onStampCurrentLine(); }}
               title={confidence !== undefined ? t.aiConfidenceRelativeScore : undefined}
-              className={`ls-button ls-button--compact ls-button--secondary ls-time-button whitespace-nowrap font-mono text-xs transition-colors ${tsClass}`}
+              className={`ls-button ls-button--compact ls-button--secondary ls-time-button whitespace-nowrap tabular-nums text-xs transition-colors ${tsClass}`}
             >
               {line.timestamp !== null ? formatDisplayTime(line.timestamp) : "-:--:--.---"}
             </button>
