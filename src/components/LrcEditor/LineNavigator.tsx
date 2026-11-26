@@ -16,7 +16,7 @@ function lineSyncState(line: LrcLine): LineState {
 
 
 export const LineNavigator = memo(function LineNavigator({
-  lines, activeIdx, onSelect, onPointerSelect, partialClass = "bg-[var(--ls-accent)]",
+  lines, activeIdx, onSelect, onPointerSelect, partialClass = "bg-[#7da5ff]",
 }: {
   lines: LrcLine[];
   activeIdx: number;
@@ -30,7 +30,7 @@ export const LineNavigator = memo(function LineNavigator({
         const st = lineSyncState(l);
         const active = i === activeIdx;
         const color =
-          st === "done" ? "bg-emerald-500" : st === "partial" ? partialClass : active ? "bg-[var(--ls-accent)]" : "bg-transparent border border-[var(--ls-border-control)]";
+          st === "done" ? "bg-[var(--ls-accent)]" : st === "partial" ? partialClass : "bg-transparent border border-[var(--ls-border-control)]";
         return (
           <button
             key={l.id}
