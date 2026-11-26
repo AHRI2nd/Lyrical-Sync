@@ -179,7 +179,7 @@ export function YtdlpSection() {
 
       {/* 설치 상태 */}
       <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-[var(--ls-text)]">{t.ytdlpTitle}</span>
             {!checking && (
@@ -193,13 +193,26 @@ export function YtdlpSection() {
               <span className="text-xs text-[var(--ls-text-secondary)]">{t.ytdlpChecking}</span>
             )}
           </div>
-          <button
-            onClick={refresh}
-            disabled={checking || downloading}
-            className="ls-button text-xs transition-colors disabled:opacity-40"
-          >
-            {t.ytdlpRefresh}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={refresh}
+              disabled={checking || downloading}
+              className="ls-button text-xs transition-colors disabled:opacity-40"
+            >
+              {t.ytdlpRefresh}
+            </button>
+            {!downloading && !checking && (
+              !isInstalled ? (
+                <button onClick={handleDownload} className="ls-button ls-button--primary text-xs transition-colors">
+                  {t.ytdlpDownload}
+                </button>
+              ) : hasUpdate ? (
+                <button onClick={handleDownload} className="ls-button text-xs transition-colors">
+                  {t.ytdlpUpdate}
+                </button>
+              ) : null
+            )}
+          </div>
         </div>
 
         {isInstalled && version && (
@@ -229,24 +242,6 @@ export function YtdlpSection() {
           </button>
         )}
 
-        {/* Button: hidden while downloading or checking */}
-        {!downloading && !checking && (
-          !isInstalled ? (
-            <button
-              onClick={handleDownload}
-              className="ls-button ls-button--primary self-start text-xs transition-colors"
-            >
-              {t.ytdlpDownload}
-            </button>
-          ) : hasUpdate ? (
-            <button
-              onClick={handleDownload}
-              className="ls-button self-start text-xs transition-colors"
-            >
-              {t.ytdlpUpdate}
-            </button>
-          ) : null
-        )}
       </div>
 
       <div className="border-t border-[var(--ls-border-subtle)]" />

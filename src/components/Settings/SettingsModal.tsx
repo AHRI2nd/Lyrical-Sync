@@ -119,7 +119,7 @@ export function SettingsModal({
 
           {tab === "models" && (
             <div className="p-5 flex flex-col gap-5">
-              <GuideBanner color="indigo" url={aiGuideUrl} label={t.settingsViewGuide} />
+              <GuideLink url={aiGuideUrl} label={t.settingsViewGuide} />
               <PythonEnvSection />
               <div className="border-t border-[var(--ls-border-subtle)]" />
               <ModelDownloadSection />
@@ -129,7 +129,7 @@ export function SettingsModal({
           {tab === "spotify" && (
             <>
               <div className="px-5 pt-4">
-                <GuideBanner color="green" url={spotifyGuideUrl} label={t.settingsViewGuide} />
+                <GuideLink url={spotifyGuideUrl} label={t.settingsViewGuide} />
               </div>
               <SpotifySection
                 clientId={spotifyClientId}
@@ -151,7 +151,7 @@ export function SettingsModal({
           {tab === "youtube" && (
             <>
               <div className="px-5 pt-4">
-                <GuideBanner color="indigo" url={youtubeGuideUrl} label={t.settingsViewGuide} />
+                <GuideLink url={youtubeGuideUrl} label={t.settingsViewGuide} />
               </div>
               <YtdlpSection />
             </>
@@ -162,19 +162,12 @@ export function SettingsModal({
   );
 }
 
-function GuideBanner({ color, url, label }: { color: "indigo" | "green" | "red"; url: string; label: string }) {
-  const colorMap = {
-    indigo: "bg-[var(--ls-primary)]/60 border-[var(--ls-accent)]/50 text-[var(--ls-accent)] hover:text-[var(--ls-accent)]",
-    green:  "bg-[var(--ls-selection)] border-[var(--ls-border-subtle)] text-[var(--ls-accent)] hover:text-[var(--ls-accent)]",
-    red:    "bg-red-950/60 border-red-800/50 text-red-400 hover:text-red-300",
-  };
+function GuideLink({ url, label }: { url: string; label: string }) {
   return (
-    <button
-      onClick={() => openUrl(url)}
-      className={`ls-button ${`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-xs transition-colors ${colorMap[color]}`}`}
-    >
-      <span>{label}</span>
-      <span className="opacity-70">↗</span>
-    </button>
+    <div className="flex justify-end">
+      <button onClick={() => openUrl(url)} className="ls-button px-2 py-1 text-xs text-[var(--ls-accent)] hover:text-[var(--ls-text)] transition-colors">
+        {label}
+      </button>
+    </div>
   );
 }

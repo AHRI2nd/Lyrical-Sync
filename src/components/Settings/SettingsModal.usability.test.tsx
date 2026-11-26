@@ -10,8 +10,19 @@ import {SettingsModal} from './SettingsModal';
 import {UpdateModal} from '../Update/UpdateModal';
 import {useUpdaterStore} from '../../stores/useUpdaterStore';
 import {useI18nStore} from '../../stores/useI18nStore';
+import {openUrl} from '@tauri-apps/plugin-opener';
 afterEach(cleanup);
 beforeEach(()=>{check.mockReset();useUpdaterStore.setState({status:'idle',error:null,_update:null});useI18nStore.getState().setLang('en');});
+it.each([
+ ['models','lyrical-sync-ai-installation-guide-en/'],
+ ['spotify','lyrical-sync-spotify-guide-en/'],
+ ['youtube','lyrical-sync-youtube-guide-en/'],
+] as const)('opens the correct guide from %s settings',async(tab,path)=>{
+ vi.mocked(openUrl).mockClear();
+ render(<SettingsModal onClose={()=>{}} onUpdateFound={()=>{}} initialTab={tab}/>);
+ await userEvent.setup().click(screen.getByRole('button',{name:useI18nStore.getState().t.settingsViewGuide}));
+ expect(openUrl).toHaveBeenCalledWith(`https://ahri2nd.xyz/posts/${path}`);
+});
 it('keeps focus inside settings and makes the background inert until close',async()=>{
  const background=vi.fn();
  function Fixture(){const[open,setOpen]=useState(false);return <><button onClick={()=>setOpen(true)}>Open settings</button><button onClick={background}>Background action</button>{open&&<SettingsModal onClose={()=>setOpen(false)} onUpdateFound={()=>{}}/>}</>;}
