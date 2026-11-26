@@ -573,7 +573,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           when switching back from Spotify mode. Hide with display:none instead. */}
       <div
         ref={containerRef}
-        className="w-full overflow-hidden bg-transparent cursor-pointer"
+        className="w-full overflow-hidden bg-transparent border-b border-[var(--ls-border-subtle)] cursor-pointer"
         style={{ minHeight: 80, display: (isServiceMode || deviceMode || viewMode === "bar") ? "none" : "" }}
       />
       <div
