@@ -79,8 +79,8 @@ export function LrcLineRowImpl({
       ? "bg-yellow-900/50 text-yellow-300 hover:bg-yellow-800/60"
       : "bg-red-900/50 text-red-300 hover:bg-red-800/60"
     : line.timestamp !== null
-    ? "bg-[var(--ls-control)] text-[var(--ls-text)] hover:bg-[var(--ls-control)]"
-    : "bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-[var(--ls-text-secondary)]";
+    ? "bg-[var(--ls-canvas)] text-[var(--ls-text)] hover:bg-[var(--ls-control)]"
+    : "bg-[var(--ls-canvas)] text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-[var(--ls-text-secondary)]";
 
   return (
     <div
