@@ -15,7 +15,7 @@
 }
 
 @layer components {
-  .ls-header-separator, .ls-header-file-icon { display: none; }
+  .ls-header-separator, .ls-header-file-icon, .ls-header-utilities { display: none; }
   .ls-settings-option { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 1rem; row-gap: 0.125rem; }
   .ls-settings-option > div:first-child { display: contents; }
   .ls-settings-option > div:first-child > span { grid-column: 1; grid-row: 1; }
@@ -118,6 +118,10 @@
     .ls-readable .ls-meta .ls-field { min-height: 2.5rem; font-size: 1rem; }
     .ls-meta-offset input { flex: 0 1 9rem; }
     .ls-meta-offset button { min-width: 6.5rem; margin-left: auto; }
+  }
+  @media (min-width: 90rem) {
+    .ls-header-utilities { display: flex; }
+    .ls-sidebar-utilities { display: none; }
   }
 }
 

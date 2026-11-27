@@ -837,6 +837,11 @@ function App() {
           <IconBtn onClick={openFormatChooser} title={t.saveAs} tooltipAlign="right"><SaveAsIcon /></IconBtn>
           <div className="w-px h-5 bg-[var(--ls-control)] mx-0.5" />
           <LangDropdown />
+          <div className="ls-header-utilities items-center gap-1.5">
+            <IconBtn onClick={() => { setSettingsInitialTab("general"); setShowSettings(true); }} title={t.settingsTitle} tooltipAlign="right"><GearIcon /></IconBtn>
+            <IconBtn onClick={() => setShowBatchTool(true)} title={t.batchTitle} tooltipAlign="right"><BatchIcon /></IconBtn>
+            <IconBtn onClick={() => setShowHelp(true)} title={t.shortcutsTitle} tooltipAlign="right"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg></IconBtn>
+          </div>
         </div>
       </header>
 
@@ -1101,7 +1106,7 @@ function App() {
             />
             <MetaEditor />
           </div>
-          <div className="flex gap-2 px-4 py-3 shrink-0 border-t border-[var(--ls-border-subtle)]">
+          <div className="ls-sidebar-utilities flex gap-2 px-4 py-3 shrink-0 border-t border-[var(--ls-border-subtle)]">
             <button
               onClick={() => { setSettingsInitialTab("general"); setShowSettings(true); }}
               title={t.settingsTitle}
