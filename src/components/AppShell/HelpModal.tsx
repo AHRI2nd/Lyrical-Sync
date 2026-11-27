@@ -97,17 +97,17 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-[var(--ls-border-subtle)] shrink-0">
+        <div className="ls-settings-tabs ls-help-tabs flex border-b border-[var(--ls-border-subtle)] shrink-0">
           {tabs.map(({ id, label }) => (
             <button
               key={id}
               type="button"
               aria-pressed={tab === id}
               onClick={() => setTab(id)}
-              className={`ls-button ${[
+              className={`ls-button ls-settings-tab ${[
                 "flex-1 py-2 text-xs font-medium transition-colors",
                 tab === id
-                  ? "text-[var(--ls-accent)] border-b-2 border-[var(--ls-accent)]"
+                  ? "text-[var(--ls-accent)] border-b-2"
                   : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)]",
               ].join(" ")}`}
             >
@@ -165,13 +165,13 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
             <div className="flex flex-col gap-4">
               <button
                 onClick={() => openUrl(spotifyGuideUrl)}
-                className="ls-button self-start text-xs text-green-500 hover:text-green-400 transition-colors underline underline-offset-2"
+                className="ls-button self-start text-xs text-[var(--ls-accent)] hover:text-[var(--ls-accent)] transition-colors underline underline-offset-2"
               >
                 {t.helpViewGuide}
               </button>
               {t.helpSpotifySteps.map(({ title, desc }, i) => (
                 <div key={i} className="flex gap-3">
-                  <span className="shrink-0 w-5 h-5 rounded-full bg-green-700 text-white text-xs flex items-center justify-center font-bold mt-0.5">
+                  <span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ls-primary)] text-white text-xs flex items-center justify-center font-bold mt-0.5">
                     {i + 1}
                   </span>
                   <div>

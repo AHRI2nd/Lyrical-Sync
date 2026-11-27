@@ -31,7 +31,7 @@ export function ValidationPanel({ stats, issues, onJump, onClose }: {
             { v: String(stats.total), l: t.validationStatLines, hl: false },
           ].map((c, i) => (
             <div key={i} className="bg-[var(--ls-control)] rounded-lg p-2.5 flex flex-col">
-              <span className={`text-xl font-semibold tabular-nums ${c.hl ? "text-emerald-400" : "text-[var(--ls-text)]"}`}>{c.v}</span>
+              <span className={`text-xl font-semibold tabular-nums ${c.hl ? "text-[var(--ls-accent)]" : "text-[var(--ls-text)]"}`}>{c.v}</span>
               <span className="text-[11px] text-[var(--ls-text-secondary)] mt-0.5">{c.l}</span>
             </div>
           ))}
@@ -39,7 +39,7 @@ export function ValidationPanel({ stats, issues, onJump, onClose }: {
 
         <div className="overflow-y-auto px-3 pb-3 flex flex-col gap-0.5">
           {issues.length === 0 ? (
-            <p className="text-center text-sm text-emerald-400 py-6">{t.validationNoIssues}</p>
+            <p className="text-center text-sm text-[var(--ls-accent)] py-6">{t.validationNoIssues}</p>
           ) : (
             issues.map((iss) => (
               <button

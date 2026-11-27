@@ -67,6 +67,8 @@
   .ls-button--play:hover:not(:disabled) { background: var(--ls-text-secondary); color: var(--ls-surface); }
   .ls-button:not(.ls-button--play)[aria-pressed="true"] { background: var(--ls-selection); color: var(--ls-accent); }
   .ls-settings-tabs .ls-settings-tab[aria-pressed="true"] { background: transparent; border-bottom-color: var(--ls-accent); }
+  .ls-help-tabs .ls-settings-tab { border-radius: 0; border-color: transparent; }
+  .ls-help-tabs .ls-settings-tab[aria-pressed="true"] { border-bottom-color: var(--ls-accent); }
   .ls-button.ls-button--selected[aria-pressed="true"] { background: transparent; border-bottom-color: var(--ls-accent); }
   .ls-button--selected { background: transparent; color: var(--ls-text); border-bottom-color: var(--ls-accent); }
   .ls-button:focus-visible, .ls-field:focus-visible, .ls-range:focus-visible {

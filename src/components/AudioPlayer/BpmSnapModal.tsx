@@ -194,7 +194,7 @@ export function BpmSnapModal({ onClose, selectedIds }: { onClose: () => void; se
                 )}
               </div>
               {snappedCount !== null && (
-                <p className="text-xs text-emerald-400">
+                <p className="text-xs text-[var(--ls-accent)]">
                   {`${snappedCount} ${t.bpmAppliedCount}`}
                 </p>
               )}
