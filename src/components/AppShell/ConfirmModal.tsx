@@ -2,7 +2,7 @@ import { useId, useRef } from "react";
 import { useModalFocus } from "../../hooks/useModalFocus";
 
 export function ConfirmModal({
-  title, message, okLabel, cancelLabel, onOk, onCancel, leftLabel, onLeft, okGreen, priority,
+  title, message, okLabel, cancelLabel, onOk, onCancel, leftLabel, onLeft, okGreen, okPrimary, priority,
   checkboxLabel, checked, onCheckedChange,
 }: {
   title: string;
@@ -14,6 +14,7 @@ export function ConfirmModal({
   leftLabel?: string;
   onLeft?: () => void;
   okGreen?: boolean;
+  okPrimary?: boolean;
   priority?: boolean;
   checkboxLabel?: string;
   checked?: boolean;
@@ -63,7 +64,7 @@ export function ConfirmModal({
             onClick={onOk}
             className={`ls-button ${[
               "px-4 py-1.5 text-sm rounded-lg text-white transition-colors whitespace-nowrap",
-              okGreen ? "bg-green-600 hover:bg-green-500" : "bg-rose-600 hover:bg-rose-500",
+              okPrimary ? "ls-button--primary" : okGreen ? "bg-green-600 hover:bg-green-500" : "bg-rose-600 hover:bg-rose-500",
             ].join(" ")}`}
           >
             {okLabel}

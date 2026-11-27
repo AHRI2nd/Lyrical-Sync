@@ -881,6 +881,7 @@ function App() {
           title={t.recovery.title}
           message={`${t.recovery.message}${recovery.doc.metadata.title ? `\n\n「${recovery.doc.metadata.title}」 · ${recovery.doc.lines.length}${t.recovery.lines}` : ""}`}
           okLabel={t.recovery.restore}
+          okPrimary
           cancelLabel={t.recovery.discard}
           onOk={() => {
             restoredRecoverySnapshotRef.current = recovery;
