@@ -67,7 +67,7 @@ export function GeneralSettingsTab({
             <span role="alert" className="text-xs text-rose-400">{t.updater.errorTitle}</span>
           )}
           {checkState === "upToDate" && (
-            <span className="text-xs text-emerald-400">{t.settingsUpToDate}</span>
+            <span className="text-xs text-[var(--ls-accent)]">{t.settingsUpToDate}</span>
           )}
         </div>
       </div>

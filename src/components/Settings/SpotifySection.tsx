@@ -73,7 +73,7 @@ export function SpotifySection({
         {isLoggedIn ? (
           <>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-mono text-emerald-400">●</span>
+              <span className="text-xs font-mono text-[var(--ls-accent)]">●</span>
               <span className="text-sm text-[var(--ls-text)]">
                 {isReady && trackName
                   ? `${trackName} — ${artistName}`

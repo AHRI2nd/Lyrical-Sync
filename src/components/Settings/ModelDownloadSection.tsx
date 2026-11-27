@@ -328,7 +328,7 @@ function ModelRow({
     : status === "error" ? "✕"
     : "·";
   const iconColor =
-    status === "installed" ? "text-emerald-400"
+    status === "installed" ? "text-[var(--ls-accent)]"
     : status === "downloading" || status === "preparing" ? "text-[var(--ls-accent)]"
     : status === "error" ? "text-red-400"
     : "text-[var(--ls-text-secondary)]";

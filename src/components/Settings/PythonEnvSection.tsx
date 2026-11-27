@@ -148,7 +148,7 @@ export function PythonEnvSection() {
 
   const statusColor = loading ? "text-[var(--ls-text-secondary)]"
     : loadError ? "text-red-400"
-    : info?.packagesReady ? "text-emerald-400"
+    : info?.packagesReady ? "text-[var(--ls-accent)]"
     : info?.pythonReady ? "text-[var(--ls-playhead)]"
     : "text-[var(--ls-text-secondary)]";
   const statusText = loading ? t.settingsVenvChecking

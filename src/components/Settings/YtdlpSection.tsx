@@ -184,7 +184,7 @@ export function YtdlpSection() {
             <span className="text-sm font-semibold text-[var(--ls-text)]">{t.ytdlpTitle}</span>
             {!checking && (
               <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
-                isInstalled ? "bg-emerald-900/50 text-emerald-400" : "bg-[var(--ls-control)] text-[var(--ls-text-secondary)]"
+                isInstalled ? "bg-[var(--ls-selection)] text-[var(--ls-accent)]" : "bg-[var(--ls-control)] text-[var(--ls-text-secondary)]"
               }`}>
                 {isInstalled ? t.ytdlpInstalled : t.ytdlpNotInstalled}
               </span>
