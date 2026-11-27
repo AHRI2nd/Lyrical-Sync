@@ -30,6 +30,7 @@ class SignedCandidateTests(unittest.TestCase):
         self.assertIn('dirtyRef.current()', close_guard_source)
         self.assertNotIn('getCurrentWindow().destroy()', app_source + close_guard_source)
         self.assertIn('core:window:allow-close', capability['permissions'])
+        self.assertIn('core:window:allow-start-dragging', capability['permissions'])
         self.assertNotIn('core:window:allow-destroy', capability['permissions'])
 
     def test_audio_stream_commands_are_declared_and_scoped(self):
