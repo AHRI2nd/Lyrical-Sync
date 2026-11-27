@@ -51,3 +51,9 @@ it('recovers focus when state changes remove the active control',async()=>{
  view.rerender(<Dialog name="Update"><button>Restart</button></Dialog>);expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(true);
  screen.getByRole('button',{name:'Restart'}).focus();view.rerender(<Dialog name="Update"><button key="error">Close error</button></Dialog>);expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(true);
 });
+it('restores focus to the visible equivalent when a responsive opener is hidden',async()=>{
+ function Fixture(){const[open,setOpen]=useState(false);return <><div data-testid="first"><button data-modal-focus-peer="settings" onClick={()=>setOpen(true)}>First opener</button></div><div data-testid="second" style={{display:'none'}}><button data-modal-focus-peer="settings" onClick={()=>setOpen(true)}>Second opener</button></div>{open&&<Dialog name="Settings" onClose={()=>setOpen(false)}><button>Inside</button></Dialog>}</>;}
+ const user=userEvent.setup();render(<Fixture/>);await user.click(screen.getByRole('button',{name:'First opener'}));
+ screen.getByTestId('first').style.display='none';screen.getByTestId('second').style.display='block';
+ await user.keyboard('{Escape}');expect(document.activeElement).toBe(screen.getByRole('button',{name:'Second opener'}));
+});

@@ -35,6 +35,21 @@ function focusInside(element: HTMLElement) {
   const preferred = element.querySelector<HTMLElement>('[data-modal-initial-focus]');
   (preferred ?? focusable(element)[0] ?? element).focus({ preventScroll: true });
 }
+function isAvailable(node: HTMLElement) {
+  for (let current: HTMLElement | null = node; current; current = current.parentElement) {
+    const style = getComputedStyle(current);
+    if (current.hidden || current.hasAttribute('inert') || style.display === 'none' || style.visibility === 'hidden') return false;
+  }
+  return !node.matches(':disabled');
+}
+function restoreFocus(previous: HTMLElement) {
+  if (previous.isConnected && isAvailable(previous)) { previous.focus({ preventScroll: true }); return; }
+  const peer = previous.dataset.modalFocusPeer;
+  if (!peer) return;
+  const replacement = [...document.querySelectorAll<HTMLElement>('[data-modal-focus-peer]')]
+    .find(node => node.dataset.modalFocusPeer === peer && isAvailable(node));
+  replacement?.focus({ preventScroll: true });
+}
 
 /** Own focus and background isolation only while this is the topmost modal. */
 export function useModalFocus(ref: RefObject<HTMLElement | null>, onEscape?: () => void, enabled = true, priority = 50) {
@@ -71,7 +86,7 @@ export function useModalFocus(ref: RefObject<HTMLElement | null>, onEscape?: () 
       const owned = activeScope === scope || !activeScope;
       scopes.splice(scopes.indexOf(scope), 1); updateBackground();
       document.removeEventListener('focusin', onFocus); document.removeEventListener('keydown', onKey);
-      if (owned && previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true });
+      if (owned && previous instanceof HTMLElement) restoreFocus(previous);
       const next = topScope();
       if (next && !next.element.contains(document.activeElement)) focusInside(next.element);
     };

@@ -838,9 +838,9 @@ function App() {
           <div className="w-px h-5 bg-[var(--ls-control)] mx-0.5" />
           <LangDropdown />
           <div className="ls-header-utilities items-center gap-1.5">
-            <IconBtn onClick={() => { setSettingsInitialTab("general"); setShowSettings(true); }} title={t.settingsTitle} tooltipAlign="right"><GearIcon /></IconBtn>
-            <IconBtn onClick={() => setShowBatchTool(true)} title={t.batchTitle} tooltipAlign="right"><BatchIcon /></IconBtn>
-            <IconBtn onClick={() => setShowHelp(true)} title={t.shortcutsTitle} tooltipAlign="right"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg></IconBtn>
+            <IconBtn onClick={() => { setSettingsInitialTab("general"); setShowSettings(true); }} title={t.settingsTitle} tooltipAlign="right" focusPeer="settings"><GearIcon /></IconBtn>
+            <IconBtn onClick={() => setShowBatchTool(true)} title={t.batchTitle} tooltipAlign="right" focusPeer="batch"><BatchIcon /></IconBtn>
+            <IconBtn onClick={() => setShowHelp(true)} title={t.shortcutsTitle} tooltipAlign="right" focusPeer="help"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg></IconBtn>
           </div>
         </div>
       </header>
@@ -1111,6 +1111,7 @@ function App() {
               onClick={() => { setSettingsInitialTab("general"); setShowSettings(true); }}
               title={t.settingsTitle}
               aria-label={t.settingsTitle}
+              data-modal-focus-peer="settings"
               className="ls-button ls-button--icon w-8 h-8 rounded-full bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:text-white transition-colors flex items-center justify-center shadow-lg"
             >
               <GearIcon />
@@ -1119,6 +1120,7 @@ function App() {
               onClick={() => setShowBatchTool(true)}
               title={t.batchTitle}
               aria-label={t.batchTitle}
+              data-modal-focus-peer="batch"
               className="ls-button ls-button--icon w-8 h-8 rounded-full bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:text-white transition-colors flex items-center justify-center shadow-lg"
             >
               <BatchIcon />
@@ -1127,6 +1129,7 @@ function App() {
               onClick={() => setShowHelp(true)}
               title={t.shortcutsTitle}
               aria-label={t.shortcutsTitle}
+              data-modal-focus-peer="help"
               className="ls-button ls-button--icon w-8 h-8 rounded-full bg-[var(--ls-control)] hover:bg-[var(--ls-control)] text-[var(--ls-text-secondary)] hover:text-white text-sm font-bold transition-colors flex items-center justify-center shadow-lg"
             >
               ?

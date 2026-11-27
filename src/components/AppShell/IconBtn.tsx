@@ -1,5 +1,5 @@
 export function IconBtn({
-  children, onClick, disabled, accent, title, tooltipAlign = "center",
+  children, onClick, disabled, accent, title, tooltipAlign = "center", focusPeer,
 }: {
   children: React.ReactNode;
   onClick: () => void;
@@ -7,6 +7,7 @@ export function IconBtn({
   accent?: boolean;
   title: string;
   tooltipAlign?: "center" | "right";
+  focusPeer?: string;
 }) {
   const tooltipPos = tooltipAlign === "right"
     ? "right-0"
@@ -17,6 +18,7 @@ export function IconBtn({
         onClick={onClick}
         disabled={disabled}
         aria-label={title}
+        data-modal-focus-peer={focusPeer}
         className={`ls-button ls-button--icon ${accent ? "ls-button--secondary" : "ls-button--ghost"}`}
       >
         {children}
