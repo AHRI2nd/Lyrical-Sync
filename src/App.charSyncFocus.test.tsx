@@ -253,6 +253,7 @@ describe.each(["char", "word"] as const)("Character sync shortcut focus (%s)", u
     const user = userEvent.setup();
     await mountEditor(unit);
     act(() => useLrcStore.setState({ isDirty: true }));
+    await user.click(screen.getByRole("button", { name: `${translations.en.newFileTitle}, ${translations.en.modeSelect}` }));
     await user.click(screen.getByRole("button", { name: translations.en.newFileBtn }));
     const dialog = await screen.findByRole("dialog");
     const focused = document.activeElement;

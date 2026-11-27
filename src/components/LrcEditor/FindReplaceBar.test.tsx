@@ -66,6 +66,8 @@ it('closes the foreground tools popup on Escape without closing background Find/
       onToggleTS={vi.fn()}
       onToggleScale={vi.fn()}
       onOpenBpmSnap={vi.fn()}
+      statsLabel={useI18nStore.getState().t.validationTitle}
+      onOpenValidation={vi.fn()}
     />
     <FindReplaceBar findText="text" replaceText="new" caseSensitive={false} matchCount={1} matchPos={0}
       onFindChange={vi.fn()} onReplaceChange={vi.fn()} onCaseSensitiveToggle={vi.fn()} onPrev={vi.fn()}
@@ -83,4 +85,27 @@ it('closes the foreground tools popup on Escape without closing background Find/
   expect(screen.getAllByRole('textbox')).toHaveLength(2);
   expect(document.activeElement).toBe(toolsTrigger);
   expect(onClose).not.toHaveBeenCalled();
+});
+
+it('opens validation from the tools menu', () => {
+  const onOpenValidation = vi.fn();
+  const t = useI18nStore.getState().t;
+  render(<EditorToolsMenu
+    t={t}
+    showFR={false}
+    showTS={false}
+    showScale={false}
+    statsLabel={`${t.validationTitle} · 100%`}
+    onToggleFR={vi.fn()}
+    onToggleTS={vi.fn()}
+    onToggleScale={vi.fn()}
+    onOpenBpmSnap={vi.fn()}
+    onOpenValidation={onOpenValidation}
+  />);
+
+  fireEvent.click(screen.getByRole('button', { name: t.editorTools }));
+  fireEvent.click(screen.getByRole('button', { name: `${t.validationTitle} · 100%` }));
+
+  expect(onOpenValidation).toHaveBeenCalledOnce();
+  expect(screen.queryByRole('button', { name: `${t.validationTitle} · 100%` })).toBeNull();
 });

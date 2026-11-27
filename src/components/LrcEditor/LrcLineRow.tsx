@@ -88,6 +88,7 @@ export function LrcLineRowImpl({
       role={virtualizedTotalCount === undefined ? undefined : "listitem"}
       aria-setsize={virtualizedTotalCount}
       aria-posinset={virtualizedTotalCount === undefined ? undefined : idx + 1}
+      data-active={isActive ? "true" : undefined}
       data-line-id={line.id}
       data-line-index={idx}
       style={{ "--ls-line-number-width": `${lineNumberDigits}ch` } as CSSProperties}
@@ -98,7 +99,7 @@ export function LrcLineRowImpl({
           : isCurrentMatch
           ? "bg-[var(--ls-selection)]/30 ring-1 ring-[var(--ls-playhead)]"
           : isActive
-          ? "bg-[var(--ls-selection)]/20 shadow-[inset_2px_0_0_var(--ls-accent)]"
+          ? "ls-line-row--active"
           : isMatch
           ? "bg-[var(--ls-selection)]/10 ring-1 ring-[var(--ls-playhead)]"
           : dragIdx === null ? "hover:bg-[var(--ls-control)]" : ""

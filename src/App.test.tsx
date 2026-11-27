@@ -18,11 +18,12 @@ if (typeof globalThis.localStorage === "undefined") {
 
 // App.tsx가 마운트 시 건드리는 Tauri API 전부 스텁 — 이 테스트는 드래그앤드롭 충돌
 // 해소 로직(App.tsx 자체)만 검증하므로, 실제 IPC/OS 연동은 필요 없음.
-const { dragDropHandler, dialogOpen, closeRequestedHandler, closeWindow, exitApplication, eventListen, appMenuHandlers, appMenuContext, invokeMock } = vi.hoisted(() => ({
+const { dragDropHandler, dialogOpen, closeRequestedHandler, closeWindow, startDragging, exitApplication, eventListen, appMenuHandlers, appMenuContext, invokeMock } = vi.hoisted(() => ({
   dragDropHandler: { current: null as ((e: unknown) => void) | null },
   dialogOpen: vi.fn(),
   closeRequestedHandler: { current: null as ((event: { preventDefault: () => void }) => void) | null },
   closeWindow: vi.fn(() => Promise.resolve()),
+  startDragging: vi.fn(() => Promise.resolve()),
   exitApplication: vi.fn(() => Promise.resolve()),
   eventListen: vi.fn((..._args: unknown[]) => Promise.resolve(() => {})),
   appMenuHandlers: { current: null as Record<string, (() => void) | undefined> | null },
@@ -49,6 +50,7 @@ vi.mock("@tauri-apps/api/window", () => ({
       return () => { closeRequestedHandler.current = null; };
     },
     close: closeWindow,
+    startDragging,
   }),
 }));
 
@@ -89,6 +91,15 @@ const resetLrc = (overrides: Partial<ReturnType<typeof useLrcStore.getState>> = 
     _future: [],
     ...overrides,
   });
+};
+
+const clickHeaderAction = (label: string) => {
+  const { t } = useI18nStore.getState();
+  const path = useLrcStore.getState().lrcPath;
+  const title = path ? path.split(/[\\/]/).pop() : t.newFileTitle;
+  const trigger = screen.getByRole("button", { name: `${title}, ${t.modeSelect}` });
+  if (trigger.getAttribute("aria-expanded") !== "true") fireEvent.click(trigger);
+  fireEvent.click(screen.getByRole("button", { name: label }));
 };
 
 describe("App — drag-and-drop conflict resolution", () => {
@@ -136,7 +147,7 @@ describe("App — drag-and-drop conflict resolution", () => {
       : Promise.resolve(undefined));
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: useI18nStore.getState().t.openLrc }));
+    clickHeaderAction(useI18nStore.getState().t.openLrc);
     await waitFor(() => expect(resolvePicker).toBeTypeOf("function"));
     await act(async () => useLrcStore.getState().loadLyricsPath("/tmp/new.lrc"));
     await act(async () => resolvePicker("/tmp/stale.lrc"));
@@ -154,7 +165,7 @@ describe("App — drag-and-drop conflict resolution", () => {
       : Promise.resolve(undefined));
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: useI18nStore.getState().t.openLrc }));
+    clickHeaderAction(useI18nStore.getState().t.openLrc);
 
     await waitFor(() => expect(useLrcStore.getState().lrcPath).toBe("/tmp/selected.lrc"));
     expect(useLrcStore.getState().doc.lines.map((line) => line.text)).toEqual(["selected lyric"]);
@@ -239,10 +250,9 @@ describe("App — drag-and-drop conflict resolution", () => {
   it("keeps playback shortcuts available when a confirmation modal focuses a button", async () => {
     resetLrc({ isDirty: true, lrcPath: "/music/unsaved.lrc" });
     const togglePlay = vi.spyOn(audioControls, "togglePlay");
-    const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: useI18nStore.getState().t.newFileBtn }));
+    await clickHeaderAction(useI18nStore.getState().t.newFileBtn);
     const cancel = screen.getByRole("button", { name: useI18nStore.getState().t.confirmNewCancel });
     expect(document.activeElement).toBe(cancel);
     fireEvent.keyDown(window, { code: "Digit3", key: "3" });
@@ -297,13 +307,13 @@ describe("App — drag-and-drop conflict resolution", () => {
       const user = userEvent.setup();
       render(<App />);
       const t = useI18nStore.getState().t;
-      await user.click(screen.getByRole("button", { name: t.save }));
+      await clickHeaderAction(t.save);
       let dialog = await screen.findByRole("dialog", { name: t.metaOmissionTitle });
       expect(within(dialog).getByText(t.metaOmissionMessage.replace("{fields}", `${t.metaTitle.label}, ${t.metaArtist.label}`))).toBeTruthy();
       await user.click(within(dialog).getByRole("button", { name: t.cancelLabel }));
       expect(save).not.toHaveBeenCalled();
       expect(useSettingsStore.getState().hideLrcMetadataWarning).toBe(false);
-      await user.click(screen.getByRole("button", { name: t.save }));
+      await clickHeaderAction(t.save);
       dialog = await screen.findByRole("dialog", { name: t.metaOmissionTitle });
       await user.click(within(dialog).getByRole("checkbox", { name: t.elrcNotice.dontShowAgain }));
       await user.click(within(dialog).getByRole("button", { name: t.save }));
@@ -326,10 +336,9 @@ describe("App — drag-and-drop conflict resolution", () => {
     const originalSave = useLrcStore.getState().saveLrc;
     const save = vi.fn().mockResolvedValue(true);
     useLrcStore.setState({ saveLrc: save });
-    const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: t.save }));
+    await clickHeaderAction(t.save);
     expect(await screen.findByRole("dialog", { name: t.elrcNotice.title })).toBeTruthy();
     act(() => useLrcStore.getState().newLrc());
     expect(screen.queryByRole("dialog", { name: t.elrcNotice.title })).toBeNull();
@@ -340,10 +349,9 @@ describe("App — drag-and-drop conflict resolution", () => {
   it("dismisses a pending Save As format choice and drops its action when the document changes", async () => {
     const t = useI18nStore.getState().t;
     const saveAs = vi.spyOn(useLrcStore.getState(), "saveLrcAs").mockResolvedValue(true);
-    const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: t.saveAs }));
+    await clickHeaderAction(t.saveAs);
     expect(await screen.findByRole("dialog", { name: t.saveFormatTitle })).toBeTruthy();
 
     act(() => useLrcStore.getState().newLrc());
@@ -370,7 +378,7 @@ describe("App — drag-and-drop conflict resolution", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: t.save }));
+    await clickHeaderAction(t.save);
 
     expect(await screen.findByRole("dialog", { name: t.srtOnlyDataLossTitle })).toBeTruthy();
     expect(save).not.toHaveBeenCalled();
@@ -395,7 +403,7 @@ describe("App — drag-and-drop conflict resolution", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: t.saveAs }));
+    await clickHeaderAction(t.saveAs);
     await user.click(screen.getByRole("button", { name: /LRC/ }));
     expect(await screen.findByRole("dialog", { name: t.srtOnlyDataLossTitle })).toBeTruthy();
     expect(saveAs).not.toHaveBeenCalled();
@@ -437,7 +445,7 @@ describe("App — drag-and-drop conflict resolution", () => {
     render(<App />);
 
     const t = useI18nStore.getState().t;
-    await user.click(screen.getByRole("button", { name: t.newFileBtn }));
+    await clickHeaderAction(t.newFileBtn);
     expect(await screen.findByText(t.confirmNewMessage)).toBeTruthy();
     await act(async () => { drop(["/music/new.lrc"]); });
     await user.click(screen.getAllByText(t.drop.replaceOk)[screen.getAllByText(t.drop.replaceOk).length - 1]);
@@ -453,7 +461,7 @@ describe("App — drag-and-drop conflict resolution", () => {
     render(<App />);
 
     const t = useI18nStore.getState().t;
-    await user.click(screen.getByRole("button", { name: t.newFileBtn }));
+    await clickHeaderAction(t.newFileBtn);
     expect(await screen.findByText(t.confirmNewMessage)).toBeTruthy();
     act(() => useLrcStore.getState().setMetadata({ title: "edited while confirming" }));
 
@@ -486,7 +494,7 @@ describe("App — drag-and-drop conflict resolution", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: "가사 열기" }));
+    await clickHeaderAction(useI18nStore.getState().t.openLrc);
     expect(await screen.findByText("작업 중인 가사가 있습니다. 저장하지 않은 변경 사항은 사라집니다. 교체하시겠습니까?")).toBeTruthy();
     expect(loadLyricsPathSpy).not.toHaveBeenCalled();
 
@@ -688,6 +696,32 @@ describe("App — drag-and-drop conflict resolution", () => {
   });
 });
 
+describe("App window chrome", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetLrc();
+    startDragging.mockClear();
+  });
+
+  afterEach(cleanup);
+
+  it("starts a native window drag from the blank toolbar area", () => {
+    render(<App />);
+
+    fireEvent.pointerDown(screen.getByRole("banner"), { button: 0 });
+
+    expect(startDragging).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps toolbar buttons interactive instead of starting a window drag", () => {
+    render(<App />);
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: `${useI18nStore.getState().t.newFileTitle}, ${useI18nStore.getState().t.modeSelect}` }), { button: 0 });
+
+    expect(startDragging).not.toHaveBeenCalled();
+  });
+});
+
 
 import { saveRecoverySnapshot, loadRecoverySnapshot } from "./utils/recovery";
 import { useSettingsPersistenceStore } from "./stores/useSettingsStore";
@@ -772,7 +806,7 @@ describe("App — recovery lifecycle", () => {
     const t = useI18nStore.getState().t;
     await user.click(screen.getByText(t.recovery.restore));
     expect(useLrcStore.getState().doc.lines[0]?.text).toBe("Disposable recovered lyric");
-    await user.click(screen.getByRole("button", { name: t.newFileBtn }));
+    await clickHeaderAction(t.newFileBtn);
     const confirm = screen.getByRole("dialog", { name: t.confirmNewTitle });
     await user.click(within(confirm).getByRole("button", { name: t.confirmNewOk }));
 
@@ -797,7 +831,7 @@ describe("App — recovery lifecycle", () => {
       render(<App />);
       const t = useI18nStore.getState().t;
       await user.click(screen.getByText(t.recovery.restore));
-      await user.click(screen.getByRole("button", { name: t.newFileBtn }));
+      await clickHeaderAction(t.newFileBtn);
       const confirm = screen.getByRole("dialog", { name: t.confirmNewTitle });
       await user.click(within(confirm).getByRole("button", { name: t.confirmNewOk }));
 
@@ -826,7 +860,7 @@ describe("App — recovery lifecycle", () => {
 
       const t = useI18nStore.getState().t;
       await user.click(screen.getByText(t.recovery.restore));
-      await user.click(screen.getByRole("button", { name: t.save }));
+      await clickHeaderAction(t.save);
 
       expect(saveLrc).toHaveBeenCalledOnce();
       expect(await screen.findByText(t.toast.saved)).toBeTruthy();
@@ -1024,4 +1058,29 @@ it("shows a recoverable error without losing the current document", () => {
   expect(useLrcStore.getState().doc.lines[0].text).toBe("current edit");
   expect(useLrcStore.getState().isDirty).toBe(true);
   view.unmount();
+});
+
+describe("App — compact header file menu", () => {
+  afterEach(() => cleanup());
+
+  it("keeps file actions available from the document title dropdown", async () => {
+    localStorage.clear();
+    resetLrc();
+    const user = userEvent.setup();
+    render(<App />);
+    const { t } = useI18nStore.getState();
+    const trigger = screen.getByRole("button", { name: `${t.newFileTitle}, ${t.modeSelect}` });
+
+    await user.click(trigger);
+
+    const menu = screen.getByRole("group", { name: `${t.newFileTitle}, ${t.modeSelect} actions` });
+    expect(within(menu).getByRole("button", { name: t.openLrc })).toBeTruthy();
+    expect(within(menu).getByRole("button", { name: t.newFileBtn })).toBeTruthy();
+    expect(within(menu).getByRole("button", { name: t.save })).toBeTruthy();
+    expect(within(menu).getByRole("button", { name: t.saveAs })).toBeTruthy();
+    expect(within(menu).getByRole("button", { name: t.batchTitle })).toBeTruthy();
+
+    await user.keyboard("{Escape}");
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+  });
 });

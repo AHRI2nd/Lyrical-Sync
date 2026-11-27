@@ -58,7 +58,7 @@ export function MetaEditor() {
     <div className="ls-panel ls-meta flex flex-col gap-3 p-4 border border-transparent">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold text-[var(--ls-text)]">{t.songInfo}</h2>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="ls-meta-actions flex items-center gap-1 shrink-0">
           <button
             onClick={() => setShowLrcLib(true)}
             title={t.lrclib.button}

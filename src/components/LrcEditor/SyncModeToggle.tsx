@@ -15,7 +15,7 @@ export function SyncModeToggle({
 }) {
   return (
     <>
-      <div className="inline-flex border-b border-[var(--ls-border-subtle)]">
+      <div className="ls-sync-mode-tabs inline-flex border-b border-[var(--ls-border-subtle)]">
         <button
           onClick={(e) => { onSetSyncMode("line"); if (e.detail !== 0) e.currentTarget.blur(); }}
           aria-pressed={!charMode}

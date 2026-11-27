@@ -956,8 +956,8 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
 
   return (
-    <div ref={editorRef} className="ls-panel flex flex-col gap-2 px-5 py-4 border border-transparent flex-1 min-h-0 min-w-0">
-      <div className="flex flex-wrap gap-2 items-center justify-between pb-3 border-b border-[var(--ls-border-subtle)]">
+    <div ref={editorRef} className="ls-panel ls-editor-panel flex flex-col gap-2 px-5 py-4 border border-transparent flex-1 min-h-0 min-w-0">
+      <div className="ls-editor-toolbar flex flex-wrap gap-2 items-center justify-between pb-3 border-b border-[var(--ls-border-subtle)]">
         <div className="flex items-center gap-x-5 gap-y-2 flex-wrap min-w-0">
           <h2 className="text-lg font-semibold text-[var(--ls-text)]">{t.lyricsEditor}</h2>
           <SyncModeToggle
@@ -965,18 +965,8 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
             syncUnit={syncUnit} onUnitChange={handleUnitChange} isRunning={isRunning} runningTitle={t.aiSyncRunning}
           />
 
-          {!charMode && stats.total > 0 && (
-            <button
-              onClick={() => setShowValidation(true)}
-              title={t.validationTitle}
-              className="ls-button flex items-center gap-1.5 text-xs transition-colors"
-            >
-              <span className="text-[var(--ls-text-secondary)]">{stats.pct}%</span>
-              {warnings.size > 0 && <span className="text-[var(--ls-playhead)]">⚠ {warnings.size}</span>}
-            </button>
-          )}
         </div>
-        <div className="flex gap-2 items-center flex-wrap justify-end">
+        <div className="ls-editor-toolbar-actions flex gap-2 items-center flex-wrap justify-end">
 
 
           {!charMode && (<>
@@ -990,7 +980,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
                 onClick={isRunning ? undefined : handleAiSync}
                 disabled={isRunning || !canRunAi || !audioPath || aiSyncModeUnsupported}
                 className={`ls-button ${[
-                  "px-3 py-1 text-xs rounded-lg transition-colors",
+                  "ls-editor-toolbar-icon px-3 py-1 text-xs rounded-lg transition-colors",
                   isRunning
                     ? "bg-[var(--ls-primary)] text-[var(--ls-accent)] cursor-not-allowed"
                     : canRunAi && audioPath && !aiSyncModeUnsupported
@@ -1056,6 +1046,8 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
 
           <EditorToolsMenu
             t={t} showFR={showFR} showTS={showTS} showScale={showScale}
+            statsLabel={!charMode && stats.total > 0 ? `${t.validationTitle} · ${stats.pct}%${warnings.size > 0 ? ` · ⚠ ${warnings.size}` : ""}` : undefined}
+            onOpenValidation={!charMode && stats.total > 0 ? () => setShowValidation(true) : undefined}
             onToggleFR={() => { setShowFR((v) => !v); setTimeout(() => findInputRef.current?.focus(), 0); }}
             onToggleTS={() => setShowTS((v) => !v)}
             onToggleScale={() => setShowScale((v) => !v)}
@@ -1066,16 +1058,19 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
             onClick={onPreview}
             aria-label={t.previewBtn}
             title={t.previewBtn}
-            className="ls-button ls-button--icon"
+            className="ls-button ls-button--icon ls-editor-toolbar-icon"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>
           </button>
+          {!charMode && (
+          <span aria-hidden="true" className="ls-editor-toolbar-separator" />
+          )}
           {!charMode && (
           <button
             onClick={handleAddLine}
             aria-label={t.addLine}
             title={t.addLine}
-            className="ls-button ls-button--icon ls-button--secondary"
+            className="ls-button ls-button--icon ls-button--secondary ls-editor-toolbar-icon"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M12 4v16M4 12h16" /></svg>
           </button>

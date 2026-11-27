@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, lazy, Suspense } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import appIcon from "../src-tauri/icons/32x32.png";
 import { AudioPlayer } from "./components/AudioPlayer/AudioPlayer";
 import { MetaEditor } from "./components/MetaEditor/MetaEditor";
@@ -282,6 +283,7 @@ function useAutoUpdateCheck(enabled: boolean) {
 
 function App() {
   useGlobalKeys();
+  const hasMacOverlayTitleBar = navigator.platform.toLowerCase().includes("mac");
   useEffect(() => {
     const report = () => toast.error(useI18nStore.getState().t.toast.runtimeFailed);
     window.addEventListener("lyrical-runtime-error", report);
@@ -312,9 +314,22 @@ function App() {
   useAutoSave(recovery !== null, discardingClose, () => discardCloseRef.current);
   const [showHelp, setShowHelp] = useState(false);
   const [showBatchTool, setShowBatchTool] = useState(false);
+  const [showHeaderFileMenu, setShowHeaderFileMenu] = useState(false);
+  const headerFileMenuRef = useRef<HTMLDivElement>(null);
+  const headerFileMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<"general" | "preview" | "models" | "spotify" | "youtube" | "shortcuts">("general");
+  useEffect(() => {
+    if (!showHeaderFileMenu) return;
+    const closeOnOutsidePointer = (event: MouseEvent) => {
+      if (headerFileMenuRef.current && !headerFileMenuRef.current.contains(event.target as Node)) {
+        setShowHeaderFileMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", closeOnOutsidePointer);
+    return () => document.removeEventListener("mousedown", closeOnOutsidePointer);
+  }, [showHeaderFileMenu]);
   const [showNewConfirm, setShowNewConfirm] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const quitRequestedRef = useRef(false);
@@ -809,37 +824,78 @@ function App() {
         height: `${(100 / uiScale).toFixed(4)}vh`,
       }}
     >
-      <header className="ls-app-header flex items-center gap-2 px-4 py-2 bg-[var(--ls-surface)] border-b border-[var(--ls-border-subtle)] shrink-0">
+      <header
+        onPointerDown={(event) => {
+          if (event.button !== 0) return;
+          const target = event.target;
+          if (target instanceof Element && target.closest("button, a, input, textarea, select, [role='button'], [contenteditable='true']")) return;
+          event.preventDefault();
+          void getCurrentWindow().startDragging().catch(() => {});
+        }}
+        className={`ls-app-header ${hasMacOverlayTitleBar ? "ls-app-header--mac-overlay" : ""} flex items-center gap-2 px-4 py-2 bg-[var(--ls-surface)] border-b border-[var(--ls-border-subtle)] shrink-0`}
+      >
         <span className="ls-app-brand flex items-center gap-2 font-semibold text-[var(--ls-text)] mr-2 shrink-0"><img src={appIcon} alt="" aria-hidden="true" className="w-6 h-6 rounded-md" style={{ filter: "saturate(0.55) hue-rotate(12deg)" }} />Lyrical Sync</span>
         <span aria-hidden="true" className="ls-header-separator" />
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span aria-hidden="true" className="ls-header-file-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h8"/></svg></span>
-          <span className="ls-header-filename text-[var(--ls-text-secondary)] text-sm truncate">
-            {title}
-            {isDirty && (
-              <span className="text-rose-400 ml-1 text-xs align-middle" title={t.unsavedChanges}>●</span>
+        <div className="ls-header-document flex items-center min-w-0 shrink-0">
+          <div
+            className="ls-header-file-menu relative min-w-0"
+            ref={headerFileMenuRef}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && showHeaderFileMenu && !isComposingKeyEvent(event.nativeEvent)) {
+                event.preventDefault();
+                event.stopPropagation();
+                setShowHeaderFileMenu(false);
+                headerFileMenuTriggerRef.current?.focus();
+              }
+            }}
+          >
+            <button
+              ref={headerFileMenuTriggerRef}
+              type="button"
+              aria-label={`${title}, ${t.modeSelect}`}
+              aria-expanded={showHeaderFileMenu}
+              aria-controls="ls-header-file-menu-content"
+              onClick={() => setShowHeaderFileMenu((open) => !open)}
+              className="ls-button ls-header-file-trigger flex items-center gap-3 min-w-0 text-[var(--ls-text-secondary)] hover:text-[var(--ls-text)] transition-colors"
+            >
+              <span aria-hidden="true" className="ls-header-file-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h8"/></svg></span>
+              <span className="ls-header-filename text-sm truncate">
+                {title}
+                {isDirty && (
+                  <span className="text-rose-400 ml-1 text-xs align-middle" title={t.unsavedChanges}>●</span>
+                )}
+              </span>
+              <svg aria-hidden="true" className="ls-header-file-chevron shrink-0" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+            </button>
+            {showHeaderFileMenu && (
+              <div id="ls-header-file-menu-content" role="group" aria-label={`${title}, ${t.modeSelect} actions`} className="ls-header-file-menu-content absolute left-0 top-full z-50 mt-2 rounded-xl border border-[var(--ls-border-subtle)] bg-[var(--ls-surface)] p-2 shadow-2xl">
+                <div className="ls-header-file-menu-mode"><ModeSelectButton /></div>
+                <div className="ls-header-file-menu-divider" />
+                <button type="button" onClick={() => { setShowHeaderFileMenu(false); handleNewLrc(); }} className="ls-header-file-menu-item"><NewFileIcon /><span>{t.newFileBtn}</span></button>
+                <button type="button" onClick={() => { setShowHeaderFileMenu(false); handleOpenLrc(); }} className="ls-header-file-menu-item"><OpenFolderIcon /><span>{t.openLrc}</span></button>
+                <div className="ls-header-file-menu-recent"><RecentFilesMenu showLabel onOpen={(entry) => { setShowHeaderFileMenu(false); handleRecentOpen(entry); }} /></div>
+                <button type="button" onClick={() => { setShowHeaderFileMenu(false); handleSave(); }} className="ls-header-file-menu-item"><SaveIcon /><span>{t.save}</span></button>
+                <button type="button" onClick={() => { setShowHeaderFileMenu(false); openFormatChooser(); }} className="ls-header-file-menu-item"><SaveAsIcon /><span>{t.saveAs}</span></button>
+                <div className="ls-header-file-menu-divider" />
+                <button type="button" onClick={() => { setShowHeaderFileMenu(false); setShowBatchTool(true); }} className="ls-header-file-menu-item"><BatchIcon /><span>{t.batchTitle}</span></button>
+                {(_history.length > 0 || _future.length > 0) && <>
+                  <div className="ls-header-file-menu-divider" />
+                  <HistoryPanel />
+                </>}
+              </div>
             )}
-          </span>
-          <div className="flex gap-1 shrink-0">
+          </div>
+          <span aria-hidden="true" className="ls-header-command-separator" />
+          <div className="ls-header-undo-redo flex items-center gap-1 shrink-0">
             <IconBtn onClick={undo} disabled={_history.length === 0} title={t.undo}><UndoIcon /></IconBtn>
             <IconBtn onClick={redo} disabled={_future.length === 0} title={t.redo}><RedoIcon /></IconBtn>
-            <HistoryPanel />
           </div>
         </div>
+        <div className="flex-1 min-w-0" />
         <div className="flex items-center gap-1.5 shrink-0">
-          <ModeSelectButton />
-          <div className="w-px h-5 bg-[var(--ls-control)] mx-0.5" />
-          {/* 파일 액션 그룹 */}
-          <IconBtn onClick={handleNewLrc} title={t.newFileBtn}><NewFileIcon /></IconBtn>
-          <IconBtn onClick={handleOpenLrc} title={t.openLrc}><OpenFolderIcon /></IconBtn>
-          <RecentFilesMenu onOpen={handleRecentOpen} />
-          <IconBtn onClick={handleSave} accent title={t.save} tooltipAlign="right"><SaveIcon /></IconBtn>
-          <IconBtn onClick={openFormatChooser} title={t.saveAs} tooltipAlign="right"><SaveAsIcon /></IconBtn>
-          <div className="w-px h-5 bg-[var(--ls-control)] mx-0.5" />
           <LangDropdown />
           <div className="ls-header-utilities items-center gap-1.5">
             <IconBtn onClick={() => { setSettingsInitialTab("general"); setShowSettings(true); }} title={t.settingsTitle} tooltipAlign="right" focusPeer="settings"><GearIcon /></IconBtn>
-            <IconBtn onClick={() => setShowBatchTool(true)} title={t.batchTitle} tooltipAlign="right" focusPeer="batch"><BatchIcon /></IconBtn>
             <IconBtn onClick={() => setShowHelp(true)} title={t.shortcutsTitle} tooltipAlign="right" focusPeer="help"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg></IconBtn>
           </div>
         </div>

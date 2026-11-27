@@ -8,7 +8,7 @@ import { HistoryIcon } from "./icons";
 
 const basename = (path: string) => path.split(/[\\/]/).pop() ?? path;
 
-export function RecentFilesMenu({ onOpen }: { onOpen: (entry: RecentFileEntry) => void }) {
+export function RecentFilesMenu({ onOpen, showLabel = false }: { onOpen: (entry: RecentFileEntry) => void; showLabel?: boolean }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -58,9 +58,10 @@ export function RecentFilesMenu({ onOpen }: { onOpen: (entry: RecentFileEntry) =
         aria-label={t.recentFiles}
         aria-expanded={open}
         aria-controls={menuId}
-        className="ls-button ls-button--icon w-8 h-8 flex items-center justify-center rounded-lg text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-white transition-colors"
+        className={`ls-button ${showLabel ? "ls-header-file-menu-item justify-start" : "ls-button--icon w-8 h-8 flex items-center justify-center rounded-lg"} text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-white transition-colors`}
       >
         <HistoryIcon />
+        {showLabel && <span>{t.recentFiles}</span>}
       </button>
       {open && (
         <div id={menuId} role="group" aria-label={t.recentFiles} className="absolute right-0 top-full mt-1 bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] rounded-lg shadow-xl z-50 overflow-hidden py-1 min-w-[240px] max-w-[320px]">

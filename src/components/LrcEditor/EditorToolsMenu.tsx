@@ -5,17 +5,19 @@ import { isComposingKeyEvent } from "../../utils/keybindings";
 // 도구 오버플로우: 찾기/바꾸기 · 시간 이동 · 타임스탬프 스케일 · BPM 스냅.
 // 열림 상태와 바깥 클릭 감지는 이 컴포넌트가 자체 소유.
 export function EditorToolsMenu({
-  t, showFR, showTS, showScale,
-  onToggleFR, onToggleTS, onToggleScale, onOpenBpmSnap,
+  t, showFR, showTS, showScale, statsLabel,
+  onToggleFR, onToggleTS, onToggleScale, onOpenBpmSnap, onOpenValidation,
 }: {
   t: Translations;
   showFR: boolean;
   showTS: boolean;
   showScale: boolean;
+  statsLabel?: string;
   onToggleFR: () => void;
   onToggleTS: () => void;
   onToggleScale: () => void;
   onOpenBpmSnap: () => void;
+  onOpenValidation?: () => void;
 }) {
   const [showTools, setShowTools] = useState(false);
   const toolsRef = useRef<HTMLDivElement>(null);
@@ -49,12 +51,20 @@ export function EditorToolsMenu({
         aria-label={t.editorTools}
         aria-expanded={showTools}
         title={t.editorTools}
-        className={`ls-button ${`px-3 py-1 text-xs rounded-lg transition-colors ${showTools || showFR || showTS || showScale ? "bg-[var(--ls-control)] text-white" : "text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-white"}`}`}
+        className={`ls-button ls-editor-toolbar-icon ${`px-3 py-1 text-xs rounded-lg transition-colors ${showTools || showFR || showTS || showScale ? "bg-[var(--ls-control)] text-white" : "text-[var(--ls-text-secondary)] hover:bg-[var(--ls-control)] hover:text-white"}`}`}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M14.7 6.3a5 5 0 0 0-6.9 6.2L3.4 17a2.5 2.5 0 0 0 3.6 3.6l4.5-4.4a5 5 0 0 0 6.2-6.9l-2.8 2.8-2.1-.4-.4-2.1z" /></svg>
       </button>
       {showTools && (
         <div className="absolute right-0 top-full mt-1.5 z-40 w-44 bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl p-1.5 flex flex-col gap-0.5">
+          {statsLabel && onOpenValidation && (
+            <button
+              onClick={() => { onOpenValidation(); setShowTools(false); }}
+              className="ls-button text-left text-xs transition-colors"
+            >
+              {statsLabel}
+            </button>
+          )}
           <button
             onClick={() => { onToggleFR(); setShowTools(false); }}
             className={`ls-button ${`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showFR ? "bg-[var(--ls-selection)] text-[var(--ls-accent)]" : "hover:bg-[var(--ls-control)] text-[var(--ls-text)]"}`}`}
