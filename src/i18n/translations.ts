@@ -82,6 +82,7 @@ export interface Translations {
   charSync: {
     glyphMarkerLane: string;
     selectedGlyph: string;
+    selectedTime: string;
     currentLine: string;
     displaySpan: string;
     waveformView: string;
@@ -760,6 +761,7 @@ const ko: Translations = {
   charSync: {
     glyphMarkerLane: "시간축 글자 마커",
     selectedGlyph: "선택 글자",
+    selectedTime: "타임스탬프",
     currentLine: "현재 줄",
     displaySpan: "{seconds}초 구간",
     waveformView: "파형 보기",
@@ -1457,6 +1459,7 @@ const en: Translations = {
   charSync: {
     glyphMarkerLane: "Timed glyph markers",
     selectedGlyph: "Selected glyph",
+    selectedTime: "Timestamp",
     currentLine: "Current line",
     displaySpan: "{seconds}s view",
     waveformView: "Waveform view",
@@ -2155,6 +2158,7 @@ const ja: Translations = {
   charSync: {
     glyphMarkerLane: "時間軸の文字マーカー",
     selectedGlyph: "選択文字",
+    selectedTime: "タイムスタンプ",
     currentLine: "現在の行",
     displaySpan: "{seconds}秒の範囲",
     waveformView: "波形表示",

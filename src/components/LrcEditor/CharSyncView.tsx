@@ -666,10 +666,11 @@ export function CharSyncView({ onOpenShortcuts }: { onOpenShortcuts?: () => void
       </div>
     </div>
     <div className="shrink-0 min-w-0">
-      <div className="flex items-baseline flex-wrap gap-x-2 gap-y-1 border-t border-[var(--ls-border-subtle)] pt-3 pb-3 text-xs">
+      <div className="flex items-center flex-wrap gap-x-3 gap-y-2 border-t border-[var(--ls-border-subtle)] pt-3 pb-3 text-xs">
         <span className="text-[var(--ls-text-secondary)]">{t.charSync.selectedGlyph}</span>
-        <span className="text-[var(--ls-accent)] font-medium break-all">{readoutText}</span>
-        <span className="font-mono tabular-nums text-[var(--ls-text)]">{readoutTime}</span>
+        <span className="min-w-10 rounded border border-[var(--ls-border-subtle)] px-2 py-1 text-center text-[var(--ls-accent)] font-medium break-all">{readoutText}</span>
+        <span className="text-[var(--ls-text-secondary)]">{t.charSync.selectedTime}</span>
+        <span className="rounded border border-[var(--ls-border-subtle)] px-2 py-1 font-mono tabular-nums text-[var(--ls-text)]">{readoutTime}</span>
       </div>
       <div className="flex items-center justify-between gap-2 flex-wrap mb-3 text-xs">
         <span className="text-[var(--ls-text-secondary)] font-mono tabular-nums">{t.charSync.displaySpan.replace("{seconds}", String(Number((visibleViewEnd - visibleViewStart).toFixed(2))))}</span>
