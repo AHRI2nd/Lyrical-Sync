@@ -154,10 +154,10 @@
   .ls-time-input, .ls-time-button { height: 2rem; min-height: 2rem; text-align: center; }
   @container (min-width: 48rem) {
     .ls-line-row {
-      grid-template-columns: 1.5rem minmax(2rem, var(--ls-line-number-width, 2rem)) max-content 5rem minmax(0, 1fr) 4.75rem;
+      grid-template-columns: 1.5rem minmax(2.5rem, var(--ls-line-number-width, 2.5rem)) max-content 5.625rem minmax(0, 1fr) 4.75rem;
       column-gap: 0.75rem;
     }
-    .ls-line-time .ls-time-button { min-width: 7.75rem; }
+    .ls-line-time .ls-time-button { min-width: 8.25rem; }
   }
   @container (max-width: 36rem) {
     .ls-line-warning-tooltip { left: auto; right: 0; }
