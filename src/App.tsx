@@ -317,6 +317,10 @@ function App() {
   const [showHeaderFileMenu, setShowHeaderFileMenu] = useState(false);
   const headerFileMenuRef = useRef<HTMLDivElement>(null);
   const headerFileMenuTriggerRef = useRef<HTMLButtonElement>(null);
+  const closeHeaderFileMenu = () => {
+    headerFileMenuTriggerRef.current?.focus({ preventScroll: true });
+    setShowHeaderFileMenu(false);
+  };
   const [showPreview, setShowPreview] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<"general" | "preview" | "models" | "spotify" | "youtube" | "shortcuts">("general");
@@ -871,13 +875,13 @@ function App() {
               <div id="ls-header-file-menu-content" role="group" aria-label={`${title}, ${t.modeSelect} actions`} className="ls-header-file-menu-content absolute left-0 top-full z-50 mt-2 rounded-xl border border-[var(--ls-border-subtle)] bg-[var(--ls-surface)] p-2 shadow-2xl">
                 <div className="ls-header-file-menu-mode"><ModeSelectButton /></div>
                 <div className="ls-header-file-menu-divider" />
-                <button type="button" onClick={() => { setShowHeaderFileMenu(false); handleNewLrc(); }} className="ls-header-file-menu-item"><NewFileIcon /><span>{t.newFileBtn}</span></button>
-                <button type="button" onClick={() => { setShowHeaderFileMenu(false); handleOpenLrc(); }} className="ls-header-file-menu-item"><OpenFolderIcon /><span>{t.openLrc}</span></button>
-                <div className="ls-header-file-menu-recent"><RecentFilesMenu showLabel onOpen={(entry) => { setShowHeaderFileMenu(false); handleRecentOpen(entry); }} /></div>
-                <button type="button" onClick={() => { setShowHeaderFileMenu(false); handleSave(); }} className="ls-header-file-menu-item"><SaveIcon /><span>{t.save}</span></button>
-                <button type="button" onClick={() => { setShowHeaderFileMenu(false); openFormatChooser(); }} className="ls-header-file-menu-item"><SaveAsIcon /><span>{t.saveAs}</span></button>
+                <button type="button" onClick={() => { closeHeaderFileMenu(); handleNewLrc(); }} className="ls-header-file-menu-item"><NewFileIcon /><span>{t.newFileBtn}</span></button>
+                <button type="button" onClick={() => { closeHeaderFileMenu(); handleOpenLrc(); }} className="ls-header-file-menu-item"><OpenFolderIcon /><span>{t.openLrc}</span></button>
+                <div className="ls-header-file-menu-recent"><RecentFilesMenu showLabel onOpen={(entry) => { closeHeaderFileMenu(); handleRecentOpen(entry); }} /></div>
+                <button type="button" onClick={() => { closeHeaderFileMenu(); handleSave(); }} className="ls-header-file-menu-item"><SaveIcon /><span>{t.save}</span></button>
+                <button type="button" onClick={() => { closeHeaderFileMenu(); openFormatChooser(); }} className="ls-header-file-menu-item"><SaveAsIcon /><span>{t.saveAs}</span></button>
                 <div className="ls-header-file-menu-divider" />
-                <button type="button" onClick={() => { setShowHeaderFileMenu(false); setShowBatchTool(true); }} className="ls-header-file-menu-item"><BatchIcon /><span>{t.batchTitle}</span></button>
+                <button type="button" onClick={() => { closeHeaderFileMenu(); setShowBatchTool(true); }} className="ls-header-file-menu-item"><BatchIcon /><span>{t.batchTitle}</span></button>
                 {(_history.length > 0 || _future.length > 0) && <>
                   <div className="ls-header-file-menu-divider" />
                   <HistoryPanel />

@@ -1063,6 +1063,20 @@ it("shows a recoverable error without losing the current document", () => {
 describe("App — compact header file menu", () => {
   afterEach(() => cleanup());
 
+  it("restores focus to the document menu after closing the batch dialog", async () => {
+    localStorage.clear();
+    resetLrc();
+    const user = userEvent.setup();
+    render(<App />);
+    const { t } = useI18nStore.getState();
+    const trigger = screen.getByRole("button", { name: `${t.newFileTitle}, ${t.modeSelect}` });
+    await user.click(trigger);
+    await user.click(within(screen.getByRole("group", { name: `${t.newFileTitle}, ${t.modeSelect} actions` })).getByRole("button", { name: t.batchTitle }));
+    await screen.findByRole("dialog", { name: t.batchTitle });
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+  });
+
   it("keeps file actions available from the document title dropdown", async () => {
     localStorage.clear();
     resetLrc();
