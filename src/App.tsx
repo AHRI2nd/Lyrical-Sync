@@ -809,10 +809,12 @@ function App() {
         height: `${(100 / uiScale).toFixed(4)}vh`,
       }}
     >
-      <header className="flex items-center gap-2 px-4 py-2 bg-[var(--ls-surface)] border-b border-[var(--ls-border-subtle)] shrink-0">
-        <span className="flex items-center gap-2 font-semibold text-[var(--ls-text)] mr-2 shrink-0"><img src={appIcon} alt="" aria-hidden="true" className="w-6 h-6 rounded-md" style={{ filter: "saturate(0.55) hue-rotate(12deg)" }} />Lyrical Sync</span>
+      <header className="ls-app-header flex items-center gap-2 px-4 py-2 bg-[var(--ls-surface)] border-b border-[var(--ls-border-subtle)] shrink-0">
+        <span className="ls-app-brand flex items-center gap-2 font-semibold text-[var(--ls-text)] mr-2 shrink-0"><img src={appIcon} alt="" aria-hidden="true" className="w-6 h-6 rounded-md" style={{ filter: "saturate(0.55) hue-rotate(12deg)" }} />Lyrical Sync</span>
+        <span aria-hidden="true" className="ls-header-separator" />
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className="text-[var(--ls-text-secondary)] text-sm truncate">
+          <span aria-hidden="true" className="ls-header-file-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h8"/></svg></span>
+          <span className="ls-header-filename text-[var(--ls-text-secondary)] text-sm truncate">
             {title}
             {isDirty && (
               <span className="text-rose-400 ml-1 text-xs align-middle" title={t.unsavedChanges}>●</span>
