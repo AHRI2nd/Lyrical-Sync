@@ -179,6 +179,7 @@
   /* Typography is independent of control target sizes and playback geometry. */
   .ls-readable .text-xs { font-size: 0.8125rem; line-height: 1.45; }
   .ls-readable .ls-button { font-size: 0.875rem; font-weight: 500; line-height: 1.25; }
+  .ls-readable .ls-button.ls-seek-time { font: inherit; font-variant-numeric: tabular-nums; }
   .ls-readable .ls-button--compact { font-size: 0.8125rem; }
   .ls-readable .ls-field { font-size: 0.875rem; line-height: 1.5; }
   .ls-readable .ls-label { font-size: 0.8125rem; line-height: 1.45; }

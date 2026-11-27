@@ -20,6 +20,13 @@ function setup(position = 10, duration = 100) {
 }
 
 describe("SeekBar scrubbing", () => {
+  it("switches between total and remaining time without changing playback position", () => {
+    const { getByRole, onSeek } = setup(10, 100);
+    fireEvent.click(getByRole("button", { name: formatDisplayTime(100) }));
+    expect(getByRole("button", { name: `−${formatDisplayTime(90)}` })).toBeTruthy();
+    expect(onSeek).not.toHaveBeenCalled();
+  });
+
   it("previews pointer movement without seeking until release, then commits the final position once", () => {
     const { track, fill, onSeek, getByText } = setup();
 

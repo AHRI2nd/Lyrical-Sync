@@ -172,11 +172,11 @@ export function SeekBar({ position, duration, seekContextKey = "", onSeek, accen
           </div>
         )}
       </div>
-      <div className="flex justify-between text-[10px] text-[var(--ls-text-secondary)] tabular-nums px-0.5">
+      <div className="flex items-center justify-between text-xs font-mono text-[var(--ls-text-secondary)] tabular-nums px-0.5">
         <span>{formatDisplayTime(displayPosition)}</span>
         <button
           onClick={() => setShowRemaining((p) => !p)}
-          className="ls-button transition-colors"
+          className="ls-button ls-seek-time transition-colors"
         >
           {duration > 0
             ? showRemaining
