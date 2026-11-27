@@ -23,6 +23,11 @@
   .ls-settings-option > div:first-child > button { grid-column: 2; grid-row: 1 / span 2; }
   .ls-settings-option > p { grid-column: 1; grid-row: 2; }
   .ls-settings-option > div:not(:first-child) { grid-column: 1 / -1; grid-row: 3; }
+  .ls-general-settings { container-type: inline-size; }
+  @container (min-width: 38rem) {
+    .ls-update-option { grid-template-columns: minmax(0, 1fr) auto auto; }
+    .ls-update-option > div:not(:first-child) { grid-column: 3; grid-row: 1 / span 2; max-width: 12rem; margin-top: 0; flex-wrap: wrap; justify-content: flex-end; overflow-wrap: anywhere; }
+  }
   .ls-settings-range { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem 1rem; }
   .ls-settings-range__label { flex: 1 1 15rem; min-width: 0; }
   .ls-settings-range__controls { display: flex; align-items: center; gap: 0.5rem; flex: 1 1 14rem; min-width: 0; }

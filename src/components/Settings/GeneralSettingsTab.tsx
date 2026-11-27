@@ -30,9 +30,9 @@ export function GeneralSettingsTab({
   };
 
   return (
-    <div className="p-5 flex flex-col gap-3">
+    <div className="ls-general-settings p-5 flex flex-col gap-3">
       {/* Auto update */}
-      <div className="ls-settings-option">
+      <div className="ls-settings-option ls-update-option">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-[var(--ls-text)]">{t.settingsAutoUpdate}</span>
           <button
@@ -59,7 +59,7 @@ export function GeneralSettingsTab({
           <button
             onClick={onCheckNow}
             disabled={checkState === "checking"}
-            className="ls-button text-xs disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="ls-button ls-button--secondary text-xs disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {checkState === "checking" ? t.settingsChecking : t.settingsCheckNow}
           </button>
