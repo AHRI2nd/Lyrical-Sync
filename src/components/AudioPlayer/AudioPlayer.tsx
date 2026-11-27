@@ -100,8 +100,13 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     if (!containerRef.current) return;
 
     let disposed = false;
+    const container = containerRef.current;
+    let manualScrollUntil = 0;
+    const deferFollow = () => { manualScrollUntil = Date.now() + 2000; };
+    container.addEventListener("wheel", deferFollow, { passive: true });
+    container.addEventListener("touchmove", deferFollow, { passive: true });
     const ws = WaveSurfer.create({
-      container: containerRef.current,
+      container,
       waveColor: "#b8a8e8",
       progressColor: "#d3c4fa",
       cursorColor: "#e8bb72",
@@ -172,7 +177,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     });
     ws.on("audioprocess", (t) => {
       if (disposed || wsRef.current !== ws) return;
-      keepPlayheadAtLeadingQuarter(t);
+      if (Date.now() >= manualScrollUntil) keepPlayheadAtLeadingQuarter(t);
       setCurrentTimeLocal(t);
       if (!inService()) setCurrentTime(t);
       const { loopLineId, doc } = useLrcStore.getState();
@@ -181,6 +186,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     });
     ws.on("seeking", (t) => {
       if (disposed || wsRef.current !== ws) return;
+      manualScrollUntil = 0;
       requestAnimationFrame(() => {
         if (!disposed && wsRef.current === ws) keepPlayheadAtLeadingQuarter(t);
       });
@@ -189,7 +195,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     });
     ws.on("timeupdate", (t) => {
       if (disposed || wsRef.current !== ws) return;
-      keepPlayheadAtLeadingQuarter(t);
+      if (Date.now() >= manualScrollUntil) keepPlayheadAtLeadingQuarter(t);
     });
     ws.on("play", () => {
       if (disposed || wsRef.current !== ws) return; setIsPlayingLocal(true); if (!inService()) setIsPlaying(true); });
@@ -214,6 +220,8 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     wsRef.current = ws;
     return () => {
       disposed = true;
+      container.removeEventListener("wheel", deferFollow);
+      container.removeEventListener("touchmove", deferFollow);
       window.removeEventListener("resize", updatePlayheadAfterResize);
       if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
       ws.destroy();

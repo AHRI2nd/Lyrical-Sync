@@ -227,6 +227,30 @@ describe("AudioPlayer — local audio loading", () => {
     await waitFor(() => expect(wsMock.setScroll).toHaveBeenCalledWith(906));
   });
 
+  it("temporarily respects manual waveform scrolling during playback", async () => {
+    const clock = vi.spyOn(Date, "now").mockReturnValue(10_000);
+    try {
+      resetLrc([], null);
+      const { container } = render(<AudioPlayer />);
+      act(() => useLrcStore.setState({ audioPath: "/music/manual-scroll.mp3" }));
+      await waitFor(() => expect(loadSpy).toHaveBeenCalled());
+      act(() => wsHandlers.ready());
+      wsMock.setScroll.mockClear();
+      fireEvent.wheel(container.querySelector(".ls-player-waveform")!, { deltaX: 100 });
+      act(() => { wsHandlers.audioprocess(50); wsHandlers.timeupdate(50); });
+      expect(wsMock.setScroll).not.toHaveBeenCalled();
+      act(() => wsHandlers.seeking(50));
+      await waitFor(() => expect(wsMock.setScroll).toHaveBeenCalledWith(906));
+      wsMock.setScroll.mockClear();
+      fireEvent.touchMove(container.querySelector(".ls-player-waveform")!);
+      clock.mockReturnValue(12_001);
+      act(() => wsHandlers.timeupdate(50));
+      expect(wsMock.setScroll).toHaveBeenCalledWith(906);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
   it("repositions a paused playhead after the waveform viewport is resized", async () => {
     resetLrc([], null);
     setWaveformViewportWidth(400);
