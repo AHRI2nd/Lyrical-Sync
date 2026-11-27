@@ -174,7 +174,7 @@
     .ls-readable .ls-editor-panel { padding-top: 1rem; }
     .ls-readable .ls-editor-toolbar { padding-bottom: 1.8125rem; }
     .ls-readable .ls-line-time .ls-time-button { height: 2.25rem; min-height: 2.25rem; }
-    .ls-readable .ls-line-row .ls-row-input { height: 2.5rem; min-height: 2.5rem; }
+    .ls-readable .ls-line-row input.ls-row-input { height: 2.5rem; min-height: 2.5rem; }
     .ls-readable .ls-line-row .ls-lyric-input { padding-left: 0.8125rem; font-size: 1.125rem; }
     .ls-readable .ls-line-row .ls-time-input { font-size: 0.9375rem; }
     .ls-editor-toolbar-actions { gap: 1.25rem; }
