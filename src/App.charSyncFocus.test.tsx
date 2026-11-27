@@ -198,7 +198,11 @@ describe.each(["char", "word"] as const)("Character sync shortcut focus (%s)", u
     const user = userEvent.setup();
     const { dot } = await mountEditor(unit);
     await user.click(dot);
-    await user.click(screen.getByRole("button", { name: translations.en.settingsTitle }));
+    // jsdom does not apply the responsive stylesheet, so select the sidebar control explicitly.
+    const settings = screen.getAllByRole("button", { name: translations.en.settingsTitle })
+      .find(button => button.closest(".ls-sidebar-utilities"));
+    expect(settings).toBeDefined();
+    await user.click(settings!);
     const dialog = await screen.findByRole("dialog", { name: translations.en.settingsTitle });
     const focused = document.activeElement;
     expect(dialog.contains(focused)).toBe(true);
