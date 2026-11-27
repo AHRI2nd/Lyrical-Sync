@@ -39,6 +39,9 @@ const SPEED_STEPS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
 //   level=100 → 500 px/s (zoomed in)
 const ZOOM_PX_MIN = 10;
 const ZOOM_PX_MAX = 500;
+const ACTIVE_LYRIC_MARKER_COLOR = "var(--ls-playhead)";
+const INACTIVE_LYRIC_MARKER_COLOR = "color-mix(in srgb, var(--ls-playhead) 78%, transparent)";
+const PLAYHEAD_VIEWPORT_ANCHOR = 0.235;
 const zoomLevelToPixels = (level: number) =>
   Math.round(ZOOM_PX_MIN * Math.pow(ZOOM_PX_MAX / ZOOM_PX_MIN, level / 100));
 
@@ -107,9 +110,35 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       barGap: 2,
       normalize: true,
       interact: true,
+      autoScroll: false,
+      autoCenter: false,
     });
     // Windows의 가로 스크롤바가 파형 하단을 가리는 문제 방지
     ws.getWrapper().classList.add("ws-scroll");
+    const playhead = ws.getWrapper().querySelector<HTMLElement>('[part="cursor"]');
+    if (playhead) {
+      playhead.style.top = "0";
+      playhead.style.height = "calc(100% - 9px)";
+    }
+    const keepPlayheadAtLeadingQuarter = (time: number) => {
+      const wrapper = ws.getWrapper();
+      const duration = ws.getDuration();
+      const viewportWidth = ws.getWidth();
+      const waveformWidth = wrapper.scrollWidth;
+      if (duration <= 0 || viewportWidth <= 0 || waveformWidth <= viewportWidth) return;
+      const maxScroll = waveformWidth - viewportWidth;
+      const playheadX = Math.max(0, Math.min(1, time / duration)) * waveformWidth;
+      ws.setScroll(Math.max(0, Math.min(maxScroll, playheadX - viewportWidth * PLAYHEAD_VIEWPORT_ANCHOR)));
+    };
+    let resizeFrame: number | null = null;
+    const updatePlayheadAfterResize = () => {
+      if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
+      resizeFrame = requestAnimationFrame(() => {
+        resizeFrame = null;
+        if (!disposed && wsRef.current === ws) keepPlayheadAtLeadingQuarter(ws.getCurrentTime());
+      });
+    };
+    window.addEventListener("resize", updatePlayheadAfterResize);
 
     // 가사 타임스탬프 마커 플러그인
     const regions = ws.registerPlugin(RegionsPlugin.create());
@@ -143,6 +172,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     });
     ws.on("audioprocess", (t) => {
       if (disposed || wsRef.current !== ws) return;
+      keepPlayheadAtLeadingQuarter(t);
       setCurrentTimeLocal(t);
       if (!inService()) setCurrentTime(t);
       const { loopLineId, doc } = useLrcStore.getState();
@@ -151,8 +181,15 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     });
     ws.on("seeking", (t) => {
       if (disposed || wsRef.current !== ws) return;
+      requestAnimationFrame(() => {
+        if (!disposed && wsRef.current === ws) keepPlayheadAtLeadingQuarter(t);
+      });
       setCurrentTimeLocal(t);
       if (!inService()) setCurrentTime(t);
+    });
+    ws.on("timeupdate", (t) => {
+      if (disposed || wsRef.current !== ws) return;
+      keepPlayheadAtLeadingQuarter(t);
     });
     ws.on("play", () => {
       if (disposed || wsRef.current !== ws) return; setIsPlayingLocal(true); if (!inService()) setIsPlaying(true); });
@@ -175,7 +212,13 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     });
 
     wsRef.current = ws;
-    return () => { disposed = true; ws.destroy(); clearWaveform(); };
+    return () => {
+      disposed = true;
+      window.removeEventListener("resize", updatePlayheadAfterResize);
+      if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
+      ws.destroy();
+      clearWaveform();
+    };
   }, [setCurrentTime, audioPath, audioSelection, spotifyMode, deviceMode]);
 
   useEffect(() => {
@@ -364,15 +407,18 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     lines.forEach((l, i) => {
       if (l.timestamp === null) return;
       const isActive = l.id === activeLineId;
+      const markerColor = isActive ? ACTIVE_LYRIC_MARKER_COLOR : INACTIVE_LYRIC_MARKER_COLOR;
       const r = regions.addRegion({
         id: `lyric:${l.id}`,
         start: l.timestamp,
-        color: isActive ? "#ea580c" : "rgba(217, 119, 6, 0.8)",
+        color: markerColor,
         drag: false,
         resize: false,
       });
       if (r.element) {
         const element = r.element;
+        element.style.top = "0";
+        element.style.height = "calc(100% - 9px)";
         let suppressClick = false;
         let active: { pointerId: number; x: number; start: number; session: number; audio: number; path: string | null; line: typeof l; moved: boolean } | null = null;
         const detach = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", cancel); window.removeEventListener("blur", restore); window.removeEventListener("keydown", key); };
@@ -433,14 +479,16 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
         // 비활성 줄은 겹침 방지를 위해 마커 호버 시에만 표시.
         const label = document.createElement("div");
         label.textContent = String(i + 1);
-        label.className = isActive ? "lyric-marker-num" : "lyric-marker-num dim";
+        label.className = "lyric-marker-num dim";
         label.style.cssText = [
           "position:absolute", "top:0", "left:50%", "transform:translateX(-50%)",
           "font:600 9px ui-monospace,SFMono-Regular,monospace", "line-height:1.4",
-          "padding:0 3px", "border-radius:0 0 3px 3px", "color:#fff",
-          `background:${isActive ? "#ea580c" : "#b45309"}`,
+          "padding:0 3px", "border-radius:0 0 3px 3px", "color:#fff", "opacity:0", "transition:opacity 120ms ease",
+          `background:${markerColor}`,
           "pointer-events:none", "white-space:nowrap", "z-index:5",
         ].join(";");
+        element.addEventListener("mouseenter", () => { label.style.opacity = "1"; });
+        element.addEventListener("mouseleave", () => { label.style.opacity = "0"; });
         r.element.appendChild(label);
       }
     });
@@ -457,11 +505,13 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     const activeRegionId = activeLineId ? `lyric:${activeLineId}` : null;
     regions.getRegions().forEach((r) => {
       const isActive = r.id === activeRegionId;
-      r.setOptions({ color: isActive ? "#ea580c" : "rgba(217, 119, 6, 0.8)" });
+      const markerColor = isActive ? ACTIVE_LYRIC_MARKER_COLOR : INACTIVE_LYRIC_MARKER_COLOR;
+      r.setOptions({ color: markerColor });
+      if (r.element && r.start === r.end) r.element.style.borderLeftColor = markerColor;
       const label = r.element?.querySelector<HTMLElement>(".lyric-marker-num");
       if (label) {
-        label.className = isActive ? "lyric-marker-num" : "lyric-marker-num dim";
-        label.style.background = isActive ? "#ea580c" : "#b45309";
+        label.className = "lyric-marker-num dim";
+        label.style.background = markerColor;
       }
     });
   }, [activeLineId, isAudioReady, showMarkers, markerSig]);
@@ -573,7 +623,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           when switching back from Spotify mode. Hide with display:none instead. */}
       <div
         ref={containerRef}
-        className="w-full overflow-hidden bg-transparent border-b border-[var(--ls-border-subtle)] cursor-pointer"
+        className="ls-player-waveform w-full overflow-hidden bg-transparent border-b border-[var(--ls-border-subtle)] cursor-pointer"
         style={{ minHeight: 100, display: (isServiceMode || deviceMode || viewMode === "bar") ? "none" : "" }}
       />
       <div
@@ -613,7 +663,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
 
       {/* 시간 표시 (파형 모드에서만) */}
       {viewMode === "waveform" && (
-        <div className="flex justify-between text-xs text-[var(--ls-text-secondary)] font-mono px-1">
+        <div className="ls-audio-time-row flex justify-between text-xs text-[var(--ls-text-secondary)] font-mono px-1">
           <span>{formatDisplayTime(currentTime)}</span>
           <span>{formatDisplayTime(duration)}</span>
         </div>
@@ -635,7 +685,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       />
 
       {/* Open and speed controls share a row without changing the transport center. */}
-      <div className="flex items-center justify-between gap-2 min-w-0">
+      <div className="ls-audio-open-controls flex items-center justify-between gap-2 min-w-0">
       {spotifyMode ? (
         !isLoggedIn ? (
           <button
@@ -671,7 +721,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       ) : (
         <button
           onClick={openAudio}
-          className="ls-button ls-button--secondary max-w-[65%] text-sm transition-colors text-center truncate gap-2"
+        className="ls-button ls-button--secondary ls-audio-open-button max-w-[65%] text-sm transition-colors text-center truncate gap-2"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M3 6h7l2 2h9v11H3z" strokeLinejoin="round" /></svg>
           {t.openAudio}
@@ -682,7 +732,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       </div>
 
       {/* 볼륨 (스피커 아이콘 + 슬림 슬라이더) */}
-      <div className="flex items-center gap-2.5 text-[var(--ls-text-secondary)]" title={`${t.volume} ${Math.round(volume * 100)}%`}>
+      <div className="ls-audio-range-row ls-audio-volume-row flex items-center gap-2.5 text-[var(--ls-text-secondary)]" title={`${t.volume} ${Math.round(volume * 100)}%`}>
         <span className="shrink-0"><VolumeIcon /></span>
         <input
           type="range" min={0} max={1} step={0.01} value={volume}
@@ -696,7 +746,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
 
       {/* Zoom and display mode are separate rows to keep both controls readable. */}
       {viewMode === "waveform" && (
-      <div className="flex items-center gap-2.5 text-[var(--ls-text-secondary)]">
+      <div className="ls-audio-range-row ls-audio-zoom-row flex items-center gap-2.5 text-[var(--ls-text-secondary)]">
             <span className="shrink-0"><ZoomIcon /></span>
             <input
               type="range" min={0} max={100} value={zoomLevel}
@@ -715,11 +765,11 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
             <span aria-hidden="true" className="shrink-0 w-12 text-right text-xs tabular-nums">{(zoomLevelToPixels(zoomLevel) / zoomLevelToPixels(50)).toFixed(2)}×</span>
       </div>
       )}
-      <div className="flex w-full overflow-hidden rounded-md border border-[var(--ls-border-subtle)]">
+      <div className="ls-view-mode-toggle flex w-full overflow-hidden rounded-md border border-[var(--ls-border-subtle)]">
           <button
             onClick={() => setViewMode("waveform")}
             aria-pressed={viewMode === "waveform"}
-            className={`ls-button ls-button--compact flex-1 rounded-none border-b-2 text-xs font-medium transition-colors ${` ${
+            className={`ls-button ls-view-mode-button ls-button--compact flex-1 rounded-none border-b-2 text-xs font-medium transition-colors ${` ${
               viewMode === "waveform" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)]"
             }`}`}
           >
@@ -729,7 +779,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
           <button
             onClick={() => setViewMode("bar")}
             aria-pressed={viewMode === "bar"}
-            className={`ls-button ls-button--compact flex-1 rounded-none border-b-2 text-xs font-medium transition-colors ${` ${
+            className={`ls-button ls-view-mode-button ls-button--compact flex-1 rounded-none border-b-2 text-xs font-medium transition-colors ${` ${
               viewMode === "bar" ? "ls-button--selected" : "text-[var(--ls-text-secondary)] hover:text-[var(--ls-text-secondary)]"
             }`}`}
           >

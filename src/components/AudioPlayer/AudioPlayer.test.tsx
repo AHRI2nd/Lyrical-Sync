@@ -17,20 +17,34 @@ if (typeof globalThis.localStorage === "undefined") {
 // wavesurfer.js는 실제 오디오/캔버스 렌더링이 필요해 jsdom에서 그대로 쓸 수 없음 —
 // audioprocess 핸들러(줄 반복 경계 로직)만 검증할 수 있게, on()으로 등록되는 콜백을
 // 캡처하고 getDuration/seekTo를 스파이할 수 있는 최소 mock으로 대체.
-const { wsHandlers, wsMock, regionsMock } = vi.hoisted(() => {
+const { wsHandlers, wsMock, regionsMock, waveSurferCreate, setWaveformViewportWidth, setWaveformCurrentTime } = vi.hoisted(() => {
   const handlers: Record<string, (...args: unknown[]) => void> = {};
-  const regions = { on: () => {}, destroy: () => {}, clearRegions: () => {}, getRegions: () => [], addRegion: (options: { start: number }) => {
+  let waveformViewportWidth = 400;
+  let waveformCurrentTime = 0;
+  const wrapper = { classList: { add: () => {} }, querySelector: () => null, scrollWidth: 2000, getBoundingClientRect: () => ({ width: 100 }) };
+  const entries: Array<{ id: string; start: number; end: number; element: HTMLDivElement; setOptions: (next: { start?: number; end?: number; color?: string }) => void }> = [];
+  const regions = { on: () => {}, destroy: () => {}, clearRegions: () => { entries.length = 0; }, getRegions: () => entries, addRegion: (options: { id: string; start: number; color: string }) => {
     const element = document.createElement("div");
     document.body.appendChild(element);
-    const region = { element, start: options.start, setOptions: (next: { start: number }) => { region.start = next.start; element.dataset.time = String(next.start); } };
+    element.dataset.time = String(options.start);
+    element.style.borderLeft = `2px solid ${options.color}`;
+    const region = { id: options.id, element, start: options.start, end: options.start, setOptions: (next: { start?: number; end?: number; color?: string }) => {
+      if (next.start !== undefined) region.start = next.start;
+      if (next.end !== undefined) region.end = next.end;
+      if (next.color) element.style.backgroundColor = next.color;
+      element.dataset.time = String(region.start);
+    } };
+    entries.push(region);
     return region;
   } };
   const mock = {
-    getWrapper: () => ({ classList: { add: () => {} }, getBoundingClientRect: () => ({ width: 100 }) }),
+    getWrapper: () => wrapper,
+    getWidth: () => waveformViewportWidth,
+    setScroll: vi.fn(),
     registerPlugin: () => regions,
     on: (event: string, cb: (...args: unknown[]) => void) => { handlers[event] = cb; },
     getDuration: () => 100,
-    getCurrentTime: () => 0,
+    getCurrentTime: () => waveformCurrentTime,
     getDecodedData: () => ({ length: 4, sampleRate: 4, duration: 1, numberOfChannels: 1, getChannelData: () => new Float32Array([0, 1, -.5, 0]) }),
     seekTo: () => {},
     exportPeaks: () => [[]],
@@ -44,11 +58,19 @@ const { wsHandlers, wsMock, regionsMock } = vi.hoisted(() => {
     playPause: () => {},
     destroy: () => {},
   };
-  return { wsHandlers: handlers, wsMock: mock, regionsMock: regions };
+  const create = vi.fn(() => mock);
+  return {
+    wsHandlers: handlers,
+    wsMock: mock,
+    regionsMock: regions,
+    waveSurferCreate: create,
+    setWaveformViewportWidth: (width: number) => { waveformViewportWidth = width; },
+    setWaveformCurrentTime: (time: number) => { waveformCurrentTime = time; },
+  };
 });
 
 vi.mock("wavesurfer.js", () => ({
-  default: { create: () => wsMock },
+  default: { create: waveSurferCreate },
 }));
 const spectrumCreate = vi.hoisted(() => vi.fn(() => ({ type: "spectrum" })));
 vi.mock("wavesurfer.js/dist/plugins/spectrogram.esm.js", () => ({ default: { create: spectrumCreate } }));
@@ -77,6 +99,7 @@ const resetLrc = (lines: LrcLine[], loopLineId: string | null) => {
     doc: { ...defaultDocument(), lines },
     audioPath: null,
     loopLineId,
+    activeLineId: null,
     _history: [],
     _future: [],
   });
@@ -170,6 +193,59 @@ describe("AudioPlayer — local audio loading", () => {
     });
   });
 
+  it("keeps point marker borders in sync with the active lyric and playhead palette", async () => {
+    resetLrc([
+      { id: "first", timestamp: 5, text: "first" },
+      { id: "second", timestamp: 10, text: "second" },
+    ], null);
+    render(<AudioPlayer />);
+    act(() => useLrcStore.setState({ audioPath: "/music/markers.mp3", activeLineId: "first" }));
+    await waitFor(() => expect(loadSpy).toHaveBeenCalled());
+    act(() => wsHandlers.ready());
+
+    const first = document.querySelector<HTMLElement>('.lyric-marker[data-time="5"]')!;
+    const second = document.querySelector<HTMLElement>('.lyric-marker[data-time="10"]')!;
+    expect(first.style.top).toBe("0px");
+    expect(first.style.height).toBe("calc(100% - 9px)");
+    expect(first.style.borderLeftColor).toBe("var(--ls-playhead)");
+    expect(second.style.borderLeftColor).toBe("color-mix(in srgb, var(--ls-playhead) 78%, transparent)");
+
+    act(() => useLrcStore.setState({ activeLineId: "second" }));
+    expect(first.style.borderLeftColor).toBe("color-mix(in srgb, var(--ls-playhead) 78%, transparent)");
+    expect(second.style.borderLeftColor).toBe("var(--ls-playhead)");
+  });
+
+  it("keeps a sought playhead near the leading quarter of a zoomed waveform", async () => {
+    resetLrc([], null);
+    render(<AudioPlayer />);
+    act(() => useLrcStore.setState({ audioPath: "/music/anchor.mp3" }));
+    await waitFor(() => expect(loadSpy).toHaveBeenCalled());
+    expect(waveSurferCreate).toHaveBeenCalledWith(expect.objectContaining({ autoScroll: false, autoCenter: false }));
+    act(() => wsHandlers.ready());
+
+    act(() => wsHandlers.seeking(50));
+    await waitFor(() => expect(wsMock.setScroll).toHaveBeenCalledWith(906));
+  });
+
+  it("repositions a paused playhead after the waveform viewport is resized", async () => {
+    resetLrc([], null);
+    setWaveformViewportWidth(400);
+    render(<AudioPlayer />);
+    act(() => useLrcStore.setState({ audioPath: "/music/resize-anchor.mp3" }));
+    await waitFor(() => expect(loadSpy).toHaveBeenCalled());
+    act(() => wsHandlers.ready());
+
+    wsMock.setScroll.mockClear();
+    setWaveformCurrentTime(50);
+    act(() => wsHandlers.seeking(50));
+    await waitFor(() => expect(wsMock.setScroll).toHaveBeenCalledWith(906));
+    wsMock.setScroll.mockClear();
+    setWaveformViewportWidth(200);
+    act(() => window.dispatchEvent(new Event("resize")));
+
+    await waitFor(() => expect(wsMock.setScroll).toHaveBeenCalledWith(953));
+  });
+
   it("does not apply a cancelled marker drag", async () => {
     resetLrc([{ id: "cancel-line", timestamp: 5, text: "cancel target" }], null);
     render(<AudioPlayer />);
@@ -224,6 +300,10 @@ describe("AudioPlayer — local audio loading", () => {
     loadSpy.mockClear();
     loadBlobSpy.mockClear();
     playPauseSpy.mockClear();
+    wsMock.setScroll.mockClear();
+    setWaveformViewportWidth(400);
+    setWaveformCurrentTime(0);
+    waveSurferCreate.mockClear();
   });
 
   afterEach(() => {
