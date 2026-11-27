@@ -6,6 +6,7 @@
   --ls-text-secondary: #c5c5ce;
   --ls-border-subtle: #393940;
   --ls-border-control: #aaaab5;
+  --ls-border-input: #7d7d86;
   --ls-primary: #554980;
   --ls-on-primary: #ffffff;
   --ls-accent: #c9b9ef;
@@ -150,14 +151,14 @@
   .ls-line-actions { grid-area: actions; display: flex; align-items: center; gap: 0.125rem; min-height: 1.75rem; }
   .ls-line-warning-tooltip { left: 0; width: max-content; max-width: min(24rem, calc(100cqw - 1rem)); white-space: normal; }
   .ls-line-translation { display: flex; min-width: 0; }
-  .ls-field.ls-row-input { min-height: 2rem; padding: 0.125rem 0.5rem; border: 1px solid var(--ls-border-subtle); border-radius: 0.25rem; background: transparent; }
+  .ls-field.ls-row-input { min-height: 2rem; padding: 0.125rem 0.5rem; border: 1px solid var(--ls-border-input); border-radius: 0.25rem; background: transparent; }
   .ls-field.ls-row-input:focus-visible {
     outline: 2px solid var(--ls-accent);
     outline-offset: 2px;
   }
   .ls-line-time .ls-nudge { width: 1.75rem; height: 1.75rem; border-radius: 50%; padding: 0; background: var(--ls-canvas); }
   .ls-line-time .ls-nudge:hover:not(:disabled) { background: var(--ls-control); }
-  .ls-time-input, .ls-time-button { height: 2rem; min-height: 2rem; text-align: center; }
+  .ls-time-input, .ls-time-button { height: 2rem; min-height: 2rem; text-align: center; border-color: var(--ls-border-input); }
   @container (min-width: 48rem) {
     .ls-line-row {
       grid-template-columns: 1.5rem minmax(2.5rem, var(--ls-line-number-width, 2.5rem)) max-content 5.625rem minmax(0, 1fr) 4.75rem;
