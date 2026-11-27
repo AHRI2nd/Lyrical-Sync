@@ -251,7 +251,6 @@
 @layer utilities {
   @media (min-width: 90rem) {
     .ls-player-waveform { overflow: visible !important; }
-    .ls-line-list { row-gap: 0.125rem; }
   }
   .ls-line-status-slot:empty { width: 0; }
   @container (min-width: 48rem) {

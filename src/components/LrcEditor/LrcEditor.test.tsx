@@ -1149,10 +1149,15 @@ it("moves the rendered window when the large lyric list scrolls", async () => {
 
   const { container } = render(<LrcEditor onPreview={() => {}} />);
   const list = container.querySelector<HTMLElement>(".ls-line-list")!;
+  const content = list.querySelector<HTMLElement>(".ls-line-list-content")!;
+  const reservedHeight = content.style.minHeight;
+  expect(parseFloat(reservedHeight)).toBeGreaterThan(20_000);
   list.scrollTop = 20_000;
   fireEvent.scroll(list);
 
   await waitFor(() => {
+    expect(list.querySelector(".ls-line-list-content")).toBe(content);
+    expect(content.style.minHeight).toBe(reservedHeight);
     const renderedIndices = Array.from(list.querySelectorAll<HTMLElement>("[data-line-index]"))
       .map((row) => Number(row.dataset.lineIndex));
     expect(Math.min(...renderedIndices)).toBeGreaterThan(250);

@@ -1160,8 +1160,9 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
         onPointerUp={handleReorderUp}
         onPointerCancel={clearReorder}
         onLostPointerCapture={clearReorder}
-        onDoubleClick={(e) => { if (e.target === e.currentTarget) handleAddLine(); }}
+        onDoubleClick={(e) => { if (e.target === e.currentTarget || e.target === e.currentTarget.firstElementChild) handleAddLine(); }}
       >
+        <div className="ls-line-list-content flex flex-col" style={virtualLines.isVirtualized ? { minHeight: virtualLines.rowOffsets[lines.length] } : undefined}>
         {lines.length === 0 && (
           <p
             className="text-[var(--ls-text-secondary)] text-sm text-center py-8 cursor-pointer"
@@ -1273,6 +1274,7 @@ export function LrcEditor({ onPreview, onOpenShortcuts }: { onPreview: () => voi
             ? <div aria-hidden="true" className="ls-line-virtual-spacer" style={{ height: remainingHeight }} />
             : null;
         })()}
+        </div>
       </div>
       </>)}
 
