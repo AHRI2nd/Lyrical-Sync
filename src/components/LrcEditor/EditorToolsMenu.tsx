@@ -22,6 +22,11 @@ export function EditorToolsMenu({
   const [showTools, setShowTools] = useState(false);
   const toolsRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const runTool = (action: () => void) => {
+    triggerRef.current?.focus({ preventScroll: true });
+    setShowTools(false);
+    action();
+  };
 
   useEffect(() => {
     if (!showTools) return;
@@ -59,32 +64,32 @@ export function EditorToolsMenu({
         <div className="absolute right-0 top-full mt-1.5 z-40 w-44 bg-[var(--ls-control)] border border-[var(--ls-border-subtle)] rounded-xl shadow-2xl p-1.5 flex flex-col gap-0.5">
           {statsLabel && onOpenValidation && (
             <button
-              onClick={() => { onOpenValidation(); setShowTools(false); }}
+              onClick={() => runTool(onOpenValidation)}
               className="ls-button text-left text-xs transition-colors"
             >
               {statsLabel}
             </button>
           )}
           <button
-            onClick={() => { onToggleFR(); setShowTools(false); }}
+            onClick={() => runTool(onToggleFR)}
             className={`ls-button ${`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showFR ? "bg-[var(--ls-selection)] text-[var(--ls-accent)]" : "hover:bg-[var(--ls-control)] text-[var(--ls-text)]"}`}`}
           >
             {t.findReplace}
           </button>
           <button
-            onClick={() => { onToggleTS(); setShowTools(false); }}
+            onClick={() => runTool(onToggleTS)}
             className={`ls-button ${`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showTS ? "bg-[var(--ls-selection)] text-[var(--ls-accent)]" : "hover:bg-[var(--ls-control)] text-[var(--ls-text)]"}`}`}
           >
             {t.timeShift}
           </button>
           <button
-            onClick={() => { onToggleScale(); setShowTools(false); }}
+            onClick={() => runTool(onToggleScale)}
             className={`ls-button ${`text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${showScale ? "bg-[var(--ls-selection)] text-[var(--ls-accent)]" : "hover:bg-[var(--ls-control)] text-[var(--ls-text)]"}`}`}
           >
             {t.tsScale}
           </button>
           <button
-            onClick={() => { onOpenBpmSnap(); setShowTools(false); }}
+            onClick={() => runTool(onOpenBpmSnap)}
             className="ls-button text-left text-xs transition-colors"
           >
             {t.bpmLabel}

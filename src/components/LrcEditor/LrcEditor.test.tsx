@@ -26,6 +26,17 @@ beforeEach(() => {
     syncMode: "line", activeLineId: "a", isDirty: false, _history: [], _future: [], _lastEditKey: null });
 });
 afterEach(() => { cleanup(); delete (HTMLElement.prototype as unknown as { scrollIntoView?: unknown }).scrollIntoView; vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+it("preserves the tools trigger as the focus target when opening range offset", () => {
+  const t = useI18nStore.getState().t;
+  const { getByRole } = render(<LrcEditor onPreview={() => {}} />);
+  const trigger = getByRole("button", { name: t.editorTools });
+  fireEvent.click(trigger);
+  const item = getByRole("button", { name: t.timeShift });
+  item.focus();
+  fireEvent.click(item);
+  expect(document.activeElement).toBe(trigger);
+});
 it("resets the time shift range and delta when the document is replaced", () => {
   const t = useI18nStore.getState().t;
   const { getByRole, getAllByRole } = render(<LrcEditor onPreview={() => {}} />);
