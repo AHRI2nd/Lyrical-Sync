@@ -111,6 +111,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     container.addEventListener("pointerdown", beginPointer);
     window.addEventListener("pointerup", endPointer);
     window.addEventListener("pointercancel", endPointer);
+    window.addEventListener("blur", endPointer);
     const ws = WaveSurfer.create({
       container,
       waveColor: "#b8a8e8",
@@ -231,6 +232,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       container.removeEventListener("pointerdown", beginPointer);
       window.removeEventListener("pointerup", endPointer);
       window.removeEventListener("pointercancel", endPointer);
+      window.removeEventListener("blur", endPointer);
       window.removeEventListener("resize", updatePlayheadAfterResize);
       if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
       ws.destroy();
