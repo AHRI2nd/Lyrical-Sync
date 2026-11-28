@@ -17,7 +17,7 @@
 
 @layer components {
   .ls-header-separator, .ls-header-command-separator, .ls-header-file-icon, .ls-header-utilities { display: none; }
-  .ls-header-file-trigger { padding: 0; }
+  .ls-header-file-trigger { padding: 0; max-width: 100%; }
   .ls-header-file-menu-content { width: 15rem; }
   .ls-header-file-menu-mode > div,
   .ls-header-file-menu-mode > div > button { width: 100%; }
@@ -137,7 +137,7 @@
     .ls-app-brand img { width: 2rem; height: 2rem; }
     .ls-header-separator { display: block; flex: none; height: 1.5rem; width: 1px; margin-left: 1.4375rem; margin-right: 1.5625rem; background: var(--ls-border-subtle); }
     .ls-header-file-icon { display: inline-flex; flex: none; color: var(--ls-text); }
-    .ls-header-file-trigger { max-width: 32rem; min-height: 2rem; }
+    .ls-header-file-trigger { max-width: min(32rem, 100%); min-height: 2rem; }
     .ls-header-filename { font-size: 1rem; }
     .ls-readable .ls-player { gap: 1.5rem; padding-left: 1.5rem; padding-right: 1.25rem; padding-top: 1.625rem; }
     .ls-view-mode-button { min-height: 2.5rem; font-size: 0.875rem; }
