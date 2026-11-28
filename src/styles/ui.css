@@ -140,7 +140,6 @@
     .ls-header-file-trigger { max-width: 32rem; min-height: 2rem; }
     .ls-header-filename { font-size: 1rem; }
     .ls-readable .ls-player { gap: 1.5rem; padding-left: 1.5rem; padding-right: 1.25rem; padding-top: 1.625rem; }
-    .ls-player-waveform { height: 8.25rem; padding-top: 2rem; margin-bottom: -2rem; }
     .ls-view-mode-button { min-height: 2.5rem; font-size: 0.875rem; }
     .ls-readable .ls-meta { gap: 1.5rem; margin-top: 0.625rem; padding-left: 1.5rem; padding-right: 1.125rem; padding-top: 1.375rem; }
     .ls-meta-actions { gap: 0.75rem; }
@@ -155,9 +154,6 @@
   }
   @media (min-width: 90rem) {
     .ls-header-command-separator { display: block; flex: none; height: 1.5rem; width: 1px; margin-left: 1.25rem; margin-right: 2.375rem; background: var(--ls-border-subtle); }
-    .ls-player-waveform > div::part(scroll) { transform: translateY(-0.75rem); }
-    .ls-player-waveform > div::part(canvases),
-    .ls-player-waveform > div::part(progress) { transform: translateY(-0.1875rem) scaleY(0.62); transform-origin: center; }
     .ls-readable .ls-transport .ls-button:not(.ls-button--play):not(.ls-button--compact) { width: 2.25rem; min-width: 2.25rem; height: 2.25rem; min-height: 2.25rem; }
     .ls-readable .ls-transport .ls-button--play { width: 3.25rem; min-width: 3.25rem; height: 3.25rem; min-height: 3.25rem; }
     .ls-readable .ls-audio-open-button { min-width: 9rem; min-height: 2.375rem; font-size: 1rem; }
@@ -256,9 +252,6 @@
 }
 
 @layer utilities {
-  @media (min-width: 90rem) {
-    .ls-player-waveform { overflow: visible !important; }
-  }
   .ls-line-status-slot:empty { width: 0; }
   @container (min-width: 48rem) {
     .ls-line-row {
@@ -290,8 +283,6 @@
     .ls-line-actions .ls-button--icon-compact svg { width: 1.125rem; height: 1.125rem; }
     .ls-line-drag svg { width: 0.75rem; height: 1.125rem; }
     .ls-line-content { margin-left: 1rem; margin-right: 0.5rem; }
-    .ls-player-waveform > div::part(scroll) { scrollbar-width: none; }
-    .ls-player-waveform > div::part(scroll)::-webkit-scrollbar { display: none; }
   }
 }
 
