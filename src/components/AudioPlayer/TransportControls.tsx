@@ -57,19 +57,19 @@ export function TransportControls({
 
       <div className="flex-1 flex items-center justify-evenly gap-0.5">
         <CtrlBtn onClick={() => skip(-5)} title={t.tooltipSkipBack5}>
-          <SkipBackIcon />
+          <SkipBackIcon /><span aria-hidden="true" className="text-[10px] leading-none">5</span>
         </CtrlBtn>
         <CtrlBtn onClick={() => skip(-1)} title={t.tooltipSkipBack1}>
-          <TriLeftIcon />
+          <TriLeftIcon /><span aria-hidden="true" className="text-[10px] leading-none">1</span>
         </CtrlBtn>
         <CtrlBtn onClick={togglePlay} disabled={!audioPath} title={t.tooltipPlayPause} accent>
           {isPlaying ? <PauseIcon /> : <PlayIcon />}
         </CtrlBtn>
         <CtrlBtn onClick={() => skip(1)} title={t.tooltipSkipFwd1}>
-          <TriRightIcon />
+          <span aria-hidden="true" className="text-[10px] leading-none">1</span><TriRightIcon />
         </CtrlBtn>
         <CtrlBtn onClick={() => skip(5)} title={t.tooltipSkipFwd5}>
-          <SkipFwdIcon />
+          <span aria-hidden="true" className="text-[10px] leading-none">5</span><SkipFwdIcon />
         </CtrlBtn>
       </div>
 

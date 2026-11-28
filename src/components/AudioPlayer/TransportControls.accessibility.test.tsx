@@ -50,3 +50,10 @@ it("keeps More open for an IME Escape event", () => {
   expect(screen.getByRole("group", { name: t.playerMore })).toBeTruthy();
   expect(trigger.getAttribute("aria-expanded")).toBe("true");
 });
+
+it("shows the skip duration on each transport button", () => {
+  const t = renderControls();
+  for (const [name, value] of [[t.tooltipSkipBack5, "5"], [t.tooltipSkipBack1, "1"], [t.tooltipSkipFwd1, "1"], [t.tooltipSkipFwd5, "5"]] as const) {
+    expect(screen.getByRole("button", { name }).textContent).toContain(value);
+  }
+});
