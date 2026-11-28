@@ -251,6 +251,18 @@ describe("AudioPlayer — local audio loading", () => {
     }
   });
 
+  it("does not recenter while the user drags the waveform scrollbar", async () => {
+    resetLrc([], null);
+    const { container } = render(<AudioPlayer />);
+    act(() => useLrcStore.setState({ audioPath: "/music/scrollbar.mp3" }));
+    await waitFor(() => expect(loadSpy).toHaveBeenCalled());
+    act(() => wsHandlers.ready());
+    wsMock.setScroll.mockClear();
+    fireEvent.pointerDown(container.querySelector(".ls-player-waveform")!);
+    act(() => wsHandlers.timeupdate(50));
+    expect(wsMock.setScroll).not.toHaveBeenCalled();
+  });
+
   it("repositions a paused playhead after the waveform viewport is resized", async () => {
     resetLrc([], null);
     setWaveformViewportWidth(400);

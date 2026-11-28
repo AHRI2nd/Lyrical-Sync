@@ -102,9 +102,15 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     let disposed = false;
     const container = containerRef.current;
     let manualScrollUntil = 0;
+    let pointerActive = false;
     const deferFollow = () => { manualScrollUntil = Date.now() + 2000; };
+    const beginPointer = () => { pointerActive = true; deferFollow(); };
+    const endPointer = () => { if (pointerActive) { pointerActive = false; deferFollow(); } };
     container.addEventListener("wheel", deferFollow, { passive: true });
     container.addEventListener("touchmove", deferFollow, { passive: true });
+    container.addEventListener("pointerdown", beginPointer);
+    window.addEventListener("pointerup", endPointer);
+    window.addEventListener("pointercancel", endPointer);
     const ws = WaveSurfer.create({
       container,
       waveColor: "#b8a8e8",
@@ -140,7 +146,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
       resizeFrame = requestAnimationFrame(() => {
         resizeFrame = null;
-        if (!disposed && wsRef.current === ws) keepPlayheadAtLeadingQuarter(ws.getCurrentTime());
+        if (!disposed && wsRef.current === ws && !pointerActive && Date.now() >= manualScrollUntil) keepPlayheadAtLeadingQuarter(ws.getCurrentTime());
       });
     };
     window.addEventListener("resize", updatePlayheadAfterResize);
@@ -177,7 +183,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     });
     ws.on("audioprocess", (t) => {
       if (disposed || wsRef.current !== ws) return;
-      if (Date.now() >= manualScrollUntil) keepPlayheadAtLeadingQuarter(t);
+      if (!pointerActive && Date.now() >= manualScrollUntil) keepPlayheadAtLeadingQuarter(t);
       setCurrentTimeLocal(t);
       if (!inService()) setCurrentTime(t);
       const { loopLineId, doc } = useLrcStore.getState();
@@ -195,7 +201,7 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
     });
     ws.on("timeupdate", (t) => {
       if (disposed || wsRef.current !== ws) return;
-      if (Date.now() >= manualScrollUntil) keepPlayheadAtLeadingQuarter(t);
+      if (!pointerActive && Date.now() >= manualScrollUntil) keepPlayheadAtLeadingQuarter(t);
     });
     ws.on("play", () => {
       if (disposed || wsRef.current !== ws) return; setIsPlayingLocal(true); if (!inService()) setIsPlaying(true); });
@@ -222,6 +228,9 @@ export function AudioPlayer({ onSpotifySearch, onSpotifyNoClientId }: AudioPlaye
       disposed = true;
       container.removeEventListener("wheel", deferFollow);
       container.removeEventListener("touchmove", deferFollow);
+      container.removeEventListener("pointerdown", beginPointer);
+      window.removeEventListener("pointerup", endPointer);
+      window.removeEventListener("pointercancel", endPointer);
       window.removeEventListener("resize", updatePlayheadAfterResize);
       if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
       ws.destroy();
