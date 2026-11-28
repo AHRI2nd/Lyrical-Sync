@@ -8,6 +8,17 @@ import {useSettingsStore} from '../../stores/useSettingsStore';
 import {useI18nStore} from '../../stores/useI18nStore';
 afterEach(cleanup);
 beforeEach(()=>useSettingsStore.setState({autoSave:true,showTranslationLines:false}));
+it('preserves update check states and action', async()=>{
+ useI18nStore.getState().setLang('en');const t=useI18nStore.getState().t;const check=vi.fn();
+ const view=render(<GeneralSettingsTab checkState="idle" onCheckNow={check}/>);
+ await userEvent.setup().click(screen.getByRole('button',{name:t.settingsCheckNow}));expect(check).toHaveBeenCalledTimes(1);
+ view.rerender(<GeneralSettingsTab checkState="checking" onCheckNow={check}/>);
+ expect(screen.getByRole('button',{name:t.settingsChecking}).hasAttribute('disabled')).toBe(true);
+ view.rerender(<GeneralSettingsTab checkState="error" onCheckNow={check}/>);
+ expect(screen.getByRole('alert').textContent).toBe(t.updater.errorTitle);
+ view.rerender(<GeneralSettingsTab checkState="upToDate" onCheckNow={check}/>);
+ expect(screen.getByText(t.settingsUpToDate)).toBeTruthy();
+});
 for(const lang of ['ko','en','ja'] as const)it(`names all six general switches in ${lang}`,()=>{
  useI18nStore.getState().setLang(lang);const {t}=useI18nStore.getState();render(<GeneralSettingsTab checkState="idle" onCheckNow={()=>{}}/>);
  expect(screen.getAllByRole('switch')).toHaveLength(6);
