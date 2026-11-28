@@ -822,11 +822,12 @@ function App() {
     <div
       className="ls-readable flex flex-col bg-[var(--ls-canvas)] text-white overflow-hidden"
       style={{
+        "--ls-ui-scale": uiScale,
         transform: `scale(${uiScale})`,
         transformOrigin: "top left",
         width: `${(100 / uiScale).toFixed(4)}vw`,
         height: `${(100 / uiScale).toFixed(4)}vh`,
-      }}
+      } as React.CSSProperties}
     >
       <header
         onPointerDown={(event) => {
@@ -840,7 +841,7 @@ function App() {
       >
         <span className="ls-app-brand flex items-center gap-2 font-semibold text-[var(--ls-text)] mr-2 shrink-0"><img src={appIcon} alt="" aria-hidden="true" className="w-6 h-6 rounded-md" style={{ filter: "saturate(0.55) hue-rotate(12deg)" }} />Lyrical Sync</span>
         <span aria-hidden="true" className="ls-header-separator" />
-        <div className="ls-header-document flex items-center min-w-0 shrink-0">
+        <div className="ls-header-document flex items-center min-w-0 shrink">
           <div
             className="ls-header-file-menu relative min-w-0"
             ref={headerFileMenuRef}
@@ -855,6 +856,7 @@ function App() {
           >
             <button
               ref={headerFileMenuTriggerRef}
+              data-modal-focus-peer="batch"
               type="button"
               aria-label={`${title}, ${t.modeSelect}`}
               aria-expanded={showHeaderFileMenu}
